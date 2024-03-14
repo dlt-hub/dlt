@@ -16,7 +16,7 @@ Once you [created a new pipeline](create-a-pipeline) or
 (or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script,
 like the one below that loads the data from [chess.com](https://www.chess.com) API:
 
-```python
+```py
 import dlt
 from chess import chess
 
@@ -34,7 +34,7 @@ packages. The `run` method returns a `load_info` object that, when printed, disp
 with pipeline and dataset names, ids of the load packages, optionally with the information on failed
 jobs. Add the following line to your script:
 
-```python
+```py
 print(load_info)
 ```
 
@@ -54,20 +54,20 @@ progress bars or console logging to observe what pipeline is doing. We support m
 progress bar libraries, Python loggers or just a text console. To demonstrate, let's modify the
 script to get a year of chess games data:
 
-```python
+```py
 data = chess(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_month="2022/12")
 ```
 
 Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlighten displays
 progress bars that can be mixed with log messages:
 
-```sh
+```shell
 pip install enlighten
 ```
 
 Run your script setting the `PROGRESS` environment variable to the library name:
 
-```sh
+```shell
 PROGRESS=enlighten python chess_pipeline.py
 ```
 
@@ -75,7 +75,7 @@ Other libraries that you can use are [tqdm](https://github.com/tqdm/tqdm),
 [alive_progress](https://github.com/rsalmei/alive-progress). Set the name to `log` to dump progress
 to console periodically:
 
-```sh
+```shell
 PROGRESS=log python chess_pipeline.py
 ```
 
@@ -86,7 +86,7 @@ PROGRESS=log python chess_pipeline.py
 You can quickly inspect the generated tables, the data, see how many rows were loaded to which
 table, do SQL queries etc. by executing the following command from the same folder as your script:
 
-```sh
+```shell
 dlt pipeline chess_pipeline show
 ```
 
@@ -110,29 +110,29 @@ Collecting usage statistics. To deactivate, set browser.gatherUsageStats to Fals
 particular tables. The packages are identified by **load_id**, that you can see in the printout
 above or get by running the following command:
 
-```sh
+```shell
 dlt pipeline chess_pipeline info
 ```
 
 You can inspect the package, get list of jobs and in case of failed ones, get the associated error
 messages.
 - See the most recent load package info:
-  ```sh
+  ```shell
   dlt pipeline chess_pipeline load-package
   ```
 - See package info with given load id:
-  ```sh
+  ```shell
   dlt pipeline chess_pipeline load-package 1679931001.985323
   ```
 - Also see the schema changes introduced in the package:
-  ```sh
+  ```shell
   dlt pipeline -v chess_pipeline load-package
   ```
 
 `dlt` stores the trace of the most recent data load. The trace contains information on the pipeline
 processing steps: `extract`, `normalize` and `load`. It also shows the last `load_info`:
 
-```sh
+```shell
 dlt pipeline chess_pipeline trace
 ```
 
@@ -153,7 +153,7 @@ to solving your problem. Let us know if you come across one that is not clear to
 The most common exception that you will encounter looks like this. Here we modify our
 `chess_pipeline.py` script to load data into postgres, but we are not providing the password.
 
-```bash
+```shell
 CREDENTIALS="postgres://loader@localhost:5432/dlt_data" python chess_pipeline.py
 ...
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['password'] in configuration with spec PostgresCredentials
@@ -203,7 +203,7 @@ credentials.password="loader"
 `dlt` will raise `PipelineStepFailed` exception to inform you of a problem encountered during
 execution of particular step. You can catch those in code:
 
-```python
+```py
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 try:
@@ -215,7 +215,7 @@ except PipelineStepFailed as step_failed:
 
 Or use `trace` command to review the last exception. Here we provided a wrong postgres password:
 
-```sh
+```shell
 dlt pipeline chess_pipeline trace
 ```
 
@@ -245,7 +245,7 @@ What now?
 
 Investigate further with following command:
 
-```sh
+```shell
 dlt pipeline chess_pipeline failed-jobs
 ```
 

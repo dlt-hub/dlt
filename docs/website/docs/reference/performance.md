@@ -131,7 +131,7 @@ Please make sure that you have the `psutils` package installed (note that Airflo
 progress="log"
 ```
 or when running the pipeline:
-```sh
+```shell
 PROGRESS=log python pipeline_script.py
 ```
 
@@ -514,7 +514,7 @@ next_item_mode="fifo"
 - Dataclasses
 
 Import the module as follows
-```python
+```py
 from dlt.common import json
 ```
 
@@ -536,18 +536,18 @@ For most use cases this is a drop in replacement for `requests`, so:
 
 :heavy_multiplication_x: **Don't**
 
-```python
+```py
 import requests
 ```
 :heavy_check_mark: **Do**
 
-```python
+```py
 from dlt.sources.helpers import requests
 ```
 
 And use it just like you would use `requests`:
 
-```python
+```py
 response = requests.get('https://example.com/api/contacts', headers={'Authorization': MY_API_KEY})
 data = response.json()
 ...
@@ -590,7 +590,7 @@ For more control you can create your own instance of `dlt.sources.requests.Clien
 
 This lets you customize which status codes and exceptions to retry on:
 
-```python
+```py
 from dlt.sources.helpers import requests
 
 http_client = requests.Client(
@@ -604,7 +604,7 @@ This is sometimes needed when loading from non-standard APIs which don't use HTT
 
 For example:
 
-```python
+```py
 from dlt.sources.helpers import requests
 
 def retry_if_error_key(response: Optional[requests.Response], exception: Optional[BaseException]) -> bool:

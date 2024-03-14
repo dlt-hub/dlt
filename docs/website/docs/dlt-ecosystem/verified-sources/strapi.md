@@ -50,7 +50,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init strapi duckdb
    ```
 
@@ -73,7 +73,7 @@ For more information, read the guide on [how to add a verified source](../../wal
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```python
+   ```py
    # put your secret values and credentials here. do not share this file and do not push it to github
    [sources.strapi]
    api_secret_key = "api_secret_key" # please set me up!
@@ -96,13 +96,13 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```shell
    python strapi_pipeline.py
    ```
 
@@ -113,7 +113,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
 
@@ -131,7 +131,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function retrives data from Strapi.
 
-```python
+```py
 @dlt.source
 def strapi_source(
     endpoints: List[str],
@@ -155,7 +155,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="strapi",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -165,7 +165,7 @@ verified source.
 
 1. To load the specified endpoints:
 
-   ```python
+   ```py
    endpoints = ["athletes"]
    load_data = strapi_source(endpoints=endpoints)
 

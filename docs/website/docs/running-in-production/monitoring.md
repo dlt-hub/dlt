@@ -83,7 +83,7 @@ Normalized data for the following tables:
 ```
 
 To load these info back to the destination you can use the following:
-```python
+```py
 # Create a pipeline with the specified name, destination, and dataset
 # Run the pipeline
 
@@ -111,7 +111,7 @@ dlt pipeline <pipeline_name> load-package
 
 The above information can also be obtained from the script as follows:
 
-```python
+```py
 info = pipeline.run(source, table_name="table_name", write_disposition='append')
 
 print(info.load_packages[0])

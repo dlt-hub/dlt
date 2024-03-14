@@ -23,7 +23,7 @@ initialize a Git repository in your `dlt` project directory and push it to GitHu
 
 Before you can deploy, you must run your pipeline locally at least once.
 
-```bash
+```shell
 python3 {pipeline_name}_pipeline.py
 ```
 
@@ -31,12 +31,12 @@ This should successfully load data from the source to the destination once and a
 
 ## 3. Initialize deployment
 First you need to add additional dependencies that `deploy` command requires:
-```bash
+```shell
 pip install "dlt[cli]"
 ```
 
 then:
-```bash
+```shell
 dlt deploy {pipeline_name}_pipeline.py airflow-composer
 ```
 
@@ -65,7 +65,7 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 ## Example with the pipedrive pipeline
 
 ### 1. Run the deploy command
-```bash
+```shell
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
 where `pipedrive_pipeline.py` is the pipeline script that you just ran and `airflow-composer` is a deployment method. The command will create deployment files and provide instructions to set up the credentials.
@@ -92,7 +92,7 @@ pipedrive_api_key = "c66..."
 
 > 💡 `deploy` command will use [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as `toml` fragment. You can also use **environment variables** by passing `--secrets-format env` option:
 
-```bash
+```shell
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
 ```
 which will output the environment variable names and their values.
@@ -114,7 +114,7 @@ c66c..
 In directory `dags/` you can find the file `dag_pipedrive.py` that you need to edit. It has the
 following structure:
 
-```python
+```py
 import dlt
 from airflow.decorators import dag
 from dlt.common import pendulum
@@ -169,7 +169,7 @@ load_data()
     (`use_task_logger=True`) and set the retry policy as a Retrying class object with three restart
     attempts.
 
-  ```python
+  ```py
   from tenacity import Retrying, stop_after_attempt
 
   # Set `use_data_folder` to True to store temporary data on the `data` bucket.
@@ -193,7 +193,7 @@ created DAG script.
 
 - Import your sources from your existing pipeline script - after task group is created:
 
-  ```python
+  ```py
   # Import your source from pipeline script
   from pipedrive import pipedrive_source
   ```
@@ -202,7 +202,7 @@ created DAG script.
   then copy it here. For example, look at the `load_from_start_date` function in
   `pipedrive_pipeline.py`:
 
-  ```python
+  ```py
   """Example to incrementally load activities limited to items updated after a given date"""
 
   pipeline = dlt.pipeline(
@@ -231,7 +231,7 @@ created DAG script.
   activities_source\]), so we have to add them sequentially. See
   [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
-  ```python
+  ```py
   # Create the source,
   # the "serialize" decompose option will convert
   # dlt resources into Airflow tasks.
@@ -265,7 +265,7 @@ created DAG script.
 
 As a result, we will get a script of the following form:
 
-```python
+```py
 import dlt
 from airflow.decorators import dag
 from dlt.common import pendulum
@@ -446,19 +446,19 @@ There are two ways to pass the credentials
 
    Add stage deployment files to commit. Use your Git UI or the following command:
 
-   ```bash
+   ```shell
    git add dags/dag_pipedrive.py build/cloudbuild.yaml
    ```
 
    Commit the files above. Use your Git UI or the following command:
 
-   ```bash
+   ```shell
    git commit -m 'initiate pipedrive pipeline with Airflow'
    ```
 
    Push changes to GitHub. Use your Git UI or the following command:
 
-   ```bash
+   ```shell
    git push origin
    ```
 
@@ -497,7 +497,7 @@ unacceptable data structure and provided `decompose = "serialize"`.
 
 For example:
 
-```python
+```py
 tasks.add_run(
     pipeline=pipeline,
     data=[source, activities_source],
@@ -512,7 +512,7 @@ Airflow tasks.
 PipelineTasksGroup can't handle the list of sources in the “serialize” mode, it can only decompose
 `DltSource`, so we have to add them sequentially:
 
-```python
+```py
 tasks.add_run(
     pipeline=pipeline,
     data=source,
@@ -531,7 +531,7 @@ Or you should set the `decompose = "none”` to run it as the one Airflow task.
 
 In case of `pipedrive` pipeline we tried to load data from “custom_fields_mapping” twice.
 
-```python
+```py
 # First source configure to load everything except activities from the beginning
 source = pipedrive_source()
 source.resources["activities"].selected = False
@@ -545,7 +545,7 @@ activities_source = pipedrive_source(
 
 Because of this we got the following error:
 
-```python
+```py
 airflow.exceptions.DuplicateTaskIdFound:
 Task id ‘pipedrive.pipedrive_custom_fields_mapping’ has already been added to the DAG
 ```
@@ -554,7 +554,7 @@ Task ids in the task group should be still unique globally, so in this case we h
 “custom_fields_mapping” from `activities_source`. “custom_fields_mapping” will be taken from the
 current state to translate custom field hashes to names:
 
-```python
+```py
 activities_source = pipedrive_source(
     since_timestamp="2023-03-01 00:00:00Z"
 ).with_resources("activities")

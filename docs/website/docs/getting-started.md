@@ -20,13 +20,13 @@ Let's get started!
 
 Install dlt using `pip`:
 
-```bash
+```shell
 pip install -U dlt
 ```
 
 The command above installs (or upgrades) the library core, in the example below we use DuckDB as a destination so let's add a `duckdb` dependency:
 
-```bash
+```shell
 pip install "dlt[duckdb]"
 ```
 
@@ -63,13 +63,13 @@ When you look at the code above, you can see that we:
 
 Save this Python script with the name `quick_start_pipeline.py` and run the following command:
 
-```bash
+```shell
 python quick_start_pipeline.py
 ```
 
 The output should look like:
 
-```bash
+```shell
 Pipeline quick_start completed in 0.59 seconds
 1 load package(s) were loaded to destination duckdb and into dataset mydata
 The duckdb destination used duckdb:////home/user-name/quick_start/quick_start.duckdb location to store data
@@ -82,13 +82,13 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
 
-```bash
+```shell
 dlt pipeline quick_start show
 ```
 
 **quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
 
-```bash
+```shell
 pip install streamlit
 ```
 

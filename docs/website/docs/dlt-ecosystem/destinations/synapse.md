@@ -86,7 +86,7 @@ destination.synapse.credentials = "synapse://loader:your_loader_password@your_sy
 ```
 
 To pass credentials directly you can use the `credentials` argument of `dlt.destinations.synapse(...)`:
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name='chess',
     destination=dlt.destinations.synapse(
@@ -117,7 +117,7 @@ Data is loaded via `INSERT` statements by default.
 ## Table index type
 The [table index type](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index) of the created tables can be configured at the resource level with the `synapse_adapter`:
 
-```python
+```py
 info = pipeline.run(
     synapse_adapter(
         data=your_resource,
@@ -156,7 +156,7 @@ Please refer to the [Azure Blob Storage filesystem documentation](./filesystem.m
 
 To run Synapse with staging on Azure Blob Storage:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the snowflake destination
 # via staging on Azure Blob Storage

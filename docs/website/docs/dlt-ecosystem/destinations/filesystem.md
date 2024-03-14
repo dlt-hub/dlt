@@ -17,7 +17,7 @@ This installs `s3fs` and `botocore` packages.
 
 You may also install the dependencies independently.
 Try:
-```sh
+```shell
 pip install dlt
 pip install s3fs
 ```
@@ -29,7 +29,7 @@ so pip does not fail on backtracking.
 ### 1. Initialise the dlt project
 
 Let's start by initialising a new dlt project as follows:
-   ```bash
+   ```shell
    dlt init chess filesystem
    ```
    > 💡 This command will initialise your pipeline with chess as the source and the AWS S3 filesystem as the destination.

@@ -308,7 +308,7 @@ schema available via `dlt.current.source_schema()`.
 
 Example:
 
-```python
+```py
 @dlt.source
 def textual(nesting_level: int):
     # get the source schema from the `current` context

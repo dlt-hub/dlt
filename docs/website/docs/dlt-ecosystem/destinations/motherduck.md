@@ -83,7 +83,7 @@ If your connection is of poor quality and you get a timeout when executing a DML
 
 ### I see some exception with home_dir missing when opening `md:` connection.
 Some internal component (HTTPS) requires the **HOME** env variable to be present. Export such a variable to the command line. Here is what we do in our tests:
-```python
+```py
 os.environ["HOME"] = "/tmp"
 ```
 before opening the connection.

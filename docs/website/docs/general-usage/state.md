@@ -15,7 +15,7 @@ You read and write the state in your resources. Below we use the state to create
 game archives which we then use to
 [prevent requesting duplicates](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities).
 
-```python
+```py
 @dlt.resource(write_disposition="append")
 def players_games(chess_url, player, start_month=None, end_month=None):
     # create or request a list of archives from resource scoped state
@@ -114,7 +114,7 @@ could:
 You can inspect pipeline state with
 [`dlt pipeline` command](../reference/command-line-interface.md#dlt-pipeline):
 
-```sh
+```shell
 dlt pipeline -v chess_pipeline info
 ```
 

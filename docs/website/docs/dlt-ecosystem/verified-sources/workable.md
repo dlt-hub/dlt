@@ -65,7 +65,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init workable duckdb
    ```
 
@@ -117,20 +117,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```shell
    python workable_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
 
@@ -146,7 +146,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 Note the default definitions of DEFAULT_ENDPOINTS and DEFAULT_DETAILS in "workable/settings.py".
 
-```python
+```py
 DEFAULT_ENDPOINTS = ("members", "recruiters", "stages", "requisitions", "jobs", "custom_attributes","events")
 
 DEFAULT_DETAILS = {
@@ -164,7 +164,7 @@ endpoints allow incremental 'merge' mode loading.
 
 This source returns a sequence of dltResources that correspond to the endpoints.
 
-```python
+```py
 @dlt.source(name="workable")
 def workable_source(
     access_token: str = dlt.secrets.value,
@@ -187,7 +187,7 @@ def workable_source(
 
 This function is used to retrieve "candidates" endpoints.
 
-```python
+```py
 @dlt.resource(name="candidates", write_disposition="merge", primary_key="id")
 def candidates_resource(
     updated_at: Optional[Any] = dlt.sources.incremental(
@@ -211,7 +211,7 @@ To create your data pipeline using single loading and
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="workable",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -221,7 +221,7 @@ To create your data pipeline using single loading and
 
 1. To load all data:
 
-   ```python
+   ```py
    load_data = workable_source()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -232,7 +232,7 @@ To create your data pipeline using single loading and
 
 1. To load data from a specific date, including dependent endpoints:
 
-   ```python
+   ```py
    load_data = workable_source(start_date=datetime(2022, 1, 1), load_details=True)
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -244,7 +244,7 @@ To create your data pipeline using single loading and
 
 1. To load custom endpoints “candidates” and “members”:
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data.with_resources("candidates", "members")
    # print the information on data that was loaded
    print(load_info)
@@ -255,7 +255,7 @@ To create your data pipeline using single loading and
 1. To load data from the “jobs” endpoint and its dependent endpoints like "activities" and
    "application_form":
 
-   ```python
+   ```py
    load_data = workable_source(start_date=datetime(2022, 2, 1), load_details=True)
    # Set the load_details as True to load all the dependent endpoints.
    load_info = pipeline.run(load_data.with_resources("jobs","jobs_activities","jobs_application_form"))

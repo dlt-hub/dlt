@@ -10,7 +10,7 @@ keywords: [parquet, file formats]
 
 To use this format, you need a `pyarrow` package. You can get this package as a `dlt` extra as well:
 
-```sh
+```shell
 pip install dlt[parquet]
 ```
 
@@ -20,7 +20,7 @@ Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**, **Athena*
 
 By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will store your data in the parquet format at the destination:
 
-```python
+```py
 info = pipeline.run(some_source(), loader_file_format="parquet")
 ```
 

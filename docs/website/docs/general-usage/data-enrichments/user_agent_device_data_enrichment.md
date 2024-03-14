@@ -41,7 +41,7 @@ Here's the link to the notebook:
 ### B. Create a pipeline
 Alternatively, to create a data enrichment pipeline, you can start by creating the following directory structure:
 
-```python
+```py
 user_device_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -67,7 +67,7 @@ user_device_enrichment/
 
    Here's the resource that yields the sample data as discussed above:
 
-   ```python
+   ```py
      import dlt
 
      @dlt.resource(write_disposition="append")
@@ -118,7 +118,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```python
+   ```py
    [sources]
    api_key= "Please set me up!"  #Serp Api key.
    ```
@@ -126,7 +126,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Replace the value of the `api_key`.
 
 1. Create `fetch_average_price()` function as follows:
-   ```python
+   ```py
    import datetime
    import requests
 
@@ -247,7 +247,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```python
+   ```py
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_one",
@@ -266,7 +266,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    do so, you need to add the transformer decorator at the top of the `fetch_average_price` function.
    For `pipeline.run`, you can use the following code:
 
-   ```python
+   ```py
    # using fetch_average_price as a transformer function
    load_info = pipeline.run(
        tracked_data | fetch_average_price,

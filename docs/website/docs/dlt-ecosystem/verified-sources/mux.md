@@ -46,7 +46,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init mux duckdb
    ```
 
@@ -88,16 +88,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python mux_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is
@@ -115,7 +115,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function yields resources "asset_resource" and "views_resource" to load video assets and views.
 
-```python
+```py
 @dlt.source
 def mux_source() -> Iterable[DltResource]:
     yield assets_resource
@@ -126,7 +126,7 @@ def mux_source() -> Iterable[DltResource]:
 
 The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint.
 
-```python
+```py
 @dlt.resource(write_disposition="merge")
 def assets_resource(
     mux_api_access_token: str = dlt.secrets.value,
@@ -145,7 +145,7 @@ def assets_resource(
 
 This function yields data about every video view from yesterday to be loaded.
 
-```python
+```py
 @dlt.resource(write_disposition="append")
 def views_resource(
     mux_api_access_token: str = dlt.secrets.value,
@@ -165,7 +165,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-    ```python
+    ```py
     pipeline = dlt.pipeline(
         pipeline_name="mux_pipeline", # Use a custom name if desired
         destination="bigquery", # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -175,21 +175,21 @@ verified source.
 
 1. To load metadata about every asset to be loaded:
 
-    ```python
+    ```py
     load_info = pipeline.run(mux_source().with_resources("assets_resource")
     print(load_info)
     ```
 
 1. To load data for each video view from yesterday:
 
-    ```python
+    ```py
     load_info = pipeline.run(mux_source().with_resources("views_resource")
     print(load_info)
     ```
 
 1. To load both metadata about assets and video views from yesterday:
 
-    ```python
+    ```py
     load_info = pipeline.run(mux_source())
     print(load_info)
     ```

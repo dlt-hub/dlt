@@ -15,7 +15,7 @@ BigQuery:
 
 ## 1. Replace the "destination" argument with "bigquery"
 
-```python
+```py
 import dlt
 from chess import chess
 

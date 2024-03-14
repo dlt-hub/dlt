@@ -13,7 +13,7 @@ This destination helps you load data into Weaviate from [dlt resources](../../ge
 
 1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
-```bash
+```shell
 pip install dlt[weaviate]
 ```
 
@@ -41,7 +41,7 @@ The `url` will default to **http://localhost:8080** and `api_key` is not defined
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
-```python
+```py
 import dlt
 from dlt.destinations.adapters import weaviate_adapter
 
@@ -63,7 +63,7 @@ movies = [
 
 4. Define the pipeline:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="weaviate",
@@ -73,7 +73,7 @@ pipeline = dlt.pipeline(
 
 5. Run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -84,7 +84,7 @@ info = pipeline.run(
 
 6. Check the results:
 
-```python
+```py
 print(info)
 ```
 
@@ -96,7 +96,7 @@ Weaviate destination is different from other [dlt destinations](../destinations/
 
 The `weaviate_adapter` is a helper function that configures the resource for the Weaviate destination:
 
-```python
+```py
 weaviate_adapter(data, vectorize, tokenization)
 ```
 
@@ -109,7 +109,7 @@ Returns: a [dlt resource](../../general-usage/resource.md) object that you can p
 
 Example:
 
-```python
+```py
 weaviate_adapter(
     resource,
     vectorize=["title", "description"],
@@ -133,7 +133,7 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -148,7 +148,7 @@ info = pipeline.run(
 The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data in the destination.
 For the `merge` disposition, you would need to specify a `primary_key` for the resource:
 
-```python
+```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -203,7 +203,7 @@ However, if you prefer to have class names without the dataset prefix, skip the 
 
 For example:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="weaviate",

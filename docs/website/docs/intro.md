@@ -14,7 +14,7 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 
 `dlt` is an open-source library that you can add to your Python scripts to load data
 from various and often messy data sources into well-structured, live datasets. To get started, install it with:
-```sh
+```shell
 pip install dlt
 ```
 Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more.
@@ -54,7 +54,7 @@ load_info = pipeline.run(data, table_name="player")
 <!--@@@DLT_SNIPPET_END api-->
 
 Copy this example to a file or a Jupyter Notebook and run it. To make it work with the DuckDB destination, you'll need to install the **duckdb** dependency (the default `dlt` installation is really minimal):
-```sh
+```shell
 pip install "dlt[duckdb]"
 ```
 Now **run** your Python file or Notebook cell.
@@ -70,7 +70,7 @@ loads it into a [destination](general-usage/glossary.md#destination) (here: **du
 
 Initialize the [Slack source](dlt-ecosystem/verified-sources/slack) with `dlt init` command:
 
-```sh
+```shell
 dlt init slack duckdb
 ```
 
@@ -164,7 +164,7 @@ print(load_info)
 <!--@@@DLT_SNIPPET_END db-->
 
 Install **pymysql** driver:
-```sh
+```shell
 pip install sqlalchemy pymysql
 ```
 

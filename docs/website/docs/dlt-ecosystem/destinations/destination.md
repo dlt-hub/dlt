@@ -42,7 +42,7 @@ With the `@dlt.destination` decorator you can convert
 
 A very simple dlt pipeline that pushes a list of items into a sink function might look like this:
 
-```python
+```py
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 
@@ -68,7 +68,7 @@ the sink from your pipeline constructor. Now you can run your pipeline and see t
 
 The full signature of the destination decorator plus its function is the following:
 
-```python
+```py
 @dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_sink", naming="direct")
 def sink(items: TDataItems, table: TTableSchema) -> None:
     ...
@@ -93,7 +93,7 @@ how table and column names are normalized. The default is `direct` which will ke
 ## Adding config variables and secrets
 The destination decorator supports settings and secrets variables. If you, for example, plan to connect to a service that requires an api secret or a login, you can do the following:
 
-```python
+```py
 @dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_sink")
 def my_sink(items: TDataItems, table: TTableSchema, api_key: dlt.secrets.value) -> None:
     ...
@@ -124,7 +124,7 @@ reasons we recommend to keep the multithreaded approach and make sure that you, 
 ## Referencing the sink function
 There are multiple ways to reference the sink function you want to use. These are:
 
-```python
+```py
 # file my_pipeline.py
 
 @dlt.destination(batch_size=10)

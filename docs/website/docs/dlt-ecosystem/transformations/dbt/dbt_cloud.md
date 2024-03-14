@@ -11,7 +11,7 @@ keywords: [transform, sql]
 The DBT Cloud Client is a Python class designed to interact with the dbt Cloud API (version 2).
 It provides methods to perform various operations on dbt Cloud, such as triggering job runs and retrieving job run statuses.
 
-```python
+```py
 from dlt.helpers.dbt_cloud import DBTCloudClientV2
 
 # Initialize the client
@@ -36,7 +36,7 @@ They simplify the process of triggering and monitoring job runs in dbt Cloud.
 This function triggers a job run in dbt Cloud using the specified configuration.
 It supports various customization options and allows for monitoring the job's status.
 
-```python
+```py
 from dlt.helpers.dbt_cloud import run_dbt_cloud_job
 
 # Trigger a job run with default configuration
@@ -58,7 +58,7 @@ If you have already started a job run and have a run ID, then you can use the `g
 This function retrieves the full information about a specific dbt Cloud job run.
 It also supports options for waiting until the run is complete.
 
-```python
+```py
 from dlt.helpers.dbt_cloud import get_dbt_cloud_run_status
 
 # Retrieve status for a specific run

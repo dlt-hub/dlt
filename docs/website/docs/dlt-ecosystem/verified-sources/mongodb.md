@@ -66,30 +66,30 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 1. Connect to MongoDB:
 
-   ```bash
+   ```shell
    mongo "mongodb://dbuser:passwd@your_host:27017"
    ```
 
 1. List all Databases:
 
-   ```bash
+   ```shell
    show dbs
    ```
 
 1. View Collections in a Database:
 
    1. Switch to Database:
-      ```bash
+      ```shell
       use your_database_name
       ```
    1. Display its Collections:
-      ```bash
+      ```shell
       show collections
       ```
 
 1. Disconnect:
 
-   ```bash
+   ```shell
    exit
    ```
 
@@ -115,7 +115,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init mongodb duckdb
    ```
 
@@ -174,16 +174,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python mongodb_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `local_mongo`, you may also
@@ -200,7 +200,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function loads data from a MongoDB database, yielding one or multiple collections to be retrieved.
 
-```python
+```py
 @dlt.source
 def mongodb(
     connection_url: str = dlt.secrets.value,
@@ -226,7 +226,7 @@ def mongodb(
 
 This function fetches a single collection from a MongoDB database using PyMongo.
 
-```python
+```py
 def mongodb_collection(
     connection_url: str = dlt.secrets.value,
     database: Optional[str] = dlt.config.value,
@@ -247,7 +247,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="mongodb_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -257,7 +257,7 @@ verified source.
 
 1. To load all the collections in a database:
 
-   ```python
+   ```py
    load_data = mongodb()
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
@@ -265,7 +265,7 @@ verified source.
 
 1. To load a specific collections from the database:
 
-   ```python
+   ```py
    load_data = mongodb().with_resources("collection_1", "collection_2")
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
@@ -273,7 +273,7 @@ verified source.
 
 1. To load specific collections from the source incrementally:
 
-   ```python
+   ```py
    load_data = mongodb(incremental=dlt.sources.incremental("date")).with_resources("collection_1")
    load_info = pipeline.run(load_data, write_disposition = "merge")
    print(load_info)
@@ -282,7 +282,7 @@ verified source.
 
 1. To load data from a particular collection say "movies" incrementally:
 
-   ```python
+   ```py
    load_data = mongodb_collection(
        collection="movies",
        incremental=dlt.sources.incremental(
@@ -300,7 +300,7 @@ verified source.
 
 1. To incrementally load a table with an append-only disposition using hints:
 
-   ```python
+   ```py
    # Suitable for tables where new rows are added, but existing rows aren't updated.
    # Load data from the 'listingsAndReviews' collection in MongoDB, using 'last_scraped' for incremental addition.
    airbnb = mongodb().with_resources("listingsAndReviews")
@@ -317,7 +317,7 @@ verified source.
 
 1. To load a selected collection and rename it in the destination:
 
-   ```python
+   ```py
     # Create the MongoDB source and select the "collection_1" collection
     source = mongodb().with_resources("collection_1")
 

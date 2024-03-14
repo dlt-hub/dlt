@@ -84,7 +84,7 @@ Here's a summarized version:
 1. To get full token using the client id obtained above, you can follow the [instructions
    here.](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/#creating-the-access-token)
 
-   ```curl
+   ```shell
     curl https://{subdomain}.zendesk.com/api/v2/oauth/tokens.json \
    -X POST \
    -v -u {email_address}:{password} \
@@ -129,7 +129,7 @@ To generate Zendesk chat OAuth token, please refer to this
 1. Record the "CLIENT_ID" and "SUBDOMAIN".
 1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
    press Enter.
-   ```bash
+   ```shell
    https://www.zopim.com/oauth2/authorizations/new?response_type=token&client_id=CLIENT_ID&scope=read%20write&subdomain=SUBDOMAIN
    ```
 1. The call will be made, possibly asking you to log in and select 'Allow' to generate the token.
@@ -160,7 +160,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init zendesk duckdb
    ```
 
@@ -183,7 +183,7 @@ For more information, read the guide on [how to add a verified source.](../../wa
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```python
+   ```py
    #Zendesk support credentials
    [sources.zendesk.credentials]
    subdomain = "subdomain" # Zendesk subdomain
@@ -215,20 +215,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```shell
    python zendesk_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
 
@@ -246,7 +246,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function retrieves data from Zendesk Talk for phone calls and voicemails.
 
-```python
+```py
 @dlt.source(max_table_nesting=2)
 def zendesk_talk(
     credentials: TZendeskCredentials = dlt.secrets.value,
@@ -266,7 +266,7 @@ run.
 
 This function loads data from Zendesk talk endpoint.
 
-```python
+```py
 def talk_resource(
     zendesk_client: ZendeskAPIClient,
     talk_endpoint_name: str,
@@ -305,7 +305,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -315,7 +315,7 @@ verified source.
 
 1. To load data related to support, talk and chat:
 
-   ```python
+   ```py
     #zendesk support source function
     data_support = zendesk_support(load_all=True)
     # zendesk chat source function
@@ -329,7 +329,7 @@ verified source.
 
 1. To load data related to support, chat and talk in incremental mode:
 
-   ```python
+   ```py
     pipeline = dlt.pipeline(
         pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -350,7 +350,7 @@ verified source.
 1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
    for new tickets.
 
-   ```python
+   ```py
     # Load ranges of dates to load between January 1st 2023 and today
     min_start_date = pendulum.DateTime(year=2023, month=1, day=1).in_timezone("UTC")
     max_end_date = pendulum.today()

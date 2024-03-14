@@ -12,7 +12,7 @@ In the example below, we create a dummy source with special characters in the na
 function that we intend to apply to the resource to modify its output (i.e. replacing the German
 umlaut): `replace_umlauts_in_dict_keys`.
 
-```python
+```py
 import dlt
 
 # create a dummy source with umlauts (special characters) in key names (um)

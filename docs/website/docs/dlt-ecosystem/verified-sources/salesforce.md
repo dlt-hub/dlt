@@ -63,7 +63,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init salesforce duckdb
    ```
 
@@ -110,16 +110,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python salesforce_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `salesforce`, you may also use
@@ -137,7 +137,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function returns a list of resources to load users, user_role, opportunity,
 opportunity_line_item, account etc. data from Salesforce API.
 
-```python
+```py
 @dlt.source(name="salesforce")
 def salesforce_source(
     user_name: str = dlt.secrets.value,
@@ -156,7 +156,7 @@ def salesforce_source(
 
 This resource function retrieves records from the Salesforce "User" endpoint.
 
-```python
+```py
 @dlt.resource(write_disposition="replace")
 def sf_user() -> Iterator[Dict[str, Any]]:
     yield from get_records(client, "User")
@@ -176,7 +176,7 @@ the "user_role" endpoint.
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.
 
-```python
+```py
 @dlt.resource(write_disposition="merge")
 def opportunity(
     last_timestamp: Incremental[str] = dlt.sources.incremental(
@@ -215,7 +215,7 @@ To create your data pipeline using single loading and
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="salesforce_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -228,7 +228,7 @@ To create your data pipeline using single loading and
 
 1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
-   ```python
+   ```py
    load_data = salesforce_source()
    source.schema.merge_hints({"not_null": ["id"]})  # Hint for id field not null
    load_info = pipeline.run(load_data)
@@ -241,7 +241,7 @@ To create your data pipeline using single loading and
 
 1. To use the method `pipeline.run()` to load custom endpoints “candidates” and “members”:
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data.with_resources("opportunity", "contact"))
    # print the information on data that was loaded
    print(load_info)
@@ -260,7 +260,7 @@ To create your data pipeline using single loading and
 
 1. To load data from the “contact” in replace mode and “task” incrementally merge mode endpoints:
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data.with_resources("contact", "task"))
    # pretty print the information on data that was loaded
    print(load_info)

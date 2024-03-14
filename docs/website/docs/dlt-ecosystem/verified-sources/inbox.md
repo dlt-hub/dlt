@@ -67,7 +67,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init inbox duckdb
    ```
 
@@ -112,7 +112,7 @@ For more information, read the
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 
@@ -128,7 +128,7 @@ For more information, read the
 
 2. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `standard_inbox`, you may also
@@ -145,7 +145,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 
 This function fetches inbox emails, saves attachments locally, and returns uids, messages, and attachments as resources.
 
-```python
+```py
 @dlt.source
 def inbox_source(
     host: str = dlt.secrets.value,
@@ -182,7 +182,7 @@ def inbox_source(
 
 This resource collects email message UIDs (Unique IDs) from the mailbox.
 
-```python
+```py
 @dlt.resource(name="uids")
 def get_messages_uids(
     initial_message_num: Optional[
@@ -197,7 +197,7 @@ def get_messages_uids(
 
 This resource retrieves emails by UID (Unique IDs), yielding a dictionary with metadata like UID, ID, sender, subject, dates, content type, and body.
 
-```python
+```py
 @dlt.transformer(name="messages", primary_key="message_uid")
 def get_messages(
     items: TDataItems,
@@ -214,7 +214,7 @@ def get_messages(
 Similar to the previous resources, resource `get_attachments` extracts email attachments by UID from the IMAP server.
 It yields file items with attachments in the file_content field and the original email in the message field.
 
-```python
+```py
 @dlt.transformer(
     name="attachments",
     primary_key="file_hash",
@@ -236,7 +236,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="standard_inbox",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -250,7 +250,7 @@ verified source.
 
     - Set `DEFAULT_START_DATE = pendulum.datetime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
-      ```python
+      ```py
       # Retrieve messages from the specified email address.
       messages = inbox_source(filter_emails=("mycreditcard@bank.com",)).messages
       # Configure messages to exclude body and name the result "my_inbox".
@@ -263,7 +263,7 @@ verified source.
       > Please refer to inbox_source() docstring for email filtering options by sender, date, or mime type.
 3. To load messages from multiple emails, including "community@dlthub.com":
 
-   ```python
+   ```py
    messages = inbox_source(
         filter_emails=("mycreditcard@bank.com", "community@dlthub.com.")
    ).messages
@@ -272,7 +272,7 @@ verified source.
 4. In `inbox_pipeline.py`, the `pdf_to_text` transformer extracts text from PDFs, treating each page as a separate data item.
    Using the `pdf_to_text` function to load parsed pdfs from mail to the database:
 
-   ```python
+   ```py
    filter_emails = ["mycreditcard@bank.com", "community@dlthub.com."] # Email senders
    attachments = inbox_source(
         filter_emails=filter_emails, filter_by_mime_type=["application/pdf"]

@@ -17,13 +17,13 @@ pip install dlt[redshift]
 
 Let's start by initializing a new dlt project as follows:
 
-```bash
+```shell
 dlt init chess redshift
 ```
 > 💡 This command will initialize your pipeline with chess as the source and Redshift as the destination.
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for Redshift. You can install the necessary dependencies specified in the requirements file by executing it as follows:
-```bash
+```shell
 pip install -r requirements.txt
 ```
 or with `pip install dlt[redshift]`, which installs the `dlt` library and the necessary dependencies for working with Amazon Redshift as a destination.
@@ -52,7 +52,7 @@ To load data into Redshift, you need to create a Redshift cluster and enable acc
 
 2. The "host" is derived from the cluster endpoint specified in the “General Configuration.” For example:
 
-    ```bash
+    ```shell
     # If the endpoint is:
     redshift-cluster-1.cv3cmsy7t4il.us-east-1.redshift.amazonaws.com:5439/your_database_name
     # Then the host is:
@@ -108,7 +108,7 @@ staging_iam_role="arn:aws:iam::..."
 
 ### Redshift/S3 staging example code
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the redshift destination
 # via staging on s3

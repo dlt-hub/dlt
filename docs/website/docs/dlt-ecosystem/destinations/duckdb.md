@@ -47,7 +47,7 @@ naming="duck_case"
 ```
 
 or via the env variable `SCHEMA__NAMING` or directly in the code:
-```python
+```py
 dlt.config["schema.naming"] = "duck_case"
 ```
 :::caution
@@ -73,7 +73,7 @@ You can configure the following file formats to load data to duckdb:
 By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
 
 The `duckdb` credentials do not require any secret values. You are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
-```python
+```py
 # will load data to files/data.db database file
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
 
@@ -82,7 +82,7 @@ p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='ches
 ```
 
 The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
-```python
+```py
 import duckdb
 db = duckdb.connect()
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)

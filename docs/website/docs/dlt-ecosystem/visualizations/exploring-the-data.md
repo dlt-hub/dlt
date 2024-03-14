@@ -12,7 +12,7 @@ To do so, run the [cli command](../../reference/command-line-interface.md#show-t
 below with your pipeline name. The pipeline name is the name of the
 Python file where your pipeline is defined and also displayed in your terminal when loading:
 
-```bash
+```shell
 dlt pipeline {pipeline_name} show
 ```
 
@@ -33,7 +33,7 @@ pipeline and hide many intricacies of correctly setting up the connection to you
 Execute any SQL query and get results following the Python
 [dbapi](https://peps.python.org/pep-0249/) spec. Below we fetch data from the customers table:
 
-```python
+```py
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 with pipeline.sql_client() as client:
     with client.execute_query(
@@ -54,7 +54,7 @@ natively (i.e. BigQuery and DuckDB), `dlt` uses the native method. Thanks to tha
 frames may be really fast! The example below reads GitHub reactions data from the `issues` table and
 counts reaction types.
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="github_pipeline",
     destination="duckdb",
@@ -79,7 +79,7 @@ The native connection to your destination like BigQuery `Client` or DuckDB `Duck
 available in case you want to do anything special. Below we take the native connection to `duckdb`
 to get `DuckDBPyRelation` from a query:
 
-```python
+```py
 import dlt
 import duckdb
 

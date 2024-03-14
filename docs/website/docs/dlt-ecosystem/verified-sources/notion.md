@@ -50,7 +50,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init notion duckdb
    ```
 
@@ -93,16 +93,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python notion_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
@@ -119,7 +119,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function loads notion databases from notion into the destination.
 
-```python
+```py
 @dlt.source
 def notion_databases(
     database_ids: Optional[List[Dict[str, str]]] = None,
@@ -146,7 +146,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
       pipeline_name="notion",  # Use a custom name if desired
       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -159,7 +159,7 @@ verified source.
 
 1. To load all the integrated databases:
 
-   ```python
+   ```py
    load_data = notion_databases()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -167,7 +167,7 @@ verified source.
 
 1. To load the custom databases:
 
-   ```python
+   ```py
    selected_database_ids = [{"id": "0517dae9409845cba7d","use_name":"db_one"}, {"id": "d8ee2d159ac34cfc"}]
    load_data = notion_databases(database_ids=selected_database_ids)
    load_info = pipeline.run(load_data)

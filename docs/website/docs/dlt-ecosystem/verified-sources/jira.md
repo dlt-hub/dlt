@@ -51,7 +51,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init jira duckdb
    ```
 
@@ -102,16 +102,16 @@ For more information, read [General Usage: Credentials.](../../general-usage/cre
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python jira_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`. You may also
@@ -134,7 +134,7 @@ it is important to note the complete list of the default endpoints given in
 
 This source function creates a list of resources to load data into the destination.
 
-```python
+```py
 @dlt.source
 def jira(
      subdomain: str = dlt.secrets.value,
@@ -152,7 +152,7 @@ def jira(
 This function returns a resource for querying issues using JQL
 [(Jira Query Language)](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/).
 
-```python
+```py
 @dlt.source
 def jira_search(
      subdomain: str = dlt.secrets.value,
@@ -168,7 +168,7 @@ for the [jira source](jira.md#source-jira).
 
 The resource function searches issues using JQL queries and then loads them to the destination.
 
-```python
+```py
 @dlt.resource(write_disposition="replace")
 def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
     api_path = "rest/api/3/search"
@@ -186,7 +186,7 @@ above.
    about pipeline configuration, please refer to our documentation
    [here](https://dlthub.com/docs/general-usage/pipeline):
 
-    ```python
+    ```py
     pipeline = dlt.pipeline(
         pipeline_name="jira_pipeline",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -196,7 +196,7 @@ above.
 
 2. To load custom endpoints such as “issues” and “users” using the jira source function:
 
-    ```python
+    ```py
     #Run the pipeline
     load_info = pipeline.run(jira().with_resources("issues","users"))
     print(f"Load Information: {load_info}")
@@ -205,7 +205,7 @@ above.
 3. To load the custom issues using JQL queries, you can use custom queries. Here is an example
    below:
 
-    ```python
+    ```py
     # Define the JQL queries as follows
     queries = [
               "created >= -30d order by created DESC",

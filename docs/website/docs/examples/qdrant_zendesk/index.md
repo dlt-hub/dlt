@@ -28,7 +28,7 @@ First, configure the destination credentials for [Qdrant](https://dlthub.com/doc
 
 Next, make sure you have the following dependencies installed:
 
-```commandline
+```shell
 pip install qdrant-client>=1.6.9
 pip install fastembed>=0.1.1
 ```
@@ -176,7 +176,7 @@ The query above gives stores the following results in the `response` variable:
  QueryResponse(id='ce2f1c5c-41c3-56c3-a31d-2399a7a9239d', embedding=None, metadata={'_dlt_id': 'ZMuFJZo0AJxV4A', '_dlt_load_id': '1700130284.002391', 'allow_attachments': True, 'allow_channelback': False, 'assignee_id': 12765072569105, 'brand_id': 12765073054225, 'created_at': '2023-03-14T10:52:28+00:00', 'custom_status_id': 12765028278545, 'description': 'X', 'from_messaging_channel': False, 'generated_timestamp': 1696163084, 'group_id': 12765036328465, 'has_incidents': False, 'id': 2, 'is_public': True, 'priority': 'high', 'raw_subject': 'SCRUBBED', 'requester_id': 13726460510097, 'status': 'deleted', 'subject': 'SCRUBBED', 'submitter_id': 12765072569105, 'tags': [], 'ticket_form_id': 13726337882769, 'type': 'question', 'updated_at': '2023-09-01T12:10:35+00:00', 'url': 'https://d3v-dlthub.zendesk.com/api/v2/tickets/2.json', 'via__channel': 'web'}, document='', score=0.8467072)]
 ```
 To get a closer look at what the Zendesk ticket was, and how dlt dealt with it, we can index into the metadata of the first `QueryResponse` object:
-```json lines
+```json
 {'_dlt_id': 'Nx3wBiL29xTgaQ',
  '_dlt_load_id': '1700130284.002391',
  'allow_attachments': True,

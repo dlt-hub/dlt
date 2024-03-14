@@ -117,7 +117,7 @@ print(load_info)
 
 You've noticed that there's a lot of code duplication in the `get_issues` and `get_comments` functions. We can reduce that by extracting the common fetching code into a separate function and use it in both resources. Even better, we can use `dlt.resource` as a function and pass it the `fetch_github_data()` generator function directly. Here's the refactored code:
 
-```python
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -163,7 +163,7 @@ For the next step we'd want to get the [number of repository clones](https://doc
 
 Let's handle this by changing our `fetch_github_data()` first:
 
-```python
+```py
 def fetch_github_data(endpoint, params={}, access_token=None):
     """Fetch data from GitHub API based on endpoint and params."""
     headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
@@ -196,7 +196,7 @@ def github_source(access_token):
 
 Here, we added `access_token` parameter and now we can use it to pass the access token to the request:
 
-```python
+```py
 load_info = pipeline.run(github_source(access_token="ghp_XXXXX"))
 ```
 
@@ -204,7 +204,7 @@ It's a good start. But we'd want to follow the best practices and not hardcode t
 
 To use it, change the `github_source()` function to:
 
-```python
+```py
 @dlt.source
 def github_source(
     access_token: str = dlt.secrets.value,
@@ -228,7 +228,7 @@ access_token = "ghp_A...3aRY"
 
 Now we can run the script and it will load the data from the `traffic/clones` endpoint:
 
-```python
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -278,7 +278,7 @@ load_info = pipeline.run(github_source())
 
 The next step is to make our dlt GitHub source reusable so it can load data from any GitHub repo. We'll do that by changing both `github_source()` and `fetch_github_data()` functions to accept the repo name as a parameter:
 
-```python
+```py
 import dlt
 from dlt.sources.helpers import requests
 

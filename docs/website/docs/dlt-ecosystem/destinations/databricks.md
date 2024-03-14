@@ -148,7 +148,7 @@ Please refer to the [S3 documentation](./filesystem.md#aws-s3) for details on co
 
 Example to set up Databricks with S3 as a staging destination:
 
-```python
+```py
 import dlt
 
 # Create a dlt pipeline that will load
@@ -168,7 +168,7 @@ Refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure
 
 Example to set up Databricks with Azure as a staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Databricks destination
 # via staging on Azure Blob Storage

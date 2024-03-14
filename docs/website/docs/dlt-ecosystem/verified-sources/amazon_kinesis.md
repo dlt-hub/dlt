@@ -57,7 +57,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init kinesis duckdb
    ```
 
@@ -110,16 +110,16 @@ For more information, read [Credentials](../../general-usage/credentials).
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python kinesis_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`. You may
@@ -138,7 +138,7 @@ This resource reads a Kinesis stream and yields messages. It supports
 [incremental loading](../../general-usage/incremental-loading) and parses messages as json by
 default.
 
-```python
+```py
 @dlt.resource(
     name=lambda args: args["stream_name"],
     primary_key="_kinesis_msg_id",
@@ -212,7 +212,7 @@ verified source.
 1. Configure the [pipeline](../../general-usage/pipeline) by specifying the pipeline name,
    destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="kinesis_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -222,7 +222,7 @@ verified source.
 
 1. To load messages from a stream from the last one hour:
 
-   ```python
+   ```py
    # the resource below will take its name from the stream name,
    # it can be used multiple times by default it assumes that Data is json and parses it,
    # here we disable that to just get bytes in data elements of the message
@@ -237,7 +237,7 @@ verified source.
 
 1. For incremental Kinesis streams, to fetch only new messages:
 
-   ```python
+   ```py
    #running pipeline will get only new messages
    info = pipeline.run(kinesis_stream_data)
    message_counts = pipeline.last_trace.last_normalize_info.row_counts
@@ -249,7 +249,7 @@ verified source.
 
 1. To parse json with a simple decoder:
 
-   ```python
+   ```py
    def _maybe_parse_json(item: TDataItem) -> TDataItem:
        try:
            item.update(json.loadb(item["data"]))
@@ -263,7 +263,7 @@ verified source.
 
 1. To read Kinesis messages and send them somewhere without using a pipeline:
 
-   ```python
+   ```py
    from dlt.common.configuration.container import Container
    from dlt.common.pipeline import StateInjectableContext
 

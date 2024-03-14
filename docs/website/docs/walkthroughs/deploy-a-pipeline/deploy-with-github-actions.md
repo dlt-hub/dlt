@@ -30,7 +30,7 @@ This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
 First you need to add additional dependencies that `deploy` command requires:
-```bash
+```shell
 pip install "dlt[cli]"
 ```
 then the command below will create a Github workflow that runs your pipeline script every 30 minutes:

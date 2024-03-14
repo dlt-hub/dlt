@@ -38,7 +38,7 @@ providers.
 
 ### Example
 
-```python
+```py
 @dlt.source
 def google_sheets(
     spreadsheet_id=dlt.config.value,

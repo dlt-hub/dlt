@@ -174,7 +174,7 @@ Add an import to your factory in [`dlt.destinations.__init__`](https://github.co
 
 ## Testing
 We can quickly repurpose existing github source and `secrets.toml` already present in the project to test new destination. Let's assume that the module name is `presto`, same for the destination name and config section name. Here's our testing script `github_pipeline.py`
-```python
+```py
 import dlt
 
 from github import github_repo_events

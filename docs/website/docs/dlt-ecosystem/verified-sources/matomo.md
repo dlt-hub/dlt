@@ -44,7 +44,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init matomo duckdb
    ```
 
@@ -102,16 +102,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python matomo_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `matomo`, you may also
@@ -128,7 +128,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function executes and loads a set of reports defined in "queries" for a specific Matomo site identified by "site_id".
 
-```python
+```py
 @dlt.source(max_table_nesting=2)
 def matomo_reports(
     api_token: str = dlt.secrets.value,
@@ -152,7 +152,7 @@ def matomo_reports(
 
 The function loads visits from current day and the past `initial_load_past_days` in first run. In subsequent runs it continues from last load and skips active visits until closed.
 
-```python
+```py
 def matomo_visits(
     api_token: str = dlt.secrets.value,
     url: str = dlt.config.value,
@@ -184,7 +184,7 @@ def matomo_visits(
 
 This function retrieves site visits within a specified timeframe. If a start date is given, it begins from that date. If not, it retrieves all visits up until now.
 
-```python
+```py
 @dlt.resource(
     name="visits", write_disposition="append", primary_key="idVisit", selected=True
 )
@@ -215,7 +215,7 @@ def get_last_visits(
 
 This function, retrieves unique visit information from get_last_visits.
 
-```python
+```py
 @dlt.transformer(
     data_from=get_last_visits,
     write_disposition="merge",
@@ -242,7 +242,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="matomo",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -255,7 +255,7 @@ verified source.
 
 1. To load the data from reports.
 
-   ```python
+   ```py
    data_reports = matomo_reports()
    load_info = pipeline_reports.run(data_reports)
    print(load_info)
@@ -264,7 +264,7 @@ verified source.
 
 1. To load custom data from reports using queries.
 
-   ```python
+   ```py
    queries = [
        {
            "resource_name": "custom_report_name",
@@ -285,7 +285,7 @@ verified source.
 
 1. To load data from reports and visits.
 
-   ```python
+   ```py
    data_reports = matomo_reports()
    data_events = matomo_visits()
    load_info = pipeline_reports.run([data_reports, data_events])
@@ -294,7 +294,7 @@ verified source.
 
 1. To load data on live visits and visitors, and only retrieve data from today.
 
-   ```python
+   ```py
    load_data = matomo_visits(initial_load_past_days=1, get_live_event_visitors=True)
    load_info = pipeline_events.run(load_data)
    print(load_info)

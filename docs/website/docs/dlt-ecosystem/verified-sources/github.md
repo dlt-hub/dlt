@@ -67,7 +67,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init github duckdb
    ```
 
@@ -110,16 +110,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```shell
    python github_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `github_reactions`, you may
@@ -137,7 +137,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This `dlt.source` function uses GraphQL to fetch DltResource objects: issues and pull requests along
 with associated reactions, comments, and reactions to comments.
 
-```python
+```py
 @dlt.source
 def github_reactions(
     owner: str,
@@ -169,7 +169,7 @@ yet to be implemented. Defaults to None.
 The `dlt.resource` function employs the `_get_reactions_data` method to retrieve data about issues,
 their associated comments, and subsequent reactions.
 
-```python
+```py
 dlt.resource(
     _get_reactions_data(
         "issues",
@@ -193,7 +193,7 @@ on event type. It loads new events only and appends them to tables.
 > Note: Github allows retrieving up to 300 events for public repositories, so frequent updates are
 > recommended for active repos.
 
-```python
+```py
 @dlt.source(max_table_nesting=2)
 def github_repo_events(
     owner: str, name: str, access_token: str = None
@@ -216,7 +216,7 @@ Read more about [nesting levels](../../general-usage/source#reduce-the-nesting-l
 This `dlt.resource` function serves as the resource for the `github_repo_events` source. It yields
 repository events as data items.
 
-```python
+```py
 dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
 def repo_events(
     last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
@@ -244,7 +244,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="github_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -258,7 +258,7 @@ verified source.
 1. To load all the data from repo on issues, pull requests, their comments and reactions, you can do
    the following:
 
-   ```python
+   ```py
    load_data = github_reactions("duckdb", "duckdb")
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -267,7 +267,7 @@ verified source.
 
 1. To load only the first 100 issues, you can do the following:
 
-   ```python
+   ```py
    load_data = github_reactions("duckdb", "duckdb", max_items=100)
    load_info = pipeline.run(load_data.with_resources("issues"))
    print(load_info)
@@ -276,7 +276,7 @@ verified source.
 1. You can use fetch and process repo events data incrementally. It loads all data during the first
    run and incrementally in subsequent runs.
 
-   ```python
+   ```py
    load_data = github_repo_events(
        "duckdb", "duckdb", access_token=os.getenv(ACCESS_TOKEN)
    )

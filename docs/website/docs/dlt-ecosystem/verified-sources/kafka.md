@@ -38,7 +38,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init kafka duckdb
    ```
 
@@ -80,20 +80,20 @@ sasl_password="example_secret"
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 
 2. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```shell
    python kafka_pipeline.py
    ```
 
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
 
@@ -108,7 +108,7 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 
 This function retrieves messages from the given Kafka topics.
 
-```python
+```py
 @dlt.resource(name="kafka_messages", table_name=lambda msg: msg["_kafka"]["topic"], standalone=True)
 def kafka_consumer(
     topics: Union[str, List[str]],
@@ -151,7 +151,7 @@ this offset.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="kafka",     # Use a custom name if desired
         destination="duckdb",      # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -161,7 +161,7 @@ this offset.
 
 2. To extract several topics:
 
-   ```python
+   ```py
    topics = ["topic1", "topic2", "topic3"]
 
    source = kafka_consumer(topics)
@@ -170,7 +170,7 @@ this offset.
 
 3. To extract messages and process them in a custom way:
 
-   ```python
+   ```py
     def custom_msg_processor(msg: confluent_kafka.Message) -> Dict[str, Any]:
         return {
             "_kafka": {
@@ -187,7 +187,7 @@ this offset.
 
 4. To extract messages, starting from a timestamp:
 
-   ```python
+   ```py
     data = kafka_consumer("topic", start_from=pendulum.datetime(2023, 12, 15))
     pipeline.run(data)
    ```

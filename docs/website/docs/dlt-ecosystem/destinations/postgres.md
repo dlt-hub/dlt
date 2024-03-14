@@ -66,7 +66,7 @@ destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_d
 ```
 
 To pass credentials directly, you can use the `credentials` argument passed to the `dlt.pipeline` or `pipeline.run` methods.
-```python
+```py
 pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="postgresql://loader:<password>@localhost/dlt_data")
 ```
 

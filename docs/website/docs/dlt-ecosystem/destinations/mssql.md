@@ -62,7 +62,7 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ```
 
 To pass credentials directly, you can use the `credentials` argument passed to `dlt.pipeline` or `pipeline.run` methods.
-```python
+```py
 pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15")
 ```
 

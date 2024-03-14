@@ -18,7 +18,7 @@ pip install dlt[athena]
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new `dlt` project as follows:
-   ```bash
+   ```shell
    dlt init chess athena
    ```
    > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
@@ -35,7 +35,7 @@ or with `pip install dlt[athena]`, which will install `s3fs`, `pyarrow`, `pyathe
 :::caution
 
 You may also install the dependencies independently. Try
-```sh
+```shell
 pip install dlt
 pip install s3fs
 pip install pyarrow
@@ -122,7 +122,7 @@ If you decide to change the [filename layout](./filesystem#data-loading) from th
 ### Iceberg data tables
 You can save your tables as Iceberg tables to Athena. This will enable you, for example, to delete data from them later if you need to. To switch a resource to the iceberg table format, supply the table_format argument like this:
 
-```python
+```py
 @dlt.resource(table_format="iceberg")
 def data() -> Iterable[TDataItem]:
     ...

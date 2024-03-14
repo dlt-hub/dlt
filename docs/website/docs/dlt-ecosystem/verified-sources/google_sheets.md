@@ -98,7 +98,7 @@ follow these steps:
    After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate
    the refresh token, run the following script from the root folder:
 
-   ```bash
+   ```shell
    python google_sheets/setup_script_gcp_oauth.py
    ```
 
@@ -128,13 +128,13 @@ following:
 
 When setting up the pipeline, you can use either the browser-copied URL of your spreadsheet:
 
-```bash
+```shell
 https://docs.google.com/spreadsheets/d/1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4/edit?usp=sharing
 ```
 
 or spreadsheet id (which is a part of the url)
 
-```bash
+```shell
 1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4
 ```
 
@@ -214,7 +214,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```shell
    dlt init google_sheets duckdb
    ```
 
@@ -296,20 +296,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```shell
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```shell
    python google_sheets_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
 
@@ -328,7 +328,7 @@ Also, since recently `dlt`'s no longer recognizing date and time types, so you h
 Use the `apply_hints` method on the resource to achieve this.
 Here's how you can do it:
 
-```python
+```py
 for resource in resources:
     resource.apply_hints(columns={
         "total_amount": {"data_type": "double"},
@@ -340,7 +340,7 @@ This will ensure that all values in the `total_amount` column are treated as `do
 And `date` column will be represented as dates, not integers.
 
 For a single resource (e.g. `Sheet1`), you can simply use:
-```python
+```py
 source.Sheet1.apply_hints(columns={
     "total_amount": {"data_type": "double"},
     "date": {"data_type": "timestamp"},
@@ -348,7 +348,7 @@ source.Sheet1.apply_hints(columns={
 ```
 
 To get the name of resources, you can use:
-```python
+```py
 print(source.resources.keys())
 ```
 
@@ -371,7 +371,7 @@ or set `full_refresh=True`.
 This function loads data from a Google Spreadsheet. It retrieves data from all specified ranges,
 whether explicitly defined or named, and obtains metadata for the first two rows within each range.
 
-```python
+```py
 def google_spreadsheet(
       spreadsheet_url_or_id: str = dlt.config.value,
       range_names: Sequence[str] = dlt.config.value,
@@ -399,7 +399,7 @@ def google_spreadsheet(
 This function processes each range name provided by the source function, loading its data into
 separate tables in the destination.
 
-```python
+```py
 dlt.resource(
      process_range(rows_data, headers=headers, data_types=data_types),
      name=name,
@@ -429,7 +429,7 @@ This table refreshes after each load, storing information on loaded ranges:
 - Range name as given to the source.
 - String and parsed representation of the loaded range.
 
-```python
+```py
 dlt.resource(
      metadata_table,
      write_disposition="merge",
@@ -457,7 +457,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="google_sheets",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -467,7 +467,7 @@ verified source.
 
 1. To load data from explicit range names:
 
-   ```python
+   ```py
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         range_names=["range_name1", "range_name2"], # Range names
@@ -483,7 +483,7 @@ verified source.
 
 1. To load all the range_names from spreadsheet:
 
-   ```python
+   ```py
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         get_sheets=False,
@@ -497,7 +497,7 @@ verified source.
 
 1. To load all the sheets from spreadsheet:
 
-   ```python
+   ```py
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         get_sheets=True,
@@ -511,7 +511,7 @@ verified source.
 
 1. To load all the sheets and range_names:
 
-   ```python
+   ```py
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         get_sheets=True,
@@ -525,7 +525,7 @@ verified source.
 
 1. To load data from multiple spreadsheets:
 
-   ```python
+   ```py
    load_data1 = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         range_names=["Sheet 1!A1:B10"],
@@ -543,7 +543,7 @@ verified source.
 
 1. To load with table rename:
 
-   ```python
+   ```py
    load_data = google_spreadsheet(
     "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
      range_names=["Sheet 1!A1:B10"],
@@ -583,7 +583,7 @@ Below is the correct way to set up an Airflow DAG  for this purpose:
 
 - When adding the Google Spreadsheet task to the pipeline, avoid decomposing it; run it as a single task for efficiency.
 
-```python
+```py
 @dag(
     schedule_interval='@daily',
     start_date=pendulum.datetime(2023, 2, 1),

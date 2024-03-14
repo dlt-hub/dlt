@@ -33,7 +33,7 @@ Included below is another example where we run a `dlt` pipeline and then a dbt p
 
 > 💡 Docstrings are available to read in your IDE.
 
-```python
+```py
 # load all pipedrive endpoints to pipedrive_raw dataset
 pipeline = dlt.pipeline(
     pipeline_name='pipedrive',

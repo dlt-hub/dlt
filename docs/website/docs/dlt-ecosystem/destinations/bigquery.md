@@ -166,7 +166,7 @@ Alternatively to parquet files, you can specify jsonl as the staging file format
 
 ### BigQuery/GCS Staging Example
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the BigQuery destination
 # via a GCS bucket.
@@ -217,7 +217,7 @@ The adapter updates the DltResource with metadata about the destination column a
 
 Here is an example of how to use the `bigquery_adapter` method to apply hints to a resource on both the column level and table level:
 
-```python
+```py
 from datetime import date, timedelta
 
 import dlt
@@ -258,7 +258,7 @@ Some things to note with the adapter's behavior:
 
 Note that `bigquery_adapter` updates the resource *inplace*, but returns the resource for convenience, i.e. both the following are valid:
 
-```python
+```py
 bigquery_adapter(my_resource, partition="partition_column_name")
 my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 ```

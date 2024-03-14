@@ -73,7 +73,7 @@ understanding, you may explore all three enrichments sequentially in the noteboo
 Alternatively, to create a data enrichment pipeline, you can start by creating the following
 directory structure:
 
-```python
+```py
 url_parser_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -100,7 +100,7 @@ Let's examine a synthetic dataset created for this article. It includes:
 
 Here's the resource that yields the sample data as discussed above:
 
-```python
+```py
   import dlt
 
   @dlt.resource(write_disposition="append")
@@ -143,7 +143,7 @@ We use a free service called [URL Parse API](https://urlparse.com/), to parse th
 need to register to use this service neither get an API key.
 
 1. Create a `url_parser` function as follows:
-   ```python
+   ```py
    # @dlt.transformer(data_from=tracked_data)
    def url_parser(record):
        """
@@ -195,7 +195,7 @@ need to register to use this service neither get an API key.
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```python
+   ```py
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_three",
@@ -214,7 +214,7 @@ need to register to use this service neither get an API key.
    do so, you need to add the transformer decorator at the top of the `url_parser` function. For
    `pipeline.run`, you can use the following code:
 
-   ```python
+   ```py
    # using fetch_average_price as a transformer function
    load_info = pipeline.run(
        tracked_data | url_parser,

@@ -18,7 +18,7 @@ schema. Set up an import folder from which `dlt` will read your modifications by
 
 Following our example in [run a pipeline](run-a-pipeline.md):
 
-```python
+```py
 dlt.pipeline(
     import_schema_path="schemas/import",
     export_schema_path="schemas/export",
@@ -78,7 +78,7 @@ In next steps we'll experiment a lot, you will be warned to set `full_refresh=Tr
 So if you have a `yaml` file, and you change it (e.g. change a data type or add a hint),
 then you need to **delete the dataset**
 or set `full_refresh=True`:
-```python
+```py
 dlt.pipeline(
     import_schema_path="schemas/import",
     export_schema_path="schemas/export",

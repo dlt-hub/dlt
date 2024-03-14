@@ -167,7 +167,7 @@ stage_name=PUBLIC.my_s3_stage
 
 To run Snowflake with S3 as the staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on S3
@@ -196,7 +196,7 @@ stage_name=PUBLIC.my_gcs_stage
 
 To run Snowflake with GCS as the staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on GCS
@@ -227,7 +227,7 @@ stage_name=PUBLIC.my_azure_stage
 
 To run Snowflake with Azure as the staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on Azure
