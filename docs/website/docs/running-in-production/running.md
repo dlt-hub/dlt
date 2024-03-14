@@ -194,8 +194,10 @@ does that for you.
 ```py
 from dlt.common.exceptions import TerminalException
 
-if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstance(ex.__context__, TerminalException)):
-    return False
+def check(ex: Exception):
+    if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstance(ex.__context__, TerminalException)):
+        return False
+    return True
 ```
 
 ### Failed jobs

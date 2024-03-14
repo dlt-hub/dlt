@@ -326,7 +326,7 @@ verified source.
     data_talk = zendesk_talk()
     # run pipeline with all 3 sources
     info = pipeline.run([data_support,data_chat,data_talk])
-    return info
+    print(info)
    ```
 
 1. To load data related to support, chat and talk in incremental mode:
@@ -342,7 +342,7 @@ verified source.
    data_chat = zendesk_chat(start_date=start_date)
    data_talk = zendesk_talk(start_date=start_date)
    info = pipeline.run(data=[data, data_chat, data_talk])
-   return info
+   print(info)
    ```
 
    > Supports incremental loading for Support, Chat, and Talk Endpoints. By default, it fetches data
