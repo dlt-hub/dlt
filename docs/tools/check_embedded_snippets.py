@@ -15,6 +15,7 @@ SNIPPET_MARKER = "```"
 LINT_TEMPLATE = "./lint_setup/template.py"
 LINT_FILE = "./lint_setup/lint_me.py"
 
+
 class Snippet(TypedDict):
     language: str
     code: str
@@ -146,9 +147,10 @@ All code blocks that are not a specific (markup-) language should be marked as t
     print("---")
     print("Linting snippets")
     print("---")
-    
+
     failed_count = {}
     count = {}
+    undefined_names: Dict[str, int] = {}
     with open(LINT_TEMPLATE, "r") as f:
         lint_template = f.read()
     for snippet in snippets:
@@ -160,7 +162,7 @@ All code blocks that are not a specific (markup-) language should be marked as t
             f.write(lint_template)
             f.write("# Snippet start\n\n")
             f.write(snippet["code"])
-        result = subprocess.run(['ruff', 'check', LINT_FILE], capture_output=True, text=True)
+        result = subprocess.run(["ruff", "check", LINT_FILE], capture_output=True, text=True)
         if "error" in result.stdout.lower():
             print(
                 "---\nFailed linting snippet",
@@ -172,17 +174,20 @@ All code blocks that are not a specific (markup-) language should be marked as t
                 "py",
                 "\n---",
             )
+            for l in result.stdout.split("\n"):
+                if "F821" in l:
+                    key = l.split("F821 Undefined name")[-1]
+                    undefined_names[key] = undefined_names.get(key, 0) + 1
             print(result.stdout)
             print(result.stderr)
             failed_count["py"] = failed_count.get("py", 0) + 1
-
-            # raise AssertionError("Failed linting snippet")
-
     with open(LINT_FILE, "w") as f:
         f.write("")
     if failed_count:
         print("Failed to lint the following amount of snippets:")
         print(failed_count)
+        print("Found undefined names")
+        print(json.dumps(undefined_names, indent=4))
         raise AssertionError("Failed linting snippets")
     else:
         print("All snippets could be linted.")
