@@ -105,7 +105,7 @@ sections and key names are separated by "." into the provider-specific formats.
    ```
 
 
-1. When `dlt` evaluates the request `dlt.secrets["my_section.gcp_credentials"]` it must find the private_key for Google credentials. It looks for it as follows:
+1. When `dlt` evaluates the request `dlt.secrets["my_section.gcp_credentials"]` it must find the `private_key` for Google credentials. It looks for it as follows:
    1. It first searches for environment variable `MY_SECTION__GCP_CREDENTIALS__PRIVATE_KEY`  and if not found,
    1. in `secrets.toml` file under `my_section.gcp_credentials.private_key`. 
 
