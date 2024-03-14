@@ -21,7 +21,7 @@ As the structure of data changes, such as the addition of new columns, changing 
 ## Inferring a schema from nested data
 The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into relational format, `dlt` flattens dictionaries and unpacks nested lists into sub-tables.
 
-We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that load the following schema:
+We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that loads the following schema:
 
 ```python
 {
