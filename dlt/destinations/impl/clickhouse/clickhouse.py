@@ -28,6 +28,7 @@ class ClickhouseTypeMapper(TypeMapper):
     sct_to_dbt = {
         "decimal": "Decimal(%i,%i)",
         "wei": "Decimal(%i,%i)",
+        "timestamp": "DateTime(%i)",
     }
 
     dbt_to_sct = {

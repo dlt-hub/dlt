@@ -14,9 +14,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal
 
-    # Muse use 'Decimal128' with these defaults.
+    caps.schema_supports_numeric_precision = True
+    # Use 'Decimal128' with these defaults.
     # https://clickhouse.com/docs/en/sql-reference/data-types/decimal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+    # Use 'Decimal256' with these defaults.
+    caps.wei_precision = (76, 0)
 
     # https://clickhouse.com/docs/en/operations/settings/settings#max_query_size
     caps.is_max_query_length_in_bytes = True
@@ -28,5 +31,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     # https://clickhouse.com/docs/en/guides/developer/transactional#transactions-commit-and-rollback
     caps.supports_transactions = False
     caps.supports_ddl_transactions = False
+
+    caps.supports_truncate_command = True
 
     return caps

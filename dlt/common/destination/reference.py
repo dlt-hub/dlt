@@ -1,4 +1,7 @@
+import datetime  # noqa: 251
+import inspect
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from importlib import import_module
 from types import TracebackType
 from typing import (
@@ -20,11 +23,13 @@ from typing import (
     Generic,
     Final,
 )
-import datetime  # noqa: 251
-from copy import deepcopy
-import inspect
 
 from dlt.common import logger
+from dlt.common.configuration import configspec, resolve_configuration, known_sections
+from dlt.common.configuration.accessors import config
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import (
     IdentifierTooLongException,
     InvalidDestinationReference,
@@ -32,6 +37,7 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.utils import (
     get_write_disposition,
     get_table_format,
@@ -39,15 +45,9 @@ from dlt.common.schema.utils import (
     has_column_with_prop,
     get_first_column_name_with_prop,
 )
-from dlt.common.configuration import configspec, resolve_configuration, known_sections
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.accessors import config
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import is_complete_column
-from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
@@ -131,9 +131,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             )
 
         return (
-            self.dataset_name
-            if not self.dataset_name
-            else schema.naming.normalize_table_identifier(self.dataset_name)
+            schema.naming.normalize_table_identifier(self.dataset_name) if self.dataset_name else self.dataset_name
         )
 
     if TYPE_CHECKING:
@@ -420,8 +418,8 @@ class JobClientBase(ABC):
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             return table
-        except KeyError:
-            raise UnknownTableException(table_name)
+        except KeyError as e:
+            raise UnknownTableException(table_name) from e
 
 
 class WithStateSync(ABC):
@@ -504,7 +502,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_type(self) -> str:
-        full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
+        full_path = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
         return Destination.normalize_type(full_path)
 
     @property
@@ -519,13 +517,12 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
         """Get a fully resolved destination config from the initial config"""
-        config = resolve_configuration(
+        return resolve_configuration(
             initial_config,
             sections=(known_sections.DESTINATION, self.destination_name),
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params,
         )
-        return config
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -541,7 +538,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def normalize_type(destination_type: str) -> str:
         """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
         if "." not in destination_type:
-            destination_type = "dlt.destinations." + destination_type
+            destination_type = f"dlt.destinations.{destination_type}"
         # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
         name = Destination.to_name(destination_type)
         destination_type = destination_type.replace(
