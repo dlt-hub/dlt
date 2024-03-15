@@ -203,7 +203,7 @@ The schema of the data above is loaded to the destination as follows:
 
 The schema evolution engine in the `dlt` library is designed to handle changes in the structure of your data over time. For example: 
 
-- As above in continuation of the inferred schema, the “specifications” are nested in "details”, which are nested in “Inventory”, all under table name “org”, So the table created for projects is `org__inventory__details__specifications`.
+- As above in continuation of the inferred schema, the “specifications” are nested in "details”, which are nested in “Inventory”, all under table name “org”. So the table created for projects is `org__inventory__details__specifications`.
 
 These is a simple examples of how schema evolution works.
 
