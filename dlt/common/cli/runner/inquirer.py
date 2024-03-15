@@ -9,7 +9,7 @@ from dlt.common.cli.runner.types import PipelineMembers, RunnerParams
 from dlt.sources import DltResource, DltSource
 
 
-dot_bold = ".dlt"
+dot_dlt = ".dlt"
 select_message = """Please select your %s:
 %s
 """
@@ -91,16 +91,16 @@ class Inquirer:
             if has_cwd_config and has_pipeline_config:
                 message = tw.dedent(
                     f"""
-                    Found {dot_bold} in current directory and pipeline directory if you intended to
-                    use {self.params.pipeline_workdir}/{dot_bold}, please change your current directory.
+                    Found {dot_dlt} in current directory and pipeline directory if you intended to
+                    use {self.params.pipeline_workdir}/{dot_dlt}, please change your current directory.
 
-                    Using {dot_bold} in current directory {self.params.current_dir}/{dot_bold}.
+                    Using {dot_dlt} in current directory {self.params.current_dir}/{dot_dlt}.
                     """,
                 )
                 fmt.echo(fmt.warning_style(message))
             elif not has_cwd_config and has_pipeline_config:
                 fmt.error(
-                    f"{dot_bold} is missing in current directory but exists in pipeline script's"
+                    f"{dot_dlt} is missing in current directory but exists in pipeline script's"
                     " directory"
                 )
                 fmt.info(
