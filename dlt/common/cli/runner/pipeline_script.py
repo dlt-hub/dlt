@@ -33,10 +33,10 @@ class PipelineScript:
 
     def __init__(self, params: RunnerParams) -> None:
         self.params = params
-        """This means that user didn't specify pipeline name or re/source name
+        """This means that user didn't specify pipeline name or resource and source name
 
-        And we need to check if there is 1 pipeline and 1 re/source to run right
-        away if there are multiple re/sources then we need to provide a CLI prompt
+        And we need to check if there is 1 pipeline and 1 resource or source to run right
+        away if there are multiple resources and sources then we need to provide a CLI prompt
         """
         self.workdir = os.path.dirname(os.path.abspath(params.script_path))
         """Directory in which pipeline script lives"""
@@ -89,7 +89,7 @@ class PipelineScript:
 
     @property
     def pipeline_members(self) -> PipelineMembers:
-        """Inspect the module and return pipelines with re/sources"""
+        """Inspect the module and return pipelines with resources and sources"""
         members: PipelineMembers = defaultdict(dict)
         for name, value in self.pipeline_module.__dict__.items():
             # skip modules and private stuff

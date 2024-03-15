@@ -1,6 +1,6 @@
 """This module provides a utility to patch source code of pipeline scripts
 to remove all `pipeline.run` calls to avoid any undesired side effects when
-running the pipeline with given re/sources
+running the pipeline with given resources and sources
 """
 import typing as t
 

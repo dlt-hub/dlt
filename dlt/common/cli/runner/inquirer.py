@@ -33,7 +33,7 @@ def make_select_options(
 
 class Inquirer:
     """This class does pre flight checks required to run the pipeline.
-    Also handles user input to allow users to select pipeline and re/sources.
+    Also handles user input to allow users to select pipeline, resources and sources.
     """
 
     def __init__(self, params: RunnerParams, pipeline_members: PipelineMembers) -> None:
@@ -42,10 +42,10 @@ class Inquirer:
         self.sources = pipeline_members.get("sources")
 
     def maybe_ask(self) -> t.Tuple[dlt.Pipeline, t.Union[DltResource, DltSource]]:
-        """Shows prompts to select pipeline and re/source
+        """Shows prompts to select pipeline, resources and sources
 
         Returns:
-            (DltResource, DltSource): a pair of pipeline and re/source
+            (DltResource, DltSource): a pair of pipeline and resources and sources
         """
         # save first pipeline and source
         pipeline_name, _ = next(iter(self.pipelines.items()))
@@ -59,7 +59,7 @@ class Inquirer:
                 pipeline_name = values[int(choice)]
 
         if len(self.sources) > 1:
-            message, options, values = make_select_options("re/source", self.sources)
+            message, options, values = make_select_options("resource or source", self.sources)
             choice = fmt.prompt(message, options, default="n")
             if choice == "n":
                 raise FriendlyExit()
