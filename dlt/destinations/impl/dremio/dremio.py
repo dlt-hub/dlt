@@ -56,17 +56,19 @@ class DremioTypeMapper(TypeMapper):
         "DATE": "date",
         "TIMESTAMP": "timestamp",
         "VARBINARY": "binary",
+        "BINARY": "binary",
+        "BINARY VARYING": "binary",
         "VARIANT": "complex",
         "TIME": "time",
+        "BIGINT": "bigint",
+        "DECIMAL": "decimal",
     }
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
-        if db_type == "NUMBER":
-            if precision == self.BIGINT_PRECISION and scale == 0:
-                return dict(data_type="bigint")
-            elif (precision, scale) == self.capabilities.wei_precision:
+        if db_type == "DECIMAL":
+            if (precision, scale) == self.capabilities.wei_precision:
                 return dict(data_type="wei")
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
@@ -281,3 +283,8 @@ WHERE
         DremioMergeJob._new_temp_table_name = _new_temp_table_name  # type: ignore[method-assign]
 
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+    def _make_add_column_sql(
+        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+    ) -> List[str]:
+        return ["ADD COLUMNS (" + ", ".join(self._get_column_def_sql(c) for c in new_columns) + ")"]

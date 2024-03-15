@@ -8,6 +8,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseUndefinedRelation,
+    DatabaseTransientException,
 )
 from dlt.destinations.impl.dremio import capabilities, pydremio
 from dlt.destinations.impl.dremio.configuration import DremioCredentials
@@ -90,7 +91,10 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:
-            curr.execute(query, db_args)  # type: ignore
+            try:
+                curr.execute(query, db_args)  # type: ignore
+            except pydremio.MalformedQueryError as ex:
+                raise DatabaseTransientException(ex)
             yield DremioCursorImpl(curr)  # type: ignore
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
@@ -126,7 +130,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
-        return isinstance(ex, pyarrow.lib.ArrowInvalid)
+        return isinstance(ex, (pyarrow.lib.ArrowInvalid, pydremio.MalformedQueryError))
 
     def create_dataset(self) -> None:
         logger.info("Dremio does not implement create_dataset")

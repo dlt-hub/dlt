@@ -392,6 +392,8 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
             continue
+        if client.config.destination_type == "dremio" and c["data_type"] == "complex":
+            continue
         assert c["data_type"] == expected_c["data_type"]
 
 

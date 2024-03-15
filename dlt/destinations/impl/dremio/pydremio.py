@@ -72,10 +72,17 @@ def format_parameter(param: Any) -> str:
         return str(param)
 
 
+class MalformedQueryError(Exception):
+    pass
+
+
 def parameterize_query(query: str, parameters: Optional[Tuple[Any, ...]]) -> str:
     parameters = parameters or ()
     parameters = tuple(format_parameter(p) for p in parameters)
-    return query % parameters
+    try:
+        return query % parameters
+    except TypeError as ex:
+        raise MalformedQueryError(*ex.args)
 
 
 def execute_query(connection: "DremioConnection", query: str) -> pyarrow.Table:
@@ -127,7 +134,7 @@ class DremioCursor:
 
     def fetch_arrow_table(self) -> pyarrow.Table:
         table = self.table
-        self.table = pyarrow.table([], schema=table.schema)
+        self.table = pyarrow.table({col.name: [] for col in table.schema}, schema=table.schema)
         return table
 
     def close(self) -> None:

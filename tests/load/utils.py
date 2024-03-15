@@ -209,6 +209,14 @@ def destinations_configs(
             )
         ]
         destination_configs += [
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+            )
+        ]
+        destination_configs += [
             DestinationTestConfiguration(destination="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
@@ -301,12 +309,6 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination="dremio",
-                staging="filesystem",
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
             ),
         ]
 
