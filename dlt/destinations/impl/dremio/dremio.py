@@ -104,56 +104,19 @@ class DremioLoadJob(LoadJob, FollowupJob):
 
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
-        # referencing an external s3/azure stage does not require explicit AWS credentials
-        if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
-            from_clause = f"FROM '@{stage_name}/{bucket_url.hostname}'"
-            files_clause = f"FILES ('{bucket_url.path.lstrip('/')}')"
-        # referencing an staged files via a bucket URL requires explicit AWS credentials
-        elif (
-            bucket_scheme == "s3"
-            and staging_credentials
-            and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
-        ):
-            from_clause = f"FROM '{bucket_path}'"
-            files_clause = ""
-        elif (
-            bucket_scheme in ["az", "abfs"]
-            and staging_credentials
-            and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
-        ):
-            # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
-            # as required by snowflake
-            _path = "/" + bucket_url.netloc + bucket_url.path
-            bucket_path = urlunparse(
-                bucket_url._replace(
-                    scheme="azure",
-                    netloc=(
-                        f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
-                    ),
-                    path=_path,
-                )
+        if bucket_scheme == "s3" and stage_name:
+            from_clause = (
+                f"FROM '@{stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
             )
-            from_clause = f"FROM '{bucket_path}'"
-            files_clause = ""
         else:
-            # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake
-            bucket_path = bucket_path.replace("gs://", "gcs://")
-            if not stage_name:
-                # when loading from bucket stage must be given
-                raise LoadJobTerminalException(
-                    file_path,
-                    f"Cannot load from bucket path {bucket_path} without a stage name. See"
-                    " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for"
-                    " instructions on setting up the `stage_name`",
-                )
-            from_clause = f"FROM @{stage_name}/"
-            files_clause = f"FILES ('{urlparse(bucket_path).path.lstrip('/')}')"
+            raise LoadJobTerminalException(
+                file_path, "Only s3 staging currently supported in Dremio destination"
+            )
 
         source_format = file_name.split(".")[-1]
 
         client.execute_sql(f"""COPY INTO {qualified_table_name}
             {from_clause}
-            {files_clause}
             FILE_FORMAT '{source_format}'
             """)
 

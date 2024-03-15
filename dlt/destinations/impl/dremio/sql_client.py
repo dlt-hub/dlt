@@ -121,7 +121,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, pyarrow.lib.ArrowInvalid):
             msg = str(ex)
-            if "not found" in msg:
+            if "not found" in msg or "does not exist" in msg:
                 return DatabaseUndefinedRelation(ex)
             else:
                 return DatabaseTerminalException(ex)
