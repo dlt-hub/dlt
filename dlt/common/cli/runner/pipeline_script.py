@@ -25,7 +25,10 @@ class PipelineScript:
 
     1. Reads the source code,
     2. Stubs all pipeline.run calls,
-    2. Prepares module name
+    3. Creates a temporary module in the location of pipeline file,
+    4. Imports rewritten module,
+    5. Prepares module name,
+    6. Exposes ready to use module instance.
     """
 
     def __init__(self, params: RunnerParams) -> None:
