@@ -24,7 +24,7 @@ The first run of a pipeline will scan the data that goes through it and generate
 We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that loads the following schema:
 
 ```python
-{
+data = [{
     "organization": "Tech Innovations Inc.",
     "address": {
         'building': 'r&d', 
@@ -35,7 +35,10 @@ We’ll review some examples here and figure out how `dlt` creates initial schem
         {"name": "Self-aware Roomba", "inventory nr": 268},
         {"name": "Type-inferrer", "inventory nr": 3621}
     ]
-}
+}]
+
+# Run `dlt` pipeline
+dlt.pipeline("organizations_pipeline", destination="duckdb").run(data, table_name="org")
 ```
 
 The schema of data above is loaded to the destination as follows:
@@ -60,7 +63,7 @@ Let’s add the following 4 cases:
 
 Please update the pipeline for the cases discussed above.
 ```python
-{
+data = [{
     "organization": "Tech Innovations Inc.",
     # Column added:
     "CEO": "Alice Smith", 
@@ -76,7 +79,10 @@ Please update the pipeline for the cases discussed above.
         {"name": "Self-aware Roomba", "inventory nr": "AR268"},  
         {"name": "Type-inferrer", "inventory nr": "AR3621"}  
     ]
-}
+}]
+
+# Run `dlt` pipeline
+dlt.pipeline("organizations_pipeline", destination="duckdb").run(data, table_name="org")
 ```
 
 Let’s load the data and look at the tables:
@@ -141,12 +147,8 @@ A column not existing, and a column being null, are two different things. Howeve
 To remove a column, exclude it from the output of the resource function. Subsequent data inserts will treat this column as null. Verify column removal by applying a not null constraint. For instance, after removing the "room" column, apply a not null constraint to confirm its exclusion.
 
 ```python
-import dlt
 
-# Define a data resource using dlt.resource with a schema contract
-@dlt.resource(schema_contract={"tables": "evolve", "columns": "evolve"}, columns={"room": {"data_type": "integer", "nullable": "false"}})
-def data_resource():
-    yield {
+data = [{
     "organization": "Tech Innovations Inc.",
     "address": {
         'building': 'r&d' 
@@ -157,7 +159,11 @@ def data_resource():
         {"name": "Self-aware Roomba", "inventory nr": 268},
         {"name": "Type-inferrer", "inventory nr": 3621}
     ]
-}
+}]
+
+pipeline = dlt.pipeline("organizations_pipeline", destination="duckdb")
+# Adding not null constraint
+pipeline.run(data, table_name="org", columns={"room": {"data_type": "integer", "nullable": False}})
 ```
 During pipeline execution a data validation error indicates that a removed column is being passed as null.
 
