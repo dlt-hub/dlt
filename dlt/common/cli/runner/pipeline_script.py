@@ -105,7 +105,10 @@ class PipelineScript:
     @property
     def run_arguments(self) -> t.Dict[str, str]:
         run_options = {}
-        for arg in self.params.args or []:
+        if not self.params.args:
+            return run_options
+
+        for arg in self.params.args:
             arg_name, value = arg.split("=")
             run_options[arg_name] = value
 
