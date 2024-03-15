@@ -15,6 +15,7 @@ SNIPPET_MARKER = "```"
 LINT_TEMPLATE = "./lint_setup/template.py"
 LINT_FILE = "./lint_setup/lint_me.py"
 
+ENABLE_MYPY = False
 
 class Snippet(TypedDict):
     language: str
@@ -151,14 +152,14 @@ All code blocks that are not a specific (markup-) language should be marked as t
     failed_count = {}
     count = {}
     undefined_names: Dict[str, int] = {}
-    with open(LINT_TEMPLATE, "r") as f:
+    with open(LINT_TEMPLATE, "r", encoding="utf-8") as f:
         lint_template = f.read()
     for snippet in snippets:
         if snippet["language"] not in ["python", "py"]:
             continue
         count["py"] = failed_count.get(language, 0) + 1
 
-        with open(LINT_FILE, "w") as f:
+        with open(LINT_FILE, "w", encoding="utf-8") as f:
             f.write(lint_template)
             f.write("# Snippet start\n\n")
             f.write(snippet["code"])
@@ -174,30 +175,31 @@ All code blocks that are not a specific (markup-) language should be marked as t
                 "py",
                 "\n---",
             )
-            for l in result.stdout.split("\n"):
-                if "F821" in l:
-                    key = l.split("F821 Undefined name")[-1]
+            for l2 in result.stdout.split("\n"):
+                if "F821" in l2:
+                    key = l2.split("F821 Undefined name")[-1]
                     undefined_names[key] = undefined_names.get(key, 0) + 1
             print(result.stdout)
             print(result.stderr)
             failed_count["py"] = failed_count.get("py", 0) + 1
 
         # TODO: mypy linting
-        # result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
-        # if "no issues found" not in result.stdout.lower():
-        #     print(
-        #         "---\nFailed type checking snippet",
-        #         "at line",
-        #         snippet["line"],
-        #         "in file",
-        #         snippet["file"],
-        #         "with language",
-        #         "py",
-        #         "\n---",
-        #     )
-        #     print(result.stdout)
+        if ENABLE_MYPY:
+            result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
+            if "no issues found" not in result.stdout.lower():
+                print(
+                    "---\nFailed type checking snippet",
+                    "at line",
+                    snippet["line"],
+                    "in file",
+                    snippet["file"],
+                    "with language",
+                    "py",
+                    "\n---",
+                )
+                print(result.stdout)
 
-    with open(LINT_FILE, "w") as f:
+    with open(LINT_FILE, "w", encoding="utf-8") as f:
         f.write("")
     if failed_count:
         print("Failed to lint the following amount of snippets:")

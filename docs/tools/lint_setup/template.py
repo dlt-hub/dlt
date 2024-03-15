@@ -1,18 +1,18 @@
 # This section is imported before linting
 
-# mypy: disable-error-code="name-defined,import-not-found,import-untyped,empty-body"
+# mypy: disable-error-code="name-defined,import-not-found,import-untyped,empty-body,no-redef"
 
 # some universal imports
 from typing import Optional, Dict, List, Any, Iterable, Iterator, Tuple, Sequence, Callable
 
 import os
-import json
 
 import pendulum
 from pendulum import DateTime
-from datetime import datetime
+from datetime import datetime  # noqa: I251
 
 import dlt
+from dlt.common import json
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime, TDataItem, TDataItems
 from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
 
