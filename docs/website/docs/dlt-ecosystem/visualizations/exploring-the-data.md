@@ -12,7 +12,7 @@ To do so, run the [cli command](../../reference/command-line-interface.md#show-t
 below with your pipeline name. The pipeline name is the name of the
 Python file where your pipeline is defined and also displayed in your terminal when loading:
 
-```shell
+```sh
 dlt pipeline {pipeline_name} show
 ```
 

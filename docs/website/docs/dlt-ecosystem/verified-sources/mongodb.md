@@ -66,30 +66,30 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 1. Connect to MongoDB:
 
-   ```shell
+   ```sh
    mongo "mongodb://dbuser:passwd@your_host:27017"
    ```
 
 1. List all Databases:
 
-   ```shell
+   ```sh
    show dbs
    ```
 
 1. View Collections in a Database:
 
    1. Switch to Database:
-      ```shell
+      ```sh
       use your_database_name
       ```
    1. Display its Collections:
-      ```shell
+      ```sh
       show collections
       ```
 
 1. Disconnect:
 
-   ```shell
+   ```sh
    exit
    ```
 
@@ -115,7 +115,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init mongodb duckdb
    ```
 
@@ -174,16 +174,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```shell
+   ```sh
    python mongodb_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `local_mongo`, you may also

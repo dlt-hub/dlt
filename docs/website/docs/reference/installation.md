@@ -10,7 +10,7 @@ keywords: [installation, environment, pip install]
 
 ### Make sure you are using **Python 3.8-3.12** and have `pip` installed
 
-```shell
+```sh
 python --version
 pip --version
 ```
@@ -22,7 +22,7 @@ pip --version
 
 You can install Python 3.10 with an `apt` command.
 
-```shell
+```sh
 sudo apt update
 sudo apt install python3.10
 sudo apt install python3.10-venv
@@ -33,7 +33,7 @@ sudo apt install python3.10-venv
 
 Once you have installed [Homebrew](https://brew.sh), you can install Python 3.10.
 
-```shell
+```sh
 brew update
 brew install python@3.10
 ```
@@ -44,7 +44,7 @@ brew install python@3.10
 You need to install [Python 3.10 (64-bit version) for Windows](https://www.python.org/downloads/windows/).
 After this, you can then install `pip`.
 
-```shell
+```sh
 C:\> pip3 install -U pip
 ```
 
@@ -59,13 +59,13 @@ C:\> pip3 install -U pip
 
 Create a new virtual environment by making a `./env` directory to hold it.
 
-```shell
+```sh
 python -m venv ./env
 ```
 
 Activate the virtual environment:
 
-```shell
+```sh
 source ./env/bin/activate
 ```
 
@@ -74,13 +74,13 @@ source ./env/bin/activate
 
 Create a new virtual environment by making a `./env` directory to hold it.
 
-```shell
+```sh
 python -m venv ./env
 ```
 
 Activate the virtual environment:
 
-```shell
+```sh
 source ./env/bin/activate
 ```
 
@@ -106,6 +106,6 @@ C:\> .\env\Scripts\activate
 
 You can install `dlt` in your virtual environment by running:
 
-```shell
+```sh
 pip install -U dlt
 ```

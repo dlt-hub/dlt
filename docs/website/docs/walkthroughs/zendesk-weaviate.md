@@ -23,7 +23,7 @@ We're going to use some ready-made components from the [dlt ecosystem](https://d
 
 1. Create a new folder for your project, navigate to it, and create a virtual environment:
 
-    ```shell
+    ```sh
     mkdir zendesk-weaviate
     cd zendesk-weaviate
     python -m venv venv
@@ -31,13 +31,13 @@ We're going to use some ready-made components from the [dlt ecosystem](https://d
     ```
 2. Install dlt with Weaviate support
 
-    ```shell
+    ```sh
     pip install "dlt[weaviate]"
     ```
 
 3. Install dlt Zendesk verified source
 
-    ```shell
+    ```sh
     dlt init zendesk weaviate
     ```
 
@@ -122,7 +122,7 @@ Let's go through the code above step by step:
 
 Now that we have the pipeline configured, we can run the Python script:
 
-```shell
+```sh
 python zendesk_pipeline.py
 ```
 

@@ -10,7 +10,7 @@ keywords: [parquet, file formats]
 
 To use this format, you need a `pyarrow` package. You can get this package as a `dlt` extra as well:
 
-```shell
+```sh
 pip install dlt[parquet]
 ```
 
@@ -53,7 +53,7 @@ timestamp_timezone="Europe/Berlin"
 
 Or using environment variables:
 
-```shell
+```sh
 NORMALIZE__DATA_WRITER__FLAVOR
 NORMALIZE__DATA_WRITER__VERSION
 NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE

@@ -50,7 +50,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init notion duckdb
    ```
 
@@ -93,16 +93,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```shell
+   ```sh
    python notion_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
@@ -177,7 +177,7 @@ verified source.
 
    The Database ID can be retrieved from the URL. For example if the URL is:
 
-   ```shell
+   ```sh
    https://www.notion.so/d8ee2d159ac34cfc85827ba5a0a8ae71?v=c714dec3742440cc91a8c38914f83b6b
    ```
 

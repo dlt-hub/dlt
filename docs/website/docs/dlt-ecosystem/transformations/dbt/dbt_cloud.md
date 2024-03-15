@@ -96,7 +96,7 @@ For environment variables, all names are capitalized and sections are separated 
 
 For example, for the above secrets, we would need to put into the environment:
 
-```shell
+```sh
 DBT_CLOUD__API_TOKEN
 DBT_CLOUD__ACCOUNT_ID
 DBT_CLOUD__JOB_ID

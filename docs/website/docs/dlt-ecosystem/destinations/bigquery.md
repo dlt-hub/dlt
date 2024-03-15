@@ -10,7 +10,7 @@ keywords: [bigquery, destination, data warehouse]
 
 **To install the DLT library with BigQuery dependencies:**
 
-```shell
+```sh
 pip install dlt[bigquery]
 ```
 
@@ -18,13 +18,13 @@ pip install dlt[bigquery]
 
 **1. Initialize a project with a pipeline that loads to BigQuery by running:**
 
-```shell
+```sh
 dlt init chess bigquery
 ```
 
 **2. Install the necessary dependencies for BigQuery by running:**
 
-```shell
+```sh
 pip install -r requirements.txt
 ```
 
@@ -67,7 +67,7 @@ A `JSON` file that includes your service account private key will then be downlo
 
 Open your `dlt` credentials file:
 
-```shell
+```sh
 open .dlt/secrets.toml
 ```
 

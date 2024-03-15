@@ -16,20 +16,20 @@ steps below.
 
 Create a new empty directory for your `dlt` project by running:
 
-```shell
+```sh
 mkdir various_pipelines
 cd various_pipelines
 ```
 
 List available verified sources to see their names and descriptions:
 
-```shell
+```sh
 dlt init --list-verified-sources
 ```
 
 Now pick one of the source names, for example `pipedrive` and a destination i.e. `bigquery`:
 
-```shell
+```sh
 dlt init pipedrive bigquery
 ```
 
@@ -100,7 +100,7 @@ You can modify an existing verified source in place.
 
 ## 5. Add more sources to your project
 
-```shell
+```sh
 dlt init chess duckdb
 ```
 
@@ -116,7 +116,7 @@ pipeline:
 To update the verified source you have to the newest online version just do the same init command in
 the parent folder:
 
-```shell
+```sh
 dlt init pipedrive bigquery
 ```
 
@@ -124,19 +124,19 @@ dlt init pipedrive bigquery
 
 To find out more info about this command, use --help:
 
-```shell
+```sh
 dlt init --help
 ```
 
 To deploy from a branch of the `verified-sources` repo, you can use the following:
 
-```shell
+```sh
 dlt init source destination --branch <branch_name>
 ```
 
 To deploy from another repo, you could fork the verified-sources repo and then provide the new repo
 url as below, replacing `dlt-hub` with your fork name:
 
-```shell
+```sh
 dlt init pipedrive bigquery --location "https://github.com/dlt-hub/verified-sources"
 ```

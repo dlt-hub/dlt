@@ -131,7 +131,7 @@ Please make sure that you have the `psutils` package installed (note that Airflo
 progress="log"
 ```
 or when running the pipeline:
-```shell
+```sh
 PROGRESS=log python pipeline_script.py
 ```
 

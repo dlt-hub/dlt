@@ -67,7 +67,7 @@ For environment variables all names are capitalized and sections are separated w
 
 For example, for the secrets mentioned above, we would need to set them in the environment:
 
-```shell
+```sh
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID
 DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY

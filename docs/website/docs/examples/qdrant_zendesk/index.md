@@ -28,7 +28,7 @@ First, configure the destination credentials for [Qdrant](https://dlthub.com/doc
 
 Next, make sure you have the following dependencies installed:
 
-```shell
+```sh
 pip install qdrant-client>=1.6.9
 pip install fastembed>=0.1.1
 ```

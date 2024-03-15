@@ -59,7 +59,7 @@ client_email = "client_email" # please set me up!
 
 ## 4. Run the pipeline again
 
-```shell
+```sh
 python chess_pipeline.py
 ```
 

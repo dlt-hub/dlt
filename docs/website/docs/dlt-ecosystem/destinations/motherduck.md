@@ -9,7 +9,7 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 
 ## Install dlt with MotherDuck
 **To install the DLT library with MotherDuck dependencies:**
-```shell
+```sh
 pip install dlt[motherduck]
 ```
 
@@ -25,12 +25,12 @@ or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to MotherDuck by running**
-```shell
+```sh
 dlt init chess motherduck
 ```
 
 **2. Install the necessary dependencies for MotherDuck by running**
-```shell
+```sh
 pip install -r requirements.txt
 ```
 
@@ -51,7 +51,7 @@ motherduck.credentials="md:///dlt_data_3?token=<my service token>"
 ```
 
 **4. Run the pipeline**
-```shell
+```sh
 python3 chess_pipeline.py
 ```
 

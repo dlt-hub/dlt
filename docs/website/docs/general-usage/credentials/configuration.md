@@ -455,7 +455,7 @@ Now we can finally understand the `ConfigFieldMissingException`.
 
 Let's run `chess.py` example without providing the password:
 
-```shell
+```sh
 $ CREDENTIALS="postgres://loader@localhost:5432/dlt_data" python chess.py
 ...
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['password'] in configuration with spec PostgresCredentials

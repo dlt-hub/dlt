@@ -84,7 +84,7 @@ Here's a summarized version:
 1. To get full token using the client id obtained above, you can follow the [instructions
    here.](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/#creating-the-access-token)
 
-   ```shell
+   ```sh
     curl https://{subdomain}.zendesk.com/api/v2/oauth/tokens.json \
    -X POST \
    -v -u {email_address}:{password} \
@@ -129,7 +129,7 @@ To generate Zendesk chat OAuth token, please refer to this
 1. Record the "CLIENT_ID" and "SUBDOMAIN".
 1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
    press Enter.
-   ```shell
+   ```sh
    https://www.zopim.com/oauth2/authorizations/new?response_type=token&client_id=CLIENT_ID&scope=read%20write&subdomain=SUBDOMAIN
    ```
 1. The call will be made, possibly asking you to log in and select 'Allow' to generate the token.
@@ -160,7 +160,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init zendesk duckdb
    ```
 
@@ -215,20 +215,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```shell
+   ```sh
    python zendesk_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

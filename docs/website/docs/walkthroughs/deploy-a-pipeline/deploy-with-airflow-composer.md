@@ -23,7 +23,7 @@ initialize a Git repository in your `dlt` project directory and push it to GitHu
 
 Before you can deploy, you must run your pipeline locally at least once.
 
-```shell
+```sh
 python3 {pipeline_name}_pipeline.py
 ```
 
@@ -31,12 +31,12 @@ This should successfully load data from the source to the destination once and a
 
 ## 3. Initialize deployment
 First you need to add additional dependencies that `deploy` command requires:
-```shell
+```sh
 pip install "dlt[cli]"
 ```
 
 then:
-```shell
+```sh
 dlt deploy {pipeline_name}_pipeline.py airflow-composer
 ```
 
@@ -65,7 +65,7 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 ## Example with the pipedrive pipeline
 
 ### 1. Run the deploy command
-```shell
+```sh
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
 where `pipedrive_pipeline.py` is the pipeline script that you just ran and `airflow-composer` is a deployment method. The command will create deployment files and provide instructions to set up the credentials.
@@ -92,12 +92,12 @@ pipedrive_api_key = "c66..."
 
 > 💡 `deploy` command will use [Airflow variable](#4-add-credentials) called `dlt_secrets_toml` to store all the required secrets as `toml` fragment. You can also use **environment variables** by passing `--secrets-format env` option:
 
-```shell
+```sh
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
 ```
 which will output the environment variable names and their values.
 
-```shell
+```sh
 3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 
@@ -359,7 +359,7 @@ There are two ways to pass the credentials
    - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
      will be displayed in the output:
 
-     ```shell
+     ```sh
      3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
 
      [sources.pipedrive]
@@ -376,7 +376,7 @@ There are two ways to pass the credentials
    - During the execution of the `deploy` command with `--secrets-format env` (by default),
      environment variables will be displayed in the output:
 
-     ```shell
+     ```sh
      3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
      SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 
@@ -446,19 +446,19 @@ There are two ways to pass the credentials
 
    Add stage deployment files to commit. Use your Git UI or the following command:
 
-   ```shell
+   ```sh
    git add dags/dag_pipedrive.py build/cloudbuild.yaml
    ```
 
    Commit the files above. Use your Git UI or the following command:
 
-   ```shell
+   ```sh
    git commit -m 'initiate pipedrive pipeline with Airflow'
    ```
 
    Push changes to GitHub. Use your Git UI or the following command:
 
-   ```shell
+   ```sh
    git push origin
    ```
 
@@ -545,7 +545,7 @@ activities_source = pipedrive_source(
 
 Because of this we got the following error:
 
-```shell
+```sh
 airflow.exceptions.DuplicateTaskIdFound:
 Task id ‘pipedrive.pipedrive_custom_fields_mapping’ has already been added to the DAG
 ```

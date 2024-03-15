@@ -46,7 +46,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init mux duckdb
    ```
 
@@ -88,16 +88,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```shell
+   ```sh
    python mux_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is

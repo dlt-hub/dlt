@@ -8,24 +8,24 @@ keywords: [duckdb, destination, data warehouse]
 
 ## Install dlt with DuckDB
 **To install the DLT library with DuckDB dependencies, run:**
-```shell
+```sh
 pip install dlt[duckdb]
 ```
 
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to DuckDB by running:**
-```shell
+```sh
 dlt init chess duckdb
 ```
 
 **2. Install the necessary dependencies for DuckDB by running:**
-```shell
+```sh
 pip install -r requirements.txt
 ```
 
 **3. Run the pipeline:**
-```shell
+```sh
 python3 chess_pipeline.py
 ```
 

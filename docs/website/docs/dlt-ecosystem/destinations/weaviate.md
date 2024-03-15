@@ -13,7 +13,7 @@ This destination helps you load data into Weaviate from [dlt resources](../../ge
 
 1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
-```shell
+```sh
 pip install dlt[weaviate]
 ```
 

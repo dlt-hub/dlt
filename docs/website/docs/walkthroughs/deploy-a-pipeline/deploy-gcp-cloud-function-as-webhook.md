@@ -56,7 +56,7 @@ You can setup GCP cloud function webhook using `dlt` as follows:
 
 To manually test the function you have created, you can send a manual POST request as a webhook using the following code:
 
-```shell
+```sh
 import requests
     
 webhook_url = 'please set me up!' # Your cloud function Trigger URL

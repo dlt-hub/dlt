@@ -81,7 +81,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init filesystem duckdb
    ```
 
@@ -150,32 +150,32 @@ For more information, read the
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. Install optional modules:
 
    - For AWS S3:
-     ```shell
+     ```sh
      pip install s3fs
      ```
    - For Azure blob:
-     ```shell
+     ```sh
      pip install adlfs>=2023.9.0
      ```
    - GCS storage: No separate module needed.
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```shell
+   ```sh
    python filesystem_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

@@ -7,7 +7,7 @@ Its primary role is to be used as a staging for other destinations, but you can 
 
 ## Install dlt with filesystem
 **To install the DLT library with filesystem dependencies:**
-```shell
+```sh
 pip install dlt[filesystem]
 ```
 
@@ -17,7 +17,7 @@ This installs `s3fs` and `botocore` packages.
 
 You may also install the dependencies independently.
 Try:
-```shell
+```sh
 pip install dlt
 pip install s3fs
 ```
@@ -29,7 +29,7 @@ so pip does not fail on backtracking.
 ### 1. Initialise the dlt project
 
 Let's start by initialising a new dlt project as follows:
-   ```shell
+   ```sh
    dlt init chess filesystem
    ```
    > 💡 This command will initialise your pipeline with chess as the source and the AWS S3 filesystem as the destination.
@@ -38,7 +38,7 @@ Let's start by initialising a new dlt project as follows:
 
 #### AWS S3
 The command above creates sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
-```shell
+```sh
 pip install -r requirements.txt
 ```
 

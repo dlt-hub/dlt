@@ -18,19 +18,19 @@ steps below.
 
 Create a new empty directory for your `dlt` project by running:
 
-```shell
+```sh
 mkdir weatherapi_duckdb && cd weatherapi_duckdb
 ```
 
 Start a `dlt` project with a pipeline template that loads data to DuckDB by running:
 
-```shell
+```sh
 dlt init weatherapi duckdb
 ```
 
 Install the dependencies necessary for DuckDB:
 
-```shell
+```sh
 pip install -r requirements.txt
 ```
 
@@ -56,7 +56,7 @@ def weatherapi_source(api_secret_key=dlt.secrets.value):
 
 Run the `weatherapi.py` pipeline script to test that authentication headers look fine:
 
-```shell
+```sh
 python3 weatherapi.py
 ```
 
@@ -82,7 +82,7 @@ def weatherapi_resource(api_secret_key=dlt.secrets.value):
 
 Run the `weatherapi.py` pipeline script to test that the API call works:
 
-```shell
+```sh
 python3 weatherapi.py
 ```
 
@@ -118,13 +118,13 @@ if __name__=='__main__':
 
 Run the `weatherapi.py` pipeline script to load data into DuckDB:
 
-```shell
+```sh
 python3 weatherapi.py
 ```
 
 Then this command to see that the data loaded:
 
-```shell
+```sh
 dlt pipeline weatherapi show
 ```
 

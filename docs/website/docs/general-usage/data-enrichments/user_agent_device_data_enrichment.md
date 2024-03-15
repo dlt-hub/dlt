@@ -283,19 +283,19 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Install necessary dependencies for the preferred
    [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
 
-   ```shell
+   ```sh
    pip install dlt[duckdb]
    ```
 
 1. Run the pipeline with the following command:
 
-   ```shell
+   ```sh
    python device_enrichment_pipeline.py
    ```
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

@@ -8,7 +8,7 @@ In this section, we will retrieve and load data from the GitHub API into [DuckDB
 
 Before we start, make sure you have installed `dlt` with the DuckDB dependency:
 
-```shell
+```sh
 pip install "dlt[duckdb]"
 ```
 
@@ -52,13 +52,13 @@ Here's what the code above does:
 
 Save `github_issues.py` and run the following command:
 
-```shell
+```sh
 python github_issues.py
 ```
 
 Once the data has been loaded, you can inspect the created dataset using the Streamlit app:
 
-```shell
+```sh
 dlt pipeline github_issues show
 ```
 
@@ -182,7 +182,7 @@ Now you can run this script on a daily schedule and each day you’ll load only 
 Between pipeline runs, `dlt` keeps the state in the same database it loaded data to.
 Peek into that state, the tables loaded and get other information with:
 
-```shell
+```sh
 dlt pipeline -v github_issues_incremental info
 ```
 :::

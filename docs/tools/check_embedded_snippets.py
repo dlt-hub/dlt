@@ -112,15 +112,15 @@ if __name__ == "__main__":
                 json.loads(snippet["code"])
             elif language in ["yaml"]:
                 yaml.safe_load(code)
-            # ignore text and shell scripts
-            elif language in ["text", "shell", "bat"]:
+            # ignore text and sh scripts
+            elif language in ["text", "sh", "bat"]:
                 pass
             elif language in ["sql"]:
                 pass
             else:
                 raise AssertionError("""
-Unknown language. Please choose the correct language for the snippet: py, toml, json, yaml, text, shell, bat or sql."
-All shell commands, except for windows, should be marked as shell.
+Unknown language. Please choose the correct language for the snippet: py, toml, json, yaml, text, sh, bat or sql."
+All sh commands, except for windows, should be marked as sh.
 All code blocks that are not a specific (markup-) language should be marked as text.
 """)
         except Exception:

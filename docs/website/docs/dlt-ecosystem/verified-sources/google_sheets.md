@@ -98,7 +98,7 @@ follow these steps:
    After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate
    the refresh token, run the following script from the root folder:
 
-   ```shell
+   ```sh
    python google_sheets/setup_script_gcp_oauth.py
    ```
 
@@ -128,13 +128,13 @@ following:
 
 When setting up the pipeline, you can use either the browser-copied URL of your spreadsheet:
 
-```shell
+```sh
 https://docs.google.com/spreadsheets/d/1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4/edit?usp=sharing
 ```
 
 or spreadsheet id (which is a part of the url)
 
-```shell
+```sh
 1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4
 ```
 
@@ -214,7 +214,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init google_sheets duckdb
    ```
 
@@ -296,20 +296,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```shell
+   ```sh
    python google_sheets_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

@@ -45,7 +45,7 @@ Sources and resources that can be loaded using this verified source are:
 
 Upon logging into Airtable and accessing your base or table, you'll notice a URL in your browser's address bar resembling:
 
-```shell
+```sh
 https://airtable.com/appve10kl227BIT4GV/tblOUnZVLFWbemTP1/viw3qtF76bRQC3wKx/rec9khXgeTotgCQ62?blocks=hide
 ```
 
@@ -67,7 +67,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init airtable duckdb
    ```
 
@@ -116,20 +116,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```shell
+   ```sh
    python airtable_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

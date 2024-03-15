@@ -8,7 +8,7 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 
 ## Install dlt with MS SQL
 **To install the DLT library with MS SQL dependencies, use:**
-```shell
+```sh
 pip install dlt[mssql]
 ```
 
@@ -28,16 +28,16 @@ You can also [configure the driver name](#additional-destination-options) explic
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**
-```shell
+```sh
 dlt init chess mssql
 ```
 
 **2. Install the necessary dependencies for MS SQL by running:**
-```shell
+```sh
 pip install -r requirements.txt
 ```
 or run:
-```shell
+```sh
 pip install dlt[mssql]
 ```
 This will install `dlt` with the `mssql` extra, which contains all the dependencies required by the SQL server client.

@@ -114,7 +114,7 @@ could:
 You can inspect pipeline state with
 [`dlt pipeline` command](../reference/command-line-interface.md#dlt-pipeline):
 
-```shell
+```sh
 dlt pipeline -v chess_pipeline info
 ```
 

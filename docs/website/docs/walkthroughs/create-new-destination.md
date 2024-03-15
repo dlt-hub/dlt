@@ -18,7 +18,7 @@ Destinations are implemented in python packages under: `dlt.destinations.impl.<d
 
 ## 1. Copy existing destination to your `dlt` project
 Initialize a new project with [dlt init](../reference/command-line-interface.md#dlt-init)
-```shell
+```sh
 dlt init github postgres
 ```
 This adds `github` verified source (it produces quite complicated datasets and that good for testing, does not require credentials to use) and `postgres` credentials (connection-string-like) that we'll repurpose later.

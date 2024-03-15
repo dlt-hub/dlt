@@ -10,7 +10,7 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 
 ## Install dlt with Athena
 **To install the DLT library with Athena dependencies:**
-```shell
+```sh
 pip install dlt[athena]
 ```
 
@@ -18,7 +18,7 @@ pip install dlt[athena]
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new `dlt` project as follows:
-   ```shell
+   ```sh
    dlt init chess athena
    ```
    > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
@@ -27,7 +27,7 @@ Let's start by initializing a new `dlt` project as follows:
 ### 2. Setup bucket storage and Athena credentials
 
 First, install dependencies by running:
-```shell
+```sh
 pip install -r requirements.txt
 ```
 or with `pip install dlt[athena]`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
@@ -35,7 +35,7 @@ or with `pip install dlt[athena]`, which will install `s3fs`, `pyarrow`, `pyathe
 :::caution
 
 You may also install the dependencies independently. Try
-```shell
+```sh
 pip install dlt
 pip install s3fs
 pip install pyarrow

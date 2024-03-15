@@ -116,7 +116,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```shell
+   ```sh
    dlt init sql_database duckdb
    ```
 
@@ -176,19 +176,19 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Install the necessary dependencies by running the following command:
 
-   ```shell
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. Run the verified source by entering:
 
-   ```shell
+   ```sh
    python sql_database_pipeline.py
    ```
 
 1. Make sure that everything is loaded as expected with:
 
-   ```shell
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 
