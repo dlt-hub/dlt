@@ -1,6 +1,5 @@
 import os
 import importlib
-import inspect
 import tempfile
 import typing as t
 import sys
@@ -89,16 +88,18 @@ class PipelineScript:
     def pipeline_members(self) -> PipelineMembers:
         """Inspect the module and return pipelines with re/sources"""
         members: PipelineMembers = defaultdict(dict)
-        for name, value in inspect.getmembers(self.pipeline_module):
-            # skipe modules and private stuff
-            if inspect.ismodule(value) or name.startswith("_"):
+        for name, value in self.pipeline_module.__dict__.items():
+            # skip modules and private stuff
+            if isinstance(value, ModuleType) or name.startswith("_"):
                 continue
 
+            # take pipelines by their names
             if isinstance(value, dlt.Pipeline):
                 members["pipelines"][value.pipeline_name] = value
 
+            # take source and resources by their variable name
             if isinstance(value, (DltResource, DltSource)):
-                members["sources"][value.name] = value
+                members["sources"][name] = value
 
         return members
 
