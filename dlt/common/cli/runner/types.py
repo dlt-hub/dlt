@@ -8,7 +8,7 @@ from dlt.sources import DltResource, DltSource
 
 
 @dataclass
-class RunnerInventory:
+class RunnerParams:
     script_path: str
     pipeline_name: t.Optional[str] = None
     source_name: t.Optional[str] = None
