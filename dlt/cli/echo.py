@@ -37,6 +37,10 @@ def error(msg: str) -> None:
     click.secho("ERROR: " + msg, fg="red")
 
 
+def info(msg: str) -> None:
+    click.secho("INFO: " + msg, fg="blue")
+
+
 def warning(msg: str) -> None:
     click.secho("WARNING: " + msg, fg="yellow")
 

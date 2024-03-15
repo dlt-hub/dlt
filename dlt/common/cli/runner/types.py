@@ -1,0 +1,20 @@
+import typing as t
+
+from dataclasses import dataclass
+
+import dlt
+
+from dlt.sources import DltResource, DltSource
+
+
+@dataclass
+class RunnerInventory:
+    script_path: str
+    pipeline_name: t.Optional[str] = None
+    source_name: t.Optional[str] = None
+    args: t.List[str] = None
+
+
+class PipelineMembers(t.TypedDict):
+    pipelines: t.Dict[str, dlt.Pipeline]
+    sources: t.Dict[str, t.Union[DltResource, DltSource]]

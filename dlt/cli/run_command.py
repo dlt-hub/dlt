@@ -4,7 +4,8 @@ import dlt
 
 from dlt.cli import echo as fmt
 from dlt.cli.utils import track_command
-from dlt.common.cli.runner import RunnerInventory, DltRunnerEnvironment
+from dlt.common.cli.runner.runner import PipelineRunner
+from dlt.common.cli.runner.types import RunnerInventory
 from dlt.sources import DltResource, DltSource
 from typing_extensions import TypedDict
 
@@ -27,18 +28,18 @@ def run_pipeline_command(
     source: t.Optional[str] = None,
     args: t.Optional[str] = None,
 ):
-    pick_first_pipeline_and_source = not pipeline and not source
     inventory = RunnerInventory(
         module,
         pipeline_name=pipeline,
         source_name=source,
         args=args,
-        run_first_pipeline_with_source=pick_first_pipeline_and_source,
     )
 
     try:
-        dlt_environment = DltRunnerEnvironment(inventory=inventory)
-        dlt_environment.run()
+        with PipelineRunner(inventory=inventory) as runner:
+            load_info = runner.run()
+            fmt.echo("")
+            fmt.echo(load_info)
     except RuntimeError as ex:
         fmt.echo(str(ex))
         return -1
