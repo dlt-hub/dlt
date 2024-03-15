@@ -1,14 +1,15 @@
+import os
 import typing as t
-
-import click
+import textwrap as tw
 import dlt
 
 from dlt.cli import echo as fmt
-from dlt.common.cli.runner.errors import FriendlyExit
-from dlt.common.cli.runner.types import PipelineMembers
+from dlt.common.cli.runner.errors import FriendlyExit, PreflightError, RunnerError
+from dlt.common.cli.runner.types import PipelineMembers, RunnerParams
 from dlt.sources import DltResource, DltSource
 
 
+dot_bold = ".dlt"
 select_message = """Please select your %s:
 %s
 """
@@ -31,13 +32,16 @@ def make_select_options(
 
 
 class Inquirer:
-    """This class handles user input to allow users to select pipeline and re/sources"""
+    """This class does pre flight checks required to run the pipeline.
+    Also handles user input to allow users to select pipeline and re/sources.
+    """
 
-    def __init__(self, pipeline_members: PipelineMembers) -> None:
-        self.pipelines = pipeline_members["pipelines"]
-        self.sources = pipeline_members["sources"]
+    def __init__(self, params: RunnerParams, pipeline_members: PipelineMembers) -> None:
+        self.params = params
+        self.pipelines = pipeline_members.get("pipelines")
+        self.sources = pipeline_members.get("sources")
 
-    def ask(self) -> t.Tuple[dlt.Pipeline, t.Union[DltResource, DltSource]]:
+    def maybe_ask(self) -> t.Tuple[dlt.Pipeline, t.Union[DltResource, DltSource]]:
         """Shows prompts to select pipeline and re/source
 
         Returns:
@@ -72,3 +76,45 @@ class Inquirer:
             label = "Source"
         fmt.echo(f"{label}: " + fmt.style(source_name, fg="blue", underline=True))
         return pipeline, self.sources[source_name]
+
+    def preflight_checks(self):
+        if self.params.current_dir != self.params.pipeline_workdir:
+            fmt.warning(
+                "Current working directory is different from the pipeline script"
+                + self.params.pipeline_workdir
+            )
+            fmt.echo(f"Current workdir: {fmt.style(self.params.current_dir, fg='blue')}")
+            fmt.echo(f"Pipeline workdir: {fmt.style(self.params.pipeline_workdir, fg='blue')}")
+
+            has_cwd_config = self.has_dlt_config(self.params.current_dir)
+            has_pipeline_config = self.has_dlt_config(self.params.pipeline_workdir)
+            if has_cwd_config and has_pipeline_config:
+                message = tw.dedent(
+                    f"""
+                    Found {dot_bold} in current directory and pipeline directory if you intended to
+                    use {self.params.pipeline_workdir}/{dot_bold}, please change your current directory.
+
+                    Using {dot_bold} in current directory {self.params.current_dir}/{dot_bold}.
+                    """,
+                )
+                fmt.echo(fmt.warning_style(message))
+            elif not has_cwd_config and has_pipeline_config:
+                fmt.error(
+                    f"{dot_bold} is missing in current directory but exists in pipeline script's"
+                    " directory"
+                )
+                fmt.info(
+                    f"Please change your current directory to {self.params.pipeline_workdir} and"
+                    " try again"
+                )
+                raise PreflightError()
+
+    def check_if_runnable(self) -> None:
+        if not self.pipelines:
+            raise RunnerError(f"No pipelines found in {self.params.script_path}")
+
+        if not self.sources:
+            raise RunnerError(f"Could not find any source or resource {self.params.script_path}")
+
+    def has_dlt_config(self, path: str) -> bool:
+        return os.path.exists(os.path.join(path, ".dlt"))

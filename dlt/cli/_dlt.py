@@ -610,7 +610,7 @@ def main() -> int:
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
     elif args.command == "run":
-        return run_pipeline_command(args.module, args.pipeline, args.source, args.args)
+        return run_pipeline_command(args.module, args.pipeline, args.source, None, args.args)
     elif args.command == "pipeline":
         if args.list_pipelines:
             return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)

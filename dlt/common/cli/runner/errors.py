@@ -6,3 +6,7 @@ class RunnerError(Exception):
 
 class FriendlyExit(Exception):
     pass
+
+
+class PreflightError(Exception):
+    pass
