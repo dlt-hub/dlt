@@ -4,6 +4,7 @@ from dlt.common.cli.runner.inquirer import Inquirer
 from dlt.common.pipeline import LoadInfo
 from dlt.common.cli.runner.pipeline_script import PipelineScript
 from dlt.common.cli.runner.types import RunnerParams
+from dlt.extract.resource import DltResource
 
 
 class PipelineRunner:
@@ -23,5 +24,9 @@ class PipelineRunner:
         pass
 
     def run(self) -> LoadInfo:
-        load_info = self.pipeline.run(self.resource(), **self.script.run_arguments)
+        data_resource = self.resource
+        if isinstance(self.resource, DltResource) and not self.resource._args_bound:
+            data_resource = self.resource()
+
+        load_info = self.pipeline.run(data_resource, **self.script.run_arguments)
         return load_info

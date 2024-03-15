@@ -30,6 +30,7 @@ def run_pipeline_command(
         with PipelineRunner(params=params) as runner:
             load_info = runner.run()
             fmt.echo("")
+            # FIXME: provide more useful information
             fmt.echo(load_info)
     except PipelineStepFailed:
         raise
