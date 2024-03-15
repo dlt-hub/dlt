@@ -172,7 +172,7 @@ During pipeline execution a data validation error indicates that a removed colum
 The data in the pipeline mentioned above is modified.
 
 ```python
-{
+data = [{
     "organization": "Tech Innovations Inc.",
     "CEO": "Alice Smith",
     "address": {'main_block': 'r&d'},
@@ -191,7 +191,10 @@ The data in the pipeline mentioned above is modified.
             }
         }
     ]
-}
+}]
+
+# Run `dlt` pipeline
+dlt.pipeline("organizations_pipeline", destination="duckdb").run(data, table_name="org")
 ```
 The schema of the data above is loaded to the destination as follows:
 <iframe width="560" height="315" src='https://dbdiagram.io/e/65e80b31cd45b569fba33169/65e81055cd45b569fba3aa20'> </iframe>
