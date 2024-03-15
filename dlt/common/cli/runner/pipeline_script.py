@@ -12,7 +12,7 @@ import dlt
 
 from dlt.cli.utils import parse_init_script
 from dlt.common.cli.runner.source_patcher import SourcePatcher
-from dlt.common.cli.runner.types import PipelineMembers, RunnerInventory
+from dlt.common.cli.runner.types import PipelineMembers, RunnerParams
 from dlt.sources import DltResource, DltSource
 
 
@@ -29,14 +29,14 @@ class PipelineScript:
     2. Prepares module name
     """
 
-    def __init__(self, inventory: RunnerInventory) -> None:
-        self.inventory = inventory
+    def __init__(self, params: RunnerParams) -> None:
+        self.params = params
         """This means that user didn't specify pipeline name or re/source name
 
         And we need to check if there is 1 pipeline and 1 re/source to run right
         away if there are multiple re/sources then we need to provide a CLI prompt
         """
-        self.workdir = os.path.dirname(os.path.abspath(inventory.script_path))
+        self.workdir = os.path.dirname(os.path.abspath(params.script_path))
         """Directory in which pipeline script lives"""
 
         # Now we need to patch and store pipeline code
@@ -73,13 +73,13 @@ class PipelineScript:
     @property
     def script_contents(self) -> str:
         """Loads script contents"""
-        with open(self.inventory.script_path) as fp:
+        with open(self.params.script_path) as fp:
             return fp.read()
 
     @property
     def module_name(self) -> str:
         """Strips extension with path and returns filename as modulename"""
-        module_name = self.inventory.script_path.split(os.sep)[-1]
+        module_name = self.params.script_path.split(os.sep)[-1]
         if module_name.endswith(".py"):
             module_name = module_name[:-3]
 
@@ -105,7 +105,7 @@ class PipelineScript:
     @property
     def run_arguments(self) -> t.Dict[str, str]:
         run_options = {}
-        for arg in self.inventory.args or []:
+        for arg in self.params.args or []:
             arg_name, value = arg.split("=")
             run_options[arg_name] = value
 
