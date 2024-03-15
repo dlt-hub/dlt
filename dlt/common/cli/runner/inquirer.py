@@ -80,8 +80,8 @@ class Inquirer:
     def preflight_checks(self):
         if self.params.current_dir != self.params.pipeline_workdir:
             fmt.warning(
-                "Current working directory is different from the pipeline script"
-                + self.params.pipeline_workdir
+                "Current working directory is different from the "
+                f"pipeline script {self.params.pipeline_workdir}\n"
             )
             fmt.echo(f"Current workdir: {fmt.style(self.params.current_dir, fg='blue')}")
             fmt.echo(f"Pipeline workdir: {fmt.style(self.params.pipeline_workdir, fg='blue')}")
