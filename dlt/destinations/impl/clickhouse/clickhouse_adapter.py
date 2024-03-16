@@ -22,6 +22,7 @@ See https://clickhouse.com/docs/en/engines/table-engines.
 TABLE_ENGINE_TYPES: Set[TTableEngineType] = set(get_args(TTableEngineType))
 TABLE_ENGINE_TYPE_HINT: Literal["x-table-engine-type"] = "x-table-engine-type"
 
+
 def clickhouse_adapter(data: Any, table_engine_type: TTableEngineType = None) -> DltResource:
     """Prepares data for the Clickhouse destination by specifying which table engine type
     that should be used.

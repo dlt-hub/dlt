@@ -93,7 +93,9 @@ class ClickhouseSqlClient(
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[ClickhouseDBApiCursorImpl]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> Iterator[ClickhouseDBApiCursorImpl]:
         cur: clickhouse_driver.dbapi.connection.Cursor
         with self._conn.cursor() as cur:
             try:

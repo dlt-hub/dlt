@@ -1,6 +1,6 @@
 import typing as t
 
-from clickhouse_driver.dbapi import Connection
+from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.clickhouse import capabilities
@@ -55,8 +55,3 @@ class clickhouse(Destination[ClickhouseClientConfiguration, ClickhouseClient]):
             create_indexes=create_indexes,
             **kwargs,
         )
-
-
-
-
-

@@ -131,7 +131,9 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             )
 
         return (
-            schema.naming.normalize_table_identifier(self.dataset_name) if self.dataset_name else self.dataset_name
+            schema.naming.normalize_table_identifier(self.dataset_name)
+            if self.dataset_name
+            else self.dataset_name
         )
 
     if TYPE_CHECKING:

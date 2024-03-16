@@ -138,4 +138,4 @@ def escape_databricks_literal(v: Any) -> Any:
 
 
 def escape_clickhouse_identifier(v: str) -> str:
-    return '`' + v.replace('`', '``').replace("\\", "\\\\") + '"'
+    return "`" + v.replace("`", "``").replace("\\", "\\\\") + '"'
