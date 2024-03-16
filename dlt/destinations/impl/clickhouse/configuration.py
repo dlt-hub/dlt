@@ -64,7 +64,8 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     # columns within the same granule.
     # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
     create_indexes: bool = False
-    """Whether `primary_key` and `unique` column hints are applied."""
+    """Whether `primary_key` column hint is applied. Note that Clickhouse has no unique constraint,
+    and primary keys don't guarantee uniqueness."""
 
     __config_gen_annotations__: ClassVar[List[str]] = ["create_indexes"]
 

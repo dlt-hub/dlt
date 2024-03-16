@@ -93,11 +93,13 @@ class ClickhouseSqlClient(
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        with self._conn.cursor() as curr:
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[ClickhouseDBApiCursorImpl]:
+        cur: clickhouse_driver.dbapi.connection.Cursor
+        with self._conn.cursor() as cur:
             try:
-                curr.execute(query, args or (kwargs or None))
-                yield ClickhouseDBApiCursorImpl(curr)  # type: ignore[abstract]
+                # TODO: Clickhouse driver only accepts pyformat `...WHERE name=%(name)s` parameter marker arguments.
+                cur.execute(query, args or (kwargs or None))
+                yield ClickhouseDBApiCursorImpl(cur)  # type: ignore[abstract]
             except clickhouse_driver.dbapi.Error:
                 self.close_connection()
                 self.open_connection()
