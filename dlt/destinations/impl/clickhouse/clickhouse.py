@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import SupportsStagingDestination
+from dlt.common.destination.reference import SupportsStagingDestination, TLoadJobState
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import TTableFormat, TTableSchema, TColumnHint, TColumnType
 from dlt.destinations.impl.clickhouse import capabilities
@@ -67,6 +67,13 @@ class ClickhouseTypeMapper(TypeMapper):
     def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         return "DateTime"
 
+    def from_db_type(
+        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
+    ) -> TColumnType:
+        if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
+            return dict(data_type="wei")
+        return super().from_db_type(db_type, precision, scale)
+
 
 class ClickhouseCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
@@ -84,7 +91,9 @@ class ClickhouseCopyFileLoadJob(CopyRemoteFileLoadJob):
         pass
 
 
-class ClickhouseMergeJob(SqlMergeJob): ...
+class ClickhouseMergeJob(SqlMergeJob):
+    def __init__(self, file_name: str, status: TLoadJobState):
+        super().__init__(file_name, status)
 
 
 class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
