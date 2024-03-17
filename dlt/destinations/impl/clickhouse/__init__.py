@@ -7,7 +7,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
 
     caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl", "parquet", "arrow"]
+    caps.supported_loader_file_formats = ["jsonl", "parquet", "arrow", "insert_values"]
     caps.preferred_staging_file_format = "jsonl"
     caps.supported_staging_file_formats = ["jsonl", "parquet", "arrow"]
 
