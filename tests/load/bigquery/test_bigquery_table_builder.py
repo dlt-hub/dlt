@@ -1,14 +1,6 @@
 import os
 from copy import deepcopy
 from typing import Iterator, Dict, Any, List
-from dlt.destinations.impl.bigquery.bigquery_adapter import (
-    PARTITION_HINT,
-    CLUSTER_HINT,
-    TABLE_DESCRIPTION_HINT,
-    ROUND_HALF_EVEN_HINT,
-    ROUND_HALF_AWAY_FROM_ZERO_HINT,
-    TABLE_EXPIRATION_HINT,
-)
 
 import google
 import pytest
@@ -19,11 +11,15 @@ import dlt
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TColumnHint
+from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    PARTITION_HINT,
+    CLUSTER_HINT,
+)
 from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.extract import DltResource
@@ -32,7 +28,7 @@ from tests.load.pipeline.utils import (
     DestinationTestConfiguration,
     drop_active_pipeline_data,
 )
-from tests.load.utils import TABLE_UPDATE, sequence_generator, empty_schema
+from tests.load.utils import TABLE_UPDATE, sequence_generator
 
 
 def test_configuration() -> None:
@@ -65,8 +61,7 @@ def gcp_client(empty_schema: Schema) -> BigQueryClient:
 
 
 def test_create_table(gcp_client: BigQueryClient) -> None:
-    # non existing table
-    # Add BIGNUMERIC column
+    # Non-existing table Add BIGNUMERIC column.
     table_update = TABLE_UPDATE + [
         {
             "name": "col_high_p_decimal",
@@ -134,7 +129,7 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col6_precision` NUMERIC(6,2) NOT NULL" in sql
     assert "ADD COLUMN `col7_precision` BYTES(19)" in sql
     assert "ADD COLUMN `col11_precision` TIME NOT NULL" in sql
-    # table has col1 already in storage
+    # Table has col1 already in storage.
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)
     sql = gcp_client._get_table_update_sql("event_test_table", mod_table, True)[0]
@@ -144,23 +139,23 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
 
 def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
+    # Timestamp.
     mod_update[9]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    # clustering must be the last
+    # Clustering must be the last.
     assert sql.endswith("CLUSTER BY `col2`, `col5`")
     assert "PARTITION BY `col10`" in sql
 
 
 def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
+    # Timestamp.
     mod_update[3]["partition"] = True
     mod_update[4]["partition"] = True
-    # double partition
+    # Double partition.
     with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", mod_update, False)
     assert excc.value.columns == ["`col4`", "`col5`"]

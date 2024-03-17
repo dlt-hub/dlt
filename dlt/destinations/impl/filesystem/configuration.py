@@ -1,5 +1,3 @@
-from urllib.parse import urlparse
-
 from typing import Final, Type, Optional, Any, TYPE_CHECKING
 
 from dlt.common.configuration import configspec, resolve_type
@@ -16,7 +14,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        # use known credentials or empty credentials for unknown protocol
+        # Use known credentials or empty credentials for unknown protocol.
         return self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
 
     if TYPE_CHECKING:
@@ -29,5 +27,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
             default_schema_name: Optional[str] = None,
             bucket_url: str = None,
             destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
+            environment: str = None
+        ) -> None:
+            super().__init__(bucket_url, credentials)
+            ...

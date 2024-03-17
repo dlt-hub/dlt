@@ -1,4 +1,7 @@
+import datetime  # noqa: 251
+import inspect
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from importlib import import_module
 from types import TracebackType
 from typing import (
@@ -20,11 +23,13 @@ from typing import (
     Generic,
     Final,
 )
-import datetime  # noqa: 251
-from copy import deepcopy
-import inspect
 
 from dlt.common import logger
+from dlt.common.configuration import configspec, resolve_configuration, known_sections
+from dlt.common.configuration.accessors import config
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import (
     IdentifierTooLongException,
     InvalidDestinationReference,
@@ -32,6 +37,7 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.utils import (
     get_write_disposition,
     get_table_format,
@@ -39,15 +45,9 @@ from dlt.common.schema.utils import (
     has_column_with_prop,
     get_first_column_name_with_prop,
 )
-from dlt.common.configuration import configspec, resolve_configuration, known_sections
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.accessors import config
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import is_complete_column
-from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
@@ -75,15 +75,15 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_type: Final[str] = None  # which destination to load data to
+    destination_type: Final[str] = None  # Which destination to load data to.
     credentials: Optional[CredentialsConfiguration]
     destination_name: Optional[str] = (
-        None  # name of the destination, if not set, destination_type is used
+        None  # Name of the destination, if not set, destination_type is used.
     )
     environment: Optional[str] = None
 
     def fingerprint(self) -> str:
-        """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
+        """Returns a destination fingerprint, which is a hash of selected configuration fields. i.e. host in case of connection string."""
         return ""
 
     def __str__(self) -> str:
@@ -125,15 +125,15 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema.name != self.default_schema_name:
-            # also normalize schema name. schema name is Python identifier and here convention may be different
+            # Normalize schema name. schema name is Python identifier, and here convention may be different.
             return schema.naming.normalize_table_identifier(
                 (self.dataset_name or "") + "_" + schema.name
             )
 
         return (
-            self.dataset_name
-            if not self.dataset_name
-            else schema.naming.normalize_table_identifier(self.dataset_name)
+            schema.naming.normalize_table_identifier(self.dataset_name)
+            if self.dataset_name
+            else self.dataset_name
         )
 
     if TYPE_CHECKING:
@@ -153,12 +153,12 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     """Configuration of a staging destination, able to store files with desired `layout` at `bucket_url`.
 
-    Also supports datasets and can act as standalone destination.
+    Also supports datasets and can act as a standalone destination.
     """
 
     as_staging: bool = False
     bucket_url: str = None
-    # layout of the destination files
+    # Layout of the destination files.
     layout: str = "{table_name}/{load_id}.{file_id}.{ext}"
 
     if TYPE_CHECKING:
@@ -174,7 +174,15 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             layout: str = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            super().__init__(
+                credentials=credentials,
+                dataset_name=dataset_name,
+                default_schema_name=default_schema_name,
+                destination_name=destination_name,
+                environment=environment,
+            )
+            ...
 
 
 @configspec
@@ -201,22 +209,26 @@ TLoadJobState = Literal["running", "failed", "retry", "completed"]
 
 
 class LoadJob:
-    """Represents a job that loads a single file
+    """Represents a job that loads a single file.
 
-    Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
-    Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
-    In "running" state, the loader component periodically gets the state via `status()` method. When terminal state is reached, load job is discarded and not called again.
+    Each job starts in "running" state and ends in one of the terminal states: "retry", "failed" or "completed".
+    A filename uniquely identifies each job.
+    The file is guaranteed to exist in "running" state.
+    In terminal state, the file may not be present.
+    In "running" state, the loader component periodically gets the state via `status()` method.
+    When terminal state is reached, a load job is discarded and not called again.
     `exception` method is called to get error information in "failed" and "retry" states.
 
-    The `__init__` method is responsible to put the Job in "running" state. It may raise `LoadClientTerminalException` and `LoadClientTransientException` to
-    immediately transition job into "failed" or "retry" state respectively.
+    The `__init__` method is responsible to put the Job in "running" state.
+    It may raise `LoadClientTerminalException` and `LoadClientTransientException` to
+    immediately transition a job into "failed" or "retry" state respectively.
     """
 
     def __init__(self, file_name: str) -> None:
         """
-        File name is also a job id (or job id is deterministically derived) so it must be globally unique
+        Filename is a job ID (or job ID is deterministically derived), so it must be globally unique.
         """
-        # ensure file name
+        # Ensure filename.
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
         self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
@@ -231,7 +243,7 @@ class LoadJob:
         return self._file_name
 
     def job_id(self) -> str:
-        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        """The job ID that is derived from the filename and doesn't change during job lifecycle."""
         return self._parsed_file_name.job_id()
 
     def job_file_info(self) -> ParsedLoadJobFileName:
@@ -239,7 +251,7 @@ class LoadJob:
 
     @abstractmethod
     def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+        """The exception associated with failed or retry states."""
         pass
 
 
@@ -420,8 +432,8 @@ class JobClientBase(ABC):
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             return table
-        except KeyError:
-            raise UnknownTableException(table_name)
+        except KeyError as e:
+            raise UnknownTableException(table_name) from e
 
 
 class WithStateSync(ABC):
@@ -441,7 +453,7 @@ class WithStateSync(ABC):
 
 
 class WithStagingDataset(ABC):
-    """Adds capability to use staging dataset and request it from the loader"""
+    """Adds capability to use staging dataset and request it from the loader."""
 
     @abstractmethod
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
@@ -454,7 +466,7 @@ class WithStagingDataset(ABC):
 
 
 class SupportsStagingDestination:
-    """Adds capability to support a staging destination for the load"""
+    """Adds capability to support a staging destination for the load."""
 
     def should_load_data_to_staging_dataset_on_staging_destination(
         self, table: TTableSchema
@@ -477,9 +489,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     config_params: Optional[Dict[str, Any]] = None
 
     def __init__(self, **kwargs: Any) -> None:
-        # Create initial unresolved destination config
-        # Argument defaults are filtered out here because we only want arguments passed explicitly
-        # to supersede config from the environment or pipeline args
+        # Create initial unresolved destination configuration.
+        # Argument defaults are filtered out here because we only want arguments passed
+        # explicitly to supersede config from the environment or pipeline arguments.
         sig = inspect.signature(self.__class__.__init__)
         params = sig.parameters
         self.config_params = {
@@ -489,7 +501,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     @abstractmethod
     def spec(self) -> Type[TDestinationConfig]:
-        """A spec of destination configuration that also contains destination credentials"""
+        """A spec of destination configuration that contains destination credentials."""
         ...
 
     @abstractmethod
@@ -499,12 +511,12 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_name(self) -> str:
-        """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
+        """The destination name will either be explicitly set while creating the destination or will be taken from the type."""
         return self.config_params.get("destination_name") or self.to_name(self.destination_type)
 
     @property
     def destination_type(self) -> str:
-        full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
+        full_path = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
         return Destination.normalize_type(full_path)
 
     @property
@@ -514,18 +526,17 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     @abstractmethod
     def client_class(self) -> Type[TDestinationClient]:
-        """A job client class responsible for starting and resuming load jobs"""
+        """A job client class responsible for starting and resuming load jobs."""
         ...
 
     def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
-        """Get a fully resolved destination config from the initial config"""
-        config = resolve_configuration(
+        """Get a fully resolved destination config from the initial config."""
+        return resolve_configuration(
             initial_config,
             sections=(known_sections.DESTINATION, self.destination_name),
-            # Already populated values will supersede resolved env config
+            # Already populated values will supersede resolved env config.
             explicit_value=self.config_params,
         )
-        return config
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -541,8 +552,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def normalize_type(destination_type: str) -> str:
         """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
         if "." not in destination_type:
-            destination_type = "dlt.destinations." + destination_type
-        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+            destination_type = f"dlt.destinations.{destination_type}"
+        # The next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>.
         name = Destination.to_name(destination_type)
         destination_type = destination_type.replace(
             f"dlt.destinations.impl.{name}.factory.", "dlt.destinations."
@@ -558,9 +569,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         **kwargs: Any,
     ) -> Optional["Destination[DestinationClientConfiguration, JobClientBase]"]:
         """Instantiate destination from str reference.
-        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`).
         """
-        # if we only get a name but no ref, we assume that the name is the destination_type
+        # If we only get a name but no ref, we assume that the name is the destination_type.
         if ref is None and destination_name is not None:
             ref = destination_name
         if ref is None:
@@ -597,7 +608,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             kwargs["environment"] = environment
         try:
             dest = factory(**kwargs)
-            dest.spec
+            dest.spec()
         except Exception as e:
             raise InvalidDestinationReference(ref) from e
         return dest
@@ -605,7 +616,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def client(
         self, schema: Schema, initial_config: TDestinationConfig = config.value
     ) -> TDestinationClient:
-        """Returns a configured instance of the destination's job client"""
+        """Returns a configured instance of the destination's job client."""
         return self.client_class(schema, self.configuration(initial_config))
 
 

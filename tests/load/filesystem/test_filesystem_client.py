@@ -12,8 +12,12 @@ from dlt.destinations.impl.filesystem.filesystem import (
 )
 
 from tests.load.filesystem.utils import perform_load
-from tests.utils import clean_test_storage, init_test_logging
-from tests.utils import preserve_environ, autouse_test_storage
+from tests.utils import (
+    clean_test_storage,
+    init_test_logging,
+    preserve_environ,
+    autouse_test_storage,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -33,9 +37,9 @@ NORMALIZED_FILES = [
 
 ALL_LAYOUTS = (
     None,
-    "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # new default layout with schema
-    "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # classic layout
-    "{table_name}88{load_id}-u-{file_id}.{ext}",  # default layout with strange separators
+    "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # New default layout with schema.
+    "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # Classic layout.
+    "{table_name}88{load_id}-u-{file_id}.{ext}",  # Default layout with strange separators.
 )
 
 
@@ -49,13 +53,13 @@ def test_filesystem_destination_configuration() -> None:
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, with_gdrive_buckets_env: str) -> None:
-    """Test load is successful with an empty destination dataset"""
+    """Test load is successful with an empty destination dataset."""
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
 
     with perform_load(
         dataset_name, NORMALIZED_FILES, write_disposition=write_disposition
@@ -64,10 +68,10 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
         layout = client.config.layout
         dataset_path = posixpath.join(client.fs_path, client.config.dataset_name)
 
-        # Assert dataset dir exists
+        # Assert dataset directory exists.
         assert client.fs_client.isdir(dataset_path)
 
-        # Sanity check, there are jobs
+        # Sanity check, there are jobs.
         assert jobs
         for job in jobs:
             assert job.state() == "completed"
@@ -83,7 +87,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
                 ),
             )
 
-            # File is created with correct filename and path
+            # File is created with the correct filename and path.
             assert client.fs_client.isfile(destination_path)
 
 
@@ -93,13 +97,13 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
-    dataset_name = "test_" + uniq_id()
-    # NOTE: context manager will delete the dataset at the end so keep it open until the end
+    dataset_name = f"test_{uniq_id()}"
+    # NOTE: context manager will delete the dataset at the end so keep it open until the end.
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
 
-        # this path will be kept after replace
+        # This path will be kept after replacement.
         job_2_load_1_path = posixpath.join(
             root_path,
             LoadFilesystemJob.make_destination_filename(
@@ -112,7 +116,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         ) as load_info:
             client, _, root_path, load_id2 = load_info
 
-            # this one we expect to be replaced with
+            # This one we expect to be replaced with.
             job_1_load_2_path = posixpath.join(
                 root_path,
                 LoadFilesystemJob.make_destination_filename(
@@ -120,27 +124,27 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 ),
             )
 
-            # First file from load1 remains, second file is replaced by load2
-            # assert that only these two files are in the destination folder
-            paths = []
+            # The First file from load1 remains, the second file is replaced by load2
+            # assert that only these two files are in the destination folder.
+            paths = []  # type: ignore[var-annotated]
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
-                for f in files:
-                    paths.append(posixpath.join(basedir, f))
+                paths.extend(posixpath.join(basedir, f) for f in files)
             ls = set(paths)
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
-    """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
+    """Run a load twice with appended write_disposition and assert that there are two copies
+    of each file in destination."""
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
-    dataset_name = "test_" + uniq_id()
-    # NOTE: context manager will delete the dataset at the end so keep it open until the end
+    dataset_name = f"test_{uniq_id()}"
+    # NOTE: context manager will delete the dataset at the end so keep it open until the end.
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
         client, jobs1, root_path, load_id1 = load_info
         with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
@@ -159,10 +163,9 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             ]
             expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
 
-            paths = []
+            paths = []  # type: ignore[var-annotated]
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
-                for f in files:
-                    paths.append(posixpath.join(basedir, f))
+                paths.extend(posixpath.join(basedir, f) for f in files)
             assert list(sorted(paths)) == expected_files

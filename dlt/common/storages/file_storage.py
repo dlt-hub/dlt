@@ -17,7 +17,7 @@ FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
 
 class FileStorage:
     def __init__(self, storage_path: str, file_type: str = "t", makedirs: bool = False) -> None:
-        # make it absolute path
+        # Make it an absolute path.
         self.storage_path = os.path.realpath(storage_path)  # os.path.join(, '')
         self.file_type = file_type
         if makedirs:
@@ -28,7 +28,7 @@ class FileStorage:
 
     @staticmethod
     def save_atomic(storage_path: str, relative_path: str, data: Any, file_type: str = "t") -> str:
-        mode = "w" + file_type
+        mode = f"w{file_type}"
         with tempfile.NamedTemporaryFile(
             dir=storage_path, mode=mode, delete=False, encoding=encoding_for_mode(mode)
         ) as f:

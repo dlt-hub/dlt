@@ -75,7 +75,7 @@ FileSystemCredentials = Union[
 class FilesystemConfiguration(BaseConfiguration):
     """A configuration defining filesystem location and access credentials.
 
-    When configuration is resolved, `bucket_url` is used to extract a protocol and request corresponding credentials class.
+    When configuration is resolved, `bucket_url` is used to extract a protocol and request the corresponding credentials class.
     * s3
     * gs, gcs
     * az, abfs, adl
@@ -95,17 +95,17 @@ class FilesystemConfiguration(BaseConfiguration):
 
     bucket_url: str = None
 
-    # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
+    # Should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS.
     credentials: FileSystemCredentials
 
     read_only: bool = False
-    """Indicates read only filesystem access. Will enable caching"""
+    """Indicates read only filesystem access. Will enable caching."""
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
 
     @property
     def protocol(self) -> str:
-        """`bucket_url` protocol"""
+        """`bucket_url` protocol."""
         url = urlparse(self.bucket_url)
         # this prevents windows absolute paths to be recognized as schemas
         if not url.scheme or (os.path.isabs(self.bucket_url) and "\\" in self.bucket_url):
@@ -120,24 +120,24 @@ class FilesystemConfiguration(BaseConfiguration):
                 "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
                 " must contain valid url with a path or host:password component."
             )
-        # this is just a path in a local file system
+        # This is just a path in a local file system.
         if url.path == self.bucket_url:
             url = url._replace(scheme="file")
             self.bucket_url = url.geturl()
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
-        # use known credentials or empty credentials for unknown protocol
+        # Use known credentials or empty credentials for unknown protocol.
         return self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of bucket_url"""
+        """Returns a fingerprint of bucket_url."""
         return digest128(self.bucket_url) if self.bucket_url else ""
 
     def __str__(self) -> str:
-        """Return displayable destination location"""
+        """Return displayable destination location."""
         url = urlparse(self.bucket_url)
-        # do not show passwords
+        # Don't show passwords.
         if url.password:
             new_netloc = f"{url.username}:****@{url.hostname}"
             if url.port:
@@ -154,4 +154,6 @@ class FilesystemConfiguration(BaseConfiguration):
             read_only: bool = False,
             kwargs: Optional[DictStrAny] = None,
             client_kwargs: Optional[DictStrAny] = None,
-        ) -> None: ...
+        ) -> None:
+            super().__init__()
+            ...

@@ -1,4 +1,4 @@
-from datetime import timedelta, timezone  # noqa: I251
+from datetime import date, datetime, timedelta, timezone  # noqa: I251
 import pendulum  # noqa: I251
 
 # force UTC as the local timezone to prevent local dates to be written to dbs
@@ -9,7 +9,7 @@ def __utcnow() -> pendulum.DateTime:
     """
     Use this function instead of datetime.now
     Returns:
-        pendulum.DateTime -- current time in UTC timezone
+        pendulum.DateTime - current time in UTC timezone.
     """
     return pendulum.now()
 

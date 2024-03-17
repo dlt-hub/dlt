@@ -1,37 +1,36 @@
-import pytest
-import contextlib
 import codecs
+import contextlib
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+
+import pytest
 
 import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.data_writers import DataWriter
+from dlt.common.destination import TLoaderFileFormat, Destination
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
     LoadJob,
     DestinationClientStagingConfiguration,
     WithStagingDataset,
+    TDestination,
 )
-from dlt.common.destination import TLoaderFileFormat, Destination
-from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TTableSchemaColumns, Schema
-from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table
-from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages import ParsedLoadJobFileName, LoadStorage
+from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
-
-from dlt.load import Load
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-
+from dlt.destinations.sql_client import SqlClientBase
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     IMPLEMENTED_DESTINATIONS,
@@ -44,6 +43,7 @@ from tests.cases import (
     TABLE_ROW_ALL_DATA_TYPES,
     assert_all_data_types_row,
 )
+
 
 # bucket urls
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
@@ -70,14 +70,13 @@ DEFAULT_BUCKETS = [
     bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
-# temporary solution to include gdrive bucket in tests,
-# while gdrive is not working as a destination
+# Temporary solution to include gdrive bucket in tests, while gdrive is not working as a destination.
 WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
 
-# Add r2 in extra buckets so it's not run for all tests
+# Add r2 in extra buckets, so it is not run for all tests.
 R2_BUCKET_CONFIG = dict(
     bucket_url=R2_BUCKET,
-    # Credentials included so we can override aws credentials in env later
+    # Credentials included, so we can override aws credentials in env later.
     credentials=dict(
         aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
         aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
@@ -96,7 +95,7 @@ ALL_BUCKETS = DEFAULT_BUCKETS + EXTRA_BUCKETS
 class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
-    destination: str
+    destination: Union[str, TDestination]
     staging: Optional[str] = None
     file_format: Optional[TLoaderFileFormat] = None
     bucket_url: Optional[str] = None
@@ -104,26 +103,27 @@ class DestinationTestConfiguration:
     staging_iam_role: Optional[str] = None
     staging_use_msi: bool = False
     extra_info: Optional[str] = None
-    supports_merge: bool = True  # TODO: take it from client base class
+    supports_merge: bool = True  # TODO: Take it from client base class.
     force_iceberg: bool = False
     supports_dbt: bool = True
     disable_compression: bool = False
 
     @property
     def name(self) -> str:
-        name: str = self.destination
+        name: str = (
+            self.destination
+            if isinstance(self.destination, str)
+            else self.destination.destination_name
+        )
         if self.file_format:
             name += f"-{self.file_format}"
-        if not self.staging:
-            name += "-no-staging"
-        else:
-            name += "-staging"
+        name += "-staging" if self.staging else "-no-staging"
         if self.extra_info:
             name += f"-{self.extra_info}"
         return name
 
     def setup(self) -> None:
-        """Sets up environment variables for this destination configuration"""
+        """Sets up environment variables for this destination configuration."""
         os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = self.bucket_url or ""
         os.environ["DESTINATION__STAGE_NAME"] = self.stage_name or ""
         os.environ["DESTINATION__STAGING_IAM_ROLE"] = self.staging_iam_role or ""
@@ -134,10 +134,10 @@ class DestinationTestConfiguration:
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
-    def setup_pipeline(
+    def setup_pipeline(  # type: ignore[no-untyped-def, unused-ignore]
         self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
     ) -> dlt.Pipeline:
-        """Convenience method to setup pipeline with this configuration"""
+        """Convenience method to set up a pipeline with this configuration."""
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
@@ -163,14 +163,14 @@ def destinations_configs(
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
-    # sanity check
+    # Sanity check.
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
-    # build destination configs
+    # Build destination configs.
     destination_configs: List[DestinationTestConfiguration] = []
 
-    # default non staging sql based configs, one per destination
+    # Default non staging sql based configs, one per destination.
     if default_sql_configs:
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
@@ -180,7 +180,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
         ]
-        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
@@ -214,7 +214,7 @@ def destinations_configs(
         ]
 
     if default_vector_configs:
-        # for now only weaviate
+        # For now only weaviate.
         destination_configs += [DestinationTestConfiguration(destination="weaviate")]
 
     if default_staging_configs or all_staging_configs:
@@ -344,7 +344,7 @@ def destinations_configs(
             ),
         ]
 
-    # add local filesystem destinations if requested
+    # Add local filesystem destinations if requested.
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
@@ -370,12 +370,12 @@ def destinations_configs(
                 )
             ]
 
-    # filter out non active destinations
+    # Filter out non active destinations.
     destination_configs = [
         conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS
     ]
 
-    # filter out destinations not in subset
+    # Filter out destinations not in subset.
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
@@ -399,7 +399,7 @@ def destinations_configs(
             conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
 
-    # filter out excluded configs
+    # Filter out excluded configs.
     destination_configs = [
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
@@ -462,10 +462,7 @@ def prepare_table(
     client.schema.bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
-    if make_uniq_table:
-        user_table_name = table_name + uniq_id()
-    else:
-        user_table_name = table_name
+    user_table_name = table_name + uniq_id() if make_uniq_table else table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
@@ -479,17 +476,15 @@ def yield_client(
     schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
-    # import destination reference by name
+    # Import destination reference by name.
     destination = Destination.from_reference(destination_type)
-    # create initial config
+    # Create initial config.
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()  # type: ignore[assignment]
     dest_config.dataset_name = dataset_name  # type: ignore[misc]
 
     if default_config_values is not None:
-        # apply the values to credentials, if dict is provided it will be used as default
-        # dest_config.credentials = default_config_values  # type: ignore[assignment]
-        # also apply to config
+        # Apply to config.
         dest_config.update(default_config_values)
     # get event default schema
     storage_config = resolve_configuration(
@@ -501,7 +496,7 @@ def yield_client(
     # create client and dataset
     client: SqlJobClientBase = None
 
-    # athena requires staging config to be present, so stick this in there here
+    # Athena requires staging config to be present, so stick this in there here.
     if destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
             destination_type="fake-stage",  # type: ignore
@@ -538,7 +533,7 @@ def yield_client_with_storage(
     destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
     # create dataset with random name
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
 
     with cm_yield_client(
         destination_type, dataset_name, default_config_values, schema_name
@@ -576,7 +571,7 @@ def write_dataset(
     data_format = DataWriter.data_format_from_file_format(
         client.capabilities.preferred_loader_file_format
     )
-    # adapt bytes stream to text file format
+    # Adapt byte stream to text file format.
     if not data_format.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
     writer = DataWriter.from_destination_capabilities(client.capabilities, f)

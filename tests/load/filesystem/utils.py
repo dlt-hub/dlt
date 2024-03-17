@@ -12,10 +12,12 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
+from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.reference import LoadJob, TDestination
 from dlt.common.pendulum import timedelta, __utcnow
+from dlt.common.storages import FilesystemConfiguration
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -26,7 +28,7 @@ from tests.load.utils import prepare_load_package
 def setup_loader(dataset_name: str) -> Load:
     destination: TDestination = filesystem()  # type: ignore[assignment]
     config = filesystem.spec(dataset_name=dataset_name)
-    # setup loader
+    # Setup loader.
     with Container().injectable_context(ConfigSectionContext(sections=("filesystem",))):
         return Load(destination, initial_client_config=config)
 
@@ -39,7 +41,7 @@ def perform_load(
     load_id, schema = prepare_load_package(load.load_storage, cases, write_disposition)
     client: FilesystemClient = load.get_destination_client(schema)  # type: ignore[assignment]
 
-    # for the replace disposition in the loader, we truncate the tables, so do this here
+    # For the replace disposition in the loader, we truncate the tables, so do this here.
     truncate_tables = []
     if write_disposition == "replace":
         for item in cases:
@@ -65,7 +67,7 @@ def perform_load(
         try:
             client.drop_storage()
         except Exception:
-            print(f"Failed to delete FILESYSTEM dataset: {client.dataset_path}")
+            print(f"Failed to delete FILESYSTEM dataset: {client.dataset_path}.")
 
 
 @pytest.fixture(scope="function", autouse=False)
@@ -103,3 +105,8 @@ def self_signed_cert() -> Iterator[str]:
     yield cert_path
 
     os.remove(cert_path)
+
+
+@with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
+def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguration:
+    return config

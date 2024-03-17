@@ -660,7 +660,7 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
 )
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        str(destination_config.destination),
         default_config_values={
             "default_schema_name": (  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
                 "event"
@@ -671,7 +671,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        str(destination_config.destination),
         default_config_values={
             "default_schema_name": (
                 None  # no default_schema. that should create dataset with the name `dataset_name`
@@ -682,7 +682,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
     with cm_yield_client_with_storage(
-        destination_config.destination,
+        str(destination_config.destination),
         default_config_values={
             "default_schema_name": (  # the default schema is not event schema . that should create dataset with the name `dataset_name` with schema suffix
                 "event_2"
@@ -718,7 +718,7 @@ def test_many_schemas_single_dataset(
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(
-        destination_config.destination, default_config_values={"default_schema_name": None}
+        str(destination_config.destination), default_config_values={"default_schema_name": None}
     ) as client:
         # event schema with event table
         if not client.capabilities.preferred_loader_file_format:
