@@ -35,7 +35,7 @@ class Snippet:
         )
 
 
-def collect_markdown_files() -> List[str]:
+def collect_markdown_files(verbose: bool) -> List[str]:
     """
     Discovers all docs markdown files
     """
@@ -48,6 +48,8 @@ def collect_markdown_files() -> List[str]:
         for file in files:
             if file.endswith(".md"):
                 markdown_files.append(os.path.join(path, file))
+                if verbose:
+                    fmt.echo(f"Discovered {os.path.join(path, file)}")
 
     if len(markdown_files) < 50:  # sanity check
         fmt.error("Found too few files. Something went wrong.")
@@ -58,7 +60,7 @@ def collect_markdown_files() -> List[str]:
     return markdown_files
 
 
-def collect_snippets(markdown_files: List[str]) -> List[Snippet]:
+def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
     """
     Extract all snippets from markdown files
     """
@@ -95,6 +97,10 @@ def collect_snippets(markdown_files: List[str]) -> List[Snippet]:
         )
 
     fmt.note(f"Discovered {len(snippets)} snippets")
+    if verbose:
+        for lang in ALLOWED_LANGUAGES:
+            lang_count = len([s for s in snippets if s.language == lang])
+            fmt.echo(f"Found {lang_count} snippets marked as {lang}")
     if len(snippets) < 100:  # sanity check
         fmt.error("Found too few snippets. Something went wrong.")
         exit(1)
@@ -105,7 +111,7 @@ def filter_snippets(snippets: List[Snippet], files: str, snippet_numbers: str) -
     """
     Filter out snippets based on file or snippet number
     """
-    fmt.echo("Filtering Snippets")
+    fmt.secho(fmt.bold("Filtering Snippets"))
     filtered_snippets: List[Snippet] = []
     filtered_count = 0
     for snippet in snippets:
@@ -125,7 +131,7 @@ def filter_snippets(snippets: List[Snippet], files: str, snippet_numbers: str) -
         fmt.note("0 Snippets skipped based on file and snippet number settings")
 
     if len(filtered_snippets) == 0:  # sanity check
-        fmt.error("Filtered out all snippets, nothing to check.")
+        fmt.error("No snippets remaining after filter, nothing to do.")
         exit(1)
     return filtered_snippets
 
@@ -134,7 +140,7 @@ def check_language(snippets: List[Snippet]) -> None:
     """
     Check if the language is allowed
     """
-    fmt.echo("Checking snippets language")
+    fmt.secho(fmt.bold("Checking snippets language settings"))
     failed_count = 0
     for snippet in snippets:
         if snippet.language not in ALLOWED_LANGUAGES:
@@ -153,14 +159,20 @@ Found {failed_count} snippets with invalid language settings.
         fmt.note("All snippets have valid language settings")
 
 
-def parse_snippets(snippets: List[Snippet]) -> None:
+def clear():
+    fmt.echo("\r" + " " * 200 + "\r", nl=False)
+
+
+def parse_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     Parse all snippets with the respective parser library
     """
-    fmt.echo("Parsing snippets")
+    fmt.secho(fmt.bold("Parsing snippets"))
     failed_count = 0
     for snippet in snippets:
         # parse snippet by type
+        clear()
+        fmt.echo(f"\rParsing {snippet}", nl=False)
         try:
             if snippet.language == "py":
                 ast.parse(snippet.code)
@@ -175,9 +187,13 @@ def parse_snippets(snippets: List[Snippet]) -> None:
                 pass
             else:
                 raise ValueError(f"Unknown language {snippet.language}")
-        except Exception:
+        except Exception as exc:
+            clear()
+            fmt.warning(f"Failed to parse {str(snippet)}")
+            fmt.echo(exc)
             failed_count += 1
 
+    clear()
     if failed_count:
         fmt.error(f"Failed to parse {failed_count} snippets")
         exit(1)
@@ -197,22 +213,26 @@ def prepare_for_linting(snippet: Snippet) -> None:
         f.write(snippet.code)
 
 
-def lint_snippets(snippets: List[Snippet]) -> None:
+def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     Lint all python snippets with ruff
     """
-    fmt.echo("Linting python snippets")
+    fmt.secho(fmt.bold("Linting Python snippets"))
     failed_count = 0
     for snippet in snippets:
         if snippet.language != "py":
             continue
         prepare_for_linting(snippet)
         result = subprocess.run(["ruff", "check", LINT_FILE], capture_output=True, text=True)
+        clear()
+        fmt.echo(f"\rLinting {snippet}", nl=False)
         if "error" in result.stdout.lower():
             failed_count += 1
+            clear()
             fmt.warning(f"Failed to lint {str(snippet)}")
             fmt.echo(result.stdout.strip())
 
+    clear()
     if failed_count:
         fmt.error(f"Failed to lint {failed_count} snippets")
         exit(1)
@@ -220,22 +240,26 @@ def lint_snippets(snippets: List[Snippet]) -> None:
         fmt.note("All snippets could be linted")
 
 
-def typecheck_snippets(snippets: List[Snippet]) -> None:
+def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     TODO: Type check all python snippets with mypy
     """
-    fmt.echo("Type checking python snippets")
+    fmt.secho(fmt.bold("Type checking Python snippets"))
     failed_count = 0
     for snippet in snippets:
         if snippet.language != "py":
             continue
+        clear()
+        fmt.echo(f"\rType checking {snippet}", nl=False)
         prepare_for_linting(snippet)
         result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
         if "no issues found" not in result.stdout.lower():
             failed_count += 1
+            clear()
             fmt.warning(f"Failed to type check {str(snippet)}")
             fmt.echo(result.stdout.strip())
 
+    clear()
     if failed_count:
         fmt.error(f"Failed to type check {failed_count} snippets")
         exit(1)
@@ -273,8 +297,8 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
-        "-sn",
-        "--snippet-number",
+        "-s",
+        "--snippetnumbers",
         help=(
             "Filter checked snippets to snippetnumbers contained in this string, example:"
             ' "13,412,345"'
@@ -285,21 +309,21 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    fmt.echo("Discovering snippets")
+    fmt.secho(fmt.bold("Discovering snippets"))
 
     # find all markdown files and collect all snippets
-    markdown_files = collect_markdown_files()
-    snippets = collect_snippets(markdown_files)
+    markdown_files = collect_markdown_files(args.verbose)
+    snippets = collect_snippets(markdown_files, args.verbose)
 
     # check language settings
     check_language(snippets)
 
     # filter snippets
-    filtered_snippets = filter_snippets(snippets, args.files, args.snippet_number)
+    filtered_snippets = filter_snippets(snippets, args.files, args.snippetnumbers)
 
     if args.command in ["parse", "full"]:
-        parse_snippets(filtered_snippets)
+        parse_snippets(filtered_snippets, args.verbose)
     if args.command in ["lint", "full"]:
-        lint_snippets(filtered_snippets)
+        lint_snippets(filtered_snippets, args.verbose)
     if ENABLE_MYPY and args.command in ["typecheck", "full"]:
-        typecheck_snippets(filtered_snippets)
+        typecheck_snippets(filtered_snippets, args.verbose)
