@@ -219,13 +219,13 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     fmt.secho(fmt.bold("Linting Python snippets"))
     failed_count = 0
+    count = 0
     for snippet in snippets:
-        if snippet.language != "py":
-            continue
+        count += 1
         prepare_for_linting(snippet)
         result = subprocess.run(["ruff", "check", LINT_FILE], capture_output=True, text=True)
         clear()
-        fmt.echo(f"\rLinting {snippet}", nl=False)
+        fmt.echo(f"\rLinting {snippet} ({count} of {len(snippets)})", nl=False)
         if "error" in result.stdout.lower():
             failed_count += 1
             clear()
@@ -246,11 +246,11 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     fmt.secho(fmt.bold("Type checking Python snippets"))
     failed_count = 0
+    count = 0
     for snippet in snippets:
-        if snippet.language != "py":
-            continue
+        count += 1
         clear()
-        fmt.echo(f"\rType checking {snippet}", nl=False)
+        fmt.echo(f"\rType checking {snippet} ({count} of {len(snippets)})", nl=False)
         prepare_for_linting(snippet)
         result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
         if "no issues found" not in result.stdout.lower():
@@ -323,7 +323,10 @@ if __name__ == "__main__":
 
     if args.command in ["parse", "full"]:
         parse_snippets(filtered_snippets, args.verbose)
+
+    # these stages are python only
+    python_snippets = [s for s in filtered_snippets if s.language == "py"]
     if args.command in ["lint", "full"]:
-        lint_snippets(filtered_snippets, args.verbose)
+        lint_snippets(python_snippets, args.verbose)
     if ENABLE_MYPY and args.command in ["typecheck", "full"]:
-        typecheck_snippets(filtered_snippets, args.verbose)
+        typecheck_snippets(python_snippets, args.verbose)
