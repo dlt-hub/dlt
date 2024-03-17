@@ -155,8 +155,41 @@ def load_data():
     )
     # Create the source, the "serialize" decompose option
     # will convert dlt resources into Airflow tasks.
-    # Use "none" to disable it
-    tasks.add_run(pipeline, source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
+    # Use "none" to disable it.
+    tasks.add_run(
+        pipeline,
+        source(),
+        decompose="serialize",
+        trigger_rule="all_done",
+        retries=0,
+        provide_context=True
+    )
+
+    # The "parallel" decompose option will convert dlt
+    # resources into parallel Airflow tasks, except the
+    # first one, which will be executed before any other tasks.
+    # All the tasks will be executed in the same pipeline state.
+    # tasks.add_run(
+    #   pipeline,
+    #   source(),
+    #   decompose="parallel",
+    #   trigger_rule="all_done",
+    #   retries=0,
+    #   provide_context=True
+    # )
+
+    # The "parallel-isolated" decompose option will convert dlt
+    # resources into parallel Airflow tasks, except the
+    # first one, which will be executed before any other tasks.
+    # In this mode, all the tasks will use separate pipeline states.
+    # tasks.add_run(
+    #   pipeline,
+    #   source(),
+    #   decompose="parallel-isolated",
+    #   trigger_rule="all_done",
+    #   retries=0,
+    #   provide_context=True
+    # )
 
 load_data()
 ```

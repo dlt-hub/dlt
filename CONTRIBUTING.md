@@ -12,6 +12,15 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 6. [Publishing (Maintainers Only)](#publishing-maintainers-only)
 7. [Resources](#resources)
 
+## Before You Begin
+
+- **Proposing significant changes or enhancements**: If you're thinking about making significant changes, make sure to [submit an issue](https://github.com/dlt-hub/dlt/issues/new/choose) first. This ensures your efforts align with the project's direction and that you don't invest time on a feature that may not be merged.
+
+- **Fixing bugs**:
+  - **Check existing issues**: search [open issues](https://github.com/dlt-hub/dlt/issues) to see if the bug you've found is already reported.
+    - If **not reported**, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose). You're more than welcome to fix it and submit a pull request with your solution. Thank you!
+    - If the bug is **already reported**, please leave a comment on that issue stating you're working on fixing it. This helps keep everyone updated and avoids duplicate efforts.
+
 ## Getting Started
 
 To get started, follow these steps:
