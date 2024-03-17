@@ -28,8 +28,8 @@ from dlt.common.configuration.specs import (
 from dlt.common.storages.configuration import FileSystemCredentials
 
 # some universal variables
-pipeline: dlt.Pipeline = None # type: ignore[assignment]
-p: dlt.Pipeline = None # type: ignore[assignment]
-ex: Exception = None # type: ignore[assignment]
-load_info: LoadInfo = None # type: ignore[assignment]
-url: str = None # type: ignore[assignment]
+pipeline: dlt.Pipeline = None  # type: ignore[assignment]
+p: dlt.Pipeline = None  # type: ignore[assignment]
+ex: Exception = None  # type: ignore[assignment]
+load_info: LoadInfo = None  # type: ignore[assignment]
+url: str = None  # type: ignore[assignment]
