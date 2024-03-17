@@ -1,4 +1,4 @@
-from typing import ClassVar, List, Any, Final, TYPE_CHECKING
+from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -63,7 +63,7 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     # but they do not enforce uniqueness constraints. It permits duplicate values even for the primary key
     # columns within the same granule.
     # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
-    create_indexes: bool = False
+    create_indexes: bool = True
     """Whether `primary_key` column hint is applied. Note that Clickhouse has no unique constraint,
     and primary keys don't guarantee uniqueness."""
 
@@ -83,6 +83,8 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
             credentials: ClickhouseCredentials = None,
             dataset_name: str = None,
             create_indexes: bool = False,
+            stage_name: str = None,
+            keep_staged_files: bool = True,
             destination_name: str = None,
             environment: str = None
         ) -> None:

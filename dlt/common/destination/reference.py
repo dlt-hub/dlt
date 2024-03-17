@@ -201,22 +201,22 @@ TLoadJobState = Literal["running", "failed", "retry", "completed"]
 
 
 class LoadJob:
-    """Represents a job that loads a single file
+    """Represents a job that loads a single file.
 
-    Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
-    Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
-    In "running" state, the loader component periodically gets the state via `status()` method. When terminal state is reached, load job is discarded and not called again.
+    Each job starts in "running" state and ends in one of the terminal states: "retry", "failed" or "completed".
+    A filename uniquely identifies each job. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
+    In "running" state, the loader component periodically gets the state via `status()` method. When terminal state is reached, a load job is discarded and not called again.
     `exception` method is called to get error information in "failed" and "retry" states.
 
     The `__init__` method is responsible to put the Job in "running" state. It may raise `LoadClientTerminalException` and `LoadClientTransientException` to
-    immediately transition job into "failed" or "retry" state respectively.
+    immediately transition a job into "failed" or "retry" state respectively.
     """
 
     def __init__(self, file_name: str) -> None:
         """
-        File name is also a job id (or job id is deterministically derived) so it must be globally unique
+        Filename is a job ID (or job ID is deterministically derived), so it must be globally unique.
         """
-        # ensure file name
+        # Ensure filename.
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
         self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
@@ -231,7 +231,7 @@ class LoadJob:
         return self._file_name
 
     def job_id(self) -> str:
-        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        """The job ID that is derived from the filename and does not change during job lifecycle."""
         return self._parsed_file_name.job_id()
 
     def job_file_info(self) -> ParsedLoadJobFileName:
@@ -239,7 +239,7 @@ class LoadJob:
 
     @abstractmethod
     def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+        """The exception associated with failed or retry states."""
         pass
 
 
@@ -248,15 +248,15 @@ class NewLoadJob(LoadJob):
 
     @abstractmethod
     def new_file_path(self) -> str:
-        """Path to a newly created temporary job file. If empty, no followup job should be created"""
+        """Path to a newly created temporary job file. If empty, no followup job should be created."""
         pass
 
 
 class FollowupJob:
-    """Adds a trait that allows to create a followup job"""
+    """Adds a trait that allows to create a followup job."""
 
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
-        """Return list of new jobs. `final_state` is state to which this job transits"""
+        """Return list of new jobs. `final_state` is state to which this job transits."""
         return []
 
 

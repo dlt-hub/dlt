@@ -46,7 +46,7 @@ class NewReferenceJob(NewLoadJobImpl):
     def __init__(
         self, file_name: str, status: TLoadJobState, exception: str = None, remote_path: str = None
     ) -> None:
-        file_name = os.path.splitext(file_name)[0] + ".reference"
+        file_name = f"{os.path.splitext(file_name)[0]}.reference"
         super().__init__(file_name, status, exception)
         self._remote_path = remote_path
         self._save_text_file(remote_path)
@@ -58,5 +58,5 @@ class NewReferenceJob(NewLoadJobImpl):
     @staticmethod
     def resolve_reference(file_path: str) -> str:
         with open(file_path, "r+", encoding="utf-8") as f:
-            # Reading from a file
+            # Reading from a file.
             return f.read()
