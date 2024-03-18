@@ -163,11 +163,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self._transformers[dt] = kls(
                 self.resource_name,
                 self.cursor_path,
+                self.initial_value,
                 self.start_value,
                 self.end_value,
-                self._cached_state,
                 self.last_value_func,
                 self._primary_key,
+                set(self._cached_state["unique_hashes"]),
             )
 
     @classmethod
@@ -453,14 +454,28 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             return rows
 
         transformer = self._get_transformer(rows)
-
         if isinstance(rows, list):
-            return [
+            rows = [
                 item
                 for item in (self._transform_item(transformer, row) for row in rows)
                 if item is not None
             ]
-        return self._transform_item(transformer, rows)
+        else:
+            rows = self._transform_item(transformer, rows)
+
+        # write back state
+        self._cached_state["last_value"] = transformer.last_value
+        if not transformer.deduplication_disabled:
+            # compute hashes for new last rows
+            unique_hashes = set(
+                transformer.compute_unique_value(row, self.primary_key)
+                for row in transformer.last_rows
+            )
+            # add directly computed hashes
+            unique_hashes.update(transformer.unique_hashes)
+            self._cached_state["unique_hashes"] = list(unique_hashes)
+
+        return rows
 
 
 Incremental.EMPTY = Incremental[Any]("")
