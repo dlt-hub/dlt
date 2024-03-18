@@ -17,7 +17,7 @@ select_message = """Please select your %s:
 
 def make_select_options(
     select_what: str, items: t.Dict[str, t.Any]
-) -> t.Tuple[str, t.List[int], t.List[str]]:
+) -> t.Tuple[str, t.List[str], t.List[str]]:
     options = []
     option_values = []
     choice_message = ""
@@ -77,7 +77,7 @@ class Inquirer:
         fmt.echo(f"{label}: " + fmt.style(source_name, fg="blue", underline=True))
         return pipeline, self.sources[source_name]
 
-    def preflight_checks(self):
+    def preflight_checks(self) -> None:
         if self.params.current_dir != self.params.pipeline_workdir:
             fmt.warning(
                 "Current working directory is different from the "

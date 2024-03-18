@@ -90,7 +90,7 @@ class PipelineScript:
     @property
     def pipeline_members(self) -> PipelineMembers:
         """Inspect the module and return pipelines with resources and sources"""
-        members: PipelineMembers = defaultdict(dict)
+        members: PipelineMembers = defaultdict(dict)  # type: ignore[assignment]
         for name, value in self.pipeline_module.__dict__.items():
             # skip modules and private stuff
             if isinstance(value, ModuleType) or name.startswith("_"):
@@ -108,7 +108,7 @@ class PipelineScript:
 
     @property
     def run_arguments(self) -> t.Dict[str, str]:
-        run_options = {}
+        run_options: t.Dict[str, str] = {}
         if not self.params.args:
             return run_options
 

@@ -15,8 +15,8 @@ def run_pipeline_command(
     pipeline: t.Optional[str] = None,
     source: t.Optional[str] = None,
     config_path: t.Optional[str] = None,
-    args: t.Optional[str] = None,
-):
+    args: t.Optional[t.List[str]] = None,
+) -> int:
     params = RunnerParams(
         module,
         current_dir=os.getcwd(),
@@ -39,4 +39,5 @@ def run_pipeline_command(
         return -1
     except (FriendlyExit, PreflightError):
         fmt.info("Stopping...")
-        return 0
+
+    return 0
