@@ -19,13 +19,6 @@ else:
     cache_data = st.experimental_memo
 
 
-def attach_to_pipeline(pipeline_name: str) -> dlt.Pipeline:
-    st.session_state["pipeline_name"] = pipeline_name
-    pipelines_dir = os.getenv("DLT_PIPELINES_DIR")
-    pipeline = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
-    return pipeline
-
-
 def render_with_pipeline(render_func: Callable[..., None]) -> None:
     if test_pipeline_name := os.getenv("DLT_TEST_PIPELINE_NAME"):
         fmt.echo(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
@@ -33,7 +26,9 @@ def render_with_pipeline(render_func: Callable[..., None]) -> None:
     else:
         pipeline_name = sys.argv[1]
 
-    pipeline = attach_to_pipeline(pipeline_name)
+    st.session_state["pipeline_name"] = pipeline_name
+    pipelines_dir = os.getenv("DLT_PIPELINES_DIR")
+    pipeline = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
     render_func(pipeline)
 
 
