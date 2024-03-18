@@ -1,5 +1,5 @@
 from typing import Union, Optional, Literal
-from urllib.parse import urlparse, ParseResult
+from urllib.parse import urlparse, ParseResult, urlunparse
 
 from jinja2 import Template
 
@@ -7,7 +7,7 @@ from jinja2 import Template
 S3_TABLE_FUNCTION_FILE_FORMATS = Literal["jsonl", "parquet"]
 
 
-def convert_storage_url_to_http_url(
+def convert_storage_to_http_scheme(
     url: Union[str, ParseResult], use_https: bool = False, endpoint: str = None, region: str = None
 ) -> str:
     try:
@@ -33,11 +33,9 @@ def convert_storage_url_to_http_url(
                 "gs": "storage.googleapis.com",
                 "gcs": "storage.googleapis.com",
             }
-
             domain = storage_domains[parsed_url.scheme]
 
         return f"{protocol}://{bucket_name}.{domain}/{object_key}"
-
     except Exception as e:
         raise Exception(f"Error converting storage URL to HTTP protocol: '{url}'") from e
 
@@ -54,7 +52,9 @@ def render_s3_table_function(
     format_mapping = {"jsonl": "JSONEachRow", "parquet": "Parquet"}
     clickhouse_format = format_mapping[file_format]
 
-    template = Template("""s3('{{ url }}'{% if access_key_id and secret_access_key %},'{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')""")
+    template = Template(
+        """s3('{{ url }}'{% if access_key_id and secret_access_key %},'{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')"""
+    )
 
     return template.render(
         url=url,
@@ -62,7 +62,3 @@ def render_s3_table_function(
         secret_access_key=secret_access_key,
         clickhouse_format=clickhouse_format,
     ).strip()
-
-
-def render_azure_blob_storage_table_function():
-    raise NotImplementedError

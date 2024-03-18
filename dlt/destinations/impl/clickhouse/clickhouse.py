@@ -1,3 +1,4 @@
+import os
 from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence
 from urllib.parse import urlparse
@@ -5,6 +6,7 @@ from urllib.parse import urlparse
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AwsCredentialsWithoutDefaults,
+    AzureCredentialsWithoutDefaults,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -26,9 +28,8 @@ from dlt.destinations.impl.clickhouse.configuration import (
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickhouseSqlClient
 from dlt.destinations.impl.clickhouse.utils import (
-    convert_storage_url_to_http_url,
+    convert_storage_to_http_scheme,
     render_s3_table_function,
-    render_azure_blob_storage_table_function,
 )
 from dlt.destinations.job_client_impl import (
     SqlJobClientWithStaging,
@@ -94,7 +95,6 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         self,
         file_path: str,
         table_name: str,
-        load_id: str,
         client: ClickhouseSqlClient,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
@@ -111,54 +111,63 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         file_name = (
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
+        file_extension = os.path.splitext(file_name)[1].lower()
+        if file_extension not in ["parquet", "jsonl"]:
+            raise ValueError("Clickhouse staging only supports 'parquet' and 'jsonl' file formats.")
 
-        if bucket_path:
-            bucket_url = urlparse(bucket_path)
-            bucket_http_url = convert_storage_url_to_http_url(bucket_url)
-            bucket_scheme = bucket_url.scheme
+        if not bucket_path:
+            # Local filesystem.
+            raise NotImplementedError("Only object storage is supported.")
 
-            table_function: str
+        bucket_url = urlparse(bucket_path)
+        bucket_scheme = bucket_url.scheme
 
-            if bucket_scheme in ("s3", "gs", "gcs"):
-                if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                    # Authenticated access.
-                    table_function = render_s3_table_function(
-                        bucket_http_url,
-                        staging_credentials.aws_secret_access_key,
-                        staging_credentials.aws_secret_access_key,
-                    )
-                else:
-                    # Unsigned access.
-                    table_function = render_s3_table_function(bucket_http_url)
-            elif bucket_scheme in ("az", "abfs"):
-                if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                    # Authenticated access.
-                    table_function = render_azure_blob_storage_table_function(
-                        bucket_http_url,
-                        staging_credentials.aws_secret_access_key,
-                        staging_credentials.aws_secret_access_key,
-                    )
-                else:
-                    # Unsigned access.
-                    table_function = render_azure_blob_storage_table_function(bucket_http_url)
-        else:
-            # Local file.
-            raise NotImplementedError
+        table_function: str
+
+        if bucket_scheme in ("s3", "gs", "gcs"):
+            bucket_http_url = convert_storage_to_http_scheme(bucket_url)
+
+            table_function = (
+                render_s3_table_function(
+                    bucket_http_url,
+                    staging_credentials.aws_secret_access_key,
+                    staging_credentials.aws_secret_access_key,
+                    file_format=file_extension,  # type: ignore[arg-type]
+                )
+                if isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
+                else render_s3_table_function(
+                    bucket_http_url,
+                    file_format=file_extension,  # type: ignore[arg-type]
+                )
+            )
+        elif bucket_scheme in ("az", "abfs"):
+            if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                # Authenticated access.
+                account_name = staging_credentials.azure_storage_account_name
+                storage_account_url = (
+                    f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+                )
+                account_key = staging_credentials.azure_storage_sas_token
+                container_name = bucket_url.netloc
+                blobpath = bucket_url.path
+
+                format_mapping = {"jsonl": "JSONEachRow", "parquet": "Parquet"}
+                clickhouse_format = format_mapping[file_extension]
+
+                table_function = (
+                    f"azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format}')"
+                )
+
+            else:
+                # Unsigned access.
+                raise NotImplementedError(
+                    "Unsigned Azure Blob Storage access from Clickhouse isn't supported as yet."
+                )
 
         with client.begin_transaction():
-            # PUT and COPY in one transaction if local file, otherwise only copy.
-            if not bucket_path:
-                client.execute_sql(
-                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
-                    " AUTO_COMPRESS = FALSE"
-                )
-            client.execute_sql(f"""COPY INTO {qualified_table_name}
-                {from_clause}
-                {files_clause}
-                {credentials_clause}
-                FILE_FORMAT = {source_format}
-                MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
-                """)
+            client.execute_sql(
+                f"""INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"""
+            )
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -188,7 +197,6 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return super().start_file_load(table, file_path, load_id) or ClickhouseLoadJob(
             file_path,
             table["name"],
-            load_id,
             self.sql_client,
             staging_credentials=(
                 self.config.staging_config.credentials if self.config.staging_config else None
