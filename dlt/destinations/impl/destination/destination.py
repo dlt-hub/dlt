@@ -30,8 +30,6 @@ from dlt.destinations.impl.destination.configuration import (
     TDestinationCallable,
 )
 
-INTERNAL_MARKER = "_dlt"
-
 
 class DestinationLoadJob(LoadJob, ABC):
     def __init__(
@@ -168,11 +166,11 @@ class DestinationClient(JobClientBase):
         # skip internal tables and remove columns from schema if so configured
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
-            if table["name"].startswith(INTERNAL_MARKER):
+            if table["name"].startswith(self.schema._dlt_tables_prefix):
                 return DoNothingJob(file_path)
             table = deepcopy(table)
             for column in list(table["columns"].keys()):
-                if column.startswith(INTERNAL_MARKER):
+                if column.startswith(self.schema._dlt_tables_prefix):
                     table["columns"].pop(column)
                     skipped_columns.append(column)
 

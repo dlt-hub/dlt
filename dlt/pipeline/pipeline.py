@@ -456,17 +456,7 @@ class Pipeline(SupportsPipeline):
             return None
 
         # make sure destination capabilities are available
-        caps = self._get_destination_capabilities()
-        if caps.max_table_nesting is not None:
-            # destination settings override normalizer settings in schema
-            from dlt.common.normalizers.json.relational import (
-                DataItemNormalizer as RelationalNormalizer,
-            )
-
-            RelationalNormalizer.update_normalizer_config(
-                self.default_schema, {"max_nesting": caps.max_table_nesting}
-            )
-            self._schema_storage.save_schema(self.default_schema)
+        self._get_destination_capabilities()
 
         # create default normalize config
         normalize_config = NormalizeConfiguration(
