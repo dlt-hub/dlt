@@ -139,8 +139,21 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def create_dataset(self) -> None:
         logger.info("Dremio does not implement create_dataset")
 
+    def _get_table_names(self) -> Sequence[str]:
+        query = """
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA."TABLES"
+            WHERE TABLE_CATALOG = 'DREMIO' AND TABLE_SCHEMA = %s
+            """
+        db_params = [self.fully_qualified_dataset_name(escape=False)]
+        tables = self.execute_sql(query, *db_params) or []
+        return [table[0] for table in tables]
+
     def drop_dataset(self) -> None:
-        logger.info("Dremio does not implement drop_dataset")
+        table_names = self._get_table_names()
+        for table_name in table_names:
+            full_table_name = self.make_qualified_table_name(table_name)
+            self.execute_sql("DROP TABLE IF EXISTS %s;" % full_table_name)
 
     def has_dataset(self) -> bool:
         if self.credentials.flatten:
@@ -150,12 +163,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             WHERE TABLE_CATALOG = 'DREMIO' AND TABLE_SCHEMA = %s and STARTS_WITH(TABLE_NAME, %s)
             """
             db_params = [self.fully_qualified_dataset_name(escape=False), self.dataset_name + "__"]
+            rows = self.execute_sql(query, *db_params)
+            return len(rows) > 0
         else:
-            query = """
-            SELECT 1
-            FROM INFORMATION_SCHEMA.SCHEMATA
-            WHERE catalog_name = 'DREMIO' AND schema_name = %s
-            """
-            db_params = [self.fully_qualified_dataset_name(escape=False)]
-        rows = self.execute_sql(query, *db_params)
-        return len(rows) > 0
+            return len(self._get_table_names()) > 0
