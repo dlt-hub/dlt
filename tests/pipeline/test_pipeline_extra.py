@@ -386,3 +386,27 @@ def test_skips_complex_fields_when_skip_complex_types_is_true_and_field_is_not_a
             }
 
             assert loaded_values == {"data_dictionary__child_attribute": "any string"}
+
+
+def test_arrow_no_pandas() -> None:
+    import pyarrow as pa
+
+    data = {
+        "Numbers": [1, 2, 3, 4, 5],
+        "Strings": ["apple", "banana", "cherry", "date", "elderberry"],
+    }
+
+    df = pa.table(data)
+
+    @dlt.resource
+    def pandas_incremental(numbers=dlt.sources.incremental("Numbers")):
+        yield df
+
+    info = dlt.run(
+        pandas_incremental(), write_disposition="append", table_name="data", destination="duckdb"
+    )
+
+    with info.pipeline.sql_client() as client:  # type: ignore
+        with client.execute_query("SELECT * FROM data") as c:
+            with pytest.raises(ImportError):
+                df = c.df()
