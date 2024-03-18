@@ -74,6 +74,14 @@ profile_name="dlt-ci-user"
 Data loading happens by copying a staged parquet files from an object storage bucket to the destination table in Dremio using [COPY INTO](https://docs.dremio.com/cloud/reference/sql/commands/copy-into-table/) statements. The destination table format is specified by the storage format for the data source in Dremio. Typically, this will be Apache Iceberg.
 
 
+## Dataset Creation
+
+Dremio does not support `CREATE SCHEMA` DDL statements.
+
+Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the DLT pipeline. `full_refresh=True`is unsupported for these data sources.
+
+"Object Storage" data sources do not have this limitation.
+
 ## Staging support
 
 Using a staging destination is mandatory when using the dremio destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
