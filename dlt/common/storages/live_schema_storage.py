@@ -24,11 +24,6 @@ class LiveSchemaStorage(SchemaStorage):
 
         return schema
 
-    # def load_schema(self, name: str) -> Schema:
-    #     self.commit_live_schema(name)
-    #     # now live schema is saved so we can load it with the changes
-    #     return super().load_schema(name)
-
     def save_schema(self, schema: Schema) -> str:
         rv = super().save_schema(schema)
         # update the live schema with schema being saved, if no live schema exist, create one to be available for a getter
@@ -45,8 +40,10 @@ class LiveSchemaStorage(SchemaStorage):
             try:
                 self._load_import_schema(schema.name)
             except FileNotFoundError:
-                # save import schema only if it not exist
-                self._export_schema(schema, self.config.import_schema_path)
+                # save import schema only if it does not exist
+                self._export_schema(
+                    schema, self.config.import_schema_path, remove_processing_hints=True
+                )
 
     def commit_live_schema(self, name: str) -> Schema:
         # if live schema exists and is modified then it must be used as an import schema

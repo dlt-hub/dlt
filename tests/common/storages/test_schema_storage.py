@@ -4,7 +4,7 @@ import pytest
 import yaml
 from dlt.common import json
 
-from dlt.common.normalizers import explicit_normalizers
+from dlt.common.normalizers.utils import explicit_normalizers
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.storages.exceptions import (
@@ -307,6 +307,28 @@ def test_schema_from_file() -> None:
             "name_mismatch",
             extensions=("yaml",),
         )
+
+
+def test_save_initial_import_schema(ie_storage: LiveSchemaStorage) -> None:
+    # no schema in regular storage
+    with pytest.raises(SchemaNotFoundError):
+        ie_storage.load_schema("ethereum")
+
+    # save initial import schema where processing hints are removed
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    schema = Schema.from_dict(eth_V9)
+    ie_storage.save_import_schema_if_not_exists(schema)
+    # should be available now
+    eth = ie_storage.load_schema("ethereum")
+    assert "x-normalizer" not in eth.tables["blocks"]
+
+    # won't overwrite initial schema
+    del eth_V9["tables"]["blocks__uncles"]
+    schema = Schema.from_dict(eth_V9)
+    ie_storage.save_import_schema_if_not_exists(schema)
+    # should be available now
+    eth = ie_storage.load_schema("ethereum")
+    assert "blocks__uncles" in eth.tables
 
 
 # def test_save_empty_schema_name(storage: SchemaStorage) -> None:

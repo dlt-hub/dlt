@@ -505,6 +505,19 @@ def test_pipe_copy_on_fork() -> None:
     assert elems[0].item is not elems[1].item
 
 
+def test_pipe_pass_empty_list() -> None:
+    def _gen():
+        yield []
+
+    pipe = Pipe.from_data("data", _gen())
+    elems = list(PipeIterator.from_pipe(pipe))
+    assert elems[0].item == []
+
+    pipe = Pipe.from_data("data", [[]])
+    elems = list(PipeIterator.from_pipe(pipe))
+    assert elems[0].item == []
+
+
 def test_clone_single_pipe() -> None:
     doc = {"e": 1, "l": 2}
     parent = Pipe.from_data("data", [doc])

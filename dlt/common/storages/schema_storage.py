@@ -55,6 +55,14 @@ class SchemaStorage(Mapping[str, Schema]):
         return Schema.from_dict(storage_schema)
 
     def save_schema(self, schema: Schema) -> str:
+        """Saves schema to the storage and returns the path relative to storage.
+
+        If import schema path is configured and import schema with schena.name exits, it
+        will be linked to `schema` via `_imported_version_hash`. Such hash is used in `load_schema` to
+        detect if import schema changed and thus to overwrite the storage schema.
+
+        If export schema path is configured, `schema` will be exported to it.
+        """
         # check if there's schema to import
         if self.config.import_schema_path:
             try:
@@ -103,9 +111,9 @@ class SchemaStorage(Mapping[str, Schema]):
         rv_schema: Schema = None
         try:
             imported_schema = self._load_import_schema(name)
+            rv_schema = Schema.from_dict(imported_schema)
             if storage_schema is None:
                 # import schema when no schema in storage
-                rv_schema = Schema.from_dict(imported_schema)
                 # if schema was imported, overwrite storage schema
                 rv_schema._imported_version_hash = rv_schema.version_hash
                 self._save_schema(rv_schema)
@@ -117,7 +125,6 @@ class SchemaStorage(Mapping[str, Schema]):
             else:
                 # import schema when imported schema was modified from the last import
                 sc = Schema.from_dict(storage_schema)
-                rv_schema = Schema.from_dict(imported_schema)
                 if rv_schema.version_hash != sc._imported_version_hash:
                     # use imported schema but version must be bumped and imported hash set
                     rv_schema._stored_version = sc.stored_version + 1
@@ -153,14 +160,18 @@ class SchemaStorage(Mapping[str, Schema]):
             import_storage.load(schema_file), self.config.external_schema_format
         )
 
-    def _export_schema(self, schema: Schema, export_path: str) -> None:
+    def _export_schema(
+        self, schema: Schema, export_path: str, remove_processing_hints: bool = False
+    ) -> None:
         if self.config.external_schema_format == "json":
             exported_schema_s = schema.to_pretty_json(
-                remove_defaults=self.config.external_schema_format_remove_defaults
+                remove_defaults=self.config.external_schema_format_remove_defaults,
+                remove_processing_hints=remove_processing_hints,
             )
         elif self.config.external_schema_format == "yaml":
             exported_schema_s = schema.to_pretty_yaml(
-                remove_defaults=self.config.external_schema_format_remove_defaults
+                remove_defaults=self.config.external_schema_format_remove_defaults,
+                remove_processing_hints=remove_processing_hints,
             )
         else:
             raise ValueError(self.config.external_schema_format)
@@ -180,14 +191,19 @@ class SchemaStorage(Mapping[str, Schema]):
 
     @staticmethod
     def load_schema_file(
-        path: str, name: str, extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions
+        path: str,
+        name: str,
+        extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions,
+        remove_processing_hints: bool = False,
     ) -> Schema:
         storage = FileStorage(path)
         for extension in extensions:
             file = SchemaStorage._file_name_in_store(name, extension)
             if storage.has_file(file):
                 parsed_schema = SchemaStorage._parse_schema_str(storage.load(file), extension)
-                schema = Schema.from_dict(parsed_schema)
+                schema = Schema.from_dict(
+                    parsed_schema, remove_processing_hints=remove_processing_hints
+                )
                 if schema.name != name:
                     raise UnexpectedSchemaName(name, path, schema.name)
                 return schema
