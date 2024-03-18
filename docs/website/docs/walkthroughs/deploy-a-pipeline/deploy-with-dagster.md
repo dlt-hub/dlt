@@ -57,9 +57,3 @@ For a hands-on project on “Orchestrating unstructured data pipelines with dags
 :::note
 These are external repositories and are subject to change.
 :::
-
-## Conclusion
-
-In conclusion, integrating `dlt` into the data pipeline ecosystem markedly improves data operations' efficiency and manageability. The combination of `dlt` and Dagster eases the development of data pipelines, making data assets more maintainable and scalable over time. With a wealth of [verified sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources/) available, `dlt` enables streamlined orchestration on Dagster, offering easy management, customization, and maintenance.
-
-We encourage data engineers and developers to explore the capabilities of `dlt` within the Dagster platform. By levraging `dlt` on Dagster, you can simplify the pipeline development process and gain greater insights and value from your data assets.
