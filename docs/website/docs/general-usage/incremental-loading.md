@@ -294,7 +294,18 @@ def repo_events(
 We just yield all the events and `dlt` does the filtering (using `id` column declared as
 `primary_key`).
 
-Github returns events ordered from newest to oldest so we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding first event with `created_at` earlier than `initial_value`.
+Github returns events ordered from newest to oldest. So we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding the first event with `created_at` earlier than `initial_value`.
+
+:::note 
+**Note on Incremental Cursor Behavior:**
+When using incremental cursors for loading data, it's essential to understand how `dlt` handles records in relation to the cursor's 
+last value. By default, `dlt` will load only those records for which the incremental cursor value is higher than the last known value of the cursor.
+This means that any records with a cursor value lower than or equal to the last recorded value will be ignored during the loading process.
+This behavior ensures efficiency by avoiding the reprocessing of records that have already been loaded, but it can lead to confusion if 
+there are expectations of loading older records that fall below the current cursor threshold. If your use case requires the inclusion of 
+such records, you can consider adjusting your data extraction logic, using a full refresh strategy where appropriate or using `last_value_func` as discussed in the subsquent section.
+:::
+
 
 ### max, min or custom `last_value_func`
 
