@@ -1,12 +1,10 @@
-from typing import Any, Callable, ClassVar, List, Literal, Optional, Tuple, Set, get_args
+from typing import Any, Callable, ClassVar, List, Literal, Optional, Tuple, Set, Union, get_args
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.utils import identity
-
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 # known loader file formats
@@ -35,9 +33,13 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     preferred_staging_file_format: Optional[TLoaderFileFormat]
     supported_staging_file_formats: List[TLoaderFileFormat]
     escape_identifier: Callable[[str], str]
+    "Escapes table name, column name and other identifiers"
     escape_literal: Callable[[Any], Any]
-    case_identifier: Callable[[str], str] = identity
-    """Controls identifier casing on top of naming convention. Used to generate case insensitive casing."""
+    "Escapes string literal"
+    casefold_identifier: Callable[[str], str] = str
+    """Casing function applied by destination to represent case insensitive identifiers."""
+    has_case_sensitive_identifiers: bool
+    """Tells if identifiers in destination are case sensitive, before case_identifier function is applied"""
     decimal_precision: Tuple[int, int]
     wei_precision: Tuple[int, int]
     max_identifier_length: int
@@ -48,7 +50,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     is_max_text_data_type_length_in_bytes: bool
     supports_transactions: bool
     supports_ddl_transactions: bool
-    naming_convention: str = "snake_case"
+    naming_convention: Union[str, NamingConvention] = "snake_case"
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
@@ -65,15 +67,18 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     @staticmethod
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
+        naming_convention: Union[str, NamingConvention] = None,
     ) -> "DestinationCapabilitiesContext":
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
-        caps.escape_identifier = identity
+        caps.naming_convention = naming_convention or caps.naming_convention
+        caps.escape_identifier = str
         caps.escape_literal = serialize_value
-        caps.case_identifier = identity
+        caps.casefold_identifier = str
+        caps.has_case_sensitive_identifiers = True
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (EVM_DECIMAL_PRECISION, 0)
         caps.max_identifier_length = 65536
