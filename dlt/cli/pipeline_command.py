@@ -106,7 +106,6 @@ def pipeline_command(
         from dlt.helpers.streamlit_app import dashboard
 
         with signals.delayed_signals():
-            # exit when there are not schemas
             if pipelines_dir:
                 os.environ["DLT_PIPELINES_DIR"] = pipelines_dir
 
