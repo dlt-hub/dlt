@@ -214,16 +214,16 @@ def source(
         source_sections = (known_sections.SOURCES, source_section, effective_name)
         conf_f = with_config(f, spec=spec, sections=source_sections)
 
-        def _eval_rv(_rv: Any) -> TDltSourceImpl:
+        def _eval_rv(_rv: Any, schema_copy: Schema) -> TDltSourceImpl:
             """Evaluates return value from the source function or coroutine"""
             if _rv is None:
-                raise SourceDataIsNone(schema.name)
+                raise SourceDataIsNone(schema_copy.name)
             # if generator, consume it immediately
             if inspect.isgenerator(_rv):
                 _rv = list(_rv)
 
             # convert to source
-            s = _impl_cls.from_data(schema.clone(update_normalizers=True), source_section, _rv)
+            s = _impl_cls.from_data(schema_copy, source_section, _rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
@@ -235,7 +235,10 @@ def source(
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> TDltSourceImpl:
             """Wrap a regular function, injection context must be a part of the wrap"""
-            with Container().injectable_context(SourceSchemaInjectableContext(schema)):
+            # clone the schema passed to decorator, update normalizers, remove processing hints
+            # NOTE: source may be called several times in many different settings
+            schema_copy = schema.clone(update_normalizers=True, remove_processing_hints=True)
+            with Container().injectable_context(SourceSchemaInjectableContext(schema_copy)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
@@ -243,18 +246,21 @@ def source(
                     ConfigSectionContext(
                         pipeline_name=pipeline_name,
                         sections=source_sections,
-                        source_state_key=schema.name,
+                        source_state_key=schema_copy.name,
                     )
                 ):
                     rv = conf_f(*args, **kwargs)
-                    return _eval_rv(rv)
+                    return _eval_rv(rv, schema_copy)
 
         @wraps(conf_f)
         async def _wrap_coro(*args: Any, **kwargs: Any) -> TDltSourceImpl:
             """In case of co-routine we must wrap the whole injection context in awaitable,
             there's no easy way to avoid some code duplication
             """
-            with Container().injectable_context(SourceSchemaInjectableContext(schema)):
+            # clone the schema passed to decorator, update normalizers, remove processing hints
+            # NOTE: source may be called several times in many different settings
+            schema_copy = schema.clone(update_normalizers=True, remove_processing_hints=True)
+            with Container().injectable_context(SourceSchemaInjectableContext(schema_copy)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
@@ -262,11 +268,11 @@ def source(
                     ConfigSectionContext(
                         pipeline_name=pipeline_name,
                         sections=source_sections,
-                        source_state_key=schema.name,
+                        source_state_key=schema_copy.name,
                     )
                 ):
                     rv = await conf_f(*args, **kwargs)
-                    return _eval_rv(rv)
+                    return _eval_rv(rv, schema_copy)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -732,8 +738,11 @@ def _maybe_load_schema_for_callable(f: AnyFun, name: str) -> Optional[Schema]:
     try:
         file = inspect.getsourcefile(f)
         if file:
-            return SchemaStorage.load_schema_file(os.path.dirname(file), name)
-
+            schema = SchemaStorage.load_schema_file(
+                os.path.dirname(file), name, remove_processing_hints=True
+            )
+            schema.update_normalizers()
+            return schema
     except SchemaNotFoundError:
         pass
     return None

@@ -42,7 +42,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, load_yml_case
 
 
 def test_none_returning_source() -> None:
@@ -87,7 +87,10 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    eth_v9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    # source removes processing hints so we do
+    reference_schema = Schema.from_dict(eth_v9, remove_processing_hints=True)
+    assert schema.stored_version_hash == reference_schema.stored_version_hash
 
 
 def test_unbound_parametrized_transformer() -> None:
@@ -545,6 +548,21 @@ def test_source_schema_context() -> None:
     _assert_source_schema(created_global(), "global")
 
 
+def test_source_schema_removes_processing_hints() -> None:
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    assert "x-normalizer" in eth_V9["tables"]["blocks"]
+
+    @dlt.source(schema=Schema.from_dict(eth_V9))
+    def created_explicit():
+        schema = dlt.current.source_schema()
+        assert schema.name == "ethereum"
+        assert "x-normalizer" not in schema.tables["blocks"]
+        return dlt.resource([1, 2, 3], name="res")
+
+    source = created_explicit()
+    assert "x-normalizer" not in source.schema.tables["blocks"]
+
+
 def test_source_state_context() -> None:
     @dlt.resource(selected=False)
     def main():
@@ -779,6 +797,18 @@ def test_standalone_transformer() -> None:
         "AAAAAA",
         "AAAAAAAA",
     ]
+
+
+def test_transformer_required_args() -> None:
+    @dlt.transformer
+    def path_params(id_, workspace_id, load_id, base: bool = False):
+        yield {"id": id_, "workspace_id": workspace_id, "load_id": load_id}
+
+    data = list([1, 2, 3] | path_params(121, 343))
+    assert len(data) == 3
+    assert data[0] == {"id": 1, "workspace_id": 121, "load_id": 343}
+
+    # @dlt
 
 
 @dlt.transformer(standalone=True, name=lambda args: args["res_name"])
