@@ -11,7 +11,7 @@ natively (i.e., BigQuery and DuckDB), `dlt` uses the native method. Thanks to th
 dataframes can be really fast! The example below reads GitHub reactions data from the `issues` table and
 counts the reaction types.
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="github_pipeline",
     destination="duckdb",

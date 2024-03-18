@@ -149,7 +149,7 @@ Now imagine the data has changed and `id` field also contains strings
 
 ```py
 data = [
-  {"id": 1, "human_name": "Alice"}
+  {"id": 1, "human_name": "Alice"},
   {"id": "idx-nr-456", "human_name": "Bob"}
 ]
 ```
@@ -308,7 +308,7 @@ schema available via `dlt.current.source_schema()`.
 
 Example:
 
-```python
+```py
 @dlt.source
 def textual(nesting_level: int):
     # get the source schema from the `current` context

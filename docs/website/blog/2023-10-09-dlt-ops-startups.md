@@ -112,7 +112,7 @@ Customize the INVOICE_QUERIES dictionary in the `unstructured_data/settings.py` 
 
 And now the magic happens. Use the following command to run the pipeline:
 
-```shell
+```sh
 python unstructured_data_pipeline.py
 ```
 

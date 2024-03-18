@@ -18,19 +18,19 @@ steps below.
 
 Create a new empty directory for your `dlt` project by running:
 
-```bash
+```sh
 mkdir weatherapi_duckdb && cd weatherapi_duckdb
 ```
 
 Start a `dlt` project with a pipeline template that loads data to DuckDB by running:
 
-```bash
+```sh
 dlt init weatherapi duckdb
 ```
 
 Install the dependencies necessary for DuckDB:
 
-```bash
+```sh
 pip install -r requirements.txt
 ```
 
@@ -48,7 +48,7 @@ Copy the value of the API key into `.dlt/secrets.toml`:
 api_secret_key = '<api key value>'
 ```
 The **secret name** corresponds to the **argument name** in the source function. Below `api_secret_key` [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `weatherapi_source()` is called.
-```python
+```py
 @dlt.source
 def weatherapi_source(api_secret_key=dlt.secrets.value):
   ...
@@ -56,7 +56,7 @@ def weatherapi_source(api_secret_key=dlt.secrets.value):
 
 Run the `weatherapi.py` pipeline script to test that authentication headers look fine:
 
-```bash
+```sh
 python3 weatherapi.py
 ```
 
@@ -67,7 +67,7 @@ Your API key should be printed out to stdout along with some test data.
 Replace the definition of the `weatherapi_resource` function definition in the `weatherapi.py`
 pipeline script with a call to the WeatherAPI.com API:
 
-```python
+```py
 @dlt.resource(write_disposition="append")
 def weatherapi_resource(api_secret_key=dlt.secrets.value):
     url = "https://api.weatherapi.com/v1/current.json"
@@ -82,7 +82,7 @@ def weatherapi_resource(api_secret_key=dlt.secrets.value):
 
 Run the `weatherapi.py` pipeline script to test that the API call works:
 
-```bash
+```sh
 python3 weatherapi.py
 ```
 
@@ -93,7 +93,7 @@ This should print out the weather in New York City right now.
 Remove the `exit()` call from the `main` function in `weatherapi.py`, so that running the
 `python3 weatherapi.py` command will now also run the pipeline:
 
-```python
+```py
 if __name__=='__main__':
 
     # configure the pipeline with your destination details
@@ -118,13 +118,13 @@ if __name__=='__main__':
 
 Run the `weatherapi.py` pipeline script to load data into DuckDB:
 
-```bash
+```sh
 python3 weatherapi.py
 ```
 
 Then this command to see that the data loaded:
 
-```bash
+```sh
 dlt pipeline weatherapi show
 ```
 

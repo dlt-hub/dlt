@@ -132,7 +132,7 @@ We recommend setting up and testing dbt-core locally before using it in cloud fu
 
 1. Finally, you can deploy the function using gcloud CLI as:
 
-   ```shell
+   ```sh
    gcloud functions deploy YOUR_FUNCTION_NAME \
    --gen2 \
    --region=YOUR_REGION \
@@ -313,7 +313,7 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
 1. Finally, you can deploy the function using gcloud CLI as:
 
-   ```shell
+   ```sh
    gcloud functions deploy YOUR_FUNCTION_NAME \
    --gen2 \
    --region=YOUR_REGION \

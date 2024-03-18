@@ -8,24 +8,24 @@ keywords: [duckdb, destination, data warehouse]
 
 ## Install dlt with DuckDB
 **To install the DLT library with DuckDB dependencies, run:**
-```
+```sh
 pip install dlt[duckdb]
 ```
 
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to DuckDB by running:**
-```
+```sh
 dlt init chess duckdb
 ```
 
 **2. Install the necessary dependencies for DuckDB by running:**
-```
+```sh
 pip install -r requirements.txt
 ```
 
 **3. Run the pipeline:**
-```
+```sh
 python3 chess_pipeline.py
 ```
 
@@ -47,7 +47,7 @@ naming="duck_case"
 ```
 
 or via the env variable `SCHEMA__NAMING` or directly in the code:
-```python
+```py
 dlt.config["schema.naming"] = "duck_case"
 ```
 :::caution
@@ -73,7 +73,7 @@ You can configure the following file formats to load data to duckdb:
 By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
 
 The `duckdb` credentials do not require any secret values. You are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
-```python
+```py
 # will load data to files/data.db database file
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
 
@@ -82,7 +82,7 @@ p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='ches
 ```
 
 The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
-```python
+```py
 import duckdb
 db = duckdb.connect()
 p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)
@@ -92,7 +92,7 @@ This destination accepts database connection strings in the format used by [duck
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
 ```toml
-destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
+destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 ```
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 

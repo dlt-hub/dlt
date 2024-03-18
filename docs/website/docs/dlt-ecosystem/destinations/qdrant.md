@@ -13,7 +13,7 @@ This destination helps you load data into Qdrant from [dlt resources](../../gene
 
 1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
 
-```bash
+```sh
 pip install dlt[qdrant]
 ```
 
@@ -31,7 +31,7 @@ If no configuration options are provided, the default fallback will be `http://l
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
-```python
+```py
 import dlt
 from dlt.destinations.adapters import qdrant_adapter
 
@@ -53,7 +53,7 @@ movies = [
 
 4. Define the pipeline:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="qdrant",
@@ -63,7 +63,7 @@ pipeline = dlt.pipeline(
 
 5. Run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -74,7 +74,7 @@ info = pipeline.run(
 
 6. Check the results:
 
-```python
+```py
 print(info)
 ```
 
@@ -86,7 +86,7 @@ To use vector search after the data has been loaded, you must specify which fiel
 
 The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
 
-```python
+```py
 qdrant_adapter(data, embed)
 ```
 
@@ -99,7 +99,7 @@ Returns: [DLT resource](../../general-usage/resource.md) object that you can pas
 
 Example:
 
-```python
+```py
 qdrant_adapter(
     resource,
     embed=["title", "description"],
@@ -122,7 +122,7 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -137,7 +137,7 @@ info = pipeline.run(
 The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination.
 For the `merge` disposition, you need to specify a `primary_key` for the resource:
 
-```python
+```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -170,7 +170,7 @@ However, if you prefer to have class names without the dataset prefix, skip the 
 
 For example:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="qdrant",

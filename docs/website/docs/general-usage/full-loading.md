@@ -13,7 +13,7 @@ that are not selected while performing a full load will not replace any data in 
 
 To perform a full load on one or more of your resources, choose the `write_disposition='replace'` for this resource:
 
-```python
+```py
 p = dlt.pipeline(destination="bigquery", dataset_name="github")
 issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
