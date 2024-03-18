@@ -1,6 +1,6 @@
 import os
 import yaml
-from typing import Any, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple
 import dlt
 from dlt.cli.exceptions import CliCommandException
 
@@ -27,6 +27,7 @@ def pipeline_command(
     verbosity: int,
     dataset_name: str = None,
     destination: TDestinationReferenceArg = None,
+    hot_reload: Optional[bool] = False,
     **command_kwargs: Any,
 ) -> None:
     if operation == "list":
@@ -107,8 +108,9 @@ def pipeline_command(
 
         with signals.delayed_signals():
             # exit when there are not schemas
-            reload_flag = os.getenv("DLT_STREAMLIT_HOT_RELOAD")
-            should_reload = str2bool(reload_flag or "no")
+            if pipelines_dir:
+                os.environ["DLT_PIPELINES_DIR"] = pipelines_dir
+
             streamlit_cmd = [
                 "streamlit",
                 "run",
@@ -117,7 +119,7 @@ def pipeline_command(
                 "--client.showSidebarNavigation",
                 "false",
             ]
-            if should_reload:
+            if hot_reload:
                 streamlit_cmd.append("--server.runOnSave")
                 streamlit_cmd.append("true")
 

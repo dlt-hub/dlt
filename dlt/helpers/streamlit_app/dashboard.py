@@ -3,7 +3,7 @@ import sys
 
 import dlt
 import streamlit as st
-
+from dlt.cli import echo as fmt
 from dlt.helpers.streamlit_app.blocks.query import maybe_run_query
 from dlt.helpers.streamlit_app.blocks.table_hints import list_table_hints
 from dlt.helpers.streamlit_app.menu import menu
@@ -47,7 +47,12 @@ def write_data_explorer_page(
 
 def display(pipeline_name: str) -> None:
     pipeline = dlt.attach(pipeline_name)
+    if pipelines_dir := os.getenv("DLT_PIPELINES_DIR"):
+        fmt.echo(f"Pipelines directory: {pipelines_dir}")
+        pipeline.pipelines_dir = pipelines_dir
+
     st.session_state["pipeline_name"] = pipeline_name
+
     with st.sidebar:
         menu(pipeline)
 
@@ -56,7 +61,7 @@ def display(pipeline_name: str) -> None:
 
 if __name__ == "__main__":
     if test_pipeline_name := os.getenv("DLT_TEST_PIPELINE_NAME"):
-        print(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
+        fmt.echo(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
         display(test_pipeline_name)
     else:
         display(sys.argv[1])
