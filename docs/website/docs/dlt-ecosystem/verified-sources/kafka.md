@@ -99,7 +99,7 @@ sasl_password="example_secret"
 
 For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
 
-:::info Due to Kafka features, a situation is possible, when reading is started before the related consumer is managed to a backend broker, or when messages were not yet synced between brokers. In this case the resource will return no messages, and it's fine to restart reading after it.
+:::info If you created a topic and start reading from it immedately, the brokers may be not yet synchronized and offset from which `dlt` reads messages may become invalid. In this case the resource will return no messages. Pending messages will be received on next run (or when brokers synchronize)
 
 ## Sources and resources
 
