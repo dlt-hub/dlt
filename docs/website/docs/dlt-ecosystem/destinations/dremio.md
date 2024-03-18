@@ -48,10 +48,9 @@ staging_data_source = "<staging-data-source>" # the name of the "Object Storage"
 [destination.dremio.credentials]
 username = "<username>"  # the dremio username
 password = "<password or pat token>"  # dremio password or PAT token
-database = "<database>" # the highest level of hierarchy under "data_source". e.g for AWS Glue catalog this is the Glue Database name
+database = "<database>" # the name of the "data source" in Dremio
 host = "localhost" # the Dremio hostname
 port = 32010 # the Dremio Arrow Flight grpc port
-data_source = "<data-source>" # the name of the destination data source in Dremio
 drivername="grpc" # either 'grpc' or 'grpc+tls'
 ```
 

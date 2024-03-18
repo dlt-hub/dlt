@@ -98,14 +98,12 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             yield DremioCursorImpl(curr)  # type: ignore
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        datasource_name = self.credentials.data_source
         database_name = self.credentials.database
         dataset_name = self.dataset_name
         if escape:
-            datasource_name = self.capabilities.escape_identifier(datasource_name)
             database_name = self.capabilities.escape_identifier(database_name)
             dataset_name = self.capabilities.escape_identifier(dataset_name)
-        return f"{datasource_name}.{database_name}.{dataset_name}"
+        return f"{database_name}.{dataset_name}"
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
         if escape:

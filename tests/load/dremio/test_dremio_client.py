@@ -9,7 +9,6 @@ from tests.load.utils import empty_schema
 @pytest.fixture
 def dremio_client(empty_schema) -> DremioClient:
     creds = DremioCredentials()
-    creds.data_source = "test_data_source"
     creds.database = "test_database"
     return DremioClient(
         empty_schema,
@@ -28,7 +27,7 @@ def dremio_client(empty_schema) -> DremioClient:
             ],
             False,
             [
-                'CREATE TABLE "test_data_source"."test_database"."test_dataset"."event_test_table"'
+                'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
                 ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )\nPARTITION BY'
                 ' ("foo")\nLOCALSORT BY ("bar")'
             ],
@@ -41,7 +40,7 @@ def dremio_client(empty_schema) -> DremioClient:
             ],
             False,
             [
-                'CREATE TABLE "test_data_source"."test_database"."test_dataset"."event_test_table"'
+                'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
                 ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )\nPARTITION BY'
                 ' ("foo","bar")'
             ],
@@ -54,7 +53,7 @@ def dremio_client(empty_schema) -> DremioClient:
             ],
             False,
             [
-                'CREATE TABLE "test_data_source"."test_database"."test_dataset"."event_test_table"'
+                'CREATE TABLE "test_database"."test_dataset"."event_test_table"'
                 ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )'
             ],
         ),

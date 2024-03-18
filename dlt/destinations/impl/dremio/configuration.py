@@ -16,7 +16,6 @@ class DremioCredentials(ConnectionStringCredentials):
     host: str = None
     port: Optional[int] = 32010
     database: str = None
-    data_source: str
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
