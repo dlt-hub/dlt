@@ -100,10 +100,3 @@ class NamingConvention(ABC):
         )
         assert len(identifier) == max_length
         return identifier
-
-
-class SupportsNamingConvention(Protocol):
-    """Expected of modules defining naming convention"""
-
-    NamingConvention: Type[NamingConvention]
-    """A class with a name NamingConvention deriving from normalizers.naming.NamingConvention"""
