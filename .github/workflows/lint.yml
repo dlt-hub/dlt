@@ -8,6 +8,10 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml
@@ -75,4 +79,4 @@ jobs:
       - name: Check matrix job results
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1      
+          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
