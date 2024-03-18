@@ -1,5 +1,5 @@
 ---
-title: Scraping
+title: Scrapy
 description: dlt verified source for Scraping using scrapy
 keywords: [scraping, scraping verified source, scrapy]
 ---
