@@ -8,7 +8,7 @@ from dlt.cli import echo as fmt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.libs.pandas import pandas as pd
-from dlt.helpers.streamlit_app.menu import menu
+from dlt.helpers.streamlit_app.blocks.menu import menu
 from dlt.helpers.streamlit_app.widgets import stat, pipeline_summary
 from dlt.helpers.streamlit_app.utils import attach_to_pipeline, cache_data
 from dlt.pipeline import Pipeline
