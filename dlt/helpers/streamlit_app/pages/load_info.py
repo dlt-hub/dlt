@@ -102,9 +102,9 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
 
     local_state = pipeline.state
 
-    remote_state_version = "---"  # type: ignore
+    remote_state_version = "---"
     if remote_state:
-        remote_state_version = remote_state["_state_version"]
+        remote_state_version = str(remote_state["_state_version"])
 
     col1, col2 = st.columns(2)
     with col1:
