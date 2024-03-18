@@ -7,6 +7,7 @@ from dlt.cli import echo as fmt
 from dlt.helpers.streamlit_app.blocks.query import maybe_run_query
 from dlt.helpers.streamlit_app.blocks.table_hints import list_table_hints
 from dlt.helpers.streamlit_app.menu import menu
+from dlt.helpers.streamlit_app.utils import attach_to_pipeline
 from dlt.helpers.streamlit_app.widgets import schema_picker
 from dlt.pipeline import Pipeline
 
@@ -46,11 +47,7 @@ def write_data_explorer_page(
 
 
 def display(pipeline_name: str) -> None:
-    pipeline = dlt.attach(pipeline_name)
-    if pipelines_dir := os.getenv("DLT_PIPELINES_DIR"):
-        pipeline.pipelines_dir = pipelines_dir
-
-    st.session_state["pipeline_name"] = pipeline_name
+    pipeline = attach_to_pipeline(pipeline_name)
 
     with st.sidebar:
         menu(pipeline)

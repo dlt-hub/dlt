@@ -8,7 +8,7 @@ from dlt.common.destination.reference import WithStateSync
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu
 from dlt.helpers.streamlit_app.widgets import stat, pipeline_summary
-from dlt.helpers.streamlit_app.utils import cache_data
+from dlt.helpers.streamlit_app.utils import attach_to_pipeline, cache_data
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
@@ -127,12 +127,11 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
 
 
 def show() -> None:
+    pipeline_name = st.session_state.get("pipeline_name")
     if not st.session_state.get("pipeline_name"):
         st.switch_page("dashboard.py")
 
-    pipeline = dlt.attach(st.session_state["pipeline_name"])
-    if pipelines_dir := os.getenv("DLT_PIPELINES_DIR"):
-        pipeline.pipelines_dir = pipelines_dir
+    pipeline = attach_to_pipeline(pipeline_name)
 
     st.subheader("Load info", divider="rainbow")
     write_load_status_page(pipeline)

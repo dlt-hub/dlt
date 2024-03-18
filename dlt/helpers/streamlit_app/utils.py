@@ -1,3 +1,5 @@
+import os
+
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +15,13 @@ if hasattr(st, "cache_data"):
     cache_data = st.cache_data
 else:
     cache_data = st.experimental_memo
+
+
+def attach_to_pipeline(pipeline_name: str) -> dlt.Pipeline:
+    st.session_state["pipeline_name"] = pipeline_name
+    pipelines_dir = os.getenv("DLT_PIPELINES_DIR")
+    pipeline = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
+    return pipeline
 
 
 # FIXME: make something to DRY the code
