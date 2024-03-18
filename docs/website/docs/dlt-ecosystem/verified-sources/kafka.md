@@ -99,6 +99,8 @@ sasl_password="example_secret"
 
 For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
 
+:::info If you created a topic and start reading from it immedately, the brokers may be not yet synchronized and offset from which `dlt` reads messages may become invalid. In this case the resource will return no messages. Pending messages will be received on next run (or when brokers synchronize)
+
 ## Sources and resources
 
 `dlt` works on the principle of [sources](../../general-usage/source) and
@@ -136,7 +138,7 @@ as an example of how to implement processors.
 `batch_size`: The number of messages to extract from the cluster
 at once. It can be set to tweak performance.
 
-`batch_timeout`: The maximum timeout for a single batch reading
+`batch_timeout`: The maximum timeout (in seconds) for a single batch reading
 operation. It can be set to tweak performance.
 
 `start_from`: A timestamp, starting from which the messages must
