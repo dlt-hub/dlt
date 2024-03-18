@@ -214,6 +214,7 @@ def destinations_configs(
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             )
         ]
         destination_configs += [

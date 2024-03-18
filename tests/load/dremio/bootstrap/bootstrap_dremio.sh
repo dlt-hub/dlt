@@ -26,6 +26,16 @@ output=$(curl -X POST "${DREMIO_URL}/apiv2/login" \
 dremio_token=$(echo "$output" | python -c "import sys, json; print(json.load(sys.stdin)['token'])")
 echo "$dremio_token"
 
+# Need to increase the "single_field_size_bytes" limit otherwise some tests fail.
+curl "${DREMIO_URL}/api/v3/sql" \
+  -X 'POST' \
+  -H 'Accept: */*' \
+  -H "Authorization: _dremio${dremio_token}" \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -d '{"sql": "alter system set limits.single_field_size_bytes = 200000;"}' \
+  --fail-with-body
+
 # Create a NAS source. This will contain final ICEBERG tables.
 curl "${DREMIO_URL}/apiv2/source/nas/?nocache=1708370225409" \
   -X 'PUT' \
