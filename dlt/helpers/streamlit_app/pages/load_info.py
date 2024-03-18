@@ -1,3 +1,5 @@
+import os
+
 import dlt
 import streamlit as st
 
@@ -129,6 +131,9 @@ def show() -> None:
         st.switch_page("dashboard.py")
 
     pipeline = dlt.attach(st.session_state["pipeline_name"])
+    if pipelines_dir := os.getenv("DLT_PIPELINES_DIR"):
+        pipeline.pipelines_dir = pipelines_dir
+
     st.subheader("Load info", divider="rainbow")
     write_load_status_page(pipeline)
     show_state_versions(pipeline)

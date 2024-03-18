@@ -48,7 +48,6 @@ def write_data_explorer_page(
 def display(pipeline_name: str) -> None:
     pipeline = dlt.attach(pipeline_name)
     if pipelines_dir := os.getenv("DLT_PIPELINES_DIR"):
-        fmt.echo(f"Pipelines directory: {pipelines_dir}")
         pipeline.pipelines_dir = pipelines_dir
 
     st.session_state["pipeline_name"] = pipeline_name
