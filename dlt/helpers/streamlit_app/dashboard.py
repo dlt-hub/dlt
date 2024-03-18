@@ -1,13 +1,10 @@
-import os
-import sys
-
+import dlt
 import streamlit as st
 
-from dlt.cli import echo as fmt
 from dlt.helpers.streamlit_app.blocks.query import maybe_run_query
 from dlt.helpers.streamlit_app.blocks.table_hints import list_table_hints
 from dlt.helpers.streamlit_app.blocks.menu import menu
-from dlt.helpers.streamlit_app.utils import attach_to_pipeline
+from dlt.helpers.streamlit_app.utils import render_with_pipeline
 from dlt.helpers.streamlit_app.widgets import schema_picker
 from dlt.pipeline import Pipeline
 
@@ -46,9 +43,7 @@ def write_data_explorer_page(
     )
 
 
-def display(pipeline_name: str) -> None:
-    pipeline = attach_to_pipeline(pipeline_name)
-
+def show(pipeline: dlt.Pipeline) -> None:
     with st.sidebar:
         menu(pipeline)
 
@@ -56,8 +51,4 @@ def display(pipeline_name: str) -> None:
 
 
 if __name__ == "__main__":
-    if test_pipeline_name := os.getenv("DLT_TEST_PIPELINE_NAME"):
-        fmt.echo(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
-        display(test_pipeline_name)
-    else:
-        display(sys.argv[1])
+    render_with_pipeline(show)

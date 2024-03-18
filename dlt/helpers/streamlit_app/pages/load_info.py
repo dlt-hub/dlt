@@ -1,16 +1,13 @@
-import os
-import sys
-
 import dlt
 import streamlit as st
 
-from dlt.cli import echo as fmt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.libs.pandas import pandas as pd
+from dlt.helpers.streamlit_app.blocks.load_info import last_load_info
 from dlt.helpers.streamlit_app.blocks.menu import menu
-from dlt.helpers.streamlit_app.widgets import stat, pipeline_summary
-from dlt.helpers.streamlit_app.utils import attach_to_pipeline, cache_data
+from dlt.helpers.streamlit_app.widgets import stat
+from dlt.helpers.streamlit_app.utils import cache_data, render_with_pipeline
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
@@ -38,8 +35,6 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             st.error("Cannot load data - SqlClient not available")
 
     try:
-        pipeline_summary(pipeline)
-
         loads_df = _query_data_live(
             f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
             " status = 0 ORDER BY inserted_at DESC LIMIT 101 "
@@ -128,11 +123,10 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
         )
 
 
-def show(pipeline_name: str) -> None:
-    pipeline = attach_to_pipeline(pipeline_name)
-
+def show(pipeline: dlt.Pipeline) -> None:
     st.subheader("Load info", divider="rainbow")
     write_load_status_page(pipeline)
+    last_load_info(pipeline)
     show_state_versions(pipeline)
 
     with st.sidebar:
@@ -140,8 +134,4 @@ def show(pipeline_name: str) -> None:
 
 
 if __name__ == "__main__":
-    if test_pipeline_name := os.getenv("DLT_TEST_PIPELINE_NAME"):
-        fmt.echo(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
-        show(test_pipeline_name)
-    else:
-        show(sys.argv[1])
+    render_with_pipeline(show)
