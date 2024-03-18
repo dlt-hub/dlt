@@ -2,15 +2,10 @@ import dlt
 import streamlit as st
 
 from dlt.common.destination.reference import WithStateSync
-from dlt.helpers.streamlit_app.widgets import tag
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 
 def pipeline_state_info(pipeline: dlt.Pipeline) -> None:
-    st.divider()
-    tag(pipeline.pipeline_name, label="Pipeline")
-    tag(pipeline.destination.destination_name, label="Destination")
-
     remote_state = None
     with pipeline.destination_client() as client:
         if isinstance(client, WithStateSync):

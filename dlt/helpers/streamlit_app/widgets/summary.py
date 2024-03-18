@@ -11,8 +11,8 @@ def pipeline_summary(pipeline: dlt.Pipeline) -> None:
         st.error("🚨 Cannot load data - SqlClient not available")
 
     schema_names = ", ".join(sorted(pipeline.schema_names))
-    expander = st.expander("Pipeline info", expanded=True)
-    expander.markdown(f"""
+    st.subheader("Pipeline info", divider=True)
+    st.markdown(f"""
         * pipeline name: **{pipeline.pipeline_name}**
         * destination: **{str(credentials)}** in **{pipeline.destination.destination_description}**
         * dataset name: **{pipeline.dataset_name}**
