@@ -69,7 +69,7 @@ the sink from your pipeline constructor. Now you can run your pipeline and see t
 The full signature of the destination decorator plus its function is the following:
 
 ```py
-@dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_sink", naming="direct")
+@dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_sink", naming_convention="direct", max_nesting_level=0, skip_dlt_columns_and_tables=True)
 def sink(items: TDataItems, table: TTableSchema) -> None:
     ...
 ```
@@ -82,6 +82,8 @@ in any way you like.
 this can be `jsonl` or `parquet`.
 * The `name` parameter on the destination decorator defines the name of the destination that get's created by the destination decorator.
 * The `naming_convention` parameter on the destination decorator defines the name of the destination that gets created by the destination decorator. This controls
+* The `max_nesting_level` parameter on the destination decorator defines how deep the normalizer will go to normalize complex fields on your data to create subtables. This overwrites any settings on your `source` and is set to zero to not create any nested tables by default.
+* The `skip_dlt_columns_and_tables` parameter on the destination decorator defines wether internal tables and columns will be fed into the custom destination function. This is set to False by default.
 how table and column names are normalized. The default is `direct` which will keep all names the same. 
 
 #### Sink function

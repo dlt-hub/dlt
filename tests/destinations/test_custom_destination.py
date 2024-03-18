@@ -473,3 +473,38 @@ def test_remove_internal_tables_and_columns(loader_file_format, remove_stuff) ->
     assert found_dlt_column != remove_stuff
     assert found_dlt_table != remove_stuff
     assert found_dlt_column_value != remove_stuff
+
+
+@pytest.mark.parametrize("nesting", [None, 0, 1, 3])
+def test_max_nesting_level(nesting: int) -> None:
+    # 4 nesting levels
+    data = [
+        {
+            "level": 1,
+            "children": [{"level": 2, "children": [{"level": 3, "children": [{"level": 4}]}]}],
+        }
+    ]
+
+    found_tables = set()
+
+    @dlt.destination(loader_file_format="puae-jsonl", max_table_nesting=nesting)
+    def test_sink(items, table):
+        nonlocal found_tables
+        found_tables.add(table["name"])
+
+    @dlt.source(max_table_nesting=2)
+    def source():
+        yield dlt.resource(data, name="data")
+
+    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p.run(source())
+
+    # fall back to source setting
+    if nesting is None:
+        assert len(found_tables) == 3
+    else:
+        # use destination setting
+        assert len(found_tables) == nesting + 1
+
+    for table in found_tables:
+        assert table.startswith("data")
