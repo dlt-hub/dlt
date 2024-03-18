@@ -46,7 +46,7 @@ Here’s a brief summary of how to orchestrate `dlt` pipeline on Dagster:
 1. View the populated metadata and data in the configured destination.
 
 :::info
-For a hands-on project on “Orchestrating unstructured data pipelines with dagster and dlt", read the [article]((https://dagster.io/blog/dagster-dlt)) provided. The author offers a detailed overview and steps for ingesting GitHub issue data from a repository and storing it in BigQuery. You can use a similar approach to build your pipelines.
+For a hands-on project on “Orchestrating unstructured data pipelines with dagster and dlt", read the [article](https://dagster.io/blog/dagster-dlt) provided. The author offers a detailed overview and steps for ingesting GitHub issue data from a repository and storing it in BigQuery. You can use a similar approach to build your pipelines.
 :::
 
 ### Additional Resources
