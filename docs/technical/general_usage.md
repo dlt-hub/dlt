@@ -181,44 +181,6 @@ The `run`, `extract`, `normalize` and `load` method raise `PipelineStepFailed` w
 
 > should we add it? I have a runner in `dlt` that would be easy to modify
 
-## the `Pipeline` object
-There are many ways to create or get current pipeline object.
-```python
-
-# create and get default pipeline
-p1 = dlt.pipeline()
-# create explicitly configured pipeline
-p2 = dlt.pipeline(pipeline_name="pipe", destination=bigquery)
-# get recently created pipeline
-assert dlt.pipeline() is p2
-# load data with recently created pipeline
-assert dlt.run(taktile_data()) is p2
-assert taktile_data().run() is p2
-
-```
-
-The `Pipeline` object provides following functionalities:
-1. `run`, `extract`, `normalize` and `load` methods
-2. a `pipeline.schema` dictionary-like object to enumerate and get the schemas in pipeline
-3. schema get with `pipeline.schemas[name]` is a live object: any modification to it is automatically applied to the pipeline with the next `run`, `load` etc. see [working_with_schemas.md](working_with_schemas.md)
-4. it returns `sql_client` and `native_client` to get direct access to the destination (if destination supports SQL - currently all of them do)
-5. it has several methods to inspect the pipeline state and I think those should be exposed via `dlt pipeline` CLI
-
-for example:
-- list the extracted files if any
-- list the load packages ready to load
-- list the failed jobs in package
-- show info on destination: what are the datasets, the current load_id, the current schema etc.
-
-
-## Examples
-[we have some here](/docs/examples/)
-
-## command line interface
-
-
-## logging
-I need your input for user friendly logging. What should we log? What is important to see?
 
 ## pipeline runtime setup
 
