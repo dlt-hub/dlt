@@ -2,6 +2,8 @@ import os
 import pytest
 from pathlib import Path
 from dlt.common.libs.sql_alchemy import make_url
+from dlt.destinations.impl.clickhouse.configuration import ClickhouseCredentials
+
 
 pytest.importorskip("clickhouse")
 
@@ -17,11 +19,10 @@ from dlt.destinations.impl.snowflake.configuration import (
 from tests.common.configuration.utils import environment
 
 
-@
-def test_connection_string_with_all_params(g -> None:
+def test_connection_string_with_all_params() -> None:
     url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=cGs%3D&private_key_passphrase=paphr"
 
-    creds = SnowflakeCredentials()
+    creds = ClickhouseCredentials()
     creds.parse_native_representation(url)
 
     assert creds.database == "db1"

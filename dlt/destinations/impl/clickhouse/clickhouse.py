@@ -1,11 +1,10 @@
 from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AwsCredentialsWithoutDefaults,
-    AzureCredentialsWithoutDefaults,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -26,6 +25,11 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickhouseClientConfiguration,
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickhouseSqlClient
+from dlt.destinations.impl.clickhouse.utils import (
+    convert_storage_url_to_http_url,
+    render_s3_table_function,
+    render_azure_blob_storage_table_function,
+)
 from dlt.destinations.job_client_impl import (
     SqlJobClientWithStaging,
     SqlJobClientBase,
@@ -107,55 +111,39 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         file_name = (
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
-        credentials_clause = ""
-        files_clause = ""
-
 
         if bucket_path:
             bucket_url = urlparse(bucket_path)
+            bucket_http_url = convert_storage_url_to_http_url(bucket_url)
             bucket_scheme = bucket_url.scheme
-            # TODO: convert all object storage endpoints to  http protocol.
-            if (
-                bucket_scheme == "s3"
-                and staging_credentials
-                and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
-            ):
-                credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
-                from_clause = f"FROM '{bucket_path}'"
-            elif (
-                bucket_scheme in ("az", "abfs")
-                and staging_credentials
-                and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
-            ):
-                # Explicit azure credentials are needed to load from bucket without a named stage
-                credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
-                # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path> as required by Clickhouse.
-                _path = f"/{bucket_url.netloc}{bucket_url.path}"
-                bucket_path = urlunparse(
-                    bucket_url._replace(
-                        scheme="azure",
-                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
-                        path=_path,
-                    )
-                )
-                from_clause = f"FROM '{bucket_path}'"
-            else:
-                # Ensure that gcs bucket path starts with gcs://; this is a requirement of Clickhouse.
-                bucket_path = bucket_path.replace("gs://", "gcs://")
-                from_clause = f"FROM @{stage_name}/"
-                files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
-        else:
-            # This means we have a local file.
-            if not stage_name:
-                # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME".
-                stage_name = client.make_qualified_table_name(f"%{table_name}")
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
-            from_clause = f"FROM {stage_file_path}"
 
-        # Decide on source format, stage_file_path will either be a local file or a bucket path.
-        source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-        if file_name.endswith("parquet"):
-            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
+            table_function: str
+
+            if bucket_scheme in ("s3", "gs", "gcs"):
+                if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                    # Authenticated access.
+                    table_function = render_s3_table_function(
+                        bucket_http_url,
+                        staging_credentials.aws_secret_access_key,
+                        staging_credentials.aws_secret_access_key,
+                    )
+                else:
+                    # Unsigned access.
+                    table_function = render_s3_table_function(bucket_http_url)
+            elif bucket_scheme in ("az", "abfs"):
+                if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                    # Authenticated access.
+                    table_function = render_azure_blob_storage_table_function(
+                        bucket_http_url,
+                        staging_credentials.aws_secret_access_key,
+                        staging_credentials.aws_secret_access_key,
+                    )
+                else:
+                    # Unsigned access.
+                    table_function = render_azure_blob_storage_table_function(bucket_http_url)
+        else:
+            # Local file.
+            raise NotImplementedError
 
         with client.begin_transaction():
             # PUT and COPY in one transaction if local file, otherwise only copy.
