@@ -78,8 +78,7 @@ def test_convert_gs_url_to_http_with_endpoint() -> None:
     gcs_url = "gcs://my-bucket/path/to/file.txt"
     expected_http_url = "http://my-bucket.custom-endpoint.com/path/to/file.txt"
     assert (
-        convert_storage_to_http_scheme(gcs_url, endpoint="custom-endpoint.com")
-        == expected_http_url
+        convert_storage_to_http_scheme(gcs_url, endpoint="custom-endpoint.com") == expected_http_url
     )
 
 
@@ -103,7 +102,9 @@ def test_render_with_credentials_jsonl() -> None:
     access_key_id = "test_access_key"
     secret_access_key = "test_secret_key"
     file_format = "jsonl"
-    expected_output = """s3('https://example.com/data.jsonl','test_access_key','test_secret_key','JSONEachRow')"""
+    expected_output = (
+        """s3('https://example.com/data.jsonl','test_access_key','test_secret_key','JSONEachRow')"""
+    )
     assert (
         render_s3_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
         == expected_output
@@ -115,7 +116,9 @@ def test_render_with_credentials_parquet() -> None:
     access_key_id = "test_access_key"
     secret_access_key = "test_secret_key"
     file_format = "parquet"
-    expected_output = """s3('https://example.com/data.parquet','test_access_key','test_secret_key','Parquet')"""
+    expected_output = (
+        """s3('https://example.com/data.parquet','test_access_key','test_secret_key','Parquet')"""
+    )
     assert (
         render_s3_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
         == expected_output
@@ -127,7 +130,6 @@ def test_render_without_credentials() -> None:
     file_format = "jsonl"
     expected_output = """s3('https://example.com/data.jsonl',NOSIGN,'JSONEachRow')"""
     assert render_s3_table_function(url, file_format=file_format) == expected_output  # type: ignore[arg-type]
-
 
 
 def test_render_invalid_file_format() -> None:

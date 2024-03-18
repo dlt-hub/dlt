@@ -3,33 +3,34 @@ from copy import deepcopy
 import pytest
 import sqlfluff
 
-from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
-from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
-from dlt.destinations.impl.snowflake.configuration import (
-    SnowflakeClientConfiguration,
-    SnowflakeCredentials,
+from dlt.common.utils import uniq_id
+from dlt.destinations.impl.clickhouse.clickhouse import ClickhouseClient
+from dlt.destinations.impl.clickhouse.configuration import (
+    ClickhouseCredentials,
+    ClickhouseClientConfiguration,
 )
-from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
-
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
-    # return client without opening connection
-    creds = SnowflakeCredentials()
-    return SnowflakeClient(
+def clickhouse_client(empty_schema: Schema) -> ClickhouseClient:
+    # Return a client without opening connection.
+    creds = ClickhouseCredentials()
+    return ClickhouseClient(
         empty_schema,
-        SnowflakeClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds),
+        ClickhouseClientConfiguration(dataset_name=f"test_{uniq_id()}", credentials=creds),
     )
 
 
-def test_create_table(snowflake_client: SnowflakeClient) -> None:
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+pytest.mark.usefixtures("empty_schema")
+
+
+def test_create_table(clickhouse_client: ClickhouseClient) -> None:
+    statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
-    sqlfluff.parse(sql, dialect="snowflake")
+    sqlfluff.parse(sql, dialect="clickhouse")
 
     assert sql.strip().startswith("CREATE TABLE")
     assert "EVENT_TEST_TABLE" in sql
@@ -45,13 +46,13 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL10" DATE NOT NULL' in sql
 
 
-def test_alter_table(snowflake_client: SnowflakeClient) -> None:
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
+    statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     assert len(statements) == 1
     sql = statements[0]
 
-    # TODO: sqlfluff doesn't parse snowflake multi ADD COLUMN clause correctly
-    # sqlfluff.parse(sql, dialect='snowflake')
+    # TODO: sqlfluff doesn't parse clickhouse multi ADD COLUMN clause correctly
+    # sqlfluff.parse(sql, dialect='clickhouse')
 
     assert sql.startswith("ALTER TABLE")
     assert sql.count("ALTER TABLE") == 1
@@ -70,24 +71,24 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
 
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)
-    sql = snowflake_client._get_table_update_sql("event_test_table", mod_table, True)[0]
+    sql = clickhouse_client._get_table_update_sql("event_test_table", mod_table, True)[0]
 
     assert '"COL1"' not in sql
     assert '"COL2" FLOAT NOT NULL' in sql
 
 
-def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClient) -> None:
+def test_create_table_with_partition_and_cluster(clickhouse_client: ClickhouseClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    statements = clickhouse_client._get_table_update_sql("event_test_table", mod_update, False)
     assert len(statements) == 1
     sql = statements[0]
 
     # TODO: Can't parse cluster by
-    # sqlfluff.parse(sql, dialect="snowflake")
+    # sqlfluff.parse(sql, dialect="clickhouse")
 
     # clustering must be the last
     assert sql.endswith('CLUSTER BY ("COL2","COL5")')
