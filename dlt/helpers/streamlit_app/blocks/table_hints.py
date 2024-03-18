@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 import dlt
 import streamlit as st
@@ -7,7 +7,6 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.utils import flatten_list_or_items
 from dlt.helpers.streamlit_app.blocks.resource_state import resource_state_info
 from dlt.helpers.streamlit_app.blocks.show_data import show_data_button
-from dlt.helpers.streamlit_app.widgets.tags import tag
 
 
 def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None:
@@ -66,7 +65,7 @@ def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None
         # table schema contains various hints (like clustering or partition options)
         # that we do not want to show in basic view
         def essentials_f(c: Any) -> Dict[str, Any]:
-            return {k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
+            return {k: v for k, v in sorted(c.items()) if k in ["name", "data_type", "nullable"]}
 
         st.table(map(essentials_f, table["columns"].values()))
 
