@@ -202,8 +202,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         fields = self._get_storage_table_query_columns()
         table_schema = self.sql_client.fully_qualified_dataset_name(escape=False)
-        if self.sql_client.credentials.flatten:
-            table_name = f"{self.sql_client.dataset_name}__{table_name}"
         db_params = (table_schema, table_name)
         query = f"""
 SELECT {",".join(fields)}

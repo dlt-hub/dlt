@@ -52,7 +52,6 @@ database = "<database>" # the highest level of hierarchy under "data_source". e.
 host = "localhost" # the Dremio hostname
 port = 32010 # the Dremio Arrow Flight grpc port
 data_source = "<data-source>" # the name of the destination data source in Dremio
-flatten=true # if true tables will be written as <dataset>__<table_name>, otherwise <dataset>/<table_name>
 drivername="grpc" # either 'grpc' or 'grpc+tls'
 ```
 
@@ -100,18 +99,6 @@ def my_table_resource():
 This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clauses being added to the `CREATE TABLE` DML statement.
 
 > ***Note:*** Table partition migration is not implemented. The table will need to be dropped and recreated to alter partitions or localsort.
-
-## Additional destination options
-
-### flatten
-
-
-```toml
-[destination.dremio.credentials]
-flatten = true
-```
-
-Default `false`. If set to `true` this setting will result in tables being written in the following format: <dataset_name>__<table_name>. This is required for AWS Glue catalog data sources as they do not allow for a nested structure.
 
 
 ### Syncing of `dlt` state

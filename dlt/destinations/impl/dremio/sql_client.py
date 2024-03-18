@@ -105,14 +105,9 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             datasource_name = self.capabilities.escape_identifier(datasource_name)
             database_name = self.capabilities.escape_identifier(database_name)
             dataset_name = self.capabilities.escape_identifier(dataset_name)
-        if self.credentials.flatten:
-            return f"{datasource_name}.{database_name}"
-        else:
-            return f"{datasource_name}.{database_name}.{dataset_name}"
+        return f"{datasource_name}.{database_name}.{dataset_name}"
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        if self.credentials.flatten:
-            table_name = f"{self.dataset_name}__{table_name}"
         if escape:
             table_name = self.capabilities.escape_identifier(table_name)
         return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
@@ -158,14 +153,4 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             self.execute_sql("DROP TABLE IF EXISTS %s;" % full_table_name)
 
     def has_dataset(self) -> bool:
-        if self.credentials.flatten:
-            query = """
-            SELECT 1
-            FROM INFORMATION_SCHEMA."TABLES"
-            WHERE TABLE_CATALOG = 'DREMIO' AND TABLE_SCHEMA = %s and STARTS_WITH(TABLE_NAME, %s)
-            """
-            db_params = [self.fully_qualified_dataset_name(escape=False), self.dataset_name + "__"]
-            rows = self.execute_sql(query, *db_params)
-            return len(rows) > 0
-        else:
-            return len(self._get_table_names()) > 0
+        return len(self._get_table_names()) > 0
