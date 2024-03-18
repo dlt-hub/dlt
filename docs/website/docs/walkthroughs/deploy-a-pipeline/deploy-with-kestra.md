@@ -9,8 +9,8 @@ keywords: [how to, deploy a pipeline, Kestra]
 ## Introduction to Kestra
 
 [Kestra](https://kestra.io/docs) is an open-source, scalable orchestration platform that enables
-all engineers to manage business-critical workflows declaratively in code. By
-applying Infrastructure as Code best practices to data, process, and microservice orchestration, you
+all engineers to manage business-critical workflows declaratively in code. By applying 
+infrastructure as code best practices to data, process, and microservice orchestration, you
 can build reliable workflows and manage them.
 
 Kestra facilitates reliable workflow management, offering advanced settings for resiliency,
@@ -22,7 +22,7 @@ engineers and developers.
 Kestra provides a robust orchestration engine with features including:
 
 - Workflows are accessible through a user interface, event-driven
-  automation, and an embedded Visual Studio code editor.
+  automation, and an embedded visual studio code editor.
 - It also offers embedded documentation, a live-updating topology view, and access to over 400
   plugins, enhancing its versatility.
 - Kestra supports Git & CI/CD integrations, basic authentication, and benefits from community
@@ -62,15 +62,16 @@ Here is the summary of the steps:
 
 1. Ensure Docker is running, then download the Docker compose file with:
 
-   ```python
+   ```shell
     curl -o docker-compose.yml \
     https://raw.githubusercontent.com/kestra-io/kestra/develop/docker-compose.yml
    ```
 
-1. Configure Docker compose File: Edit the downloaded Docker compose file to link the `.env` file
-   for environment variables.
+1. Configure Docker compose file: 
+   Edit the downloaded Docker compose file to link the `.env` file for environment 
+   variables.
 
-   ```python
+   ```yaml
    kestra:
        image: kestra/kestra:develop-full
        env_file:
@@ -98,6 +99,11 @@ Here is the summary of the steps:
 
 By following these steps, you establish a structured workflow within Kestra, leveraging its powerful
 features for efficient data pipeline orchestration.
+
+:::info
+For detailed information on these steps, please consult the `README.md` in the 
+[dlt-kestra-demo](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) repo.
+:::
 
 ### Additional Resources
 
