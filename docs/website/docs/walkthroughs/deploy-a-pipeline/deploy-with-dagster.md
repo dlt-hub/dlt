@@ -54,9 +54,9 @@ For a hands-on project on “Orchestrating unstructured data pipelines with dags
 - A general configurable `dlt` resource orchestrated on Dagster: [dlt resource](https://github.com/dagster-io/dagster-open-platform/blob/5030ff6828e2b001a557c6864f279c3b476b0ca0/dagster_open_platform/resources/dlt_resource.py#L29).
 - `dlt` pipelines configured for Dagster: [dlt pipelines](https://github.com/dagster-io/dagster-open-platform/tree/5030ff6828e2b001a557c6864f279c3b476b0ca0/dagster_open_platform/assets/dlt_pipelines).
 
-    :::note
-    These are external repositories and are subject to change.
-    :::
+:::note
+These are external repositories and are subject to change.
+:::
 
 ## Conclusion
 
