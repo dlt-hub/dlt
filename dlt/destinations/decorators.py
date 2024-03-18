@@ -23,6 +23,8 @@ def destination(
     batch_size: int = 10,
     name: str = None,
     naming_convention: str = "direct",
+    skip_dlt_columns_and_tables: bool = True,
+    max_table_nesting: int = 0,
     spec: Type[GenericDestinationClientConfiguration] = GenericDestinationClientConfiguration,
 ) -> Callable[
     [Callable[Concatenate[Union[TDataItems, str], TTableSchema, TDestinationCallableParams], Any]],
@@ -49,6 +51,8 @@ def destination(
                 batch_size=batch_size,
                 destination_name=name,
                 naming_convention=naming_convention,
+                skip_dlt_columns_and_tables=skip_dlt_columns_and_tables,
+                max_table_nesting=max_table_nesting,
                 **kwargs,  # type: ignore
             )
 

@@ -37,7 +37,7 @@ from dlt.common.schema import TColumnSchema, Schema, TSchemaTables, TTableSchema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDisposition, TTableFormat
 from dlt.common.schema.utils import table_schema_has_type, get_table_format
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import LoadJob, FollowupJob
+from dlt.common.destination.reference import LoadJob, DoNothingFollowupJob, DoNothingJob
 from dlt.common.destination.reference import TLoadJobState, NewLoadJob, SupportsStagingDestination
 from dlt.common.storages import FileStorage
 from dlt.common.data_writers.escape import escape_bigquery_identifier
@@ -147,27 +147,6 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
 
         super(DefaultParameterFormatter, self).__init__(mappings=formatters, default=None)
         DLTAthenaFormatter._INSTANCE = self
-
-
-class DoNothingJob(LoadJob):
-    """The most lazy class of dlt"""
-
-    def __init__(self, file_path: str) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
-
-
-class DoNothingFollowupJob(DoNothingJob, FollowupJob):
-    """The second most lazy class of dlt"""
-
-    pass
 
 
 class AthenaSQLClient(SqlClientBase[Connection]):

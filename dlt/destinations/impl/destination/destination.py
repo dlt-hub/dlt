@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable, cast, Dict
+from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable, cast, Dict, List
+from copy import deepcopy
 
+from dlt.common.destination.reference import LoadJob
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems, AnyFun
 from dlt.common import json
@@ -18,6 +20,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     TLoadJobState,
     LoadJob,
+    DoNothingJob,
     JobClientBase,
 )
 
@@ -26,6 +29,8 @@ from dlt.destinations.impl.destination.configuration import (
     GenericDestinationClientConfiguration,
     TDestinationCallable,
 )
+
+INTERNAL_MARKER = "_dlt"
 
 
 class DestinationLoadJob(LoadJob, ABC):
@@ -37,6 +42,7 @@ class DestinationLoadJob(LoadJob, ABC):
         schema: Schema,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
+        skipped_columns: List[str],
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
@@ -47,6 +53,7 @@ class DestinationLoadJob(LoadJob, ABC):
         self._callable = destination_callable
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
+        self.skipped_columns = skipped_columns
         try:
             if self._config.batch_size == 0:
                 # on batch size zero we only call the callable with the filename
@@ -93,9 +100,14 @@ class DestinationParquetLoadJob(DestinationLoadJob):
             start_index % self._config.batch_size
         ) == 0, "Batch size was changed during processing of one load package"
 
+        # on record batches we cannot drop columns, we need to
+        # select the ones we want to keep
+        keep_columns = list(self._table["columns"].keys())
         start_batch = start_index / self._config.batch_size
         with pyarrow.parquet.ParquetFile(self._file_path) as reader:
-            for record_batch in reader.iter_batches(batch_size=self._config.batch_size):
+            for record_batch in reader.iter_batches(
+                batch_size=self._config.batch_size, columns=keep_columns
+            ):
                 if start_batch > 0:
                     start_batch -= 1
                     continue
@@ -115,6 +127,9 @@ class DestinationJsonlLoadJob(DestinationLoadJob):
                 if start_index > 0:
                     start_index -= 1
                     continue
+                # skip internal columns
+                for column in self.skipped_columns:
+                    item.pop(column, None)
                 current_batch.append(item)
                 if len(current_batch) == self._config.batch_size:
                     yield current_batch
@@ -150,6 +165,17 @@ class DestinationClient(JobClientBase):
         return super().update_stored_schema(only_tables, expected_update)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        # skip internal tables and remove columns from schema if so configured
+        skipped_columns: List[str] = []
+        if self.config.skip_dlt_columns_and_tables:
+            if table["name"].startswith(INTERNAL_MARKER):
+                return DoNothingJob(file_path)
+            table = deepcopy(table)
+            for column in list(table["columns"].keys()):
+                if column.startswith(INTERNAL_MARKER):
+                    table["columns"].pop(column)
+                    skipped_columns.append(column)
+
         # save our state in destination name scope
         load_state = destination_state()
         if file_path.endswith("parquet"):
@@ -160,6 +186,7 @@ class DestinationClient(JobClientBase):
                 self.schema,
                 load_state,
                 self.destination_callable,
+                skipped_columns,
             )
         if file_path.endswith("jsonl"):
             return DestinationJsonlLoadJob(
@@ -169,6 +196,7 @@ class DestinationClient(JobClientBase):
                 self.schema,
                 load_state,
                 self.destination_callable,
+                skipped_columns,
             )
         return None
 
