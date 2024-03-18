@@ -1,10 +1,21 @@
 import yaml
 from copy import copy, deepcopy
-from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast, Literal
+from typing import (
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Any,
+    cast,
+)
 from dlt.common import json
 from dlt.common.schema.migrations import migrate_schema
 
-from dlt.common.utils import extend_list_deduplicated
+from dlt.common.utils import extend_list_deduplicated, get_full_class_name
 from dlt.common.typing import (
     DictStrAny,
     StrAny,
@@ -13,8 +24,8 @@ from dlt.common.typing import (
     VARIANT_FIELD_FORMAT,
     TDataItem,
 )
-from dlt.common.normalizers import TNormalizersConfig, explicit_normalizers, import_normalizers
-from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.normalizers import TNormalizersConfig, NamingConvention
+from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
@@ -47,6 +58,7 @@ from dlt.common.schema.exceptions import (
     InvalidSchemaName,
     ParentTableNotFoundException,
     SchemaCorruptedException,
+    TableIdentifiersFrozen,
 )
 from dlt.common.validation import validate_dict
 from dlt.common.schema.exceptions import DataValidationError
@@ -102,13 +114,18 @@ class Schema:
         self._reset_schema(name, normalizers)
 
     @classmethod
-    def from_dict(cls, d: DictStrAny, bump_version: bool = True) -> "Schema":
+    def from_dict(
+        cls, d: DictStrAny, remove_processing_hints: bool = False, bump_version: bool = True
+    ) -> "Schema":
         # upgrade engine if needed
         stored_schema = migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
         utils.validate_stored_schema(stored_schema)
         # add defaults
         stored_schema = utils.apply_defaults(stored_schema)
+        # remove processing hints that could be created by normalize and load steps
+        if remove_processing_hints:
+            utils.remove_processing_hints(stored_schema["tables"])
 
         # bump version if modified
         if bump_version:
@@ -142,30 +159,6 @@ class Schema:
                 stored_schema["version_hash"] = replaced_version_hash
         self._reset_schema(schema.name, schema._normalizers_config)
         self._from_stored_schema(stored_schema)
-
-    def to_dict(self, remove_defaults: bool = False, bump_version: bool = True) -> TStoredSchema:
-        stored_schema: TStoredSchema = {
-            "version": self._stored_version,
-            "version_hash": self._stored_version_hash,
-            "engine_version": Schema.ENGINE_VERSION,
-            "name": self._schema_name,
-            "tables": self._schema_tables,
-            "settings": self._settings,
-            "normalizers": self._normalizers_config,
-            "previous_hashes": self._stored_previous_hashes,
-        }
-        if self._imported_version_hash and not remove_defaults:
-            stored_schema["imported_version_hash"] = self._imported_version_hash
-        if self._schema_description:
-            stored_schema["description"] = self._schema_description
-
-        # bump version if modified
-        if bump_version:
-            utils.bump_version_if_modified(stored_schema)
-        # remove defaults after bumping version
-        if remove_defaults:
-            utils.remove_defaults(stored_schema)
-        return stored_schema
 
     def normalize_data_item(
         self, item: TDataItem, load_id: str, table_name: str
@@ -319,7 +312,7 @@ class Schema:
 
         column_mode, data_mode = schema_contract["columns"], schema_contract["data_type"]
         # allow to add new columns when table is new or if columns are allowed to evolve once
-        if is_new_table or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False):  # type: ignore[attr-defined]
+        if is_new_table or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False):
             column_mode = "evolve"
 
         # check if we should filter any columns, partial table below contains only new columns
@@ -409,7 +402,7 @@ class Schema:
     ) -> TPartialTableSchema:
         """Adds or merges `partial_table` into the schema. Identifiers are normalized by default"""
         if normalize_identifiers:
-            partial_table = self.normalize_table_identifiers(partial_table)
+            partial_table = utils.normalize_table_identifiers(partial_table, self.naming)
 
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
@@ -417,6 +410,7 @@ class Schema:
         if parent_table_name is not None:
             if self._schema_tables.get(parent_table_name) is None:
                 raise ParentTableNotFoundException(
+                    self.name,
                     table_name,
                     parent_table_name,
                     " This may be due to misconfigured excludes filter that fully deletes content"
@@ -429,7 +423,7 @@ class Schema:
             self._schema_tables[table_name] = partial_table
         else:
             # merge tables performing additional checks
-            partial_table = utils.merge_tables(table, partial_table)
+            partial_table = utils.merge_tables(self.name, table, partial_table)
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
@@ -480,68 +474,55 @@ class Schema:
         new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
         normalize_identifiers: bool = True,
     ) -> None:
-        """Merges existing default hints with `new_hint`. Normalizes names in column regexes if possible"""
-        if normalize_identifiers:
-            new_hints = self._normalize_default_hints(new_hints)
-        # validate regexes
-        validate_dict(
-            TSchemaSettings,
-            {"default_hints": new_hints},
-            ".",
-            validator_f=utils.simple_regex_validator,
-        )
-        # prepare hints to be added
-        default_hints = self._settings.setdefault("default_hints", {})
-        # add `new_hints` to existing hints
-        for h, l in new_hints.items():
-            if h in default_hints:
-                extend_list_deduplicated(default_hints[h], l)
-            else:
-                # set new hint type
-                default_hints[h] = l  # type: ignore
+        """Merges existing default hints with `new_hints`. Normalizes names in column regexes if possible. Compiles setting at the end
+
+        NOTE: you can manipulate default hints collection directly via `Schema.settings` as long as you call Schema._compile_settings() at the end.
+        """
+        self._merge_hints(new_hints, normalize_identifiers)
         self._compile_settings()
 
-    def normalize_table_identifiers(self, table: TTableSchema) -> TTableSchema:
-        """Normalizes all table and column names in `table` schema according to current schema naming convention and returns
-        new normalized TTableSchema instance.
+    def update_preferred_types(
+        self,
+        new_preferred_types: Mapping[TSimpleRegex, TDataType],
+        normalize_identifiers: bool = True,
+    ) -> None:
+        """Updates preferred types dictionary with `new_preferred_types`. Normalizes names in column regexes if possible. Compiles setting at the end
 
-        Naming convention like snake_case may produce name clashes with the column names. Clashing column schemas are merged
-        where the column that is defined later in the dictionary overrides earlier column.
-
-        Note that resource name is not normalized.
+        NOTE: you can manipulate preferred hints collection directly via `Schema.settings` as long as you call Schema._compile_settings() at the end.
         """
-        # normalize all identifiers in table according to name normalizer of the schema
-        table["name"] = self.naming.normalize_tables_path(table["name"])
-        parent = table.get("parent")
-        if parent:
-            table["parent"] = self.naming.normalize_tables_path(parent)
-        columns = table.get("columns")
-        if columns:
-            new_columns: TTableSchemaColumns = {}
-            for c in columns.values():
-                new_col_name = c["name"] = self.naming.normalize_path(c["name"])
-                # re-index columns as the name changed, if name space was reduced then
-                # some columns now clash with each other. so make sure that we merge columns that are already there
-                if new_col_name in new_columns:
-                    new_columns[new_col_name] = utils.merge_columns(
-                        new_columns[new_col_name], c, merge_defaults=False
-                    )
-                else:
-                    new_columns[new_col_name] = c
-            table["columns"] = new_columns
-        return table
+        self._update_preferred_types(new_preferred_types, normalize_identifiers)
+        self._compile_settings()
+
+    def add_type_detection(self, detection: TTypeDetections) -> None:
+        """Add type auto detection to the schema."""
+        if detection not in self.settings["detections"]:
+            self.settings["detections"].append(detection)
+            self._compile_settings()
+
+    def remove_type_detection(self, detection: TTypeDetections) -> None:
+        """Adds type auto detection to the schema."""
+        if detection in self.settings["detections"]:
+            self.settings["detections"].remove(detection)
+            self._compile_settings()
 
     def get_new_table_columns(
         self,
         table_name: str,
-        exiting_columns: TTableSchemaColumns,
+        existing_columns: TTableSchemaColumns,
+        case_sensitive: bool = True,
         include_incomplete: bool = False,
     ) -> List[TColumnSchema]:
-        """Gets new columns to be added to `exiting_columns` to bring them up to date with `table_name` schema. Optionally includes incomplete columns (without data type)"""
+        """Gets new columns to be added to `existing_columns` to bring them up to date with `table_name` schema.
+        Columns names are compared case sensitive by default.
+        Optionally includes incomplete columns (without data type)"""
+        casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str  # type: ignore[assignment]
+        casefold_existing = {
+            casefold_f(col_name): col for col_name, col in existing_columns.items()
+        }
         diff_c: List[TColumnSchema] = []
         s_t = self.get_table_columns(table_name, include_incomplete=include_incomplete)
         for c in s_t.values():
-            if c["name"] not in exiting_columns:
+            if casefold_f(c["name"]) not in casefold_existing:
                 diff_c.append(c)
         return diff_c
 
@@ -646,20 +627,75 @@ class Schema:
     def settings(self) -> TSchemaSettings:
         return self._settings
 
-    def to_pretty_json(self, remove_defaults: bool = True) -> str:
-        d = self.to_dict(remove_defaults=remove_defaults)
+    def to_dict(
+        self,
+        remove_defaults: bool = False,
+        remove_processing_hints: bool = False,
+        bump_version: bool = True,
+    ) -> TStoredSchema:
+        # prepare normalizers
+        if isinstance(self._normalizers_config["names"], NamingConvention):
+            normalizers_config = deepcopy(self._normalizers_config)
+            normalizers_config["names"] = get_full_class_name(normalizers_config["names"])
+        else:
+            normalizers_config = self._normalizers_config
+
+        stored_schema: TStoredSchema = {
+            "version": self._stored_version,
+            "version_hash": self._stored_version_hash,
+            "engine_version": Schema.ENGINE_VERSION,
+            "name": self._schema_name,
+            "tables": self._schema_tables,
+            "settings": self._settings,
+            "normalizers": normalizers_config,
+            "previous_hashes": self._stored_previous_hashes,
+        }
+        if self._imported_version_hash and not remove_defaults:
+            stored_schema["imported_version_hash"] = self._imported_version_hash
+        if self._schema_description:
+            stored_schema["description"] = self._schema_description
+
+        # remove processing hints that could be created by normalize and load steps
+        if remove_processing_hints:
+            stored_schema["tables"] = utils.remove_processing_hints(
+                deepcopy(stored_schema["tables"])
+            )
+
+        # bump version if modified
+        if bump_version:
+            utils.bump_version_if_modified(stored_schema)
+        # remove defaults after bumping version
+        if remove_defaults:
+            utils.remove_defaults(stored_schema)
+        return stored_schema
+
+    def to_pretty_json(
+        self, remove_defaults: bool = True, remove_processing_hints: bool = False
+    ) -> str:
+        d = self.to_dict(
+            remove_defaults=remove_defaults, remove_processing_hints=remove_processing_hints
+        )
         return json.dumps(d, pretty=True)
 
-    def to_pretty_yaml(self, remove_defaults: bool = True) -> str:
-        d = self.to_dict(remove_defaults=remove_defaults)
+    def to_pretty_yaml(
+        self, remove_defaults: bool = True, remove_processing_hints: bool = False
+    ) -> str:
+        d = self.to_dict(
+            remove_defaults=remove_defaults, remove_processing_hints=remove_processing_hints
+        )
         return yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
-    def clone(self, with_name: str = None, update_normalizers: bool = False) -> "Schema":
-        """Make a deep copy of the schema, optionally changing the name, and updating normalizers and identifiers in the schema if `update_normalizers` is True
-
+    def clone(
+        self,
+        with_name: str = None,
+        remove_processing_hints: bool = False,
+        update_normalizers: bool = False,
+    ) -> "Schema":
+        """Make a deep copy of the schema, optionally changing the name, removing processing markers and updating normalizers and identifiers in the schema if `update_normalizers` is True
+        Processing markers are `x-` hints created by normalizer (`x-normalizer`) and loader (`x-loader`) to ie. mark newly inferred tables and tables that seen data.
         Note that changing of name will break the previous version chain
         """
-        d = deepcopy(self.to_dict())
+        d = deepcopy(self.to_dict(remove_processing_hints=remove_processing_hints))
         if with_name is not None:
             d["name"] = with_name
             d["previous_hashes"] = []
@@ -670,7 +706,13 @@ class Schema:
         return schema
 
     def update_normalizers(self) -> None:
-        """Looks for new normalizer configuration or for destination capabilities context and updates all identifiers in the schema"""
+        """Looks for new normalizer configuration or for destination capabilities context and updates all identifiers in the schema
+
+        Table and column names will be normalized with new naming convention, except tables that have seen data ('x-normalizer`) which will
+        raise if any identifier is to be changed.
+        Default hints, preferred data types and normalize configs (ie. column propagation) are normalized as well. Regexes are included as long
+        as textual parts can be extracted from an expression.
+        """
         normalizers = explicit_normalizers()
         # set the current values as defaults
         normalizers["names"] = normalizers["names"] or self._normalizers_config["names"]
@@ -683,18 +725,6 @@ class Schema:
             self._settings.pop("schema_contract", None)
         else:
             self._settings["schema_contract"] = settings
-
-    def add_type_detection(self, detection: TTypeDetections) -> None:
-        """Add type auto detection to the schema."""
-        if detection not in self.settings["detections"]:
-            self.settings["detections"].append(detection)
-            self._compile_settings()
-
-    def remove_type_detection(self, detection: TTypeDetections) -> None:
-        """Adds type auto detection to the schema."""
-        if detection in self.settings["detections"]:
-            self.settings["detections"].remove(detection)
-            self._compile_settings()
 
     def _infer_column(
         self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False
@@ -721,7 +751,7 @@ class Schema:
         if col_name in table_columns:
             existing_column = table_columns[col_name]
             if not existing_column.get("nullable", True):
-                raise CannotCoerceNullException(table_name, col_name)
+                raise CannotCoerceNullException(self.name, table_name, col_name)
 
     def _coerce_non_null_value(
         self,
@@ -753,7 +783,12 @@ class Schema:
             if is_variant:
                 # this is final call: we cannot generate any more auto-variants
                 raise CannotCoerceColumnException(
-                    table_name, col_name, py_type, table_columns[col_name]["data_type"], v
+                    self.name,
+                    table_name,
+                    col_name,
+                    py_type,
+                    table_columns[col_name]["data_type"],
+                    v,
                 )
             # otherwise we must create variant extension to the table
             # pass final=True so no more auto-variants can be created recursively
@@ -810,18 +845,69 @@ class Schema:
         else:
             return False
 
-    def _add_standard_tables(self) -> None:
-        self._schema_tables[self.version_table_name] = self.normalize_table_identifiers(
-            utils.version_table()
+    def _merge_hints(
+        self,
+        new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
+        normalize_identifiers: bool = True,
+    ) -> None:
+        """Used by `merge_hints method, does not compile settings at the end"""
+        # validate regexes
+        validate_dict(
+            TSchemaSettings,
+            {"default_hints": new_hints},
+            ".",
+            validator_f=utils.simple_regex_validator,
         )
-        self._schema_tables[self.loads_table_name] = self.normalize_table_identifiers(
-            utils.load_table()
+        if normalize_identifiers:
+            new_hints = self._normalize_default_hints(new_hints)
+        # prepare hints to be added
+        default_hints = self._settings.setdefault("default_hints", {})
+        # add `new_hints` to existing hints
+        for h, l in new_hints.items():
+            if h in default_hints:
+                extend_list_deduplicated(default_hints[h], l, utils.canonical_simple_regex)
+            else:
+                # set new hint type
+                default_hints[h] = l  # type: ignore
+
+    def _update_preferred_types(
+        self,
+        new_preferred_types: Mapping[TSimpleRegex, TDataType],
+        normalize_identifiers: bool = True,
+    ) -> None:
+        # validate regexes
+        validate_dict(
+            TSchemaSettings,
+            {"preferred_types": new_preferred_types},
+            ".",
+            validator_f=utils.simple_regex_validator,
+        )
+        if normalize_identifiers:
+            new_preferred_types = self._normalize_preferred_types(new_preferred_types)
+        preferred_types = self._settings.setdefault("preferred_types", {})
+        # we must update using canonical simple regex
+        canonical_preferred = {
+            utils.canonical_simple_regex(rx): rx for rx in preferred_types.keys()
+        }
+        for new_rx, new_dt in new_preferred_types.items():
+            canonical_new_rx = utils.canonical_simple_regex(new_rx)
+            if canonical_new_rx not in canonical_preferred:
+                preferred_types[new_rx] = new_dt
+            else:
+                preferred_types[canonical_preferred[canonical_new_rx]] = new_dt
+
+    def _add_standard_tables(self) -> None:
+        self._schema_tables[self.version_table_name] = utils.normalize_table_identifiers(
+            utils.version_table(), self.naming
+        )
+        self._schema_tables[self.loads_table_name] = utils.normalize_table_identifiers(
+            utils.load_table(), self.naming
         )
 
     def _add_standard_hints(self) -> None:
         default_hints = utils.default_hints()
         if default_hints:
-            self.merge_hints(default_hints)
+            self._merge_hints(default_hints, normalize_identifiers=False)
         type_detections = utils.standard_type_detections()
         if type_detections:
             self._settings["detections"] = type_detections
@@ -836,7 +922,7 @@ class Schema:
         }
 
     def _normalize_preferred_types(
-        self, preferred_types: Dict[TSimpleRegex, TDataType]
+        self, preferred_types: Mapping[TSimpleRegex, TDataType]
     ) -> Dict[TSimpleRegex, TDataType]:
         """Normalizes the column names in preferred types mapping. In case of column names that are regexes, normalization is skipped"""
         return {
@@ -844,31 +930,83 @@ class Schema:
             for regex, data_type in preferred_types.items()
         }
 
-    def _configure_normalizers(self, normalizers: TNormalizersConfig) -> None:
-        # import desired modules
-        self._normalizers_config, naming_module, item_normalizer_class = import_normalizers(
-            normalizers
-        )
-        # print(f"{self.name}: {type(self.naming)} {type(naming_module)}")
-        if self.naming and type(self.naming) is not type(naming_module):
-            self.naming = naming_module
+    def _verify_update_normalizers(
+        self,
+        normalizers_config: TNormalizersConfig,
+        to_naming: NamingConvention,
+        from_naming: NamingConvention,
+    ) -> TSchemaTables:
+        """Verifies if normalizers can be updated before schema is changed"""
+        # print(f"{self.name}: {type(to_naming)} {type(naming_module)}")
+        if from_naming and type(from_naming) is not type(to_naming):
+            schema_tables = {}
             for table in self._schema_tables.values():
-                self.normalize_table_identifiers(table)
+                norm_table = utils.normalize_table_identifiers(table, to_naming)
+                if utils.has_table_seen_data(norm_table) and not normalizers_config.get(
+                    "allow_identifier_change_on_table_with_data", False
+                ):
+                    # make sure no identifier got changed in table
+                    if norm_table["name"] != table["name"]:
+                        raise TableIdentifiersFrozen(
+                            self.name,
+                            table["name"],
+                            to_naming,
+                            from_naming,
+                            f"Attempt to rename table name to {norm_table['name']}.",
+                        )
+                    if len(norm_table["columns"]) != len(table["columns"]):
+                        raise TableIdentifiersFrozen(
+                            self.name,
+                            table["name"],
+                            to_naming,
+                            from_naming,
+                            "Number of columns changed after normalization. Some columns must have"
+                            " merged.",
+                        )
+                    col_diff = set(norm_table["columns"].keys()).difference(table["columns"].keys())
+                    if len(col_diff) > 0:
+                        raise TableIdentifiersFrozen(
+                            self.name,
+                            table["name"],
+                            to_naming,
+                            from_naming,
+                            f"Some columns got renamed to {col_diff}.",
+                        )
+                schema_tables[norm_table["name"]] = norm_table
             # re-index the table names
-            self._schema_tables = {t["name"]: t for t in self._schema_tables.values()}
+            return schema_tables
+        else:
+            return self._schema_tables
 
+    def _renormalize_schema_identifiers(
+        self,
+        normalizers_config: TNormalizersConfig,
+        to_naming: NamingConvention,
+        from_naming: NamingConvention,
+    ) -> None:
+        """Normalizes all identifiers in the schema in place"""
+        self._schema_tables = self._verify_update_normalizers(
+            normalizers_config, to_naming, from_naming
+        )
+        self._normalizers_config = normalizers_config
+        self.naming = to_naming
         # name normalization functions
-        self.naming = naming_module
-        self._dlt_tables_prefix = self.naming.normalize_table_identifier(DLT_NAME_PREFIX)
-        self.version_table_name = self.naming.normalize_table_identifier(VERSION_TABLE_NAME)
-        self.loads_table_name = self.naming.normalize_table_identifier(LOADS_TABLE_NAME)
-        self.state_table_name = self.naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
+        self._dlt_tables_prefix = to_naming.normalize_table_identifier(DLT_NAME_PREFIX)
+        self.version_table_name = to_naming.normalize_table_identifier(VERSION_TABLE_NAME)
+        self.loads_table_name = to_naming.normalize_table_identifier(LOADS_TABLE_NAME)
+        self.state_table_name = to_naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
         # normalize default hints
         if default_hints := self._settings.get("default_hints"):
             self._settings["default_hints"] = self._normalize_default_hints(default_hints)
         # normalized preferred types
         if preferred_types := self.settings.get("preferred_types"):
             self._settings["preferred_types"] = self._normalize_preferred_types(preferred_types)
+
+    def _configure_normalizers(self, normalizers: TNormalizersConfig) -> None:
+        """Gets naming and item normalizer from schema yaml, config providers and destination capabilities and applies them to schema."""
+        # import desired modules
+        normalizers_config, to_naming, item_normalizer_class = import_normalizers(normalizers)
+        self._renormalize_schema_identifiers(normalizers_config, to_naming, self.naming)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
         self.data_item_normalizer.extend_schema()
@@ -911,9 +1049,13 @@ class Schema:
     def _from_stored_schema(self, stored_schema: TStoredSchema) -> None:
         self._schema_tables = stored_schema.get("tables") or {}
         if self.version_table_name not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {self.version_table_name}")
+            raise SchemaCorruptedException(
+                stored_schema["name"], f"Schema must contain table {self.version_table_name}"
+            )
         if self.loads_table_name not in self._schema_tables:
-            raise SchemaCorruptedException(f"Schema must contain table {self.loads_table_name}")
+            raise SchemaCorruptedException(
+                stored_schema["name"], f"Schema must contain table {self.loads_table_name}"
+            )
         self._stored_version = stored_schema["version"]
         self._stored_version_hash = stored_schema["version_hash"]
         self._imported_version_hash = stored_schema.get("imported_version_hash")

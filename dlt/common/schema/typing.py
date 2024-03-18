@@ -158,10 +158,20 @@ class NormalizerInfo(TypedDict, total=True):
     new_table: bool
 
 
+# Part of Table containing processing hints added by pipeline stages
+TTableProcessingHints = TypedDict(
+    "TTableProcessingHints",
+    {
+        "x-normalizer": Optional[Dict[str, Any]],
+        "x-loader": Optional[Dict[str, Any]],
+        "x-extractor": Optional[Dict[str, Any]],
+    },
+    total=False,
+)
+
+
 # TypedDict that defines properties of a table
-
-
-class TTableSchema(TypedDict, total=False):
+class TTableSchema(TTableProcessingHints, total=False):
     """TypedDict that defines properties of a table"""
 
     name: Optional[str]

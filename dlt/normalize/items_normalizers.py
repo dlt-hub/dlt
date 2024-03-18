@@ -150,7 +150,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             continue
                         # theres a new table or new columns in existing table
                         # update schema and save the change
-                        schema.update_table(partial_table)
+                        schema.update_table(partial_table, normalize_identifiers=False)
                         table_updates = schema_update.setdefault(table_name, [])
                         table_updates.append(partial_table)
 
@@ -197,6 +197,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 partial_update = self._normalize_chunk(root_table_name, items, may_have_pua(line))
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
+            # empty json files are when replace write disposition is used in order to truncate table(s)
             if line is None and root_table_name in self.schema.tables:
                 # write only if table seen data before
                 root_table = self.schema.tables[root_table_name]

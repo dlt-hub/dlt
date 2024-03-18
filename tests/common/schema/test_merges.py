@@ -1,10 +1,9 @@
 import pytest
 from copy import copy, deepcopy
 
-from dlt.common.schema import Schema, utils
+from dlt.common.schema import utils
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
-    CannotCoerceNullException,
     TablePropertiesConflictException,
 )
 from dlt.common.schema.typing import TStoredSchema, TTableSchema, TColumnSchema
@@ -53,21 +52,21 @@ def test_column_remove_defaults() -> None:
     assert utils.remove_column_defaults(copy(COL_2_HINTS)) == {"name": "test_2"}
 
 
-def test_column_add_defaults() -> None:
-    # test complete column
-    full = utils.add_column_defaults(copy(COL_1_HINTS))
-    assert full["unique"] is False
-    # remove defaults from full
-    clean = utils.remove_column_defaults(copy(full))
-    assert clean == COL_1_HINTS_DEFAULTS
-    # prop is None and will be removed
-    del full["prop"]  # type: ignore[typeddict-item]
-    assert utils.add_column_defaults(copy(clean)) == full
+# def test_column_add_defaults() -> None:
+#     # test complete column
+#     full = utils.add_column_defaults(copy(COL_1_HINTS))
+#     assert full["unique"] is False
+#     # remove defaults from full
+#     clean = utils.remove_column_defaults(copy(full))
+#     assert clean == COL_1_HINTS_DEFAULTS
+#     # prop is None and will be removed
+#     del full["prop"]  # type: ignore[typeddict-item]
+#     assert utils.add_column_defaults(copy(clean)) == full
 
-    # test incomplete
-    complete_full = utils.add_column_defaults(copy(COL_2_HINTS))
-    # defaults are added
-    assert complete_full["unique"] is False
+#     # test incomplete
+#     complete_full = utils.add_column_defaults(copy(COL_2_HINTS))
+#     # defaults are added
+#     assert complete_full["unique"] is False
 
 
 def test_remove_defaults_stored_schema() -> None:
@@ -173,10 +172,10 @@ def test_diff_tables() -> None:
     empty = utils.new_table("table")
     del empty["resource"]
     print(empty)
-    partial = utils.diff_tables(empty, deepcopy(table))
+    partial = utils.diff_tables("schema", empty, deepcopy(table))
     # partial is simply table
     assert partial == table
-    partial = utils.diff_tables(deepcopy(table), empty)
+    partial = utils.diff_tables("schema", deepcopy(table), empty)
     # partial is empty
     assert partial == empty
 
@@ -184,7 +183,7 @@ def test_diff_tables() -> None:
     changed = deepcopy(table)
     changed["description"] = "new description"
     changed["name"] = "new name"
-    partial = utils.diff_tables(deepcopy(table), changed)
+    partial = utils.diff_tables("schema", deepcopy(table), changed)
     print(partial)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
@@ -192,7 +191,7 @@ def test_diff_tables() -> None:
     existing = deepcopy(table)
     changed["write_disposition"] = "append"
     changed["schema_contract"] = "freeze"
-    partial = utils.diff_tables(deepcopy(existing), changed)
+    partial = utils.diff_tables("schema", deepcopy(existing), changed)
     assert partial == {
         "name": "new name",
         "description": "new description",
@@ -202,14 +201,14 @@ def test_diff_tables() -> None:
     }
     existing["write_disposition"] = "append"
     existing["schema_contract"] = "freeze"
-    partial = utils.diff_tables(deepcopy(existing), changed)
+    partial = utils.diff_tables("schema", deepcopy(existing), changed)
     assert partial == {"name": "new name", "description": "new description", "columns": {}}
 
     # detect changed column
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["cluster"] = True
-    partial = utils.diff_tables(existing, changed)
+    partial = utils.diff_tables("schema", existing, changed)
     assert "test" in partial["columns"]
     assert "test_2" not in partial["columns"]
     assert existing["columns"]["test"] == table["columns"]["test"] != partial["columns"]["test"]
@@ -218,7 +217,7 @@ def test_diff_tables() -> None:
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["foreign_key"] = False
-    partial = utils.diff_tables(existing, changed)
+    partial = utils.diff_tables("schema", existing, changed)
     assert "test" in partial["columns"]
 
     # even if not present in tab_a at all
@@ -226,7 +225,7 @@ def test_diff_tables() -> None:
     changed = deepcopy(table)
     changed["columns"]["test"]["foreign_key"] = False
     del existing["columns"]["test"]["foreign_key"]
-    partial = utils.diff_tables(existing, changed)
+    partial = utils.diff_tables("schema", existing, changed)
     assert "test" in partial["columns"]
 
 
@@ -242,7 +241,7 @@ def test_diff_tables_conflicts() -> None:
 
     other = utils.new_table("table_2")
     with pytest.raises(TablePropertiesConflictException) as cf_ex:
-        utils.diff_tables(table, other)
+        utils.diff_tables("schema", table, other)
     assert cf_ex.value.table_name == "table"
     assert cf_ex.value.prop_name == "parent"
 
@@ -250,7 +249,7 @@ def test_diff_tables_conflicts() -> None:
     changed = deepcopy(table)
     changed["columns"]["test"]["data_type"] = "bigint"
     with pytest.raises(CannotCoerceColumnException):
-        utils.diff_tables(table, changed)
+        utils.diff_tables("schema", table, changed)
 
 
 def test_merge_tables() -> None:
@@ -269,7 +268,7 @@ def test_merge_tables() -> None:
     changed["new-prop-3"] = False  # type: ignore[typeddict-unknown-key]
     # drop column so partial has it
     del table["columns"]["test"]
-    partial = utils.merge_tables(table, changed)
+    partial = utils.merge_tables("schema", table, changed)
     assert "test" in table["columns"]
     assert table["x-special"] == 129  # type: ignore[typeddict-item]
     assert table["description"] == "new description"

@@ -300,7 +300,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # update normalizer specific info
         for table_name in table_metrics:
             table = schema.tables[table_name]
-            x_normalizer = table.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
+            x_normalizer = table.setdefault("x-normalizer", {})
             # drop evolve once for all tables that seen data
             x_normalizer.pop("evolve-columns-once", None)
             # mark that table have seen data only if there was data

@@ -13,6 +13,7 @@ import zlib
 
 from typing import (
     Any,
+    Callable,
     ContextManager,
     Dict,
     Iterator,
@@ -503,11 +504,15 @@ def merge_row_counts(row_counts_1: RowCounts, row_counts_2: RowCounts) -> None:
         row_counts_1[counter_name] = row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
 
 
-def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[Any]) -> List[Any]:
+def extend_list_deduplicated(
+    original_list: List[Any],
+    extending_list: Iterable[Any],
+    normalize_f: Callable[[str], str] = str.__call__,
+) -> List[Any]:
     """extends the first list by the second, but does not add duplicates"""
-    list_keys = set(original_list)
+    list_keys = set(normalize_f(s) for s in original_list)
     for item in extending_list:
-        if item not in list_keys:
+        if normalize_f(item) not in list_keys:
             original_list.append(item)
     return original_list
 

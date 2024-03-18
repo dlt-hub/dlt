@@ -265,18 +265,17 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             )
 
     def extend_schema(self) -> None:
-        # validate config
+        """Extends Schema with normalizer-specific hints and settings.
+
+        This method is called by Schema when instance is created or restored from storage.
+        """
         config = cast(
             RelationalNormalizerConfig, self.schema._normalizers_config["json"].get("config") or {}
         )
         DataItemNormalizer._validate_normalizer_config(self.schema, config)
 
-        # quick check to see if hints are applied
-        default_hints = self.schema.settings.get("default_hints") or {}
-        if "not_null" in default_hints and self.c_dlt_id in default_hints["not_null"]:
-            return
-        # add hints
-        self.schema.merge_hints(
+        # add hints, do not compile.
+        self.schema._merge_hints(
             {
                 "not_null": [
                     TSimpleRegex(self.c_dlt_id),
@@ -298,6 +297,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def extend_table(self, table_name: str) -> None:
         """If the table has a merge write disposition, add propagation info to normalizer
 
+        Called by Schema when new table is added to schema or table is updated with partial table.
         Table name should be normalized.
         """
         table = self.schema.tables.get(table_name)

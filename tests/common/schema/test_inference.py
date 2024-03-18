@@ -15,12 +15,6 @@ from dlt.common.schema.exceptions import (
     TablePropertiesConflictException,
 )
 from tests.common.utils import load_json_case
-from tests.utils import preserve_environ
-
-
-@pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
 
 
 def test_get_preferred_type(schema: Schema) -> None:

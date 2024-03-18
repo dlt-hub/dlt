@@ -736,7 +736,7 @@ def test_table_name_meta_normalized() -> None:
 
 def test_parse_with_primary_key() -> None:
     schema = create_schema_with_name("discord")
-    schema.merge_hints({"primary_key": ["id"]})  # type: ignore[list-item]
+    schema._merge_hints({"primary_key": ["id"]})  # type: ignore[list-item]
     schema._compile_settings()
     add_dlt_root_id_propagation(schema.data_item_normalizer)  # type: ignore[arg-type]
 

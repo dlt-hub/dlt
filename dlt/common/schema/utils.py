@@ -5,7 +5,7 @@ import hashlib
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
-from dlt.common import json
+from dlt.common import json, logger
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import NamingConvention
@@ -26,12 +26,14 @@ from dlt.common.schema.typing import (
     TSchemaUpdate,
     TSimpleRegex,
     TStoredSchema,
+    TTableProcessingHints,
     TTableSchema,
     TColumnSchemaBase,
     TColumnSchema,
     TColumnProp,
     TTableFormat,
     TColumnHint,
+    TTableSchemaColumns,
     TTypeDetectionFunc,
     TTypeDetections,
     TWriteDisposition,
@@ -92,7 +94,8 @@ def apply_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
 def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
     """Removes default values from `stored_schema` in place, returns the input for chaining
 
-    Default values are removed from table schemas and complete column schemas. Incomplete columns are preserved intact.
+    * removes column and able names from the value
+    * removed resource name if same as table name
     """
     clean_tables = deepcopy(stored_schema["tables"])
     for table_name, t in clean_tables.items():
@@ -133,22 +136,22 @@ def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
     return column_schema
 
 
-def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
-    """Adds default boolean hints to column"""
-    return {
-        **{
-            "nullable": True,
-            "partition": False,
-            "cluster": False,
-            "unique": False,
-            "sort": False,
-            "primary_key": False,
-            "foreign_key": False,
-            "root_key": False,
-            "merge_key": False,
-        },
-        **column,
-    }
+# def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
+#     """Adds default boolean hints to column"""
+#     return {
+#         **{
+#             "nullable": True,
+#             "partition": False,
+#             "cluster": False,
+#             "unique": False,
+#             "sort": False,
+#             "primary_key": False,
+#             "foreign_key": False,
+#             "root_key": False,
+#             "merge_key": False,
+#         },
+#         **column,
+#     }
 
 
 # def add_complete_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
@@ -239,6 +242,13 @@ def normalize_simple_regex_column(naming: NamingConvention, regex: TSimpleRegex)
         return cast(TSimpleRegex, SIMPLE_REGEX_PREFIX + _normalize(regex[3:]))
     else:
         return cast(TSimpleRegex, _normalize(regex))
+
+
+def canonical_simple_regex(regex: str) -> TSimpleRegex:
+    if regex.startswith(SIMPLE_REGEX_PREFIX):
+        return cast(TSimpleRegex, regex)
+    else:
+        return cast(TSimpleRegex, SIMPLE_REGEX_PREFIX + "^" + regex + "$")
 
 
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
@@ -335,7 +345,9 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
         parent_table_name = table.get("parent")
         if parent_table_name:
             if parent_table_name not in stored_schema["tables"]:
-                raise ParentTableNotFoundException(table_name, parent_table_name)
+                raise ParentTableNotFoundException(
+                    stored_schema["name"], table_name, parent_table_name
+                )
 
 
 def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v: Any) -> TDataType:
@@ -375,7 +387,9 @@ def merge_columns(
     return col_a
 
 
-def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTableSchema:
+def diff_tables(
+    schema_name: str, tab_a: TTableSchema, tab_b: TPartialTableSchema
+) -> TPartialTableSchema:
     """Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
     The name is always present in returned partial.
     It returns new columns (not present in tab_a) and merges columns from tab_b into tab_a (overriding non-default hint values).
@@ -389,7 +403,7 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
     # check if table properties can be merged
     if tab_a.get("parent") != tab_b.get("parent"):
         raise TablePropertiesConflictException(
-            table_name, "parent", tab_a.get("parent"), tab_b.get("parent")
+            schema_name, table_name, "parent", tab_a.get("parent"), tab_b.get("parent")
         )
 
     # get new columns, changes in the column data type or other properties are not allowed
@@ -403,6 +417,7 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
                 if not compare_complete_columns(tab_a_columns[col_b_name], col_b):
                     # attempt to update to incompatible columns
                     raise CannotCoerceColumnException(
+                        schema_name,
                         table_name,
                         col_b_name,
                         col_b["data_type"],
@@ -431,7 +446,7 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
     # this should not really happen
     if tab_a.get("parent") is not None and (resource := tab_b.get("resource")):
         raise TablePropertiesConflictException(
-            table_name, "resource", resource, tab_a.get("parent")
+            schema_name, table_name, "resource", resource, tab_a.get("parent")
         )
 
     return partial_table
@@ -449,7 +464,9 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
 #         return False
 
 
-def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+def merge_tables(
+    schema_name: str, table: TTableSchema, partial_table: TPartialTableSchema
+) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
 
     `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`:
@@ -460,9 +477,9 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
 
     if table["name"] != partial_table["name"]:
         raise TablePropertiesConflictException(
-            table["name"], "name", table["name"], partial_table["name"]
+            schema_name, table["name"], "name", table["name"], partial_table["name"]
         )
-    diff_table = diff_tables(table, partial_table)
+    diff_table = diff_tables(schema_name, table, partial_table)
     # add new columns when all checks passed
     table["columns"].update(diff_table["columns"])
     updated_columns = table["columns"]
@@ -472,9 +489,56 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
     return diff_table
 
 
+def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -> TTableSchema:
+    """Normalizes all table and column names in `table` schema according to current schema naming convention and returns
+    new instance with modified table schema.
+
+    Naming convention like snake_case may produce name clashes with the column names. Clashing column schemas are merged
+    where the column that is defined later in the dictionary overrides earlier column.
+
+    Note that resource name is not normalized.
+    """
+
+    table = copy(table)
+    table["name"] = naming.normalize_tables_path(table["name"])
+    parent = table.get("parent")
+    if parent:
+        table["parent"] = naming.normalize_tables_path(parent)
+    columns = table.get("columns")
+    if columns:
+        new_columns: TTableSchemaColumns = {}
+        for c in columns.values():
+            c = copy(c)
+            origin_c_name = c["name"]
+            new_col_name = c["name"] = naming.normalize_path(c["name"])
+            # re-index columns as the name changed, if name space was reduced then
+            # some columns now clash with each other. so make sure that we merge columns that are already there
+            if new_col_name in new_columns:
+                new_columns[new_col_name] = merge_columns(
+                    new_columns[new_col_name], c, merge_defaults=False
+                )
+                logger.warning(
+                    f"In schema {naming} column {origin_c_name} got normalized into"
+                    f" {new_col_name} which clashes with other column. Both columns got merged"
+                    " into one."
+                )
+            else:
+                new_columns[new_col_name] = c
+        table["columns"] = new_columns
+    return table
+
+
 def has_table_seen_data(table: TTableSchema) -> bool:
     """Checks if normalizer has seen data coming to the table."""
-    return "x-normalizer" in table and table["x-normalizer"].get("seen-data", None) is True  # type: ignore[typeddict-item]
+    return "x-normalizer" in table and table["x-normalizer"].get("seen-data", None) is True
+
+
+def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
+    "Removes processing hints like x-normalizer and x-loader from schema tables. Modifies the input tables and returns it for convenience"
+    for table in tables.values():
+        for hint in TTableProcessingHints.__annotations__.keys():
+            table.pop(hint, None)  # type: ignore[misc]
+    return tables
 
 
 def hint_to_column_prop(h: TColumnHint) -> TColumnProp:

@@ -36,7 +36,7 @@ from dlt.common.exceptions import (
     DestinationUndefinedEntity,
     DestinationIncompatibleLoaderFileFormatException,
 )
-from dlt.common.normalizers import explicit_normalizers, import_normalizers
+from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import (
     TColumnNames,
@@ -1058,10 +1058,6 @@ class Pipeline(SupportsPipeline):
 
         # extract into pipeline schema
         load_id = extract.extract(source, max_parallel_items, workers)
-
-        # save import with fully discovered schema
-        # NOTE: moved to with_schema_sync, remove this if all test pass
-        # self._schema_storage.save_import_schema_if_not_exists(source.schema)
 
         # update live schema but not update the store yet
         self._schema_storage.update_live_schema(source.schema)

@@ -1,7 +1,7 @@
 from typing import Dict, List, cast
 
 from dlt.common.data_types import TDataType
-from dlt.common.normalizers import explicit_normalizers
+from dlt.common.normalizers.utils import explicit_normalizers
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,

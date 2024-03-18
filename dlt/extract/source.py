@@ -12,6 +12,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
+from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
@@ -304,8 +305,8 @@ class DltSource(Iterable[TDataItem]):
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                partial_table = self._schema.normalize_table_identifiers(
-                    r.compute_table_schema(item)
+                partial_table = normalize_table_identifiers(
+                    r.compute_table_schema(item), self._schema.naming
                 )
                 schema.update_table(partial_table)
         return schema

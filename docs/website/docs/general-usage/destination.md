@@ -173,3 +173,14 @@ load_info.raise_on_failed_jobs()
 
 ## Declare external destination
 You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass the destination class type or instance to `dlt` pipeline.
+
+## Control how dlt creates table, column and other identifiers
+
+- case folding
+- case sensitivity
+
+
+1. Redshift - always lower case, no matter which naming convention used. case insensitive
+2. Athena - always lower case, no matter which naming convention used. uses different catalogue and query engines that are incompatible
+
+

@@ -7,7 +7,6 @@ from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
-
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import update_dict_nested
 from dlt.common.typing import TDataItems, TDataItem
@@ -155,7 +154,9 @@ class Extractor:
 
     def _compute_table(self, resource: DltResource, items: TDataItems) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items))
+        return utils.normalize_table_identifiers(
+            resource.compute_table_schema(items), self.schema.naming
+        )
 
     def _compute_and_update_table(
         self, resource: DltResource, table_name: str, items: TDataItems
@@ -173,10 +174,10 @@ class Extractor:
 
         # this is a new table so allow evolve once
         if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
-            computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
+            computed_table["x-normalizer"] = {"evolve-columns-once": True}
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
-            diff_table = utils.diff_tables(existing_table, computed_table)
+            diff_table = utils.diff_tables(self.schema.name, existing_table, computed_table)
         else:
             diff_table = computed_table
 
@@ -291,7 +292,7 @@ class ArrowExtractor(Extractor):
         arrow_table = copy(computed_table)
         arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(items.schema)
         # normalize arrow table before merging
-        arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+        arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
         # issue warnings when overriding computed with arrow
         for col_name, column in arrow_table["columns"].items():
             if src_column := computed_table["columns"].get(col_name):

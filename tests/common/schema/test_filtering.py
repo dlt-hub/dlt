@@ -10,11 +10,6 @@ from dlt.common.schema.typing import TSimpleRegex
 from tests.common.utils import load_json_case
 
 
-@pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
 def test_row_field_filter(schema: Schema) -> None:
     _add_excludes(schema)
     bot_case: DictStrAny = load_json_case("mod_bot_case")
