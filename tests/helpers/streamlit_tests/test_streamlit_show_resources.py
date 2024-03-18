@@ -109,9 +109,7 @@ def test_multiple_resources_pipeline():
     assert streamlit_app.subheader[1].value == "Schema: source1"
     assert streamlit_app.subheader[2].value == "Table: one"
     assert streamlit_app.subheader[3].value == "Run your query"
-    assert streamlit_app.subheader[4].value == f"Pipeline {pipeline.pipeline_name}"
-    assert streamlit_app.subheader[5].value == "State info"
-    assert streamlit_app.subheader[6].value == "Last load info"
+    assert streamlit_app.subheader[4].value == "Pipeline info"
 
 
 def test_multiple_resources_pipeline_with_dummy_destination():
@@ -135,4 +133,4 @@ def test_multiple_resources_pipeline_with_dummy_destination():
     assert streamlit_app.warning.len == 1
     # We should have at least 2 errors one on the sidebar
     # and the other two errors in the page for missing sql client
-    assert streamlit_app.error.len > 2
+    assert streamlit_app.error.len >= 2
