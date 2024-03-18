@@ -4,12 +4,9 @@ description: Pseudonymizing (or anonymizing) columns by replacing the special ch
 keywords: [pseudonymize, anonymize, columns, special characters]
 ---
 
-# Pseudonymizing columns
+# Pseudonymizing Columns
 
-Pseudonymization is a deterministic way to hide personally identifiable info (PII), enabling us to
-consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data, or
-replace it with a constant. In the example below, we create a dummy source with a PII column called
-"name", which we replace with deterministic hashes (i.e. replacing the German umlaut).
+Pseudonymization is a deterministic way to hide personally identifiable information (PII), enabling us to consistently achieve the same mapping. If you wish to anonymize instead, you can delete the data or replace it with a constant. In the example below, we create a dummy source with a PII column called "name", which we replace with deterministic hashes (i.e., replacing the German umlaut).
 
 ```python
 import dlt
@@ -25,9 +22,9 @@ def dummy_source(prefix: str = None):
 
 def pseudonymize_name(doc):
     '''
-    Pseudonmyisation is a deterministic type of PII-obscuring
+    Pseudonymization is a deterministic type of PII-obscuring.
     Its role is to allow identifying users by their hash,
-    without revealing the underlying info.
+    without revealing the underlying information.
     '''
     # add a constant salt to generate
     salt = 'WI@N57%zZrmk#88c'
@@ -46,7 +43,7 @@ for row in dummy_source().dummy_data.add_map(pseudonymize_name):
 #{'id': 1, 'name': '92d3972b625cbd21f28782fb5c89552ce1aa09281892a2ab32aee8feeb3544a1'}
 #{'id': 2, 'name': '443679926a7cff506a3b5d5d094dc7734861352b9e0791af5d39db5a7356d11a'}
 
-# Or create an instance of the data source, modify the resource and run the source.
+# Or create an instance of the data source, modify the resource, and run the source.
 
 # 1. Create an instance of the source so you can edit it.
 data_source = dummy_source()
@@ -59,3 +56,5 @@ for row in data_source:
 pipeline = dlt.pipeline(pipeline_name='example', destination='bigquery', dataset_name='normalized_data')
 load_info = pipeline.run(data_source)
 ```
+
+
