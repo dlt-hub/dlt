@@ -17,7 +17,6 @@ from dlt.common.destination.reference import (
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import TTableFormat, TTableSchema, TColumnHint, TColumnType
 from dlt.common.storages import FileStorage
-from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
@@ -111,10 +110,11 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         credentials_clause = ""
         files_clause = ""
 
+
         if bucket_path:
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
-            # Referencing an external s3/azure stage does not require explicit AWS credentials.
+            # TODO: convert all object storage endpoints to  http protocol.
             if (
                 bucket_scheme == "s3"
                 and staging_credentials
@@ -123,7 +123,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
             elif (
-                bucket_scheme in ["az", "abfs"]
+                bucket_scheme in ("az", "abfs")
                 and staging_credentials
                 and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
             ):

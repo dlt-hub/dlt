@@ -4,14 +4,11 @@ from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.clickhouse import capabilities
+from dlt.destinations.impl.clickhouse.clickhouse import ClickhouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickhouseClientConfiguration,
     ClickhouseCredentials,
 )
-
-
-if t.TYPE_CHECKING:
-    from dlt.destinations.impl.clickhouse.clickhouse import ClickhouseClient
 
 
 # noinspection PyPep8Naming
