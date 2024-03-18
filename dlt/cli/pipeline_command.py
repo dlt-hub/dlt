@@ -11,7 +11,6 @@ from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
 from dlt.common.storages import FileStorage, PackageStorage
-from dlt.common.utils import str2bool
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
