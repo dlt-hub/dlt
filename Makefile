@@ -48,6 +48,7 @@ dev: has-poetry
 
 lint:
 	./check-package.sh
+	./check-lockfile.sh
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
