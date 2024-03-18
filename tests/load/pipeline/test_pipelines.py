@@ -56,8 +56,8 @@ def test_default_pipeline_names(
     p = dlt.pipeline()
     p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
-    possible_names = ["dlt_pytest", "dlt_pipeline"]
-    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
+    possible_names = ["dlt_pytest", "dlt_pipeline", "dlt__jb_pytest_runner"]
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset", "dlt__jb_pytest_runner_dataset"]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
     assert p.dataset_name in possible_dataset_names
@@ -76,11 +76,11 @@ def test_default_pipeline_names(
     # this will create default schema
     p.extract(data_fun)
     # _pipeline suffix removed when creating default schema name
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):

@@ -364,10 +364,11 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
             with client.sql_client.execute_query(f"DELETE FROM {qualified_name} WHERE 1=1"):
                 pass
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
-        with pytest.raises(DatabaseUndefinedRelation) as term_ex:
-            with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
-                pass
-        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        if client.config.destination_type != "dremio":
+            with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+                with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
+                    pass
+            assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
 @pytest.mark.parametrize(

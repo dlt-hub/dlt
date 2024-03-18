@@ -121,8 +121,12 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, pyarrow.lib.ArrowInvalid):
             msg = str(ex)
-            if "not found" in msg or "does not exist" in msg:
+            if "not found in any table" in msg:
+                return DatabaseTerminalException(ex)
+            elif "not found" in msg or "does not exist" in msg:
                 return DatabaseUndefinedRelation(ex)
+            elif "Non-query expression encountered in illegal context" in msg:
+                return DatabaseTransientException(ex)
             else:
                 return DatabaseTerminalException(ex)
         else:
