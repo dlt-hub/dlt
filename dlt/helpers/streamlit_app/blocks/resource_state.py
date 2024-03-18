@@ -20,8 +20,8 @@ def resource_state_info(
         st.error(f"Schema with name: {schema_name} is not found")
         return
 
-    with st.expander("Resource state"):
-        resource = schema["resources"].get(resource_name)
+    resource = schema["resources"].get(resource_name)
+    with st.expander("Resource state", expanded=(resource is None)):
         if not resource:
             st.info(f"{resource_name} is missing resource state")
         else:
