@@ -25,19 +25,15 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
+from dlt.common.destination.utils import verify_schema_capabilities
 from dlt.common.exceptions import (
-    IdentifierTooLongException,
     InvalidDestinationReference,
     UnknownDestinationModule,
 )
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
     get_write_disposition,
     get_table_format,
-    get_columns_names_with_prop,
-    has_column_with_prop,
-    get_first_column_name_with_prop,
 )
 from dlt.common.configuration import configspec, resolve_configuration, known_sections
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -334,79 +330,13 @@ class JobClientBase(ABC):
         pass
 
     def _verify_schema(self) -> None:
-        """Verifies and cleans up a schema before loading
-
-        * Checks all table and column name lengths against destination capabilities and raises on too long identifiers
-        * Removes and warns on (unbound) incomplete columns
-        """
-
-        for table in self.schema.data_tables():
-            table_name = table["name"]
-            if len(table_name) > self.capabilities.max_identifier_length:
-                raise IdentifierTooLongException(
-                    self.config.destination_type,
-                    "table",
-                    table_name,
-                    self.capabilities.max_identifier_length,
-                )
-            if has_column_with_prop(table, "hard_delete"):
-                if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
-                    raise SchemaException(
-                        f'Found multiple "hard_delete" column hints for table "{table_name}" in'
-                        f' schema "{self.schema.name}" while only one is allowed:'
-                        f' {", ".join(get_columns_names_with_prop(table, "hard_delete"))}.'
-                    )
-                if table.get("write_disposition") in ("replace", "append"):
-                    logger.warning(
-                        f"""The "hard_delete" column hint for column "{get_first_column_name_with_prop(table, 'hard_delete')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{self.schema.name}" will be ignored.'
-                        ' The "hard_delete" column hint is only applied when using'
-                        ' the "merge" write disposition.'
-                    )
-            if has_column_with_prop(table, "dedup_sort"):
-                if len(get_columns_names_with_prop(table, "dedup_sort")) > 1:
-                    raise SchemaException(
-                        f'Found multiple "dedup_sort" column hints for table "{table_name}" in'
-                        f' schema "{self.schema.name}" while only one is allowed:'
-                        f' {", ".join(get_columns_names_with_prop(table, "dedup_sort"))}.'
-                    )
-                if table.get("write_disposition") in ("replace", "append"):
-                    logger.warning(
-                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{self.schema.name}" will be ignored.'
-                        ' The "dedup_sort" column hint is only applied when using'
-                        ' the "merge" write disposition.'
-                    )
-                if table.get("write_disposition") == "merge" and not has_column_with_prop(
-                    table, "primary_key"
-                ):
-                    logger.warning(
-                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{self.schema.name}" will be ignored.'
-                        ' The "dedup_sort" column hint is only applied when a'
-                        " primary key has been specified."
-                    )
-            for column_name, column in dict(table["columns"]).items():
-                if len(column_name) > self.capabilities.max_column_identifier_length:
-                    raise IdentifierTooLongException(
-                        self.config.destination_type,
-                        "column",
-                        f"{table_name}.{column_name}",
-                        self.capabilities.max_column_identifier_length,
-                    )
-                if not is_complete_column(column):
-                    logger.warning(
-                        f"A column {column_name} in table {table_name} in schema"
-                        f" {self.schema.name} is incomplete. It was not bound to the data during"
-                        " normalizations stage and its data type is unknown. Did you add this"
-                        " column manually in code ie. as a merge key?"
-                    )
+        """Verifies schema before loading"""
+        if exceptions := verify_schema_capabilities(
+            self.schema, self.capabilities, self.config.destination_type, warnings=False
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
     def prepare_load_table(
         self, table_name: str, prepare_for_staging: bool = False
@@ -421,7 +351,7 @@ class JobClientBase(ABC):
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             return table
         except KeyError:
-            raise UnknownTableException(table_name)
+            raise UnknownTableException(self.schema.name, table_name)
 
 
 class WithStateSync(ABC):
@@ -539,7 +469,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @staticmethod
     def normalize_type(destination_type: str) -> str:
-        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
+        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to built in destinations."""
         if "." not in destination_type:
             destination_type = "dlt.destinations." + destination_type
         # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
