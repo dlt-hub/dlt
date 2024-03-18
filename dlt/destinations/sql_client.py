@@ -139,19 +139,19 @@ SELECT 1
         return ret
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        dataset_name = self.capabilities.case_identifier(self.dataset_name)
+        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
         if escape:
             return self.capabilities.escape_identifier(dataset_name)
         return dataset_name
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        table_name = self.capabilities.case_identifier(table_name)
+        table_name = self.capabilities.casefold_identifier(table_name)
         if escape:
             table_name = self.capabilities.escape_identifier(table_name)
         return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
 
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
-        column_name = self.capabilities.case_identifier(column_name)
+        column_name = self.capabilities.casefold_identifier(column_name)
         if escape:
             return self.capabilities.escape_identifier(column_name)
         return column_name

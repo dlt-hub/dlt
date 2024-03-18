@@ -926,8 +926,7 @@ def test_pipeline_upfront_tables_two_loads(
         load_table_counts(pipeline, "table_3")
     assert "x-normalizer" not in pipeline.default_schema.tables["table_3"]
     assert (
-        pipeline.default_schema.tables["_dlt_pipeline_state"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
-        is True
+        pipeline.default_schema.tables["_dlt_pipeline_state"]["x-normalizer"]["seen-data"] is True
     )
 
     # load with one empty job, table 3 not created
@@ -969,18 +968,9 @@ def test_pipeline_upfront_tables_two_loads(
     # print(v5)
 
     # check if seen data is market correctly
-    assert (
-        pipeline.default_schema.tables["table_3"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
-        is True
-    )
-    assert (
-        pipeline.default_schema.tables["table_2"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
-        is True
-    )
-    assert (
-        pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
-        is True
-    )
+    assert pipeline.default_schema.tables["table_3"]["x-normalizer"]["seen-data"] is True
+    assert pipeline.default_schema.tables["table_2"]["x-normalizer"]["seen-data"] is True
+    assert pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"] is True
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")

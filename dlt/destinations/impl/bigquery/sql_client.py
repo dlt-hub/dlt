@@ -234,8 +234,8 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 conn.close()
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        project_id = self.capabilities.case_identifier(self.credentials.project_id)
-        dataset_name = self.capabilities.case_identifier(self.dataset_name)
+        project_id = self.capabilities.casefold_identifier(self.credentials.project_id)
+        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
         if escape:
             project_id = self.capabilities.escape_identifier(project_id)
             dataset_name = self.capabilities.escape_identifier(dataset_name)

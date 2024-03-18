@@ -3,7 +3,11 @@ from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any
 
 from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop, pipeline_state_table
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    normalize_table_identifiers,
+    pipeline_state_table,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
 from dlt.common.storages import FileStorage
@@ -152,7 +156,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         )
         # get definition of state table (may not be present in the schema)
         state_table = schema.tables.get(
-            schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table())
+            schema.state_table_name,
+            normalize_table_identifiers(pipeline_state_table(), schema.naming),
         )
         # column names are pipeline properties
         self.pipeline_state_properties = list(state_table["columns"].keys())

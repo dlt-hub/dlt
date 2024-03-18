@@ -95,14 +95,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # Drop all views
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.views WHERE table_schema = %s;",
-            self.capabilities.case_identifier(self.dataset_name),
+            self.capabilities.casefold_identifier(self.dataset_name),
         )
         view_names = [row[0] for row in rows]
         self._drop_views(*view_names)
         # Drop all tables
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            self.capabilities.case_identifier(self.dataset_name),
+            self.capabilities.casefold_identifier(self.dataset_name),
         )
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)

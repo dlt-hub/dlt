@@ -29,7 +29,11 @@ from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnSchema, TColumnType
-from dlt.common.schema.utils import get_columns_names_with_prop, pipeline_state_table
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    normalize_table_identifiers,
+    pipeline_state_table,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
 from dlt.common.data_types import TDataType
@@ -243,7 +247,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
         )
         # get definition of state table (may not be present in the schema)
         state_table = schema.tables.get(
-            schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table())
+            schema.state_table_name,
+            normalize_table_identifiers(pipeline_state_table(), schema.naming),
         )
         # column names are pipeline properties
         self.pipeline_state_properties = list(state_table["columns"].keys())
@@ -453,7 +458,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
             # TODO: detect columns where vectorization was added or removed and modify it. currently we ignore change of hints
-            new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
+            new_columns = self.schema.get_new_table_columns(
+                table_name,
+                existing_columns,
+                case_sensitive=self.capabilities.has_case_sensitive_identifiers,
+            )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if len(new_columns) > 0:
                 if exists:

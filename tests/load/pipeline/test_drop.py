@@ -84,13 +84,14 @@ def assert_dropped_resource_tables(pipeline: Pipeline, resources: List[str]) -> 
     client: SqlJobClientBase
     with pipeline.destination_client(pipeline.default_schema_name) as client:  # type: ignore[assignment]
         # Check all tables supposed to be dropped are not in dataset
-        for table in dropped_tables:
-            exists, _ = client.get_storage_table(table)
-            assert not exists
+        storage_tables = list(client.get_storage_tables(dropped_tables))
+        # no columns in all tables
+        assert all(len(table[1]) == 0 for table in storage_tables)
+
         # Check tables not from dropped resources still exist
-        for table in expected_tables:
-            exists, _ = client.get_storage_table(table)
-            assert exists
+        storage_tables = list(client.get_storage_tables(expected_tables))
+        # all tables have columns
+        assert all(len(table[1]) > 0 for table in storage_tables)
 
 
 def assert_dropped_resource_states(pipeline: Pipeline, resources: List[str]) -> None:
@@ -293,9 +294,8 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
 
     # Verify original _dlt tables were not deleted
     with attached._sql_job_client(attached.default_schema) as client:
-        for tbl in dlt_tables:
-            exists, _ = client.get_storage_table(tbl)
-            assert exists
+        storage_tables = list(client.get_storage_tables(dlt_tables))
+        assert all(len(table[1]) > 0 for table in storage_tables)
 
 
 @pytest.mark.parametrize(

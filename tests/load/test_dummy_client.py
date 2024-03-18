@@ -485,9 +485,7 @@ def test_extend_table_chain() -> None:
     # no jobs for bot
     assert _extend_tables_with_table_chain(schema, ["event_bot"], ["event_user"]) == set()
     # skip unseen tables
-    del schema.tables["event_user__parse_data__entities"][  # type:ignore[typeddict-item]
-        "x-normalizer"
-    ]
+    del schema.tables["event_user__parse_data__entities"]["x-normalizer"]
     entities_chain = {
         name
         for name in schema.data_table_names()
@@ -607,7 +605,7 @@ def test_get_completed_table_chain_cases() -> None:
     deep_child = schema.tables[
         "event_user__parse_data__response_selector__default__response__response_templates"
     ]
-    del deep_child["x-normalizer"]  # type:ignore[typeddict-item]
+    del deep_child["x-normalizer"]
     chain = get_completed_table_chain(
         schema, [event_user_job], event_user, event_user_job.job_file_info.job_id()
     )

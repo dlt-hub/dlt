@@ -43,6 +43,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.utils import parse_db_data_type_str_with_precision
 
 
 class BigQueryTypeMapper(TypeMapper):
@@ -50,10 +51,10 @@ class BigQueryTypeMapper(TypeMapper):
         "complex": "JSON",
         "text": "STRING",
         "double": "FLOAT64",
-        "bool": "BOOLEAN",
+        "bool": "BOOL",
         "date": "DATE",
         "timestamp": "TIMESTAMP",
-        "bigint": "INTEGER",
+        "bigint": "INT64",
         "binary": "BYTES",
         "wei": "BIGNUMERIC",  # non-parametrized should hold wei values
         "time": "TIME",
@@ -66,11 +67,11 @@ class BigQueryTypeMapper(TypeMapper):
 
     dbt_to_sct = {
         "STRING": "text",
-        "FLOAT": "double",
-        "BOOLEAN": "bool",
+        "FLOAT64": "double",
+        "BOOL": "bool",
         "DATE": "date",
         "TIMESTAMP": "timestamp",
-        "INTEGER": "bigint",
+        "INT64": "bigint",
         "BYTES": "binary",
         "NUMERIC": "decimal",
         "BIGNUMERIC": "decimal",
@@ -89,9 +90,10 @@ class BigQueryTypeMapper(TypeMapper):
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        if db_type == "BIGNUMERIC" and precision is None:
+        # precision is present in the type name
+        if db_type == "BIGNUMERIC":
             return dict(data_type="wei")
-        return super().from_db_type(db_type, precision, scale)
+        return super().from_db_type(*parse_db_data_type_str_with_precision(db_type))
 
 
 class BigQueryLoadJob(LoadJob, FollowupJob):
@@ -231,7 +233,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise UnknownTableException(table["name"]) from gace
+                    raise UnknownTableException(self.schema.name, table["name"]) from gace
                 elif (
                     reason == "duplicate"
                 ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
@@ -337,31 +339,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
         return column_def_sql
 
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        schema_table: TTableSchemaColumns = {}
-        try:
-            table = self.sql_client.native_connection.get_table(
-                self.sql_client.make_qualified_table_name(table_name, escape=False),
-                retry=self.sql_client._default_retry,
-                timeout=self.config.http_timeout,
-            )
-            partition_field = table.time_partitioning.field if table.time_partitioning else None
-            for c in table.schema:
-                schema_c: TColumnSchema = {
-                    "name": c.name,
-                    "nullable": c.is_nullable,
-                    "unique": False,
-                    "sort": False,
-                    "primary_key": False,
-                    "foreign_key": False,
-                    "cluster": c.name in (table.clustering_fields or []),
-                    "partition": c.name == partition_field,
-                    **self._from_db_type(c.field_type, c.precision, c.scale),
-                }
-                schema_table[c.name] = schema_c
-            return True, schema_table
-        except gcp_exceptions.NotFound:
-            return False, schema_table
 
     def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends.

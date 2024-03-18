@@ -74,12 +74,17 @@ def test_initialize_storage(client: SqlJobClientBase) -> None:
 )
 def test_get_schema_on_empty_storage(client: SqlJobClientBase) -> None:
     # test getting schema on empty dataset without any tables
-    exists, _ = client.get_storage_table(VERSION_TABLE_NAME)
-    assert exists is False
+    table_name, table_columns = list(client.get_storage_tables([VERSION_TABLE_NAME]))[0]
+    assert table_name == VERSION_TABLE_NAME
+    assert len(table_columns) == 0
     schema_info = client.get_stored_schema()
     assert schema_info is None
     schema_info = client.get_stored_schema_by_hash("8a0298298823928939")
     assert schema_info is None
+
+    # now try to get several non existing tables
+    storage_tables = list(client.get_storage_tables(["no_table_1", "no_table_2"]))
+    assert [("no_table_1", {}), ("no_table_2", {})] == storage_tables
 
 
 @pytest.mark.order(3)
@@ -88,6 +93,8 @@ def test_get_schema_on_empty_storage(client: SqlJobClientBase) -> None:
 )
 def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     schema = client.schema
+    print(schema.stored_version)
+    print(schema.version)
     schema_update = client.update_stored_schema()
     # expect dlt tables in schema update
     assert set(schema_update.keys()) == {VERSION_TABLE_NAME, LOADS_TABLE_NAME, "event_slot"}
@@ -95,17 +102,17 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     # check is event slot has variant
     assert schema_update["event_slot"]["columns"]["value"]["variant"] is True
     # now we have dlt tables
-    exists, _ = client.get_storage_table(VERSION_TABLE_NAME)
-    assert exists is True
-    exists, _ = client.get_storage_table(LOADS_TABLE_NAME)
-    assert exists is True
+    storage_tables = list(client.get_storage_tables([VERSION_TABLE_NAME, LOADS_TABLE_NAME]))
+    assert set([table[0] for table in storage_tables]) == {VERSION_TABLE_NAME, LOADS_TABLE_NAME}
+    assert [len(table[1]) > 0 for table in storage_tables] == [True, True]
     # verify if schemas stored
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
     newest_schema = client.get_stored_schema()
     # should point to the same schema
     assert this_schema == newest_schema
     # check fields
-    assert this_schema.version == 1 == schema.version
+    # NOTE: schema version == 2 because we updated default hints after loading the schema
+    assert this_schema.version == 2 == schema.version
     assert this_schema.version_hash == schema.stored_version_hash
     assert this_schema.engine_version == schema.ENGINE_VERSION
     assert this_schema.schema_name == schema.name
@@ -124,7 +131,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
     newest_schema = client.get_stored_schema()
     assert this_schema == newest_schema
-    assert this_schema.version == schema.version == 2
+    assert this_schema.version == schema.version == 3
     assert this_schema.version_hash == schema.stored_version_hash
 
     # simulate parallel write: initial schema is modified differently and written alongside the first one
@@ -132,14 +139,14 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_schema = Schema.from_dict(json.loads(first_version_schema))
     first_schema.tables["event_bot"]["write_disposition"] = "replace"
     first_schema.bump_version()
-    assert first_schema.version == this_schema.version == 2
+    assert first_schema.version == this_schema.version == 3
     # wait to make load_newest_schema deterministic
     sleep(0.1)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_stored_schema_by_hash(first_schema.version_hash)
     newest_schema = client.get_stored_schema()
     assert this_schema == newest_schema  # error
-    assert this_schema.version == first_schema.version == 2
+    assert this_schema.version == first_schema.version == 3
     assert this_schema.version_hash == first_schema.stored_version_hash
 
     # get schema with non existing hash
@@ -218,8 +225,8 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     assert table_update["timestamp"]["sort"] is True
     assert table_update["sender_id"]["cluster"] is True
     assert table_update["_dlt_id"]["unique"] is True
-    exists, _ = client.get_storage_table(table_name)
-    assert exists is True
+    _, storage_columns = list(client.get_storage_tables([table_name]))[0]
+    assert len(storage_columns) > 0
 
 
 @pytest.mark.parametrize(
@@ -244,14 +251,12 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     table_update = schema_update["event_test_table"]["columns"]
     assert table_update["timestamp"]["partition"] is True
     assert table_update["_dlt_id"]["nullable"] is False
-    exists, storage_table = client.get_storage_table("event_test_table")
-    assert exists is True
-    assert storage_table["timestamp"]["partition"] is True
-    assert storage_table["sender_id"]["cluster"] is True
-    exists, storage_table = client.get_storage_table("_dlt_version")
-    assert exists is True
-    assert storage_table["version"]["partition"] is False
-    assert storage_table["version"]["cluster"] is False
+    _, storage_columns = client.get_storage_table("event_test_table")
+    assert storage_columns["timestamp"]["partition"] is True
+    assert storage_columns["sender_id"]["cluster"] is True
+    _, storage_columns = client.get_storage_table("_dlt_version")
+    assert storage_columns["version"]["partition"] is False
+    assert storage_columns["version"]["cluster"] is False
 
 
 @pytest.mark.parametrize(
@@ -342,9 +347,7 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
                 client.drop_tables(*tables_to_drop, replace_schema=False)
 
     # Verify requested tables are dropped
-    for tbl in tables_to_drop:
-        exists, _ = client.get_storage_table(tbl)
-        assert not exists
+    assert all(len(table[1]) == 0 for table in client.get_storage_tables(tables_to_drop))
 
     # Verify _dlt_version schema is updated and old versions deleted
     table_name = client.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
@@ -377,15 +380,16 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     for name, column in table_update.items():
         assert column.items() >= TABLE_UPDATE_COLUMNS_SCHEMA[name].items()
     # now get the actual schema from the db
-    exists, storage_table = client.get_storage_table(table_name)
-    assert exists is True
+    _, storage_table = list(client.get_storage_tables([table_name]))[0]
+    assert len(storage_table) > 0
     print(storage_table)
     # column order must match TABLE_UPDATE
     storage_columns = list(storage_table.values())
     for c, expected_c in zip(TABLE_UPDATE, storage_columns):
         # print(c["name"])
         # print(c["data_type"])
-        assert c["name"] == expected_c["name"]
+        # storage columns are returned with column names as in information schema
+        assert client.capabilities.casefold_identifier(c["name"]) == expected_c["name"]
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
         if client.config.destination_type == "athena" and c["data_type"] in (
             "wei",

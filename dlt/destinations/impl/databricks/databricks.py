@@ -316,7 +316,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
     def _get_storage_table_query_columns(self) -> List[str]:
         fields = super()._get_storage_table_query_columns()
-        fields[1] = (  # Override because this is the only way to get data type with precision
+        fields[2] = (  # Override because this is the only way to get data type with precision
             "full_data_type"
         )
         return fields

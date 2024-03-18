@@ -1,24 +1,18 @@
 import os
 from abc import abstractmethod
 import base64
-import binascii
 import contextlib
 from copy import copy
-import datetime  # noqa: 251
 from types import TracebackType
 from typing import (
     Any,
-    ClassVar,
     List,
-    NamedTuple,
     Optional,
     Sequence,
     Tuple,
     Type,
     Iterable,
     Iterator,
-    ContextManager,
-    cast,
 )
 import zlib
 import re
@@ -31,7 +25,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TTableFormat,
 )
-from dlt.common.schema.utils import pipeline_state_table
+from dlt.common.schema.utils import normalize_table_identifiers, pipeline_state_table
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import (
@@ -57,6 +51,7 @@ from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.utils import info_schema_null_to_bool, verify_sql_job_client_schema
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -147,7 +142,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         )
         # get definition of state table (may not be present in the schema)
         state_table = schema.tables.get(
-            schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table())
+            schema.state_table_name,
+            normalize_table_identifiers(pipeline_state_table(), schema.naming),
         )
         self.state_table_columns = ", ".join(
             sql_client.escape_column_name(col) for col in state_table["columns"]
@@ -285,54 +281,107 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> None:
         self.sql_client.close_connection()
 
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Uses INFORMATION SCHEMA to retrieve table and column information for tables in `table_names` iterator.
+        Table names should be normalized according to naming convention and will be further converted to desired casing
+        in order to (in most cases) create case-insensitive name suitable for search in information schema.
+
+        The column names are returned as in information schema. To match those with columns in existing table, you'll need to use
+        `schema.get_new_table_columns` method and pass the correct casing. Most of the casing function are irreversible so it is not
+        possible to convert identifiers into INFORMATION SCHEMA back into case sensitive dlt schema.
+        """
+        table_names = list(table_names)
+        if len(table_names) == 0:
+            # empty generator
+            return
+        # create table name conversion lookup table
+        name_lookup = {
+            self.capabilities.casefold_identifier(table_name): table_name
+            for table_name in table_names
+        }
+        # this should never happen: we verify schema for name clashes before loading
+        assert len(name_lookup) == len(table_names), (
+            f"One or more of tables in {table_names} after applying"
+            f" {self.capabilities.casefold_identifier} produced a clashing name."
+        )
+        # get components from full table name
+        db_params = self.sql_client.fully_qualified_dataset_name(escape=False).split(".", 2)
+        has_catalog = len(db_params) == 2
+        # use cased identifier ie. always lower on redshift and upper (by default) on snowflake
+        db_params = db_params + list(name_lookup.keys())
+
+        query = f"""
+SELECT {",".join(self._get_storage_table_query_columns())}
+    FROM INFORMATION_SCHEMA.COLUMNS
+WHERE """
+        if has_catalog:
+            query += "table_catalog = %s AND "
+        # placeholder for each table
+        table_placeholders = ",".join(["%s"] * len(table_names))
+        query += (
+            f"table_schema = %s AND table_name IN ({table_placeholders}) ORDER BY table_name,"
+            " ordinal_position;"
+        )
+        print(query)
+        print(db_params)
+        rows = self.sql_client.execute_sql(query, *db_params)
+        print(rows)
+        prev_table: str = None
+        storage_columns: TTableSchemaColumns = None
+        for c in rows:
+            # make sure that new table is known
+            assert (
+                c[0] in name_lookup
+            ), f"Table name {c[0]} not in expected tables {name_lookup.keys()}"
+            table_name = name_lookup[c[0]]
+            if prev_table != table_name:
+                # yield what we have
+                if storage_columns:
+                    yield (prev_table, storage_columns)
+                # we have new table
+                storage_columns = {}
+                prev_table = table_name
+                # remove from table_names
+                table_names.remove(prev_table)
+            # add columns
+            # TODO: in many cases this will not work
+            col_name = c[1]
+            numeric_precision = (
+                c[4] if self.capabilities.schema_supports_numeric_precision else None
+            )
+            numeric_scale = c[5] if self.capabilities.schema_supports_numeric_precision else None
+
+            schema_c: TColumnSchemaBase = {
+                "name": col_name,
+                "nullable": info_schema_null_to_bool(c[3]),
+                **self._from_db_type(c[2], numeric_precision, numeric_scale),
+            }
+            storage_columns[col_name] = schema_c  # type: ignore
+        # yield last table, it must have at least one column or we had no rows
+        if storage_columns:
+            yield (prev_table, storage_columns)
+        # if no columns we assume that table does not exist
+        for table_name in table_names:
+            yield (table_name, {})
+
+    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
+        """Uses get_storage_tables to get single `table_name` schema.
+
+        Returns (True, ...) if table exists and (False, {}) when not
+        """
+        storage_table = list(self.get_storage_tables([table_name]))[0]
+        return len(storage_table[1]) > 0, storage_table[1]
+
     def _get_storage_table_query_columns(self) -> List[str]:
         """Column names used when querying table from information schema.
         Override for databases that use different namings.
         """
-        fields = ["column_name", "data_type", "is_nullable"]
+        fields = ["table_name", "column_name", "data_type", "is_nullable"]
         if self.capabilities.schema_supports_numeric_precision:
             fields += ["numeric_precision", "numeric_scale"]
         return fields
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        def _null_to_bool(v: str) -> bool:
-            if v == "NO":
-                return False
-            elif v == "YES":
-                return True
-            raise ValueError(v)
-
-        fields = self._get_storage_table_query_columns()
-        db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
-            ".", 3
-        )
-        query = f"""
-SELECT {",".join(fields)}
-    FROM INFORMATION_SCHEMA.COLUMNS
-WHERE """
-        if len(db_params) == 3:
-            query += "table_catalog = %s AND "
-        query += "table_schema = %s AND table_name = %s ORDER BY ordinal_position;"
-        rows = self.sql_client.execute_sql(query, *db_params)
-        # if no rows we assume that table does not exist
-        schema_table: TTableSchemaColumns = {}
-        if len(rows) == 0:
-            # TODO: additionally check if table exists
-            return False, schema_table
-        # TODO: pull more data to infer indexes, PK and uniques attributes/constraints
-        for c in rows:
-            col_name = self.schema.naming.normalize_path(c[0])
-            numeric_precision = (
-                c[3] if self.capabilities.schema_supports_numeric_precision else None
-            )
-            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
-            schema_c: TColumnSchemaBase = {
-                "name": col_name,
-                "nullable": _null_to_bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),
-            }
-            schema_table[col_name] = schema_c  # type: ignore
-        return True, schema_table
 
     @abstractmethod
     def _from_db_type(
@@ -424,12 +473,15 @@ WHERE """
         """
         sql_updates = []
         schema_update: TSchemaTables = {}
-        for table_name in only_tables or self.schema.tables:
-            exists, storage_table = self.get_storage_table(table_name)
-            new_columns = self._create_table_update(table_name, storage_table)
+        for table_name, storage_columns in self.get_storage_tables(
+            only_tables or self.schema.tables.keys()
+        ):
+            new_columns = self._create_table_update(table_name, storage_columns)
             if len(new_columns) > 0:
                 # build and add sql to execute
-                sql_statements = self._get_table_update_sql(table_name, new_columns, exists)
+                sql_statements = self._get_table_update_sql(
+                    table_name, new_columns, len(storage_columns) > 0
+                )
                 for sql in sql_statements:
                     if not sql.endswith(";"):
                         sql += ";"
@@ -509,8 +561,12 @@ WHERE """
     def _create_table_update(
         self, table_name: str, storage_columns: TTableSchemaColumns
     ) -> Sequence[TColumnSchema]:
-        # compare table with stored schema and produce delta
-        updates = self.schema.get_new_table_columns(table_name, storage_columns)
+        """Compares storage columns with schema table and produce delta columns difference"""
+        updates = self.schema.get_new_table_columns(
+            table_name,
+            storage_columns,
+            case_sensitive=self.capabilities.has_case_sensitive_identifiers,
+        )
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
 
@@ -575,6 +631,13 @@ WHERE """
             schema.stored_version_hash,
             schema_str,
         )
+
+    def _verify_schema(self) -> None:
+        super()._verify_schema()
+        if exceptions := verify_sql_job_client_schema(self.schema, warnings=True):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
 
 class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):

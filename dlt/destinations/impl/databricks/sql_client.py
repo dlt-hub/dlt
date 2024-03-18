@@ -134,8 +134,8 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        catalog = self.capabilities.case_identifier(self.credentials.catalog)
-        dataset_name = self.capabilities.case_identifier(self.dataset_name)
+        catalog = self.capabilities.casefold_identifier(self.credentials.catalog)
+        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
         if escape:
             catalog = self.capabilities.escape_identifier(catalog)
             dataset_name = self.capabilities.escape_identifier(dataset_name)

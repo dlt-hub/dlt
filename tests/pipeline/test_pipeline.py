@@ -46,6 +46,7 @@ from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
+    assert_data_table_counts,
     assert_load_info,
     airtable_emojis,
     load_data_table_counts,
@@ -1279,21 +1280,27 @@ def test_remove_autodetect() -> None:
             name="numbers",
         )
 
+    source = autodetect()
     pipeline = dlt.pipeline(destination="duckdb")
-    pipeline.run(autodetect())
+    pipeline.run(source)
 
     # unix ts recognized
     assert (
         pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
     )
+    assert "timestamp" in source.schema.settings["detections"]
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
 
     pipeline = pipeline.drop()
 
     source = autodetect()
+    assert "timestamp" in source.schema.settings["detections"]
     source.schema.remove_type_detection("timestamp")
+    assert "timestamp" not in source.schema.settings["detections"]
 
     pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(source)
+    assert "timestamp" not in pipeline.default_schema.settings["detections"]
 
     assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
 
@@ -1715,7 +1722,7 @@ def test_run_with_pua_payload() -> None:
     assert len(load_info.loads_ids) == 1
 
 
-def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
+def test_pipeline_load_info_metrics_schema_is_not_changing() -> None:
     """Test if load info schema is idempotent throughout multiple load cycles
 
     ## Setup
@@ -1771,7 +1778,6 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         pipeline_name="quick_start",
         destination="duckdb",
         dataset_name="mydata",
-        # export_schema_path="schemas",
     )
 
     taxi_load_info = pipeline.run(
@@ -1857,3 +1863,23 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     assert len(schema_hashset) == 1
+
+
+@pytest.mark.skip(reason="empty lists are removed in normalized. to be fixed")
+def test_yielding_empty_list_creates_table() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="empty_start",
+        destination="duckdb",
+        dataset_name="mydata",
+    )
+
+    # empty list should create empty table in the destination but with the required schema
+    extract_info = pipeline.extract(
+        [[]], table_name="empty", columns=[{"name": "id", "data_type": "bigint", "nullable": True}]
+    )
+    print(extract_info)
+    normalize_info = pipeline.normalize()
+    assert normalize_info.row_counts["empty"] == 0
+    load_info = pipeline.load()
+    assert_load_info(load_info)
+    assert_data_table_counts(pipeline, {"empty": 0})

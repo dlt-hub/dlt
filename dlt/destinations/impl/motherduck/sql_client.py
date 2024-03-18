@@ -31,7 +31,7 @@ class MotherDuckSqlClient(DuckDbSqlClient):
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         dataset_name = super().fully_qualified_dataset_name(escape)
-        database_name = self.capabilities.case_identifier(self.database_name)
+        database_name = self.capabilities.casefold_identifier(self.database_name)
         if escape:
             database_name = self.capabilities.escape_identifier(database_name)
         return f"{database_name}.{dataset_name}"

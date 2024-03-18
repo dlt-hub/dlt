@@ -18,6 +18,7 @@ def capabilities() -> DestinationCapabilitiesContext:
 
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_mssql_literal
+    caps.has_case_sensitive_identifiers = False
 
     # Synapse has a max precision of 38
     # https://learn.microsoft.com/en-us/sql/t-sql/statements/create-table-azure-sql-data-warehouse?view=aps-pdw-2016-au7#DataTypes

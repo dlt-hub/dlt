@@ -11,7 +11,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_athena_identifier
-    caps.case_identifier = str.lower
+    caps.casefold_identifier = str.lower
+    caps.has_case_sensitive_identifiers = False
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 255

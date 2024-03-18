@@ -37,7 +37,7 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
 
     # make block uncles unseen to trigger filtering loader in loader for child tables
     if has_table_seen_data(schema.tables["blocks__uncles"]):
-        del schema.tables["blocks__uncles"]["x-normalizer"]  # type: ignore[typeddict-item]
+        del schema.tables["blocks__uncles"]["x-normalizer"]
         assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
     with open(

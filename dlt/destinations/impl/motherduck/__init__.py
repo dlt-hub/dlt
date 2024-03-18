@@ -9,6 +9,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["parquet", "insert_values", "jsonl"]
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_duckdb_literal
+    caps.has_case_sensitive_identifiers = False
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 65536

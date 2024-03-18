@@ -13,7 +13,7 @@ from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
 from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE,
@@ -111,7 +111,9 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
         {"name": "coL1", "data_type": "double", "nullable": False},
     ]
     client.schema.update_table(
-        client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
+        normalize_table_identifiers(
+            new_table(class_name, columns=table_create), client.schema.naming
+        )
     )
     client.schema.bump_version()
     with pytest.raises(PropertyNameConflict):
@@ -126,7 +128,9 @@ def test_case_insensitive_properties_create(ci_client: WeaviateClient) -> None:
         {"name": "coL1", "data_type": "double", "nullable": False},
     ]
     ci_client.schema.update_table(
-        ci_client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
+        normalize_table_identifiers(
+            new_table(class_name, columns=table_create), ci_client.schema.naming
+        )
     )
     ci_client.schema.bump_version()
     ci_client.update_stored_schema()
@@ -143,13 +147,17 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
         {"name": "coL1", "data_type": "double", "nullable": False},
     ]
     client.schema.update_table(
-        client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
+        normalize_table_identifiers(
+            new_table(class_name, columns=table_create), client.schema.naming
+        )
     )
     client.schema.bump_version()
     client.update_stored_schema()
 
     client.schema.update_table(
-        client.schema.normalize_table_identifiers(new_table(class_name, columns=table_update))
+        normalize_table_identifiers(
+            new_table(class_name, columns=table_update), client.schema.naming
+        )
     )
     client.schema.bump_version()
     with pytest.raises(PropertyNameConflict):
