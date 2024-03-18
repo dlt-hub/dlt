@@ -137,7 +137,9 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         return isinstance(ex, (pyarrow.lib.ArrowInvalid, pydremio.MalformedQueryError))
 
     def create_dataset(self) -> None:
-        logger.info("Dremio does not implement create_dataset")
+        table_name = self.make_qualified_table_name("_dlt_dataset_exists")
+        query = f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT true AS dataset_exists;"
+        self.execute_sql(query)
 
     def _get_table_names(self) -> Sequence[str]:
         query = """
