@@ -75,7 +75,7 @@ class PipelineScript:
     @property
     def script_contents(self) -> str:
         """Loads script contents"""
-        with open(self.params.script_path) as fp:
+        with open(self.params.script_path, encoding="utf-8") as fp:
             return fp.read()
 
     @property
