@@ -1,8 +1,8 @@
 import os
 import sys
 
-import dlt
 import streamlit as st
+
 from dlt.cli import echo as fmt
 from dlt.helpers.streamlit_app.blocks.query import maybe_run_query
 from dlt.helpers.streamlit_app.blocks.table_hints import list_table_hints

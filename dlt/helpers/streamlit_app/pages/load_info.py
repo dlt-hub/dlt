@@ -1,8 +1,10 @@
 import os
+import sys
 
 import dlt
 import streamlit as st
 
+from dlt.cli import echo as fmt
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.libs.pandas import pandas as pd
@@ -126,11 +128,7 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
         )
 
 
-def show() -> None:
-    pipeline_name = st.session_state.get("pipeline_name")
-    if not st.session_state.get("pipeline_name"):
-        st.switch_page("dashboard.py")
-
+def show(pipeline_name: str) -> None:
     pipeline = attach_to_pipeline(pipeline_name)
 
     st.subheader("Load info", divider="rainbow")
@@ -142,4 +140,8 @@ def show() -> None:
 
 
 if __name__ == "__main__":
-    show()
+    if test_pipeline_name := os.getenv("DLT_TEST_PIPELINE_NAME"):
+        fmt.echo(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
+        show(test_pipeline_name)
+    else:
+        show(sys.argv[1])
