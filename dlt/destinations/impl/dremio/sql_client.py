@@ -1,5 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List
 
 import pyarrow
 
@@ -136,7 +136,7 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         query = f"CREATE TABLE IF NOT EXISTS {table_name} AS SELECT true AS dataset_exists;"
         self.execute_sql(query)
 
-    def _get_table_names(self) -> Sequence[str]:
+    def _get_table_names(self) -> List[str]:
         query = """
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA."TABLES"
