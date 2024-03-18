@@ -197,11 +197,13 @@ def configspec(
 
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
-    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False)
+    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False, compare=False)
     """True when all config fields were resolved and have a specified value type"""
-    __section__: str = dataclasses.field(default=None, init=False, repr=False)
+    __section__: str = dataclasses.field(default=None, init=False, repr=False, compare=False)
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __exception__: Exception = dataclasses.field(default=None, init=False, repr=False)
+    __exception__: Exception = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""

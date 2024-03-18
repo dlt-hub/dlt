@@ -40,7 +40,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob, FollowupJob
 from dlt.common.destination.reference import TLoadJobState, NewLoadJob, SupportsStagingDestination
 from dlt.common.storages import FileStorage
-from dlt.common.data_writers.escape import escape_bigquery_identifier
+from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyJob
 
 from dlt.destinations.typing import DBApi, DBTransaction
@@ -204,9 +204,9 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         # Athena uses HIVE to create tables but for querying it uses PRESTO (so normal escaping)
         if not v:
             return v
-        v = self.capabilities.case_identifier(v)
+        v = self.capabilities.casefold_identifier(v)
         # bigquery uses hive escaping
-        return escape_bigquery_identifier(v)
+        return escape_hive_identifier(v)
 
     def fully_qualified_ddl_dataset_name(self) -> str:
         return self.escape_ddl_identifier(self.dataset_name)

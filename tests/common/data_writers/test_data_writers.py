@@ -10,7 +10,7 @@ from dlt.common.typing import AnyFun
 from dlt.destinations.impl.redshift import capabilities as redshift_caps
 from dlt.common.data_writers.escape import (
     escape_redshift_identifier,
-    escape_bigquery_identifier,
+    escape_hive_identifier,
     escape_redshift_literal,
     escape_postgres_literal,
     escape_duckdb_literal,
@@ -146,7 +146,7 @@ def test_identifier_escape() -> None:
 
 def test_identifier_escape_bigquery() -> None:
     assert (
-        escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-")
+        escape_hive_identifier(", NULL'); DROP TABLE\"` -\\-")
         == "`, NULL'); DROP TABLE\"\\` -\\\\-`"
     )
 

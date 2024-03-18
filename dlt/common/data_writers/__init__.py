@@ -3,7 +3,7 @@ from dlt.common.data_writers.buffered import BufferedDataWriter, new_file_id
 from dlt.common.data_writers.escape import (
     escape_redshift_literal,
     escape_redshift_identifier,
-    escape_bigquery_identifier,
+    escape_hive_identifier,
 )
 
 __all__ = [
@@ -14,5 +14,5 @@ __all__ = [
     "new_file_id",
     "escape_redshift_literal",
     "escape_redshift_identifier",
-    "escape_bigquery_identifier",
+    "escape_hive_identifier",
 ]

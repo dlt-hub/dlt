@@ -121,7 +121,7 @@ escape_postgres_identifier = escape_redshift_identifier
 escape_athena_identifier = escape_postgres_identifier
 
 
-def escape_bigquery_identifier(v: str) -> str:
+def escape_hive_identifier(v: str) -> str:
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical
     return "`" + v.replace("\\", "\\\\").replace("`", "\\`") + "`"
 
@@ -132,7 +132,7 @@ def escape_snowflake_identifier(v: str) -> str:
     return escape_postgres_identifier(v)
 
 
-escape_databricks_identifier = escape_bigquery_identifier
+escape_databricks_identifier = escape_hive_identifier
 
 
 DATABRICKS_ESCAPE_DICT = {"'": "\\'", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
