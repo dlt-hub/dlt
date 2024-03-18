@@ -99,6 +99,8 @@ sasl_password="example_secret"
 
 For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
 
+:::info Due to Kafka features, a situation is possible, when reading is started before the related consumer is managed to a backend broker, or when messages were not yet synced between brokers. In this case the resource will return no messages, and it's fine to restart reading after it.
+
 ## Sources and resources
 
 `dlt` works on the principle of [sources](../../general-usage/source) and
@@ -135,7 +137,7 @@ as an example of how to implement processors.
 `batch_size`: The number of messages to extract from the cluster
 at once. It can be set to tweak performance.
 
-`batch_timeout`: The maximum timeout for a single batch reading
+`batch_timeout`: The maximum timeout (in seconds) for a single batch reading
 operation. It can be set to tweak performance.
 
 `start_from`: A timestamp, starting from which the messages must
