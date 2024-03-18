@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+from pathlib import Path
 import platform
 import sys
 from os import environ
@@ -29,6 +30,7 @@ from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.pipeline import PipelineContext, SupportsPipeline
 
 TEST_STORAGE_ROOT = "_storage"
+TESTS_ROOT = Path(__file__).parent.absolute()
 
 
 # destination constants
