@@ -47,7 +47,9 @@ const config = {
             '**/__tests__/**',
           ],
           sidebarPath: require.resolve('./sidebars.js'),
-          editUrl: 'https://github.com/dlt-hub/dlt/tree/devel/docs/website',
+          editUrl: (params) => {
+            return "https://github.com/dlt-hub/dlt/tree/devel/docs/website/docs/" + params.docPath;
+          },
           versions: {
             current: {
               label: 'current',
