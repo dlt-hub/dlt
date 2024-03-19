@@ -488,7 +488,7 @@ def test_max_nesting_level(nesting: int) -> None:
     found_tables = set()
 
     @dlt.destination(loader_file_format="puae-jsonl", max_table_nesting=nesting)
-    def test_sink(items, table):
+    def nesting_sink(items, table):
         nonlocal found_tables
         found_tables.add(table["name"])
 
@@ -496,7 +496,7 @@ def test_max_nesting_level(nesting: int) -> None:
     def source():
         yield dlt.resource(data, name="data")
 
-    p = dlt.pipeline("sink_test_max_nesting", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test_max_nesting", destination=nesting_sink, full_refresh=True)
     p.run(source())
 
     # fall back to source setting
