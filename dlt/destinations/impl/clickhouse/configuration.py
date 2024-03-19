@@ -82,9 +82,7 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
             *,
             credentials: ClickhouseCredentials = None,
             dataset_name: str = None,
-            create_indexes: bool = False,
-            stage_name: str = None,
-            keep_staged_files: bool = True,
+            create_indexes: bool = True,
             destination_name: str = None,
             environment: str = None
         ) -> None:

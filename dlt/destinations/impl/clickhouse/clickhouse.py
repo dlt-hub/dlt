@@ -212,6 +212,10 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if generate_alter:
             return sql
 
+        # Default to 'ReplicatedMergeTree' if user didn't explicitly set a table engine hint.
+        # 'ReplicatedMergeTree' is the only supported engine for Clickhouse Cloud.
+        sql[0] = f"{sql[0]}\nENGINE = {table.get(TABLE_ENGINE_TYPE_HINT, 'replicated_merge_tree')}"
+
         # TODO: Remove `unique` and `primary_key` default implementations.
         if primary_key_list := [
             self.capabilities.escape_identifier(c["name"])
@@ -221,10 +225,6 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
         else:
             sql[0] += "\nPRIMARY KEY tuple()"
-
-        # Default to 'ReplicatedMergeTree' if user didn't explicitly set a table engine hint.
-        # 'ReplicatedMergeTree' is the only supported engine for Clickhouse Cloud.
-        sql[0] = f"{sql[0]}\nENGINE = {table.get(TABLE_ENGINE_TYPE_HINT, 'replicated_merge_tree')}"
 
         return sql
 

@@ -23,13 +23,11 @@ def clickhouse_client(empty_schema: Schema) -> ClickhouseClient:
     )
 
 
-pytest.mark.usefixtures("empty_schema")
-
-
 def test_create_table(clickhouse_client: ClickhouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
+    print(sql)
     sqlfluff.parse(sql, dialect="clickhouse")
 
     assert sql.strip().startswith("CREATE TABLE")
