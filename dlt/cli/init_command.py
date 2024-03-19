@@ -42,6 +42,7 @@ DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git
 INIT_MODULE_NAME = "init"
 SOURCES_MODULE_NAME = "sources"
 
+print("run tests")
 
 def _get_template_files(
     command_module: ModuleType, use_generic_template: bool
