@@ -27,21 +27,40 @@ def test_create_table(clickhouse_client: ClickhouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
-    print(sql)
-    sqlfluff.parse(sql, dialect="clickhouse")
+
+    # sqlfluff struggles with clickhouse's backtick escape characters.
+    # sqlfluff.parse(sql, dialect="clickhouse")
 
     assert sql.strip().startswith("CREATE TABLE")
-    assert "EVENT_TEST_TABLE" in sql
-    assert '"COL1" NUMBER(19,0) NOT NULL' in sql
-    assert '"COL2" FLOAT NOT NULL' in sql
-    assert '"COL3" BOOLEAN NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
-    assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9) NOT NULL' in sql
-    assert '"COL7" BINARY' in sql
-    assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT NOT NULL' in sql
-    assert '"COL10" DATE NOT NULL' in sql
+    assert "event_test_table" in sql
+    assert "`col1` Int64" in sql
+    assert "`col2` Float64" in sql
+    assert "`col3` Boolean" in sql
+    assert "`col4` DateTime('UTC')" in sql
+    assert "`col5` String" in sql
+    assert "`col6` Decimal(38,9)" in sql
+    assert "`col7` String" in sql
+    assert "`col8` Decimal(76,0)" in sql
+    assert "`col9` String" in sql
+    assert "`col10` Date" in sql
+    assert "`col11` DateTime" in sql
+    assert "`col1_null` Nullable(Int64)" in sql
+    assert "`col2_null` Nullable(Float64)" in sql
+    assert "`col3_null` Nullable(Boolean)" in sql
+    assert "`col4_null` Nullable(DateTime('UTC'))" in sql
+    assert "`col5_null` Nullable(String)" in sql
+    assert "`col6_null` Nullable(Decimal(38,9))" in sql
+    assert "`col7_null` Nullable(String)" in sql
+    assert "`col8_null` Nullable(Decimal(76,0))" in sql
+    assert "`col9_null` Nullable(String)" in sql
+    assert "`col10_null` Nullable(Date)" in sql
+    assert "`col11_null` Nullable(DateTime)" in sql
+    assert "`col1_precision` Int64" in sql
+    assert "`col4_precision` DateTime(3, 'UTC')" in sql
+    assert "`col5_precision` String" in sql
+    assert "`col6_precision` Decimal(6,2)" in sql
+    assert "`col7_precision` String" in sql
+    assert "`col11_precision` DateTime" in sql
 
 
 def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
@@ -49,44 +68,58 @@ def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
     assert len(statements) == 1
     sql = statements[0]
 
-    # TODO: sqlfluff doesn't parse clickhouse multi ADD COLUMN clause correctly
-    # sqlfluff.parse(sql, dialect='clickhouse')
+    # sqlfluff struggles with clickhouse's backtick escape characters.
+    # sqlfluff.parse(sql, dialect="clickhouse")
 
+    # Alter table statements only accept `Nullable` modifiers.
     assert sql.startswith("ALTER TABLE")
     assert sql.count("ALTER TABLE") == 1
-    assert sql.count("ADD COLUMN") == 1
-    assert '"EVENT_TEST_TABLE"' in sql
-    assert '"COL1" NUMBER(19,0) NOT NULL' in sql
-    assert '"COL2" FLOAT NOT NULL' in sql
-    assert '"COL3" BOOLEAN NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
-    assert '"COL5" VARCHAR' in sql
-    assert '"COL6" NUMBER(38,9) NOT NULL' in sql
-    assert '"COL7" BINARY' in sql
-    assert '"COL8" NUMBER(38,0)' in sql
-    assert '"COL9" VARIANT NOT NULL' in sql
-    assert '"COL10" DATE' in sql
+    assert "event_test_table" in sql
+    assert "`col1` Int64" in sql
+    assert "`col2` Float64" in sql
+    assert "`col3` Boolean" in sql
+    assert "`col4` DateTime('UTC')" in sql
+    assert "`col5` String" in sql
+    assert "`col6` Decimal(38,9)" in sql
+    assert "`col7` String" in sql
+    assert "`col8` Decimal(76,0)" in sql
+    assert "`col9` String" in sql
+    assert "`col10` Date" in sql
+    assert "`col11` DateTime" in sql
+    assert "`col1_null` Nullable(Int64)" in sql
+    assert "`col2_null` Nullable(Float64)" in sql
+    assert "`col3_null` Nullable(Boolean)" in sql
+    assert "`col4_null` Nullable(DateTime('UTC'))" in sql
+    assert "`col5_null` Nullable(String)" in sql
+    assert "`col6_null` Nullable(Decimal(38,9))" in sql
+    assert "`col7_null` Nullable(String)" in sql
+    assert "`col8_null` Nullable(Decimal(76,0))" in sql
+    assert "`col9_null` Nullable(String)" in sql
+    assert "`col10_null` Nullable(Date)" in sql
+    assert "`col11_null` Nullable(DateTime)" in sql
+    assert "`col1_precision` Int64" in sql
+    assert "`col4_precision` DateTime(3, 'UTC')" in sql
+    assert "`col5_precision` String" in sql
+    assert "`col6_precision` Decimal(6,2)" in sql
+    assert "`col7_precision` String" in sql
+    assert "`col11_precision` DateTime" in sql
 
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)
     sql = clickhouse_client._get_table_update_sql("event_test_table", mod_table, True)[0]
 
-    assert '"COL1"' not in sql
-    assert '"COL2" FLOAT NOT NULL' in sql
+    assert "`col1`" not in sql
+    assert "`col2` Float64" in sql
 
 
-def test_create_table_with_partition_and_cluster(clickhouse_client: ClickhouseClient) -> None:
+@pytest.mark.usefixtures("empty_schema")
+def test_create_table_with_primary_keys(clickhouse_client: ClickhouseClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["partition"] = True
-    mod_update[4]["cluster"] = True
-    mod_update[1]["cluster"] = True
+
+    mod_update[1]["primary_key"] = True
+    mod_update[4]["primary_key"] = True
     statements = clickhouse_client._get_table_update_sql("event_test_table", mod_update, False)
     assert len(statements) == 1
     sql = statements[0]
 
-    # TODO: Can't parse cluster by
-    # sqlfluff.parse(sql, dialect="clickhouse")
-
-    # clustering must be the last
-    assert sql.endswith('CLUSTER BY ("COL2","COL5")')
+    assert sql.endswith("PRIMARY KEY (`col2`, `col5`)")

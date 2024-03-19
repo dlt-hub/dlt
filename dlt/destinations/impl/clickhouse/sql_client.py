@@ -29,7 +29,7 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBTransaction, DBApi, DBApiCursor
+from dlt.destinations.typing import DBTransaction, DBApi
 
 
 TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
@@ -57,6 +57,8 @@ class ClickhouseSqlClient(
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
         # TODO: Set timezone to UTC explicitly in each query.
         # https://github.com/ClickHouse/ClickHouse/issues/699
+        with self._conn.cursor() as curr:
+            curr.execute("set allow_experimental_object_type = 1;")
         return self._conn
 
     @raise_open_connection_error
@@ -117,6 +119,19 @@ class ClickhouseSqlClient(
             self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
         )
         return f"{database_name}.{dataset_name}"
+
+    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        database_name = (
+            self.capabilities.escape_identifier(self.database_name)
+            if escape
+            else self.database_name
+        )
+        dataset_table_name = (
+            self.capabilities.escape_identifier(f"{self.dataset_name}_{table_name}")
+            if escape
+            else f"{self.dataset_name}_{table_name}"
+        )
+        return f"{database_name}.{dataset_table_name}"
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:  # type: ignore[return]

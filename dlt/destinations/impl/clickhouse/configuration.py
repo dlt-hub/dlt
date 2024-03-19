@@ -63,11 +63,6 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     # but they do not enforce uniqueness constraints. It permits duplicate values even for the primary key
     # columns within the same granule.
     # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
-    create_indexes: bool = True
-    """Whether `primary_key` column hint is applied. Note that Clickhouse has no unique constraint,
-    and primary keys don't guarantee uniqueness."""
-
-    __config_gen_annotations__: ClassVar[List[str]] = ["create_indexes"]
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string."""
@@ -82,7 +77,6 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
             *,
             credentials: ClickhouseCredentials = None,
             dataset_name: str = None,
-            create_indexes: bool = True,
             destination_name: str = None,
             environment: str = None
         ) -> None:

@@ -29,7 +29,6 @@ class clickhouse(Destination[ClickhouseClientConfiguration, ClickhouseClient]):
         credentials: t.Union[ClickhouseCredentials, str, t.Dict[str, t.Any], Connection] = None,
         destination_name: str = None,
         environment: str = None,
-        create_indexes: bool = False,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Clickhouse destination to use in a pipeline.
@@ -41,14 +40,11 @@ class clickhouse(Destination[ClickhouseClientConfiguration, ClickhouseClient]):
             credentials: Credentials to connect to the clickhouse database.
                 Can be an instance of `ClickhouseCredentials`, or a connection string
                 in the format `clickhouse://user:password@host:port/database`.
-            create_indexes: Maps directly to the `create_indexes` attribute of the
-                `ClickhouseClientConfiguration` object.
             **kwargs: Additional arguments passed to the destination config.
         """
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,
             environment=environment,
-            create_indexes=create_indexes,
             **kwargs,
         )
