@@ -110,10 +110,7 @@ def pipeline_command(
         from dlt.common.runtime import signals
         from dlt.helpers.streamlit_app import index
 
-        with signals.delayed_signals():
-            if pipelines_dir:
-                os.environ["DLT_PIPELINES_DIR"] = pipelines_dir
-
+        with signals.delayed_signals(), custom_environ({"DLT_PIPELINES_DIR": pipelines_dir or ""}):
             streamlit_cmd = [
                 "streamlit",
                 "run",
