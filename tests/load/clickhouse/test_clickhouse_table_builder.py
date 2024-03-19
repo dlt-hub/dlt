@@ -1,9 +1,10 @@
 from copy import deepcopy
 
 import pytest
-import sqlfluff
 
+from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
+from dlt.common.utils import custom_environ, digest128
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.clickhouse.clickhouse import ClickhouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -21,6 +22,30 @@ def clickhouse_client(empty_schema: Schema) -> ClickhouseClient:
         empty_schema,
         ClickhouseClientConfiguration(dataset_name=f"test_{uniq_id()}", credentials=creds),
     )
+
+
+def test_clickhouse_configuration() -> None:
+    # Check names normalized.
+    with custom_environ(
+        {
+            "DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME": "username",
+            "DESTINATION__CLICKHOUSE__CREDENTIALS__HOST": "host",
+            "DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE": "mydb",
+            "DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD": "fuss_do_rah",
+        }
+    ):
+        C = resolve_configuration(ClickhouseCredentials(), sections=("destination", "clickhouse"))
+        assert C.database == "mydb"
+        assert C.password == "fuss_do_rah"
+
+    # Check fingerprint.
+    assert ClickhouseClientConfiguration().fingerprint() == ""
+    # Based on host.
+    c = resolve_configuration(
+        ClickhouseCredentials(),
+        explicit_value="clickhouse://user1:pass@host1/db1",
+    )
+    assert ClickhouseClientConfiguration(credentials=c).fingerprint() == digest128("host1")
 
 
 def test_create_table(clickhouse_client: ClickhouseClient) -> None:
@@ -123,3 +148,25 @@ def test_create_table_with_primary_keys(clickhouse_client: ClickhouseClient) -> 
     sql = statements[0]
 
     assert sql.endswith("PRIMARY KEY (`col2`, `col5`)")
+
+
+@pytest.mark.skip(
+    "Only `primary_key` hint has been implemented so far, which isn't specified inline with the"
+    " column definition."
+)
+def test_create_table_with_hints(client: ClickhouseClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+
+    mod_update[0]["primary_key"] = True
+    mod_update[0]["sort"] = True
+    mod_update[1]["cluster"] = True
+    mod_update[4]["cluster"] = True
+
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+
+    assert "`col1` bigint SORTKEY NOT NULL" in sql
+    assert "`col2` double precision DISTKEY NOT NULL" in sql
+    assert "`col5` varchar(max) DISTKEY" in sql
+    # no hints
+    assert "`col3` boolean  NOT NULL" in sql
+    assert "`col4` timestamp with time zone  NOT NULL" in sql

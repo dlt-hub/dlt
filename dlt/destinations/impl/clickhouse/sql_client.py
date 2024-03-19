@@ -55,10 +55,6 @@ class ClickhouseSqlClient(
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
-        # TODO: Set timezone to UTC explicitly in each query.
-        # https://github.com/ClickHouse/ClickHouse/issues/699
-        with self._conn.cursor() as curr:
-            curr.execute("set allow_experimental_object_type = 1;")
         return self._conn
 
     @raise_open_connection_error

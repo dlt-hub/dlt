@@ -137,7 +137,7 @@ class DestinationTestConfiguration:
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
     ) -> dlt.Pipeline:
-        """Convenience method to setup pipeline with this configuration"""
+        """Convenience method to set up a pipeline with this configuration."""
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
@@ -175,7 +175,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks")
+            if destination not in ("athena", "mssql", "synapse", "databricks", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -206,6 +206,15 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                supports_merge=True,
+                supports_dbt=False,
             )
         ]
         destination_configs += [
@@ -296,6 +305,13 @@ def destinations_configs(
                 extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-integration",
+            ),
+            DestinationTestConfiguration(
                 destination="synapse",
                 staging="filesystem",
                 file_format="parquet",
@@ -322,6 +338,13 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination="redshift",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="credential-forwarding",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,

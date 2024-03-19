@@ -14,6 +14,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal
 
+    caps.max_identifier_length = 65536
+    caps.max_column_identifier_length = 65536
+
     caps.schema_supports_numeric_precision = True
     # Use 'Decimal128' with these defaults.
     # https://clickhouse.com/docs/en/sql-reference/data-types/decimal
