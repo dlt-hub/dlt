@@ -1,0 +1,64 @@
+from tests.utils import skipifgithubfork
+
+
+@skipifgithubfork
+def custom_destination_biquery_snippets() -> None:
+    # @@@DLT_SNIPPET_START example
+    import dlt
+    import pandas as pd
+    from google.cloud import bigquery
+
+    from dlt.common.configuration.specs import GcpServiceAccountCredentials
+
+    # constants
+    OWID_DISASTERS_URL = (
+        "https://raw.githubusercontent.com/owid/owid-datasets/master/datasets/"
+        "Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020)/"
+        "Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020).csv"
+    )
+    # this table needs to be manually created in your gc account
+    # format: "your-project.your_dataset.your_table"
+    BIGQUERY_TABLE_ID = "chat-analytics-rasa-ci.ci_streaming_insert.natural-disasters"
+
+    # dlt sources
+    @dlt.resource(name="natural_disasters")
+    def resource(url: str):
+        df = pd.read_csv(OWID_DISASTERS_URL)
+        yield df.to_dict(orient="records")
+
+    # dlt biquery custom destination
+    # we can use the dlt provided credentials class
+    # to retrieve the gcp credentials from the secrets
+    @dlt.destination(name="bigquery", loader_file_format="parquet", batch_size=0)
+    def bigquery_insert(
+        items, table, credentials: GcpServiceAccountCredentials = dlt.secrets.value
+    ) -> None:
+        client = bigquery.Client(
+            credentials.project_id, credentials.to_native_credentials(), location="US"
+        )
+        job_config = bigquery.LoadJobConfig(
+            autodetect=True,
+            source_format=bigquery.SourceFormat.PARQUET,
+            schema_update_options=bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION,
+        )
+        # since we have set the batch_size to 0, we get a filepath and can load the file directly
+        with open(items, "rb") as f:
+            load_job = client.load_table_from_file(f, BIGQUERY_TABLE_ID, job_config=job_config)
+        load_job.result()  # Waits for the job to complete.
+
+    # we can add some tags to each data item
+    # to demonstrate lists in biqquery
+    meta_data = {"meta": {"tags": ["disasters", "earthquakes", "floods", "tsunamis"]}}
+    resource.add_map(lambda item: {**item, **meta_data})
+
+    if __name__ == "__main__":
+        # run the pipeline and print load results
+        pipeline = dlt.pipeline(
+            pipeline_name="csv_to_bigquery_insert",
+            destination=bigquery_insert,
+            dataset_name="mydata",
+            full_refresh=True,
+        )
+        load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
+
+        print(load_info)
