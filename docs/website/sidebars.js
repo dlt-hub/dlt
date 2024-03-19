@@ -289,7 +289,7 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
-        require("./docs/api_reference/sidebar.json"),
+        require("./docs_processed/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
         'reference/telemetry',

@@ -38,19 +38,17 @@ function preprocess_docs() {
             fs.copyFileSync(fileName, targetFileName);
             continue
         }
-
-        
+  
         // copy docs to correct folder
         const lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
         const updatedLines = lines;
 
+        // insert something to see wether it works
         lines.splice(8, 0, "Generated")
 
         fs.writeFileSync(targetFileName, updatedLines.join("\n"));
     }
     console.log(`Processed ${processedFiles} files.`);
 }
-
-
 
 preprocess_docs();
