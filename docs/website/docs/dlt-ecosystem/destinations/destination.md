@@ -51,7 +51,8 @@ pipeline.run([1, 2, 3], table_name="items")
 ```
 
 :::tip
-You can also remove the typing information (TDataItems and TTableSchema) from this example, typing generally is useful to know the shape of the incoming objects though.
+1. You can also remove the typing information (`TDataItems` and `TTableSchema`) from this example, typing generally are useful to know the shape of the incoming objects though.
+2. There are a few other ways for declaring custom destination functions for your pipeline described below.
 :::
 
 ## `@dlt.destination`, custom destination function and signature
@@ -139,6 +140,7 @@ There are multiple ways to reference the custom destination function you want to
 - Directly via destination reference. In this case, don't use decorator for the destination function.
   ```py
   # file my_destination.py
+
   from dlt.common.destination import Destination
 
   # don't use decorator
@@ -148,18 +150,23 @@ There are multiple ways to reference the custom destination function you want to
   # via destination reference
   p = dlt.pipeline(
       "my_pipe",
-      destination=Destination.from_reference("destination", destination_callable=local_destination_func)
+      destination=Destination.from_reference(
+          "destination", destination_callable=local_destination_func
+      )
   )
   ```
 - Via fully qualified string to function location (can be used from `config.toml` or ENV vars). Destination function should be located in another file.
   ```py
   # file my_pipeline.py
+
   from dlt.common.destination import Destination
 
   # fully qualified string to function location
   p = dlt.pipeline(
       "my_pipe",
-      destination=Destination.from_reference("destination", destination_callable="my_destination.local_destination_func")
+      destination=Destination.from_reference(
+          "destination", destination_callable="my_destination.local_destination_func"
+      )
   )
   ```
 
