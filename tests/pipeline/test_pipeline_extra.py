@@ -1,13 +1,25 @@
 import os
+import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
 import pytest
-from pydantic import BaseModel
+
+try:
+    from pydantic import BaseModel
+    from dlt.common.libs.pydantic import DltConfig
+except ImportError:
+    # mock pydantic with dataclasses. allow to run tests
+    # not requiring pydantic
+    from dataclasses import dataclass
+
+    @dataclass
+    class BaseModel:  # type: ignore[no-redef]
+        pass
+
 
 import dlt
 from dlt.common import json, pendulum
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import TLoaderFileFormat
-from dlt.common.libs.pydantic import DltConfig
 from dlt.common.runtime.collector import (
     AliveCollector,
     EnlightenCollector,
@@ -388,6 +400,10 @@ def test_skips_complex_fields_when_skip_complex_types_is_true_and_field_is_not_a
             assert loaded_values == {"data_dictionary__child_attribute": "any string"}
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("pandas") is not None,
+    reason="Test skipped because pandas IS installed",
+)
 def test_arrow_no_pandas() -> None:
     import pyarrow as pa
 
