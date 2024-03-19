@@ -36,6 +36,8 @@ However, similar results can be achieved on GCP by combining different services.
 
 In the following sections, we will look at which GCP services can be combined to create a cost-effective event ingestion pipeline that doesn’t break the bank.
 
+![goodbye segment](https://storage.googleapis.com/dlt-blog-images/goodbye_segment.gif)
+
 ## The Solution to the Segment Problem
 Our proposed solution to replace Segment involves using dlt with Cloud Pub/Sub to create a simple, scalable event streaming pipeline. The pipeline's overall architecture is as follows:
 
