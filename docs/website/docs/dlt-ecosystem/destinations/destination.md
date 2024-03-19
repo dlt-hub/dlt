@@ -1,10 +1,10 @@
 ---
-title: 🧪 Custom destination - Reverse ETL
-description: Custom function `dlt` destination for reverse ETL
+title: 🧪 Custom destination
+description: Custom `dlt` destination function for reverse ETL
 keywords: [reverse etl, sink, function, decorator, destination]
 ---
 
-# Custom destination - Reverse ETL
+# Custom destination: Reverse ETL
 
 :::caution
 The destination decorator is currently in alpha, while we think the interface is stable at this point and all is working pretty well, there still might be
