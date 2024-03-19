@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus start",
+    "start": "node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus start",
     "watch-snippets": "node tools/update_snippets.js --watch",
     "build": "PYTHONPATH=. poetry run pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus build",
     "build:netlify": "PYTHONPATH=. pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus build --out-dir build/docs",
@@ -13,7 +13,8 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "update-snippets": "node tools/update_snippets.js"
+    "update-snippets": "node tools/update_snippets.js",
+    "generate-api-reference": "PYTHONPATH=. poetry run pydoc-markdown"
   },
   "dependencies": {
     "@docusaurus/core": "2.4.1",
