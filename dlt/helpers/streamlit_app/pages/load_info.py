@@ -3,41 +3,27 @@ import streamlit as st
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.destination.reference import WithStateSync
-from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.blocks.load_info import last_load_info
 from dlt.helpers.streamlit_app.blocks.menu import menu
 from dlt.helpers.streamlit_app.widgets import stat
-from dlt.helpers.streamlit_app.utils import cache_data, render_with_pipeline
+from dlt.helpers.streamlit_app.utils import (
+    query_data,
+    query_data_live,
+    render_with_pipeline,
+)
 from dlt.pipeline import Pipeline
-from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 
 def write_load_status_page(pipeline: Pipeline) -> None:
     """Display pipeline loading information. Will be moved to dlt package once tested"""
 
-    @cache_data(ttl=600)
-    def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:
-        try:
-            with pipeline.sql_client(schema_name) as client:
-                with client.execute_query(query) as curr:
-                    return curr.df()
-        except SqlClientNotAvailable:
-            st.error("Cannot load data - SqlClient not available")
-
-    @cache_data(ttl=5)
-    def _query_data_live(query: str, schema_name: str = None) -> pd.DataFrame:
-        try:
-            with pipeline.sql_client(schema_name) as client:
-                with client.execute_query(query) as curr:
-                    return curr.df()
-        except SqlClientNotAvailable:
-            st.error("Cannot load data - SqlClient not available")
-
     try:
-        loads_df = _query_data_live(
+        loads_df = query_data_live(
+            pipeline,
             f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
-            " status = 0 ORDER BY inserted_at DESC LIMIT 101 "
+            " status = 0 ORDER BY inserted_at DESC LIMIT 101 ",
         )
 
         if loads_df is not None:
@@ -59,7 +45,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
                 query_parts.append("UNION ALL")
 
             query_parts.pop()
-            rows_counts_df = _query_data("\n".join(query_parts))
+            rows_counts_df = query_data(pipeline, "\n".join(query_parts))
 
             st.markdown(f"Rows loaded in **{selected_load_id}**")
             st.dataframe(rows_counts_df)
@@ -68,10 +54,11 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             st.dataframe(loads_df)
 
             st.subheader("Schema updates", divider=True)
-            schemas_df = _query_data_live(
+            schemas_df = query_data_live(
+                pipeline,
                 "SELECT schema_name, inserted_at, version, version_hash FROM"
                 f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT"
-                " 101 "
+                " 101 ",
             )
             st.markdown("**100 recent schema updates**")
             st.dataframe(schemas_df)
