@@ -1,15 +1,10 @@
 ---
-title: 🧪 Custom destination
+title: Custom destination
 description: Custom `dlt` destination function for reverse ETL
 keywords: [reverse etl, sink, function, decorator, destination, custom destination]
 ---
 
 # Custom destination: Reverse ETL
-
-:::caution
-The destination decorator is currently in alpha, while we think the interface is stable at this point and all is working pretty well, there still might be
-small changes done or bugs found in the next weeks.
-:::
 
 The `dlt` destination decorator allows you to receive all data passing through your pipeline in a simple function. This can be extremely useful for
 reverse ETL, where you are pushing data back to an API.
@@ -23,15 +18,14 @@ you can do this here too.
 
 ## Install `dlt` for reverse ETL
 
-To install the `dlt` without additional dependencies:
+To install `dlt` without additional dependencies:
 ```sh
 pip install dlt
 ```
 
 ## Set up a destination function for your pipeline
 
-The custom destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which
-gets called for all items loaded during a pipeline run or load operation. For the chess example, you can add the following lines at the top of the file.
+The custom destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which gets called for all items loaded during a pipeline run or load operation. 
 With the `@dlt.destination` you can convert any function that takes two arguments into a `dlt` destination.
 
 A very simple dlt pipeline that pushes a list of items into a destination function might look like this:
@@ -79,14 +73,18 @@ in any way you like.
 * The `loader_file_format` parameter on the destination decorator defines in which format files are stored in the load package before being sent to the destination function,
 this can be `jsonl` or `parquet`.
 * The `name` parameter on the destination decorator defines the name of the destination that get's created by the destination decorator.
-* The `naming_convention` parameter on the destination decorator defines the name of the destination that gets created by the destination decorator. This controls
+* The `naming_convention` parameter on the destination decorator defines the name of the destination that gets created by the destination decorator. This controls how table and column names are normalized. The default is `direct` which will keep all names the same.
 * The `max_nesting_level` parameter on the destination decorator defines how deep the normalizer will go to normalize complex fields on your data to create subtables. This overwrites any settings on your `source` and is set to zero to not create any nested tables by default.
-* The `skip_dlt_columns_and_tables` parameter on the destination decorator defines wether internal tables and columns will be fed into the custom destination function. This is set to False by default.
-how table and column names are normalized. The default is `direct` which will keep all names the same.
+* The `skip_dlt_columns_and_tables` parameter on the destination decorator defines wether internal tables and columns will be fed into the custom destination function. This is set to `True` by default.
+
+:::note
+* The custom destination sets the `max_nesting_level` to 0 by default, which means no subtables will be generated during the normalization phase. 
+* The custom destination also skips all internal tables and columns by default, if you need these, set `skip_dlt_columns_and_tables` to False.
+:::
 
 ### Custom destination function
 * The `items` parameter on the custom destination function contains the items being sent into the destination function.
-* The `table` parameter contains the schema table the current call belongs to including all table hints and columns. For example, the table name can be accessed with `table["name"]`. Keep in mind that dlt also created special tables prefixed with `_dlt` which you may want to ignore when processing data.
+* The `table` parameter contains the schema table the current call belongs to including all table hints and columns. For example, the table name can be accessed with `table["name"]`.
 * You can also add config values and secrets to the function arguments, see below!
 
 
@@ -99,6 +97,12 @@ def my_destination(items: TDataItems, table: TTableSchema, api_key: dlt.secrets.
     ...
 ```
 
+You can then set a config variable in your `.dlt/secrets.toml`: like so:
+
+```toml
+[destination.my_destination]
+api_key="<my-api-key>"
+```
 
 ## Destination state
 
@@ -107,18 +111,10 @@ API becomes unavailable during the load resulting in a failed `dlt` pipeline run
 where it left of. For this reason, it makes sense to choose a batch size that you can process in one transaction (say one API request or one database transaction) so that if this
 request or transaction fails repeatedly, you can repeat it at the next run without pushing duplicate data to your remote location.
 
-And add the API key to your `.dlt/secrets.toml`:
-
-```toml
-[destination.my_destination]
-api_key="some secrets"
-```
-
-
 ## Concurrency
 
 Calls to the destination function by default will be executed on multiple threads, so you need to make sure you are not using any non-thread-safe nonlocal or global variables from outside
-your destination function. If, for whichever reason, you need to have all calls be executed from the same thread, you can set the `workers` config variable of the load step to 1.
+your destination function. If you need to have all calls be executed from the same thread, you can set the `workers` config variable of the load step to 1.
 
 :::tip
 For performance reasons, we recommend keeping the multithreaded approach and making sure that you, for example, are using threadsafe connection pools to a remote database or queue.
