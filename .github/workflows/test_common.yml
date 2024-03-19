@@ -1,4 +1,3 @@
-
 name: test common
 
 on:
@@ -9,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ matrix.os }}
   cancel-in-progress: true
 
 env:
