@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ matrix.os }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,7 +22,6 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.8.x", "3.9.x", "3.10.x", "3.11.x"]
