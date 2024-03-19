@@ -10,7 +10,7 @@ from dlt.helpers.streamlit_app.widgets.summary import pipeline_summary
 def menu(pipeline: dlt.Pipeline) -> None:
     mode_selector()
     logo()
-    st.page_link(f"{HERE}/dashboard.py", label="Explore data", icon="🕹️")
+    st.page_link(f"{HERE}/pages/dashboard.py", label="Explore data", icon="🕹️")
     st.page_link(f"{HERE}/pages/load_info.py", label="Load info", icon="💾")
     pipeline_state_info(pipeline)
     pipeline_summary(pipeline)

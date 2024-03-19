@@ -103,7 +103,7 @@ def pipeline_command(
 
     if operation == "show":
         from dlt.common.runtime import signals
-        from dlt.helpers.streamlit_app import dashboard
+        from dlt.helpers.streamlit_app import index
 
         with signals.delayed_signals():
             if pipelines_dir:
@@ -112,7 +112,7 @@ def pipeline_command(
             streamlit_cmd = [
                 "streamlit",
                 "run",
-                dashboard.__file__,
+                index.__file__,
                 pipeline_name,
                 "--client.showSidebarNavigation",
                 "false",
