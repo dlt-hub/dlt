@@ -7,10 +7,17 @@ import os
 
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
-from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
-from dlt.common.schema.utils import get_top_level_table
+from dlt.common.pipeline import (
+    LoadInfo,
+    LoadMetrics,
+    SupportsPipeline,
+    WithStepInfo,
+)
+from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
@@ -19,7 +26,10 @@ from dlt.common.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
 )
+from dlt.common.configuration.container import Container
+
 from dlt.common.schema import Schema, TSchemaTables
+
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
@@ -34,6 +44,7 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TDestination,
 )
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -414,7 +425,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 failed_job.job_file_info.job_id(),
                                 failed_job.failed_message,
                             )
-                    # possibly raise on too many retires
+                    # possibly raise on too many retries
                     if self.config.raise_on_max_retries:
                         for new_job in package_info.jobs["new_jobs"]:
                             r_c = new_job.job_file_info.retry_count
@@ -452,12 +463,19 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
+        container = Container()
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
-            # the same load id may be processed across multiple runs
-            if not self.current_load_id:
-                self._step_info_start_load_id(load_id)
-            self.load_single_package(load_id, schema)
+            with container.injectable_context(
+                LoadPackageStateInjectableContext(
+                    storage=self.load_storage.normalized_packages,
+                    load_id=load_id,
+                )
+            ):
+                # the same load id may be processed across multiple runs
+                if not self.current_load_id:
+                    self._step_info_start_load_id(load_id)
+                self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 

@@ -435,7 +435,7 @@ def test_parallel_isolated_run():
     for i in range(0, 3):
         pipeline_dag_parallel = dlt.attach(
             pipeline_name=snake_case.normalize_identifier(
-                dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")
+                dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")[:-2]
             )
         )
         pipeline_dag_decomposed_counts = load_table_counts(
@@ -852,3 +852,68 @@ def get_task_run(dag_def: DAG, task_name: str, now: pendulum.DateTime) -> TaskIn
     dag_def.run(start_date=now, run_at_least_once=True)
     task_def = dag_def.task_dict[task_name]
     return TaskInstance(task=task_def, execution_date=now)
+
+
+def test_task_already_added():
+    """
+    Test that the error 'Task id {id} has already been added to the DAG'
+    is not happening while adding two same sources.
+    """
+    tasks_list: List[PythonOperator] = None
+
+    @dag(schedule=None, start_date=pendulum.today(), catchup=False)
+    def dag_parallel():
+        nonlocal tasks_list
+
+        tasks = PipelineTasksGroup(
+            "test_pipeline",
+            local_data_folder="_storage",
+            wipe_local_data=False,
+        )
+
+        source = mock_data_source()
+
+        pipe = dlt.pipeline(
+            pipeline_name="test_pipeline",
+            dataset_name="mock_data",
+            destination="duckdb",
+            credentials=os.path.join("_storage", "test_pipeline.duckdb"),
+        )
+        task = tasks.add_run(
+            pipe,
+            source,
+            decompose="none",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )[0]
+        assert task.task_id == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more"
+
+        task = tasks.add_run(
+            pipe,
+            source,
+            decompose="none",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )[0]
+        assert (
+            task.task_id == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more-2"
+        )
+
+        tasks_list = tasks.add_run(
+            pipe,
+            source,
+            decompose="none",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )
+        assert (
+            tasks_list[0].task_id
+            == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more-3"
+        )
+
+    dag_def = dag_parallel()
+    assert len(tasks_list) == 1
+    dag_def.test()

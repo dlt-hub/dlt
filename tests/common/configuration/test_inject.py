@@ -1,11 +1,17 @@
 import os
 from typing import Any, Dict, Optional, Type, Union
 import pytest
-
+import time, threading
 import dlt
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.inject import get_fun_spec, last_config, with_config
+from dlt.common.configuration.inject import (
+    get_fun_spec,
+    last_config,
+    with_config,
+    create_resolved_partial,
+)
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import SECRETS_TOML
 from dlt.common.configuration.resolve import inject_section
@@ -204,6 +210,107 @@ def test_inject_with_sections_and_sections_context() -> None:
         ConfigSectionContext(sections=("test", "existing_module", "existing_name"))
     ):
         assert test_sections_like_resource() == "resource_style_injected"
+
+
+def test_partial() -> None:
+    @with_config(sections=("test",))
+    def test_sections(value=dlt.config.value):
+        return value
+
+    # no value in scope will fail
+    with pytest.raises(ConfigFieldMissingException):
+        test_sections()
+
+    # same for partial
+    with pytest.raises(ConfigFieldMissingException):
+        create_resolved_partial(test_sections)
+
+    # with value in scope partial will work
+    os.environ["TEST__VALUE"] = "first_val"
+    partial = create_resolved_partial(test_sections)
+
+    # remove the value from scope and partial will work
+    del os.environ["TEST__VALUE"]
+    assert partial() == "first_val"
+
+    # original func wont
+    with pytest.raises(ConfigFieldMissingException):
+        test_sections()
+
+    # partial retains value
+    os.environ["TEST__VALUE"] = "new_val"
+    assert partial() == "first_val"
+    assert test_sections() == "new_val"
+
+    # new partial picks up new value
+    new_partial = create_resolved_partial(test_sections)
+
+    # remove the value from scope and partial will work
+    del os.environ["TEST__VALUE"]
+    assert new_partial() == "new_val"
+    assert partial() == "first_val"
+
+
+def test_base_spec() -> None:
+    class TestConfig(BaseConfiguration):
+        base_value: str
+
+    @with_config(sections=("test",))
+    def test_sections(value=dlt.config.value, base=TestConfig):
+        return value
+
+    # discovered spec should derive from TestConfig
+    spec = get_fun_spec(test_sections)
+    issubclass(spec, TestConfig)
+
+
+@pytest.mark.parametrize("lock", [False, True])
+@pytest.mark.parametrize("same_pool", [False, True])
+def test_lock_context(lock, same_pool) -> None:
+    # we create a slow provider to test locking
+
+    class SlowProvider(EnvironProvider):
+        def get_value(self, key, hint, pipeline_name, *sections):
+            import time
+
+            time.sleep(0.5)
+            return super().get_value(key, hint, pipeline_name, *sections)
+
+    ctx = ConfigProvidersContext()
+    ctx.providers.clear()
+    ctx.add_provider(SlowProvider())
+
+    @with_config(sections=("test",), lock_context_on_injection=lock)
+    def test_sections(value=dlt.config.value):
+        return value
+
+    os.environ["TEST__VALUE"] = "test_val"
+    with Container().injectable_context(ctx):
+        start = time.time()
+
+        if same_pool:
+            thread_ids = ["dlt-pool-1-1", "dlt-pool-1-2"]
+        else:
+            thread_ids = ["dlt-pool-5-1", "dlt-pool-20-2"]
+
+        # simulate threads in the same pool
+        thread1 = threading.Thread(target=test_sections, name=thread_ids[0])
+        thread2 = threading.Thread(target=test_sections, name=thread_ids[1])
+
+        thread1.start()
+        thread2.start()
+
+        thread1.join()
+        thread2.join()
+
+        elapsed = time.time() - start
+
+        # see wether there was any parallel execution going on
+        # it should only lock if we're in the same pool and we want it to lock
+        if lock and same_pool:
+            assert elapsed > 1
+        else:
+            assert elapsed < 0.7
 
 
 @pytest.mark.skip("not implemented")

@@ -54,7 +54,17 @@ def test_import_module_by_path() -> None:
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
     for dest_type in ACTIVE_DESTINATIONS:
-        dest = Destination.from_reference(dest_type, None, dest_type + "_name", "production")
+        # generic destination needs a valid callable, otherwise instantiation will fail
+        additional_args = {}
+        if dest_type == "destination":
+
+            def dest_callable(items, table) -> None:
+                pass
+
+            additional_args["destination_callable"] = dest_callable
+        dest = Destination.from_reference(
+            dest_type, None, dest_type + "_name", "production", **additional_args
+        )
         assert dest.destination_type == "dlt.destinations." + dest_type
         assert dest.destination_name == dest_type + "_name"
         assert dest.config_params["environment"] == "production"

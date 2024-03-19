@@ -55,7 +55,7 @@ Follow these steps:
 
    - Read scopes for CMS, CRM, and Settings.
    - Permissions for:
-    ```
+    ```text
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
     ```
 
@@ -74,7 +74,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init hubspot duckdb
    ```
 
@@ -115,16 +115,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python hubspot_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `hubspot_pipeline`, you may
@@ -148,12 +148,13 @@ it is important to note the complete list of the default endpoints given in
 This function returns a list of resources to load companies, contacts, deals, tickets, products, and
 web analytics events data into the destination.
 
-```python
+```py
 @dlt.source(name="hubspot")
 def hubspot(
     api_key: str = dlt.secrets.value,
     include_history: bool = False,
 ) -> Sequence[DltResource]:
+   ...
 ```
 
 `api_key`: The key used to authenticate with the HubSpot API. Configured in "secrets.toml".
@@ -166,7 +167,7 @@ specified entities.
 This resource function fetches data from the "companies" endpoint and loads it to
 the destination, replacing any existing data.
 
-```python
+```py
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
    api_key: str = api_key,
@@ -195,7 +196,7 @@ in addition to the custom properties. Similar to this, resource functions "conta
 
 This function loads web analytics events for specific objects from Hubspot API into the destination.
 
-```python
+```py
 @dlt.resource
 def hubspot_events_for_objects(
      object_type: THubspotObjectType,
@@ -203,6 +204,7 @@ def hubspot_events_for_objects(
      api_key: str = dlt.secrets.value,
      start_date: pendulum.DateTime = STARTDATE,
 ) -> DltResource:
+   ...
 ```
 
 `object_type`: One of the Hubspot object types as defined in
@@ -225,7 +227,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="hubspot",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -238,7 +240,7 @@ verified source.
 
 1. To load all the data from contacts, companies, deals, products, tickets, and quotes into the destination.
 
-   ```python
+   ```py
    load_data = hubspot()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -246,7 +248,7 @@ verified source.
 
 1. To load data from contacts and companies, with time history using "with_resources" method.
 
-   ```python
+   ```py
    load_data = hubspot(include_history=True).with_resources("companies","contacts")
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -256,7 +258,7 @@ verified source.
 1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
     set the flag `include_custom_props=False` and add a list of properties with the `props` arg.
 
-   ```python
+   ```py
    load_data = hubspot()
    load_data.contacts.bind(props=["date_of_birth", "degree"], include_custom_props=False)
    load_info = pipeline.run(load_data.with_resources("contacts"))
@@ -264,7 +266,7 @@ verified source.
 
 1. If you want to read all the custom properties of CRM objects and some additional (e.g. Hubspot driven) properties.
 
-   ```python
+   ```py
    load_data = hubspot()
    load_data.contacts.bind(props=["hs_content_membership_email", "hs_content_membership_email_confirmed"])
    load_info = pipeline.run(load_data.with_resources("contacts"))
@@ -273,7 +275,7 @@ verified source.
 
 1. To load the web analytics events of a given object type.
 
-   ```python
+   ```py
    resource = hubspot_events_for_objects("company", ["7086461639", "7086464459"])
    # Here, object type : company, and object ids : 7086461639 and 7086464459
    load_info = pipeline.run([resource])

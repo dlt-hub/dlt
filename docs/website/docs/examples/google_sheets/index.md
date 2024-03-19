@@ -27,7 +27,7 @@ This example is for educational purposes. For best practices, we recommend using
 
 ### Install Google client library
 
-```shell
+```sh
  pip install google-api-python-client
 ```
 
