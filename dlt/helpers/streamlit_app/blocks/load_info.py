@@ -4,7 +4,7 @@ import streamlit as st
 
 from dlt.common import pendulum
 from dlt.helpers.streamlit_app.utils import query_data_live
-from dlt.helpers.streamlit_app.widgets.stats import stat
+from dlt.helpers.streamlit_app.widgets import stat
 
 
 def last_load_info(pipeline: dlt.Pipeline) -> None:

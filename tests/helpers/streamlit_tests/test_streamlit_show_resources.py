@@ -82,7 +82,7 @@ def test_multiple_resources_pipeline():
     assert source1_schema.data_tables()[0]["columns"]["column_1"].get("primary_key") is True
     assert source1_schema.data_tables()[0]["columns"]["column_1"].get("merge_key") is True
     assert source1_schema.data_tables()[0]["write_disposition"] == "merge"
-    with mock.patch("dlt.helpers.streamlit_app.utils.get_dlt_data_dir", return_value=None):
+    with mock.patch("dlt.helpers.streamlit_app.utils.get_dlt_pipelines_dir", return_value=None):
         os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
         streamlit_app = AppTest.from_file(str(streamlit_app_path / "index.py"), default_timeout=5)
         streamlit_app.run()
@@ -120,7 +120,7 @@ def test_multiple_resources_pipeline_with_dummy_destination():
     )
     pipeline.run([source1(10), source2(20)])
 
-    with mock.patch("dlt.helpers.streamlit_app.utils.get_dlt_data_dir", return_value=None):
+    with mock.patch("dlt.helpers.streamlit_app.utils.get_dlt_pipelines_dir", return_value=None):
         os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline_dummy_destination"
         streamlit_app = AppTest.from_file(
             str(streamlit_app_path / "index.py"),
@@ -153,11 +153,10 @@ def test_streamlit_app_respects_pipelines_directory():
     )
     streamlit_app.run()
 
-    assert "CannotRestorePipelineException" in str(streamlit_app.exception)
-    assert str(Path.home() / ".dlt") in str(streamlit_app.exception)
+    assert not streamlit_app.exception
 
-    # Check with DLT_DATA_DIR set
-    os.environ["DLT_DATA_DIR"] = "/run/dlt"
+    # Check with DLT_PIPELINES_DIR set
+    os.environ["DLT_PIPELINES_DIR"] = "/run/dlt/pipelines/"
     streamlit_app = AppTest.from_file(
         str(streamlit_app_path / "index.py"),
         default_timeout=8,

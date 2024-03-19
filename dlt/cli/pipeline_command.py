@@ -11,6 +11,7 @@ from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
 from dlt.common.storages import FileStorage, PackageStorage
+from dlt.common.utils import custom_environ
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
@@ -50,7 +51,8 @@ def pipeline_command(
             raise
         fmt.warning(str(e))
         if not fmt.confirm(
-            "Do you want to attempt to restore the pipeline state from destination?", default=False
+            "Do you want to attempt to restore the pipeline state from destination?",
+            default=False,
         ):
             return
         destination = destination or fmt.text_input(
@@ -60,7 +62,10 @@ def pipeline_command(
             f"Enter dataset name for pipeline {fmt.bold(pipeline_name)}"
         )
         p = dlt.pipeline(
-            pipeline_name, pipelines_dir, destination=destination, dataset_name=dataset_name
+            pipeline_name,
+            pipelines_dir,
+            destination=destination,
+            dataset_name=dataset_name,
         )
         p.sync_destination()
         if p.first_run:
@@ -107,7 +112,7 @@ def pipeline_command(
 
         with signals.delayed_signals():
             if pipelines_dir:
-                os.environ["DLT_DATA_DIR"] = pipelines_dir
+                os.environ["DLT_PIPELINES_DIR"] = pipelines_dir
 
             streamlit_cmd = [
                 "streamlit",
@@ -270,7 +275,12 @@ def pipeline_command(
                 tables = remove_defaults({"tables": package_info.schema_update})  # type: ignore
                 fmt.echo(fmt.bold("Schema update:"))
                 fmt.echo(
-                    yaml.dump(tables, allow_unicode=True, default_flow_style=False, sort_keys=False)
+                    yaml.dump(
+                        tables,
+                        allow_unicode=True,
+                        default_flow_style=False,
+                        sort_keys=False,
+                    )
                 )
 
     if operation == "schema":
@@ -303,20 +313,33 @@ def pipeline_command(
 
         fmt.echo(
             "About to drop the following data in dataset %s in destination %s:"
-            % (fmt.bold(drop.info["dataset_name"]), fmt.bold(p.destination.destination_name))
+            % (
+                fmt.bold(drop.info["dataset_name"]),
+                fmt.bold(p.destination.destination_name),
+            )
         )
         fmt.echo("%s: %s" % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"]))
         fmt.echo(
-            "%s: %s" % (fmt.style("Selected resource(s)", fg="green"), drop.info["resource_names"])
+            "%s: %s"
+            % (
+                fmt.style("Selected resource(s)", fg="green"),
+                drop.info["resource_names"],
+            )
         )
         fmt.echo("%s: %s" % (fmt.style("Table(s) to drop", fg="green"), drop.info["tables"]))
         fmt.echo(
             "%s: %s"
-            % (fmt.style("Resource(s) state to reset", fg="green"), drop.info["resource_states"])
+            % (
+                fmt.style("Resource(s) state to reset", fg="green"),
+                drop.info["resource_states"],
+            )
         )
         fmt.echo(
             "%s: %s"
-            % (fmt.style("Source state path(s) to reset", fg="green"), drop.info["state_paths"])
+            % (
+                fmt.style("Source state path(s) to reset", fg="green"),
+                drop.info["state_paths"],
+            )
         )
         # for k, v in drop.info.items():
         #     fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
