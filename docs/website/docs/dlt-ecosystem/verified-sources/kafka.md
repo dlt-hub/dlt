@@ -38,7 +38,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init kafka duckdb
    ```
 
@@ -80,24 +80,26 @@ sasl_password="example_secret"
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 
 2. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```sh
    python kafka_pipeline.py
    ```
 
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 
 For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+
+:::info If you created a topic and start reading from it immedately, the brokers may be not yet synchronized and offset from which `dlt` reads messages may become invalid. In this case the resource will return no messages. Pending messages will be received on next run (or when brokers synchronize)
 
 ## Sources and resources
 
@@ -108,7 +110,7 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 
 This function retrieves messages from the given Kafka topics.
 
-```python
+```py
 @dlt.resource(name="kafka_messages", table_name=lambda msg: msg["_kafka"]["topic"], standalone=True)
 def kafka_consumer(
     topics: Union[str, List[str]],
@@ -118,6 +120,7 @@ def kafka_consumer(
     batch_timeout: Optional[int] = 3,
     start_from: Optional[TAnyDateTime] = None,
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `topics`: A list of Kafka topics to be extracted.
@@ -135,7 +138,7 @@ as an example of how to implement processors.
 `batch_size`: The number of messages to extract from the cluster
 at once. It can be set to tweak performance.
 
-`batch_timeout`: The maximum timeout for a single batch reading
+`batch_timeout`: The maximum timeout (in seconds) for a single batch reading
 operation. It can be set to tweak performance.
 
 `start_from`: A timestamp, starting from which the messages must
@@ -151,7 +154,7 @@ this offset.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="kafka",     # Use a custom name if desired
         destination="duckdb",      # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -161,7 +164,7 @@ this offset.
 
 2. To extract several topics:
 
-   ```python
+   ```py
    topics = ["topic1", "topic2", "topic3"]
 
    source = kafka_consumer(topics)
@@ -170,7 +173,7 @@ this offset.
 
 3. To extract messages and process them in a custom way:
 
-   ```python
+   ```py
     def custom_msg_processor(msg: confluent_kafka.Message) -> Dict[str, Any]:
         return {
             "_kafka": {
@@ -187,7 +190,7 @@ this offset.
 
 4. To extract messages, starting from a timestamp:
 
-   ```python
+   ```py
     data = kafka_consumer("topic", start_from=pendulum.datetime(2023, 12, 15))
     pipeline.run(data)
    ```

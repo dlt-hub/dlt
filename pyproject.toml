@@ -145,6 +145,7 @@ google-api-python-client = ">=1.7.11"
 pytest-asyncio = "^0.23.5"
 types-sqlalchemy = "^1.4.53.38"
 clickhouse-driver = "^0.2.7"
+ruff = "^0.3.2"
 
 [tool.poetry.group.pipeline]
 optional=true
@@ -206,11 +207,6 @@ line_length = 100
 profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
-
-[tool.ruff] # https://beta.ruff.rs/docs/
-line-length = 100
-ignore = ["F401"]
-ignore-init-module-imports = true
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

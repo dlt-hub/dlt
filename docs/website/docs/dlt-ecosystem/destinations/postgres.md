@@ -8,39 +8,39 @@ keywords: [postgres, destination, data warehouse]
 
 ## Install dlt with PostgreSQL
 **To install the DLT library with PostgreSQL dependencies, run:**
-```
+```sh
 pip install dlt[postgres]
 ```
 
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to Postgres by running:**
-```
+```sh
 dlt init chess postgres
 ```
 
 **2. Install the necessary dependencies for Postgres by running:**
-```
+```sh
 pip install -r requirements.txt
 ```
 This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 
 **3. After setting up a Postgres instance and `psql` / query editor, create a new database by running:**
-```
+```sql
 CREATE DATABASE dlt_data;
 ```
 
 Add the `dlt_data` database to `.dlt/secrets.toml`.
 
 **4. Create a new user by running:**
-```
+```sql
 CREATE USER loader WITH PASSWORD '<password>';
 ```
 
 Add the `loader` user and `<password>` password to `.dlt/secrets.toml`.
 
 **5. Give the `loader` user owner permissions by running:**
-```
+```sql
 ALTER DATABASE dlt_data OWNER TO loader;
 ```
 
@@ -66,7 +66,7 @@ destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_d
 ```
 
 To pass credentials directly, you can use the `credentials` argument passed to the `dlt.pipeline` or `pipeline.run` methods.
-```python
+```py
 pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="postgresql://loader:<password>@localhost/dlt_data")
 ```
 

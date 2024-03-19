@@ -42,7 +42,7 @@ sentry_dsn="https:///<...>"
 
 Alternatively, you can use environment variables:
 
-```shell
+```sh
 RUNTIME__SENTRY_DSN="https:///<...>"
 ```
 

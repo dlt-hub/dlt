@@ -11,7 +11,7 @@ keywords: [Databricks, destination, data warehouse]
 
 ## Install dlt with Databricks
 **To install the DLT library with Databricks dependencies:**
-```
+```sh
 pip install dlt[databricks]
 ```
 
@@ -91,12 +91,12 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 ## Loader setup Guide
 
 **1. Initialize a project with a pipeline that loads to Databricks by running**
-```
+```sh
 dlt init chess databricks
 ```
 
 **2. Install the necessary dependencies for Databricks by running**
-```
+```sh
 pip install -r requirements.txt
 ```
 This will install dlt with **databricks** extra which contains Databricks Python dbapi client.
@@ -148,7 +148,7 @@ Please refer to the [S3 documentation](./filesystem.md#aws-s3) for details on co
 
 Example to set up Databricks with S3 as a staging destination:
 
-```python
+```py
 import dlt
 
 # Create a dlt pipeline that will load
@@ -168,7 +168,7 @@ Refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure
 
 Example to set up Databricks with Azure as a staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Databricks destination
 # via staging on Azure Blob Storage

@@ -53,7 +53,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init pipedrive duckdb
    ```
 
@@ -93,16 +93,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python pipedrive_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `pipedrive`, but you may also use
@@ -138,12 +138,13 @@ Pipedrive API.
 This function returns a list of resources including activities, deals, custom_fields_mapping and
 other resources data from Pipedrive API.
 
-```python
+```py
 @dlt.source(name="pipedrive")
 def pipedrive_source(
     pipedrive_api_key: str = dlt.secrets.value,
     since_timestamp: Optional[Union[pendulum.DateTime, str]] = dlt.config.value,
 ) -> Iterator[DltResource]:
+   ...
 ```
 
 `pipedrive_api_key`: Authentication token for Pipedrive, configured in ".dlt/secrets.toml".
@@ -159,7 +160,7 @@ This code generates resources for each entity in
 [RECENTS_ENTITIES](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive/settings.py),
 stores them in endpoints_resources, and then loads data from each endpoint to the destination.
 
-```python
+```py
 endpoints_resources = {}
 for entity, resource_name in RECENTS_ENTITIES.items():
     endpoints_resources[resource_name] = dlt.resource(
@@ -186,7 +187,7 @@ for entity, resource_name in RECENTS_ENTITIES.items():
 
 This function gets the participants of deals from the Pipedrive API and yields the result.
 
-```python
+```py
 def pipedrive_source(args):
   # Rest of function
    yield endpoints_resources["deals"] |  dlt.transformer(
@@ -209,12 +210,13 @@ further processing or loading.
 This function preserves the mapping of custom fields across different pipeline runs. It is used to
 create and store a mapping of custom fields for different entities in the source state.
 
-```python
+```py
 @dlt.resource(selected=False)
 def create_state(pipedrive_api_key: str) -> Iterator[Dict[str, Any]]:
     def _get_pages_for_rename(
         entity: str, fields_entity: str, pipedrive_api_key: str
     ) -> Dict[str, Any]:
+      ...
 ```
 
 It processes each entity in ENTITY_MAPPINGS, updating the custom fields mapping if a related fields
@@ -238,7 +240,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="pipedrive",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -251,7 +253,7 @@ verified source.
 
 1. To print source info:
 
-   ```python
+   ```py
    pipedrive_data = pipedrive_source()
    #print source info
    print(pipedrive_data)
@@ -263,7 +265,7 @@ verified source.
 
 1. To load all the data in Pipedrive:
 
-   ```python
+   ```py
    load_data = pipedrive_source() # calls the source function
    load_info = pipeline.run(load_data) #runs the pipeline with selected source configuration
    print(load_info)
@@ -271,7 +273,7 @@ verified source.
 
 1. To load data from selected resources:
 
-   ```python
+   ```py
    #To load custom fields, include custom_fields_mapping for hash to name mapping.
    load_data = pipedrive_source().with_resources("products", "deals", "deals_participants", "custom_fields_mapping")
    load_info = pipeline.run(load_data) #runs the pipeline loading selected data
@@ -280,7 +282,7 @@ verified source.
 
 1. To load data from a start date:
 
-   ```python
+   ```py
    # Configure a source for 'activities' starting from the specified date.
    # The 'custom_fields_mapping' is incorporated to convert custom field hashes into their respective names.
    activities_source = pipedrive_source(

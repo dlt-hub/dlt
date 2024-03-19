@@ -20,7 +20,7 @@ Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**, **Athena*
 
 By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will store your data in the parquet format at the destination:
 
-```python
+```py
 info = pipeline.run(some_source(), loader_file_format="parquet")
 ```
 
@@ -53,7 +53,7 @@ timestamp_timezone="Europe/Berlin"
 
 Or using environment variables:
 
-```
+```sh
 NORMALIZE__DATA_WRITER__FLAVOR
 NORMALIZE__DATA_WRITER__VERSION
 NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE

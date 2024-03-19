@@ -14,7 +14,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
 1. Create a source function that creates dummy data as follows:
 
-   ```python
+   ```py
    import dlt
 
    # This function creates a dummy data source.
@@ -31,7 +31,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
 1. Next, create a function to filter out columns from the data before loading it into a database as follows:
 
-   ```python
+   ```py
    from typing import Dict, List, Optional
 
    def remove_columns(doc: Dict, remove_columns: Optional[List[str]] = None) -> Dict:
@@ -53,7 +53,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
 1. Next, declare the columns to be removed from the table, and then modify the source as follows:
 
-   ```python
+   ```py
    # Example columns to remove:
    remove_columns_list = ["country_code"]
 
@@ -67,7 +67,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    ```
 1. You can optionally inspect the result:
 
-   ```python
+   ```py
    for row in data_source:
        print(row)
    #{'id': 0, 'name': 'Jane Washington 0'}
@@ -77,7 +77,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
 1. At last, create a pipeline:
 
-   ```python
+   ```py
    # Integrating with a DLT pipeline
    pipeline = dlt.pipeline(
        pipeline_name='example',
