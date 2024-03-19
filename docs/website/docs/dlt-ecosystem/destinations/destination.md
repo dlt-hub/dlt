@@ -1,7 +1,7 @@
 ---
 title: 🧪 Custom destination
 description: Custom `dlt` destination function for reverse ETL
-keywords: [reverse etl, sink, function, decorator, destination]
+keywords: [reverse etl, sink, function, decorator, destination, custom destination]
 ---
 
 # Custom destination: Reverse ETL
