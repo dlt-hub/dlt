@@ -496,7 +496,7 @@ def test_max_nesting_level(nesting: int) -> None:
     def source():
         yield dlt.resource(data, name="data")
 
-    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test_max_nesting", destination=test_sink, full_refresh=True)
     p.run(source())
 
     # fall back to source setting
