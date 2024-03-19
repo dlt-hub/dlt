@@ -7,7 +7,7 @@ threshold = 100
 
 try:
     count = 0
-    with open(lockfile_name, 'r') as file:
+    with open(lockfile_name, 'r', encoding="utf8") as file:
         for line in file:
             if hash_string in line:
                 count += 1
