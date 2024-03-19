@@ -22,7 +22,6 @@ jobs:
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
-      max-parallel: 14
       matrix:
         os:
           - ubuntu-latest
