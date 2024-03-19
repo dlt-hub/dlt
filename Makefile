@@ -47,8 +47,8 @@ dev: has-poetry
 	poetry install --all-extras --with airflow --with docs --with providers --with pipeline --with sentry-sdk
 
 lint:
-	./check-package.sh
-	./check-lockfile.sh
+	./tools/check-package.sh
+	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
