@@ -77,6 +77,6 @@ def custom_destination_biquery_snippet() -> None:
         load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 
         print(load_info)
-
-        assert_load_info(load_info)
         # @@@DLT_SNIPPET_END example
+        assert_load_info(load_info)
+

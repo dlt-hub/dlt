@@ -69,5 +69,3 @@ if __name__ == "__main__":
     load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 
     print(load_info)
-
-    assert_load_info(load_info)
