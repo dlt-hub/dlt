@@ -38,6 +38,7 @@ const config = {
       ({
         docs: {
           routeBasePath: '/',
+          path: 'docs_processed',
           include: ['**/*.md', '**/*.mdx'],
           exclude: [
             // '**/_*.{js,jsx,ts,tsx,md,mdx}',
