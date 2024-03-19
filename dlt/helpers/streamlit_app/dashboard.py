@@ -29,7 +29,6 @@ def write_data_explorer_page(
 
     st.subheader("Schemas and tables", divider="rainbow")
     schema_picker(pipeline)
-
     tables = sorted(
         st.session_state["schema"].data_tables(),
         key=lambda table: table["name"],

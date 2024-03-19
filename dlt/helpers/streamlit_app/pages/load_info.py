@@ -44,7 +44,6 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             selected_load_id = st.selectbox("Select load id", loads_df)
             schema = pipeline.default_schema
 
-            # st.json(st.session_state["schema"].data_tables(), expanded=False)
             st.markdown("**Number of loaded rows:**")
 
             # construct a union query
