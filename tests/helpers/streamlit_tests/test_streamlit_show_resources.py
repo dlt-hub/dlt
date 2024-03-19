@@ -7,11 +7,11 @@ Run streamlit showing this pipeline like this:
 """
 import os
 from pathlib import Path
+from unittest import mock
 
 import dlt
 
-from dlt.helpers.streamlit_app.pages import load_info as dlt_load_info
-from streamlit.testing.v1 import AppTest  # type: ignore
+from streamlit.testing.v1 import AppTest
 
 here = Path(__file__).parent
 dlt_root = here.parent.parent.parent.absolute()
@@ -82,34 +82,34 @@ def test_multiple_resources_pipeline():
     assert source1_schema.data_tables()[0]["columns"]["column_1"].get("primary_key") is True
     assert source1_schema.data_tables()[0]["columns"]["column_1"].get("merge_key") is True
     assert source1_schema.data_tables()[0]["write_disposition"] == "merge"
+    with mock.patch("dlt.helpers.streamlit_app.utils.get_dlt_data_dir", return_value=None):
+        os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
+        streamlit_app = AppTest.from_file(str(streamlit_app_path / "index.py"), default_timeout=5)
+        streamlit_app.run()
+        assert not streamlit_app.exception
 
-    os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
-    streamlit_app = AppTest.from_file(str(streamlit_app_path / "dashboard.py"), default_timeout=5)
-    streamlit_app.run()
-    assert not streamlit_app.exception
+        # Check color mode switching updates session stats
+        streamlit_app.sidebar.button[0].click().run()
+        assert not streamlit_app.exception
+        assert streamlit_app.session_state["color_mode"] == "light"
 
-    # Check color mode switching updates session stats
-    streamlit_app.sidebar.button[0].click().run()
-    assert not streamlit_app.exception
-    assert streamlit_app.session_state["color_mode"] == "light"
+        streamlit_app.sidebar.button[1].click().run()
+        assert not streamlit_app.exception
+        assert streamlit_app.session_state["color_mode"] == "dark"
 
-    streamlit_app.sidebar.button[1].click().run()
-    assert not streamlit_app.exception
-    assert streamlit_app.session_state["color_mode"] == "dark"
+        # Check page links in sidebar
+        assert "Explore data" in streamlit_app.sidebar[2].label
+        assert "Load info" in streamlit_app.sidebar[3].label
 
-    # Check page links in sidebar
-    assert "Explore data" in streamlit_app.sidebar[2].label
-    assert "Load info" in streamlit_app.sidebar[3].label
+        # Check that at leas 4 content sections rendered
+        assert len(streamlit_app.subheader) > 4
 
-    # Check that at leas 4 content sections rendered
-    assert len(streamlit_app.subheader) > 4
-
-    # Check Explore data page
-    assert streamlit_app.subheader[0].value == "Schemas and tables"
-    assert streamlit_app.subheader[1].value == "Schema: source1"
-    assert streamlit_app.subheader[2].value == "Table: one"
-    assert streamlit_app.subheader[3].value == "Run your query"
-    assert streamlit_app.subheader[4].value == "Pipeline info"
+        # Check Explore data page
+        assert streamlit_app.subheader[0].value == "Schemas and tables"
+        assert streamlit_app.subheader[1].value == "Schema: source1"
+        assert streamlit_app.subheader[2].value == "Table: one"
+        assert streamlit_app.subheader[3].value == "Run your query"
+        assert streamlit_app.subheader[4].value == "Pipeline info"
 
 
 def test_multiple_resources_pipeline_with_dummy_destination():
@@ -120,17 +120,49 @@ def test_multiple_resources_pipeline_with_dummy_destination():
     )
     pipeline.run([source1(10), source2(20)])
 
-    os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline_dummy_destination"
+    with mock.patch("dlt.helpers.streamlit_app.utils.get_dlt_data_dir", return_value=None):
+        os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline_dummy_destination"
+        streamlit_app = AppTest.from_file(
+            str(streamlit_app_path / "index.py"),
+            # bigger timeout because dlt might be slow at
+            # loading stage for dummy destination and timeout
+            default_timeout=8,
+        )
+        streamlit_app.run()
+
+        assert not streamlit_app.exception
+        assert streamlit_app.warning.len == 1
+        # We should have at least 2 errors one on the sidebar
+        # and the other two errors in the page for missing sql client
+        assert streamlit_app.error.len >= 2
+
+
+def test_streamlit_app_respects_pipelines_directory():
+    pipeline = dlt.pipeline(
+        pipeline_name="test_streamlit_errors_pipeline",
+        destination="dummy",
+        dataset_name="rows_data2",
+    )
+    pipeline.run([source1(1), source2(2)])
+    os.environ["DLT_TEST_PIPELINE_NAME"] = "test_streamlit_errors_pipeline"
+
+    # Check with pipelines_dir set to None
     streamlit_app = AppTest.from_file(
-        str(streamlit_app_path / "dashboard.py"),
-        # bigger timeout because dlt might be slow at
-        # loading stage for dummy destination and timeout
+        str(streamlit_app_path / "index.py"),
         default_timeout=8,
     )
     streamlit_app.run()
 
-    assert not streamlit_app.exception
-    assert streamlit_app.warning.len == 1
-    # We should have at least 2 errors one on the sidebar
-    # and the other two errors in the page for missing sql client
-    assert streamlit_app.error.len >= 2
+    assert "CannotRestorePipelineException" in str(streamlit_app.exception)
+    assert str(Path.home() / ".dlt") in str(streamlit_app.exception)
+
+    # Check with DLT_DATA_DIR set
+    os.environ["DLT_DATA_DIR"] = "/run/dlt"
+    streamlit_app = AppTest.from_file(
+        str(streamlit_app_path / "index.py"),
+        default_timeout=8,
+    )
+    streamlit_app.run()
+
+    assert "CannotRestorePipelineException" in str(streamlit_app.exception)
+    assert "/run/dlt" in str(streamlit_app.exception)
