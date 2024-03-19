@@ -1,11 +1,13 @@
 from tests.utils import skipifgithubfork
+from tests.pipeline.utils import assert_load_info
 
 
 @skipifgithubfork
-def custom_destination_biquery_snippets() -> None:
+def custom_destination_biquery_snippet() -> None:
     # @@@DLT_SNIPPET_START example
     import dlt
     import pandas as pd
+    import pyarrow as pa
     from google.cloud import bigquery
 
     from dlt.common.configuration.specs import GcpServiceAccountCredentials
@@ -23,8 +25,25 @@ def custom_destination_biquery_snippets() -> None:
     # dlt sources
     @dlt.resource(name="natural_disasters")
     def resource(url: str):
-        df = pd.read_csv(OWID_DISASTERS_URL)
-        yield df.to_dict(orient="records")
+        # load pyarrow table with pandas
+        table = pa.Table.from_pandas(pd.read_csv(url))
+        # we add a list type column to demontrate bigquery lists
+        table = table.append_column(
+            "tags",
+            pa.array(
+                [["disasters", "earthquakes", "floods", "tsunamis"]] * len(table),
+                pa.list_(pa.string()),
+            ),
+        )
+        # we add a struct type column to demonstrate bigquery structs
+        table = table.append_column(
+            "meta",
+            pa.array(
+                [{"loaded_by": "dlt"}] * len(table),
+                pa.struct([("loaded_by", pa.string())]),
+            ),
+        )
+        yield table
 
     # dlt biquery custom destination
     # we can use the dlt provided credentials class
@@ -46,11 +65,7 @@ def custom_destination_biquery_snippets() -> None:
             load_job = client.load_table_from_file(f, BIGQUERY_TABLE_ID, job_config=job_config)
         load_job.result()  # Waits for the job to complete.
 
-    # we can add some tags to each data item
-    # to demonstrate lists in biqquery
-    meta_data = {"meta": {"tags": ["disasters", "earthquakes", "floods", "tsunamis"]}}
-    resource.add_map(lambda item: {**item, **meta_data})
-
+    __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
         # run the pipeline and print load results
         pipeline = dlt.pipeline(
@@ -62,3 +77,6 @@ def custom_destination_biquery_snippets() -> None:
         load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 
         print(load_info)
+
+        assert_load_info(load_info)
+        # @@@DLT_SNIPPET_END example
