@@ -75,6 +75,7 @@ Snowflake destination accepts three authentication types:
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 - external authentication
+- default (Snowflake Container Services) authentication
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -111,6 +112,18 @@ token="..."
 ```
 or in the connection string as query parameters.
 Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+In **Snowflake Container Services (default) authentication**, `dlt` will use oauth token present in the container and environment variables to
+create a valid connection. You must specify database name ie.:
+ ```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+```
+or
+```toml
+destination.snowflake.credentials="snowflake:///dlt_data"
+```
+Find more details [here](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/additional-considerations-services-jobs).
 
 ## Write disposition
 All write dispositions are supported.
