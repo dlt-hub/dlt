@@ -29,7 +29,7 @@ def render_with_pipeline(render_func: Callable[..., None]) -> None:
 
 def query_using_cache(pipeline: dlt.Pipeline, ttl: int) -> Callable[..., Optional[pd.DataFrame]]:
     @st.cache_data(ttl=ttl)
-    def do_query(
+    def do_query(  # type: ignore[return]
         query: str,
         schema_name: str = None,
         chunk_size: Optional[int] = None,
@@ -41,7 +41,7 @@ def query_using_cache(pipeline: dlt.Pipeline, ttl: int) -> Callable[..., Optiona
         except SqlClientNotAvailable:
             st.error("🚨 Cannot load data - SqlClient not available")
 
-    return do_query
+    return do_query  # type: ignore[no-any-return]
 
 
 def query_data(
