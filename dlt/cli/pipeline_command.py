@@ -107,7 +107,7 @@ def pipeline_command(
 
         with signals.delayed_signals():
             if pipelines_dir:
-                os.environ["DLT_PIPELINES_DIR"] = pipelines_dir
+                os.environ["DLT_DATA_DIR"] = pipelines_dir
 
             streamlit_cmd = [
                 "streamlit",

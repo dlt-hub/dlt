@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from dlt.cli import echo as fmt
+from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 
 HERE = Path(__file__).absolute().parent
@@ -22,7 +23,7 @@ def render_with_pipeline(render_func: Callable[..., None]) -> None:
         pipeline_name = sys.argv[1]
 
     st.session_state["pipeline_name"] = pipeline_name
-    pipelines_dir = os.getenv("DLT_PIPELINES_DIR")
+    pipelines_dir = get_dlt_data_dir()
     pipeline = dlt.attach(pipeline_name, pipelines_dir=pipelines_dir)
     render_func(pipeline)
 
