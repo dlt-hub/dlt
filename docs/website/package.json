@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus start",
+    "start": "node tools/update_version_env.js && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
     "watch-snippets": "node tools/update_snippets.js --watch",
     "build": "PYTHONPATH=. poetry run pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus build",
     "build:netlify": "PYTHONPATH=. pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus build --out-dir build/docs",
@@ -34,7 +34,8 @@
     "toml": "^3.0.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "2.4.1"
+    "@docusaurus/module-type-aliases": "2.4.1",
+    "concurrently": "^8.2.2"
   },
   "browserslist": {
     "production": [
