@@ -4,6 +4,7 @@ import dlt
 import pytest
 import pytest
 import os
+import inspect
 
 from copy import deepcopy
 from dlt.common.typing import TDataItems
@@ -15,6 +16,10 @@ from dlt.common.utils import uniq_id
 from dlt.common.exceptions import InvalidDestinationReference
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.destinations.impl.destination.factory import _DESTINATIONS
+from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
+from dlt.common.configuration.inject import get_fun_spec
+from dlt.common.configuration.specs import BaseConfiguration
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -121,13 +126,13 @@ def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
 
 
 def test_instantiation() -> None:
+    # also tests _DESTINATIONS
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     # NOTE: we also test injection of config vars here
     def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
         nonlocal calls
         assert my_val == "something"
-
         calls.append((items, table))
 
     os.environ["DESTINATION__MY_VAL"] = "something"
@@ -137,6 +142,8 @@ def test_instantiation() -> None:
     p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)  # type: ignore
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
+    # local func does not create entry in destinations
+    assert not _DESTINATIONS
 
     # test passing via from_reference
     calls = []
@@ -147,6 +154,8 @@ def test_instantiation() -> None:
     )
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
+    # local func does not create entry in destinations
+    assert not _DESTINATIONS
 
     # test passing string reference
     global global_calls
@@ -161,6 +170,12 @@ def test_instantiation() -> None:
     )
     p.run([1, 2, 3], table_name="items")
     assert len(global_calls) == 1
+
+    # global func will create an entry
+    assert _DESTINATIONS["global_sink_func"]
+    assert issubclass(_DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration)
+    assert _DESTINATIONS["global_sink_func"][1] == global_sink_func
+    assert _DESTINATIONS["global_sink_func"][2] == inspect.getmodule(global_sink_func)
 
     # pass None as callable arg will fail on load
     p = dlt.pipeline(
@@ -434,6 +449,54 @@ def test_config_spec() -> None:
     dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
         [1, 2, 3], table_name="items"
     )
+
+
+def test_destination_with_spec() -> None:
+    class MyDestinationSpec(CustomDestinationClientConfiguration):
+        my_predefined_val: str
+
+    # check destination without additional config params
+    @dlt.destination(spec=MyDestinationSpec)
+    def sink_func_with_spec(items: TDataItems, table: TTableSchema) -> None:
+        pass
+
+    wrapped_callable = sink_func_with_spec().config_params["destination_callable"]
+    spec = get_fun_spec(wrapped_callable)
+    assert spec is MyDestinationSpec
+
+    # check destination with additional config params
+    @dlt.destination(spec=MyDestinationSpec)
+    def sink_func_with_spec_and_additional_params(
+        items: TDataItems, table: TTableSchema, other_val: str = dlt.config.value
+    ) -> None:
+        pass
+
+    wrapped_callable = sink_func_with_spec_and_additional_params().config_params[
+        "destination_callable"
+    ]
+    spec = get_fun_spec(wrapped_callable)
+    assert spec is MyDestinationSpec
+
+    # check destination spec with incorrect baseclass
+    @dlt.destination(spec=BaseConfiguration)  # type: ignore
+    def sink_func_wrong_base(
+        items: TDataItems, table: TTableSchema, other_val: str = dlt.config.value
+    ) -> None:
+        pass
+
+    with pytest.raises(ValueError):
+        sink_func_wrong_base()
+
+    # check no base
+    @dlt.destination(spec=None)
+    def sink_func_no_spec(
+        items: TDataItems, table: TTableSchema, other_val: str = dlt.config.value
+    ) -> None:
+        pass
+
+    wrapped_callable = sink_func_no_spec().config_params["destination_callable"]
+    spec = get_fun_spec(wrapped_callable)
+    assert issubclass(spec, CustomDestinationClientConfiguration)
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
