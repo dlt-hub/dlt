@@ -285,5 +285,5 @@ To create your data pipeline using single loading and
    >To read more about Salesforce query limits, please refer to their official
    >[documentation here](https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm).
 
-<!--@@@DLT_SNIPPET_START tuba::salesforce-->
-<!--@@@DLT_SNIPPET_END tuba::salesforce-->
+<!--@@@DLT_TUBA salesforce-->
+

@@ -195,5 +195,5 @@ this offset.
     pipeline.run(data)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::kafka-->
-<!--@@@DLT_SNIPPET_END tuba::kafka-->
+<!--@@@DLT_TUBA kafka-->
+

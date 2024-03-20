@@ -342,5 +342,4 @@ verified source.
     print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::shopify_dlt-->
-<!--@@@DLT_SNIPPET_END tuba::shopify_dlt-->
+<!--@@@DLT_TUBA shopify_dlt-->

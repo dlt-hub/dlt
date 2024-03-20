@@ -225,5 +225,5 @@ To create your data loading pipeline for players and load data, follow these ste
    print(info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::chess-->
-<!--@@@DLT_SNIPPET_END tuba::chess-->
+<!--@@@DLT_TUBA chess-->
+

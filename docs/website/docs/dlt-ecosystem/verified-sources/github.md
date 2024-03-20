@@ -289,5 +289,4 @@ verified source.
 
    It is optional to use `access_token` or make anonymous API calls.
 
-<!--@@@DLT_SNIPPET_START tuba::github-->
-<!--@@@DLT_SNIPPET_END tuba::github-->
+<!--@@@DLT_TUBA github-->

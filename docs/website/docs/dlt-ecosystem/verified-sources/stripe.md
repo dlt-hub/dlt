@@ -270,5 +270,4 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::stripe_analytics-->
-<!--@@@DLT_SNIPPET_END tuba::stripe_analytics-->
+<!--@@@DLT_TUBA stripe_analytics-->

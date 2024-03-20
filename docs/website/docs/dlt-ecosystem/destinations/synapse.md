@@ -201,5 +201,5 @@ Integration with [dbt](../transformations/dbt/dbt.md) is currently not supported
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-<!--@@@DLT_SNIPPET_START tuba::synapse-->
-<!--@@@DLT_SNIPPET_END tuba::synapse-->
+<!--@@@DLT_TUBA synapse-->
+

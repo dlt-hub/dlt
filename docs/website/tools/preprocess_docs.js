@@ -54,7 +54,7 @@ function insertTubaLinks(lines) {
           result.push(`- [${link.title}](${link.public_url})`)
         }
       } else {
-        logger.warn(`No tuba links found for tag ${tubaTag}`)
+        // we could warn here, but it is a bit too verbose
       }
     }
     result.push(line);
@@ -62,13 +62,16 @@ function insertTubaLinks(lines) {
   return result;
 }
 
+// remove all lines with DLT markers
+// TODO: maybe warn here if there are markers that were not
+// processed
 function removeRemainingMarkers(lines) {
   return lines.filter((line) => !line.includes(DLT_MARKER));
 }
 
 
 function preprocess_docs() {
-    console.log("Updating Snippets");
+    console.log("Processing docs...");
     let processedFiles = 0;
     for (const fileName of walkSync(MD_SOURCE_DIR)) {
         if (!MOVE_FILES_EXTENSION.includes(path.extname(fileName))) {

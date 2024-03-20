@@ -97,5 +97,5 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-po
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-<!--@@@DLT_SNIPPET_START tuba::postgres-->
-<!--@@@DLT_SNIPPET_END tuba::postgres-->
+<!--@@@DLT_TUBA postgres-->
+

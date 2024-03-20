@@ -189,5 +189,4 @@ uniquely identifies a specific page or database.
 The database name ("use_name") is optional; if skipped, the pipeline will fetch it from Notion
 automatically.
 
-<!--@@@DLT_SNIPPET_START tuba::notion-->
-<!--@@@DLT_SNIPPET_END tuba::notion-->
+<!--@@@DLT_TUBA notion-->

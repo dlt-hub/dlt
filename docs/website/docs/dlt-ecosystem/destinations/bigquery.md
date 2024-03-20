@@ -265,5 +265,5 @@ my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 
 Refer to the [full API specification](../../api_reference/destinations/impl/bigquery/bigquery_adapter.md) for more details.
 
-<!--@@@DLT_SNIPPET_START tuba::bigquery-->
-<!--@@@DLT_SNIPPET_END tuba::bigquery-->
+<!--@@@DLT_TUBA bigquery-->
+

@@ -609,5 +609,4 @@ def get_named_ranges():
 
 Enjoy the DLT Google Sheets pipeline experience!
 
-<!--@@@DLT_SNIPPET_START tuba::google_sheets-->
-<!--@@@DLT_SNIPPET_END tuba::google_sheets-->
+<!--@@@DLT_TUBA google_sheets-->

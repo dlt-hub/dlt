@@ -110,5 +110,5 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ### dbt support
 No dbt support yet.
 
-<!--@@@DLT_SNIPPET_START tuba::mssql-->
-<!--@@@DLT_SNIPPET_END tuba::mssql-->
+<!--@@@DLT_TUBA mssql-->
+

@@ -132,7 +132,5 @@ pipeline = dlt.pipeline(
 
 Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports `parquet` and `jsonl`.
 
-<!--@@@DLT_SNIPPET_START tuba::redshift-->
-<!--@@@DLT_SNIPPET_END tuba::redshift-->
-
 <!--@@@DLT_TUBA redshift-->
+

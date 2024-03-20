@@ -295,5 +295,5 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::slack-->
-<!--@@@DLT_SNIPPET_END tuba::slack-->
+<!--@@@DLT_TUBA slack-->
+

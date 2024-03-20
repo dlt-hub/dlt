@@ -154,5 +154,5 @@ aws_data_catalog="awsdatacatalog"
 You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is used by default
 
-<!--@@@DLT_SNIPPET_START tuba::athena-->
-<!--@@@DLT_SNIPPET_END tuba::athena-->
+<!--@@@DLT_TUBA athena-->
+

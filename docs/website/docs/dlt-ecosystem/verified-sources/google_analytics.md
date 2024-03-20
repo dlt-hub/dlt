@@ -339,5 +339,5 @@ verified source.
    > Loads data starting from the specified date during the first run, and then
    > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
 
-<!--@@@DLT_SNIPPET_START tuba::google_analytics-->
-<!--@@@DLT_SNIPPET_END tuba::google_analytics-->
+<!--@@@DLT_TUBA google_analytics-->
+

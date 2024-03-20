@@ -287,5 +287,4 @@ verified source.
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
 
 
-<!--@@@DLT_SNIPPET_START tuba::hubspot-->
-<!--@@@DLT_SNIPPET_END tuba::hubspot-->
+<!--@@@DLT_TUBA hubspot-->
