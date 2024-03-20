@@ -1,4 +1,3 @@
-import os
 import yaml
 from typing import Any, Optional, Sequence, Tuple
 import dlt
@@ -11,7 +10,6 @@ from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
 from dlt.common.storages import FileStorage, PackageStorage
-from dlt.common.utils import custom_environ
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
@@ -116,18 +114,23 @@ def pipeline_command(
         from dlt.common.runtime import signals
         from dlt.helpers.streamlit_app import index
 
-        with signals.delayed_signals(), custom_environ({"DLT_PIPELINES_DIR": pipelines_dir or ""}):
+        with signals.delayed_signals():
             streamlit_cmd = [
                 "streamlit",
                 "run",
                 index.__file__,
-                pipeline_name,
                 "--client.showSidebarNavigation",
                 "false",
             ]
             if hot_reload:
                 streamlit_cmd.append("--server.runOnSave")
                 streamlit_cmd.append("true")
+
+            if pipelines_dir:
+                streamlit_cmd.append("--")
+                streamlit_cmd.append(pipeline_name)
+                streamlit_cmd.append("--pipelines-dir")
+                streamlit_cmd.append(pipelines_dir)
 
             venv = Venv.restore_current()
             for line in iter_stdout(venv, *streamlit_cmd):
