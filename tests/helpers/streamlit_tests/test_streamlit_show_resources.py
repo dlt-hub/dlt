@@ -147,15 +147,12 @@ def test_render_with_pipeline_with_different_pipeline_dirs():
     )
     pipeline.run([{"n": 1}, {"n": 2}], table_name="numbers")
     os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline_dummy_destination"
-    base_args = [
-        "dlt-show",
-        "pipeline_name",
-        "--pipelines-dir",
-    ]
+    base_args = ["dlt-show", "pipeline_name", "--pipelines-dir"]
 
     def dummy_render(pipeline: dlt.Pipeline) -> None:
         pass
 
+    old_args = sys.argv[:]
     with pytest.raises(CannotRestorePipelineException):
         sys.argv = [*base_args, "/run/dlt"]
         render_with_pipeline(dummy_render)
@@ -163,3 +160,5 @@ def test_render_with_pipeline_with_different_pipeline_dirs():
     with pytest.raises(CannotRestorePipelineException):
         sys.argv = [*base_args, "/tmp/dlt"]
         render_with_pipeline(dummy_render)
+
+    sys.argv = old_args
