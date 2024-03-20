@@ -2703,14 +2703,12 @@ test = ["coverage", "coveralls", "mock", "pytest", "pytest-cov"]
 
 [[package]]
 name = "flake8-encodings"
-version = "0.5.0.post1"
+version = "0.5.1"
 description = "A Flake8 plugin to identify incorrect use of encodings."
 optional = false
 python-versions = ">=3.6"
-files = [
-    {file = "flake8_encodings-0.5.0.post1-py3-none-any.whl", hash = "sha256:d2fecca0e89ba09c86e5d61cf6bdb1b337f0d74746aac67bbcf0c517b4cb6cba"},
-    {file = "flake8_encodings-0.5.0.post1.tar.gz", hash = "sha256:082c0163325c85b438a8106e876283b5ed3cbfc53e68d89130d70be8be4c9977"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 astatine = ">=0.3.1"
@@ -2721,6 +2719,12 @@ flake8-helper = ">=0.1.1"
 [package.extras]
 all = ["jedi (>=0.18.0)"]
 classes = ["jedi (>=0.18.0)"]
+
+[package.source]
+type = "git"
+url = "https://github.com/dlt-hub/flake8-encodings.git"
+reference = "disable_jedi_support"
+resolved_reference = "ab20ac162de68c4a0956adc93dc14928a9f7dcb9"
 
 [[package]]
 name = "flake8-helper"
@@ -9101,4 +9105,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "2615aef951d0a48f34c12d20bc6253d3b4ab0efa167877ff4d8aff3e2c15ea14"
+content-hash = "1383f10b512c27571168aa003fe72f18b06d30be31924083bee8834742e95ad2"

@@ -36,8 +36,9 @@ _DESTINATIONS: t.Dict[str, DestinationInfo] = {}
 class destination(Destination[GenericDestinationClientConfiguration, "DestinationClient"]):
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities(
-            self.config_params.get("loader_file_format", "puae-jsonl"),
-            self.config_params.get("naming_convention", "direct"),
+            preferred_loader_file_format=self.config_params.get("loader_file_format", "puae-jsonl"),
+            naming_convention=self.config_params.get("naming_convention", "direct"),
+            max_table_nesting=self.config_params.get("max_table_nesting", None),
         )
 
     @property

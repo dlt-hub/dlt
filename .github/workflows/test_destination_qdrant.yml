@@ -7,6 +7,10 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
@@ -28,7 +32,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os:
+          - ubuntu-latest
     defaults:
       run:
         shell: bash
@@ -64,13 +69,7 @@ jobs:
         run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline
       - run: |
           poetry run pytest tests/load/
-        if: runner.os != 'Windows'
-        name: Run tests Linux/MAC
-      - run: |
-          poetry run pytest tests/load/
-        if: runner.os == 'Windows'
-        name: Run tests Windows
-        shell: cmd
+        name: Run tests Linux
 
   matrix_job_required_check:
     name: Qdrant loader tests

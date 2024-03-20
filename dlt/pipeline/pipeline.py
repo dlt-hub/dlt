@@ -457,6 +457,7 @@ class Pipeline(SupportsPipeline):
 
         # make sure destination capabilities are available
         self._get_destination_capabilities()
+
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
