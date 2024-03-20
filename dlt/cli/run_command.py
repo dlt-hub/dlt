@@ -14,7 +14,6 @@ def run_pipeline_command(
     module: str,
     pipeline: t.Optional[str] = None,
     source: t.Optional[str] = None,
-    config_path: t.Optional[str] = None,
     args: t.Optional[t.List[str]] = None,
 ) -> int:
     params = RunnerParams(
@@ -22,7 +21,6 @@ def run_pipeline_command(
         current_dir=os.getcwd(),
         pipeline_name=pipeline,
         source_name=source,
-        config_path=config_path,
         args=args,
     )
 

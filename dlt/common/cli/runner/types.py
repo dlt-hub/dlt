@@ -14,7 +14,6 @@ class RunnerParams:
     pipeline_workdir: t.Optional[str] = None
     pipeline_name: t.Optional[str] = None
     source_name: t.Optional[str] = None
-    config_path: t.Optional[str] = None
     args: t.List[str] = None
 
 
