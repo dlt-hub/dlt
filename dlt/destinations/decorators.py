@@ -1,7 +1,8 @@
 import functools
 
-from typing import Any, Type, Optional, Callable, Union
+from typing import Any, Type, Optional, Callable, Union, cast
 from typing_extensions import Concatenate
+from dlt.common.typing import AnyFun
 
 from functools import wraps
 
@@ -18,7 +19,8 @@ from dlt.common.schema import TTableSchema
 
 
 def destination(
-    *,
+    func: Optional[AnyFun] = None,
+    /,
     loader_file_format: TLoaderFileFormat = None,
     batch_size: int = 10,
     name: str = None,
@@ -35,7 +37,7 @@ def destination(
 
     #### Example Usage with Configuration and Secrets:
 
-    >>> @dlt.destination()
+    >>> @dlt.destination(batch_size=100, loader_file_format="parquet")
     >>> def my_destination(items, table, api_url: str = dlt.config.value, api_secret = dlt.secrets.value):
     >>>     print(table["name"])
     >>>     print(items)
@@ -86,4 +88,9 @@ def destination(
 
         return wrapper
 
-    return decorator
+    if func is None:
+        # we're called with parens.
+        return decorator
+
+    # we're called as @source without parens.
+    return decorator(func)  # type: ignore

@@ -72,9 +72,6 @@ def test_all_datatypes(loader_file_format: TLoaderFileFormat) -> None:
 
     item = sink_calls[0][0][0]
 
-    # filter out _dlt columns
-    item = {k: v for k, v in item.items() if not k.startswith("_dlt")}
-
     # null values are not emitted
     data_types = {k: v for k, v in data_types.items() if v is not None}
 
@@ -120,8 +117,6 @@ global_calls: List[Tuple[TDataItems, TTableSchema]] = []
 
 def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
     global global_calls
-    if table["name"].startswith("_dlt"):
-        return
     global_calls.append((items, table))
 
 
@@ -131,8 +126,6 @@ def test_instantiation() -> None:
     # NOTE: we also test injection of config vars here
     def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
         nonlocal calls
-        if table["name"].startswith("_dlt"):
-            return
         assert my_val == "something"
 
         calls.append((items, table))
@@ -187,6 +180,19 @@ def test_instantiation() -> None:
             ),
             full_refresh=True,
         )
+
+    # using decorator without args will also work
+    calls = []
+
+    @dlt.destination
+    def simple_decorator_sink(items, table, my_val=dlt.config.value):
+        nonlocal calls
+        assert my_val == "something"
+        calls.append((items, table))
+
+    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, full_refresh=True)  # type: ignore
+    p.run([1, 2, 3], table_name="items")
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
@@ -308,8 +314,6 @@ def test_naming_convention() -> None:
     # check snake case
     @dlt.destination(naming_convention="snake_case")
     def snake_sink(items, table):
-        if table["name"].startswith("_dlt"):
-            return
         assert table["name"] == "p_erson"
         assert table["columns"]["upper_case"]["name"] == "upper_case"
         assert table["columns"]["snake_case"]["name"] == "snake_case"
@@ -320,8 +324,6 @@ def test_naming_convention() -> None:
     # check default (which is direct)
     @dlt.destination()
     def direct_sink(items, table):
-        if table["name"].startswith("_dlt"):
-            return
         assert table["name"] == "PErson"
         assert table["columns"]["UpperCase"]["name"] == "UpperCase"
         assert table["columns"]["snake_case"]["name"] == "snake_case"
@@ -343,8 +345,6 @@ def test_file_batch() -> None:
 
     @dlt.destination(batch_size=0, loader_file_format="parquet")
     def direct_sink(file_path, table):
-        if table["name"].startswith("_dlt"):
-            return
         from dlt.common.libs.pyarrow import pyarrow
 
         assert table["name"] in ["person", "address"]
