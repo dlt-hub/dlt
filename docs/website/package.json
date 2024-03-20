@@ -5,7 +5,6 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "node tools/update_version_env.js && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
-    "watch-snippets": "node tools/update_snippets.js --watch",
     "build": "PYTHONPATH=. poetry run pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus build",
     "build:netlify": "PYTHONPATH=. pydoc-markdown && node tools/preprocess_docs.js && node tools/update_version_env.js && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
@@ -13,7 +12,7 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "update-snippets": "node tools/update_snippets.js",
+    "preprocess-docs": "node tools/preprocess_docs.js",
     "generate-api-reference": "PYTHONPATH=. poetry run pydoc-markdown"
   },
   "dependencies": {
