@@ -43,7 +43,7 @@ def query_using_cache(pipeline: dlt.Pipeline, ttl: int) -> Callable[..., Optiona
         except SqlClientNotAvailable:
             st.error("🚨 Cannot load data - SqlClient not available")
 
-    return do_query
+    return do_query  # type: ignore
 
 
 def query_data(
