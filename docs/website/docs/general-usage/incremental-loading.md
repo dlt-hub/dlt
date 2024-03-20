@@ -614,6 +614,36 @@ Before `dlt` starts executing incremental resources, it looks for `data_interval
 You can run DAGs manually but you must remember to specify the Airflow logical date of the run in the past (use Run with config option). For such run `dlt` will load all data from that past date until now.
 If you do not specify the past date, a run with a range (now, now) will happen yielding no data.
 
+### Reading incremental loading parameters from configuration
+
+Let's take the following example to read incremental loading parameters from the configuration file:
+
+1. In "config.toml", define the parameter `id_after` as follows:
+
+   ```toml
+   # Configuration snippet for an incremental resource
+   [incs.sources.pipeline.inc_res.id_after]
+   cursor_path = "idAfter"
+   initial_value = 10
+   ```
+   The `id_after` parameter is defined with a `cursor_path` and an `initial_value`.The `cursor_path` is essential for the resource's progress tracking.
+
+1. The `id_after` parameter is defined as an incremental source, and its value is retrieved from the configuration using `dlt.config.value`.
+   ```py
+   @dlt.resource(table_name="incs")
+   def inc_res(id_after: dlt.sources.incremental = dlt.config.value):
+       for i in range(100):
+           yield {"id": i, "idAfter": i, "name": "name-" + str(i)}
+
+
+   pipeline = dlt.pipeline(
+       pipeline_name="incs",
+       destination="duckdb",
+   )
+
+   pipeline.run(inc_res)
+   ```
+   The `inc_res` function generates a range of data, each item being a dictionary with keys `id`, `idAfter`, and `name`. The `idAfter` key is used by the incremental resource to track progress.
 
 ## Doing a full refresh
 
