@@ -17,7 +17,7 @@ from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 
 def write_load_status_page(pipeline: Pipeline) -> None:
-    """Display pipeline loading information. Will be moved to dlt package once tested"""
+    """Display pipeline loading information."""
 
     try:
         loads_df = query_data_live(
@@ -108,11 +108,18 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
             border_left_width=4,
         )
 
+    if remote_state_version != str(local_state["_state_version"]):
+        st.text("")
+        st.warning(
+            "Looks like that local state is not yet synchronized or synchronization is disabled",
+            icon="⚠️",
+        )
+
 
 def show(pipeline: dlt.Pipeline) -> None:
     st.subheader("Load info", divider="rainbow")
-    write_load_status_page(pipeline)
     last_load_info(pipeline)
+    write_load_status_page(pipeline)
     show_state_versions(pipeline)
 
     with st.sidebar:
