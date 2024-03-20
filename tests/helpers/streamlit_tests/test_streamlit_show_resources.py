@@ -13,10 +13,10 @@ import pytest
 
 import dlt
 
-from streamlit.testing.v1 import AppTest
+from streamlit.testing.v1 import AppTest  # type: ignore
 
 from dlt.helpers.streamlit_app.utils import render_with_pipeline
-from dlt.pipeline.exceptions import CannotRestorePipelineException  # type: ignore
+from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 here = Path(__file__).parent
 dlt_root = here.parent.parent.parent.absolute()
