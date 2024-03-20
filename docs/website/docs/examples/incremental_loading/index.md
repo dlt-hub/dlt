@@ -31,98 +31,12 @@ We'll learn:
 
 ### Loading code
 
-<!--@@@DLT_SNIPPET_START ./code/zendesk-snippets.py::markdown_source-->
-```py
-from typing import Optional, Dict, Any, Tuple
+<!--@@@DLT_SNIPPET ./code/zendesk-snippets.py::markdown_source-->
 
-import dlt
-from dlt.common import pendulum
-from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.typing import TAnyDateTime
-from dlt.sources.helpers.requests import client
-
-@dlt.source(max_table_nesting=2)
-def zendesk_support(
-    credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
-        year=2000, month=1, day=1
-    ),
-    end_date: Optional[TAnyDateTime] = None,
-):
-    """
-    Retrieves data from Zendesk Support for tickets events.
-
-    Args:
-        credentials: Zendesk credentials (default: dlt.secrets.value)
-        start_date: Start date for data extraction (default: 2000-01-01)
-        end_date: End date for data extraction (default: None).
-            If end time is not provided, the incremental loading will be
-            enabled, and after the initial run, only new data will be retrieved.
-
-    Returns:
-        DltResource.
-    """
-    # Convert start_date and end_date to Pendulum datetime objects
-    start_date_obj = ensure_pendulum_datetime(start_date)
-    end_date_obj = ensure_pendulum_datetime(end_date) if end_date else None
-
-    # Convert Pendulum datetime objects to Unix timestamps
-    start_date_ts = start_date_obj.int_timestamp
-    end_date_ts: Optional[int] = None
-    if end_date_obj:
-        end_date_ts = end_date_obj.int_timestamp
-
-    # Extract credentials from secrets dictionary
-    auth = (credentials["email"], credentials["password"])
-    subdomain = credentials["subdomain"]
-    url = f"https://{subdomain}.zendesk.com"
-
-    # we use `append` write disposition, because objects in ticket_events endpoint are never updated
-    #  so we do not need to merge
-    # we set primary_key so allow deduplication of events by the `incremental` below in the rare case
-    #  when two events have the same timestamp
-    @dlt.resource(primary_key="id", write_disposition="append")
-    def ticket_events(
-        timestamp: dlt.sources.incremental[int] = dlt.sources.incremental(
-            "timestamp",
-            initial_value=start_date_ts,
-            end_value=end_date_ts,
-            allow_external_schedulers=True,
-        ),
-    ):
-        # URL For ticket events
-        # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/ticket_events.json?start_time=946684800'
-        event_pages = get_pages(
-            url=url,
-            endpoint="/api/v2/incremental/ticket_events.json",
-            auth=auth,
-            data_point_name="ticket_events",
-            params={"start_time": timestamp.last_value},
-        )
-        for page in event_pages:
-            yield page
-            # stop loading when using end_value and end is reached.
-            # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
-            if timestamp.end_out_of_range:
-                return
-
-    return ticket_events
-```
-<!--@@@DLT_SNIPPET_END ./code/zendesk-snippets.py::markdown_source-->
 
 Run the pipeline:
 
 
-<!--@@@DLT_SNIPPET_START ./code/zendesk-snippets.py::markdown_pipeline-->
-```py
-if __name__ == "__main__":
-    # create dlt pipeline
-    pipeline = dlt.pipeline(
-        pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
-    )
+<!--@@@DLT_SNIPPET ./code/zendesk-snippets.py::markdown_pipeline-->
 
-    load_info = pipeline.run(zendesk_support())
-    print(load_info)
-```
-<!--@@@DLT_SNIPPET_END ./code/zendesk-snippets.py::markdown_pipeline-->
 

@@ -40,20 +40,8 @@ Make sure that your `dlt` version is **0.3.15** or above. Check it in the termin
 
 For starters, let's load a list of Python dictionaries into DuckDB and inspect the created dataset. Here is the code:
 
-<!--@@@DLT_SNIPPET_START ./getting-started-snippets.py::start-->
-```py
-import dlt
+<!--@@@DLT_SNIPPET ./getting-started-snippets.py::start-->
 
-data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
-
-pipeline = dlt.pipeline(
-    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
-)
-load_info = pipeline.run(data, table_name="users")
-
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END ./getting-started-snippets.py::start-->
 
 When you look at the code above, you can see that we:
 1. Import the `dlt` library.
