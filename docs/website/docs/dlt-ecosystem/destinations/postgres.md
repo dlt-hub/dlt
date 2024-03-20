@@ -98,13 +98,4 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-po
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_SNIPPET_START tuba::postgres-->
-## Additional Setup Guides
-
-- [Load data from HubSpot to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-postgres)
-- [Load data from GitHub to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
-- [Load data from Chess.com to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
-- [Load data from Notion to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
-- [Load data from Google Analytics to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-postgres)
-- [Load data from Google Sheets to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
-- [Load data from Stripe to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
 <!--@@@DLT_SNIPPET_END tuba::postgres-->
