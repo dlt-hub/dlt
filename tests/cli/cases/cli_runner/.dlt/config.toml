@@ -1,0 +1,4 @@
+restore_from_destination = false # block restoring from destination
+
+[runtime]
+log_level = "WARNING" # the system log level of dlt

@@ -586,6 +586,14 @@ def main() -> int:
         help="Source or resource name",
     )
 
+    # TODO: enable once pipeline.run with full refresh option is available
+    # run_cmd.add_argument(
+    #     "--full-refresh",
+    #     action="store_true",
+    #     default=False,
+    #     help="When used pipeline will run in full-refresh mode",
+    # )
+
     run_cmd.add_argument(
         "--args",
         "-a",
@@ -610,7 +618,12 @@ def main() -> int:
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
     elif args.command == "run":
-        return run_pipeline_command(args.module, args.pipeline, args.source, None, args.args)
+        return run_pipeline_command(
+            args.module,
+            args.pipeline,
+            args.source,
+            args.args,
+        )
     elif args.command == "pipeline":
         if args.list_pipelines:
             return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)

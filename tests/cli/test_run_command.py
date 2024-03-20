@@ -13,17 +13,16 @@ from dlt.cli import echo, run_command
 
 from tests.utils import TESTS_ROOT
 
-DEPLOY_PIPELINE = TESTS_ROOT / "cli/cases/deploy_pipeline"
-DUMMY_PIPELINE = DEPLOY_PIPELINE / "dummy_pipeline.py"
+RUNNER_PIPELINES = TESTS_ROOT / "cli/cases/cli_runner"
+DUMMY_PIPELINE = RUNNER_PIPELINES / "pipeline.py"
 
 
 def test_run_command_requires_working_directory_same_as_pipeline_working_directory(tmp_path):
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
             str(DUMMY_PIPELINE),
-            "p",
-            "example_resource",
-            None,
+            "dummy_pipeline",
+            "squares_resource",
             ["write_disposition=merge", "loader_file_format=jsonl"],
         )
 
