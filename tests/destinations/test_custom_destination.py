@@ -169,16 +169,16 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(global_calls) == 1
 
-    # pass None credentials reference
-    with pytest.raises(InvalidDestinationReference):
-        p = dlt.pipeline(
-            "sink_test",
-            destination=Destination.from_reference("destination", destination_callable=None),
-            full_refresh=True,
-        )
+    # pass None as callable arg will fail on load
+    p = dlt.pipeline(
+        "sink_test",
+        destination=Destination.from_reference("destination", destination_callable=None),
+        full_refresh=True,
+    )
+    with pytest.raises(PipelineStepFailed):
         p.run([1, 2, 3], table_name="items")
 
-    # pass invalid credentials module
+    # pass invalid string reference will fail on instantiation
     with pytest.raises(InvalidDestinationReference):
         p = dlt.pipeline(
             "sink_test",
@@ -187,7 +187,6 @@ def test_instantiation() -> None:
             ),
             full_refresh=True,
         )
-        p.run([1, 2, 3], table_name="items")
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)

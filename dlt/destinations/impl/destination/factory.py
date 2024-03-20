@@ -6,8 +6,10 @@ from types import ModuleType
 from dlt.common.typing import AnyFun
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.destinations.exceptions import DestinationTransientException
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common import logger
 
 from dlt.destinations.impl.destination.configuration import (
     GenericDestinationClientConfiguration,
@@ -86,7 +88,22 @@ class destination(Destination[GenericDestinationClientConfiguration, "Destinatio
                     f"Could not find callable function at {destination_callable}"
                 ) from e
 
-        if not callable(destination_callable):
+        # provide dummy callable for cases where no callable is provided
+        # this is needed for cli commands to work
+        if not destination_callable:
+            logger.warning(
+                "No destination callable provided, providing dummy callable which will fail on"
+                " load."
+            )
+
+            def dummy_callable(*args: t.Any, **kwargs: t.Any) -> None:
+                raise DestinationTransientException(
+                    "You tried to load to a custom destination without a valid callable."
+                )
+
+            destination_callable = dummy_callable
+
+        elif not callable(destination_callable):
             raise ConfigurationValueError("Resolved Sink destination callable is not a callable.")
 
         # resolve destination name
