@@ -15,6 +15,7 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException
 
 from dlt.cli import echo as fmt
 
+
 DLT_PIPELINE_COMMAND_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface"
 
 
@@ -28,12 +29,6 @@ def pipeline_command(
     hot_reload: Optional[bool] = False,
     **command_kwargs: Any,
 ) -> None:
-    if pipelines_dir:
-        fmt.secho(
-            "When passing pipelines directory please make sure it contains relevant pipelines",
-            fg="blue",
-        )
-
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
