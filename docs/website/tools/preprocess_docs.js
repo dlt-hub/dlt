@@ -153,15 +153,17 @@ function getSnippet(fileName, snippetName) {
  */
 function insertSnippets(fileName, lines) {
   const result = []
+  let snippetCount = 0;
   for (let line of lines) {
     if (line.includes(SNIPPET_MARKER)) {
       const snippetName = extractMarkerContent(SNIPPET_MARKER, line);
       snippet = getSnippet(fileName, snippetName);
       result.push(...snippet);
+      snippetCount+=1;
     }
     result.push(line);
   }
-  return result;
+  return [snippetCount, result];
 }
 
 
@@ -170,9 +172,10 @@ function insertSnippets(fileName, lines) {
  */
 function insertTubaLinks(lines) {
   const result = []
+  let tubaCount = 0;
   for (let line of lines) {
     if (line.includes(TUBA_MARKER)) {
-      const tubaTag = extractMarkerContent(SNIPPET_MARKER, line);
+      const tubaTag = extractMarkerContent(TUBA_MARKER, line);
       const links = tubaConfig.filter((link) => link.tags.includes(tubaTag));
       if (links.length > 0) {
         result.push("## Additional Setup guides")
@@ -182,10 +185,11 @@ function insertTubaLinks(lines) {
       } else {
         // we could warn here, but it is a bit too verbose
       }
+      tubaCount+=1;
     }
     result.push(line);
   }
-  return result;
+  return [tubaCount, result];
 }
 
 /** 
@@ -203,6 +207,8 @@ function removeRemainingMarkers(lines) {
 function preprocess_docs() {
     console.log("Processing docs...");
     let processedFiles = 0;
+    let insertedSnippets = 0;
+    let processedTubaBlocks = 0;
     for (const fileName of walkSync(MD_SOURCE_DIR)) {
         if (!MOVE_FILES_EXTENSION.includes(path.extname(fileName))) {
             continue
@@ -222,14 +228,19 @@ function preprocess_docs() {
         let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
 
         // insert stuff
-        lines = insertSnippets(fileName, lines);
-        lines = insertTubaLinks(lines);
+        [snippetCount, lines] = insertSnippets(fileName, lines);
+        insertedSnippets += snippetCount;
+        [tubaCount, lines] = insertTubaLinks(lines);
+        processedTubaBlocks += tubaCount;
         lines = removeRemainingMarkers(lines);
 
         fs.writeFileSync(targetFileName, lines.join("\n"));
         processedFiles += 1;
     }
     console.log(`Processed ${processedFiles} files.`);
+    console.log(`Inserted ${insertedSnippets} snippets.`);
+    console.log(`Processed ${processedTubaBlocks} tuba blocks.`);
+
 }
 
 
