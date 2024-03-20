@@ -25,7 +25,7 @@ pip install dlt
 
 ## Set up a destination function for your pipeline
 
-The custom destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which gets called for all items loaded during a pipeline run or load operation. 
+The custom destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which gets called for all items loaded during a pipeline run or load operation.
 With the `@dlt.destination` you can convert any function that takes two arguments into a `dlt` destination.
 
 A very simple dlt pipeline that pushes a list of items into a destination function might look like this:
@@ -78,7 +78,7 @@ this can be `jsonl` or `parquet`.
 * The `skip_dlt_columns_and_tables` parameter on the destination decorator defines wether internal tables and columns will be fed into the custom destination function. This is set to `True` by default.
 
 :::note
-* The custom destination sets the `max_nesting_level` to 0 by default, which means no subtables will be generated during the normalization phase. 
+* The custom destination sets the `max_nesting_level` to 0 by default, which means no subtables will be generated during the normalization phase.
 * The custom destination also skips all internal tables and columns by default, if you need these, set `skip_dlt_columns_and_tables` to False.
 :::
 
@@ -175,3 +175,7 @@ There are multiple ways to reference the custom destination function you want to
 
 `@dlt.destination` does not support staging files in remote locations before being called at this time. If you need this feature, please let us know.
 
+## What's next
+
+* Check out our [Custom BigQuery Destination](../../examples/custom_destination_bigquery/) example.
+* Need a help with building a custom destination? Ask your questions in our [Slack Community](https://dlthub.com/community) technical help channel.
