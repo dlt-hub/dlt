@@ -29,7 +29,6 @@ def _run_through_sink(
     items: TDataItems,
     loader_file_format: TLoaderFileFormat,
     columns=None,
-    filter_dlt_tables: bool = True,
     batch_size: int = 10,
 ) -> List[Tuple[TDataItems, TTableSchema]]:
     """
@@ -40,8 +39,6 @@ def _run_through_sink(
     @dlt.destination(loader_file_format=loader_file_format, batch_size=batch_size)
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
         nonlocal calls
-        if table["name"].startswith("_dlt") and filter_dlt_tables:
-            return
         # convert pyarrow table to dict list here to make tests more simple downstream
         if loader_file_format == "parquet":
             items = items.to_pylist()  # type: ignore
@@ -94,17 +91,17 @@ def test_batch_size(loader_file_format: TLoaderFileFormat, batch_size: int) -> N
     if batch_size == 1:
         assert len(sink_calls) == 100
         # one item per call
-        assert sink_calls[0][0][0].items() > {"id": 0, "value": "0"}.items()
+        assert sink_calls[0][0][0].items() == {"id": 0, "value": "0"}.items()
     elif batch_size == 10:
         assert len(sink_calls) == 10
         # ten items in first call
         assert len(sink_calls[0][0]) == 10
-        assert sink_calls[0][0][0].items() > {"id": 0, "value": "0"}.items()
+        assert sink_calls[0][0][0].items() == {"id": 0, "value": "0"}.items()
     elif batch_size == 23:
         assert len(sink_calls) == 5
         # 23 items in first call
         assert len(sink_calls[0][0]) == 23
-        assert sink_calls[0][0][0].items() > {"id": 0, "value": "0"}.items()
+        assert sink_calls[0][0][0].items() == {"id": 0, "value": "0"}.items()
 
     # check all items are present
     all_items = set()
@@ -165,7 +162,7 @@ def test_instantiation() -> None:
         "sink_test",
         destination=Destination.from_reference(
             "destination",
-            destination_callable="tests.destinations.test_generic_destination.global_sink_func",
+            destination_callable="tests.destinations.test_custom_destination.global_sink_func",
         ),
         full_refresh=True,
     )
@@ -200,7 +197,11 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     # provoke errors on resources
     provoke_error: Dict[str, int] = {}
 
-    @dlt.destination(loader_file_format=loader_file_format, batch_size=batch_size)
+    @dlt.destination(
+        loader_file_format=loader_file_format,
+        batch_size=batch_size,
+        skip_dlt_columns_and_tables=False,
+    )
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
         nonlocal calls
         table_name = table["name"]
@@ -434,3 +435,76 @@ def test_config_spec() -> None:
     dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
         [1, 2, 3], table_name="items"
     )
+
+
+@pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
+@pytest.mark.parametrize("remove_stuff", [True, False])
+def test_remove_internal_tables_and_columns(loader_file_format, remove_stuff) -> None:
+    found_dlt_table = False
+    found_dlt_column = False
+    found_dlt_column_value = False
+
+    @dlt.destination(
+        skip_dlt_columns_and_tables=remove_stuff, loader_file_format=loader_file_format
+    )
+    def test_sink(items, table):
+        nonlocal found_dlt_table, found_dlt_column, found_dlt_column_value
+        if table["name"].startswith("_dlt"):
+            found_dlt_table = True
+        for column in table["columns"].keys():
+            if column.startswith("_dlt"):
+                found_dlt_column = True
+
+        # check actual data items
+        if loader_file_format == "puae-jsonl":
+            for item in items:
+                for key in item.keys():
+                    if key.startswith("_dlt"):
+                        found_dlt_column_value = True
+        else:
+            for column in items.column_names:
+                if column.startswith("_dlt"):
+                    found_dlt_column_value = True
+
+    # test with and without removing
+    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p.run([{"id": 1, "value": "1"}], table_name="some_table")
+
+    assert found_dlt_column != remove_stuff
+    assert found_dlt_table != remove_stuff
+    assert found_dlt_column_value != remove_stuff
+
+
+@pytest.mark.parametrize("nesting", [None, 0, 1, 3])
+def test_max_nesting_level(nesting: int) -> None:
+    # 4 nesting levels
+    data = [
+        {
+            "level": 1,
+            "children": [{"level": 2, "children": [{"level": 3, "children": [{"level": 4}]}]}],
+        }
+    ]
+
+    found_tables = set()
+
+    @dlt.destination(loader_file_format="puae-jsonl", max_table_nesting=nesting)
+    def nesting_sink(items, table):
+        nonlocal found_tables
+        found_tables.add(table["name"])
+
+    @dlt.source(max_table_nesting=2)
+    def source():
+        yield dlt.resource(data, name="data")
+
+    p = dlt.pipeline("sink_test_max_nesting", destination=nesting_sink, full_refresh=True)
+    p.run(source())
+
+    # fall back to source setting
+    if nesting is None:
+        assert len(found_tables) == 3
+    else:
+        # use destination setting
+        assert len(found_tables) == nesting + 1
+
+    for table in found_tables:
+        assert table.startswith("data")

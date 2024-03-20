@@ -20,6 +20,8 @@ class GenericDestinationClientConfiguration(DestinationClientConfiguration):
     destination_callable: Optional[Union[str, TDestinationCallable]] = None  # noqa: A003
     loader_file_format: TLoaderFileFormat = "puae-jsonl"
     batch_size: int = 10
+    skip_dlt_columns_and_tables: bool = True
+    max_table_nesting: int = 0
 
     if TYPE_CHECKING:
 

@@ -260,6 +260,27 @@ class FollowupJob:
         return []
 
 
+class DoNothingJob(LoadJob):
+    """The most lazy class of dlt"""
+
+    def __init__(self, file_path: str) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+
+    def state(self) -> TLoadJobState:
+        # this job is always done
+        return "completed"
+
+    def exception(self) -> str:
+        # this part of code should be never reached
+        raise NotImplementedError()
+
+
+class DoNothingFollowupJob(DoNothingJob, FollowupJob):
+    """The second most lazy class of dlt"""
+
+    pass
+
+
 class JobClientBase(ABC):
     capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
