@@ -20,7 +20,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentialsWithoutDefaults,
     ConnectionStringCredentials,
 )
-from dlt.common.configuration.specs.base_configuration import is_secret_hint
+from dlt.common.configuration.specs.base_configuration import configspec, is_secret_hint
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
@@ -164,6 +164,24 @@ def test_inject_with_sections() -> None:
     pass
 
 
+def test_inject_spec_in_func_params() -> None:
+    @configspec
+    class TestConfig(BaseConfiguration):
+        base_value: str
+
+    # if any of args (ie. `init` below) is an instance of SPEC, we use it as initial value
+
+    @with_config(spec=TestConfig)
+    def test_spec_arg(base_value=dlt.config.value, init: TestConfig = None):
+        return base_value
+
+    # spec used to wrap function
+    spec = get_fun_spec(test_spec_arg)
+    assert spec == TestConfig
+    # call function with init, should resolve even if we do not provide the base_value in config
+    assert test_spec_arg(init=TestConfig(base_value="A")) == "A"  # type: ignore[call-arg]
+
+
 def test_inject_with_sections_and_sections_context() -> None:
     @with_config
     def no_sections(value=dlt.config.value):
@@ -252,16 +270,35 @@ def test_partial() -> None:
 
 
 def test_base_spec() -> None:
-    class TestConfig(BaseConfiguration):
-        base_value: str
+    @configspec
+    class BaseParams(BaseConfiguration):
+        str_str: str
 
-    @with_config(sections=("test",))
-    def test_sections(value=dlt.config.value, base=TestConfig):
-        return value
+    @with_config(base=BaseParams)
+    def f_explicit_base(str_str=dlt.config.value, opt: bool = True):
+        # for testing
+        assert opt is False
+        return str_str
 
     # discovered spec should derive from TestConfig
-    spec = get_fun_spec(test_sections)
-    issubclass(spec, TestConfig)
+    spec = get_fun_spec(f_explicit_base)
+    assert issubclass(spec, BaseParams)
+    # but derived
+    assert spec != BaseParams
+
+    # call function
+    os.environ["STR_STR"] = "new_val"
+    assert f_explicit_base(opt=False) == "new_val"
+
+    # edge case, function does not take str_str but still fail because base config must resolve
+    del os.environ["STR_STR"]
+
+    @with_config(base=BaseParams)
+    def f_no_base(opt: bool = True):
+        raise AssertionError("never")
+
+    with pytest.raises(ConfigFieldMissingException):
+        f_no_base(opt=False)
 
 
 @pytest.mark.parametrize("lock", [False, True])
