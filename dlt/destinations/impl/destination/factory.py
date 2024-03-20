@@ -12,7 +12,7 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common import logger
 
 from dlt.destinations.impl.destination.configuration import (
-    GenericDestinationClientConfiguration,
+    CustomDestinationClientConfiguration,
     TDestinationCallable,
 )
 from dlt.destinations.impl.destination import capabilities
@@ -26,7 +26,7 @@ if t.TYPE_CHECKING:
 class DestinationInfo(t.NamedTuple):
     """Runtime information on a discovered destination"""
 
-    SPEC: t.Type[GenericDestinationClientConfiguration]
+    SPEC: t.Type[CustomDestinationClientConfiguration]
     f: AnyFun
     module: ModuleType
 
@@ -35,7 +35,7 @@ _DESTINATIONS: t.Dict[str, DestinationInfo] = {}
 """A registry of all the decorated destinations"""
 
 
-class destination(Destination[GenericDestinationClientConfiguration, "DestinationClient"]):
+class destination(Destination[CustomDestinationClientConfiguration, "DestinationClient"]):
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities(
             preferred_loader_file_format=self.config_params.get("loader_file_format", "puae-jsonl"),
@@ -44,7 +44,7 @@ class destination(Destination[GenericDestinationClientConfiguration, "Destinatio
         )
 
     @property
-    def spec(self) -> t.Type[GenericDestinationClientConfiguration]:
+    def spec(self) -> t.Type[CustomDestinationClientConfiguration]:
         """A spec of destination configuration resolved from the sink function signature"""
         return self._spec
 
@@ -62,12 +62,12 @@ class destination(Destination[GenericDestinationClientConfiguration, "Destinatio
         loader_file_format: TLoaderFileFormat = None,
         batch_size: int = 10,
         naming_convention: str = "direct",
-        spec: t.Type[GenericDestinationClientConfiguration] = None,
+        spec: t.Type[CustomDestinationClientConfiguration] = None,
         **kwargs: t.Any,
     ) -> None:
-        if spec and not issubclass(spec, GenericDestinationClientConfiguration):
+        if spec and not issubclass(spec, CustomDestinationClientConfiguration):
             raise ValueError(
-                "A SPEC for a sink destination must use GenericDestinationClientConfiguration as a"
+                "A SPEC for a sink destination must use CustomDestinationClientConfiguration as a"
                 " base."
             )
         # resolve callable
@@ -118,12 +118,12 @@ class destination(Destination[GenericDestinationClientConfiguration, "Destinatio
             spec=spec,
             sections=destination_sections,
             include_defaults=True,
-            base=None if spec else GenericDestinationClientConfiguration,
+            base=None if spec else CustomDestinationClientConfiguration,
         )
 
         # save destination in registry
         resolved_spec = t.cast(
-            t.Type[GenericDestinationClientConfiguration], get_fun_spec(conf_callable)
+            t.Type[CustomDestinationClientConfiguration], get_fun_spec(conf_callable)
         )
         # register only standalone destinations, no inner
         if not is_inner_callable(destination_callable):

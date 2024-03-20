@@ -15,7 +15,7 @@ TDestinationCallableParams = ParamSpec("TDestinationCallableParams")
 
 
 @configspec
-class GenericDestinationClientConfiguration(DestinationClientConfiguration):
+class CustomDestinationClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = "destination"  # type: ignore
     destination_callable: Optional[Union[str, TDestinationCallable]] = None  # noqa: A003
     loader_file_format: TLoaderFileFormat = "puae-jsonl"
