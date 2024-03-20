@@ -15,7 +15,6 @@ from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
-# type: streamlit
 st = Importer.import_module("DLT Streamlit Helpers", "streamlit")
 
 
