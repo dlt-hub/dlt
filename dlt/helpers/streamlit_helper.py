@@ -10,20 +10,13 @@ from dlt.common.destination.reference import WithStateSync
 from dlt.common.utils import flatten_list_or_items
 
 from dlt.common.libs.pandas import pandas
+from dlt.helpers.pypi import Importer
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
-try:
-    import streamlit as st
-
-    # from streamlit import SECRETS_FILE_LOC, secrets
-except ModuleNotFoundError:
-    raise MissingDependencyException(
-        "DLT Streamlit Helpers",
-        ["streamlit"],
-        "DLT Helpers for Streamlit should be run within a streamlit app.",
-    )
+# type: streamlit
+st = Importer.import_module("DLT Streamlit Helpers", "streamlit")
 
 
 # use right caching function to disable deprecation message
