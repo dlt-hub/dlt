@@ -53,15 +53,12 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         session = self._to_botocore_session()
         if self._from_session(session) and not self.is_partial():
             self.resolve()
+            self._set_default_credentials(session.get_credentials())
 
     def to_session_credentials(self) -> Dict[str, str]:
         """Return configured or new aws session token"""
         if self.aws_session_token and self.aws_access_key_id and self.aws_secret_access_key:
-            return dict(
-                aws_access_key_id=self.aws_access_key_id,
-                aws_secret_access_key=self.aws_secret_access_key,
-                aws_session_token=self.aws_session_token,
-            )
+            return super().to_session_credentials()
         sess = self._to_botocore_session()
         client = sess.create_client("sts")
         token = client.get_session_token()
