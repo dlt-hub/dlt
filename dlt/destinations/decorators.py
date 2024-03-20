@@ -25,7 +25,7 @@ def destination(
     naming_convention: str = "direct",
     skip_dlt_columns_and_tables: bool = True,
     max_table_nesting: int = 0,
-    spec: Type[GenericDestinationClientConfiguration] = GenericDestinationClientConfiguration,
+    spec: Type[GenericDestinationClientConfiguration] = None,
 ) -> Callable[
     [Callable[Concatenate[Union[TDataItems, str], TTableSchema, TDestinationCallableParams], Any]],
     Callable[TDestinationCallableParams, _destination],

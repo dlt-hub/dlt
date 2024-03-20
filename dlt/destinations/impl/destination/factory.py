@@ -15,7 +15,7 @@ from dlt.destinations.impl.destination.configuration import (
 )
 from dlt.destinations.impl.destination import capabilities
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.utils import get_callable_name
+from dlt.common.utils import get_callable_name, is_inner_callable
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.destination.destination import DestinationClient
@@ -60,9 +60,14 @@ class destination(Destination[GenericDestinationClientConfiguration, "Destinatio
         loader_file_format: TLoaderFileFormat = None,
         batch_size: int = 10,
         naming_convention: str = "direct",
-        spec: t.Type[GenericDestinationClientConfiguration] = GenericDestinationClientConfiguration,
+        spec: t.Type[GenericDestinationClientConfiguration] = None,
         **kwargs: t.Any,
     ) -> None:
+        if spec and not issubclass(spec, GenericDestinationClientConfiguration):
+            raise ValueError(
+                "A SPEC for a sink destination must use GenericDestinationClientConfiguration as a"
+                " base."
+            )
         # resolve callable
         if callable(destination_callable):
             pass
@@ -93,16 +98,21 @@ class destination(Destination[GenericDestinationClientConfiguration, "Destinatio
         destination_sections = (known_sections.DESTINATION, destination_name)
         conf_callable = with_config(
             destination_callable,
+            spec=spec,
             sections=destination_sections,
             include_defaults=True,
-            base=spec,
+            base=None if spec else GenericDestinationClientConfiguration,
         )
 
         # save destination in registry
         resolved_spec = t.cast(
             t.Type[GenericDestinationClientConfiguration], get_fun_spec(conf_callable)
         )
-        _DESTINATIONS[callable.__qualname__] = DestinationInfo(resolved_spec, callable, func_module)
+        # register only standalone destinations, no inner
+        if not is_inner_callable(destination_callable):
+            _DESTINATIONS[destination_callable.__qualname__] = DestinationInfo(
+                resolved_spec, destination_callable, func_module
+            )
 
         # remember spec
         self._spec = resolved_spec or spec
