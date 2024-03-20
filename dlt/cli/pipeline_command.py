@@ -30,10 +30,12 @@ def pipeline_command(
     hot_reload: Optional[bool] = False,
     **command_kwargs: Any,
 ) -> None:
-    fmt.secho(
-        "When passing pipelines directory please make sure it contains relevant pipelines",
-        fg="blue",
-    )
+    if pipelines_dir:
+        fmt.secho(
+            "When passing pipelines directory please make sure it contains relevant pipelines",
+            fg="blue",
+        )
+
     if operation == "list":
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
