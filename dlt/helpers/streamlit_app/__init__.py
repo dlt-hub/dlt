@@ -2,9 +2,7 @@ from dlt.common.exceptions import MissingDependencyException
 
 
 try:
-    import streamlit    # type: ignore
-
-    # from streamlit import SECRETS_FILE_LOC, secrets
+    import streamlit
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "DLT Streamlit Helpers",
