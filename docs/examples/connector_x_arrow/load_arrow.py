@@ -3,7 +3,6 @@ import connectorx as cx
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
-
 def read_sql_x(
     conn_str: ConnectionStringCredentials = dlt.secrets.value,
     query: str = dlt.config.value,
@@ -14,7 +13,6 @@ def read_sql_x(
         return_type="arrow2",
         protocol="binary",
     )
-
 
 def genome_resource():
     # create genome resource with merge on `upid` primary key
