@@ -201,10 +201,16 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
             if line is None and root_table_name in self.schema.tables:
-                partial_update = self._normalize_chunk(
-                    root_table_name, [{}], False, skip_write=True
-                )
-                schema_updates.append(partial_update)
+                # TODO: we should push the truncate jobs via package state
+                # not as empty jobs. empty jobs should be reserved for
+                # materializing schemas and other edge cases ie. empty parquet files
+                root_table = self.schema.tables[root_table_name]
+                if not has_table_seen_data(root_table):
+                    # if this is a new table, add normalizer columns
+                    partial_update = self._normalize_chunk(
+                        root_table_name, [{}], False, skip_write=True
+                    )
+                    schema_updates.append(partial_update)
                 self.load_storage.write_empty_items_file(
                     self.load_id,
                     self.schema.name,

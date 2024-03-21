@@ -562,7 +562,10 @@ class Schema:
             for t in self._schema_tables.values()
             if not t["name"].startswith(self._dlt_tables_prefix)
             and (
-                (include_incomplete or len(self.get_table_columns(t["name"], include_incomplete)) > 0)
+                (
+                    include_incomplete
+                    or len(self.get_table_columns(t["name"], include_incomplete)) > 0
+                )
                 and (not seen_data_only or utils.has_table_seen_data(t))
             )
         ]
