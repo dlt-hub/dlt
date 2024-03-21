@@ -37,6 +37,7 @@ from dlt.destinations import filesystem, redshift, dummy
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
+from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
@@ -46,6 +47,7 @@ from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
+    assert_data_table_counts,
     assert_load_info,
     airtable_emojis,
     load_data_table_counts,
@@ -1857,3 +1859,55 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     assert len(schema_hashset) == 1
+
+
+def test_yielding_empty_list_creates_table() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="empty_start",
+        destination="duckdb",
+        dataset_name="mydata",
+    )
+
+    # empty list should create empty table in the destination but with the required schema
+    extract_info = pipeline.extract(
+        [MaterializedEmptyList()],
+        table_name="empty",
+        columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+    )
+    print(extract_info)
+    normalize_info = pipeline.normalize()
+    print(normalize_info)
+    assert normalize_info.row_counts["empty"] == 0
+    load_info = pipeline.load()
+    # print(load_info.asstr(verbosity=3))
+    assert_load_info(load_info)
+    assert_data_table_counts(pipeline, {"empty": 0})
+    # make sure we have expected columns
+    assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
+        "id",
+        "_dlt_load_id",
+        "_dlt_id",
+    }
+
+    # load some data
+    pipeline.run([{"id": 1}], table_name="empty")
+    assert_data_table_counts(pipeline, {"empty": 1})
+
+    # update schema on existing table
+    pipeline.run(
+        [MaterializedEmptyList()],
+        table_name="empty",
+        columns=[{"name": "user_name", "data_type": "text", "nullable": True}],
+    )
+    assert_data_table_counts(pipeline, {"empty": 1})
+    assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
+        "id",
+        "_dlt_load_id",
+        "_dlt_id",
+        "user_name",
+    }
+    with pipeline.sql_client() as client:
+        with client.execute_query("SELECT id, user_name FROM empty") as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == 1
+            assert rows[0] == (1, None)
