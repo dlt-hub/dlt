@@ -25,7 +25,7 @@ To write an Arrow source, pass any `pyarrow.Table`, `pyarrow.RecordBatch` or `pa
 
 This example loads a Pandas dataframe to a Snowflake table:
 
-```python
+```py
 import dlt
 from dlt.common import pendulum
 import pandas as pd
@@ -45,7 +45,7 @@ pipeline.run(df, table_name="orders")
 
 A `pyarrow` table can be loaded in the same way:
 
-```python
+```py
 import pyarrow as pa
 
 # Create dataframe and pipeline same as above
@@ -96,7 +96,7 @@ Usage is the same as without other dlt resources. Refer to the [incremental load
 
 Example:
 
-```python
+```py
 import dlt
 from dlt.common import pendulum
 import pandas as pd
@@ -144,7 +144,7 @@ All struct types are represented as `complex` and will be loaded as JSON (if des
 even if they are present in the destination.
 
 If you want to represent nested data as separated tables, you must yield panda frames and arrow tables as records. In the examples above:
-```python
+```py
 # yield panda frame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
 

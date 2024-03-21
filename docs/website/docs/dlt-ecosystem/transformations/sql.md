@@ -12,22 +12,24 @@ including statements that change the database schema or data in the tables. In t
 insert a row into the `customers` table. Note that the syntax is the same as for any standard `dbapi`
 connection.
 
-```python
+```py
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 try:
     with pipeline.sql_client() as client:
         client.sql_client.execute_sql(
-            f"INSERT INTO customers VALUES (%s, %s, %s)",
+            "INSERT INTO customers VALUES (%s, %s, %s)",
             10,
             "Fred",
             "fred@fred.com"
         )
+except Exception:
+    ...
 ```
 
 In the case of SELECT queries, the data is returned as a list of rows, with the elements of a row
 corresponding to selected columns.
 
-```python
+```py
 try:
     with pipeline.sql_client() as client:
         res = client.execute_sql(
@@ -36,6 +38,8 @@ try:
         )
         # prints column values of the first row
         print(res[0])
+except Exception:
+    ...
 ```
 
 ## Other transforming tools

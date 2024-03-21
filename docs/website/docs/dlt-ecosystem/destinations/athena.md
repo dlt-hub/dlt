@@ -10,7 +10,7 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 
 ## Install dlt with Athena
 **To install the DLT library with Athena dependencies:**
-```
+```sh
 pip install dlt[athena]
 ```
 
@@ -18,7 +18,7 @@ pip install dlt[athena]
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new `dlt` project as follows:
-   ```bash
+   ```sh
    dlt init chess athena
    ```
    > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
@@ -27,7 +27,7 @@ Let's start by initializing a new `dlt` project as follows:
 ### 2. Setup bucket storage and Athena credentials
 
 First, install dependencies by running:
-```
+```sh
 pip install -r requirements.txt
 ```
 or with `pip install dlt[athena]`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
@@ -122,7 +122,7 @@ If you decide to change the [filename layout](./filesystem#data-loading) from th
 ### Iceberg data tables
 You can save your tables as Iceberg tables to Athena. This will enable you, for example, to delete data from them later if you need to. To switch a resource to the iceberg table format, supply the table_format argument like this:
 
-```python
+```py
 @dlt.resource(table_format="iceberg")
 def data() -> Iterable[TDataItem]:
     ...

@@ -7,7 +7,7 @@ from typing import Any, Type, Literal, Union, cast
 from enum import Enum
 
 from dlt.common import pendulum, json, Decimal, Wei
-from dlt.common.json import custom_pua_remove
+from dlt.common.json import custom_pua_remove, json
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.data_types.typing import TDataType
@@ -104,6 +104,14 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             elif to_type == "bigint":
                 return int(value.value)
         return value
+
+    if to_type == "complex":
+        # try to coerce from text
+        if from_type == "text":
+            try:
+                return json.loads(value)
+            except Exception:
+                raise ValueError(value)
 
     if to_type == "text":
         if from_type == "complex":

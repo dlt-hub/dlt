@@ -179,7 +179,7 @@ def load_data_with_retry(pipeline, data):
 
 :::warning
 To run this example you need to provide Slack incoming hook in `.dlt/secrets.toml`:
-```python
+```py
 [runtime]
 slack_incoming_hook="https://hooks.slack.com/services/***"
 ```

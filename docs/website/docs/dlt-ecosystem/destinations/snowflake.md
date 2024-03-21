@@ -8,19 +8,19 @@ keywords: [Snowflake, destination, data warehouse]
 
 ## Install dlt with Snowflake
 **To install the DLT library with Snowflake dependencies, run:**
-```
+```sh
 pip install dlt[snowflake]
 ```
 
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to Snowflake by running:**
-```
+```sh
 dlt init chess snowflake
 ```
 
 **2. Install the necessary dependencies for Snowflake by running:**
-```
+```sh
 pip install -r requirements.txt
 ```
 This will install `dlt` with the `snowflake` extra, which contains the Snowflake Python dbapi client.
@@ -162,12 +162,12 @@ To prevent dlt from forwarding the S3 bucket credentials on every command, and s
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_s3_stage
+stage_name="PUBLIC.my_s3_stage"
 ```
 
 To run Snowflake with S3 as the staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on S3
@@ -191,12 +191,12 @@ Please refer to the [Google Storage filesystem documentation](./filesystem.md#go
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_gcs_stage
+stage_name="PUBLIC.my_gcs_stage"
 ```
 
 To run Snowflake with GCS as the staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on GCS
@@ -222,12 +222,12 @@ Please consult the Snowflake Documentation on [how to create a stage for your Az
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_azure_stage
+stage_name="PUBLIC.my_azure_stage"
 ```
 
 To run Snowflake with Azure as the staging destination:
 
-```python
+```py
 # Create a dlt pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on Azure

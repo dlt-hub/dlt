@@ -95,9 +95,10 @@ const sidebars = {
             'dlt-ecosystem/destinations/redshift',
             'dlt-ecosystem/destinations/snowflake',
             'dlt-ecosystem/destinations/athena',
-            'dlt-ecosystem/destinations/motherduck',
             'dlt-ecosystem/destinations/weaviate',
             'dlt-ecosystem/destinations/qdrant',
+            'dlt-ecosystem/destinations/destination',
+            'dlt-ecosystem/destinations/motherduck'
           ]
         },
       ],
@@ -275,7 +276,8 @@ const sidebars = {
         'examples/nested_data/index',
         'examples/qdrant_zendesk/index',
         'examples/google_sheets/index',
-        'examples/pdf_to_weaviate/index'
+        'examples/pdf_to_weaviate/index',
+        'examples/custom_destination_bigquery/index'
       ],
     },
     {

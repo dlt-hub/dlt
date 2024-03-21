@@ -27,6 +27,6 @@ This format is used by default by: **BigQuery**, **Snowflake**, **filesystem**.
 By setting the `loader_file_format` argument to `jsonl` in the run command, the pipeline will store
 your data in the jsonl format at the destination:
 
-```python
+```py
 info = pipeline.run(some_source(), loader_file_format="jsonl")
 ```
