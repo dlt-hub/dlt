@@ -54,7 +54,7 @@ def destination(
         naming_convention: defines the name of the destination that gets created by the destination decorator. This controls how table and column names are normalized. The default is direct which will keep all names the same.
         max_nesting_level: defines how deep the normalizer will go to normalize complex fields on your data to create subtables. This overwrites any settings on your source and is set to zero to not create any nested tables by default.
         skip_dlt_columns_and_tables: defines wether internal tables and columns will be fed into the custom destination function. This is set to True by default.
-        spec: defines a base configuration spec that will be used to create the config spec for this destination.
+        spec: defines a configuration spec that will be used to to inject arguments into the decorated functions. Argument not in spec will not be injected
 
     Returns:
         A callable that can be used to create a dlt custom destination instance

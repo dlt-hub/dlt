@@ -7,13 +7,14 @@ import os
 import inspect
 
 from copy import deepcopy
+from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.utils import uniq_id
-from dlt.common.exceptions import InvalidDestinationReference
+from dlt.common.exceptions import DestinationTerminalException, InvalidDestinationReference
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.destinations.impl.destination.factory import _DESTINATIONS
@@ -452,30 +453,51 @@ def test_config_spec() -> None:
 
 
 def test_destination_with_spec() -> None:
+    @configspec
     class MyDestinationSpec(CustomDestinationClientConfiguration):
         my_predefined_val: str
 
     # check destination without additional config params
     @dlt.destination(spec=MyDestinationSpec)
-    def sink_func_with_spec(items: TDataItems, table: TTableSchema) -> None:
+    def sink_func_with_spec(
+        items: TDataItems, table: TTableSchema, my_predefined_val=dlt.config.value
+    ) -> None:
+        # raise DestinationTerminalException("NEVER")
         pass
 
     wrapped_callable = sink_func_with_spec().config_params["destination_callable"]
     spec = get_fun_spec(wrapped_callable)
-    assert spec is MyDestinationSpec
+    # it is exactly the type
+    assert spec == MyDestinationSpec == sink_func_with_spec().spec
+
+    # call fails because `my_predefined_val` is required part of spec, even if not injected
+    with pytest.raises(ConfigFieldMissingException):
+        info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), full_refresh=True).run(
+            [1, 2, 3], table_name="items"
+        )
+        info.raise_on_failed_jobs()
+
+    # call happens now
+    os.environ["MY_PREDEFINED_VAL"] = "VAL"
+    info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), full_refresh=True).run(
+        [1, 2, 3], table_name="items"
+    )
+    info.raise_on_failed_jobs()
 
     # check destination with additional config params
     @dlt.destination(spec=MyDestinationSpec)
     def sink_func_with_spec_and_additional_params(
         items: TDataItems, table: TTableSchema, other_val: str = dlt.config.value
     ) -> None:
-        pass
+        # other_val won't be injected but can be explicitly passed
+        assert other_val is None  # dlt.config.value evaluates to none
 
     wrapped_callable = sink_func_with_spec_and_additional_params().config_params[
         "destination_callable"
     ]
     spec = get_fun_spec(wrapped_callable)
     assert spec is MyDestinationSpec
+    os.environ["OTHER_VAL"] = "VAL"
 
     # check destination spec with incorrect baseclass
     @dlt.destination(spec=BaseConfiguration)  # type: ignore
