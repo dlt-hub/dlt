@@ -26,7 +26,7 @@ from dlt.common.destination.reference import (
 
 from dlt.destinations.impl.destination import capabilities
 from dlt.destinations.impl.destination.configuration import (
-    GenericDestinationClientConfiguration,
+    CustomDestinationClientConfiguration,
     TDestinationCallable,
 )
 
@@ -36,7 +36,7 @@ class DestinationLoadJob(LoadJob, ABC):
         self,
         table: TTableSchema,
         file_path: str,
-        config: GenericDestinationClientConfiguration,
+        config: CustomDestinationClientConfiguration,
         schema: Schema,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
@@ -140,9 +140,9 @@ class DestinationClient(JobClientBase):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, schema: Schema, config: GenericDestinationClientConfiguration) -> None:
+    def __init__(self, schema: Schema, config: CustomDestinationClientConfiguration) -> None:
         super().__init__(schema, config)
-        self.config: GenericDestinationClientConfiguration = config
+        self.config: CustomDestinationClientConfiguration = config
         # create pre-resolved callable to avoid multiple config resolutions during execution of the jobs
         self.destination_callable = create_resolved_partial(
             cast(AnyFun, self.config.destination_callable), self.config

@@ -79,4 +79,3 @@ def custom_destination_biquery_snippet() -> None:
         print(load_info)
         # @@@DLT_SNIPPET_END example
         assert_load_info(load_info)
-
