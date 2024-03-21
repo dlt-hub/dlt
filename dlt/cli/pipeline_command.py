@@ -117,6 +117,7 @@ def pipeline_command(
                 "--client.showSidebarNavigation",
                 "false",
             ]
+
             if hot_reload:
                 streamlit_cmd.append("--server.runOnSave")
                 streamlit_cmd.append("true")
