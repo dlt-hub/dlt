@@ -619,7 +619,6 @@ If you do not specify the past date, a run with a range (now, now) will happen y
 Let's take the following example to read incremental loading parameters from the configuration file:
 
 1. In "config.toml", define the parameter `id_after` as follows:
-
    ```toml
    # Configuration snippet for an incremental resource
    [incs.sources.pipeline.inc_res.id_after]
@@ -630,14 +629,14 @@ Let's take the following example to read incremental loading parameters from the
 
 1. The `id_after` parameter is defined as an incremental source, and its value is retrieved from the configuration using `dlt.config.value`.
    ```py
-   @dlt.resource(table_name="incs")
+   @dlt.resource(table_name="incremental_records")
    def inc_res(id_after: dlt.sources.incremental = dlt.config.value):
        for i in range(100):
            yield {"id": i, "idAfter": i, "name": "name-" + str(i)}
 
 
    pipeline = dlt.pipeline(
-       pipeline_name="incs",
+       pipeline_name="pipeline_with_incremental",
        destination="duckdb",
    )
 
