@@ -65,8 +65,16 @@ def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None
         # table schema contains various hints (like clustering or partition options)
         # that we do not want to show in basic view
         def essentials_f(c: Any) -> Dict[str, Any]:
-            return {k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
+            essentials: Dict[str, Any] = {}
+            for k, v in c.items():
+                if k in ["name", "data_type", "nullable"]:
+                    essentials[k] = v
+
+            return {
+                "name": essentials["name"],
+                "data_type": essentials["data_type"],
+                "nullable": essentials["nullable"],
+            }
 
         st.table(map(essentials_f, table["columns"].values()))
-
         show_data_button(pipeline, table["name"])
