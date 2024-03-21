@@ -121,9 +121,9 @@ def pipeline_command(
                 streamlit_cmd.append("--server.runOnSave")
                 streamlit_cmd.append("true")
 
+            streamlit_cmd.append("--")
+            streamlit_cmd.append(pipeline_name)
             if pipelines_dir:
-                streamlit_cmd.append("--")
-                streamlit_cmd.append(pipeline_name)
                 streamlit_cmd.append("--pipelines-dir")
                 streamlit_cmd.append(pipelines_dir)
 
