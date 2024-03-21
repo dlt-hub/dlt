@@ -441,6 +441,86 @@ def test_mark_hints() -> None:
     assert p.default_schema.tables["spec_table"]["resource"] == "with_mark"
 
 
+def test_mark_hints_with_variant() -> None:
+    @dlt.resource(primary_key="pk")
+    def with_table_hints():
+        # dispatch to table a
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A"},
+            dlt.mark.make_hints(
+                table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]
+            ),
+            create_table_variant=True,
+        )
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B"},
+            dlt.mark.make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+
+        # item to resource
+        yield {"id": 3, "pk": "C"}
+        # table a with table_hints
+        yield dlt.mark.with_table_name({"id": 4, "pk": "D"}, "table_a")
+        # table b with table_hints
+        yield dlt.mark.with_table_name({"id": 5, "pk": "E"}, "table_b")
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(with_table_hints)
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "table_a": 2,
+        "table_b": 2,
+        "with_table_hints": 1,
+    }
+    # check table counts
+    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
+
+
+def test_mark_hints_variant_dynamic_name() -> None:
+    @dlt.resource(table_name=lambda item: "table_" + item["tag"])
+    def with_table_hints():
+        # dispatch to table a
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A", "tag": "a"},
+            dlt.mark.make_hints(
+                table_name="table_a",
+                primary_key="pk",
+                columns=[{"name": "id", "data_type": "bigint"}],
+            ),
+            create_table_variant=True,
+        )
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B", "tag": "b"},
+            dlt.mark.make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+
+        # dispatch by tag
+        yield {"id": 3, "pk": "C", "tag": "c"}
+        yield {"id": 4, "pk": "D", "tag": "a"}
+        yield {"id": 5, "pk": "E", "tag": "b"}
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(with_table_hints)
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "table_a": 2,
+        "table_b": 2,
+        "table_c": 1,
+    }
+    # check table counts
+    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
+
+
 def test_restore_state_on_dummy() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
 
@@ -947,6 +1027,73 @@ def test_preserve_fields_order() -> None:
         "col_3",
         "col_2",
         "col_1",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+
+def test_preserve_new_fields_order_on_append() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item = {"c1": 1, "c2": 2, "c3": "list"}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("order_1").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+    # add columns
+    item = {"c1": 1, "c4": 2.0, "c3": "list", "c5": {"x": 1}}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("order_1").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+        "c4",
+        "c5__x",
+    ]
+
+
+def test_preserve_fields_order_incomplete_columns() -> None:
+    p = dlt.pipeline(pipeline_name="column_order", destination="dummy")
+    # incomplete columns (without data type) will be added in order of fields in data
+
+    @dlt.resource(columns={"c3": {"precision": 32}}, primary_key="c2")
+    def items():
+        yield {"c1": 1, "c2": 1, "c3": 1}
+
+    p.extract(items)
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("items").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+    # complete columns preserve order in "columns"
+    p = p.drop()
+
+    @dlt.resource(columns={"c3": {"precision": 32, "data_type": "decimal"}}, primary_key="c1")
+    def items2():
+        yield {"c1": 1, "c2": 1, "c3": 1}
+
+    p.extract(items2)
+    p.normalize()
+    # c3 was first so goes first
+    assert list(p.default_schema.get_table_columns("items").keys()) == [
+        "c3",
+        "c1",
+        "c2",
         "_dlt_load_id",
         "_dlt_id",
     ]
