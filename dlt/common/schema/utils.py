@@ -340,7 +340,7 @@ def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool:
     return a["data_type"] == b["data_type"] and a["name"] == b["name"]
 
 
-def merge_columns(
+def merge_column(
     col_a: TColumnSchema, col_b: TColumnSchema, merge_defaults: bool = True
 ) -> TColumnSchema:
     """Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
@@ -354,7 +354,7 @@ def merge_columns(
     return col_a
 
 
-def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTableSchema:
+def diff_table(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTableSchema:
     """Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
     The name is always present in returned partial.
     It returns new columns (not present in tab_a) and merges columns from tab_b into tab_a (overriding non-default hint values).
@@ -389,7 +389,7 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
                         None,
                     )
             # all other properties can change
-            merged_column = merge_columns(copy(col_a), col_b)
+            merged_column = merge_column(copy(col_a), col_b)
             if merged_column != col_a:
                 new_columns.append(merged_column)
         else:
@@ -428,11 +428,12 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
 #         return False
 
 
-def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+def merge_table(table: TTableSchema, partial_table: TPartialTableSchema) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
 
     `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`:
     * new columns are added, updated columns are replaced from diff
+    * incomplete columns in `table` that got completed in `partial_table` are removed to preserve order
     * table hints are added or replaced from diff
     * nothing gets deleted
     """
@@ -441,14 +442,20 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
         raise TablePropertiesConflictException(
             table["name"], "name", table["name"], partial_table["name"]
         )
-    diff_table = diff_tables(table, partial_table)
+    diff = diff_table(table, partial_table)
+    # remove incomplete columns in table that are complete in diff table
+    for col_name, column in diff["columns"].items():
+        if is_complete_column(column):
+            table_column = table["columns"].get(col_name)
+            if table_column and not is_complete_column(table_column):
+                table["columns"].pop(col_name)
     # add new columns when all checks passed
-    table["columns"].update(diff_table["columns"])
+    table["columns"].update(diff["columns"])
     updated_columns = table["columns"]
-    table.update(diff_table)
+    table.update(diff)
     table["columns"] = updated_columns
 
-    return diff_table
+    return diff
 
 
 def has_table_seen_data(table: TTableSchema) -> bool:
