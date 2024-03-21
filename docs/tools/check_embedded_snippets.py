@@ -9,7 +9,8 @@ from textwrap import dedent
 
 import dlt.cli.echo as fmt
 
-DOCS_DIR = "../website/docs"
+from utils import collect_markdown_files
+
 
 SNIPPET_MARKER = "```"
 ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql"]
@@ -33,31 +34,6 @@ class Snippet:
             f"Snippet No. {self.index} in {self.file} at line {self.line} with language"
             f" {self.language}"
         )
-
-
-def collect_markdown_files(verbose: bool) -> List[str]:
-    """
-    Discovers all docs markdown files
-    """
-    markdown_files: List[str] = []
-    for path, _, files in os.walk(DOCS_DIR):
-        if "api_reference" in path:
-            continue
-        if "jaffle_shop" in path:
-            continue
-        for file in files:
-            if file.endswith(".md"):
-                markdown_files.append(os.path.join(path, file))
-                if verbose:
-                    fmt.echo(f"Discovered {os.path.join(path, file)}")
-
-    if len(markdown_files) < 50:  # sanity check
-        fmt.error("Found too few files. Something went wrong.")
-        exit(1)
-
-    fmt.note(f"Discovered {len(markdown_files)} markdown files")
-
-    return markdown_files
 
 
 def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
@@ -159,10 +135,6 @@ Found {failed_count} snippets with invalid language settings.
         fmt.note("All snippets have valid language settings")
 
 
-def clear():
-    fmt.echo("\r" + " " * 200 + "\r", nl=False)
-
-
 def parse_snippets(snippets: List[Snippet], verbose: bool) -> None:
     """
     Parse all snippets with the respective parser library
@@ -171,8 +143,8 @@ def parse_snippets(snippets: List[Snippet], verbose: bool) -> None:
     failed_count = 0
     for snippet in snippets:
         # parse snippet by type
-        clear()
-        fmt.echo(f"\rParsing {snippet}", nl=False)
+        if verbose:
+            fmt.echo(f"Parsing {snippet}")
         try:
             if snippet.language == "py":
                 ast.parse(snippet.code)
@@ -188,12 +160,10 @@ def parse_snippets(snippets: List[Snippet], verbose: bool) -> None:
             else:
                 raise ValueError(f"Unknown language {snippet.language}")
         except Exception as exc:
-            clear()
             fmt.warning(f"Failed to parse {str(snippet)}")
             fmt.echo(exc)
             failed_count += 1
 
-    clear()
     if failed_count:
         fmt.error(f"Failed to parse {failed_count} snippets")
         exit(1)
@@ -224,15 +194,13 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
         count += 1
         prepare_for_linting(snippet)
         result = subprocess.run(["ruff", "check", LINT_FILE], capture_output=True, text=True)
-        clear()
-        fmt.echo(f"\rLinting {snippet} ({count} of {len(snippets)})", nl=False)
+        if verbose:
+            fmt.echo(f"Linting {snippet} ({count} of {len(snippets)})")
         if "error" in result.stdout.lower():
             failed_count += 1
-            clear()
             fmt.warning(f"Failed to lint {str(snippet)}")
             fmt.echo(result.stdout.strip())
 
-    clear()
     if failed_count:
         fmt.error(f"Failed to lint {failed_count} snippets")
         exit(1)
@@ -249,17 +217,15 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
     count = 0
     for snippet in snippets:
         count += 1
-        clear()
-        fmt.echo(f"\rType checking {snippet} ({count} of {len(snippets)})", nl=False)
+        if verbose:
+            fmt.echo(f"Type checking {snippet} ({count} of {len(snippets)})")
         prepare_for_linting(snippet)
         result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
         if "no issues found" not in result.stdout.lower():
             failed_count += 1
-            clear()
             fmt.warning(f"Failed to type check {str(snippet)}")
             fmt.echo(result.stdout.strip())
 
-    clear()
     if failed_count:
         fmt.error(f"Failed to type check {failed_count} snippets")
         exit(1)
@@ -330,3 +296,5 @@ if __name__ == "__main__":
         lint_snippets(python_snippets, args.verbose)
     if ENABLE_MYPY and args.command in ["typecheck", "full"]:
         typecheck_snippets(python_snippets, args.verbose)
+
+    fmt.note("All selected checks passed. Snippet Checker 3000 signing off.")

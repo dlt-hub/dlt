@@ -29,9 +29,10 @@ try:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
     pyarrow = None
+    pa = None
 
 try:
-    from dlt.common.libs.pandas import pandas
+    from dlt.common.libs.pandas import pandas, pandas_to_arrow
 except MissingDependencyException:
     pandas = None
 
@@ -224,7 +225,7 @@ class ArrowExtractor(Extractor):
             for tbl in (
                 (
                     # 1. Convert pandas frame(s) to arrow Table
-                    pa.Table.from_pandas(item)
+                    pandas_to_arrow(item)
                     if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
