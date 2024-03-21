@@ -49,22 +49,12 @@ class Inquirer:
         """
         # save first pipeline and source
         pipeline_name, _ = next(iter(self.pipelines.items()))
-        source_name, _ = next(iter(self.pipelines.items()))
+        source_name, _ = next(iter(self.sources.items()))
         if len(self.pipelines) > 1:
-            message, options, values = make_select_options("pipeline", self.pipelines)
-            choice = fmt.prompt(message, options, default="n")
-            if choice == "n":
-                raise FriendlyExit()
-            else:
-                pipeline_name = values[int(choice)]
+            pipeline_name = self.ask_for_pipeline()
 
         if len(self.sources) > 1:
-            message, options, values = make_select_options("resource or source", self.sources)
-            choice = fmt.prompt(message, options, default="n")
-            if choice == "n":
-                raise FriendlyExit()
-            else:
-                source_name = values[int(choice)]
+            source_name = self.ask_for_source()
 
         pipeline = self.pipelines[pipeline_name]
         resource = self.sources[source_name]
@@ -76,6 +66,27 @@ class Inquirer:
             label = "Source"
         fmt.echo(f"{label}: " + fmt.style(source_name, fg="blue", underline=True))
         return pipeline, self.sources[source_name]
+
+    def ask_for_pipeline(self) -> str:
+        if len(self.pipelines) > 1:
+            message, options, values = make_select_options("pipeline", self.pipelines)
+
+            choice = fmt.prompt(message, options, default="n")
+            if choice == "n":
+                raise FriendlyExit()
+
+            pipeline_name = values[int(choice)]
+            return pipeline_name
+
+    def ask_for_source(self) -> str:
+        message, options, values = make_select_options("resource or source", self.sources)
+
+        choice = fmt.prompt(message, options, default="n")
+        if choice == "n":
+            raise FriendlyExit()
+
+        source_name = values[int(choice)]
+        return source_name
 
     def preflight_checks(self) -> None:
         if self.params.current_dir != self.params.pipeline_workdir:
