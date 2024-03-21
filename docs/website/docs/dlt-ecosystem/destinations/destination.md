@@ -162,13 +162,13 @@ API becomes unavailable during the load resulting in a failed `dlt` pipeline run
 **Keeping the batch atomicity is on you**. For this reason it makes sense to choose a batch size that you can process in one transaction (say one api request or one database transaction) so that if this request or transaction fail repeatedly you can repeat it at the next run without pushing duplicate data to your remote location. For systems that
 are not transactional and do not tolerate duplicated data, you can use batch of size 1.
 
-Destination functions that raise exceptions are retried 5 times before giving up (`load.raise_on_max_retries` config option). If your run pipeline again, it will resume loading before extracting new data.
+Destination functions that raise exceptions are retried 5 times before giving up (`load.raise_on_max_retries` config option). If you run the pipeline again, it will resume loading before extracting new data.
 
 If your exception derives from `DestinationTerminalException`, the whole load job will be marked as failed and not retried again.
 
 :::caution
 If you wipe out the pipeline folder (where job files and destination state are saved) you will not be able to restart from the last failed batch.
-However, it fairly easy to backup and restore pipeline directory, [see details below](#manage-pipeline-state-for-incremental-loading).
+However, it is fairly easy to backup and restore the pipeline directory, [see details below](#manage-pipeline-state-for-incremental-loading).
 :::
 
 ## Increase or decrease loading parallelism
