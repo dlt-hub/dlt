@@ -1,3 +1,4 @@
+import functools
 import os
 from pathlib import Path
 from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict
@@ -5,9 +6,11 @@ from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
 from google.cloud import exceptions as gcp_exceptions
+from google.cloud.bigquery.table import _table_arg_to_table_ref
 
 from dlt.common import json, logger
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.destinations.impl.destination.destination import DestinationJsonlLoadJob
 from dlt.common.destination.reference import (
     FollowupJob,
     NewLoadJob,
@@ -43,6 +46,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.pipeline.current import destination_state
 
 
 class BigQueryTypeMapper(TypeMapper):
@@ -217,33 +221,44 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+        if self.config.loading_api == "streaming":
+            job = DestinationJsonlLoadJob(
+                table,
+                file_path,
+                self.config,
+                self.schema,
+                destination_state(),
+                functools.partial(streaming_load, self.sql_client),
+                [],
+            )
+        else:
+            job = super().start_file_load(table, file_path, load_id)
 
-        if not job:
-            try:
-                job = BigQueryLoadJob(
-                    FileStorage.get_file_name_from_file_path(file_path),
-                    self._create_load_job(table, file_path),
-                    self.config.http_timeout,
-                    self.config.retry_deadline,
-                )
-            except api_core_exceptions.GoogleAPICallError as gace:
-                reason = BigQuerySqlClient._get_reason_from_errors(gace)
-                if reason == "notFound":
-                    # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise UnknownTableException(table["name"]) from gace
-                elif (
-                    reason == "duplicate"
-                ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
-                    return self.restore_file_load(file_path)
-                elif reason in BQ_TERMINAL_REASONS:
-                    # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-                    raise LoadJobTerminalException(
-                        file_path, f"The server reason was: {reason}"
-                    ) from gace
-                else:
-                    raise DestinationTransientException(gace) from gace
-        return job
+            if not job:
+                try:
+                    job = BigQueryLoadJob(
+                        FileStorage.get_file_name_from_file_path(file_path),
+                        self._create_load_job(table, file_path),
+                        self.config.http_timeout,
+                        self.config.retry_deadline,
+                    )
+                except api_core_exceptions.GoogleAPICallError as gace:
+                    reason = BigQuerySqlClient._get_reason_from_errors(gace)
+                    if reason == "notFound":
+                        # google.api_core.exceptions.NotFound: 404 – table not found
+                        raise UnknownTableException(table["name"]) from gace
+                    elif (
+                        reason == "duplicate"
+                    ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
+                        return self.restore_file_load(file_path)
+                    elif reason in BQ_TERMINAL_REASONS:
+                        # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
+                        raise LoadJobTerminalException(
+                            file_path, f"The server reason was: {reason}"
+                        ) from gace
+                    else:
+                        raise DestinationTransientException(gace) from gace
+            return job
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -328,9 +343,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(column["name"])
-        column_def_sql = (
-            f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
-        )
+        column_def_sql = f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):
@@ -425,3 +438,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
+
+
+def streaming_load(sql_client, items, table):
+    full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
+
+    bq_client = sql_client._client
+    bq_client.insert_rows_json(full_name, items)

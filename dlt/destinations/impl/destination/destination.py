@@ -119,6 +119,8 @@ class DestinationJsonlLoadJob(DestinationLoadJob):
         # stream items
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             encoded_json = json.typed_loads(f.read())
+            if isinstance(encoded_json, dict):
+                encoded_json = [encoded_json]
 
             for item in encoded_json:
                 # find correct start position

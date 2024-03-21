@@ -1,6 +1,12 @@
 import pytest
 
+import dlt
 from dlt.common import Decimal
+from dlt.common.destination import Destination
+from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableSchema
+from dlt.common.typing import TDataItems
+from google.cloud import bigquery
 
 from tests.pipeline.utils import assert_load_info
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -36,3 +42,10 @@ def test_bigquery_numeric_types(destination_config: DestinationTestConfiguration
             row = q.fetchone()
             assert row[0] == data[0]["col_big_numeric"]
             assert row[1] == data[0]["col_numeric"]
+
+
+def test_bigquery_streaming_insert():
+    pipe = dlt.pipeline(destination="bigquery")
+    pack = pipe.run([{"field": 1}, {"field": 2}], table_name="test_streaming_items")
+
+    assert_load_info(pack)
