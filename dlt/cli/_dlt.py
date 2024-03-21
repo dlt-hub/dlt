@@ -573,7 +573,7 @@ def main() -> int:
     )
 
     run_cmd.add_argument(
-        "pipeline",
+        "pipeline_name",
         type=str,
         nargs="?",
         help="Pipeline name",
@@ -620,7 +620,7 @@ def main() -> int:
     elif args.command == "run":
         return run_pipeline_command(
             args.module,
-            args.pipeline,
+            args.pipeline_name,
             args.source,
             args.args,
         )
