@@ -28,12 +28,9 @@ We'll learn how to:
 
 <!--@@@DLT_SNIPPET ./code/chess-snippets.py::markdown_source-->
 
-
-
 ### Using context managers to retry pipeline stages separately
 
 <!--@@@DLT_SNIPPET ./code/chess-snippets.py::markdown_retry_cm-->
-
 
 :::warning
 To run this example you need to provide Slack incoming hook in `.dlt/secrets.toml`:
