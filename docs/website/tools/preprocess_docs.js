@@ -15,10 +15,9 @@ const DOCS_EXTENSIONS = [".md", ".mdx"];
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
 // examples settings
-const EXAMPLES_SOURCE_DIR = "./docs/examples/";
-const EXAMPLES_DESTINATION_DIR = "../examples/";
+const EXAMPLES_DESTINATION_DIR = "./docs/examples/";
+const EXAMPLES_SOURCE_DIR = "../examples/";
 const EXAMPLES_MAIN_SNIPPET_NAME = "example";
-const EXAMPLES_CODE_SUBDIR = "/code";
 
 // markers
 const DLT_MARKER = "@@@DLT";
@@ -249,33 +248,10 @@ function preprocess_docs() {
  */
 function syncExamples() {
   for (const exampleDir of listDirsSync(EXAMPLES_SOURCE_DIR)) {
-      const exampleName = exampleDir.split("/").slice(-1)[0];
-      const exampleDestinationDir = EXAMPLES_DESTINATION_DIR + exampleName;
 
-      // clear example destination dir
-      fs.rmSync(exampleDestinationDir, { recursive: true, force: true });
-      // create __init__.py
-      fs.mkdirSync(exampleDestinationDir, { recursive: true });
-      fs.writeFileSync(exampleDestinationDir + "/__init__.py", "");
-
-      // walk all files of example and copy to example destination
-      const exampleCodeDir = exampleDir + EXAMPLES_CODE_SUBDIR;
-      for (const fileName of walkSync(exampleCodeDir)) {
-          let lines = getSnippetFromFile(fileName, EXAMPLES_MAIN_SNIPPET_NAME);
-          if (!lines) {
-              continue;
-          }
-          lines = removeRemainingMarkers(lines);
-
-          // write file
-          const destinationFileName =  exampleDestinationDir + fileName.replace(exampleCodeDir, "").replace("-snippets", "");
-          fs.mkdirSync(path.dirname(destinationFileName), { recursive: true });
-          fs.writeFileSync(destinationFileName, lines.join("\n"));
-      }
   }
 }
 
-syncExamples();
 preprocess_docs();
 
 /**
@@ -290,7 +266,6 @@ if (process.argv.includes("--watch")) {
           return;
       }
       console.log('%s changed...', name);
-      syncExamples();
       preprocess_docs();
       lastUpdate = Date.now();
   });
