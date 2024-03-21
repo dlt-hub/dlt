@@ -171,5 +171,7 @@ load_info.raise_on_failed_jobs()
 <!--@@@DLT_SNIPPET_END ./snippets/destination-snippets.py::late_destination_access-->
 :::
 
-## Declare external destination
-You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass the destination class type or instance to `dlt` pipeline.
+## Create new destination
+You have two ways to implement a new destination:
+1. You can use `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is perfect way to implement reverse ETL destinations that push data back to REST APIs.
+2. You can implement [a full destination](../walkthroughs/create-new-destination.md) where you have a full control over load jobs and schema migration.
