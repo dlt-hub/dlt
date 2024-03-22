@@ -101,8 +101,10 @@ class PipelineScript:
                 members["pipelines"][value.pipeline_name] = value
 
             # take source and resources by their variable name
+            # and also we would like to map by resource and source name
             if isinstance(value, (DltResource, DltSource)):
                 members["sources"][name] = value
+                members["sources"][value.name] = value
 
         return members
 

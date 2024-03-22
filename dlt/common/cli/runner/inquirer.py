@@ -40,6 +40,7 @@ class Inquirer:
         self.params = params
         self.pipelines = pipeline_members.get("pipelines")
         self.sources = pipeline_members.get("sources")
+        self.preflight_checks()
 
     def maybe_ask(self) -> t.Tuple[dlt.Pipeline, t.Union[DltResource, DltSource]]:
         """Shows prompts to select pipeline, resources and sources
@@ -50,10 +51,14 @@ class Inquirer:
         # save first pipeline and source
         pipeline_name, _ = next(iter(self.pipelines.items()))
         source_name, _ = next(iter(self.sources.items()))
-        if len(self.pipelines) > 1:
+        if self.params.pipeline_name:
+            pipeline_name = self.params.pipeline_name
+        elif len(self.pipelines) > 1:
             pipeline_name = self.ask_for_pipeline()
 
-        if len(self.sources) > 1:
+        if self.params.pipeline_name:
+            source_name = self.params.pipeline_name
+        elif len(self.sources) > 1:
             source_name = self.ask_for_source()
 
         pipeline = self.pipelines[pipeline_name]
@@ -64,8 +69,9 @@ class Inquirer:
             label = "Resource"
         else:
             label = "Source"
+
         fmt.echo(f"{label}: " + fmt.style(source_name, fg="blue", underline=True))
-        return pipeline, self.sources[source_name]
+        return pipeline, resource
 
     def ask_for_pipeline(self) -> str:
         if len(self.pipelines) > 1:
@@ -89,6 +95,19 @@ class Inquirer:
         return source_name
 
     def preflight_checks(self) -> None:
+        if pipeline_name := self.params.pipeline_name:
+            if pipeline_name not in self.pipelines:
+                fmt.warning(f"Pipeline {pipeline_name} has not been found in pipeline script")
+                raise PreflightError()
+
+        if source_name := self.params.source_name:
+            if source_name not in self.sources:
+                fmt.warning(
+                    f"Source or resouce with name: {source_name} has not been found in pipeline"
+                    " script"
+                )
+                raise PreflightError()
+
         if self.params.current_dir != self.params.pipeline_workdir:
             fmt.warning(
                 "Current working directory is different from the "
@@ -122,10 +141,14 @@ class Inquirer:
 
     def check_if_runnable(self) -> None:
         if not self.pipelines:
-            raise RunnerError(f"No pipelines found in {self.params.script_path}")
+            raise RunnerError(
+                f"No pipeline instances found in pipeline script {self.params.script_path}"
+            )
 
         if not self.sources:
-            raise RunnerError(f"Could not find any source or resource {self.params.script_path}")
+            raise RunnerError(
+                f"No source or resources found in pipeline script {self.params.script_path}"
+            )
 
     def has_dlt_config(self, path: str) -> bool:
         return os.path.exists(os.path.join(path, ".dlt"))

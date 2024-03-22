@@ -18,8 +18,6 @@ class PipelineRunner:
         self.inquirer = Inquirer(self.params, self.script.pipeline_members)
 
     def __enter__(self) -> Self:
-        self.inquirer.preflight_checks()
-        self.inquirer.check_if_runnable()
         self.pipeline, self.resource = self.inquirer.maybe_ask()
         return self
 
