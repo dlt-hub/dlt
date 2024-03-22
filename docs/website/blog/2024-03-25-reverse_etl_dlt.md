@@ -193,4 +193,4 @@ Reverse ETL is just a piece of the ETL puzzle. It could be done cleaner and bett
 
 Tools will always appeal to the non technical folks. However, anyone with ability to do python pipelines can do Reverse ETL pipelines too, bringing typical benefits of code vs tool to a dev team - customisation, collaboration, best practices etc.
 
-So read more about ~~how to built a dlt destination~~ and consider giving it a try in your next reverse ETL pipeline.
+So read more about [how to built a dlt destination](https://dlthub.com/devel/dlt-ecosystem/destinations/destination) and consider giving it a try in your next reverse ETL pipeline.
