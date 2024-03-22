@@ -1,10 +1,6 @@
-from typing import ClassVar, Optional, Sequence, Tuple, List, Type
-from urllib.parse import urlparse, urlunparse
+from typing import ClassVar, Optional, Sequence, Tuple, List
+from urllib.parse import urlparse
 
-from dlt.common.configuration.specs import (
-    AwsCredentialsWithoutDefaults,
-    AzureCredentialsWithoutDefaults,
-)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -81,7 +77,6 @@ class DremioLoadJob(LoadJob, FollowupJob):
         table_name: str,
         client: DremioSqlClient,
         stage_name: Optional[str] = None,
-        staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -146,9 +141,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 table_name=table["name"],
                 client=self.sql_client,
                 stage_name=self.config.staging_data_source,
-                staging_credentials=(
-                    self.config.staging_config.credentials if self.config.staging_config else None
-                ),
             )
         return job
 
@@ -216,10 +208,8 @@ WHERE
         if len(rows) == 0:
             return False, schema_table
         for c in rows:
-            numeric_precision = (
-                c[3] if self.capabilities.schema_supports_numeric_precision else None
-            )
-            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
+            numeric_precision = c[3]
+            numeric_scale = c[4]
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),
