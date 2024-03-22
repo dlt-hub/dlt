@@ -627,22 +627,23 @@ If you do not specify the past date, a run with a range (now, now) will happen y
 
 ### Reading incremental loading parameters from configuration
 
-Let's take the following example to read incremental loading parameters from the configuration file:
+Consider the example below for reading incremental loading parameters from "config.toml". We create a `generate_incremental_records` resource that yields "id", "idAfter", and "name". This resource retrieves `cursor_path` and `initial_value` from "config.toml".
 
-1. In "config.toml", define the parameter `id_after` as follows:
+1. In "config.toml", define the `cursor_path` and `initial_value` as:
    ```toml
    # Configuration snippet for an incremental resource
-   [incremental_source.sources.pipeline.generate_incremental_records.id_after]
+   [pipeline_with_incremental.sources.generate_incremental.generate_incremental_records.id_after]
    cursor_path = "idAfter"
    initial_value = 10
    ```
-   The `id_after` parameter is defined with a `cursor_path` and an `initial_value`.The `cursor_path` is essential for the resource's progress tracking.
+   
+   `cursor_path` is assigned the value "idAfter" with an initial value of 10. 
 
-1. The `id_after` parameter is defined as an incremental source, and its value is retrieved from the configuration using `dlt.config.value`.
+1. Here's how the `generate_incremental_records` resource uses cursor_path defined in "config.toml":
    ```py
    @dlt.resource(table_name="incremental_records")
    def generate_incremental_records(id_after: dlt.sources.incremental = dlt.config.value):
-       for i in range(100):
+       for i in range(150):
            yield {"id": i, "idAfter": i, "name": "name-" + str(i)}
 
    pipeline = dlt.pipeline(
@@ -652,7 +653,7 @@ Let's take the following example to read incremental loading parameters from the
 
    pipeline.run(generate_incremental_records)
    ```
-   The `generate_incremental_records` function generates a range of data, each item being a dictionary with keys `id`, `idAfter`, and `name`. The `idAfter` key is used by the incremental resource to track progress.
+   `id_after` incrementally stores the latest `cursor_path` value for future pipeline runs.
 
 ## Doing a full refresh
 
