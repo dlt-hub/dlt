@@ -50,24 +50,23 @@ class Inquirer:
         """
         self.preflight_checks()
         pipeline_name = self.get_pipeline_name()
-        pipeline_alias_message = ""
+        real_pipeline_name = ""
         if pipeline_name in self.pipelines:
             pipeline = self.pipelines[pipeline_name]
         else:
-            pipeline = self.aliases[pipeline_name]
-            pipeline_alias_message = f" ({pipeline.pipeline_name})"
+            pipeline = t.cast(dlt.Pipeline, self.aliases[pipeline_name])
+            real_pipeline_name = f" ({pipeline.pipeline_name})"
 
         source_name = self.get_source_name()
-        source_alias_message = ""
+        real_source_name = ""
         if source_name in self.sources:
             resource = self.sources[source_name]
         else:
-            resource = self.aliases[source_name]
-            source_alias_message = f" ({resource.name})"
+            resource = self.aliases[source_name]  # type: ignore
+            real_source_name = f" ({resource.name})"
 
         fmt.echo(
-            "Pipeline: "
-            + fmt.style(pipeline_name + pipeline_alias_message, fg="blue", underline=True)
+            "Pipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
         )
 
         if isinstance(resource, DltResource):
@@ -76,7 +75,7 @@ class Inquirer:
             label = "Source"
 
         fmt.echo(
-            f"{label}: " + fmt.style(source_name + source_alias_message, fg="blue", underline=True)
+            f"{label}: " + fmt.style(source_name + real_source_name, fg="blue", underline=True)
         )
         return pipeline, resource
 
@@ -87,7 +86,7 @@ class Inquirer:
         if len(self.pipelines) > 1:
             message, options, values = make_select_options("pipeline", self.pipelines)
             choice = self.ask(message, options, default="n")
-            pipeline_name = values[int(choice)]
+            pipeline_name = values[choice]
             return pipeline_name
 
         pipeline_name, _ = next(iter(self.pipelines.items()))
@@ -100,18 +99,18 @@ class Inquirer:
         if len(self.sources) > 1:
             message, options, values = make_select_options("resource or source", self.sources)
             choice = self.ask(message, options, default="n")
-            source_name = values[int(choice)]
+            source_name = values[choice]
             return source_name
 
         source_name, _ = next(iter(self.sources.items()))
         return source_name
 
-    def ask(self, message: str, options: t.List[str], default: t.Optional[str] = None) -> str:
+    def ask(self, message: str, options: t.List[str], default: t.Optional[str] = None) -> int:
         choice = fmt.prompt(message, options, default=default)
         if choice == "n":
             raise FriendlyExit()
 
-        return choice
+        return int(choice)
 
     def preflight_checks(self) -> None:
         if pipeline_name := self.params.pipeline_name:
