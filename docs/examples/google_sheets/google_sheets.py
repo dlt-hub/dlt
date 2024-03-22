@@ -4,6 +4,18 @@ title: Google Sheets minimal example
 description: Learn how work with Google services
 keywords: [google sheets, credentials, example]
 ---
+
+In this example, you'll find a Python script that demonstrates how to load Google Sheets data using the `dlt` library.
+
+We'll learn how to:
+- use [built-in credentials](../general-usage/credentials/config_specs#gcp-credentials);
+- use [union of credentials](../general-usage/credentials/config_specs#working-with-alternatives-of-credentials-union-types);
+- create [dynamically generated resources](../general-usage/source#create-resources-dynamically).
+
+:::tip
+This example is for educational purposes. For best practices, we recommend using [Google Sheets verified source](../dlt-ecosystem/verified-sources/google_sheets.md).
+:::
+
 """
 
 __source_name__ = "google_sheets"

@@ -4,6 +4,23 @@ title: Load PDFs to Weaviate
 description: Extract text from PDF and load it into a vector database
 keywords: [pdf, weaviate, vector store, vector database, ]
 ---
+
+We'll use PyPDF2 to extract text from PDFs. Make sure you have it installed:
+
+```sh
+pip install PyPDF2
+```
+
+We start with a simple resource that lists files in specified folder. To that we add a **filter** function that removes all files that are not pdfs.
+
+To parse PDFs we use [PyPDF](https://pypdf2.readthedocs.io/en/3.0.0/user/extract-text.html) and return each page from a given PDF as separate data item.
+
+Parsing happens in `@dlt.transformer` which receives data from `list_files` resource. It splits PDF into pages, extracts text and yields pages separately
+so each PDF will correspond to many items in Weaviate `InvoiceText` class. We set the primary key and use merge disposition so if the same PDF comes twice
+we'll just update the vectors, and not duplicate.
+
+Look how we pipe data from `list_files` resource (note that resource is deselected so we do not load raw file items to destination) into `pdf_to_text` using **|** operator.
+
 """
 
 from tests.pipeline.utils import assert_load_info

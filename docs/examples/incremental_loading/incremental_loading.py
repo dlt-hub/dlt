@@ -4,6 +4,17 @@ title: Load Zendesk tickets incrementally
 description: Learn how do incremental loading in consecutive runs
 keywords: [incremental loading, example]
 ---
+
+In this example, you'll find a Python script that interacts with the Zendesk Support API to extract ticket events data.
+
+We'll learn:
+
+- How to pass [credentials](../general-usage/credentials) as dict and how to type the `@dlt.source` function arguments.
+- How to set [the nesting level](../general-usage/source#reduce-the-nesting-level-of-generated-tables).
+- How to enable [incremental loading](../general-usage/incremental-loading) for efficient data extraction.
+- How to specify [the start and end dates](../general-usage/incremental-loading#using-dltsourcesincremental-for-backfill) for the data loading and how to [opt-in to Airflow scheduler](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) by setting `allow_external_schedulers` to `True`.
+- How to work with timestamps, specifically converting them to Unix timestamps for incremental data extraction.
+- How to use the `start_time` parameter in API requests to retrieve data starting from a specific timestamp.
 """
 
 # because the example below uses credentials and it is copied to the module zendesk.py
@@ -134,7 +145,6 @@ if __name__ == "__main__":
     load_info = pipeline.run(zendesk_support())
     print(load_info)
 
-
-# check that stuff was loaded
-row_counts = pipeline.last_trace.last_normalize_info.row_counts
-assert row_counts["ticket_events"] == 17
+    # check that stuff was loaded
+    row_counts = pipeline.last_trace.last_normalize_info.row_counts
+    assert row_counts["ticket_events"] == 17

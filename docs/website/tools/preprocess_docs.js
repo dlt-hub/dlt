@@ -15,9 +15,8 @@ const DOCS_EXTENSIONS = [".md", ".mdx"];
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
 // examples settings
-const EXAMPLES_DESTINATION_DIR = "./docs/examples/";
+const EXAMPLES_DESTINATION_DIR = `./${MD_TARGET_DIR}examples/`;
 const EXAMPLES_SOURCE_DIR = "../examples/";
-const EXAMPLES_MAIN_SNIPPET_NAME = "example";
 
 // markers
 const DLT_MARKER = "@@@DLT";
@@ -243,15 +242,105 @@ function preprocess_docs() {
 }
 
 
-/**
- * Sync examples into examples folder
- */
-function syncExamples() {
-  for (const exampleDir of listDirsSync(EXAMPLES_SOURCE_DIR)) {
-
+function trimArray(lines) {
+  if (lines.length == 0) {
+    return lines;
   }
+  while (!lines[0].trim()) {
+    lines.shift();
+  }
+  while (!lines[lines.length-1].trim()) {
+    lines.pop();
+  }
+  return lines;
 }
 
+/**
+ * Sync examples into docs
+ */
+function syncExamples() {
+
+  let count = 0;
+  for (const exampleDir of listDirsSync(EXAMPLES_SOURCE_DIR)) {
+    if (exampleDir.includes("archive")) {
+      continue;
+    }
+    const exampleName = exampleDir.split("/").slice(-1)[0];
+    const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
+    const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
+    const lines = fs.readFileSync(exampleFile, 'utf8').split(/\r?\n/);
+
+    let commentCount = 0;
+    let headerCount = 0;
+
+    // separate file content
+    const header = []
+    const markdown = []
+    const code = []
+
+    for (const line of lines) {
+
+      // find file docstring boundaries
+      if (line.startsWith(`"""`)) {
+        commentCount += 1
+        if (commentCount > 2) {
+          throw new Error();
+         }
+         continue;
+      }
+
+      // find header boundaries
+      if (line.startsWith(`---`)) {
+         headerCount += 1;
+         if (headerCount > 2) {
+          throw new Error();
+         }
+         continue;
+      }
+
+      if (headerCount == 1) {
+        header.push(line);
+      }
+      else if (commentCount == 1) {
+        markdown.push(line)
+      }
+      else if (commentCount == 2) {
+        code.push(line);
+      }
+
+    }
+    
+    let output = [];
+
+
+    output.push("---")
+    output = output.concat(header);
+    output.push("---")
+
+    // add tip
+    output.push(":::info")
+    const url = `https://github.com/dlt-hub/dlt/tree/devel/docs/examples/${exampleName}`
+    output.push(`The source code for this example can be found in our repository at: `)
+    output.push(url);
+    output.push(":::")
+
+    output.push("## About this Example")
+    output = output.concat(trimArray(markdown));
+
+    output.push("### Full source code")
+    output.push("```py");
+    output = output.concat(trimArray(code));
+    output.push("```");
+
+    fs.mkdirSync(path.dirname(targetFileName), { recursive: true });
+    fs.writeFileSync(targetFileName, output.join("\n"));
+    
+    count += 1;
+  }
+  console.log(`Synced ${count} examples`)
+}
+
+syncExamples();
 preprocess_docs();
 
 /**
@@ -266,6 +355,7 @@ if (process.argv.includes("--watch")) {
           return;
       }
       console.log('%s changed...', name);
+      syncExamples();
       preprocess_docs();
       lastUpdate = Date.now();
   });

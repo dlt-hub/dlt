@@ -4,7 +4,18 @@ title: Control nested MongoDB data
 description: Learn how control nested data
 keywords: [incremental loading, example]
 ---
+
+In this example, you'll find a Python script that demonstrates how to control nested data using the `dlt` library.
+
+We'll learn how to:
+- [Adjust maximum nesting level in three ways:](../general-usage/source#reduce-the-nesting-level-of-generated-tables)
+  - Limit nesting levels with dlt decorator.
+  - Dynamic nesting level adjustment.
+  - Apply data type hints.
+- Work with [MongoDB](../dlt-ecosystem/verified-sources/mongodb) in Python and `dlt`.
+- Enable [incremental loading](../general-usage/incremental-loading) for efficient data extraction.
 """
+
 __source_name__ = "mongodb"
 
 from itertools import islice
