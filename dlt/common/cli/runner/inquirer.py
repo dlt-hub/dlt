@@ -61,14 +61,9 @@ class Inquirer:
 
         real_source_name = f" ({label}: {resource.name})"
 
-        fmt.echo(
-            "\nPipeline: "
-            + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
-        )
+        fmt.echo("\nPipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue"))
 
-        fmt.echo(
-            f"{label}: " + fmt.style(source_name + real_source_name, fg="blue", underline=True)
-        )
+        fmt.echo(f"{label}: " + fmt.style(source_name + real_source_name, fg="blue"))
         return pipeline, resource
 
     def get_pipeline_name(self) -> str:

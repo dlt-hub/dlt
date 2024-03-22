@@ -1,23 +1,34 @@
 import io
 import os
 import contextlib
+
+from unittest import mock
+
 import pytest
-import logging
-from subprocess import CalledProcessError
 
-import dlt
-from dlt.common.runners.venv import Venv
-from dlt.common.storages.file_storage import FileStorage
+from dlt.cli import run_command
 
-from dlt.cli import echo, run_command
-
+from dlt.cli.utils import parse_init_script
+from dlt.common.cli.runner.inquirer import Inquirer
+from dlt.common.cli.runner.runner import PipelineRunner
+from dlt.common.cli.runner.source_patcher import SourcePatcher
+from dlt.common.cli.runner.types import PipelineMembers
 from tests.utils import TESTS_ROOT
 
 RUNNER_PIPELINES = TESTS_ROOT / "cli/cases/cli_runner"
 TEST_PIPELINE = RUNNER_PIPELINES / "pipeline.py"
+TEST_PIPELINE_CONTENTS = open(RUNNER_PIPELINES / "pipeline.py").read().strip()
 
 
-def test_run_command_requires_working_directory_same_as_pipeline_working_directory(tmp_path):
+@pytest.fixture(scope="module")
+def ch_pipeline_dir():
+    cwd = os.getcwd()
+    os.chdir(RUNNER_PIPELINES)
+    yield
+    os.chdir(cwd)
+
+
+def test_run_command_requires_working_directory_same_as_pipeline_working_directory():
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
             str(TEST_PIPELINE),
@@ -31,7 +42,7 @@ def test_run_command_requires_working_directory_same_as_pipeline_working_directo
         assert "Please change your current directory to" in output
 
 
-def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_not_found(tmp_path):
+def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_not_found():
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
             str(TEST_PIPELINE),
@@ -42,7 +53,7 @@ def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_no
 
         output = buf.getvalue()
         assert "Pipeline pipeline_404 has not been found in pipeline script" in output
-        assert "You can choose one of: squares_pipeline" in output
+        assert "You can choose one of: quads_pipeline, squares_pipeline" in output
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
@@ -57,4 +68,54 @@ def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_no
             "Source or resouce with name: resource_404 has not been found in pipeline script."
             in output
         )
-        assert "You can choose one of: squares_resource_instance" in output
+        assert "You can choose one of: quads_resource_instance, squares_resource_instance" in output
+
+
+def test_run_command_allows_selection_of_pipeline_source_or_resource(ch_pipeline_dir):
+    with mock.patch("dlt.common.cli.runner.inquirer.Inquirer.ask", return_value=0) as mocked_ask:
+        run_command.run_pipeline_command(
+            str(TEST_PIPELINE),
+            None,
+            None,
+            ["write_disposition=append", "loader_file_format=jsonl"],
+        )
+        assert mocked_ask.call_count == 2
+
+
+expected_patched_code = """
+import dlt
+
+@dlt.resource
+
+def quads_resource():
+
+    for idx in range(10):
+
+        yield {"id": idx, "quad": idx**4}
+
+@dlt.resource
+
+def squares_resource():
+
+    for idx in range(10):
+
+        yield {"id": idx, "square": idx * idx}
+
+quads_resource_instance = quads_resource()
+
+squares_resource_instance = squares_resource()
+
+quads_pipeline = dlt.pipeline(pipeline_name="numbers_quadruples_pipeline", destination="duckdb")
+
+squares_pipeline = dlt.pipeline(pipeline_name="numbers_pipeline", destination="duckdb")
+""".strip()
+
+
+def test_pipeline_code_patcher():
+    visitor = parse_init_script(
+        "run",
+        TEST_PIPELINE_CONTENTS,
+        "pipeline",
+    )
+    patcher = SourcePatcher(visitor)
+    assert patcher.patch().strip() == expected_patched_code

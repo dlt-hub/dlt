@@ -43,11 +43,14 @@ class SourcePatcher:
 
         # FIXME: properly parse AST tree and eliminate all load_info assignments
         result = []
-        for line in script_lines:
-            if line and line.strip():
-                for variable in load_info_variables:
-                    if variable in line:
-                        line = None
+        for line in self.without_empty_lines(script_lines):
+            if line is None:
+                continue
+
+            for variable in load_info_variables:
+                if variable in str(line):
+                    line = None
+                    continue
 
             if line:
                 result.append(line)
@@ -61,6 +64,18 @@ class SourcePatcher:
             return variable.strip()
 
         return None
+
+    def without_empty_lines(self, script_lines: t.List[str]) -> t.List[str]:
+        lines = []
+        for line in script_lines:
+            if not line:
+                continue
+            if not line.strip():
+                continue
+
+            lines.append(line)
+
+        return lines
 
     def restore_indent(self, line: str) -> str:
         indent = ""
