@@ -11,7 +11,7 @@ We'll use the [GitHub API](https://docs.github.com/en/rest) to fetch the events 
 
 1. Install dlt with duckdb support:
 
-```shell
+```sh
 pip install dlt[duckdb]
 ```
 
@@ -68,20 +68,20 @@ We name the tables using a function that receives an event data and returns tabl
 
 3. Now run the script:
 
-```shell
+```sh
 python github_events_dispatch.py
 ```
 
 4. Peek at created tables:
 
-```shell
+```sh
 dlt pipeline -v github_events info
 dlt pipeline github_events trace
 ```
 
 5. And preview the data:
 
-```shell
+```sh
 dlt pipeline -v github_events show
 ```
 

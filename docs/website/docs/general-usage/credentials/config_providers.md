@@ -38,7 +38,7 @@ providers.
 
 ### Example
 
-```python
+```py
 @dlt.source
 def google_sheets(
     spreadsheet_id=dlt.config.value,
@@ -133,7 +133,7 @@ current Working Directory**.
 
 Example: If your working directory is `my_dlt_project` and your project has the following structure:
 
-```
+```text
 my_dlt_project:
   |
   pipelines/

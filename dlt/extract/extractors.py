@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Set, Dict, Any, Optional, Set
+from typing import Set, Dict, Any, Optional, List
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -29,11 +29,23 @@ try:
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
     pyarrow = None
+    pa = None
 
 try:
-    from dlt.common.libs.pandas import pandas
+    from dlt.common.libs.pandas import pandas, pandas_to_arrow
 except MissingDependencyException:
     pandas = None
+
+
+class MaterializedEmptyList(List[Any]):
+    """A list variant that will materialize tables even if empty list was yielded"""
+
+    pass
+
+
+def materialize_schema_item() -> MaterializedEmptyList:
+    """Yield this to materialize schema in the destination, even if there's no data."""
+    return MaterializedEmptyList()
 
 
 class Extractor:
@@ -49,7 +61,6 @@ class Extractor:
         load_id: str,
         storage: ExtractStorage,
         schema: Schema,
-        resources_with_items: Set[str],
         collector: Collector = NULL_COLLECTOR,
         *,
         _caps: DestinationCapabilitiesContext = None,
@@ -57,7 +68,10 @@ class Extractor:
         self.schema = schema
         self.naming = schema.naming
         self.collector = collector
-        self.resources_with_items = resources_with_items
+        self.resources_with_items: Set[str] = set()
+        """Tracks resources that received items"""
+        self.resources_with_empty: Set[str] = set()
+        """Track resources that received empty materialized list"""
         self.load_id = load_id
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
@@ -130,6 +144,9 @@ class Extractor:
         self.collector.update(table_name, inc=new_rows_count)
         if new_rows_count > 0:
             self.resources_with_items.add(resource_name)
+        else:
+            if isinstance(items, MaterializedEmptyList):
+                self.resources_with_empty.add(resource_name)
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
         if not isinstance(items, list):
@@ -224,7 +241,7 @@ class ArrowExtractor(Extractor):
             for tbl in (
                 (
                     # 1. Convert pandas frame(s) to arrow Table
-                    pa.Table.from_pandas(item)
+                    pandas_to_arrow(item)
                     if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
@@ -295,7 +312,6 @@ class ArrowExtractor(Extractor):
         # issue warnings when overriding computed with arrow
         for col_name, column in arrow_table["columns"].items():
             if src_column := computed_table["columns"].get(col_name):
-                print(src_column)
                 for hint_name, hint in column.items():
                     if (src_hint := src_column.get(hint_name)) is not None:
                         if src_hint != hint:

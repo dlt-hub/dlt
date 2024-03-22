@@ -26,7 +26,7 @@ We'll learn how to:
 
 ### Install pymongo
 
-```shell
+```sh
  pip install pymongo>=4.3.3
 ```
 

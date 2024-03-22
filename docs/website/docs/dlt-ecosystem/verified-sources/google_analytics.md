@@ -84,7 +84,7 @@ follow these steps:
 
 1. Add the following scope:
 
-   ```
+   ```text
    "https://www.googleapis.com/auth/analytics.readonly"
    ```
 
@@ -93,7 +93,7 @@ follow these steps:
 After configuring "client_id", "client_secret", and "project_id" in "secrets.toml", to generate the
 refresh token, run the following script from the root folder:
 
-```bash
+```sh
 python google_analytics/setup_script_gcp_oauth.py
 ```
 
@@ -128,7 +128,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init google_analytics duckdb
    ```
 
@@ -214,16 +214,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python google_analytics_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is
@@ -241,7 +241,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function returns a list of resources including metadata, metrics, and dimensions data from
 the Google Analytics API.
 
-```python
+```py
 @dlt.source(max_table_nesting=2)
 def google_analytics(
     credentials: Union[ GcpOAuthCredentials, GcpServiceAccountCredential ] = dlt.secrets.value,
@@ -250,6 +250,7 @@ def google_analytics(
     start_date: Optional[str] = START_DATE,
     rows_per_page: int = 1000,
 ) -> List[DltResource]:
+   ...
 ```
 
 `credentials`: GCP OAuth or service account credentials.
@@ -269,9 +270,10 @@ set to 1000.
 
 This function retrieves all the metrics and dimensions for a report from a Google Analytics project.
 
-```python
+```py
 @dlt.resource(selected=False)
 def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
+   ...
 ```
 
 `client`: This is the Google Analytics client used to make requests.
@@ -284,7 +286,7 @@ def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
 This transformer function extracts data using metadata and populates a table called "metrics" with
 the data from each metric.
 
-```python
+```py
 @dlt.transformer(data_from=get_metadata, write_disposition="replace", name="metrics")
 def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
     for metric in metadata.metrics:
@@ -304,7 +306,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="google_analytics",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -317,7 +319,7 @@ verified source.
 
 1. To load all the data from metrics and dimensions:
 
-   ```python
+   ```py
    load_data = google_analytics()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -328,7 +330,7 @@ verified source.
 
 1. To load data from a specific start date:
 
-   ```python
+   ```py
    load_data = google_analytics(start_date='2023-01-01')
    load_info = pipeline.run(load_data)
    print(load_info)

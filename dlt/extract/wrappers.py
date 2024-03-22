@@ -6,11 +6,17 @@ from dlt.common.exceptions import MissingDependencyException
 
 try:
     from dlt.common.libs.pandas import pandas
+
+    PandaFrame = pandas.DataFrame
+except MissingDependencyException:
+    PandaFrame = NoneType
+
+try:
     from dlt.common.libs.pyarrow import pyarrow
 
-    PandaFrame, ArrowTable, ArrowRecords = pandas.DataFrame, pyarrow.Table, pyarrow.RecordBatch
+    ArrowTable, ArrowRecords = pyarrow.Table, pyarrow.RecordBatch
 except MissingDependencyException:
-    PandaFrame, ArrowTable, ArrowRecords = NoneType, NoneType, NoneType
+    ArrowTable, ArrowRecords = NoneType, NoneType
 
 
 def wrap_additional_type(data: Any) -> Any:

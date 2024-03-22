@@ -3,6 +3,7 @@ import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
+
 from typing import (
     Any,
     Callable,
@@ -40,11 +41,15 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
+from dlt.common.storages.load_package import PackageStorage
+
 from dlt.common.time import ensure_pendulum_datetime, precise_time
 from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
+from dlt.common.versioned_state import TVersionedState
+from dlt.common.storages.load_package import TLoadPackageState
 
 
 class _StepInfo(NamedTuple):
@@ -454,7 +459,7 @@ class TPipelineLocalState(TypedDict, total=False):
     """Hash of state that was recently synced with destination"""
 
 
-class TPipelineState(TypedDict, total=False):
+class TPipelineState(TVersionedState, total=False):
     """Schema for a pipeline state that is stored within the pipeline working directory"""
 
     pipeline_name: str
@@ -469,9 +474,6 @@ class TPipelineState(TypedDict, total=False):
     staging_type: Optional[str]
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
-    _state_version: int
-    _version_hash: str
-    _state_engine_version: int
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
