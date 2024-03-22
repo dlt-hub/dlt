@@ -219,5 +219,5 @@ above.
     print(f"Load Information: {load_info}")
     ```
 
-<!--@@@DLT_SNIPPET_START tuba::jira-->
-<!--@@@DLT_SNIPPET_END tuba::jira-->
+<!--@@@DLT_TUBA jira-->
+

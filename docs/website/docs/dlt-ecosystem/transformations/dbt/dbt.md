@@ -83,24 +83,8 @@ for m in models:
 ## How to run dbt runner without pipeline
 You can use the dbt runner without a dlt pipeline. The example below will clone and run **jaffle shop** using a dbt profile that you supply.
 It assumes that dbt is installed in the current Python environment and the `profile.yml` is in the same folder as the Python script.
-<!--@@@DLT_SNIPPET_START ./dbt-snippets.py::run_dbt_standalone-->
-```py
-import os
+<!--@@@DLT_SNIPPET ./dbt-snippets.py::run_dbt_standalone-->
 
-from dlt.helpers.dbt import create_runner
-
-runner = create_runner(
-    None,  # use current virtual env to run dlt
-    None,  # we do not need dataset name and we do not pass any credentials in environment to dlt
-    working_dir=".",  # the package below will be cloned to current dir
-    package_location="https://github.com/dbt-labs/jaffle_shop.git",
-    package_profiles_dir=os.path.abspath("."),  # profiles.yml must be placed in this dir
-    package_profile_name="duckdb_dlt_dbt_test",  # name of the profile
-)
-
-models = runner.run_all()
-```
-<!--@@@DLT_SNIPPET_END ./dbt-snippets.py::run_dbt_standalone-->
 
 Here's an example **duckdb** profile
 ```yaml

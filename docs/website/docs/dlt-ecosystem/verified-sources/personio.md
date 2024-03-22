@@ -255,5 +255,4 @@ verified source.
    print(pipeline.run(load_data))
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::personio-->
-<!--@@@DLT_SNIPPET_END tuba::personio-->
+<!--@@@DLT_TUBA personio-->

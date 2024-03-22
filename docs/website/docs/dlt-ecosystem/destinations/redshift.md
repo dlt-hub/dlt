@@ -132,14 +132,5 @@ pipeline = dlt.pipeline(
 
 Supported loader file formats for Redshift are `sql` and `insert_values` (default). When using a staging location, Redshift supports `parquet` and `jsonl`.
 
-<!--@@@DLT_SNIPPET_START tuba::redshift-->
-## Additional Setup guides
+<!--@@@DLT_TUBA redshift-->
 
-- [Load data from Google Analytics to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-redshift)
-- [Load data from Notion to Redshift in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-redshift)
-- [Load data from Chess.com to Redshift in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-redshift)
-- [Load data from HubSpot to Redshift in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-redshift)
-- [Load data from GitHub to Redshift in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-redshift)
-- [Load data from Stripe to Redshift in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-redshift)
-- [Load data from Google Sheets to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-redshift)
-<!--@@@DLT_SNIPPET_END tuba::redshift-->

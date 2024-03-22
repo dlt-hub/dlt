@@ -196,5 +196,4 @@ verified source.
     print(load_info)
     ```
 
-<!--@@@DLT_SNIPPET_START tuba::mux-->
-<!--@@@DLT_SNIPPET_END tuba::mux-->
+<!--@@@DLT_TUBA mux-->

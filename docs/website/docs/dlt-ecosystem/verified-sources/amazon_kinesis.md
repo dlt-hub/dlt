@@ -292,5 +292,5 @@ verified source.
            print(managed_state.state)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::kinesis-->
-<!--@@@DLT_SNIPPET_END tuba::kinesis-->
+<!--@@@DLT_TUBA kinesis-->
+

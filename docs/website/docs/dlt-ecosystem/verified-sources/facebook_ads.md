@@ -447,5 +447,4 @@ verified source.
 > being refreshed to accommodate any changes. You can adjust `time_increment_days` to change report
 > frequency (default set to one).
 
-<!--@@@DLT_SNIPPET_START tuba::facebook_ads-->
-<!--@@@DLT_SNIPPET_END tuba::facebook_ads-->
+<!--@@@DLT_TUBA facebook_ads-->

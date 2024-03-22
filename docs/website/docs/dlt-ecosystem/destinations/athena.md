@@ -154,14 +154,5 @@ aws_data_catalog="awsdatacatalog"
 You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is used by default
 
-<!--@@@DLT_SNIPPET_START tuba::athena-->
-## Additional Setup guides
+<!--@@@DLT_TUBA athena-->
 
-- [Load data from Chess.com to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-athena)
-- [Load data from Notion to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-athena)
-- [Load data from HubSpot to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-athena)
-- [Load data from GitHub to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-athena)
-- [Load data from Google Analytics to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-athena)
-- [Load data from Google Sheets to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-athena)
-- [Load data from Stripe to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-athena)
-<!--@@@DLT_SNIPPET_END tuba::athena-->
