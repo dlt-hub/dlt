@@ -50,7 +50,7 @@ class Inquirer:
         self.preflight_checks()
         pipeline_name = self.get_pipeline_name()
         pipeline = self.pipelines[pipeline_name]
-        real_pipeline_name = f" ({pipeline.pipeline_name})"
+        real_pipeline_name = f" (Pipeline: {pipeline.pipeline_name})"
 
         source_name = self.get_source_name()
         resource = self.sources[source_name]
@@ -62,7 +62,7 @@ class Inquirer:
         real_source_name = f" ({label}: {resource.name})"
 
         fmt.echo(
-            "Pipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
+            "\nPipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
         )
 
         fmt.echo(
@@ -120,23 +120,22 @@ class Inquirer:
                 raise PreflightError()
 
         if self.params.current_dir != self.params.pipeline_workdir:
+            fmt.echo(f"\nCurrent workdir: {fmt.style(self.params.current_dir, fg='blue')}")
+            fmt.echo(f"Pipeline workdir: {fmt.style(self.params.pipeline_workdir, fg='blue')}\n")
+
             fmt.echo(
                 fmt.warning_style(
                     "Current working directory is different from the "
-                    f"pipeline script {self.params.pipeline_workdir}\n"
+                    f"pipeline script {self.params.pipeline_workdir}"
                 )
             )
-            fmt.echo(f"Current workdir: {fmt.style(self.params.current_dir, fg='blue')}")
-            fmt.echo(f"Pipeline workdir: {fmt.style(self.params.pipeline_workdir, fg='blue')}")
 
             has_cwd_config = self.has_dlt_config(self.params.current_dir)
             has_pipeline_config = self.has_dlt_config(self.params.pipeline_workdir)
             if has_cwd_config and has_pipeline_config:
                 message = tw.dedent(
-                    f"""
-                    Using {dot_dlt} in current directory {self.params.current_dir}/{dot_dlt}, if you intended to use
-                    {self.params.pipeline_workdir}/{dot_dlt}, please change your current directory.
-                    """,
+                    f"""Using {dot_dlt} in current directory, if you intended to use """
+                    f"""{self.params.pipeline_workdir}/{dot_dlt}, please change your current directory.""",
                 )
                 fmt.echo(fmt.warning_style(message))
             elif not has_cwd_config and has_pipeline_config:
