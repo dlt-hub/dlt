@@ -62,7 +62,8 @@ class Inquirer:
         real_source_name = f" ({label}: {resource.name})"
 
         fmt.echo(
-            "\nPipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
+            "\nPipeline: "
+            + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
         )
 
         fmt.echo(
