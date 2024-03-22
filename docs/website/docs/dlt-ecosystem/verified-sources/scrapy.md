@@ -17,7 +17,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init scraping duckdb
    ```
 
@@ -38,20 +38,17 @@ For more information, read the guide on
 ### Add credentials
 
 1. The `config.toml`, looks like:
-
    ```toml
    # put your configuration values here
-
    [sources.scraping]
    start_urls = ["URL to be scraped"] # please set me up!
    start_urls_file = "/path/to/urls.txt" # please set me up!
    ```
-
    > When both `start_urls` and `start_urls_file` are provided they will be merged and deduplicated
    > to ensure a Scrapy gets a unique set of start URLs.
 
-1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
-   securely store your access tokens and other sensitive information. It's important to handle this
+1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely
+   store your access tokens and other sensitive information. It's important to handle this
    file with care and keep it safe.
 
 
@@ -67,7 +64,7 @@ scrape data from "https://quotes.toscrape.com/page/1/".
 
 1. Start with configuring the `config.toml` as follows:
 
-   ```
+   ```toml
    [sources.scraping]
    start_urls = ["https://quotes.toscrape.com/page/1/"] # please set me up!
    ```
@@ -77,13 +74,13 @@ scrape data from "https://quotes.toscrape.com/page/1/".
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```sh
    python scraping_pipeline.py
    ```
 
@@ -97,29 +94,33 @@ If you wish to create your data pipeline, follow these steps:
    from the website. For example, class `Myspider` below scrapes data from 
    URL: "https://quotes.toscrape.com/page/1/". 
 
-   ```python
+   ```py
    class MySpider(Spider):
-    def parse(self, response: Response, **kwargs: Any) -> Any:
-        for next_page in response.css("li.next a::attr(href)"):
-            if next_page:
-                yield response.follow(next_page, self.parse)
-
-        for quote in response.css("div.quote"):
-            result = {
-                "quote": {
-                    "text": quote.css("span.text::text").get(),
-                    "author": quote.css("small.author::text").get(),
-                    "tags": quote.css("div.tags a.tag::text").getall(),
-                },
-            }
-            yield result
+       def parse(self, response: Response, **kwargs: Any) -> Any:
+           # Iterate through each "next" page link found
+           for next_page in response.css("li.next a::attr(href)"):
+               if next_page:
+                   yield response.follow(next_page.get(), self.parse)
+       
+           # Iterate through each quote block found on the page
+           for quote in response.css("div.quote"):
+               # Extract the quote details
+               result = {
+                   "quote": {
+                       "text": quote.css("span.text::text").get(),
+                       "author": quote.css("small.author::text").get(),
+                       "tags": quote.css("div.tags a.tag::text").getall(),
+                   },
+               }
+               yield result
+    
    ```
 
    > Define your own class tailored to the website you intend to scrape. 
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="scrapy_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -132,23 +133,23 @@ If you wish to create your data pipeline, follow these steps:
 
 1. To run the pipeline with customized scrapy settings:
 
-   ```python
+   ```py
    run_pipeline(
-        pipeline,
-        MySpider,
-        # you can pass scrapy settings overrides here
-        scrapy_settings={
-            # How many sub pages to scrape
-            # https://docs.scrapy.org/en/latest/topics/settings.html#depth-limit
-            "DEPTH_LIMIT": 100,
-            "SPIDER_MIDDLEWARES": {
-                "scrapy.spidermiddlewares.depth.DepthMiddleware": 200,
-                "scrapy.spidermiddlewares.httperror.HttpErrorMiddleware": 300,
-            },
-            "HTTPERROR_ALLOW_ALL": False,
-        },
-        write_disposition="append",
-    )
+       pipeline,
+       MySpider,
+       # you can pass scrapy settings overrides here
+       scrapy_settings={
+           # How many sub pages to scrape
+           # https://docs.scrapy.org/en/latest/topics/settings.html#depth-limit
+           "DEPTH_LIMIT": 100,
+           "SPIDER_MIDDLEWARES": {
+               "scrapy.spidermiddlewares.depth.DepthMiddleware": 200,
+               "scrapy.spidermiddlewares.httperror.HttpErrorMiddleware": 300,
+           },
+           "HTTPERROR_ALLOW_ALL": False,
+       },
+       write_disposition="append",
+   )
    ```
 
    In the above example, scrapy settings are passed as a parameter. For more information about
@@ -159,29 +160,31 @@ If you wish to create your data pipeline, follow these steps:
    the resources the pipeline processes. For instance, setting the resource limit to two allows 
    the pipeline to yield a maximum of two resources.
 
-   ```python
+   ```py
    def on_before_start(res: DltResource) -> None:
-        res.add_limit(2)
+       res.add_limit(2)
 
-    run_pipeline(
-        pipeline,
-        MySpider,
-        batch_size=10,
-        scrapy_settings={
-            "DEPTH_LIMIT": 100,
-            "SPIDER_MIDDLEWARES": {
-                "scrapy.spidermiddlewares.depth.DepthMiddleware": 200,
-                "scrapy.spidermiddlewares.httperror.HttpErrorMiddleware": 300,
-        },},
-        on_before_start=on_before_start,
-        write_disposition="append",
-    )
+
+   run_pipeline(
+       pipeline,
+       MySpider,
+       batch_size=10,
+       scrapy_settings={
+           "DEPTH_LIMIT": 100,
+           "SPIDER_MIDDLEWARES": {
+               "scrapy.spidermiddlewares.depth.DepthMiddleware": 200,
+               "scrapy.spidermiddlewares.httperror.HttpErrorMiddleware": 300,
+           }
+       },
+       on_before_start=on_before_start,
+       write_disposition="append",
+   )
    ```
 
 1. To create a pipeline using Scrapy host, use `create_pipeline_runner` defined in
    "helpers.py". As follows:
 
-   ```python
+   ```py
    scraping_host = create_pipeline_runner(pipeline, MySpider, batch_size=10)
    scraping_host.pipeline_runner.scraping_resource.add_limit(2)
    scraping_host.run(dataset_name="quotes", write_disposition="append")
