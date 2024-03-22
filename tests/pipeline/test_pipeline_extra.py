@@ -26,11 +26,14 @@ from dlt.common.runtime.collector import (
     LogCollector,
     TqdmCollector,
 )
+from dlt.common.storages import FileStorage
+
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.validation import PydanticValidator
 
 from dlt.pipeline import TCollectorArg
 
+from tests.utils import TEST_STORAGE_ROOT, test_storage
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_delayed
@@ -426,3 +429,41 @@ def test_arrow_no_pandas() -> None:
         with client.execute_query("SELECT * FROM data") as c:
             with pytest.raises(ImportError):
                 df = c.df()
+
+
+def test_empty_parquet(test_storage: FileStorage) -> None:
+    from dlt.destinations import filesystem
+
+    local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
+
+    # we have two options to materialize columns: add columns hint or use dlt.mark to emit schema
+    # at runtime. below we use the second option
+
+    @dlt.resource
+    def users():
+        yield dlt.mark.with_hints(
+            # this is a special empty item which will materialize table schema
+            dlt.mark.materialize_table_schema(),
+            # emit table schema with the item
+            dlt.mark.make_hints(
+                columns=[
+                    {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
+                    {"name": "name", "data_type": "text", "nullable": False},
+                ]
+            ),
+        )
+
+    # write parquet file to storage
+    info = dlt.run(users, destination=local, loader_file_format="parquet", dataset_name="user_data")
+    assert_load_info(info)
+    assert set(info.pipeline.default_schema.tables["users"]["columns"].keys()) == {"id", "name", "_dlt_load_id", "_dlt_id"}  # type: ignore
+    # find parquet file
+    files = test_storage.list_folder_files("user_data/users")
+    assert len(files) == 1
+
+    # check rows and schema
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(os.path.abspath(test_storage.make_full_path(files[0])))
+    assert table.num_rows == 0
+    assert set(table.schema.names) == {"id", "name", "_dlt_load_id", "_dlt_id"}

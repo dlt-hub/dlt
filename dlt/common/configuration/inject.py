@@ -96,18 +96,24 @@ def with_config(
     def decorator(f: TFun) -> TFun:
         SPEC: Type[BaseConfiguration] = None
         sig: Signature = inspect.signature(f)
+        signature_fields: Dict[str, Any]
         kwargs_arg = next(
             (p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None
         )
-        spec_arg: Parameter = None
-        pipeline_name_arg: Parameter = None
         if spec is None:
-            SPEC = spec_from_signature(f, sig, include_defaults, base=base)
+            SPEC, signature_fields = spec_from_signature(f, sig, include_defaults, base=base)
         else:
             SPEC = spec
+            signature_fields = SPEC.get_resolvable_fields()
 
-        if SPEC is None:
+        # if no signature fields were added we will not wrap `f` for injection
+        if len(signature_fields) == 0:
+            # always register new function
+            _FUNC_SPECS[id(f)] = SPEC
             return f
+
+        spec_arg: Parameter = None
+        pipeline_name_arg: Parameter = None
 
         for p in sig.parameters.values():
             # for all positional parameters that do not have default value, set default

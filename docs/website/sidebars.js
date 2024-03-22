@@ -125,6 +125,7 @@ const sidebars = {
         'general-usage/full-loading',
         'general-usage/schema',
         'general-usage/schema-contracts',
+        'general-usage/schema-evolution',
         {
           type: 'category',
           label: 'Configuration',
