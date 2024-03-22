@@ -9,7 +9,7 @@ processors:
   - type: crossref
 renderer:
   type: docusaurus
-  docs_base_path: docs
+  docs_base_path: docs_processed
   relative_output_path: api_reference
   relative_sidebar_path: sidebar.json
   sidebar_top_level_label: API

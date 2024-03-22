@@ -297,4 +297,8 @@ if __name__ == "__main__":
     if ENABLE_MYPY and args.command in ["typecheck", "full"]:
         typecheck_snippets(python_snippets, args.verbose)
 
+    # unlink lint_me file
+    if os.path.exists(LINT_FILE):
+        os.unlink(LINT_FILE)
+
     fmt.note("All selected checks passed. Snippet Checker 3000 signing off.")

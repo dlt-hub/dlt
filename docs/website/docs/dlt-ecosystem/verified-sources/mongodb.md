@@ -332,5 +332,4 @@ verified source.
    ```
 
 
-<!--@@@DLT_SNIPPET_START tuba::mongodb-->
-<!--@@@DLT_SNIPPET_END tuba::mongodb-->
+<!--@@@DLT_TUBA mongodb-->

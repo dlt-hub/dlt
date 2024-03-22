@@ -242,5 +242,5 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::airtable-->
-<!--@@@DLT_SNIPPET_END tuba::airtable-->
+<!--@@@DLT_TUBA airtable-->
+
