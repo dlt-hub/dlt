@@ -29,6 +29,10 @@ def bold(msg: str) -> str:
     return click.style(msg, bold=True, reset=True)
 
 
+def info_style(msg: str) -> str:
+    return click.style(msg, fg="red", reset=True)
+
+
 def warning_style(msg: str) -> str:
     return click.style(msg, fg="yellow", reset=True)
 
