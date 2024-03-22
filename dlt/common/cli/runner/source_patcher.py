@@ -21,11 +21,15 @@ class SourcePatcher:
         # Copy original source
         script_lines: t.List[str] = self.visitor.source_lines[:]
         stub = '""" run method replaced """'
-
+        # cases where load_info = pipeline.run(...)
+        # then load_info being accesses down the line
+        # we need to strip them as well
+        load_info_variables: t.List[int] = []
         for node in run_nodes:
             # if it is a one liner
             if node.lineno == node.end_lineno:
-                script_lines[node.lineno] = None
+                line_of_code = script_lines[node.lineno - 1]
+                script_lines[node.lineno - 1] = None
             else:
                 line_of_code = script_lines[node.lineno - 1]
                 script_lines[node.lineno - 1] = self.restore_indent(line_of_code) + stub
@@ -34,8 +38,29 @@ class SourcePatcher:
                     script_lines[start - 1] = None
                     start += 1
 
-        result = [line.rstrip() for line in script_lines if line]
-        return "\n".join(result)
+            if variable := self.get_load_info_variable_name(line_of_code):
+                load_info_variables.append(variable)
+
+        # FIXME: properly parse AST tree and eliminate all load_info assignments
+        result = []
+        for line in script_lines:
+            if line and line.strip():
+                for variable in load_info_variables:
+                    if variable in line:
+                        line = None
+
+            if line:
+                result.append(line)
+
+        code = "\n".join(result)
+        return code
+
+    def get_load_info_variable_name(self, line: str) -> t.Optional[str]:
+        if "=" in line:
+            variable, _ = line.split("=", maxsplit=2)
+            return variable.strip()
+
+        return None
 
     def restore_indent(self, line: str) -> str:
         indent = ""
