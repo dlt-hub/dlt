@@ -48,8 +48,6 @@ function *listDirsSync(dir) {
     }
 }
 
-
-
 // extract the snippet name from a line
 const extractSnippetName = (tag, line) => {
     if (line && line.includes(tag)) {

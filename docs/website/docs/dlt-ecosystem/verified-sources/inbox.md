@@ -288,5 +288,5 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::inbox-->
-<!--@@@DLT_SNIPPET_END tuba::inbox-->
+<!--@@@DLT_TUBA inbox-->
+

@@ -294,5 +294,5 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::pipedrive-->
-<!--@@@DLT_SNIPPET_END tuba::pipedrive-->
+<!--@@@DLT_TUBA pipedrive-->
+

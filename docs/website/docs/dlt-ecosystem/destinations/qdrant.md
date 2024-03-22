@@ -221,5 +221,5 @@ You can find the setup instructions to run Qdrant [here](https://qdrant.tech/doc
 
 Qdrant destination supports syncing of the `dlt` state.
 
-<!--@@@DLT_SNIPPET_START tuba::qdrant-->
-<!--@@@DLT_SNIPPET_END tuba::qdrant-->
+<!--@@@DLT_TUBA qdrant-->
+

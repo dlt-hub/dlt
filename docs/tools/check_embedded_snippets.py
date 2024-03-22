@@ -9,7 +9,8 @@ from textwrap import dedent
 
 import dlt.cli.echo as fmt
 
-DOCS_DIR = "../website/docs"
+from utils import collect_markdown_files
+
 
 SNIPPET_MARKER = "```"
 ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql"]
@@ -33,31 +34,6 @@ class Snippet:
             f"Snippet No. {self.index} in {self.file} at line {self.line} with language"
             f" {self.language}"
         )
-
-
-def collect_markdown_files(verbose: bool) -> List[str]:
-    """
-    Discovers all docs markdown files
-    """
-    markdown_files: List[str] = []
-    for path, _, files in os.walk(DOCS_DIR):
-        if "api_reference" in path:
-            continue
-        if "jaffle_shop" in path:
-            continue
-        for file in files:
-            if file.endswith(".md"):
-                markdown_files.append(os.path.join(path, file))
-                if verbose:
-                    fmt.echo(f"Discovered {os.path.join(path, file)}")
-
-    if len(markdown_files) < 50:  # sanity check
-        fmt.error("Found too few files. Something went wrong.")
-        exit(1)
-
-    fmt.note(f"Discovered {len(markdown_files)} markdown files")
-
-    return markdown_files
 
 
 def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
@@ -320,5 +296,9 @@ if __name__ == "__main__":
         lint_snippets(python_snippets, args.verbose)
     if ENABLE_MYPY and args.command in ["typecheck", "full"]:
         typecheck_snippets(python_snippets, args.verbose)
+
+    # unlink lint_me file
+    if os.path.exists(LINT_FILE):
+        os.unlink(LINT_FILE)
 
     fmt.note("All selected checks passed. Snippet Checker 3000 signing off.")
