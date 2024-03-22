@@ -1,0 +1,12 @@
+
+version: 2
+
+models:
+  - name: load_ids
+    description: "A list of currently loaded load ids"
+    columns:
+      - name: load_id
+        tests:
+          - unique
+          - not_null
+  - name: view_player_games
