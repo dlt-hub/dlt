@@ -50,25 +50,34 @@ class Inquirer:
         """
         self.preflight_checks()
         pipeline_name = self.get_pipeline_name()
+        pipeline_alias_message = ""
         if pipeline_name in self.pipelines:
             pipeline = self.pipelines[pipeline_name]
         else:
             pipeline = self.aliases[pipeline_name]
+            pipeline_alias_message = f" ({pipeline.pipeline_name})"
 
         source_name = self.get_source_name()
+        source_alias_message = ""
         if source_name in self.sources:
             resource = self.sources[source_name]
         else:
             resource = self.aliases[source_name]
+            source_alias_message = f" ({resource.name})"
 
-        fmt.echo("Pipeline: " + fmt.style(pipeline_name, fg="blue", underline=True))
+        fmt.echo(
+            "Pipeline: "
+            + fmt.style(pipeline_name + pipeline_alias_message, fg="blue", underline=True)
+        )
 
         if isinstance(resource, DltResource):
             label = "Resource"
         else:
             label = "Source"
 
-        fmt.echo(f"{label}: " + fmt.style(source_name, fg="blue", underline=True))
+        fmt.echo(
+            f"{label}: " + fmt.style(source_name + source_alias_message, fg="blue", underline=True)
+        )
         return pipeline, resource
 
     def get_pipeline_name(self) -> str:

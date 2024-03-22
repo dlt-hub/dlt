@@ -104,11 +104,11 @@ class PipelineScript:
                 continue
 
             if isinstance(value, dlt.Pipeline):
-                members["by_alias"][name] = value
+                members["aliases"][name] = value
                 members["pipelines"][value.pipeline_name] = value
 
             if isinstance(value, (DltResource, DltSource)):
-                members["by_alias"][name] = value
+                members["aliases"][name] = value
                 members["sources"][value.name] = value
 
         return members
