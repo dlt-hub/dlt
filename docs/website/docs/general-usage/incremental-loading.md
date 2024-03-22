@@ -639,7 +639,7 @@ Consider the example below for reading incremental loading parameters from "conf
    
    `cursor_path` is assigned the value "idAfter" with an initial value of 10. 
 
-1. Here's how the `generate_incremental_records` resource uses cursor_path defined in "config.toml":
+1. Here's how the `generate_incremental_records` resource uses `cursor_path` defined in "config.toml":
    ```py
    @dlt.resource(table_name="incremental_records")
    def generate_incremental_records(id_after: dlt.sources.incremental = dlt.config.value):
