@@ -6,36 +6,40 @@ keywords: [transform, sql]
 
 # Transform the data using the `dlt` SQL client
 
-A simple alternative to dbt is to query the data using the `dlt` SQL client and then performing the
+A simple alternative to dbt is to query the data using the `dlt` SQL client and then perform the
 transformations using Python. The `execute_sql` method allows you to execute any SQL statement,
-including statements that change the database schema or data in the tables. In the example below we
-insert a row into `customers` table. Note that the syntax is the same as for any standard `dbapi`
+including statements that change the database schema or data in the tables. In the example below, we
+insert a row into the `customers` table. Note that the syntax is the same as for any standard `dbapi`
 connection.
 
-```python
+```py
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 try:
     with pipeline.sql_client() as client:
         client.sql_client.execute_sql(
-            f"INSERT INTO customers VALUES (%s, %s, %s)",
+            "INSERT INTO customers VALUES (%s, %s, %s)",
             10,
             "Fred",
             "fred@fred.com"
         )
+except Exception:
+    ...
 ```
 
-In the case of SELECT queries, the data is returned as a list of row, with the elements of a row
+In the case of SELECT queries, the data is returned as a list of rows, with the elements of a row
 corresponding to selected columns.
 
-```python
+```py
 try:
     with pipeline.sql_client() as client:
         res = client.execute_sql(
             "SELECT id, name, email FROM customers WHERE id = %s",
             10
         )
-        # prints columns values of first row
+        # prints column values of the first row
         print(res[0])
+except Exception:
+    ...
 ```
 
 ## Other transforming tools
@@ -44,4 +48,4 @@ If you want to transform the data before loading, you can use Python. If you wan
 data after loading, you can use SQL or one of the following:
 
 1. [dbt](dbt/dbt.md) (recommended).
-1. [Pandas.](pandas.md)
+2. [Pandas.](pandas.md)

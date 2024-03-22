@@ -7,14 +7,14 @@ keywords: [schema evolution, schema, dlt schema]
 # Schema evolution
 
 ## When to use schema evolution?
-Schema evolution is a best practice when ingesting most data. It’s simply a way to get data across a format barrier. 
+Schema evolution is a best practice when ingesting most data. It’s simply a way to get data across a format barrier.
 
 It separates the technical challenge of “loading” data, from the business challenge of “curating” data. This enables us to have pipelines that are maintainable by different individuals at different stages.
 
 However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](https://dlthub.com/docs/general-usage/schema-contracts).
 
 ## Schema evolution with `dlt`
-`dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes. 
+`dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes.
 
 As the structure of data changes, such as the addition of new columns, changing data types, etc., `dlt` handles these schema changes, enabling you to adapt to changes without losing velocity.
 
@@ -23,11 +23,11 @@ The first run of a pipeline will scan the data that goes through it and generate
 
 We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that loads the following schema:
 
-```python
+```py
 data = [{
     "organization": "Tech Innovations Inc.",
     "address": {
-        'building': 'r&d', 
+        'building': 'r&d',
         "room": 7890,
     },
     "Inventory": [
@@ -62,22 +62,22 @@ Let’s add the following 4 cases:
 - A column is renamed: a field “building” was renamed to “main_block”.
 
 Please update the pipeline for the cases discussed above.
-```python
+```py
 data = [{
     "organization": "Tech Innovations Inc.",
     # Column added:
-    "CEO": "Alice Smith", 
+    "CEO": "Alice Smith",
     "address": {
         # 'building' renamed to 'main_block'
-        'main_block': 'r&d', 
+        'main_block': 'r&d',
 	      # Removed room column
-        # "room": 7890,  
+        # "room": 7890,
     },
     "Inventory": [
         # Type change: 'inventory_nr' changed to string from int
-        {"name": "Plasma ray", "inventory nr": "AR2411"}, 
-        {"name": "Self-aware Roomba", "inventory nr": "AR268"},  
-        {"name": "Type-inferrer", "inventory nr": "AR3621"}  
+        {"name": "Plasma ray", "inventory nr": "AR2411"},
+        {"name": "Self-aware Roomba", "inventory nr": "AR268"},
+        {"name": "Type-inferrer", "inventory nr": "AR3621"}
     ]
 }]
 
@@ -110,7 +110,7 @@ The column lineage can be tracked by loading the 'load_info' to the destination.
 **Getting notifications**
 
 We can read the load outcome and send it to slack webhook with `dlt`.
-```python
+```py
 # Import the send_slack_message function from the dlt library
 from dlt.common.runtime.slack import send_slack_message
 
@@ -123,7 +123,7 @@ for package in info.load_packages:
     for table_name, table in package.schema_update.items():
         # Iterate over each column in the current table
         for column_name, column in table["columns"].items():
-            # Send a message to the Slack channel with the table 
+            # Send a message to the Slack channel with the table
 						# and column update information
             send_slack_message(
                 hook,
@@ -142,16 +142,16 @@ This script sends Slack notifications for schema updates using the `send_slack_m
 
 ### How to test for removed columns - applying “not null” constraint
 
-A column not existing, and a column being null, are two different things. However, when it comes to APIs and json, it’s usually all treated the same - the key-value pair will simply not exist. 
+A column not existing, and a column being null, are two different things. However, when it comes to APIs and json, it’s usually all treated the same - the key-value pair will simply not exist.
 
 To remove a column, exclude it from the output of the resource function. Subsequent data inserts will treat this column as null. Verify column removal by applying a not null constraint. For instance, after removing the "room" column, apply a not null constraint to confirm its exclusion.
 
-```python
+```py
 
 data = [{
     "organization": "Tech Innovations Inc.",
     "address": {
-        'building': 'r&d' 
+        'building': 'r&d'
         #"room": 7890,
     },
     "Inventory": [
@@ -171,20 +171,20 @@ During pipeline execution a data validation error indicates that a removed colum
 
 The data in the pipeline mentioned above is modified.
 
-```python
+```py
 data = [{
     "organization": "Tech Innovations Inc.",
     "CEO": "Alice Smith",
     "address": {'main_block': 'r&d'},
     "Inventory": [
-        {"name": "Plasma ray", "inventory nr": "AR2411"}, 
-        {"name": "Self-aware Roomba", "inventory nr": "AR268"}, 
+        {"name": "Plasma ray", "inventory nr": "AR2411"},
+        {"name": "Self-aware Roomba", "inventory nr": "AR268"},
         {
             "name": "Type-inferrer", "inventory nr": "AR3621",
             "details": {
-                "category": "Computing Devices", 
+                "category": "Computing Devices",
                 "id": 369,
-                "specifications": [{ 
+                "specifications": [{
                     "processor": "Quantum Core",
                     "memory": "512PB"
                 }]
@@ -201,7 +201,7 @@ The schema of the data above is loaded to the destination as follows:
 
 ## What did the schema evolution engine do?
 
-The schema evolution engine in the `dlt` library is designed to handle changes in the structure of your data over time. For example: 
+The schema evolution engine in the `dlt` library is designed to handle changes in the structure of your data over time. For example:
 
 - As above in continuation of the inferred schema, the “specifications” are nested in "details”, which are nested in “Inventory”, all under table name “org”. So the table created for projects is `org__inventory__details__specifications`.
 
@@ -209,6 +209,6 @@ These is a simple examples of how schema evolution works.
 
 ## Schema evolution using schema and data contracts
 
-Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to destination should evolve. 
+Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to destination should evolve.
 
 Schema and data contracts can be applied to entities ‘tables’ , ‘columns’  and ‘data_types’ using contract modes ‘evolve’, freeze’, ‘discard_rows’ and ‘discard_columns’ to tell `dlt` how to apply contract for a particular entity. To read more about **schema and data contracts**  read our [documentation](https://dlthub.com/docs/general-usage/schema-contracts).

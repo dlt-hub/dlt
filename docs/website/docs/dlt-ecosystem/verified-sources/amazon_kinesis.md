@@ -9,7 +9,7 @@ keywords: [amazon kinesis, verified source]
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
 :::
 
 [Amazon Kinesis](https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html) is a cloud-based
@@ -36,7 +36,7 @@ You can check out our pipeline example
 
 ### Grab credentials
 
-To use this verified source you need AWS `Access key` and `Secret access key`, that can be obtained
+To use this verified source, you need an AWS `Access key` and `Secret access key`, which can be obtained
 as follows:
 
 1. Sign in to your AWS Management Console.
@@ -57,7 +57,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init kinesis duckdb
    ```
 
@@ -110,19 +110,19 @@ For more information, read [Credentials](../../general-usage/credentials).
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python kinesis_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`, you may
+   For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`. You may
    also use any custom name instead.
 
 For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
@@ -138,7 +138,7 @@ This resource reads a Kinesis stream and yields messages. It supports
 [incremental loading](../../general-usage/incremental-loading) and parses messages as json by
 default.
 
-```python
+```py
 @dlt.resource(
     name=lambda args: args["stream_name"],
     primary_key="_kinesis_msg_id",
@@ -156,6 +156,7 @@ def kinesis_stream(
     parse_json: bool = True,
     chunk_size: int = 1000,
 ) -> Iterable[TDataItem]:
+    ...
 ```
 
 `stream_name`: Name of the Kinesis stream. Defaults to config/secrets if unspecified.
@@ -178,7 +179,7 @@ def kinesis_stream(
 
 You create a resource `kinesis_stream` by passing the stream name and a few other options. The
 resource will have the same name as the stream. When you iterate this resource (or pass it to
-`pipeline.run` records) it will query Kinesis for all the shards in the requested stream. For each
+`pipeline.run` records), it will query Kinesis for all the shards in the requested stream. For each
  shard, it will create an iterator to read messages:
 
 1. If `initial_at_timestamp` is present, the resource will read all messages after this timestamp.
@@ -192,7 +193,7 @@ will load messages incrementally:
 1. For shards that didn't have messages (or new shards), the last run time is used to get messages.
 
 Please check the `kinesis_stream` [docstring](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis/__init__.py#L31-L46)
-for additional options, i.e. to limit the number of messages
+for additional options, i.e., to limit the number of messages
 returned or to automatically parse JSON messages.
 
 ### Kinesis message format
@@ -212,7 +213,7 @@ verified source.
 1. Configure the [pipeline](../../general-usage/pipeline) by specifying the pipeline name,
    destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="kinesis_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -220,9 +221,9 @@ verified source.
    )
    ```
 
-1. To load messages from a stream from last one hour:
+1. To load messages from a stream from the last one hour:
 
-   ```python
+   ```py
    # the resource below will take its name from the stream name,
    # it can be used multiple times by default it assumes that Data is json and parses it,
    # here we disable that to just get bytes in data elements of the message
@@ -237,7 +238,7 @@ verified source.
 
 1. For incremental Kinesis streams, to fetch only new messages:
 
-   ```python
+   ```py
    #running pipeline will get only new messages
    info = pipeline.run(kinesis_stream_data)
    message_counts = pipeline.last_trace.last_normalize_info.row_counts
@@ -249,7 +250,7 @@ verified source.
 
 1. To parse json with a simple decoder:
 
-   ```python
+   ```py
    def _maybe_parse_json(item: TDataItem) -> TDataItem:
        try:
            item.update(json.loadb(item["data"]))
@@ -263,7 +264,7 @@ verified source.
 
 1. To read Kinesis messages and send them somewhere without using a pipeline:
 
-   ```python
+   ```py
    from dlt.common.configuration.container import Container
    from dlt.common.pipeline import StateInjectableContext
 

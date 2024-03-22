@@ -15,7 +15,7 @@ Example:
 
 This pipeline will load a list of objects into `duckdb` table with a name "three":
 
-```python
+```py
 import dlt
 
 pipeline = dlt.pipeline(destination="duckdb", dataset_name="sequence")
@@ -53,7 +53,7 @@ Arguments:
 
 Example: This pipeline will load the data the generator `generate_rows(10)` produces:
 
-```python
+```py
 import dlt
 
 def generate_rows(nr):
@@ -110,7 +110,7 @@ pipeline run is progressing. `dlt` supports 4 progress monitors out of the box:
 You pass the progress monitor in `progress` argument of the pipeline. You can use a name from the
 list above as in the following example:
 
-```python
+```py
 # create a pipeline loading chess data that dumps
 # progress to stdout each 10 seconds (the default)
 pipeline = dlt.pipeline(
@@ -123,7 +123,7 @@ pipeline = dlt.pipeline(
 
 You can fully configure the progress monitor. See two examples below:
 
-```python
+```py
 # log each minute to Airflow task logger
 ti = get_current_context()["ti"]
 pipeline = dlt.pipeline(
@@ -134,7 +134,7 @@ pipeline = dlt.pipeline(
 )
 ```
 
-```python
+```py
 # set tqdm bar color to yellow
 pipeline = dlt.pipeline(
     pipeline_name="chess_pipeline",

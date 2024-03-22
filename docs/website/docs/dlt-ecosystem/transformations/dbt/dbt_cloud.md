@@ -1,5 +1,5 @@
 ---
-title: Transforming the data with dbt Cloud
+title: Transforming the Data with dbt Cloud
 description: Transforming the data loaded by a dlt pipeline with dbt Cloud
 keywords: [transform, sql]
 ---
@@ -9,9 +9,9 @@ keywords: [transform, sql]
 ## API Client
 
 The DBT Cloud Client is a Python class designed to interact with the dbt Cloud API (version 2).
-It provides methods to perform various operations on dbt Cloud, such as triggering job runs and retrieving job run status.
+It provides methods to perform various operations on dbt Cloud, such as triggering job runs and retrieving job run statuses.
 
-```python
+```py
 from dlt.helpers.dbt_cloud import DBTCloudClientV2
 
 # Initialize the client
@@ -26,7 +26,7 @@ run_status = client.get_run_status(run_id=job_run_id)
 print(f"Job run status: {run_status['status_humanized']}")
 ```
 
-## Helper functions
+## Helper Functions
 
 These Python functions provide an interface to interact with the dbt Cloud API.
 They simplify the process of triggering and monitoring job runs in dbt Cloud.
@@ -36,7 +36,7 @@ They simplify the process of triggering and monitoring job runs in dbt Cloud.
 This function triggers a job run in dbt Cloud using the specified configuration.
 It supports various customization options and allows for monitoring the job's status.
 
-```python
+```py
 from dlt.helpers.dbt_cloud import run_dbt_cloud_job
 
 # Trigger a job run with default configuration
@@ -53,19 +53,19 @@ status = run_dbt_cloud_job(job_id=1234, data=additional_data, wait_for_outcome=T
 
 ### `get_dbt_cloud_run_status()`
 
-If you have already started job run and have a run ID, then you can use the `get_dbt_cloud_run_status` function.
+If you have already started a job run and have a run ID, then you can use the `get_dbt_cloud_run_status` function.
 
 This function retrieves the full information about a specific dbt Cloud job run.
 It also supports options for waiting until the run is complete.
 
-```python
+```py
 from dlt.helpers.dbt_cloud import get_dbt_cloud_run_status
 
 # Retrieve status for a specific run
 status = get_dbt_cloud_run_status(run_id=1234, wait_for_outcome=True)
 ```
 
-## Set credentials
+## Set Credentials
 
 ### secrets.toml
 
@@ -74,29 +74,29 @@ When using a dlt locally, we recommend using the `.dlt/secrets.toml` method to s
 If you used the `dlt init` command, then the `.dlt` folder has already been created.
 Otherwise, create a `.dlt` folder in your working directory and a `secrets.toml` file inside it.
 
-It's where you store sensitive information securely, like access tokens. Keep this file safe.
+This is where you store sensitive information securely, like access tokens. Keep this file safe.
 
 Use the following format for dbt Cloud API authentication:
 
 ```toml
 [dbt_cloud]
 api_token = "set me up!" # required for authentication
-account_id = "set me up!" # required for both helpers function
-job_id = "set me up!" # optional only for run_dbt_cloud_job function (you can pass this explicitly as an argument to the function)
-run_id = "set me up!" # optional for get_dbt_cloud_run_status (you can pass this explicitly as an argument to the function)
+account_id = "set me up!" # required for both helper functions
+job_id = "set me up!" # optional only for the run_dbt_cloud_job function (you can pass this explicitly as an argument to the function)
+run_id = "set me up!" # optional for the get_dbt_cloud_run_status function (you can pass this explicitly as an argument to the function)
 ```
 
-### Environment variables
+### Environment Variables
 
-`dlt` supports reading credentials from environment.
+`dlt` supports reading credentials from the environment.
 
 If dlt tries to read this from environment variables, it will use a different naming convention.
 
-For environment variables all names are capitalized and sections are separated with double underscore "__".
+For environment variables, all names are capitalized and sections are separated with a double underscore "__".
 
-For example, for the above secrets, we would need to put into environment:
+For example, for the above secrets, we would need to put into the environment:
 
-```
+```sh
 DBT_CLOUD__API_TOKEN
 DBT_CLOUD__ACCOUNT_ID
 DBT_CLOUD__JOB_ID

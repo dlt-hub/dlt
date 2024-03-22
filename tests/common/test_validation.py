@@ -3,6 +3,7 @@ import pytest
 import yaml
 from typing import Callable, List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
 
+from dlt.common import Decimal
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
@@ -16,6 +17,14 @@ TLiteral = Literal["uno", "dos", "tres"]
 TDynHintType = TypeVar("TDynHintType")
 TFunHintTemplate = Callable[[TDataItem], TDynHintType]
 TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
+
+
+class ClassTest:
+    a: str
+
+
+class SubClassTest(ClassTest):
+    b: str
 
 
 class TDict(TypedDict):
@@ -41,6 +50,7 @@ class TTestRecord(TypedDict):
     f_literal_optional: Optional[TLiteral]
     f_seq_literal: Sequence[Optional[TLiteral]]
     f_optional_union: Optional[Union[TLiteral, TDict]]
+    f_class: ClassTest
 
 
 TEST_COL: TColumnSchema = {"name": "col1", "data_type": "bigint", "nullable": False}
@@ -70,6 +80,7 @@ TEST_DOC: TTestRecord = {
     "f_literal_optional": "dos",
     "f_seq_literal": ["uno", "dos", "tres"],
     "f_optional_union": {"field": "uno"},
+    "f_class": SubClassTest(),
 }
 
 
@@ -273,3 +284,38 @@ def test_callable() -> None:
     validate_dict(
         TTestRecordCallable, test_item, path=".", validator_f=lambda p, pk, pv, t: callable(pv)
     )
+
+
+def test_class() -> None:
+    class TTestRecordInvalidClass(TypedDict):
+        prop: SubClassTest
+
+    # prop must be SubClassTest or derive from it. not the case below
+    test_item_1 = {"prop": ClassTest()}
+    with pytest.raises(DictValidationException):
+        validate_dict(TTestRecordInvalidClass, test_item_1, path=".")
+
+    # unions are accepted
+    class TTestRecordClassUnion(TypedDict):
+        prop: Union[SubClassTest, ClassTest]
+
+    validate_dict(TTestRecordClassUnion, test_item_1, path=".")
+
+    test_item_2 = {"prop": Decimal(1)}
+    with pytest.raises(DictValidationException):
+        validate_dict(TTestRecordClassUnion, test_item_2, path=".")
+
+
+# def test_union_merge() -> None:
+#     """Overriding fields is simply illegal in TypedDict"""
+#     class EndpointResource(TypedDict, total=False):
+#         name: TTableHintTemplate[str]
+
+#     class TTestRecordNoName(EndpointResource, total=False):
+#         name: Optional[TTableHintTemplate[str]]
+
+#     # test_item = {"name": None}
+#     # validate_dict(TTestRecordNoName, test_item, path=".")
+
+#     test_item = {}
+#     validate_dict(TTestRecordNoName, test_item, path=".")
