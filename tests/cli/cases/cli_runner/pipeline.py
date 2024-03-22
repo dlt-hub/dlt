@@ -7,7 +7,9 @@ def squares_resource():
         yield {"id": idx, "square": idx * idx}
 
 
-if __name__ == "__main__":
-    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination="dummy")
-    load_info = p.run(squares_resource)
-    print(load_info)
+squares_resource_instance = squares_resource()
+
+squares_pipeline = dlt.pipeline(pipeline_name="numbers_pipeline", destination="duckdb")
+load_info = squares_pipeline.run(squares_resource)
+
+print(load_info)
