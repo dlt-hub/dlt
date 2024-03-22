@@ -24,7 +24,7 @@ class SourcePatcher:
         # cases where load_info = pipeline.run(...)
         # then load_info being accesses down the line
         # we need to strip them as well
-        load_info_variables: t.List[int] = []
+        load_info_variables: t.List[str] = []
         for node in run_nodes:
             # if it is a one liner
             if node.lineno == node.end_lineno:
