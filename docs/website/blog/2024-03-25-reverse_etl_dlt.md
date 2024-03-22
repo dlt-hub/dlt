@@ -38,7 +38,7 @@ Just like we have ETL and ELT, we also have flavors of Reverse ETL
 
 - Reverse ETL, or TEL: Transform the data to a specification, read it from db and send it to the app. An example could be.
 - Tool Reverse ETL or ETL: Extract from db, map fields to destination in the tool, load to destination.
-- Pythonic Freestyle Reverse ETL: You extract data from wherever you want and put it anywhere except storage/db. Transformations optional. :
+- Pythonic Freestyle Reverse ETL: You extract data from wherever you want and put it anywhere except storage/db. Transformations optional.
 
 Examples of Python reverse ETL
 
