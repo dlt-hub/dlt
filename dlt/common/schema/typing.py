@@ -171,6 +171,7 @@ class TTableSchema(TypedDict, total=False):
     columns: TTableSchemaColumns
     resource: Optional[str]
     table_format: Optional[TTableFormat]
+    insert_api: Optional[Literal["streaming", "default"]]
 
 
 class TPartialTableSchema(TTableSchema):
