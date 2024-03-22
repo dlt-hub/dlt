@@ -40,7 +40,7 @@ class Inquirer:
         self.params = params
         self.pipelines = pipeline_members.get("pipelines")
         self.sources = pipeline_members.get("sources")
-        self.preflight_checks()
+        self.aliases = pipeline_members.get("aliases")
 
     def maybe_ask(self) -> t.Tuple[dlt.Pipeline, t.Union[DltResource, DltSource]]:
         """Shows prompts to select pipeline, resources and sources
@@ -48,21 +48,19 @@ class Inquirer:
         Returns:
             (DltResource, DltSource): a pair of pipeline and resources and sources
         """
-        # save first pipeline and source
-        pipeline_name, _ = next(iter(self.pipelines.items()))
-        source_name, _ = next(iter(self.sources.items()))
-        if self.params.pipeline_name:
-            pipeline_name = self.params.pipeline_name
-        elif len(self.pipelines) > 1:
-            pipeline_name = self.ask_for_pipeline()
+        self.preflight_checks()
+        pipeline_name = self.get_pipeline_name()
+        if pipeline_name in self.pipelines:
+            pipeline = self.pipelines[pipeline_name]
+        else:
+            pipeline = self.aliases[pipeline_name]
 
-        if self.params.pipeline_name:
-            source_name = self.params.pipeline_name
-        elif len(self.sources) > 1:
-            source_name = self.ask_for_source()
+        source_name = self.get_source_name()
+        if source_name in self.sources:
+            resource = self.sources[source_name]
+        else:
+            resource = self.aliases[source_name]
 
-        pipeline = self.pipelines[pipeline_name]
-        resource = self.sources[source_name]
         fmt.echo("Pipeline: " + fmt.style(pipeline_name, fg="blue", underline=True))
 
         if isinstance(resource, DltResource):
@@ -73,35 +71,47 @@ class Inquirer:
         fmt.echo(f"{label}: " + fmt.style(source_name, fg="blue", underline=True))
         return pipeline, resource
 
-    def ask_for_pipeline(self) -> str:
+    def get_pipeline_name(self) -> str:
+        if self.params.pipeline_name:
+            return self.params.pipeline_name
+
         if len(self.pipelines) > 1:
             message, options, values = make_select_options("pipeline", self.pipelines)
-
-            choice = fmt.prompt(message, options, default="n")
-            if choice == "n":
-                raise FriendlyExit()
-
+            choice = self.ask(message, options, default="n")
             pipeline_name = values[int(choice)]
             return pipeline_name
 
-    def ask_for_source(self) -> str:
-        message, options, values = make_select_options("resource or source", self.sources)
+        pipeline_name, _ = next(iter(self.pipelines.items()))
+        return pipeline_name
 
-        choice = fmt.prompt(message, options, default="n")
+    def get_source_name(self) -> str:
+        if self.params.source_name:
+            return self.params.source_name
+
+        if len(self.sources) > 1:
+            message, options, values = make_select_options("resource or source", self.sources)
+            choice = self.ask(message, options, default="n")
+            source_name = values[int(choice)]
+            return source_name
+
+        source_name, _ = next(iter(self.sources.items()))
+        return source_name
+
+    def ask(self, message: str, options: t.List[str], default: t.Optional[str] = None) -> str:
+        choice = fmt.prompt(message, options, default=default)
         if choice == "n":
             raise FriendlyExit()
 
-        source_name = values[int(choice)]
-        return source_name
+        return choice
 
     def preflight_checks(self) -> None:
         if pipeline_name := self.params.pipeline_name:
-            if pipeline_name not in self.pipelines:
+            if pipeline_name not in self.pipelines and pipeline_name not in self.aliases:
                 fmt.warning(f"Pipeline {pipeline_name} has not been found in pipeline script")
                 raise PreflightError()
 
         if source_name := self.params.source_name:
-            if source_name not in self.sources:
+            if source_name not in self.sources and source_name not in self.aliases:
                 fmt.warning(
                     f"Source or resouce with name: {source_name} has not been found in pipeline"
                     " script"

@@ -89,21 +89,26 @@ class PipelineScript:
 
     @property
     def pipeline_members(self) -> PipelineMembers:
-        """Inspect the module and return pipelines with resources and sources"""
+        """Inspect the module and return pipelines with resources and sources
+        We populate sources, pipelines with relevant instances by their name,
+        also put every dlt specific instance under "by_alias" collection.
+
+        It is done because users might pass pipeline, source or resource name
+        by their variable names, so this is an extra step to make sure that we
+        locate corrent pipeline, source or resource instance before showing an error.
+        """
         members: PipelineMembers = defaultdict(dict)  # type: ignore[assignment]
         for name, value in self.pipeline_module.__dict__.items():
             # skip modules and private stuff
             if isinstance(value, ModuleType) or name.startswith("_"):
                 continue
 
-            # take pipelines by their names
             if isinstance(value, dlt.Pipeline):
+                members["by_alias"][name] = value
                 members["pipelines"][value.pipeline_name] = value
 
-            # take source and resources by their variable name
-            # and also we would like to map by resource and source name
             if isinstance(value, (DltResource, DltSource)):
-                members["sources"][name] = value
+                members["by_alias"][name] = value
                 members["sources"][value.name] = value
 
         return members
