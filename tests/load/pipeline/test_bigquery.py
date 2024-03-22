@@ -2,11 +2,6 @@ import pytest
 
 import dlt
 from dlt.common import Decimal
-from dlt.common.destination import Destination
-from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchema
-from dlt.common.typing import TDataItems
-from google.cloud import bigquery
 from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
 
 from tests.pipeline.utils import assert_load_info
