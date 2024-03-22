@@ -126,6 +126,7 @@ const sidebars = {
         'general-usage/full-loading',
         'general-usage/schema',
         'general-usage/schema-contracts',
+        'general-usage/schema-evolution',
         {
           type: 'category',
           label: 'Configuration',
@@ -276,7 +277,8 @@ const sidebars = {
         'examples/nested_data/index',
         'examples/qdrant_zendesk/index',
         'examples/google_sheets/index',
-        'examples/pdf_to_weaviate/index'
+        'examples/pdf_to_weaviate/index',
+        'examples/custom_destination_bigquery/index'
       ],
     },
     {

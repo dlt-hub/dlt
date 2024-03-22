@@ -1,6 +1,6 @@
 import re
 import inspect
-from typing import Dict, List, Type, Any, Optional, NewType
+from typing import Dict, List, Tuple, Type, Any, Optional, NewType
 from inspect import Signature, Parameter
 
 from dlt.common.typing import AnyType, AnyFun, TSecretValue
@@ -30,14 +30,27 @@ def spec_from_signature(
     sig: Signature,
     include_defaults: bool = True,
     base: Type[BaseConfiguration] = BaseConfiguration,
-) -> Type[BaseConfiguration]:
+) -> Tuple[Type[BaseConfiguration], Dict[str, Any]]:
+    """Creates a SPEC on base `base1 for a function `f` with signature `sig`.
+
+    All the arguments in `sig` that are valid SPEC hints and have defaults will be part of the SPEC.
+    Special markers for required SPEC fields `dlt.secrets.value` and `dlt.config.value` are parsed using
+    module source code, which is a hack and will not work for modules not imported from a file.
+
+    The name of a SPEC type is inferred from qualname of `f` and type will refer to `f` module and is unique
+    for a module. NOTE: the SPECS are cached in the module by using name as an id.
+
+    Return value is a tuple of SPEC and SPEC fields created from a `sig`.
+    """
     name = _get_spec_name_from_f(f)
     module = inspect.getmodule(f)
+    base_fields = base.get_resolvable_fields()
 
     # check if spec for that function exists
     spec_id = name  # f"SPEC_{name}_kw_only_{kw_only}"
     if hasattr(module, spec_id):
-        return getattr(module, spec_id)  # type: ignore
+        MOD_SPEC: Type[BaseConfiguration] = getattr(module, spec_id)
+        return MOD_SPEC, MOD_SPEC.get_resolvable_fields()
 
     # find all the arguments that have following defaults
     literal_defaults: Dict[str, str] = None
@@ -62,7 +75,8 @@ def spec_from_signature(
         return None
 
     # synthesize configuration from the signature
-    fields: Dict[str, Any] = {}
+    new_fields: Dict[str, Any] = {}
+    sig_base_fields: Dict[str, Any] = {}
     annotations: Dict[str, Any] = {}
 
     for p in sig.parameters.values():
@@ -72,6 +86,10 @@ def spec_from_signature(
             "cls",
         ]:
             field_type = AnyType if p.annotation == Parameter.empty else p.annotation
+            # keep the base fields if sig not annotated
+            if p.name in base_fields and field_type is AnyType and p.default is None:
+                sig_base_fields[p.name] = base_fields[p.name]
+                continue
             # only valid hints and parameters with defaults are eligible
             if is_valid_hint(field_type) and p.default != Parameter.empty:
                 # try to get type from default
@@ -102,18 +120,17 @@ def spec_from_signature(
                     # set annotations
                     annotations[p.name] = field_type
                     # set field with default value
-                    fields[p.name] = p.default
+                    new_fields[p.name] = p.default
 
-    if not fields:
-        return None
+    signature_fields = {**sig_base_fields, **new_fields}
 
     # new type goes to the module where sig was declared
-    fields["__module__"] = module.__name__
+    new_fields["__module__"] = module.__name__
     # set annotations so they are present in __dict__
-    fields["__annotations__"] = annotations
+    new_fields["__annotations__"] = annotations
     # synthesize type
-    T: Type[BaseConfiguration] = type(name, (base,), fields)
+    T: Type[BaseConfiguration] = type(name, (base,), new_fields)
     SPEC = configspec()(T)
     # add to the module
     setattr(module, spec_id, SPEC)
-    return SPEC
+    return SPEC, signature_fields

@@ -1,4 +1,3 @@
-
 name: test common
 
 on:
@@ -7,6 +6,10 @@ on:
       - master
       - devel
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
@@ -90,6 +93,19 @@ jobs:
           poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
+        shell: cmd
+
+      - name: Install pyarrow
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk
+
+      - run: |
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
+        if: runner.os != 'Windows'
+        name: Run pipeline tests with pyarrow but no pandas installed
+      - run: |
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
+        if: runner.os == 'Windows'
+        name: Run pipeline tests with pyarrow but no pandas installed Windows
         shell: cmd
 
       - name: Install pipeline dependencies

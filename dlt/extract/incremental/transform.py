@@ -18,7 +18,6 @@ from dlt.common.schema.typing import TColumnNames
 
 try:
     from dlt.common.libs import pyarrow
-    from dlt.common.libs.pandas import pandas
     from dlt.common.libs.numpy import numpy
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
     from dlt.common.libs.pyarrow import from_arrow_scalar, to_arrow_scalar
@@ -26,6 +25,11 @@ except MissingDependencyException:
     pa = None
     pyarrow = None
     numpy = None
+
+# NOTE: always import pandas independently from pyarrow
+try:
+    from dlt.common.libs.pandas import pandas, pandas_to_arrow
+except MissingDependencyException:
     pandas = None
 
 
@@ -220,7 +224,7 @@ class ArrowIncremental(IncrementalTransform):
     ) -> Tuple[TDataItem, bool, bool]:
         is_pandas = pandas is not None and isinstance(tbl, pandas.DataFrame)
         if is_pandas:
-            tbl = pa.Table.from_pandas(tbl)
+            tbl = pandas_to_arrow(tbl)
 
         primary_key = self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
         if primary_key:
