@@ -106,13 +106,13 @@ class Inquirer:
 
     def preflight_checks(self) -> None:
         if pipeline_name := self.params.pipeline_name:
-            if pipeline_name not in self.pipelines and pipeline_name not in self.aliases:
+            if pipeline_name not in self.pipelines:
                 fmt.error(f"Pipeline {pipeline_name} has not been found in pipeline script")
                 fmt.error("You can choose one of: " + ", ".join(self.pipelines.keys()))
                 raise PreflightError()
 
         if source_name := self.params.source_name:
-            if source_name not in self.sources and source_name not in self.aliases:
+            if source_name not in self.sources:
                 fmt.error(
                     f"Source or resouce with name: {source_name} has not been found in pipeline"
                     " script"
