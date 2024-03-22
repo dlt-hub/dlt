@@ -55,5 +55,8 @@ This script will run all (or selected) docs markdown files through the open ai a
 python fix_grammar_gpt.py
 
 # Fix grammar for all files that have the string "walkthrough" in the filepath
-python check_embedded_snippets.py -f walkthrough
+python fix_grammar_gpt.py -f walkthrough
+
+# Fix grammar for the particular file
+python fix_grammar_gpt.py -f ../website/docs/intro.md
 ```

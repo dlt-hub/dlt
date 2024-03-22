@@ -932,7 +932,7 @@ def test_pipeline_upfront_tables_two_loads(
 
     # load with one empty job, table 3 not created
     load_info = pipeline.run(source.table_3, loader_file_format=destination_config.file_format)
-    assert_load_info(load_info)
+    assert_load_info(load_info, expected_load_packages=0)
     with pytest.raises(DatabaseUndefinedRelation):
         load_table_counts(pipeline, "table_3")
     # print(pipeline.default_schema.to_pretty_yaml())

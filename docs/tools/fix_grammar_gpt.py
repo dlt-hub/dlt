@@ -41,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f",
         "--files",
-        help="Filter .md files to files containing this string in filename",
+        help="Specify the file name. Grammar Checker will filter all .md files containing this string in the filepath.",
         type=str,
     )
 
