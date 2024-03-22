@@ -311,6 +311,13 @@ def destinations_configs(
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
+            ),
         ]
 
     if all_staging_configs:

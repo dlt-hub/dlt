@@ -2,7 +2,10 @@ from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.reference import (
+    DestinationClientDwhWithStagingConfiguration,
+    DestinationClientStagingConfiguration,
+)
 from dlt.common.libs.sql_alchemy import URL
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
@@ -17,7 +20,7 @@ class DremioCredentials(ConnectionStringCredentials):
     port: Optional[int] = 32010
     database: str = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
+    __config_gen_annotations__: ClassVar[List[str]] = ["port"]
 
     def to_url(self) -> URL:
         return URL.create(drivername=self.drivername, host=self.host, port=self.port)
@@ -46,10 +49,10 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             *,
             destination_type: str = None,
             credentials: DremioCredentials = None,
+            staging_data_source: str = None,
             dataset_name: str = None,
-            default_schema_name: str = None,
-            stage_name: str = None,
-            keep_staged_files: bool = True,
+            default_schema_name: Optional[str] = None,
+            staging_config: Optional[DestinationClientStagingConfiguration] = None,
             destination_name: str = None,
             environment: str = None,
         ) -> None: ...
