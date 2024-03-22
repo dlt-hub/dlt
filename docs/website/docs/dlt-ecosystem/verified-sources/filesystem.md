@@ -453,7 +453,8 @@ verified source.
     )
     # pretty print the information on data that was loaded
     print(load_info)
-    print(listing)(pipeline.last_trace.last_normalize_info)
+    print(listing)
+    print(pipeline.last_trace.last_normalize_info)
    ```
 
 1. Cleanup after loading:

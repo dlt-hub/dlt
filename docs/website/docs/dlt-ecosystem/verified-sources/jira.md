@@ -173,7 +173,8 @@ The resource function searches issues using JQL queries and then loads them to t
 ```py
 @dlt.resource(write_disposition="replace")
 def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
-    api_path = "rest/api/3/search"
+   api_path = "rest/api/3/search"
+   return {}  # return the retrieved values here
 ```
 
 `jql_queries`: Accepts a list of JQL queries.

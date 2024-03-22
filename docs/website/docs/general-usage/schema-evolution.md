@@ -163,7 +163,7 @@ data = [{
 
 pipeline = dlt.pipeline("organizations_pipeline", destination="duckdb")
 # Adding not null constraint
-pipeline.run(data, table_name="org", columns={"room": {"data_type": "integer", "nullable": False}})
+pipeline.run(data, table_name="org", columns={"room": {"data_type": "bigint", "nullable": False}})
 ```
 During pipeline execution a data validation error indicates that a removed column is being passed as null.
 

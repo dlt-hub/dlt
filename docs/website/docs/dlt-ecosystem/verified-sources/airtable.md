@@ -215,7 +215,7 @@ verified source.
       base_id = base_id,
       table_names = table_names
    )
-   load_info = pipeline.run(airtables, write_deposition = "replace")
+   load_info = pipeline.run(airtables, write_disposition = "replace")
    ```
 
    > You have the option to use table names or table IDs in the code above, in place of "Table1" and
