@@ -6,7 +6,6 @@ from dlt.common.destination.reference import (
     FollowupJob,
     TLoadJobState,
     LoadJob,
-    CredentialsConfiguration,
     SupportsStagingDestination,
     NewLoadJob,
 )

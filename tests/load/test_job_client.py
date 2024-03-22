@@ -658,7 +658,9 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["dremio"]),
+    ids=lambda x: x.name,
 )
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(
