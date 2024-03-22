@@ -150,11 +150,10 @@ class Inquirer:
                 )
                 fmt.echo(
                     fmt.info_style(
-                        "Please change your current directory to"
+                        "If needed please change your current directory to"
                         f" {self.params.pipeline_workdir} and try again"
                     )
                 )
-                raise PreflightError()
 
     def check_if_runnable(self) -> None:
         if not self.pipelines:
