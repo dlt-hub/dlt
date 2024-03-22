@@ -62,7 +62,7 @@ Here is the summary of the steps:
 
 1. Ensure Docker is running, then download the Docker compose file with:
 
-   ```shell
+   ```sh
     curl -o docker-compose.yml \
     https://raw.githubusercontent.com/kestra-io/kestra/develop/docker-compose.yml
    ```
