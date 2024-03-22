@@ -4,7 +4,6 @@ import tempfile
 import typing as t
 import sys
 
-from collections import defaultdict
 from types import ModuleType
 
 import dlt
@@ -95,7 +94,10 @@ class PipelineScript:
 
         Resources and sources must be initialized and bound beforehand.
         """
-        members: PipelineMembers = defaultdict(dict)  # type: ignore[assignment]
+        members: PipelineMembers = {
+            "pipelines": {},
+            "sources": {},
+        }
         for name, value in self.pipeline_module.__dict__.items():
             # skip modules and private stuff
             if isinstance(value, ModuleType) or name.startswith("_"):
@@ -112,7 +114,6 @@ class PipelineScript:
                     members["sources"][name] = value
                 else:
                     fmt.echo(fmt.info_style(f"Resource: {value.name} is not bound, skipping."))
-
         return members
 
     @property

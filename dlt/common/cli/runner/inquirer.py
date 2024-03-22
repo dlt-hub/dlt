@@ -107,17 +107,24 @@ class Inquirer:
     def preflight_checks(self) -> None:
         if pipeline_name := self.params.pipeline_name:
             if pipeline_name not in self.pipelines:
-                fmt.error(f"Pipeline {pipeline_name} has not been found in pipeline script")
-                fmt.error("You can choose one of: " + ", ".join(self.pipelines.keys()))
+                fmt.echo(
+                    fmt.error_style(
+                        f"Pipeline {pipeline_name} has not been found in pipeline script"
+                        "You can choose one of: "
+                        + ", ".join(self.pipelines.keys())
+                    )
+                )
                 raise PreflightError()
 
         if source_name := self.params.source_name:
             if source_name not in self.sources:
-                fmt.error(
-                    f"Source or resouce with name: {source_name} has not been found in pipeline"
-                    " script"
+                fmt.echo(
+                    fmt.error_style(
+                        f"Source or resouce with name: {source_name} has not been found in pipeline"
+                        " script. \n You can choose one of: "
+                        + ", ".join(self.sources.keys())
+                    )
                 )
-                fmt.error("You can choose one of: " + ", ".join(self.sources.keys()))
                 raise PreflightError()
 
         if self.params.current_dir != self.params.pipeline_workdir:
@@ -140,13 +147,17 @@ class Inquirer:
                 )
                 fmt.echo(fmt.warning_style(message))
             elif not has_cwd_config and has_pipeline_config:
-                fmt.error(
-                    f"{dot_dlt} is missing in current directory but exists in pipeline script's"
-                    " directory"
+                fmt.echo(
+                    fmt.error_style(
+                        f"{dot_dlt} is missing in current directory but exists in pipeline script's"
+                        " directory"
+                    )
                 )
-                fmt.info(
-                    f"Please change your current directory to {self.params.pipeline_workdir} and"
-                    " try again"
+                fmt.echo(
+                    fmt.info_style(
+                        "Please change your current directory to"
+                        f" {self.params.pipeline_workdir} and try again"
+                    )
                 )
                 raise PreflightError()
 
