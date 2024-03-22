@@ -10,7 +10,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
 
 from dlt.destinations.impl.destination.configuration import (
-    GenericDestinationClientConfiguration,
+    CustomDestinationClientConfiguration,
     TDestinationCallable,
 )
 
@@ -77,7 +77,7 @@ class DestinationLoadJob(LoadJob, ABC):
         self,
         table: TTableSchema,
         file_path: str,
-        config: GenericDestinationClientConfiguration,
+        config: CustomDestinationClientConfiguration,
         schema: Schema,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
