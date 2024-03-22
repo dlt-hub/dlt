@@ -40,7 +40,6 @@ class Inquirer:
         self.params = params
         self.pipelines = pipeline_members.get("pipelines")
         self.sources = pipeline_members.get("sources")
-        self.aliases = pipeline_members.get("aliases")
 
     def maybe_ask(self) -> t.Tuple[dlt.Pipeline, t.Union[DltResource, DltSource]]:
         """Shows prompts to select pipeline, resources and sources
@@ -50,29 +49,21 @@ class Inquirer:
         """
         self.preflight_checks()
         pipeline_name = self.get_pipeline_name()
-        real_pipeline_name = ""
-        if pipeline_name in self.pipelines:
-            pipeline = self.pipelines[pipeline_name]
-        else:
-            pipeline = t.cast(dlt.Pipeline, self.aliases[pipeline_name])
-            real_pipeline_name = f" ({pipeline.pipeline_name})"
+        pipeline = self.pipelines[pipeline_name]
+        real_pipeline_name = f" ({pipeline.pipeline_name})"
 
         source_name = self.get_source_name()
-        real_source_name = ""
-        if source_name in self.sources:
-            resource = self.sources[source_name]
-        else:
-            resource = self.aliases[source_name]  # type: ignore
-            real_source_name = f" ({resource.name})"
-
-        fmt.echo(
-            "Pipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
-        )
-
+        resource = self.sources[source_name]
         if isinstance(resource, DltResource):
             label = "Resource"
         else:
             label = "Source"
+
+        real_source_name = f" ({label}: {resource.name})"
+
+        fmt.echo(
+            "Pipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue", underline=True)
+        )
 
         fmt.echo(
             f"{label}: " + fmt.style(source_name + real_source_name, fg="blue", underline=True)
@@ -141,10 +132,8 @@ class Inquirer:
             if has_cwd_config and has_pipeline_config:
                 message = tw.dedent(
                     f"""
-                    Found {dot_dlt} in current directory and pipeline directory if you intended to
-                    use {self.params.pipeline_workdir}/{dot_dlt}, please change your current directory.
-
-                    Using {dot_dlt} in current directory {self.params.current_dir}/{dot_dlt}.
+                    Using {dot_dlt} in current directory {self.params.current_dir}/{dot_dlt}, if you intended to use
+                    {self.params.pipeline_workdir}/{dot_dlt}, please change your current directory.
                     """,
                 )
                 fmt.echo(fmt.warning_style(message))

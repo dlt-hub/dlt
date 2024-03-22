@@ -20,4 +20,3 @@ class RunnerParams:
 class PipelineMembers(t.TypedDict):
     pipelines: t.Dict[str, dlt.Pipeline]
     sources: t.Dict[str, t.Union[DltResource, DltSource]]
-    aliases: t.Dict[str, t.Union[DltResource, DltSource, dlt.Pipeline]]

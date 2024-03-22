@@ -9,6 +9,7 @@ from types import ModuleType
 
 import dlt
 
+from dlt.cli import echo as fmt
 from dlt.cli.utils import parse_init_script
 from dlt.common.cli.runner.source_patcher import SourcePatcher
 from dlt.common.cli.runner.types import PipelineMembers, RunnerParams
@@ -90,12 +91,9 @@ class PipelineScript:
     @property
     def pipeline_members(self) -> PipelineMembers:
         """Inspect the module and return pipelines with resources and sources
-        We populate sources, pipelines with relevant instances by their name,
-        also put every dlt specific instance under "by_alias" collection.
+        We populate sources, pipelines with relevant instances by their variable name.
 
-        It is done because users might pass pipeline, source or resource name
-        by their variable names, so this is an extra step to make sure that we
-        locate corrent pipeline, source or resource instance before showing an error.
+        Resources and sources must be initialized and bound beforehand.
         """
         members: PipelineMembers = defaultdict(dict)  # type: ignore[assignment]
         for name, value in self.pipeline_module.__dict__.items():
@@ -104,12 +102,16 @@ class PipelineScript:
                 continue
 
             if isinstance(value, dlt.Pipeline):
-                members["aliases"][name] = value
-                members["pipelines"][value.pipeline_name] = value
+                members["pipelines"][name] = value
 
-            if isinstance(value, (DltResource, DltSource)):
-                members["aliases"][name] = value
-                members["sources"][value.name] = value
+            if isinstance(value, DltSource):
+                members["sources"][name] = value
+
+            if isinstance(value, DltResource):
+                if value._args_bound:
+                    members["sources"][name] = value
+                else:
+                    fmt.echo(fmt.info_style(f"Resource: {value.name} is not bound, skipping."))
 
         return members
 
