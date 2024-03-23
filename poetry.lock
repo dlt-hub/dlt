@@ -1674,7 +1674,7 @@ PyYAML = ">=3.11"
 name = "clickhouse-driver"
 version = "0.2.7"
 description = "Python driver with native interface for ClickHouse"
-optional = false
+optional = true
 python-versions = ">=3.7, <4"
 files = [
     {file = "clickhouse-driver-0.2.7.tar.gz", hash = "sha256:299cfbe6d561955d88eeab6e09f3de31e2f6daccc6fdd904a59e46357d2d28d9"},
@@ -8646,7 +8646,7 @@ files = [
 name = "tzlocal"
 version = "5.2"
 description = "tzinfo object for the local timezone"
-optional = false
+optional = true
 python-versions = ">=3.8"
 files = [
     {file = "tzlocal-5.2-py3-none-any.whl", hash = "sha256:49816ef2fe65ea8ac19d19aa7a1ae0551c834303d5014c6d5a62e4cbda8047b8"},
@@ -9085,6 +9085,7 @@ athena = ["botocore", "pyarrow", "pyathena", "s3fs"]
 az = ["adlfs"]
 bigquery = ["gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
 cli = ["cron-descriptor", "pipdeptree"]
+clickhouse = ["clickhouse-driver"]
 databricks = ["databricks-sql-connector"]
 dbt = ["dbt-athena-community", "dbt-bigquery", "dbt-core", "dbt-databricks", "dbt-duckdb", "dbt-redshift", "dbt-snowflake"]
 duckdb = ["duckdb", "duckdb"]
@@ -9105,4 +9106,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "1383f10b512c27571168aa003fe72f18b06d30be31924083bee8834742e95ad2"
+content-hash = "3059208353b25cbd14865a8b59e8b1cb5aacfc988b60fb950051debe53abaf65"
