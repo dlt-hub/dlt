@@ -3,15 +3,11 @@ title: Stripe
 description: dlt verified source for Stripe API
 keywords: [stripe api, stripe verified source, stripe]
 ---
+import Header from './_source-info-header.md';
 
 # Stripe
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
-
+<Header/>
 
 [Stripe](https://stripe.com) is an online payment platform that allows businesses to securely process and manage customer transactions over the Internet.
 

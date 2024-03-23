@@ -3,14 +3,11 @@ title: Zendesk
 description: dlt pipeline for Zendesk API
 keywords: [zendesk api, zendesk pipeline, zendesk]
 ---
+import Header from './_source-info-header.md';
 
 # Zendesk
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Zendesk](https://www.zendesk.com/) is a cloud-based customer service and support platform. It offers a range of features,
 including ticket management, self-service options, knowledge base management, live chat, customer

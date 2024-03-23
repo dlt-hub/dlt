@@ -3,14 +3,11 @@ title: GitHub
 description: dlt verified source for GitHub API
 keywords: [github api, github verified source, github]
 ---
+import Header from './_source-info-header.md';
 
 # GitHub
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 This verified source can be used to load data on issues or pull requests from any GitHub repository
 onto a [destination](../../dlt-ecosystem/destinations) of your choice using [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28).

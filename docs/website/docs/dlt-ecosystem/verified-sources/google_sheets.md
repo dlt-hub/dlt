@@ -3,14 +3,11 @@ title: Google Sheets
 description: dlt verified source for Google Sheets API
 keywords: [google sheets api, google sheets verified source, google sheets]
 ---
+import Header from './_source-info-header.md';
 
 # Google Sheets
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Google Sheets](https://www.google.com/sheets/about/) is a cloud-based spreadsheet application
 offered by Google as part of its Google Workspace suite.

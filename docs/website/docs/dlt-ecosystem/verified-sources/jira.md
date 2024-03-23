@@ -1,10 +1,13 @@
+---
+title: Jira
+description: dlt verified source for Atlassian Jira
+keywords: [jira api, jira verified source, jira]
+---
+import Header from './_source-info-header.md';
+
 # Jira
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
-:::
+<Header/>
 
 [Jira](https://www.atlassian.com/software/jira) by Atlassian helps teams manage projects and tasks
 efficiently, prioritize work, and collaborate.
