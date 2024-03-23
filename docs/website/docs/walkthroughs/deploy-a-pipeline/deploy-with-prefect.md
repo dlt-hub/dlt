@@ -63,4 +63,11 @@ You can take a closer look at its GitHub repository [here.](https://github.com/d
         slack_pipeline.serve("slack_pipeline", cron="0 0 * * *")
     ```
     
-3. You can view deployment details and scheduled runs, including successes and failures, using [PrefectUI](https://app.prefect.cloud/auth/login).
+3. You can view deployment details and scheduled runs, including successes and failures, using [PrefectUI](https://app.prefect.cloud/auth/login). This will help you know when a pipeline ran or more importantly, when it did not.
+
+
+You can further extend the pipeline by: 
+
+- Setting up [remote infrastructure with workers.](https://docs.prefect.io/latest/tutorial/workers/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08)
+- [Adding automations](https://docs.prefect.io/latest/concepts/automations/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08), to notify the status of pipeline run.
+- [Setting up retries](https://docs.prefect.io/latest/concepts/tasks/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08#custom-retry-behavior).
