@@ -570,7 +570,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
