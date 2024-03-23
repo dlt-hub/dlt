@@ -234,6 +234,7 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
             'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
             'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
           ]
         },
         {
