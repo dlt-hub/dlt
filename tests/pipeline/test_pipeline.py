@@ -1416,6 +1416,72 @@ def test_drop_with_new_name() -> None:
     assert new_pipeline.pipeline_name == new_test_name
 
 
+def test_schema_version_increase_and_source_update() -> None:
+    now = pendulum.now()
+
+    @dlt.source
+    def autodetect():
+        # add unix ts autodetection to current source schema
+        dlt.current.source_schema().add_type_detection("timestamp")
+        return dlt.resource(
+            [int(now.timestamp()), int(now.timestamp() + 1), int(now.timestamp() + 2)],
+            name="numbers",
+        )
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    # control version of the schema
+    auto_source = autodetect()
+    assert auto_source.schema.stored_version is None
+    pipeline.extract(auto_source)
+    # extract did a first save
+    assert pipeline.default_schema.stored_version == 1
+    # only one prev hash
+    assert len(pipeline.default_schema.previous_hashes) == 1
+    # source schema was updated in the pipeline
+    assert auto_source.schema.stored_version == 1
+    # source has pipeline schema
+    assert pipeline.default_schema is auto_source.schema
+
+    pipeline.normalize()
+    # columns added and schema was saved in between
+    assert pipeline.default_schema.stored_version == 2
+    assert len(pipeline.default_schema.previous_hashes) == 2
+    # source schema still updated
+    assert auto_source.schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    pipeline.load()
+    # nothing changed in load
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+
+    # run same source again
+    pipeline.extract(auto_source)
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    pipeline.normalize()
+    assert pipeline.default_schema.stored_version == 2
+    pipeline.load()
+    assert pipeline.default_schema.stored_version == 2
+
+    # run another instance of the same source
+    pipeline.run(autodetect())
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+
+    # data has compatible schema with "numbers" but schema is taken from pipeline
+    pipeline.run([1, 2, 3], table_name="numbers")
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+
+    # new table will evolve schema
+    pipeline.run([1, 2, 3], table_name="seq")
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    assert pipeline.default_schema.stored_version == 4
+    assert pipeline.default_schema is auto_source.schema
+
+
 def test_remove_autodetect() -> None:
     now = pendulum.now()
 
@@ -1429,12 +1495,15 @@ def test_remove_autodetect() -> None:
         )
 
     pipeline = dlt.pipeline(destination="duckdb")
-    pipeline.run(autodetect())
+    auto_source = autodetect()
+    pipeline.extract(auto_source)
+    pipeline.normalize()
 
     # unix ts recognized
     assert (
         pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
     )
+    pipeline.load()
 
     pipeline = pipeline.drop()
 
@@ -1535,8 +1604,13 @@ def test_pipeline_list_packages() -> None:
     )
     load_ids = pipeline.list_extracted_load_packages()
     assert len(load_ids) == 3
+    extracted_package = pipeline.get_load_package_info(load_ids[1])
+    assert extracted_package.schema_name == "airtable_emojis"
+    extracted_package = pipeline.get_load_package_info(load_ids[2])
+    assert extracted_package.schema_name == "emojis_2"
     extracted_package = pipeline.get_load_package_info(load_ids[0])
     assert extracted_package.state == "extracted"
+    assert extracted_package.schema_name == "airtable_emojis"
     # same load id continues till the end
     pipeline.normalize()
     load_ids_n = pipeline.list_normalized_load_packages()
