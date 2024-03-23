@@ -814,8 +814,6 @@ class Schema:
         Returns:
             Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
         """
-        prev_version = self._stored_version
-        prev_version_hash = self._stored_version_hash
         self._stored_version, self._stored_version_hash, _, _ = utils.bump_version_if_modified(
             self.to_dict(bump_version=False)
         )

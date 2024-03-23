@@ -70,10 +70,10 @@ class LiveSchemaStorage(SchemaStorage):
         if live_schema:
             if id(live_schema) != id(schema):
                 # replace content without replacing instance
-                print(f"live schema {live_schema} updated in place")
+                # print(f"live schema {live_schema} updated in place")
                 live_schema.replace_schema_content(schema, link_to_replaced_schema=True)
         else:
-            print(f"live schema {schema.name} created from schema")
+            # print(f"live schema {schema.name} created from schema")
             live_schema = self.live_schemas[schema.name] = schema
         return live_schema
 
