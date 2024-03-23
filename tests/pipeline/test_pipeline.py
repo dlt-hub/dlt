@@ -1090,7 +1090,7 @@ def test_preserve_fields_order_incomplete_columns() -> None:
     p.extract(items2)
     p.normalize()
     # c3 was first so goes first
-    assert list(p.default_schema.get_table_columns("items").keys()) == [
+    assert list(p.default_schema.get_table_columns("items2").keys()) == [
         "c3",
         "c1",
         "c2",

@@ -44,10 +44,7 @@ class TResourceHints(TypedDict, total=False):
 
 
 class HintsMeta:
-    __slots__ = ["hints", "create_table_variant"]
-
-    hints: TResourceHints
-    create_table_variant: bool
+    __slots__ = ("hints", "create_table_variant")
 
     def __init__(self, hints: TResourceHints, create_table_variant: bool) -> None:
         self.hints = hints
@@ -169,7 +166,6 @@ class DltResourceHints:
         table_template = self._clone_hints(table_template)
         if "name" not in table_template:
             table_template["name"] = self.name
-        # table_template["columns"] = copy(self._hints["columns"])
 
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
