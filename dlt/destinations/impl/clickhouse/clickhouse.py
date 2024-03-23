@@ -192,7 +192,6 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         schema: Schema,
         config: ClickhouseClientConfiguration,
     ) -> None:
-        # TODO: There are no schemas in Clickhouse. No point in having schemas, only dataset names and table names for example "dataset1_mytable".
         self.sql_client: ClickhouseSqlClient = ClickhouseSqlClient(
             config.normalize_dataset_name(schema), config.credentials
         )
