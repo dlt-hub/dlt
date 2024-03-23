@@ -38,9 +38,7 @@ def render_with_pipeline(render_func: Callable[..., None]) -> None:
     render_func(pipeline)
 
 
-def query_using_cache(
-    pipeline: dlt.Pipeline, ttl: int
-) -> Callable[..., Optional[pd.DataFrame]]:
+def query_using_cache(pipeline: dlt.Pipeline, ttl: int) -> Callable[..., Optional[pd.DataFrame]]:
     @st.cache_data(ttl=ttl)
     def do_query(  # type: ignore[return]
         query: str,

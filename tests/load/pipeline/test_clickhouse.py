@@ -8,7 +8,7 @@ from tests.load.pipeline.utils import load_table_counts
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_staging_configs=True, subset=["clickhouse"]),
+    destinations_configs(all_staging_configs=True, subset=["clickhouse"]),
     ids=lambda x: x.name,
 )
 def test_clickhouse_destinations(destination_config: DestinationTestConfiguration) -> None:
@@ -22,7 +22,9 @@ def test_clickhouse_destinations(destination_config: DestinationTestConfiguratio
             "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
         }
 
-    pipeline.run(items, loader_file_format=destination_config.file_format)
+    pipeline.run(
+        items, loader_file_format=destination_config.file_format, staging=destination_config.staging
+    )
 
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]

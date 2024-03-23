@@ -1,4 +1,3 @@
-import logging
 import os
 from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence, cast
@@ -30,7 +29,9 @@ from dlt.destinations.impl.clickhouse.configuration import (
 from dlt.destinations.impl.clickhouse.sql_client import ClickhouseSqlClient
 from dlt.destinations.impl.clickhouse.utils import (
     convert_storage_to_http_scheme,
-    render_s3_table_function,
+    render_object_storage_table_function,
+    FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING,
+    SUPPORTED_FILE_FORMATS,
 )
 from dlt.destinations.job_client_impl import (
     SqlJobClientWithStaging,
@@ -130,22 +131,22 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
 
+        file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
         table_function: str
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
 
             table_function = (
-                render_s3_table_function(
+                render_object_storage_table_function(
                     bucket_http_url,
                     staging_credentials.aws_secret_access_key,
                     staging_credentials.aws_secret_access_key,
-                    file_format=file_extension,  # type: ignore[arg-type]
+                    file_format=file_extension,
                 )
                 if isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
-                else render_s3_table_function(
-                    bucket_http_url,
-                    file_format=file_extension,  # type: ignore[arg-type]
+                else render_object_storage_table_function(
+                    bucket_http_url, file_format=file_extension
                 )
             )
         elif bucket_scheme in ("az", "abfs"):
@@ -159,8 +160,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                 container_name = bucket_url.netloc
                 blobpath = bucket_url.path
 
-                format_mapping = {"jsonl": "JSONEachRow", "parquet": "Parquet"}
-                clickhouse_format = format_mapping[file_extension]
+                clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
 
                 table_function = (
                     f"azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format}')"

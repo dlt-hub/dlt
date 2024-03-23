@@ -2,7 +2,7 @@ import pytest
 
 from dlt.destinations.impl.clickhouse.utils import (
     convert_storage_to_http_scheme,
-    render_s3_table_function,
+    render_object_storage_table_function,
 )
 
 
@@ -106,7 +106,7 @@ def test_render_with_credentials_jsonl() -> None:
         """s3('https://example.com/data.jsonl','test_access_key','test_secret_key','JSONEachRow')"""
     )
     assert (
-        render_s3_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
+        render_object_storage_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
         == expected_output
     )
 
@@ -120,7 +120,7 @@ def test_render_with_credentials_parquet() -> None:
         """s3('https://example.com/data.parquet','test_access_key','test_secret_key','Parquet')"""
     )
     assert (
-        render_s3_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
+        render_object_storage_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
         == expected_output
     )
 
@@ -129,7 +129,7 @@ def test_render_without_credentials() -> None:
     url = "https://example.com/data.jsonl"
     file_format = "jsonl"
     expected_output = """s3('https://example.com/data.jsonl',NOSIGN,'JSONEachRow')"""
-    assert render_s3_table_function(url, file_format=file_format) == expected_output  # type: ignore[arg-type]
+    assert render_object_storage_table_function(url, file_format=file_format) == expected_output  # type: ignore[arg-type]
 
 
 def test_render_invalid_file_format() -> None:
@@ -138,7 +138,7 @@ def test_render_invalid_file_format() -> None:
     secret_access_key = "test_secret_key"
     file_format = "unknown"
     with pytest.raises(ValueError) as excinfo:
-        render_s3_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
+        render_object_storage_table_function(url, access_key_id, secret_access_key, file_format)  # type: ignore[arg-type]
     assert "Clickhouse s3/gcs staging only supports 'parquet' and 'jsonl'." == str(excinfo.value)
 
 
@@ -150,5 +150,5 @@ def test_invalid_url_format() -> None:
 
 def test_render_missing_url() -> None:
     with pytest.raises(TypeError) as excinfo:
-        render_s3_table_function()  # type: ignore
+        render_object_storage_table_function()  # type: ignore
     assert "missing 1 required positional argument: 'url'" in str(excinfo.value)

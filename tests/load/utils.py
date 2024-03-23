@@ -45,7 +45,7 @@ from tests.cases import (
     assert_all_data_types_row,
 )
 
-# bucket urls
+# Bucket urls.
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
@@ -64,7 +64,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "r2",
 ]
 
-# Filter out buckets not in all filesystem drivers
+# Filter out buckets not in all filesystem drivers.
 DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
 DEFAULT_BUCKETS = [
     bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
@@ -114,10 +114,7 @@ class DestinationTestConfiguration:
         name: str = self.destination
         if self.file_format:
             name += f"-{self.file_format}"
-        if not self.staging:
-            name += "-no-staging"
-        else:
-            name += "-staging"
+        name += "-staging" if self.staging else "-no-staging"
         if self.extra_info:
             name += f"-{self.extra_info}"
         return name
@@ -180,7 +177,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
         ]
-        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
@@ -206,15 +203,6 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-            )
-        ]
-        destination_configs += [
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                file_format="jsonl",
-                bucket_url=AWS_BUCKET,
-                supports_merge=True,
-                supports_dbt=False,
             )
         ]
         destination_configs += [
@@ -305,14 +293,49 @@ def destinations_configs(
                 extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
+                destination="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
                 destination="clickhouse",
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
-                extra_info="s3-integration",
+                extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
-                destination="synapse",
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
                 staging="filesystem",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
@@ -485,10 +508,7 @@ def prepare_table(
     client.schema.bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
-    if make_uniq_table:
-        user_table_name = table_name + uniq_id()
-    else:
-        user_table_name = table_name
+    user_table_name = table_name + uniq_id() if make_uniq_table else table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
@@ -561,7 +581,7 @@ def yield_client_with_storage(
     destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
     # create dataset with random name
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
 
     with cm_yield_client(
         destination_type, dataset_name, default_config_values, schema_name

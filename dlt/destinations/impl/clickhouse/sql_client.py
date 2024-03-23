@@ -6,12 +6,10 @@ from typing import (
     Optional,
     Sequence,
     ClassVar,
-    Union,
 )
 
 import clickhouse_driver  # type: ignore[import-untyped]
 import clickhouse_driver.errors  # type: ignore[import-untyped]
-from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -54,7 +52,15 @@ class ClickhouseSqlClient(
         self.database_name = credentials.database
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
-        self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
+        self._conn = clickhouse_driver.dbapi.connect(
+            dsn=self.credentials.to_native_representation()
+        )
+        with self._conn.cursor() as cur:
+            # Set session settings. There doesn't seem to be a way to set these
+            # without using the library's top-level, non-dbapi2 client.
+            cur.execute("set allow_experimental_object_type = 1")
+            cur.execute("set allow_experimental_lightweight_delete = 1")
+
         return self._conn
 
     @raise_open_connection_error
@@ -89,6 +95,29 @@ class ClickhouseSqlClient(
         with self.execute_query(sql, *args, **kwargs) as curr:
             return None if curr.description is None else curr.fetchall()
 
+    def create_dataset(self) -> None:
+        # Clickhouse doesn't have schemas.
+        pass
+
+    def drop_dataset(self) -> None:
+        # Since Clickhouse doesn't have schemas, we need to drop all tables in our virtual schema,
+        # or collection of tables that has the `dataset_name` as a prefix.
+        to_drop_results = self.execute_sql(
+            """
+            SELECT name
+            FROM system.tables
+            WHERE database = %(db_name)s
+            AND name LIKE %(dataset_name)s
+            """,
+            {"db_name": self.database_name, "dataset_name": self.dataset_name},
+        )
+        for to_drop_result in to_drop_results:
+            table = to_drop_result[0]
+            self.execute_sql(
+                "DROP TABLE %(database)s.%(table)s SYNC",
+                {"database": self.database_name, "table": table},
+            )
+
     @contextmanager
     @raise_database_error
     def execute_query(
@@ -97,7 +126,6 @@ class ClickhouseSqlClient(
         cur: clickhouse_driver.dbapi.connection.Cursor
         with self._conn.cursor() as cur:
             try:
-                # TODO: Clickhouse driver only accepts pyformat `...WHERE name=%(name)s` parameter marker arguments.
                 cur.execute(query, args or (kwargs or None))
                 yield ClickhouseDBApiCursorImpl(cur)  # type: ignore[abstract]
             except clickhouse_driver.dbapi.Error:
@@ -143,7 +171,7 @@ class ClickhouseSqlClient(
                 clickhouse_driver.dbapi.errors.InternalError,
             ),
         ):
-            if term := cls._maybe_make_terminal_exception_from_data_error(ex):
+            if term := cls._maybe_make_terminal_exception_from_data_error():
                 return term
             else:
                 return DatabaseTransientException(ex)
@@ -161,12 +189,17 @@ class ClickhouseSqlClient(
         else:
             return ex
 
+    def has_dataset(self) -> bool:
+        query = """
+                SELECT 1 FROM INFORMATION_SCHEMA.SCHEMATA WHERE
+                catalog_name = %(database)s AND schema_name = %(table)s
+                """
+        database, table = self.fully_qualified_dataset_name(escape=False).split(".", 2)
+        rows = self.execute_sql(query, {"database": database, "table": table})
+        return len(rows) > 0
+
     @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(
-        ex: Union[
-            clickhouse_driver.dbapi.errors.DataError, clickhouse_driver.dbapi.errors.InternalError
-        ]
-    ) -> Optional[Exception]:
+    def _maybe_make_terminal_exception_from_data_error() -> Optional[Exception]:
         return None
 
     @staticmethod
