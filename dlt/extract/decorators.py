@@ -28,6 +28,7 @@ from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectabl
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
+from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
@@ -447,7 +448,7 @@ def resource(
     ) -> DltResource:
         table_template = make_hints(
             table_name,
-            write_disposition=write_disposition,
+            write_disposition=write_disposition or DEFAULT_WRITE_DISPOSITION,
             columns=columns,
             primary_key=primary_key,
             merge_key=merge_key,

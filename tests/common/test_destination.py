@@ -2,7 +2,7 @@ import pytest
 
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
+from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 
 from tests.utils import ACTIVE_DESTINATIONS

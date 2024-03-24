@@ -2,6 +2,7 @@ import dlt, os, pytest
 
 from dlt.common.utils import uniq_id
 
+from tests.pipeline.utils import assert_load_info
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -83,7 +84,17 @@ def test_import_schema_is_respected() -> None:
         export_schema_path=EXPORT_SCHEMA_PATH,
     )
     p.run(EXAMPLE_DATA, table_name="person")
+    # initial schema + evolved in normalize == version 2
+    assert p.default_schema.stored_version == 2
     assert p.default_schema.tables["person"]["columns"]["id"]["data_type"] == "bigint"
+    # import schema got saved
+    import_schema = _get_import_schema(name)
+    assert "person" in import_schema.tables
+    # initial schema (after extract) got saved
+    assert import_schema.stored_version == 1
+    # import schema hash is set
+    assert p.default_schema._imported_version_hash == import_schema.version_hash
+    assert not p.default_schema.is_modified
 
     # take default schema, modify column type and save it to import folder
     modified_schema = p.default_schema.clone()
@@ -91,14 +102,12 @@ def test_import_schema_is_respected() -> None:
     with open(os.path.join(IMPORT_SCHEMA_PATH, name + ".schema.yaml"), "w", encoding="utf-8") as f:
         f.write(modified_schema.to_pretty_yaml())
 
-    # this will provoke a CannotCoerceColumnException
-    with pytest.raises(PipelineStepFailed) as exc:
-        p.run(EXAMPLE_DATA, table_name="person")
-    assert type(exc.value.exception) == CannotCoerceColumnException
-
-    # schema is changed
+    # import schema will be imported into pipeline
+    p.run(EXAMPLE_DATA, table_name="person")
+    # again: extract + normalize
+    assert p.default_schema.stored_version == 3
+    # change in pipeline schema
     assert p.default_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
-
     # import schema is not overwritten
     assert _get_import_schema(name).tables["person"]["columns"]["id"]["data_type"] == "text"
 
@@ -110,7 +119,15 @@ def test_import_schema_is_respected() -> None:
         export_schema_path=EXPORT_SCHEMA_PATH,
         full_refresh=True,
     )
-    p.run(EXAMPLE_DATA, table_name="person")
+    p.extract(EXAMPLE_DATA, table_name="person")
+    # starts with import schema v 1 that is dirty -> 2
+    assert p.default_schema.stored_version == 3
+    p.normalize()
+    assert p.default_schema.stored_version == 3
+    info = p.load()
+    assert_load_info(info)
+    assert p.default_schema.stored_version == 3
+
     assert p.default_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
 
     # import schema is not overwritten
