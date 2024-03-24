@@ -426,7 +426,7 @@ class Schema:
             self._schema_tables[table_name] = partial_table
         else:
             # merge tables performing additional checks
-            partial_table = utils.merge_tables(table, partial_table)
+            partial_table = utils.merge_table(table, partial_table)
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
@@ -515,7 +515,7 @@ class Schema:
                 # re-index columns as the name changed, if name space was reduced then
                 # some columns now clash with each other. so make sure that we merge columns that are already there
                 if new_col_name in new_columns:
-                    new_columns[new_col_name] = utils.merge_columns(
+                    new_columns[new_col_name] = utils.merge_column(
                         new_columns[new_col_name], c, merge_defaults=False
                     )
                 else:
@@ -782,7 +782,7 @@ class Schema:
             # if there's incomplete new_column then merge it with inferred column
             if new_column:
                 # use all values present in incomplete column to override inferred column - also the defaults
-                new_column = utils.merge_columns(inferred_column, new_column)
+                new_column = utils.merge_column(inferred_column, new_column)
             else:
                 new_column = inferred_column
 
