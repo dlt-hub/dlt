@@ -1,9 +1,9 @@
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
-from dlt.common.data_types.typing import TDataType
+from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+
+from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
-from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
-
+from dlt.common import json
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
@@ -21,6 +21,7 @@ EMPTY_KEY_IDENTIFIER = "_empty"  # replace empty keys with this
 
 class TDataItemRow(TypedDict, total=False):
     _dlt_id: str  # unique id of current row
+    _dlt_hash: Optional[str]  # hash of the row
 
 
 class TDataItemRowRoot(TDataItemRow, total=False):
@@ -148,6 +149,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _add_row_id(
         self, table: str, row: TDataItemRow, parent_row_id: str, pos: int, _r_lvl: int
     ) -> str:
+        # sometimes row id needs to be hash for now hardcode here
+        cleaned_row = {k: v for k, v in row.items() if not k.startswith("_dlt")}
+        row_hash = digest128(json.dumps(cleaned_row, sort_keys=True))
+        row["_dlt_id"] = row_hash
+        if _r_lvl > 0:
+            DataItemNormalizer._link_row(cast(TDataItemRowChild, row), parent_row_id, pos)
+        return row_hash
+
         # row_id is always random, no matter if primary_key is present or not
         row_id = generate_dlt_id()
         if _r_lvl > 0:
@@ -228,6 +237,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
+
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get("_dlt_id", None)
         if not row_id:

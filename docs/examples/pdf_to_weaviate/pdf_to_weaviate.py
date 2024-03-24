@@ -4,6 +4,7 @@ import dlt
 from dlt.destinations.impl.weaviate import weaviate_adapter
 from PyPDF2 import PdfReader
 
+
 @dlt.resource(selected=False)
 def list_files(folder_path: str):
     folder_path = os.path.abspath(folder_path)
@@ -14,6 +15,7 @@ def list_files(folder_path: str):
             "file_path": file_path,
             "mtime": os.path.getmtime(file_path),
         }
+
 
 @dlt.transformer(primary_key="page_id", write_disposition="merge")
 def pdf_to_text(file_item, separate_pages: bool = False):
@@ -27,6 +29,7 @@ def pdf_to_text(file_item, separate_pages: bool = False):
         page_item["text"] = reader.pages[page_no].extract_text()
         page_item["page_id"] = file_item["file_name"] + "_" + str(page_no)
         yield page_item
+
 
 pipeline = dlt.pipeline(pipeline_name="pdf_to_text", destination="weaviate")
 
