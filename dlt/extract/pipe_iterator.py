@@ -2,6 +2,7 @@ import inspect
 import types
 from typing import (
     AsyncIterator,
+    ClassVar,
     Dict,
     Sequence,
     Union,
@@ -16,7 +17,11 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    ContainerInjectableContext,
+    known_sections,
+)
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import PipelineException
 from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
@@ -48,7 +53,7 @@ class PipeIterator(Iterator[PipeItem]):
         copy_on_fork: bool = False
         next_item_mode: str = "fifo"
 
-        __section__ = "extract"
+        __section__: ClassVar[str] = known_sections.EXTRACT
 
     def __init__(
         self,

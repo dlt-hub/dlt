@@ -1,6 +1,7 @@
-from typing import Final, ClassVar, Any, List, TYPE_CHECKING
-from dlt.common.libs.sql_alchemy import URL
+import dataclasses
+from typing import Final, ClassVar, Any, List, TYPE_CHECKING, Union
 
+from dlt.common.libs.sql_alchemy import URL
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.utils import digest128
@@ -9,11 +10,11 @@ from dlt.common.typing import TSecretValue
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 
 
-@configspec
+@configspec(init=False)
 class PostgresCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "postgresql"  # type: ignore
-    password: TSecretValue
-    host: str
+    drivername: Final[str] = dataclasses.field(default="postgresql", init=False, repr=False, compare=False)  # type: ignore
+    password: TSecretValue = None
+    host: str = None
     port: int = 5432
     connect_timeout: int = 15
 
@@ -33,8 +34,8 @@ class PostgresCredentials(ConnectionStringCredentials):
 
 @configspec
 class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "postgres"  # type: ignore
-    credentials: PostgresCredentials
+    destination_type: Final[str] = dataclasses.field(default="postgres", init=False, repr=False, compare=False)  # type: ignore
+    credentials: PostgresCredentials = None
 
     create_indexes: bool = True
 
@@ -43,16 +44,3 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: PostgresCredentials = None,
-            dataset_name: str = None,
-            default_schema_name: str = None,
-            create_indexes: bool = True,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...

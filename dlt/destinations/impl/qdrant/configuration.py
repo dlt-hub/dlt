@@ -1,3 +1,4 @@
+import dataclasses
 from typing import Optional, Final
 
 from dlt.common.configuration import configspec
@@ -15,7 +16,7 @@ class QdrantCredentials(CredentialsConfiguration):
     # If `None` - use default values for `host` and `port`
     location: Optional[str] = None
     # API key for authentication in Qdrant Cloud. Default: `None`
-    api_key: Optional[str]
+    api_key: Optional[str] = None
 
     def __str__(self) -> str:
         return self.location or "localhost"
@@ -47,12 +48,14 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(DestinationClientDwhConfiguration):
-    destination_type: Final[str] = "qdrant"  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="qdrant", init=False, repr=False, compare=False)  # type: ignore
+    # Qdrant connection credentials
+    credentials: QdrantCredentials = None
     # character for the dataset separator
     dataset_separator: str = "_"
 
     # make it optional so empty dataset is allowed
-    dataset_name: Final[Optional[str]] = None  # type: ignore[misc]
+    dataset_name: Final[Optional[str]] = dataclasses.field(default=None, init=False, repr=False, compare=False)  # type: ignore[misc]
 
     # Batch size for generating embeddings
     embedding_batch_size: int = 32
@@ -67,10 +70,7 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     upload_max_retries: int = 3
 
     # Qdrant client options
-    options: QdrantClientOptions
-
-    # Qdrant connection credentials
-    credentials: QdrantCredentials
+    options: QdrantClientOptions = None
 
     # FlagEmbedding model to use
     # Find the list here. https://qdrant.github.io/fastembed/examples/Supported_Models/.

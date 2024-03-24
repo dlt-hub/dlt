@@ -62,6 +62,10 @@ def test_postgres_credentials_native_value(environment) -> None:
     assert c.is_resolved()
     assert c.password == "loader"
 
+    c = PostgresCredentials("postgres://loader:loader@localhost/dlt_data")
+    assert c.password == "loader"
+    assert c.database == "dlt_data"
+
 
 def test_postgres_credentials_timeout() -> None:
     # test postgres timeout

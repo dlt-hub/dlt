@@ -3,7 +3,7 @@ from prometheus_client import Gauge
 from prometheus_client.metrics import MetricWrapperBase
 
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.runtime import logger
+from dlt.common import logger
 from dlt.common.runtime.exec_info import dlt_version_info
 from dlt.common.typing import DictStrAny, StrAny
 

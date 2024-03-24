@@ -1,4 +1,5 @@
-from typing import Final, ClassVar, Any, List, Dict, Optional, TYPE_CHECKING
+import dataclasses
+from typing import Final, ClassVar, Any, List, Dict
 from dlt.common.libs.sql_alchemy import URL
 
 from dlt.common.configuration import configspec
@@ -10,11 +11,11 @@ from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 
 
-@configspec
+@configspec(init=False)
 class MsSqlCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "mssql"  # type: ignore
-    password: TSecretValue
-    host: str
+    drivername: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore
+    password: TSecretValue = None
+    host: str = None
     port: int = 1433
     connect_timeout: int = 15
     driver: str = None
@@ -90,8 +91,8 @@ class MsSqlCredentials(ConnectionStringCredentials):
 
 @configspec
 class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "mssql"  # type: ignore
-    credentials: MsSqlCredentials
+    destination_type: Final[str] = dataclasses.field(default="mssql", init=False, repr=False, compare=False)  # type: ignore
+    credentials: MsSqlCredentials = None
 
     create_indexes: bool = False
 
@@ -100,16 +101,3 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Optional[MsSqlCredentials] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            create_indexes: Optional[bool] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...

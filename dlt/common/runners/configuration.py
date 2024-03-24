@@ -16,13 +16,3 @@ class PoolRunnerConfiguration(BaseConfiguration):
     """# how many threads/processes in the pool"""
     run_sleep: float = 0.1
     """how long to sleep between runs with workload, seconds"""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            pool_type: TPoolType = None,
-            start_method: str = None,
-            workers: int = None,
-            run_sleep: float = 0.1,
-        ) -> None: ...
