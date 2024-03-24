@@ -15,6 +15,7 @@ OWID_DISASTERS_URL = (
 # format: "your-project.your_dataset.your_table"
 BIGQUERY_TABLE_ID = "chat-analytics-rasa-ci.ci_streaming_insert.natural-disasters"
 
+
 # dlt sources
 @dlt.resource(name="natural_disasters")
 def resource(url: str):
@@ -38,6 +39,7 @@ def resource(url: str):
     )
     yield table
 
+
 # dlt biquery custom destination
 # we can use the dlt provided credentials class
 # to retrieve the gcp credentials from the secrets
@@ -57,6 +59,7 @@ def bigquery_insert(
     with open(items, "rb") as f:
         load_job = client.load_table_from_file(f, BIGQUERY_TABLE_ID, job_config=job_config)
     load_job.result()  # Waits for the job to complete.
+
 
 if __name__ == "__main__":
     # run the pipeline and print load results
