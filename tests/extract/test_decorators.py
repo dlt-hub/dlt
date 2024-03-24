@@ -52,6 +52,7 @@ def test_default_resource() -> None:
 
     # simple generated table schema
     assert resource().compute_table_schema() == {
+        "columns": {},
         "name": "resource",
         "resource": "resource",
         "write_disposition": "append",

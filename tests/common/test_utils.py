@@ -3,7 +3,7 @@ import inspect
 import binascii
 import pytest
 from typing import Dict
-from dlt.common.exceptions import IdentifierTooLongException, PipelineException, TerminalValueError
+from dlt.common.exceptions import PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (
@@ -231,6 +231,8 @@ def test_extend_list_deduplicated() -> None:
 
 
 def test_exception_traces() -> None:
+    from dlt.common.destination.exceptions import IdentifierTooLongException
+
     # bare exception without stack trace
     trace = get_exception_trace(Exception("Message"))
     assert trace["message"] == "Message"
@@ -262,6 +264,8 @@ def test_exception_traces() -> None:
 
 
 def test_exception_trace_chain() -> None:
+    from dlt.common.destination.exceptions import IdentifierTooLongException
+
     try:
         raise TerminalValueError("Val")
     except Exception:

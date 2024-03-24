@@ -5,17 +5,17 @@ from threading import Thread, Event
 from time import sleep
 
 from dlt.common import pendulum, Decimal
-from dlt.common.exceptions import IdentifierTooLongException
+from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
-from dlt.common.utils import derives_from_class_of_name, uniq_id
+from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import (
     DatabaseException,
     DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn

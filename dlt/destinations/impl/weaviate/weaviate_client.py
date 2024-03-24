@@ -14,7 +14,7 @@ from typing import (
     cast,
 )
 
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTransientException,
     DestinationTerminalException,
@@ -424,6 +424,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def update_stored_schema(
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
+        super().update_stored_schema(only_tables, expected_update)
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
         try:

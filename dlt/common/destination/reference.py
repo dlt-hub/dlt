@@ -25,11 +25,6 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
-from dlt.common.exceptions import (
-    IdentifierTooLongException,
-    InvalidDestinationReference,
-    UnknownDestinationModule,
-)
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
@@ -43,12 +38,17 @@ from dlt.common.configuration import configspec, resolve_configuration, known_se
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import (
+    IdentifierTooLongException,
+    InvalidDestinationReference,
+    UnknownDestinationModule,
+    DestinationSchemaTampered,
+)
 from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
-
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -318,6 +318,12 @@ class JobClientBase(ABC):
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
         self._verify_schema()
+        # make sure that schema being saved was not modified from the moment it was loaded from storage
+        version_hash = self.schema.version_hash
+        if self.schema.is_modified:
+            raise DestinationSchemaTampered(
+                self.schema.name, version_hash, self.schema.stored_version_hash
+            )
         return expected_update
 
     @abstractmethod

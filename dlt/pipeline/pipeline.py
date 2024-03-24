@@ -28,14 +28,14 @@ from dlt.common.configuration.exceptions import (
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationLoadingWithoutStagingNotSupported,
     DestinationNoStagingMode,
-    MissingDependencyException,
     DestinationUndefinedEntity,
     DestinationIncompatibleLoaderFileFormatException,
 )
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import (

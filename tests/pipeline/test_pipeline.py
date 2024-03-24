@@ -20,12 +20,12 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
     DestinationTerminalException,
-    PipelineStateNotAvailable,
     UnknownDestinationModule,
 )
+from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
