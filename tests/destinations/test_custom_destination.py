@@ -455,7 +455,7 @@ def test_config_spec() -> None:
 def test_destination_with_spec() -> None:
     @configspec
     class MyDestinationSpec(CustomDestinationClientConfiguration):
-        my_predefined_val: str
+        my_predefined_val: str = None
 
     # check destination without additional config params
     @dlt.destination(spec=MyDestinationSpec)

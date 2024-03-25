@@ -1,8 +1,7 @@
-import dataclasses
-from typing import Optional, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.typing import DictStrAny
@@ -11,7 +10,7 @@ from dlt.common.typing import DictStrAny
 @configspec
 class NormalizersConfiguration(BaseConfiguration):
     # always in section
-    __section__: str = "schema"
+    __section__: ClassVar[str] = known_sections.SCHEMA
 
     naming: Optional[str] = None
     json_normalizer: Optional[DictStrAny] = None
@@ -32,7 +31,3 @@ class NormalizersConfiguration(BaseConfiguration):
             self.json_normalizer["config"][
                 "max_nesting"
             ] = self.destination_capabilities.max_table_nesting
-
-    if TYPE_CHECKING:
-
-        def __init__(self, naming: str = None, json_normalizer: TJSONNormalizer = None) -> None: ...

@@ -20,8 +20,8 @@ def client(empty_schema: Schema) -> RedshiftClient:
     # return client without opening connection
     return RedshiftClient(
         empty_schema,
-        RedshiftClientConfiguration(
-            dataset_name="test_" + uniq_id(), credentials=RedshiftCredentials()
+        RedshiftClientConfiguration(credentials=RedshiftCredentials())._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
         ),
     )
 

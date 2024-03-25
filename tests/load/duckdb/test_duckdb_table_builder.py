@@ -14,7 +14,10 @@ from tests.load.utils import TABLE_UPDATE, empty_schema
 @pytest.fixture
 def client(empty_schema: Schema) -> DuckDbClient:
     # return client without opening connection
-    return DuckDbClient(empty_schema, DuckDbClientConfiguration(dataset_name="test_" + uniq_id()))
+    return DuckDbClient(
+        empty_schema,
+        DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
+    )
 
 
 def test_create_table(client: DuckDbClient) -> None:
@@ -89,7 +92,9 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     # same thing with indexes
     client = DuckDbClient(
         client.schema,
-        DuckDbClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=True),
+        DuckDbClientConfiguration(create_indexes=True)._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql)

@@ -24,8 +24,8 @@ from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 from tests.utils import TEST_STORAGE_ROOT, test_storage
 
-if sys.version_info > (3, 11):
-    pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
+# if sys.version_info > (3, 11):
+#     pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
 
 
 GITHUB_PIPELINE_NAME = "dlt_github_pipeline"
@@ -70,7 +70,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     }
                     # check loads table without attaching to pipeline
                     duckdb_cfg = resolve_configuration(
-                        DuckDbClientConfiguration(dataset_name=GITHUB_DATASET),
+                        DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
                         sections=("destination", "duckdb"),
                     )
                     with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
@@ -189,7 +189,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 venv = Venv.restore_current()
                 print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_load.py"))
                 duckdb_cfg = resolve_configuration(
-                    DuckDbClientConfiguration(dataset_name=GITHUB_DATASET),
+                    DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
                     sections=("destination", "duckdb"),
                 )
                 with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:

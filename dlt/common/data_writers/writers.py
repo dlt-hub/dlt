@@ -4,6 +4,7 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
+    ClassVar,
     Dict,
     List,
     Optional,
@@ -236,7 +237,7 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     timestamp_timezone: str = "UTC"
     row_group_size: Optional[int] = None
 
-    __section__: str = known_sections.DATA_WRITER
+    __section__: ClassVar[str] = known_sections.DATA_WRITER
 
 
 class ParquetDataWriter(DataWriter):

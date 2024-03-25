@@ -2,12 +2,7 @@ import contextlib
 import logging
 import traceback
 from logging import LogRecord, Logger
-from typing import Any, Iterator, Protocol
-
-from dlt.common.json import json
-from dlt.common.runtime.exec_info import dlt_version_info
-from dlt.common.typing import StrAny, StrStr
-from dlt.common.configuration.specs import RunConfiguration
+from typing import Any, Mapping, Iterator, Protocol
 
 DLT_LOGGER_NAME = "dlt"
 LOGGER: Logger = None
@@ -32,7 +27,7 @@ def __getattr__(name: str) -> LogMethod:
     return wrapper
 
 
-def metrics(name: str, extra: StrAny, stacklevel: int = 1) -> None:
+def metrics(name: str, extra: Mapping[str, Any], stacklevel: int = 1) -> None:
     """Forwards metrics call to LOGGER"""
     if LOGGER:
         LOGGER.info(name, extra=extra, stacklevel=stacklevel)
@@ -44,15 +39,6 @@ def suppress_and_warn() -> Iterator[None]:
         yield
     except Exception:
         LOGGER.warning("Suppressed exception", exc_info=True)
-
-
-def init_logging(config: RunConfiguration) -> None:
-    global LOGGER
-
-    version = dlt_version_info(config.pipeline_name)
-    LOGGER = _init_logging(
-        DLT_LOGGER_NAME, config.log_level, config.log_format, config.pipeline_name, version
-    )
 
 
 def is_logging() -> bool:
@@ -75,6 +61,8 @@ def pretty_format_exception() -> str:
 
 class _MetricsFormatter(logging.Formatter):
     def format(self, record: LogRecord) -> str:  # noqa: A003
+        from dlt.common.json import json
+
         s = super(_MetricsFormatter, self).format(record)
         # dump metrics dictionary nicely
         if "metrics" in record.__dict__:
@@ -83,7 +71,7 @@ class _MetricsFormatter(logging.Formatter):
 
 
 def _init_logging(
-    logger_name: str, level: str, fmt: str, component: str, version: StrStr
+    logger_name: str, level: str, fmt: str, component: str, version: Mapping[str, str]
 ) -> Logger:
     if logger_name == "root":
         logging.basicConfig(level=level)
@@ -102,7 +90,7 @@ def _init_logging(
         from dlt.common.runtime import json_logging
 
         class _CustomJsonFormatter(json_logging.JSONLogFormatter):
-            version: StrStr = None
+            version: Mapping[str, str] = None
 
             def _format_log_object(self, record: LogRecord) -> Any:
                 json_log_object = super(_CustomJsonFormatter, self)._format_log_object(record)

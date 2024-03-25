@@ -21,7 +21,9 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     creds = SnowflakeCredentials()
     return SnowflakeClient(
         empty_schema,
-        SnowflakeClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds),
+        SnowflakeClientConfiguration(credentials=creds)._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
 
 

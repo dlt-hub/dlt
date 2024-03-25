@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     cast,
     get_type_hints,
     ContextManager,
@@ -1122,17 +1123,16 @@ class Pipeline(SupportsPipeline):
             )
 
             if issubclass(client_spec, DestinationClientStagingConfiguration):
-                return client_spec(
-                    dataset_name=self.dataset_name,
-                    default_schema_name=default_schema_name,
+                spec: DestinationClientDwhConfiguration = client_spec(
                     credentials=credentials,
                     as_staging=as_staging,
                 )
-            return client_spec(
-                dataset_name=self.dataset_name,
-                default_schema_name=default_schema_name,
-                credentials=credentials,
-            )
+            else:
+                spec = client_spec(
+                    credentials=credentials,
+                )
+            spec._bind_dataset_name(self.dataset_name, default_schema_name)
+            return spec
 
         return client_spec(credentials=credentials)
 
