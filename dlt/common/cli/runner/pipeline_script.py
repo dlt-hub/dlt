@@ -4,14 +4,16 @@ import tempfile
 import typing as t
 import sys
 
+from contextlib import contextmanager
 from types import ModuleType
 
 import dlt
 
 from dlt.cli import echo as fmt
 from dlt.cli.utils import parse_init_script
-from dlt.common.cli.runner.source_patcher import SourcePatcher
+from dlt.common.cli.runner.errors import RunnerError
 from dlt.common.cli.runner.types import PipelineMembers, RunnerParams
+from dlt.common.pipeline import LoadInfo
 from dlt.sources import DltResource, DltSource
 
 
@@ -41,22 +43,48 @@ class PipelineScript:
         self.workdir = os.path.dirname(os.path.abspath(params.script_path))
         """Directory in which pipeline script lives"""
 
+        self.has_pipeline_auto_runs: bool = False
+
         # Now we need to patch and store pipeline code
         visitor = parse_init_script(
             COMMAND_NAME,
             self.script_contents,
             self.module_name,
         )
-        patcher = SourcePatcher(visitor)
-        self.source_code = patcher.patch()
+        self.source_code = visitor.source
 
     def load_module(self, script_path: str) -> ModuleType:
         """Loads pipeline module from a given location"""
-        spec = importlib.util.spec_from_file_location(self.module_name, script_path)
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[self.module_name] = module
-        spec.loader.exec_module(module)
-        return module
+        with self.expect_no_pipeline_runs():
+            spec = importlib.util.spec_from_file_location(self.module_name, script_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[self.module_name] = module
+            spec.loader.exec_module(module)
+            if self.has_pipeline_auto_runs:
+                raise RunnerError(
+                    fmt.style(
+                        "Please move all pipeline.run calls inside __main__ or remove them",
+                        fg="red",
+                    )
+                )
+
+            return module
+
+    @contextmanager
+    def expect_no_pipeline_runs(self):
+        """Monkey patch pipeline.run during module loading
+        Restore it once importing is done
+        """
+        old_run = dlt.Pipeline.run
+
+        def noop(*args, **kwargs) -> LoadInfo:
+            self.has_pipeline_auto_runs = True
+
+        dlt.Pipeline.run = noop
+
+        yield
+
+        dlt.Pipeline.run = old_run
 
     @property
     def pipeline_module(self) -> ModuleType:
@@ -113,7 +141,12 @@ class PipelineScript:
                 if value._args_bound:
                     members["sources"][name] = value
                 else:
-                    fmt.echo(fmt.info_style(f"Resource: {value.name} is not bound, skipping."))
+                    fmt.echo(
+                        fmt.info_style(
+                            f"Resource: {value.name} is not bound, skipping."
+                        )
+                    )
+
         return members
 
     @property
