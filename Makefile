@@ -27,7 +27,7 @@ help:
 	@echo "			tests all components using local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
-	@echo "		test-and-lint-snippets"
+	@echo "		lint-and-test-snippets"
 	@echo "			tests and lints snippets and examples in docs"
 	@echo "		build-library"
 	@echo "			makes dev and then builds dlt package for distribution"
@@ -60,11 +60,20 @@ format:
 	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
 	# poetry run isort ./
 
-test-and-lint-snippets:
+lint-and-test-snippets:
 	cd docs/tools && poetry run python check_embedded_snippets.py full
 	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup
 	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
+
+lint-and-test-examples:
+	poetry run mypy --config-file mypy.ini docs/examples
+	poetry run flake8 --max-line-length=200 docs/examples
+	cd docs/examples && poetry run pytest
+
+
+test-examples:
+	cd docs/examples && poetry run pytest
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
