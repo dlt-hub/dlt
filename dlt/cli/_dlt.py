@@ -603,7 +603,11 @@ def main() -> int:
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
     # CLI pipeline runner
-    run_cmd = subparsers.add_parser("run", help="Run pipelines in a given directory")
+    run_cmd = subparsers.add_parser(
+        "run",
+        help="Run pipelines in a given directory",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
 
     run_cmd.add_argument(
         "module",
