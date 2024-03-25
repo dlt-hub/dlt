@@ -34,9 +34,7 @@ def test_run_command_requires_working_directory_same_as_pipeline_working_directo
         )
 
         output = buf.getvalue()
-        assert (
-            "Current working directory is different from the pipeline script" in output
-        )
+        assert "Current working directory is different from the pipeline script" in output
         assert "If needed please change your current directory to" in output
 
 
@@ -66,20 +64,33 @@ def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_no
             "Source or resouce with name: resource_404 has not been found in pipeline script."
             in output
         )
-        assert (
-            "You can choose one of: quads_resource_instance, squares_resource_instance"
-            in output
-        )
+        assert "You can choose one of: quads_resource_instance, squares_resource_instance" in output
 
 
 def test_run_command_allows_selection_of_pipeline_source_or_resource():
     with mock.patch(
         "dlt.common.cli.runner.inquirer.Inquirer.ask", return_value=0
-    ) as mocked_ask:
+    ) as mocked_ask, io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
             str(TEST_PIPELINE),
             None,
             None,
             ["write_disposition=append", "loader_file_format=parquet"],
         )
+
+        # expect 2 calls to Inquirer.ask
+        # first for pipeline selection
+        # second for reource or source
         assert mocked_ask.call_count == 2
+
+
+def test_run_command_exits_if_pipeline_run_calls_exist_at_the_top_level():
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        run_command.run_pipeline_command(
+            str(TEST_PIPELINE_WITH_IMMEDIATE_RUN),
+            None,
+            None,
+            ["write_disposition=append", "loader_file_format=parquet"],
+        )
+        output = buf.getvalue()
+        assert "Please move all pipeline.run calls inside __main__ or remove them" in output

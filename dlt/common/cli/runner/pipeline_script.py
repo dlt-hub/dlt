@@ -1,6 +1,5 @@
 import os
 import importlib
-import tempfile
 import typing as t
 import sys
 
@@ -85,16 +84,7 @@ class PipelineScript:
 
     @property
     def pipeline_module(self) -> ModuleType:
-        with tempfile.NamedTemporaryFile(
-            mode="w+",
-            dir=self.workdir,
-            prefix="pipeline_",
-            suffix=".py",
-        ) as tm:
-            tm.write(self.source_code)
-            tm.flush()
-            self.module = self.load_module(tm.name)
-
+        self.module = self.load_module(self.params.script_path)
         return self.module
 
     @property
