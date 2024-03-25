@@ -31,9 +31,5 @@ squares_pipeline = dlt.pipeline(
     destination="duckdb",
 )
 
-# load_info = squares_pipeline.run(quads_resource())
-# load_info_2 = squares_pipeline.run(squares_resource)
-
-# print(load_info)
-load_info = quads_pipeline.run(quads_resource())
-print(load_info)
+if __name__ == "__main__":
+    load_info = squares_pipeline.run(squares_resource(), schema=dlt.Schema("bobo-schema"))
