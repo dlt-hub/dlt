@@ -11,7 +11,7 @@ tags: [dashboarding, analyst, LLMs]
 ---
 
 <aside>
-💡 TL;DR: Exploring the theme of "AI replacing jobs", we examine ThoughtSpot's LLM analyst, **Sage**. This article assesses Sage's application in different analytics techniques, the importance of the data model it analyzes, and dlt's supportive role in this context.
+💡 TL;DR: Exploring the theme of "AI replacing jobs", we examine ThoughtSpot's LLM analyst, Sage. This article assesses Sage's application in different analytics techniques, the importance of the data model it analyzes, and dlt's supportive role in this context.
 </aside>
 
 ## The advent of ChatGPT...
