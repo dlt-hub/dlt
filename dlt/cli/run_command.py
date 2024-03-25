@@ -44,7 +44,7 @@ def run_pipeline_command(
     except PipelineStepFailed:
         raise
     except RunnerError as ex:
-        fmt.echo(ex.message)
+        fmt.echo(fmt.error_style(ex.message))
         return -1
     except (FriendlyExit, PreflightError):
         fmt.info("Stopping...")

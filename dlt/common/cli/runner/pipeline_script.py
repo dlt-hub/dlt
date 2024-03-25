@@ -62,10 +62,7 @@ class PipelineScript:
             spec.loader.exec_module(module)
             if self.has_pipeline_auto_runs:
                 raise RunnerError(
-                    fmt.style(
-                        "Please move all pipeline.run calls inside __main__ or remove them",
-                        fg="red",
-                    )
+                    "Please move all pipeline.run calls inside __main__ or remove them"
                 )
 
             return module
@@ -141,11 +138,7 @@ class PipelineScript:
                 if value._args_bound:
                     members["sources"][name] = value
                 else:
-                    fmt.echo(
-                        fmt.info_style(
-                            f"Resource: {value.name} is not bound, skipping."
-                        )
-                    )
+                    fmt.echo(fmt.info_style(f"Resource: {value.name} is not bound, skipping."))
 
         return members
 
