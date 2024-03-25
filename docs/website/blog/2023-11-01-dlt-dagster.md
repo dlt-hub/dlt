@@ -141,13 +141,13 @@ This will generate the default files for Dagster that we will use as a starting 
 
 ### Step 4: Add configurable resources and define the asset
 
-- Define a `DltResource` class in `resources/__init__.py` as a Dagster configurable resource. This class allows you to reuse pipeline code inside an asset.
+- Define a `DDltResource` class in `resources/__init__.py` as a Dagster configurable resource. This class allows you to reuse pipeline code inside an asset.
 
 ```py
 from dagster import ConfigurableResource 
 import dlt
 
-class DltResource(ConfigurableResource):
+class DDltResource(ConfigurableResource):
     pipeline_name: str
     dataset_name: str
     destination: str
@@ -169,18 +169,18 @@ class DltResource(ConfigurableResource):
 
 ```py
 from dagster import asset, get_dagster_logger
-from ..resources import DltResource
+from ..resources import DDltResource
 from ..dlt import github_issues_resource
 
 @asset
-def issues_pipeline(pipeline: DltResource):
+def issues_pipeline(pipeline: DDltResource):
 
     logger = get_dagster_logger()
     results = pipeline.create_pipeline(github_issues_resource, table_name='github_issues')
     logger.info(results)
 ```
 
-The defined asset (**issues_pipeline**) takes as input the configurable resource (**DltResource**). In the asset, we use the configurable resource to create a dlt pipeline by using an instance of the configurable resource (**DltResource**) to call the `create_pipeline`  function. The `dlt.resource` (**github_issues_resource**) is passed to the `create_pipeline` function. The `create_pipeline` function normalizes the data and ingests it into BigQuery.
+The defined asset (**issues_pipeline**) takes as input the configurable resource (**DDltResource**). In the asset, we use the configurable resource to create a dlt pipeline by using an instance of the configurable resource (**DDltResource**) to call the `create_pipeline`  function. The `dlt.resource` (**github_issues_resource**) is passed to the `create_pipeline` function. The `create_pipeline` function normalizes the data and ingests it into BigQuery.
 
 ### Step 5: Handle Schema Evolution
 
@@ -191,7 +191,7 @@ The defined asset (**issues_pipeline**) takes as input the configurable resource
 ```py
 from dagster import AssetExecutionContext
 @asset
-def issues_pipeline(context: AssetExecutionContext, pipeline: DltResource):
+def issues_pipeline(context: AssetExecutionContext, pipeline: DDltResource):
     ...
     md_content=""
     for package in result.load_packages:
@@ -215,7 +215,7 @@ defs = Definitions(
     assets=all_assets,
     jobs=[simple_pipeline],
     resources={
-        "pipeline": DltResource(
+        "pipeline": DDltResource(
             pipeline_name = "github_issues",
             dataset_name = "dagster_github_issues",
             destination = "bigquery",
@@ -299,7 +299,7 @@ For this example, we are using MongoDB Atlas. Set up the account for MongoDB Atl
 Next, create a `.env` file and add the BigQuery and MongoDB credentials to the file. The `.env` file should reside in the root directory.
 
 
-### Step 3: Adding the DltResource
+### Step 3: Adding the DDltResource
 
  Create a `DltResouce` under the **resources** directory. Add the following code to the `__init__.py`:
 
@@ -308,7 +308,7 @@ from dagster import ConfigurableResource
 
 import dlt
 
-class DltResource(ConfigurableResource):
+class DDltResource(ConfigurableResource):
     pipeline_name: str
     dataset_name: str
     destination: str
@@ -337,7 +337,7 @@ In the `mongodb_pipeline.py` file, locate the `load_select_collection_hint_db` f
 
 ```py
 from ..mongodb import mongodb
-from ..resources import DltResource
+from ..resources import DDltResource
 
 import dlt
 import os
@@ -363,7 +363,7 @@ def dlt_asset_factory(collection_list):
                 for stream in collection_name}
 
         )
-        def collections_asset(context: OpExecutionContext, pipeline: DltResource):
+        def collections_asset(context: OpExecutionContext, pipeline: DDltResource):
 
             # Getting Data From MongoDB    
             data = mongodb(URL, db).with_resources(*collection_name)
@@ -390,12 +390,12 @@ Add the definitions in the `__init__.py` in the root directory:
 from dagster import Definitions
 
 from .assets import dlt_assets
-from .resources import DltResource
+from .resources import DDltResource
 
 defs = Definitions(
     assets=dlt_assets,
     resources={
-        "pipeline": DltResource(
+        "pipeline": DDltResource(
             pipeline_name = "mongo",
             dataset_name = "dagster_mongo",
             destination = "bigquery"

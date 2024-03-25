@@ -132,7 +132,6 @@ from typing import List
 
 import dlt
 import pendulum
-from pendulum import datetime
 
 from slack import slack_source
 
@@ -144,7 +143,7 @@ def get_resources() -> List[str]:
     """Fetch a list of available dlt resources so we can fetch them one at a time"""
     # ...
 
-def load_channel_history(channel: str, start_date: datetime) -> None:
+def load_channel_history(channel: str, start_date: Date) -> None:
     """Execute a pipeline that will load the given Slack channel incrementally beginning at the given start date."""
     # ...
 
@@ -201,7 +200,6 @@ from typing import List
 
 import dlt
 import pendulum
-from pendulum import datetime
 from prefect import flow, task
 from slack import slack_source
 
@@ -214,7 +212,7 @@ def get_resources() -> List[str]:
    ...
 
 @task
-def load_channel_history(channel: str, start_date: datetime) -> None:
+def load_channel_history(channel: str, start_date: pendulum.Date) -> None:
    ...
 
 @task
