@@ -267,10 +267,8 @@ function syncExamples() {
     const exampleName = exampleDir.split("/").slice(-1)[0];
 
     // exclude some folders
-    for (const exclusion of EXAMPLES_EXCLUSIONS) {
-      if (exampleName.startsWith(exclusion)) {
-        continue;
-      }
+    if (EXAMPLES_EXCLUSIONS.some(ex => exampleName.startsWith(ex))) {
+      continue;
     }
 
     const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
