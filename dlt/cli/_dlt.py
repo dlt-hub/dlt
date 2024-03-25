@@ -22,6 +22,7 @@ from dlt.cli.init_command import (
 )
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt.cli.run_command import run_pipeline_command
+from dlt.common.cli.runner.help import run_args_help
 from dlt.cli.telemetry_command import (
     DLT_TELEMETRY_DOCS_URL,
     change_telemetry_status_command,
@@ -136,7 +137,11 @@ def deploy_command_wrapper(
 
 @utils.track_command("pipeline", True, "operation")
 def pipeline_command_wrapper(
-    operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
+    operation: str,
+    pipeline_name: str,
+    pipelines_dir: str,
+    verbosity: int,
+    **command_kwargs: Any,
 ) -> int:
     try:
         pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs)
@@ -206,7 +211,11 @@ class TelemetryAction(argparse.Action):
         help: str = None,  # noqa
     ) -> None:
         super(TelemetryAction, self).__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
         )
 
     def __call__(
@@ -231,7 +240,11 @@ class NonInteractiveAction(argparse.Action):
         help: str = None,  # noqa
     ) -> None:
         super(NonInteractiveAction, self).__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
         )
 
     def __call__(
@@ -253,7 +266,11 @@ class DebugAction(argparse.Action):
         help: str = None,  # noqa
     ) -> None:
         super(DebugAction, self).__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
         )
 
     def __call__(
@@ -274,7 +291,9 @@ def main() -> int:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--version", action="version", version="%(prog)s {version}".format(version=__version__)
+        "--version",
+        action="version",
+        version="%(prog)s {version}".format(version=__version__),
     )
     parser.add_argument(
         "--disable-telemetry",
@@ -367,7 +386,9 @@ def main() -> int:
             "deploy", help="Creates a deployment package for a selected pipeline script"
         )
         deploy_cmd.add_argument(
-            "pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script"
+            "pipeline_script_path",
+            metavar="pipeline-script-path",
+            help="Path to a pipeline script",
         )
         deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
 
@@ -424,25 +445,37 @@ def main() -> int:
         )
         deploy_cmd.add_argument("--help", "-h", nargs="?", const=True)
         deploy_cmd.add_argument(
-            "pipeline_script_path", metavar="pipeline-script-path", nargs=argparse.REMAINDER
+            "pipeline_script_path",
+            metavar="pipeline-script-path",
+            nargs=argparse.REMAINDER,
         )
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument(
-        "file", help="Schema file name, in yaml or json format, will autodetect based on extension"
+        "file",
+        help="Schema file name, in yaml or json format, will autodetect based on extension",
     )
     schema.add_argument(
-        "--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format"
+        "--format",
+        choices=["json", "yaml"],
+        default="yaml",
+        help="Display schema in this format",
     )
     schema.add_argument(
-        "--remove-defaults", action="store_true", help="Does not show default hint values"
+        "--remove-defaults",
+        action="store_true",
+        help="Does not show default hint values",
     )
 
     pipe_cmd = subparsers.add_parser(
         "pipeline", help="Operations on pipelines that were ran locally"
     )
     pipe_cmd.add_argument(
-        "--list-pipelines", "-l", default=False, action="store_true", help="List local pipelines"
+        "--list-pipelines",
+        "-l",
+        default=False,
+        action="store_true",
+        help="List local pipelines",
     )
     pipe_cmd.add_argument(
         "--hot-reload",
@@ -465,10 +498,12 @@ def main() -> int:
 
     pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
     pipe_cmd_sync_parent.add_argument(
-        "--destination", help="Sync from this destination when local pipeline state is missing."
+        "--destination",
+        help="Sync from this destination when local pipeline state is missing.",
     )
     pipe_cmd_sync_parent.add_argument(
-        "--dataset-name", help="Dataset name to sync from when local pipeline state is missing."
+        "--dataset-name",
+        help="Dataset name to sync from when local pipeline state is missing.",
     )
 
     pipeline_subparsers.add_parser(
@@ -511,7 +546,9 @@ def main() -> int:
         help="Display schema in this format",
     )
     pipe_cmd_schema.add_argument(
-        "--remove-defaults", action="store_true", help="Does not show default hint values"
+        "--remove-defaults",
+        action="store_true",
+        help="Does not show default hint values",
     )
 
     pipe_cmd_drop = pipeline_subparsers.add_parser(
@@ -553,7 +590,8 @@ def main() -> int:
     )
 
     pipe_cmd_package = pipeline_subparsers.add_parser(
-        "load-package", help="Displays information on load package, use -v or -vv for more info"
+        "load-package",
+        help="Displays information on load package, use -v or -vv for more info",
     )
     pipe_cmd_package.add_argument(
         "load_id",
@@ -599,10 +637,7 @@ def main() -> int:
         "-a",
         nargs="+",
         default=[],
-        help=(
-            "Arguments passed to pipeline.run, example: "
-            "--args write_disposition=merge loader_file_format=jsonl"
-        ),
+        help=run_args_help,
     )
 
     args = parser.parse_args()
@@ -645,7 +680,11 @@ def main() -> int:
                 return -1
             else:
                 return init_command_wrapper(
-                    args.source, args.destination, args.generic, args.location, args.branch
+                    args.source,
+                    args.destination,
+                    args.generic,
+                    args.location,
+                    args.branch,
                 )
     elif args.command == "deploy":
         try:
