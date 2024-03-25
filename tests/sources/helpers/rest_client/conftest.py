@@ -1,12 +1,13 @@
 import re
 from typing import NamedTuple, Callable, Pattern, List, TYPE_CHECKING
-import json
 import base64
 
 from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 import requests_mock
+
+from dlt.common import json
 
 if TYPE_CHECKING:
     RequestCallback = Callable[[requests_mock.Request, requests_mock.Context], str]
