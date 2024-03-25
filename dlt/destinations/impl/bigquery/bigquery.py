@@ -1,7 +1,7 @@
 import functools
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -225,9 +225,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         insert_api = table.get("insert_api", self.config.loading_api)
         if insert_api == "streaming":
             if file_path.endswith(".jsonl"):
-                job_cls = DestinationJsonlLoadJob
+                job_cls: Type[DestinationJsonlLoadJob] = DestinationJsonlLoadJob
             elif file_path.endswith(".parquet"):
-                job_cls = DestinationParquetLoadJob
+                job_cls: Type[DestinationParquetLoadJob] = DestinationParquetLoadJob
             else:
                 raise ValueError(
                     f"Unsupported file type for BigQuery streaming inserts: {file_path}"
@@ -236,18 +236,18 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             job = job_cls(
                 table,
                 file_path,
-                self.config,
+                self.config,  # type: ignore
                 self.schema,
                 destination_state(),
                 functools.partial(_streaming_load, self.sql_client),
                 [],
             )
         else:
-            job = super().start_file_load(table, file_path, load_id)
+            job = super().start_file_load(table, file_path, load_id)  # type: ignore
 
             if not job:
                 try:
-                    job = BigQueryLoadJob(
+                    job = BigQueryLoadJob(  # type: ignore
                         FileStorage.get_file_name_from_file_path(file_path),
                         self._create_load_job(table, file_path),
                         self.config.http_timeout,
@@ -451,7 +451,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
 
-def _streaming_load(sql_client, items, table):
+def _streaming_load(sql_client: BigQueryClient, items: List[Dict[Any, Any]], table: Dict[Any, Any]):
     """
     Upload the given items into BigQuery table, using streaming API.
     Streaming API is used for small amounts of data, with optimal
@@ -464,7 +464,7 @@ def _streaming_load(sql_client, items, table):
         table (Dict[Any, Any]): Table schema.
     """
 
-    def _should_retry(exc):
+    def _should_retry(exc: Exception) -> bool:
         """Predicate to decide if we need to retry the exception.
 
         Args:

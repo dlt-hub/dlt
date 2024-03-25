@@ -30,7 +30,7 @@ def bigquery_adapter(
     round_half_even: TColumnNames = None,
     table_description: Optional[str] = None,
     table_expiration_datetime: Optional[str] = None,
-    insert_api: Optional[Literal["streaming_insert", "default"]] = "default",
+    insert_api: Optional[Literal["streaming", "default"]] = "default",
 ) -> DltResource:
     """
     Prepares data for loading into BigQuery.
