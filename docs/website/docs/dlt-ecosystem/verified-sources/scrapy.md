@@ -51,15 +51,14 @@ For more information, read the guide on
    store your access tokens and other sensitive information. It's important to handle this
    file with care and keep it safe.
 
-
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read [Secrets and Configs.](../../general-usage/credentials)
 
 ## Run the pipeline
 
-In this section, we demonstrate how to use the `MySpider` class defined in "scraping_pipeline.py" to 
+In this section, we demonstrate how to use the `MySpider` class defined in "scraping_pipeline.py" to
 scrape data from "https://quotes.toscrape.com/page/1/".
 
 1. Start with configuring the `config.toml` as follows:
@@ -90,9 +89,9 @@ scrape data from "https://quotes.toscrape.com/page/1/".
 
 If you wish to create your data pipeline, follow these steps:
 
-1. The first step requires creating a spider class that scrapes data 
-   from the website. For example, class `Myspider` below scrapes data from 
-   URL: "https://quotes.toscrape.com/page/1/". 
+1. The first step requires creating a spider class that scrapes data
+   from the website. For example, class `Myspider` below scrapes data from
+   URL: "https://quotes.toscrape.com/page/1/".
 
    ```py
    class MySpider(Spider):
@@ -101,7 +100,7 @@ If you wish to create your data pipeline, follow these steps:
            for next_page in response.css("li.next a::attr(href)"):
                if next_page:
                    yield response.follow(next_page.get(), self.parse)
-       
+
            # Iterate through each quote block found on the page
            for quote in response.css("div.quote"):
                # Extract the quote details
@@ -113,17 +112,17 @@ If you wish to create your data pipeline, follow these steps:
                    },
                }
                yield result
-    
+
    ```
 
-   > Define your own class tailored to the website you intend to scrape. 
+   > Define your own class tailored to the website you intend to scrape.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
    ```py
    pipeline = dlt.pipeline(
        pipeline_name="scrapy_pipeline",  # Use a custom name if desired
-       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       destination="duckdb",  # Choose the appropriate destination (e.g., bigquery, redshift)
        dataset_name="scrapy_data",  # Use a custom name if desired
    )
    ```
@@ -156,14 +155,13 @@ If you wish to create your data pipeline, follow these steps:
    scrapy settings, please refer to the
    [Scrapy documentation.](https://docs.scrapy.org/en/latest/topics/settings.html).
 
-1. To limit the number of items processed, use the "on_before_start" function to set a limit on 
-   the resources the pipeline processes. For instance, setting the resource limit to two allows 
+1. To limit the number of items processed, use the "on_before_start" function to set a limit on
+   the resources the pipeline processes. For instance, setting the resource limit to two allows
    the pipeline to yield a maximum of two resources.
 
    ```py
    def on_before_start(res: DltResource) -> None:
        res.add_limit(2)
-
 
    run_pipeline(
        pipeline,
@@ -182,7 +180,7 @@ If you wish to create your data pipeline, follow these steps:
    ```
 
 1. To create a pipeline using Scrapy host, use `create_pipeline_runner` defined in
-   "helpers.py". As follows:
+   `helpers.py`. As follows:
 
    ```py
    scraping_host = create_pipeline_runner(pipeline, MySpider, batch_size=10)
