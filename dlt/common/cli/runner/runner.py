@@ -13,6 +13,7 @@ class PipelineRunner:
     def __init__(self, params: RunnerParams) -> None:
         self.params = params
         self.script = PipelineScript(params)
+        self.script.validate_arguments()
         self.params.pipeline_workdir = self.script.workdir
         self.inquirer = Inquirer(self.params, self.script.pipeline_members)
 

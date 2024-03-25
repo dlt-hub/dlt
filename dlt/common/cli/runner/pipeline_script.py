@@ -5,6 +5,7 @@ import sys
 
 from contextlib import contextmanager
 from types import ModuleType
+from typing_extensions import get_args
 
 import dlt
 
@@ -12,7 +13,9 @@ from dlt.cli import echo as fmt
 from dlt.cli.utils import parse_init_script
 from dlt.common.cli.runner.errors import RunnerError
 from dlt.common.cli.runner.types import PipelineMembers, RunnerParams
+from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.pipeline import LoadInfo
+from dlt.common.schema.typing import TSchemaEvolutionMode, TWriteDisposition
 from dlt.sources import DltResource, DltSource
 
 
@@ -43,6 +46,9 @@ class PipelineScript:
         """Directory in which pipeline script lives"""
 
         self.has_pipeline_auto_runs: bool = False
+        self.supported_formats = get_args(TLoaderFileFormat)
+        self.supported_evolution_modes = get_args(TSchemaEvolutionMode)
+        self.supported_write_disposition = get_args(TWriteDisposition)
 
         # Now we need to patch and store pipeline code
         visitor = parse_init_script(
@@ -143,3 +149,50 @@ class PipelineScript:
             run_options[arg_name] = value
 
         return run_options
+
+    def validate_arguments(self) -> None:
+        """Validates and checks"""
+        supported_args = {
+            "destination",
+            "staging",
+            "credentials",
+            "table_name",
+            "write_disposition",
+            "dataset_name",
+            "primary_key",
+            "schema_contract",
+            "loader_file_format",
+        }
+        errors = []
+        arguments = self.run_arguments
+        for arg_name, _ in arguments.items():
+            if arg_name not in supported_args:
+                errors.append(f"Invalid argument {arg_name}")
+
+        if (
+            "write_disposition" in arguments
+            and arguments["write_disposition"] not in self.supported_write_disposition
+        ):
+            errors.append(
+                "Invalid write disposition, select one of"
+                f" {'|'.join(self.supported_write_disposition)}"
+            )
+        if (
+            "loader_file_format" in arguments
+            and arguments["loader_file_format"] not in self.supported_formats
+        ):
+            errors.append(
+                f"Invalid loader file format, select one of {'|'.join(self.supported_formats)}"
+            )
+        if (
+            "schema_contract" in arguments
+            and arguments["schema_contract"] not in self.supported_evolution_modes
+        ):
+            errors.append(
+                "Invalid schema_contract mode, select one of"
+                f" {'|'.join(self.supported_evolution_modes)}"
+            )
+
+        if errors:
+            all_errors = "\n".join(errors)
+            raise RunnerError(f"One or more arguments are invalid:\n{all_errors}")
