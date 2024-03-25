@@ -16,7 +16,7 @@ def paginate(
     params: Optional[Dict[str, Any]] = None,
     json: Optional[Dict[str, Any]] = None,
     auth: AuthConfigBase = None,
-    paginator: Union[str, BasePaginator] = None,
+    paginator: Optional[BasePaginator] = None,
     data_selector: Optional[jsonpath.TJsonPath] = None,
     hooks: Optional[Hooks] = None,
 ) -> Iterator[PageData[Any]]:
