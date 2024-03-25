@@ -127,7 +127,7 @@ We also need to set up the GCP service account credentials to get permissions to
 
 Once all the credentials are set add them to the `secrets.toml` file. Your file should look something like this:
 
-```sh
+```toml
 # put your secret values and credentials here. do not share this file and do not push it to github
 [sources.mongodb]
 connection_url = "mongodb+srv://<user>:<password>@<cluster_name>.cvanypn.mongodb.net" # please set me up!
