@@ -310,8 +310,12 @@ function syncExamples() {
 
     }
     
-    let output = [];
+    // if there is no header, do not generate a page
+    if (headerCount == 0 ) {
+      continue;
+    }
 
+    let output = [];
 
     output.push("---")
     output = output.concat(header);
