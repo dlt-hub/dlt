@@ -59,10 +59,14 @@ if __name__ == "__main__":
     pipeline = dlt.pipeline(destination="duckdb")
     genome = genome_resource()
 
-    print(pipeline.run(genome))
+    load_info = pipeline.run(genome)
+    print(load_info)
     print(pipeline.last_trace.last_normalize_info)
     # NOTE: run pipeline again to see that no more records got loaded thanks to incremental loading
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
     assert row_counts["genome"] == 1000
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

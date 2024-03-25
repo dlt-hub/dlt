@@ -128,6 +128,9 @@ if __name__ == "__main__":
     tables.pop("_dlt_pipeline_state")
     assert len(tables) == 7, pipeline.last_trace.last_normalize_info
 
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
+
     # The second method involves setting the max_table_nesting attribute directly
     # on the source data object.
     # This allows for dynamic control over the maximum nesting
@@ -146,6 +149,9 @@ if __name__ == "__main__":
     tables.pop("_dlt_pipeline_state")
     assert len(tables) == 1, pipeline.last_trace.last_normalize_info
 
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
+
     # The third method involves applying data type hints to specific columns in the data.
     # In this case, we tell dlt that column 'cast' (containing a list of actors)
     # in 'movies' table should have type complex which means
@@ -162,3 +168,6 @@ if __name__ == "__main__":
     tables = pipeline.last_trace.last_normalize_info.row_counts
     tables.pop("_dlt_pipeline_state")
     assert len(tables) == 6, pipeline.last_trace.last_normalize_info
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

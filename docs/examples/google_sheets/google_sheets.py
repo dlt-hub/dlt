@@ -87,15 +87,18 @@ if __name__ == "__main__":
     sheet_id = "1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
     range_names = ["hidden_columns_merged_cells", "Blank Columns"]
     # "2022-05", "model_metadata"
-    info = pipeline.run(
+    load_info = pipeline.run(
         google_spreadsheet(
             spreadsheet_id=sheet_id,
             sheet_names=range_names,
         )
     )
-    print(info)
+    print(load_info)
 
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
     print(row_counts.keys())
     assert row_counts["hidden_columns_merged_cells"] == 7
     assert row_counts["blank_columns"] == 21
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

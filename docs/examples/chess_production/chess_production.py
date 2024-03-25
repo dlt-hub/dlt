@@ -169,4 +169,7 @@ if __name__ == "__main__":
     )
     # get data for a few famous players
     data = chess(max_players=MAX_PLAYERS)
-    load_data_with_retry(pipeline, data)
+    load_info = load_data_with_retry(pipeline, data)
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

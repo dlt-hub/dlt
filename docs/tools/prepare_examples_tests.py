@@ -2,6 +2,8 @@
 Creates the pytest files for our examples tests. These will not be committed
 """
 import os
+import argparse
+
 import dlt.cli.echo as fmt
 
 EXAMPLES_DIR = "../examples"
@@ -20,6 +22,18 @@ from tests.utils import skipifgithubfork
 
 
 if __name__ == "__main__":
+    # setup cli
+    parser = argparse.ArgumentParser(
+        description="Prepares examples in docs/examples for testing.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "-c", "--clear", help="Remove all generated test files", action="store_true"
+    )
+
+    # get args
+    args = parser.parse_args()
+
     count = 0
     for example in next(os.walk(EXAMPLES_DIR))[1]:
         if example in SKIP_FOLDERS:
@@ -28,6 +42,10 @@ if __name__ == "__main__":
 
         example_file = f"{EXAMPLES_DIR}/{example}/{example}.py"
         test_example_file = f"{EXAMPLES_DIR}/{example}/test_{example}.py"
+
+        if args.clear:
+            os.unlink(test_example_file)
+            continue
 
         with open(example_file, "r", encoding="utf-8") as f:
             lines = f.read().split("\n")
@@ -51,4 +69,7 @@ if __name__ == "__main__":
         with open(test_example_file, "w", encoding="utf-8") as f:
             f.write("\n".join(processed_lines))
 
-    fmt.note(f"Prepared {count} examples for testing.")
+    if args.clear:
+        fmt.note("Cleared generated test files.")
+    else:
+        fmt.note(f"Prepared {count} examples for testing.")

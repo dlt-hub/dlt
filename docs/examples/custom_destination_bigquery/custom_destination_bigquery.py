@@ -15,8 +15,6 @@ We'll learn how to:
 
 """
 
-from tests.pipeline.utils import assert_load_info
-
 import dlt
 import pandas as pd
 import pyarrow as pa
@@ -91,4 +89,6 @@ if __name__ == "__main__":
     load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 
     print(load_info)
-    assert_load_info(load_info)
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

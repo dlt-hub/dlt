@@ -178,6 +178,9 @@ if __name__ == "__main__":
 
     print(load_info)
 
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
+
     # running the Qdrant client to connect to your Qdrant database
 
     @with_config(sections=("destination", "qdrant", "credentials"))
@@ -201,3 +204,6 @@ if __name__ == "__main__":
     )
 
     assert len(response) <= 3 and len(response) > 0
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
