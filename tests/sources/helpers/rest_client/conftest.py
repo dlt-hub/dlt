@@ -195,3 +195,10 @@ def mock_api_server():
         router.register_routes(m)
 
         yield m
+
+
+def assert_pagination(pages, expected_start=0, page_size=10):
+    for i, page in enumerate(pages):
+        assert page == [
+            {"id": i, "title": f"Post {i}"} for i in range(i * 10, (i + 1) * 10)
+        ]

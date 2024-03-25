@@ -16,6 +16,8 @@ from dlt.sources.helpers.rest_client.auth import (
 )
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
 
+from .conftest import assert_pagination
+
 
 def load_private_key(name="private_key.pem"):
     key_path = os.path.join(os.path.dirname(__file__), name)
@@ -36,12 +38,6 @@ def rest_client() -> RESTClient:
 
 @pytest.mark.usefixtures("mock_api_server")
 class TestRESTClient:
-    def _assert_pagination(self, pages):
-        for i, page in enumerate(pages):
-            assert page == [
-                {"id": i, "title": f"Post {i}"} for i in range(i * 10, (i + 1) * 10)
-            ]
-
     def test_get_single_resource(self, rest_client):
         response = rest_client.get("/posts/1")
         assert response.status_code == 200
@@ -55,7 +51,7 @@ class TestRESTClient:
 
         pages = list(pages_iter)
 
-        self._assert_pagination(pages)
+        assert_pagination(pages)
 
     def test_page_context(self, rest_client: RESTClient) -> None:
         for page in rest_client.paginate(
@@ -76,7 +72,7 @@ class TestRESTClient:
 
         pages = list(pages_iter)
 
-        self._assert_pagination(pages)
+        assert_pagination(pages)
 
     def test_paginate_with_hooks(self, rest_client: RESTClient):
         def response_hook(response: Response, *args: Any, **kwargs: Any) -> None:
@@ -95,7 +91,7 @@ class TestRESTClient:
 
         pages = list(pages_iter)
 
-        self._assert_pagination(pages)
+        assert_pagination(pages)
 
         pages_iter = rest_client.paginate(
             "/posts/1/some_details_404",
@@ -120,7 +116,7 @@ class TestRESTClient:
         )
 
         pages = list(pages_iter)
-        self._assert_pagination(pages)
+        assert_pagination(pages)
 
     def test_bearer_token_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
@@ -136,7 +132,7 @@ class TestRESTClient:
         )
 
         pages = list(pages_iter)
-        self._assert_pagination(pages)
+        assert_pagination(pages)
 
     def test_api_key_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
@@ -170,7 +166,7 @@ class TestRESTClient:
             auth=auth,
         )
 
-        self._assert_pagination(list(pages_iter))
+        assert_pagination(list(pages_iter))
 
     def test_paginate_function(self, rest_client: RESTClient):
         pages_iter = paginate(
@@ -180,4 +176,4 @@ class TestRESTClient:
 
         pages = list(pages_iter)
 
-        self._assert_pagination(pages)
+        assert_pagination(pages)
