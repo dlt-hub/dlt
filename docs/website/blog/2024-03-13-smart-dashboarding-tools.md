@@ -21,7 +21,7 @@ In this article, we explore ThoughtSpot, known for its simplicity and strong dat
 
 ## Analysts: Fallen victims of AI or not?
 
-The data analyst's role encompasses various job descriptions – from data science to dashboarding, data pipeline management, and even ML engineering. However, for this blog, we'll focus on the four key analytics components or techniques that help a company achieve its goals, as outlined by [Garter](https://www.gartner.com/en/topics/data-and-analytics#q8).
+The data analyst's role encompasses various job descriptions – from data science to dashboarding, data pipeline management, and even ML engineering. However, for this blog, we'll focus on the four key analytics components or techniques that help a company achieve its goals, as outlined by [Gartner](https://www.gartner.com/en/topics/data-and-analytics#q8).
 
 **Gartner’s categories:**
 
