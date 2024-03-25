@@ -97,7 +97,7 @@ What happened?
 - Removed column stopped loading:
     - New data to column `room` is not loaded.
 - Column stopped loading and new one was added:
-    - A new column `address__building` was added and now data will be loaded to that and stop loading in the column `address__main_block`.
+    - A new column `address__main_block` was added and now data will be loaded to that and stop loading in the column `address__building`.
 
 ## Alert schema changes to curate new data
 

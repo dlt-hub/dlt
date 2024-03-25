@@ -82,8 +82,7 @@ It would take some effort to interpret even a simple response like this one for 
             "updated": 1502138686,
             "is_app_user": false,
             "has_2fa": false
-        },
-        // ... (more data)
+        }
     ]
 }
 ```
@@ -92,14 +91,14 @@ You can use dlt to build a Slack to BigQuery pipeline in just a few seconds with
 Seriously, it is that simple.
 In preparation, let’s make sure to install what we need:
 
-```bash
+```sh
 pip install dlt
 pip install prefect
 ````
 
 Then just run a simple init command:
 
-```bash
+```sh
 
 dlt init slack bigquery
 ```
@@ -126,7 +125,7 @@ Note that we are redacting some of the code in the preview for brevity,
 to follow along completely navigate to the repo.
 
 
-```python
+```py
 # Pipeline to load Slack into BigQuery
 
 from typing import List
@@ -190,14 +189,14 @@ that can make sure your pipelines aren’t causing you stress in the middle of t
 Make sure you’re logged in to Prefect Cloud by [signing up](https://app.prefect.cloud/?utm_source=dltblog)
 and using the following command:
 
-```bash
+```sh
 prefect cloud login
 ```
 Luckily, Prefect is also incredibly Pythonic. Turning any pipeline into an observable, scheduled
 Prefect flow is as simple as adding decorators to your functions and `serving` it up.
 Here’s our `dlt` generated pipeline, scheduled daily:
 
-```python
+```py
 from typing import List
 
 import dlt

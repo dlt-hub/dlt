@@ -1,5 +1,6 @@
 from typing import Sequence
-from dlt.common.exceptions import (
+
+from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
     DestinationUndefinedEntity,
@@ -60,18 +61,6 @@ class DestinationSchemaWillNotUpdate(DestinationTerminalException):
         self.columns = columns
         super().__init__(
             f"Schema for table {table_name} column(s) {columns} will not update: {msg}"
-        )
-
-
-class DestinationSchemaTampered(DestinationTerminalException):
-    def __init__(self, schema_name: str, version_hash: str, stored_version_hash: str) -> None:
-        self.version_hash = version_hash
-        self.stored_version_hash = stored_version_hash
-        super().__init__(
-            f"Schema {schema_name} content was changed - by a loader or by destination code - from"
-            " the moment it was retrieved by load package. Such schema cannot reliably be updated"
-            f" or saved. Current version hash: {version_hash} != stored version hash"
-            f" {stored_version_hash}"
         )
 
 

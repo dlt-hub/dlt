@@ -46,13 +46,13 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
 
 1. Install the SAM CLI [add link or command here]
 
-    ```bash
+    ```sh
     pip install aws-sam-cli
     ```
 
 2. Define your resources in a `template.yml` file
 
-    ```yaml
+    ```text
     AWSTemplateFormatVersion: "2010-09-09"
     Transform: AWS::Serverless-2016-10-31
 
@@ -86,7 +86,7 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
                   Effect: Allow
                   Action:
                     - secretsmanager:GetSecretValue
-                  Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DLT_*
+                  Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DLT_*"
         Metadata:
           DockerTag: dlt-aws
           DockerContext: .
@@ -99,13 +99,13 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
 
 3. Build a deployment package
 
-    ```bash
+    ```sh
     sam build
     ```
 
 4. Test your setup locally
 
-    ```bash
+    ```sh
     sam local start-api
 
     # in a second terminal window
@@ -114,7 +114,7 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
 
 5. Deploy your resources to AWS
 
-    ```bash
+    ```sh
     sam deploy --stack-name=<your-stack-name> --resolve-image-repos --resolve-s3 --capabilities CAPABILITY_IAM
     ```
 

@@ -2,7 +2,7 @@ from typing import Any, ClassVar, Final, List, TYPE_CHECKING, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
-from dlt.common.exceptions import DestinationTerminalException
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError

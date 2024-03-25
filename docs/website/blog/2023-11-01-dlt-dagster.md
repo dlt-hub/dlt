@@ -33,7 +33,7 @@ As we will be ingesting data into BigQuery we first need to create service accou
 
 Once we have the credentials we are ready to begin. Let’s first install Dagster and `dlt`. The below commands should install both.
 
-```python
+```sh
 pip install dlt
 pip install dagster dagster-webserver
 ```
@@ -42,13 +42,13 @@ pip install dagster dagster-webserver
 
 As a first step, we will create the GitHub issues pipeline using `dlt`. 
 
-```bash
+```sh
 dlt init github_issues bigquery
 ```
 
 This will generate a template for us to create a new pipeline. Under `.dlt/secrets.toml` add the service account credentials for BigQuery. Then in the `github_issues.py` delete the generated code and add the following:
 
-```python
+```py
 @dlt.resource(write_disposition="append")
 def github_issues_resource(api_secret_key=dlt.secrets.value):
     owner = 'dlt-hub'
@@ -88,7 +88,7 @@ The above code creates a simple **github_issues** pipeline that gets the issues 
 
 To run the pipeline execute the below commands:
 
-```bash
+```sh
 pip install -r requirements.txt
 python github_issues.py
 ```
@@ -103,7 +103,7 @@ We will need to adjust our pipeline a bit to orchestrate it using Dagster.
 
 - Create a new directory for your Dagster project and scaffold the basic structure:
 
-```bash
+```sh
 mkdir dagster_github_issues
 cd dagster_github_issues
 dagster project scaffold --name github-issues
@@ -115,7 +115,7 @@ This will generate the default files for Dagster that we will use as a starting 
 
 - Inside the `github-issues/github_issues` directory create the following folders: `assets`, `resources`, and `dlt`.
 
-```bash
+```sh
 .
 ├── README.md
 ├── github_issues
@@ -143,7 +143,7 @@ This will generate the default files for Dagster that we will use as a starting 
 
 - Define a `DltResource` class in `resources/__init__.py` as a Dagster configurable resource. This class allows you to reuse pipeline code inside an asset.
 
-```python
+```py
 from dagster import ConfigurableResource 
 import dlt
 
@@ -167,7 +167,7 @@ class DltResource(ConfigurableResource):
 
 - Define the asset, `issues_pipeline`, in `assets/__init__.py`. This asset uses the configurable resource to create a dlt pipeline and ingests data into BigQuery.
 
-```python
+```py
 from dagster import asset, get_dagster_logger
 from ..resources import DltResource
 from ..dlt import github_issues_resource
@@ -188,12 +188,12 @@ The defined asset (**issues_pipeline**) takes as input the configurable resource
 
 - Add the schema evolution code to the asset to make our pipelines more resilient to changes.
 
-```python
+```py
 from dagster import AssetExecutionContext
 @asset
 def issues_pipeline(context: AssetExecutionContext, pipeline: DltResource):
-...
-md_content=""
+    ...
+    md_content=""
     for package in result.load_packages:
         for table_name, table in package.schema_update.items():
             for column_name, column in table["columns"].items():
@@ -207,7 +207,7 @@ md_content=""
 
 - In the `__init.py__` under the **github_issues** folder add the definitions:
 
-```python
+```py
 all_assets = load_assets_from_modules([assets])
 simple_pipeline = define_asset_job(name="simple_pipeline", selection= ['issues_pipeline'])
 
@@ -255,20 +255,20 @@ One of the main strengths of `dlt` lies in its ability to extract, normalize, an
 
 - Start by creating a new Dagster project scaffold:
 
-```python
+```sh
 dagster project scaffold --name mongodb-dlt
 ```
 
 - Follow the steps mentioned earlier and create an `assets`, and `resources` directory under `mongodb-dlt/mongodb_dlt`.
 - Initialize a `dlt` MongoDB pipeline in the same directory:
 
-```python
+```sh
 dlt init mongodb bigquery
 ```
 
 This will create a template with all the necessary logic implemented for extracting data from MongoDB. After running the command your directory structure should be as follows:
 
-```python
+```text
 .
 ├── README.md
 ├── mongodb_dlt
@@ -303,7 +303,7 @@ Next, create a `.env` file and add the BigQuery and MongoDB credentials to the f
 
  Create a `DltResouce` under the **resources** directory. Add the following code to the `__init__.py`:
 
-```python
+```py
 from dagster import ConfigurableResource 
 
 import dlt
@@ -335,7 +335,7 @@ In the `mongodb_pipeline.py` file, locate the `load_select_collection_hint_db` f
 
  In the `__init__.py` file under the **assets** directory, define the `dlt_asset_factory`:
 
-```python
+```py
 from ..mongodb import mongodb
 from ..resources import DltResource
 
@@ -386,7 +386,7 @@ dlt_assets = dlt_asset_factory(DATABASE_COLLECTIONS)
 
 Add the definitions in the `__init__.py` in the root directory:
 
-```python
+```py
 from dagster import Definitions
 
 from .assets import dlt_assets

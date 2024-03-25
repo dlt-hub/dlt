@@ -210,7 +210,7 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
 
     @property
     def schema_hash(self) -> str:
-        return self.schema.stored_version_hash
+        return self.schema.version_hash
 
     def asdict(self) -> DictStrAny:
         d = self._asdict()

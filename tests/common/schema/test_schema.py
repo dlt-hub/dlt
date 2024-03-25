@@ -84,15 +84,27 @@ def test_normalize_schema_name(schema: Schema) -> None:
 
 def test_new_schema(schema: Schema) -> None:
     assert schema.name == "event"
+    assert_is_new_schema(schema)
+    assert_new_schema_props(schema)
+
     stored_schema = schema.to_dict()
     # version hash is present
-    assert len(stored_schema["version_hash"]) > 0
+    assert stored_schema["version"] == 1
+    assert stored_schema["version_hash"] is not None
     utils.validate_stored_schema(stored_schema)
-    assert_new_schema_values(schema)
+
+    # to dict without bumping version should be used only internally
+    stored_schema = schema.to_dict(bump_version=False)
+    # version hash is present
+    assert stored_schema["version"] is None
+    assert stored_schema["version_hash"] is None
+    with pytest.raises(DictValidationException):
+        utils.validate_stored_schema(stored_schema)
 
 
 def test_new_schema_custom_normalizers(cn_schema: Schema) -> None:
-    assert_new_schema_values_custom_normalizers(cn_schema)
+    assert_is_new_schema(cn_schema)
+    assert_new_schema_props_custom_normalizers(cn_schema)
 
 
 def test_schema_config_normalizers(schema: Schema, schema_storage_no_import: SchemaStorage) -> None:
@@ -222,8 +234,9 @@ def test_replace_schema_content() -> None:
     eth_v5: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v5")
     eth_v5["imported_version_hash"] = "IMP_HASH"
     schema_eth = Schema.from_dict(eth_v5)  # type: ignore[arg-type]
-    schema.replace_schema_content(schema_eth)
+    schema.replace_schema_content(schema_eth.clone())
     assert schema_eth.stored_version_hash == schema.stored_version_hash
+    assert schema_eth.stored_version == schema.stored_version
     assert schema_eth.version == schema.version
     assert schema_eth.version_hash == schema.version_hash
     assert schema_eth._imported_version_hash == schema._imported_version_hash
@@ -239,16 +252,52 @@ def test_replace_schema_content() -> None:
 
     # make sure we linked the replaced schema to the incoming
     schema = Schema("simple")
+    # generate version and hash
+    schema._bump_version()
     eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
-    schema_eth = Schema.from_dict(eth_v5, bump_version=False)  # type: ignore[arg-type]
-    schema_eth.bump_version()
+    schema_eth = Schema.from_dict(eth_v5)  # type: ignore[arg-type]
+    assert not schema_eth.is_modified
     # modify simple schema by adding a table
     schema.update_table(schema_eth.get_table("blocks"))
-    replaced_stored_hash = schema.stored_version_hash
+    replaced_stored_hash = schema.version_hash
     schema.replace_schema_content(schema_eth, link_to_replaced_schema=True)
     assert replaced_stored_hash in schema.previous_hashes
-    assert replaced_stored_hash == schema.stored_version_hash
-    assert schema.stored_version_hash != schema.version_hash
+    assert schema_eth.stored_version_hash == schema.stored_version_hash
+    assert schema_eth.stored_version == schema.stored_version
+    assert schema_eth.version_hash == schema.version_hash
+    assert schema_eth.version == schema.version
+    assert not schema.is_modified
+
+    # incoming schema still modified after replace
+    schema = Schema("simple")
+    # generate version and hash
+    schema._bump_version()
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    schema_eth = Schema.from_dict(eth_v5, bump_version=False)  # type: ignore[arg-type]
+    assert schema_eth.is_modified
+    schema.replace_schema_content(schema_eth, link_to_replaced_schema=True)
+    assert schema.is_modified
+
+    # replace content of new schema
+    schema = Schema("simple")
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    schema_eth = Schema.from_dict(eth_v5, bump_version=False)  # type: ignore[arg-type]
+    schema_eth._bump_version()
+    schema.replace_schema_content(schema_eth, link_to_replaced_schema=True)
+    # nothing got added to prev hashes
+    assert schema.to_dict() == schema_eth.to_dict()
+
+    # replace content with new schema
+    schema = Schema("simple")
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    schema_eth = Schema.from_dict(eth_v5, bump_version=False)  # type: ignore[arg-type]
+    schema_eth.replace_schema_content(schema, link_to_replaced_schema=True)
+    # schema tracked
+    assert schema_eth.name == "simple"
+    assert Schema.from_dict(eth_v5, bump_version=False).version_hash in schema.previous_hashes  # type: ignore[arg-type]
+    # but still new
+    assert schema_eth.is_new
+    assert schema_eth.is_modified
 
     # replace with self
     eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
@@ -268,6 +317,40 @@ def test_replace_schema_content() -> None:
     assert stored_hash != schema_eth.version_hash
     assert stored_hash in schema_eth.previous_hashes
     assert schema_eth.version_hash not in schema_eth.previous_hashes
+
+
+def test_clone(schema: Schema) -> None:
+    # set normalizers but ignore them when cloning
+    os.environ["SCHEMA__NAMING"] = "direct"
+
+    cloned = schema.clone()
+    assert cloned.to_dict(bump_version=False) == schema.to_dict(bump_version=False)
+    # dicts are not shared
+    assert id(cloned._settings) != id(schema._settings)
+    assert id(cloned._schema_tables) != id(schema._schema_tables)
+    # make sure version didn't change
+    assert cloned._stored_version == schema._stored_version
+
+    # clone with name
+    cloned = schema.clone(with_name="second")
+    assert cloned.name == "second"
+    assert cloned.is_new
+    assert cloned.is_modified
+    assert cloned._imported_version_hash is None
+    assert cloned.previous_hashes == []
+
+    # clone with normalizers update
+    cloned = schema.clone("second", update_normalizers=True)
+    assert cloned._normalizers_config != schema._normalizers_config
+    assert cloned._normalizers_config["names"] == "direct"
+
+    # clone modified schema
+    simple = Schema("simple")
+    cloned = simple.clone()
+    assert cloned.to_dict(bump_version=False) == simple.to_dict(bump_version=False)
+    assert cloned.is_new
+    assert cloned.is_modified
+    assert cloned._normalizers_config["names"] == "direct"
 
 
 @pytest.mark.parametrize(
@@ -300,13 +383,15 @@ def test_new_schema_alt_name() -> None:
 def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> None:
     assert not schema_storage.storage.has_file(EXPECTED_FILE_NAME)
     saved_file_name = schema_storage.save_schema(schema)
+    assert schema.is_modified is False
+    assert schema.is_new is False
     # return absolute path
     assert saved_file_name == schema_storage.storage.make_full_path(EXPECTED_FILE_NAME)
     assert schema_storage.storage.has_file(EXPECTED_FILE_NAME)
     schema_copy = schema_storage.load_schema("event")
     assert schema.name == schema_copy.name
     assert schema.version == schema_copy.version
-    assert_new_schema_values(schema_copy)
+    assert_new_schema_props(schema_copy)
 
 
 def test_save_store_schema_custom_normalizers(
@@ -314,7 +399,7 @@ def test_save_store_schema_custom_normalizers(
 ) -> None:
     schema_storage.save_schema(cn_schema)
     schema_copy = schema_storage.load_schema(cn_schema.name)
-    assert_new_schema_values_custom_normalizers(schema_copy)
+    assert_new_schema_props_custom_normalizers(schema_copy)
 
 
 def test_save_load_incomplete_column(
@@ -707,7 +792,7 @@ def test_normalize_table_identifiers_merge_columns() -> None:
     }
 
 
-def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
+def assert_new_schema_props_custom_normalizers(schema: Schema) -> None:
     # check normalizers config
     assert schema._normalizers_config["names"] == "tests.common.normalizers.custom_normalizers"
     assert (
@@ -727,13 +812,19 @@ def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     assert row[0] == (("a_table", None), {"bool": True})
 
 
-def assert_new_schema_values(schema: Schema) -> None:
-    assert schema.version == 1
-    assert schema.stored_version == 1
-    assert schema.stored_version_hash is not None
-    assert schema.version_hash is not None
+def assert_is_new_schema(schema: Schema) -> None:
+    assert schema.stored_version is None
+    assert schema.stored_version_hash is None
     assert schema.ENGINE_VERSION == 9
     assert schema._stored_previous_hashes == []
+    assert schema.is_modified
+    assert schema.is_new
+
+
+def assert_new_schema_props(schema: Schema) -> None:
+    assert schema.version == 1
+    assert schema.version_hash is not None
+
     assert len(schema.settings["default_hints"]) > 0
     # check settings
     assert (

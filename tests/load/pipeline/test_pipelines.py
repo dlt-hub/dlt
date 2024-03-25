@@ -6,13 +6,16 @@ import pytest
 
 import dlt
 
-from dlt.common.pipeline import SupportsPipeline
 from dlt.common import json, sleep
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
+from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract import DltSource
@@ -21,8 +24,6 @@ from dlt.pipeline.exceptions import (
     PipelineConfigMissing,
     PipelineStepFailed,
 )
-from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.exceptions import DestinationHasFailedJobs
 
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
 from tests.pipeline.utils import assert_data_table_counts, assert_load_info
