@@ -1,41 +1,45 @@
 import io
-import os
 import contextlib
 
+import shutil
 from unittest import mock
 
-import pytest
+import dlt
 
 from dlt.cli import run_command
 
-from tests.utils import TESTS_ROOT
-
-RUNNER_PIPELINES = TESTS_ROOT / "cli/cases/cli_runner"
-TEST_PIPELINE = RUNNER_PIPELINES / "pipeline.py"
-TEST_PIPELINE_WITH_IMMEDIATE_RUN = RUNNER_PIPELINES / "pipeline_with_immediate_run.py"
-TEST_PIPELINE_CONTENTS = open(RUNNER_PIPELINES / "pipeline.py").read().strip()
+from dlt.common.utils import set_working_dir
+from tests.utils import TEST_STORAGE_ROOT, TESTS_ROOT
 
 
-@pytest.fixture(scope="module")
-def ch_pipeline_dir():
-    cwd = os.getcwd()
-    os.chdir(RUNNER_PIPELINES)
-    yield
-    os.chdir(cwd)
+CLI_RUNNER_PIPELINES = TESTS_ROOT / "cli/cases/cli_runner"
+TEST_PIPELINE = CLI_RUNNER_PIPELINES / "pipeline.py"
+TEST_PIPELINE_WITH_IMMEDIATE_RUN = CLI_RUNNER_PIPELINES / "pipeline_with_immediate_run.py"
 
 
-def test_run_command_requires_working_directory_same_as_pipeline_working_directory():
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+def test_run_command_happy_path_works_as_expected():
+    pipeline_name = "numbers_pipeline"
+    p = dlt.pipeline(pipeline_name=pipeline_name)
+    p._wipe_working_folder()
+    shutil.copytree(CLI_RUNNER_PIPELINES, TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf), set_working_dir(TEST_STORAGE_ROOT):
         run_command.run_pipeline_command(
             str(TEST_PIPELINE),
-            "squares_pipeline",
-            "squares_resource_instance",
+            pipeline_name,
+            "numbers_resource_instance",
             ["write_disposition=merge", "loader_file_format=jsonl"],
         )
 
         output = buf.getvalue()
         assert "Current working directory is different from the pipeline script" in output
-        assert "If needed please change your current directory to" in output
+        assert "Pipeline: numbers_pipeline" in output
+        assert "Resource: numbers_resource_instance (numbers_resource)" in output
+        assert "Pipeline numbers_pipeline load step completed" in output
+        assert "contains no failed jobs" in output
+
+        # Check if we can successfully attach to pipeline
+        dlt.attach(pipeline_name)
 
 
 def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_not_found():

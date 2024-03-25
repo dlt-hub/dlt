@@ -50,7 +50,6 @@ class Inquirer:
         self.preflight_checks()
         pipeline_name = self.get_pipeline_name()
         pipeline = self.pipelines[pipeline_name]
-        real_pipeline_name = f" (Pipeline: {pipeline.pipeline_name})"
 
         source_name = self.get_source_name()
         resource = self.sources[source_name]
@@ -59,7 +58,13 @@ class Inquirer:
         else:
             label = "Source"
 
-        real_source_name = f" ({label}: {resource.name})"
+        real_source_name = ""
+        if resource.name != source_name:
+            real_source_name = f" ({resource.name})"
+
+        real_pipeline_name = ""
+        if pipeline.pipeline_name != pipeline_name:
+            real_pipeline_name = f"({pipeline.pipeline_name})"
 
         fmt.echo("\nPipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue"))
 

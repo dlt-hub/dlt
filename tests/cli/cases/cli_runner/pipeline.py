@@ -4,13 +4,13 @@ import dlt
 @dlt.resource
 def quads_resource():
     for idx in range(10):
-        yield {"id": idx, "quad": idx**4}
+        yield {"id": idx, "num": idx**4}
 
 
 @dlt.resource
-def squares_resource():
+def numbers_resource():
     for idx in range(10):
-        yield {"id": idx, "square": idx * idx}
+        yield {"id": idx, "num": idx + 1}
 
 
 @dlt.destination(loader_file_format="parquet")
@@ -19,17 +19,17 @@ def null_sink(_items, _table) -> None:
 
 
 quads_resource_instance = quads_resource()
-squares_resource_instance = squares_resource()
+numbers_resource_instance = numbers_resource()
 
 quads_pipeline = dlt.pipeline(
     pipeline_name="numbers_quadruples_pipeline",
     destination=null_sink,
 )
 
-squares_pipeline = dlt.pipeline(
+numbers_pipeline = dlt.pipeline(
     pipeline_name="numbers_pipeline",
     destination="duckdb",
 )
 
 if __name__ == "__main__":
-    load_info = squares_pipeline.run(squares_resource(), schema=dlt.Schema("bobo-schema"))
+    load_info = numbers_pipeline.run(numbers_resource(), schema=dlt.Schema("bobo-schema"))

@@ -71,7 +71,7 @@ class PipelineScript:
         """Monkey patch pipeline.run during module loading
         Restore it once importing is done
         """
-        old_run = dlt.Pipeline.run
+        original_run = dlt.Pipeline.run
 
         def noop(*args, **kwargs) -> LoadInfo:  # type: ignore
             self.has_pipeline_auto_runs = True
@@ -80,7 +80,7 @@ class PipelineScript:
 
         yield
 
-        dlt.Pipeline.run = old_run  # type: ignore
+        dlt.Pipeline.run = original_run  # type: ignore
 
     @property
     def pipeline_module(self) -> ModuleType:
