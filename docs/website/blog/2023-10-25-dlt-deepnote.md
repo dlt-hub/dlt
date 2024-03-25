@@ -37,7 +37,7 @@ likely than not, you spend more time fixing data pipelines or data formats then 
 on ML algorithms or dashboard designs. We aren’t always lucky enough to get structured
 data to work with. Imagine a world where your training data is just this statement without no prior work:
 
-```jsx
+```sql
 select * from <dataset_table>
 ```
 
