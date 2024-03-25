@@ -15,21 +15,15 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
 )
-from dlt.common.schema.utils import get_child_tables, get_top_level_table
+from dlt.common.schema.utils import get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.runtime.logger import pretty_format_exception
-from dlt.common.exceptions import (
-    TerminalValueError,
-    DestinationTerminalException,
-    DestinationTransientException,
-)
+from dlt.common.logger import pretty_format_exception
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.configuration.container import Container
-
-from dlt.common.schema import Schema, TSchemaTables
-
+from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
@@ -44,7 +38,10 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TDestination,
 )
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 
 from dlt.destinations.job_impl import EmptyLoadJob
 

@@ -30,22 +30,22 @@ EXTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = (
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
 
-    preferred_loader_file_format: TLoaderFileFormat
-    supported_loader_file_formats: List[TLoaderFileFormat]
-    preferred_staging_file_format: Optional[TLoaderFileFormat]
-    supported_staging_file_formats: List[TLoaderFileFormat]
-    escape_identifier: Callable[[str], str]
-    escape_literal: Callable[[Any], Any]
-    decimal_precision: Tuple[int, int]
-    wei_precision: Tuple[int, int]
-    max_identifier_length: int
-    max_column_identifier_length: int
-    max_query_length: int
-    is_max_query_length_in_bytes: bool
-    max_text_data_type_length: int
-    is_max_text_data_type_length_in_bytes: bool
-    supports_transactions: bool
-    supports_ddl_transactions: bool
+    preferred_loader_file_format: TLoaderFileFormat = None
+    supported_loader_file_formats: List[TLoaderFileFormat] = None
+    preferred_staging_file_format: Optional[TLoaderFileFormat] = None
+    supported_staging_file_formats: List[TLoaderFileFormat] = None
+    escape_identifier: Callable[[str], str] = None
+    escape_literal: Callable[[Any], Any] = None
+    decimal_precision: Tuple[int, int] = None
+    wei_precision: Tuple[int, int] = None
+    max_identifier_length: int = None
+    max_column_identifier_length: int = None
+    max_query_length: int = None
+    is_max_query_length_in_bytes: bool = None
+    max_text_data_type_length: int = None
+    is_max_text_data_type_length_in_bytes: bool = None
+    supports_transactions: bool = None
+    supports_ddl_transactions: bool = None
     naming_convention: str = "snake_case"
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True

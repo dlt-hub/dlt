@@ -6,12 +6,12 @@ import pytest
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.schema.schema import Schema, utils
-from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.exceptions import DestinationUndefinedEntity
+from dlt.common.schema.schema import Schema
+from dlt.common.utils import uniq_id
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
+
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable
-
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
     STATE_TABLE_COLUMNS,
@@ -207,6 +207,7 @@ def test_get_schemas_from_destination(
             job_client
         ) == default_schema.naming.normalize_table_identifier(dataset_name)
     schema_two = Schema("two")
+    schema_two._bump_version()
     with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()

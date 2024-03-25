@@ -3,6 +3,7 @@ from os import environ
 import datetime  # noqa: I251
 from typing import (
     Any,
+    ClassVar,
     Iterator,
     List,
     Optional,
@@ -71,18 +72,14 @@ class SecretCredentials(CredentialsConfiguration):
 
 @configspec
 class WithCredentialsConfiguration(BaseConfiguration):
-    credentials: SecretCredentials
+    credentials: SecretCredentials = None
 
 
 @configspec
 class SectionedConfiguration(BaseConfiguration):
-    __section__ = "DLT_TEST"
+    __section__: ClassVar[str] = "DLT_TEST"
 
     password: str = None
-
-    if TYPE_CHECKING:
-
-        def __init__(self, password: str = None) -> None: ...
 
 
 @pytest.fixture(scope="function")

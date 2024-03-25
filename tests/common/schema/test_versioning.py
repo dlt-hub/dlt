@@ -22,6 +22,9 @@ def test_content_hash() -> None:
     assert utils.generate_version_hash(eth_v4) == hash2
     eth_v4["version_hash"] = "xxxx"
     assert utils.generate_version_hash(eth_v4) == hash2
+    # import schema hash is also excluded
+    eth_v4["imported_version_hash"] = "xxxx"
+    assert utils.generate_version_hash(eth_v4) == hash2
     # changing table order does not impact the hash
     loads_table = eth_v4["tables"].pop("_dlt_loads")
     # insert at the end: _dlt_loads was first originally
@@ -65,22 +68,22 @@ def test_infer_column_bumps_version() -> None:
     _, new_table = schema.coerce_row("event_user", None, row)
     schema.update_table(new_table)
     # schema version will be recomputed
-    assert schema.version == 2
+    assert schema.version == 1
     assert schema.version_hash is not None
     version_hash = schema.version_hash
 
     # another table
     _, new_table = schema.coerce_row("event_bot", None, row)
     schema.update_table(new_table)
-    # version is still 2 (increment of 1)
-    assert schema.version == 2
+    # version is still 1 (increment of 1)
+    assert schema.version == 1
     # but the hash changed
     assert schema.version_hash != version_hash
 
     # save
     saved_schema = schema.to_dict()
     assert saved_schema["version_hash"] == schema.version_hash
-    assert saved_schema["version"] == 2
+    assert saved_schema["version"] == 1
 
 
 def test_preserve_version_on_load() -> None:

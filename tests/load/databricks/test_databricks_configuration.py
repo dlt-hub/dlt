@@ -17,7 +17,9 @@ def test_databricks_credentials_to_connector_params():
     # JSON encoded dict of extra args
     os.environ["CREDENTIALS__CONNECTION_PARAMETERS"] = '{"extra_a": "a", "extra_b": "b"}'
 
-    config = resolve_configuration(DatabricksClientConfiguration(dataset_name="my-dataset"))
+    config = resolve_configuration(
+        DatabricksClientConfiguration()._bind_dataset_name(dataset_name="my-dataset")
+    )
 
     credentials = config.credentials
 

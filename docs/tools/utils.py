@@ -5,18 +5,29 @@ import dlt.cli.echo as fmt
 
 
 DOCS_DIR = "../website/docs"
+BLOG_DIR = "../website/blog"
 
 
 def collect_markdown_files(verbose: bool) -> List[str]:
     """
     Discovers all docs markdown files
     """
+
+    # collect docs pages
     markdown_files: List[str] = []
     for path, _, files in os.walk(DOCS_DIR):
         if "api_reference" in path:
             continue
         if "jaffle_shop" in path:
             continue
+        for file in files:
+            if file.endswith(".md"):
+                markdown_files.append(os.path.join(path, file))
+                if verbose:
+                    fmt.echo(f"Discovered {os.path.join(path, file)}")
+
+    # collect blog pages
+    for path, _, files in os.walk(BLOG_DIR):
         for file in files:
             if file.endswith(".md"):
                 markdown_files.append(os.path.join(path, file))

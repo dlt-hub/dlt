@@ -20,19 +20,15 @@ from tests.common.configuration.utils import environment
 
 @configspec
 class InjectableTestContext(ContainerInjectableContext):
-    current_value: str
+    current_value: str = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         raise ValueError(native_value)
 
-    if TYPE_CHECKING:
-
-        def __init__(self, current_value: str = None) -> None: ...
-
 
 @configspec
 class EmbeddedWithInjectableContext(BaseConfiguration):
-    injected: InjectableTestContext
+    injected: InjectableTestContext = None
 
 
 @configspec
@@ -47,12 +43,12 @@ class GlobalTestContext(InjectableTestContext):
 
 @configspec
 class EmbeddedWithNoDefaultInjectableContext(BaseConfiguration):
-    injected: NoDefaultInjectableContext
+    injected: NoDefaultInjectableContext = None
 
 
 @configspec
 class EmbeddedWithNoDefaultInjectableOptionalContext(BaseConfiguration):
-    injected: Optional[NoDefaultInjectableContext]
+    injected: Optional[NoDefaultInjectableContext] = None
 
 
 @pytest.fixture()

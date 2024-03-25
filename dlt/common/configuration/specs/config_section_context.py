@@ -8,7 +8,7 @@ from dlt.common.configuration.specs.base_configuration import ContainerInjectabl
 class ConfigSectionContext(ContainerInjectableContext):
     TMergeFunc = Callable[["ConfigSectionContext", "ConfigSectionContext"], None]
 
-    pipeline_name: Optional[str]
+    pipeline_name: Optional[str] = None
     sections: Tuple[str, ...] = ()
     merge_style: TMergeFunc = None
     source_state_key: str = None
@@ -70,13 +70,3 @@ class ConfigSectionContext(ContainerInjectableContext):
             super().__str__()
             + f": {self.pipeline_name} {self.sections}@{self.merge_style} state['{self.source_state_key}']"
         )
-
-    if TYPE_CHECKING:
-        # provide __init__ signature when type checking
-        def __init__(
-            self,
-            pipeline_name: str = None,
-            sections: Tuple[str, ...] = (),
-            merge_style: TMergeFunc = None,
-            source_state_key: str = None,
-        ) -> None: ...

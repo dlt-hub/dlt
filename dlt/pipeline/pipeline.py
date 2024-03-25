@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     cast,
     get_type_hints,
     ContextManager,
@@ -28,14 +29,14 @@ from dlt.common.configuration.exceptions import (
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationLoadingWithoutStagingNotSupported,
     DestinationNoStagingMode,
-    MissingDependencyException,
     DestinationUndefinedEntity,
     DestinationIncompatibleLoaderFileFormatException,
 )
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import (
@@ -129,6 +130,7 @@ from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
     bump_pipeline_state_version_if_modified,
     load_pipeline_state_from_destination,
+    mark_state_extracted,
     migrate_pipeline_state,
     state_resource,
     json_encode_state,
@@ -172,7 +174,7 @@ def with_schemas_sync(f: TFun) -> TFun:
             for name in list(self._schema_storage.live_schemas.keys()):
                 try:
                     schema = self._schema_storage.load_schema(name)
-                    self._schema_storage.update_live_schema(schema, can_create_new=False)
+                    schema.replace_schema_content(schema, link_to_replaced_schema=False)
                 except FileNotFoundError:
                     # no storage schema yet so pop live schema (created in call to f)
                     self._schema_storage.live_schemas.pop(name, None)
@@ -182,9 +184,10 @@ def with_schemas_sync(f: TFun) -> TFun:
         else:
             # save modified live schemas
             for name, schema in self._schema_storage.live_schemas.items():
-                self._schema_storage.commit_live_schema(name)
                 # also save import schemas only here
                 self._schema_storage.save_import_schema_if_not_exists(schema)
+                # only now save the schema, already linked to itself if saved as import schema
+                self._schema_storage.commit_live_schema(name)
             # refresh list of schemas if any new schemas are added
             self.schema_names = self._list_schemas_sorted()
             return rv
@@ -488,7 +491,6 @@ class Pipeline(SupportsPipeline):
                 ) from n_ex
 
     @with_runtime_trace(send_state=True)
-    @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
     def load(
@@ -725,8 +727,7 @@ class Pipeline(SupportsPipeline):
                     # set the pipeline props from merged state
                     self._state_to_props(state)
                     # add that the state is already extracted
-                    state["_local"]["_last_extracted_hash"] = state["_version_hash"]
-                    state["_local"]["_last_extracted_at"] = pendulum.now()
+                    mark_state_extracted(state, state["_version_hash"])
                     # on merge schemas are replaced so we delete all old versions
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
@@ -1054,15 +1055,11 @@ class Pipeline(SupportsPipeline):
         # discover the existing pipeline schema
         try:
             # all live schemas are initially committed and during the extract will accumulate changes in memory
-            # if schema is committed try to take schema from storage
-            if self._schema_storage.is_live_schema_committed(source.schema.name):
-                # this will (1) save live schema if modified (2) look for import schema if present
-                # (3) load import schema an overwrite pipeline schema if import schema modified
-                # (4) load pipeline schema if no import schema is present
-                pipeline_schema = self.schemas.load_schema(source.schema.name)
-            else:
-                # if schema is not committed we know we are in process of extraction
-                pipeline_schema = self.schemas[source.schema.name]
+            # line below may create another live schema if source schema is not a part of storage
+            # this will (1) look for import schema if present
+            # (2) load import schema an overwrite pipeline schema if import schema modified
+            # (3) load pipeline schema if no import schema is present
+            pipeline_schema = self.schemas[source.schema.name]
             pipeline_schema = pipeline_schema.clone()  # use clone until extraction complete
             # apply all changes in the source schema to pipeline schema
             # NOTE: we do not apply contracts to changes done programmatically
@@ -1080,7 +1077,7 @@ class Pipeline(SupportsPipeline):
         # self._schema_storage.save_import_schema_if_not_exists(source.schema)
 
         # update live schema but not update the store yet
-        self._schema_storage.update_live_schema(source.schema)
+        source.schema = self._schema_storage.set_live_schema(source.schema)
 
         # set as default if this is first schema in pipeline
         if not self.default_schema_name:
@@ -1126,17 +1123,16 @@ class Pipeline(SupportsPipeline):
             )
 
             if issubclass(client_spec, DestinationClientStagingConfiguration):
-                return client_spec(
-                    dataset_name=self.dataset_name,
-                    default_schema_name=default_schema_name,
+                spec: DestinationClientDwhConfiguration = client_spec(
                     credentials=credentials,
                     as_staging=as_staging,
                 )
-            return client_spec(
-                dataset_name=self.dataset_name,
-                default_schema_name=default_schema_name,
-                credentials=credentials,
-            )
+            else:
+                spec = client_spec(
+                    credentials=credentials,
+                )
+            spec._bind_dataset_name(self.dataset_name, default_schema_name)
+            return spec
 
         return client_spec(credentials=credentials)
 
@@ -1560,9 +1556,11 @@ class Pipeline(SupportsPipeline):
             extract_ = extract or Extract(
                 self._schema_storage, self._normalize_storage_config(), original_data=data
             )
-            self._extract_source(extract_, data_to_sources(data, self)[0], 1, 1)
-            state["_local"]["_last_extracted_at"] = pendulum.now()
-            state["_local"]["_last_extracted_hash"] = hash_
+            self._extract_source(
+                extract_, data_to_sources(data, self, self.default_schema)[0], 1, 1
+            )
+            # set state to be extracted
+            mark_state_extracted(state, hash_)
             # commit only if we created storage
             if not extract:
                 extract_.commit_packages()

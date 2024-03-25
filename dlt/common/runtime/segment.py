@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, Optional
 from dlt.common.configuration.paths import get_dlt_data_dir
 
-from dlt.common.runtime import logger
+from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
 
 from dlt.common.configuration.specs import RunConfiguration

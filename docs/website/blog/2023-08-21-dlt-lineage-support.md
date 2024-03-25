@@ -63,7 +63,7 @@ By combining row and column level lineage, you can have an easy overview of wher
 
 After a pipeline run, the schema evolution info gets stored in the load info.
 Load it back to the database to persist the column lineage:
-```python
+```py
 load_info = pipeline.run(data,
                           write_disposition="append",
                           table_name="users")

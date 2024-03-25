@@ -1,5 +1,5 @@
-from typing import Dict, Literal, Optional, Final, TYPE_CHECKING
-from dataclasses import field
+import dataclasses
+from typing import Dict, Literal, Optional, Final
 from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec
@@ -13,7 +13,7 @@ TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
 @configspec
 class WeaviateCredentials(CredentialsConfiguration):
     url: str = "http://localhost:8080"
-    api_key: Optional[str]
+    api_key: Optional[str] = None
     additional_headers: Optional[Dict[str, str]] = None
 
     def __str__(self) -> str:
@@ -24,7 +24,7 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
-    destination_type: Final[str] = "weaviate"  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore
     # make it optional so empty dataset is allowed
     dataset_name: Optional[str] = None  # type: ignore[misc]
 
@@ -39,9 +39,9 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
 
     dataset_separator: str = "_"
 
-    credentials: WeaviateCredentials
+    credentials: WeaviateCredentials = None
     vectorizer: str = "text2vec-openai"
-    module_config: Dict[str, Dict[str, str]] = field(
+    module_config: Dict[str, Dict[str, str]] = dataclasses.field(
         default_factory=lambda: {
             "text2vec-openai": {
                 "model": "ada",
@@ -58,26 +58,3 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
             hostname = urlparse(self.credentials.url).hostname
             return digest128(hostname)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            destination_type: str = None,
-            credentials: WeaviateCredentials = None,
-            name: str = None,
-            environment: str = None,
-            dataset_name: str = None,
-            default_schema_name: str = None,
-            batch_size: int = None,
-            batch_workers: int = None,
-            batch_consistency: TWeaviateBatchConsistency = None,
-            batch_retries: int = None,
-            conn_timeout: float = None,
-            read_timeout: float = None,
-            startup_period: int = None,
-            dataset_separator: str = None,
-            vectorizer: str = None,
-            module_config: Dict[str, Dict[str, str]] = None,
-        ) -> None: ...

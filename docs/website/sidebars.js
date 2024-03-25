@@ -82,6 +82,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/personio',
             'dlt-ecosystem/verified-sources/pipedrive',
             'dlt-ecosystem/verified-sources/salesforce',
+            'dlt-ecosystem/verified-sources/scrapy',
             'dlt-ecosystem/verified-sources/shopify',
             'dlt-ecosystem/verified-sources/sql_database',
             'dlt-ecosystem/verified-sources/slack',
@@ -230,6 +231,7 @@ const sidebars = {
             'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
           ]
         },
         {

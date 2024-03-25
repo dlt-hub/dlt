@@ -75,7 +75,7 @@ For those new to pushing data via an API, it may seem intimidating.
 Let's simplify - sending data to an API endpoint for loading or updating an object is similar to making a `GET` request.
 Here's a straightforward example in Python:
 
-```python
+```py
 # Assuming data is in this format
 import requests
 # assume we have a table of contacts we want to push to Pipedrive.

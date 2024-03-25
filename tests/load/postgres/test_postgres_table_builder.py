@@ -2,7 +2,6 @@ import pytest
 from copy import deepcopy
 import sqlfluff
 
-from dlt.common.schema.utils import new_table
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -20,8 +19,8 @@ def client(empty_schema: Schema) -> PostgresClient:
     # return client without opening connection
     return PostgresClient(
         empty_schema,
-        PostgresClientConfiguration(
-            dataset_name="test_" + uniq_id(), credentials=PostgresCredentials()
+        PostgresClientConfiguration(credentials=PostgresCredentials())._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
         ),
     )
 
@@ -97,10 +96,9 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     client = PostgresClient(
         client.schema,
         PostgresClientConfiguration(
-            dataset_name="test_" + uniq_id(),
             create_indexes=False,
             credentials=PostgresCredentials(),
-        ),
+        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
