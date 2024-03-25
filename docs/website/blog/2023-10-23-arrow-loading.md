@@ -18,7 +18,7 @@ Here we achieved ~30x speedups when loading data from (local) postgres database 
 
 We’ll start with [ConnectorX library](https://github.com/sfu-db/connector-x) that creates Arrow tables from SQL queries on most of the popular database engines.
 
-```py
+```sh
 pip install connectorx
 ```
 

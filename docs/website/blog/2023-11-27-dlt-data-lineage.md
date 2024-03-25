@@ -134,7 +134,7 @@ if __name__ == "__main__":
         dataset_name='sales_shopify'
     )
 
-	load_a = pipeline_store.run_pipeline(
+    load_a = pipeline_store.run_pipeline(
         data=select_c_data_store,
         table_name='sales_info',
         write_disposition='replace'
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
 To run the pipeline, execute the following command:
 
-```py
+```sh
 python data_lineage.py
 ```
 
@@ -175,7 +175,7 @@ Now that both the Shopify and Store data are available in BigQuery, we will use 
 
 To get started initialize a dbt project in the root directory:
 
-```py
+```sh
 dbt init sales_dbt
 ```
 
@@ -271,7 +271,7 @@ for m in models:
 
 Next, run the pipeline using the following command:
 
-```py
+```sh
 python data_lineage.py
 ```
 

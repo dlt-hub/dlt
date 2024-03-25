@@ -52,7 +52,7 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
 
 2. Define your resources in a `template.yml` file
 
-    ```yaml
+    ```text
     AWSTemplateFormatVersion: "2010-09-09"
     Transform: AWS::Serverless-2016-10-31
 
@@ -86,7 +86,7 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
                   Effect: Allow
                   Action:
                     - secretsmanager:GetSecretValue
-                  Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DLT_*
+                  Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DLT_*"
         Metadata:
           DockerTag: dlt-aws
           DockerContext: .

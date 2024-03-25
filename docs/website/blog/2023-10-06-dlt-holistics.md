@@ -100,13 +100,13 @@ Consider setting up a virtual environment for your projects and installing the p
 
 Once we have `dlt` installed, we can go ahead and initialize a verified MongoDB pipeline with the destination set to Google BigQuery. First, create a project directory and then execute the command below:
 
-```py
+```sh
 dlt init mongodb bigquery
 ```
 
 The above command will create a local ready-made pipeline that we can customize to our needs. After executing the command your project directory will look as follows:
 
-```sh
+```text
 .
 ├── .dlt
 │   ├── config.toml
@@ -290,7 +290,7 @@ This is a typical way data is structured in a NoSQL database. The data is in a J
 
 The ddl (data definition language) for the movies table in BigQuery can be seen below:
 
-```json
+```sql
 CREATE TABLE `dlthub-analytics.mongo_database.movies`
 (
   _id STRING NOT NULL,
@@ -405,7 +405,7 @@ relationship(model__mongo_database_movies_directors.dlt_parent_id > model__mongo
 
 After the change, the `dataset.aml` file should look like this:
 
-```py
+```sh
 import '../Models/mongo_database_movies.model.aml' {
   mongo_database_movies as model__mongo_database_movies
 }

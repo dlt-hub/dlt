@@ -33,7 +33,7 @@ As we will be ingesting data into BigQuery we first need to create service accou
 
 Once we have the credentials we are ready to begin. Let’s first install Dagster and `dlt`. The below commands should install both.
 
-```py
+```sh
 pip install dlt
 pip install dagster dagster-webserver
 ```
@@ -192,8 +192,8 @@ The defined asset (**issues_pipeline**) takes as input the configurable resource
 from dagster import AssetExecutionContext
 @asset
 def issues_pipeline(context: AssetExecutionContext, pipeline: DltResource):
-...
-md_content=""
+    ...
+    md_content=""
     for package in result.load_packages:
         for table_name, table in package.schema_update.items():
             for column_name, column in table["columns"].items():
@@ -255,20 +255,20 @@ One of the main strengths of `dlt` lies in its ability to extract, normalize, an
 
 - Start by creating a new Dagster project scaffold:
 
-```py
+```sh
 dagster project scaffold --name mongodb-dlt
 ```
 
 - Follow the steps mentioned earlier and create an `assets`, and `resources` directory under `mongodb-dlt/mongodb_dlt`.
 - Initialize a `dlt` MongoDB pipeline in the same directory:
 
-```py
+```sh
 dlt init mongodb bigquery
 ```
 
 This will create a template with all the necessary logic implemented for extracting data from MongoDB. After running the command your directory structure should be as follows:
 
-```py
+```text
 .
 ├── README.md
 ├── mongodb_dlt

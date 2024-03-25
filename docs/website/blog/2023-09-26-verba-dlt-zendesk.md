@@ -104,7 +104,7 @@ dlt init zendesk weaviate
 
 To make things easier, we'll use the email address and password authentication method for Zendesk API. Let's add our credentials to `secrets.toml`:
 
-```yaml
+```toml
 [sources.zendesk.credentials]
 password = "your-password"
 subdomain = "your-subdomain"
@@ -113,14 +113,13 @@ email = "your-email@example.com"
 
 We also need to specify the URL and the API key of our Weaviate instance. Copy the credentials for the Weaviate instance you created earlier and add them to `secrets.toml`:
 
-```yaml
+```toml
 [destination.weaviate.credentials]
 url = "https://your-cluster.weaviate.network"
 api_key = "F8.....i4WK"
 
 [destination.weaviate.credentials.additional_headers]
 X-OpenAI-Api-Key = "sk-....."
-
 ```
 
 All the components are now in place and configured. Let's set up a pipeline to import data from Zendesk.

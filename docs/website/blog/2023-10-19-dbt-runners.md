@@ -210,7 +210,7 @@ for m in models:
         f"Model {m.model_name} materialized" +
         f"in {m.time}" +
         f"with status {m.status}" +
-        f"and message {m.message}"
+        f"and message {m.message}")
 ```
 
 ## 4. A short demo on how to do that with dlt’s dbt runner.

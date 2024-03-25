@@ -101,7 +101,7 @@ to
 
 ```py
 def to_http_params(self) -> CredentialsHttpParams:
-	encoded = b64encode(f"{self.api_key}".encode()).decode()
+  encoded = b64encode(f"{self.api_key}".encode()).decode()
   return dict(cookies={}, headers={"Authorization": "Basic " + encoded}, params={})
 ```
 
@@ -112,7 +112,8 @@ Also I was pleasantly surprised that generator had several different authenticat
 For the code generator it’s hard to guess a pagination method by OpenAPI specification, so the generated code has no pagination 😞. So I had to replace a line
 
 ```py
-yield _build_response(requests.request(**kwargs))
+def f():
+  yield _build_response(requests.request(**kwargs))
 ```
 
   with yielding form a 6-lines `get_page` function

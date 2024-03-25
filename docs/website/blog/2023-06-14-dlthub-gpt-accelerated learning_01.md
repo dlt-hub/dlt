@@ -47,9 +47,11 @@ The code provided below demonstrates training a chat-oriented GPT model using th
 
 
 
-```py
-!python3 -m pip install --upgrade langchain deeplake openai tiktoken
+```sh
+python -m pip install --upgrade langchain deeplake openai tiktoken
+```
 
+```py
 # Create accounts on platform.openai.com and deeplake.ai. After registering, retrieve the access tokens for both platforms and securely store them for use in the next step. Enter the access tokens grabbed in the last step and enter them when prompted
 
 import os
@@ -65,7 +67,7 @@ embeddings = OpenAIEmbeddings(disallowed_special=())
 
 #### 2. Create a directory to store the code for training the model. Clone the desired repositories into that.
 
-```py
+```sh
   # making a new directory named dlt-repo
 !mkdir dlt-repo
 # changing the directory to dlt-repo 
@@ -119,7 +121,8 @@ text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 texts = text_splitter.split_documents(docs)
 ```
 #### 6. Create Deeplake dataset  
-```py 
+
+```sh
 # Set up your deeplake dataset by replacing the username with your Deeplake account and setting the dataset name. For example if the deeplakes username is “your_name” and the dataset is “dlt-hub-dataset” 
 
 username = "your_deeplake_username" # replace with your username from app.activeloop.ai

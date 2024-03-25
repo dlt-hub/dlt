@@ -227,7 +227,8 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
            # Initialize and configure the DLT pipeline
            pipeline = dlt.pipeline(
-               pipeline_name=ßigquery',               # Destination service for the data
+               pipeline_name="hubspot",
+               destination='bigquery',               # Destination service for the data
                dataset_name='hubspot_webhooks_dataset',  # BigQuery dataset name
            )
 

@@ -82,8 +82,7 @@ It would take some effort to interpret even a simple response like this one for 
             "updated": 1502138686,
             "is_app_user": false,
             "has_2fa": false
-        },
-        // ... (more data)
+        }
     ]
 }
 ```

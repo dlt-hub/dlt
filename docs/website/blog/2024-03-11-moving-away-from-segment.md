@@ -128,7 +128,6 @@ variable "region" {
 variable "service_account_email" {
   type = string
   default = "Add Service Account Email"
-  
 }
 ```
 
@@ -169,7 +168,7 @@ topic_id = "telemetry_data_tera"
 
 The `publisher.py` script is designed to generate dummy events, simulating real-world data, and then sends these events to the specified Pub/Sub topic. This process is crucial for testing the end-to-end functionality of our event streaming pipeline, ensuring that data flows from the source (the publisher) to our intended destinations (BigQuery, via the Cloud Function and dlt). To run the publisher execute the following command:
 
-```py
+```sh
 python publisher.py
 ```
 
