@@ -90,7 +90,7 @@ class APIKeyAuth(AuthConfigBase):
 
 @configspec
 class HttpBasicAuth(AuthConfigBase):
-    username: str = ""
+    username: str = None
     password: TSecretStrValue = None
 
     def parse_native_representation(self, value: Any) -> None:
