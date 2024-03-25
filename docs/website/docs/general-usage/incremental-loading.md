@@ -298,13 +298,13 @@ We just yield all the events and `dlt` does the filtering (using `id` column dec
 
 Github returns events ordered from newest to oldest. So we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding the first event with `created_at` earlier than `initial_value`.
 
-:::note 
+:::note
 **Note on Incremental Cursor Behavior:**
-When using incremental cursors for loading data, it's essential to understand how `dlt` handles records in relation to the cursor's 
+When using incremental cursors for loading data, it's essential to understand how `dlt` handles records in relation to the cursor's
 last value. By default, `dlt` will load only those records for which the incremental cursor value is higher than the last known value of the cursor.
 This means that any records with a cursor value lower than or equal to the last recorded value will be ignored during the loading process.
-This behavior ensures efficiency by avoiding the reprocessing of records that have already been loaded, but it can lead to confusion if 
-there are expectations of loading older records that fall below the current cursor threshold. If your use case requires the inclusion of 
+This behavior ensures efficiency by avoiding the reprocessing of records that have already been loaded, but it can lead to confusion if
+there are expectations of loading older records that fall below the current cursor threshold. If your use case requires the inclusion of
 such records, you can consider adjusting your data extraction logic, using a full refresh strategy where appropriate or using `last_value_func` as discussed in the subsquent section.
 :::
 
@@ -632,12 +632,12 @@ Consider the example below for reading incremental loading parameters from "conf
 1. In "config.toml", define the `cursor_path` and `initial_value` as:
    ```toml
    # Configuration snippet for an incremental resource
-   [pipeline_with_incremental.sources.generate_incremental.generate_incremental_records.id_after]
+   [pipeline_with_incremental.sources.id_after]
    cursor_path = "idAfter"
    initial_value = 10
    ```
-   
-   `cursor_path` is assigned the value "idAfter" with an initial value of 10. 
+
+   `cursor_path` is assigned the value "idAfter" with an initial value of 10.
 
 1. Here's how the `generate_incremental_records` resource uses `cursor_path` defined in "config.toml":
    ```py
