@@ -46,6 +46,11 @@ def test_bigquery_streaming_insert():
 
     assert_load_info(pack)
 
+    with pipe.sql_client() as client:
+        with client.execute_query("SELECT * FROM test_streaming_items;") as cursor:
+            res = cursor.fetchall()
+            assert tuple(res[0])[:2] == (1, 2)
+
 
 def test_bigquery_adapter_streaming_insert():
     @dlt.resource
@@ -58,3 +63,8 @@ def test_bigquery_adapter_streaming_insert():
     pack = pipe.run(test_resource, table_name="test_streaming_items")
 
     assert_load_info(pack)
+
+    with pipe.sql_client() as client:
+        with client.execute_query("SELECT * FROM test_streaming_items;") as cursor:
+            res = cursor.fetchall()
+            assert tuple(res[0])[:2] == (1, 2)
