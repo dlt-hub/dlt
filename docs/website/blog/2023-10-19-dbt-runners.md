@@ -149,7 +149,7 @@ The Cloud runner we support can do the following:
 - Check the status of a dbt job in your account.
 
 Code example:
-```python
+```py
 from dlt.helpers.dbt_cloud import run_dbt_cloud_job
 
 # Trigger a job run with additional data
@@ -179,7 +179,7 @@ The core runner does the following:
     - Execute the package and report the outcome.
 
 Code example:
-```python
+```py
 # Create a transformation on a new dataset called 'pipedrive_dbt'
 # we created a local dbt package
 # and added pipedrive_raw to its sources.yml

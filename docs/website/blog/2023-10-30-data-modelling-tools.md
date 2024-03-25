@@ -71,7 +71,7 @@ Our database is based on the data published by [LivWell](https://www.nature.com/
 
 Sample input structure:
 
-```jsx
+```py
 [{"survey_id": "AM2000DHS",
 "country": "Armenia",
 "marriage_related": [{...}, {...}, ...],

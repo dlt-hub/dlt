@@ -40,7 +40,7 @@ In this blog post, we'll guide you through the process of building a RAG applica
 
 Create a new folder for your project and install Verba:
 
-```bash
+```sh
 mkdir verba-dlt-zendesk
 cd verba-dlt-zendesk
 python -m venv venv
@@ -50,7 +50,7 @@ pip install goldenverba
 
 To configure Verba, we need to set the following environment variables:
 
-```bash
+```sh
 VERBA_URL=https://your-cluster.weaviate.network # your Weaviate instance URL
 VERBA_API_KEY=F8...i4WK # the API key of your Weaviate instance
 OPENAI_API_KEY=sk-...R   # your OpenAI API key
@@ -61,13 +61,13 @@ You can put them in a `.env` file in the root of your project or export them in 
 
 Let's test that Verba is installed correctly:
 
-```bash
+```sh
 verba start
 ```
 
 You should see the following output:
 
-```bash
+```sh
 INFO:     Uvicorn running on <http://0.0.0.0:8000> (Press CTRL+C to quit)
 ℹ Setting up client
 ✔ Client connected to Weaviate Cluster
@@ -88,7 +88,7 @@ If you try to ask a question now, you'll get an error in return. That's because 
 
 We get our data from Zendesk using dlt. Let's install it along with the Weaviate extra:
 
-```bash
+```sh
 pip install "dlt[weaviate]"
 ```
 
@@ -96,7 +96,7 @@ This also installs a handy CLI tool called `dlt`. It will help us initialize the
 
 Let's initialize the verified source:
 
-```bash
+```sh
 dlt init zendesk weaviate
 ```
 
@@ -129,7 +129,7 @@ All the components are now in place and configured. Let's set up a pipeline to i
 
 Open your favorite text editor and create a file called `zendesk_verba.py`. Add the following code to it:
 
-```python
+```py
 import itertools
 
 import dlt
@@ -217,13 +217,13 @@ Finally, we run the pipeline and print the load info.
 
 Let's run the pipeline:
 
-```bash
+```sh
 python zendesk_verba.py
 ```
 
 You should see the following output:
 
-```bash
+```sh
 Pipeline zendesk_verba completed in 8.27 seconds
 1 load package(s) were loaded to destination weaviate and into dataset None
 The weaviate destination used <https://your-cluster.weaviate.network> location to store data
@@ -235,13 +235,13 @@ Verba is now populated with data from Zendesk Support. However there are a coupl
 
 Run the following command:
 
-```bash
+```sh
 verba init
 ```
 
 You should see the following output:
 
-```bash
+```sh
 ===================== Creating Document and Chunk class =====================
 ℹ Setting up client
 ✔ Client connected to Weaviate Cluster
@@ -264,7 +264,7 @@ Document class already exists, do you want to overwrite it? (y/n): n
 
 We're almost there! Let's start Verba:
 
-```bash
+```sh
 verba start
 ```
 

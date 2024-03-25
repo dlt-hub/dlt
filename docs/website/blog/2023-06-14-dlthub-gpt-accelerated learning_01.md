@@ -47,7 +47,7 @@ The code provided below demonstrates training a chat-oriented GPT model using th
 
 
 
-```python
+```py
 !python3 -m pip install --upgrade langchain deeplake openai tiktoken
 
 # Create accounts on platform.openai.com and deeplake.ai. After registering, retrieve the access tokens for both platforms and securely store them for use in the next step. Enter the access tokens grabbed in the last step and enter them when prompted
@@ -65,7 +65,7 @@ embeddings = OpenAIEmbeddings(disallowed_special=())
 
 #### 2. Create a directory to store the code for training the model. Clone the desired repositories into that.
 
-```python
+```py
   # making a new directory named dlt-repo
 !mkdir dlt-repo
 # changing the directory to dlt-repo 
@@ -80,7 +80,7 @@ embeddings = OpenAIEmbeddings(disallowed_special=())
 ```
 
 #### 3. Load the files from the directory 
-```python 
+```py 
 import os
 from langchain.document_loaders import TextLoader
 
@@ -95,7 +95,7 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
             pass
 ```
 #### 4. Load the files from the directory  
-```python   
+```py   
 import os
 from langchain.document_loaders import TextLoader
 
@@ -111,7 +111,7 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
 ```
 
 #### 5. Splitting files to chunks  
-```python 
+```py 
 # This code uses CharacterTextSplitter to split documents into smaller chunksbased on character count and store the resulting chunks in the texts variable.
 
 from langchain.text_splitter import CharacterTextSplitter
@@ -119,7 +119,7 @@ text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
 texts = text_splitter.split_documents(docs)
 ```
 #### 6. Create Deeplake dataset  
-```python 
+```py 
 # Set up your deeplake dataset by replacing the username with your Deeplake account and setting the dataset name. For example if the deeplakes username is “your_name” and the dataset is “dlt-hub-dataset” 
 
 username = "your_deeplake_username" # replace with your username from app.activeloop.ai
@@ -138,7 +138,7 @@ retriever.search_kwargs['maximal_marginal_relevance'] = True
 retriever.search_kwargs['k'] = 10
 ```
 #### 7. Initialize the GPT model 
-```python 
+```py 
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 

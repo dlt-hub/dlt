@@ -38,7 +38,7 @@ Here’s how a pipeline could look:
 
 The data being used is of a questionnaire, which includes questions, the options of those questions, respondents and responses. This data is contained within a nested json object, that we’ll pass as a raw source to `dlt` to structure, normalize and dump into a BigQuery destination.
 
-```python
+```py
 # initializing the dlt pipeline with your data warehouse destination
 pipeline = dlt.pipeline(
     pipeline_name="survey_pipeline",
