@@ -1,5 +1,5 @@
 import logging
-from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Literal
+from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Literal, cast
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -20,26 +20,27 @@ class ClickhouseCredentials(ConnectionStringCredentials):
     """Host with running ClickHouse server."""
     port: int = 9000
     """Port ClickHouse server is bound to. Defaults to 9000."""
-    user: str = "default"
+    username: str = "default"
     """Database user. Defaults to 'default'."""
     database: str = "default"
     """database connect to. Defaults to 'default'."""
+    secure: TSecureConnection = 1
+    """Enables TLS encryption when connecting to ClickHouse Server. 0 means no encryption, 1 means encrypted."""
     connect_timeout: int = 10
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
-    secure: TSecureConnection = 1
-    """Enables TLS encryption when connecting to ClickHouse Server. 0 means no encryption, 1 means encrypted."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
         "port",
-        "user",
+        "username",
         "database",
+        "secure",
         "connect_timeout",
         "send_receive_timeout",
-        "secure",
     ]
+
 
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
@@ -47,7 +48,7 @@ class ClickhouseCredentials(ConnectionStringCredentials):
         self.send_receive_timeout = int(
             self.query.get("send_receive_timeout", self.send_receive_timeout)
         )
-        self.secure = int(self.query.get("secure", self.secure))  # type: ignore[assignment]
+        self.secure = cast(TSecureConnection, int(self.query.get("secure", self.secure)))
         if not self.is_partial():
             self.resolve()
 
