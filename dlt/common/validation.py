@@ -1,5 +1,6 @@
 import contextlib
 import functools
+import inspect
 from typing import Callable, Any, Type
 from typing_extensions import get_type_hints, get_args
 
@@ -38,11 +39,10 @@ def validate_dict(
         filter_f (TFilterFunc, optional): A function to filter keys in `doc`. It should
             return `True` for keys to be kept. Defaults to a function that keeps all keys.
         validator_f (TCustomValidator, optional): A function to perform additional validation
-            for types not covered by this function. It should return `True` if the validation passes.
+            for types not covered by this function. It should return `True` if the validation passes
+            or raise DictValidationException on validation error. For types it cannot validate, it
+            should return False to allow chaining.
             Defaults to a function that rejects all such types.
-        filter_required (TFilterFunc, optional): A function to filter out required fields, useful
-            for testing historic versions of dict that might now have certain fields yet.
-
     Raises:
         DictValidationException: If there are missing required fields, unexpected fields,
             type mismatches or unvalidated types in `doc` compared to `spec`.
@@ -162,8 +162,23 @@ def validate_dict(
         elif t is Any:
             # pass everything with any type
             pass
+        elif inspect.isclass(t) and isinstance(pv, t):
+            # allow instances of classes
+            pass
         else:
+            type_name = getattr(t, "__name__", str(t))
+            pv_type_name = getattr(type(pv), "__name__", str(type(pv)))
+            # try to apply special validator
             if not validator_f(path, pk, pv, t):
+                # type `t` cannot be validated by validator_f
+                if inspect.isclass(t):
+                    if not isinstance(pv, t):
+                        raise DictValidationException(
+                            f"In {path}: field {pk} expect class {type_name} but got instance of"
+                            f" {pv_type_name}",
+                            path,
+                            pk,
+                        )
                 # TODO: when Python 3.9 and earlier support is
                 # dropped, just __name__ can be used
                 type_name = getattr(t, "__name__", str(t))

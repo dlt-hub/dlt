@@ -64,14 +64,14 @@ For example, to monitor data loading, consider plotting "count of records by `lo
 ### Rows count
 To find the number of rows loaded per table, use the following command:
 
-```shell
+```sh
 dlt pipeline <pipeline_name> trace
 ```
 
 This command will display the names of the tables that were loaded and the number of rows in each table.
 The above command provides the row count for the Chess source. As shown below:
 
-```shell
+```sh
 Step normalize COMPLETED in 2.37 seconds.
 Normalized data for the following tables:
 - _dlt_pipeline_state: 1 row(s)
@@ -83,7 +83,7 @@ Normalized data for the following tables:
 ```
 
 To load these info back to the destination you can use the following:
-```python
+```py
 # Create a pipeline with the specified name, destination, and dataset
 # Run the pipeline
 
@@ -105,13 +105,13 @@ representation of the rows loaded with `load_id` for different tables:
 ### Data load time
 Data loading time for each table can be obtained by using the following command:
 
-```shell
+```sh
 dlt pipeline <pipeline_name> load-package
 ```
 
 The above information can also be obtained from the script as follows:
 
-```python
+```py
 info = pipeline.run(source, table_name="table_name", write_disposition='append')
 
 print(info.load_packages[0])

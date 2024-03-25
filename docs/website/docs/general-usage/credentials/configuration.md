@@ -25,7 +25,7 @@ When done right you'll be able to run the same pipeline script during developmen
 In the example below, the `google_sheets` source function is used to read selected tabs from Google Sheets.
 It takes several arguments that specify the spreadsheet, the tab names and the Google credentials to be used when extracting data.
 
-```python
+```py
 @dlt.source
 def google_sheets(
     spreadsheet_id=dlt.config.value,
@@ -68,14 +68,14 @@ You are free to call the function above as usual and pass all the arguments in t
 Instead let `dlt` to do the work and leave it to [injection mechanism](#injection-mechanism) that looks for function arguments in the config files or environment variables and adds them to your explicit arguments during a function call. Below are two most typical examples:
 
 1. Pass spreadsheet id and tab names in the code, inject credentials from the secrets:
-    ```python
+    ```py
     data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
     ```
     `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`).
     `spreadsheet_id` and `tab_names` take values from the call arguments.
 
 2. Inject all the arguments from config / secrets
-    ```python
+    ```py
     data_source = google_sheets()
     ```
     `credentials` value will be injected by the `@source` decorator (e.g. from **secrets.toml**).
@@ -97,16 +97,16 @@ Where do the configs and secrets come from? By default, `dlt` looks in two **con
   Secrets in **.dlt/secrets.toml**. `dlt` will look for `credentials`,
   ```toml
   [credentials]
-  client_email = <client_email from services.json>
-  private_key = <private_key from services.json>
-  project_id = <project_id from services json>
+  client_email = "<client_email from services.json>"
+  private_key = "<private_key from services.json>"
+  project_id = "<project_id from services json>"
   ```
   Note that **credentials** will be evaluated as dictionary containing **client_email**, **private_key** and **project_id** as keys. It is standard TOML behavior.
 - [Environment Variables](config_providers#environment-provider):
-  ```python
-  CREDENTIALS=<service.json>
-  SPREADSHEET_ID=1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580
-  TAB_NAMES=tab1,tab2
+  ```toml
+  CREDENTIALS="<service.json>"
+  SPREADSHEET_ID="1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
+  TAB_NAMES=["tab1", "tab2"]
   ```
   We pass the JSON contents of `service.json` file to `CREDENTIALS` and we specify tab names as comma-delimited values.  Environment variables are always in **upper case**.
 
@@ -123,7 +123,7 @@ There are many ways you can organize your configs and secrets. The example above
 ### Do not hardcode secrets
 You should never do that. Sooner or later your private key will leak.
 
-```python
+```py
 # WRONG!:
 # provide all values directly - wrong but possible.
 # secret values should never be present in the code!
@@ -137,7 +137,7 @@ data_source = google_sheets(
 ### Pass secrets in code from external providers
 You can get the secret values from your own providers. Below we take **credentials** for our `google_sheets` source from Airflow base hook:
 
-```python
+```py
 from airflow.hooks.base_hook import BaseHook
 
 # get it from airflow connections or other credential store
@@ -163,7 +163,7 @@ Doing so provides several benefits:
 1. You can request [built-in and custom credentials](config_specs.md) (i.e. connection strings, AWS / GCP / Azure credentials).
 1. You can specify a set of possible types via `Union` i.e. OAuth or API Key authorization.
 
-```python
+```py
 @dlt.source
 def google_sheets(
     spreadsheet_id: str = dlt.config.value,
@@ -171,7 +171,7 @@ def google_sheets(
     credentials: GcpServiceAccountCredentials = dlt.secrets.value,
     only_strings: bool = False
 ):
-  ...
+    ...
 ```
 
 Now:
@@ -189,7 +189,7 @@ In case of `GcpServiceAccountCredentials`:
 ## Read configs and secrets yourself
 `dlt.secrets` and `dlt.config` provide dictionary-like access to configuration values and secrets, respectively.
 
-```python
+```py
 # use `dlt.secrets` and `dlt.config` to explicitly take
 # those values from providers from the explicit keys
 data_source = google_sheets(
@@ -202,14 +202,14 @@ data_source.run(destination="bigquery")
 ```
 `dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](#injection-mechanism) - TOML files, env variables etc. just like it does with the standard section layout. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
 request value cast to a desired type. For example:
-```python
+```py
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
 ```
 Creates `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under **my_section.gcp_credentials** key.
 
 ### Write configs and secrets in code
 **dlt.config** and **dlt.secrets** can be also used as setters. For example:
-```python
+```py
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
@@ -263,9 +263,9 @@ Here is the simplest default layout for our `google_sheets` example.
 
 ```toml
 [credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 **config.toml**
@@ -284,9 +284,9 @@ This makes sure that `google_sheets` source does not share any secrets and confi
 
 ```toml
 [sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 **config.toml**
@@ -305,9 +305,9 @@ Use this if you want to read and pass the config/secrets yourself
 ```toml
 [my_section]
 
-    [my_section.gcp_credentials]
-    client_email = <client_email from services.json>
-    private_key = <private_key from services.json>
+[my_section.gcp_credentials]
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
 ```
 
 **config.toml**
@@ -316,9 +316,9 @@ Use this if you want to read and pass the config/secrets yourself
 [my_section]
 tabs=["tab1", "tab2"]
 
-    [my_section.gcp_credentials]
-    # I prefer to keep my project id in config file and private key in secrets
-    project_id = <project_id from services json>
+[my_section.gcp_credentials]
+# I prefer to keep my project id in config file and private key in secrets
+project_id = "<project_id from services json>"
 ```
 
 ### Default layout and default key lookup during injection
@@ -328,7 +328,7 @@ makes it easy to configure simple cases but also provides a room for more explic
 complex cases i.e. having several sources with different credentials or even hosting several pipelines
 in the same project sharing the same config and credentials.
 
-```
+```text
 pipeline_name
     |
     |-sources
@@ -368,15 +368,15 @@ Example: We use the `bigquery` destination and the `google_sheets` source. They 
 ```toml
 # google sheet credentials
 [sources.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 
 # bigquery credentials
 [destination.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 Now when `dlt` looks for destination credentials, it will start with `destination.bigquery.credentials`, eliminate `bigquery` and stop at `destination.credentials`.
@@ -388,21 +388,21 @@ Example: let's be even more explicit and use a full section path possible.
 ```toml
 # google sheet credentials
 [sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 
 # google analytics credentials
 [sources.google_analytics.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 
 # bigquery credentials
 [destination.bigquery.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 Now we can separate credentials for different sources as well.
@@ -418,18 +418,18 @@ Example: the pipeline is named `ML_sheets`.
 
 ```toml
 [ML_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 or maximum path:
 
 ```toml
 [ML_sheets.sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 ### The `sources` section
@@ -455,7 +455,7 @@ Now we can finally understand the `ConfigFieldMissingException`.
 
 Let's run `chess.py` example without providing the password:
 
-```
+```sh
 $ CREDENTIALS="postgres://loader@localhost:5432/dlt_data" python chess.py
 ...
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['password'] in configuration with spec PostgresCredentials

@@ -38,7 +38,7 @@ providers.
 
 ### Example
 
-```python
+```py
 @dlt.source
 def google_sheets(
     spreadsheet_id=dlt.config.value,
@@ -112,6 +112,19 @@ sections and key names are separated by "." into the provider-specific formats.
    This way, `dlt` prioritizes security by using environment variables before looking into configuration files.
    
 
+
+:::info
+While using Google secrets provider please make sure your pipeline name
+contains no whitespace or any other punctuation characters except "-" and "_".
+
+Per Google the secret name can contain
+
+    1. Uppercase and lowercase letters,
+    2. Numerals,
+    3. Hyphens,
+    4. Underscores.
+:::
+
 ### Environment provider
 
 Looks for the values in the environment variables.
@@ -133,7 +146,7 @@ current Working Directory**.
 
 Example: If your working directory is `my_dlt_project` and your project has the following structure:
 
-```
+```text
 my_dlt_project:
   |
   pipelines/

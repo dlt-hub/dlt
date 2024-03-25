@@ -14,7 +14,7 @@ import Header from '../_examples-header.md';
 
 Additionally we'll use PyPDF2 to extract text from PDFs. Make sure you have it installed:
 
-```shell
+```sh
 pip install PyPDF2
 ```
 

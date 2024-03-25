@@ -47,7 +47,8 @@ dev: has-poetry
 	poetry install --all-extras --with airflow --with docs --with providers --with pipeline --with sentry-sdk
 
 lint:
-	./check-package.sh
+	./tools/check-package.sh
+	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
@@ -60,8 +61,9 @@ format:
 	# poetry run isort ./
 
 test-and-lint-snippets:
-	poetry run mypy --config-file mypy.ini docs/website docs/examples
-	poetry run flake8 --max-line-length=200 docs/website docs/examples
+	cd docs/tools && poetry run python check_embedded_snippets.py full
+	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup
+	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
 
 lint-security:

@@ -7,6 +7,10 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml

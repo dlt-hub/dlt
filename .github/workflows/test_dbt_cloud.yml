@@ -8,6 +8,10 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   # all credentials must be present to be passed to dbt cloud
   DBT_CLOUD__ACCOUNT_ID: ${{ secrets.DBT_CLOUD__ACCOUNT_ID }}

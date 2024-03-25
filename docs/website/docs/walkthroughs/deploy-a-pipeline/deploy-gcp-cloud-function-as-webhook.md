@@ -15,7 +15,7 @@ You can setup GCP cloud function webhook using `dlt` as follows:
 5. Select "Python 3.10" as the environment.
 6. Use the code provided to set up the cloud function for event ingestion:
     
-    ```python
+    ```py
     import dlt
     import json
     import time
@@ -40,7 +40,7 @@ You can setup GCP cloud function webhook using `dlt` as follows:
 7. Set the function name as "your_webhook" in the Entry point field.
 8. In the requirements.txt file, specify the necessary packages:
     
-    ```python
+    ```py
     # Function dependencies, for example:
     # package>=version
     dlt
@@ -56,7 +56,7 @@ You can setup GCP cloud function webhook using `dlt` as follows:
 
 To manually test the function you have created, you can send a manual POST request as a webhook using the following code:
 
-```bash
+```sh
 import requests
     
 webhook_url = 'please set me up!' # Your cloud function Trigger URL

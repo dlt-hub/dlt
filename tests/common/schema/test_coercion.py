@@ -377,9 +377,15 @@ def test_coerce_type_complex() -> None:
     assert coerce_value("complex", "complex", v_list) == v_list
     assert coerce_value("text", "complex", v_dict) == json.dumps(v_dict)
     assert coerce_value("text", "complex", v_list) == json.dumps(v_list)
+    assert coerce_value("complex", "text", json.dumps(v_dict)) == v_dict
+    assert coerce_value("complex", "text", json.dumps(v_list)) == v_list
+
     # all other coercions fail
     with pytest.raises(ValueError):
         coerce_value("binary", "complex", v_list)
+
+    with pytest.raises(ValueError):
+        coerce_value("complex", "text", "not a json string")
 
 
 def test_coerce_type_complex_with_pua() -> None:
@@ -395,6 +401,10 @@ def test_coerce_type_complex_with_pua() -> None:
     }
     assert coerce_value("complex", "complex", copy(v_dict)) == exp_v
     assert coerce_value("text", "complex", copy(v_dict)) == json.dumps(exp_v)
+
+    # TODO: what to test for this case if at all?
+    # assert coerce_value("complex", "text", json.dumps(v_dict)) == exp_v
+
     # also decode recursively
     custom_pua_decode_nested(v_dict)
     # restores datetime type
