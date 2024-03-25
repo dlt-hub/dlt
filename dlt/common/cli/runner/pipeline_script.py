@@ -67,20 +67,20 @@ class PipelineScript:
             return module
 
     @contextmanager
-    def expect_no_pipeline_runs(self):
+    def expect_no_pipeline_runs(self):  # type: ignore[no-untyped-def]
         """Monkey patch pipeline.run during module loading
         Restore it once importing is done
         """
         old_run = dlt.Pipeline.run
 
-        def noop(*args, **kwargs) -> LoadInfo:
+        def noop(*args, **kwargs) -> LoadInfo:  # type: ignore
             self.has_pipeline_auto_runs = True
 
-        dlt.Pipeline.run = noop
+        dlt.Pipeline.run = noop  # type: ignore
 
         yield
 
-        dlt.Pipeline.run = old_run
+        dlt.Pipeline.run = old_run  # type: ignore
 
     @property
     def pipeline_module(self) -> ModuleType:
