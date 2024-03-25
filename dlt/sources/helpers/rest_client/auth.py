@@ -5,10 +5,20 @@ from dlt.sources.helpers import requests
 from requests.auth import AuthBase
 from requests import PreparedRequest  # noqa: I251
 import pendulum
-import jwt
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+
+from dlt.common.exceptions import MissingDependencyException
+
+try:
+    import jwt
+except ModuleNotFoundError:
+    raise MissingDependencyException("dlt OAuth helpers", ["PyJWT"])
+
+try:
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
+except ModuleNotFoundError:
+    raise MissingDependencyException("dlt OAuth helpers", ["cryptography"])
 
 from dlt import config, secrets
 from dlt.common import logger
