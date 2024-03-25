@@ -25,6 +25,7 @@ pip install fastembed>=0.1.1
 
 """
 
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "zendesk"
 
 from typing import Optional, Dict, Any, Tuple

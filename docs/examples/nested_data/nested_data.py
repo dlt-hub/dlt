@@ -16,6 +16,7 @@ We'll learn how to:
 - Enable [incremental loading](../general-usage/incremental-loading) for efficient data extraction.
 """
 
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "mongodb"
 
 from itertools import islice

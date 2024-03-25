@@ -17,8 +17,7 @@ We'll learn:
 - How to use the `start_time` parameter in API requests to retrieve data starting from a specific timestamp.
 """
 
-# because the example below uses credentials and it is copied to the module zendesk.py
-# we force the same config section name
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "zendesk"
 
 from typing import Optional, Dict, Any, Tuple

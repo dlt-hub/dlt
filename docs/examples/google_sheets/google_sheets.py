@@ -18,6 +18,7 @@ This example is for educational purposes. For best practices, we recommend using
 
 """
 
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "google_sheets"
 
 from typing import Any, Iterator, Sequence, Union, cast
