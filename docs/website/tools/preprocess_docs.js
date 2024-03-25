@@ -17,6 +17,7 @@ const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 // examples settings
 const EXAMPLES_DESTINATION_DIR = `./${MD_TARGET_DIR}examples/`;
 const EXAMPLES_SOURCE_DIR = "../examples/";
+const EXAMPLES_EXCLUSIONS = [".", "_", "archive", "local_cache"]
 
 // markers
 const DLT_MARKER = "@@@DLT";
@@ -262,22 +263,16 @@ function syncExamples() {
 
   let count = 0;
   for (const exampleDir of listDirsSync(EXAMPLES_SOURCE_DIR)) {
-    if (exampleDir.includes("archive")) {
-      continue;
-    }
-    if (exampleDir.includes(".dlt")) {
-      continue;
-    }
-    if (exampleDir.includes("__pycache__")) {
-      continue;
-    }
-    if (exampleDir.includes("_storage")) {
-      continue;
-    }
-    if (exampleDir.includes("local_cache")) {
-      continue;
-    }
+
     const exampleName = exampleDir.split("/").slice(-1)[0];
+
+    // exclude some folders
+    for (const exclusion of EXAMPLES_EXCLUSIONS) {
+      if (exampleName.startsWith(exclusion)) {
+        continue;
+      }
+    }
+
     const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
     const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
     const lines = fs.readFileSync(exampleFile, 'utf8').split(/\r?\n/);

@@ -9,7 +9,7 @@ import dlt.cli.echo as fmt
 EXAMPLES_DIR = "../examples"
 
 # settings
-SKIP_FOLDERS = ["archive", ".dlt", "__pycache__", "_storage", "local_cache"]
+SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
 
 # the entry point for the script
 MAIN_CLAUSE = 'if __name__ == "__main__":'
@@ -36,10 +36,11 @@ if __name__ == "__main__":
 
     count = 0
     for example in next(os.walk(EXAMPLES_DIR))[1]:
-        if example in SKIP_FOLDERS:
+        # skip some
+        if any(map(lambda skip: example.startswith(skip), SKIP_FOLDERS)):
             continue
-        count += 1
 
+        count += 1
         example_file = f"{EXAMPLES_DIR}/{example}/{example}.py"
         test_example_file = f"{EXAMPLES_DIR}/{example}/test_{example}.py"
 
