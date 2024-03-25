@@ -49,7 +49,6 @@ def chess(
 
 if __name__ == "__main__":
     print("You must run this from the docs/examples/chess folder")
-    assert os.getcwd().endswith("chess")
     # chess_url in config.toml, credentials for postgres in secrets.toml, credentials always under credentials key
     # look for parallel run configuration in `config.toml`!
     # mind the full_refresh: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state

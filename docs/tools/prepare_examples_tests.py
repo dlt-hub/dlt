@@ -7,7 +7,7 @@ import dlt.cli.echo as fmt
 EXAMPLES_DIR = "../examples"
 
 # settings
-SKIP_FOLDERS = ["archive", ".dlt", "__pycache__"]
+SKIP_FOLDERS = ["archive", ".dlt", "__pycache__", "_storage", "local_cache"]
 
 # the entry point for the script
 MAIN_CLAUSE = 'if __name__ == "__main__":'
@@ -36,6 +36,7 @@ if __name__ == "__main__":
         main_clause_found = False
 
         for line in lines:
+            # convert the main clause to a test function
             if line.startswith(MAIN_CLAUSE):
                 main_clause_found = True
                 processed_lines.append("@skipifgithubfork")

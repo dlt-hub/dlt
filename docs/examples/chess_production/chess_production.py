@@ -168,5 +168,5 @@ if __name__ == "__main__":
         dataset_name="chess_data",
     )
     # get data for a few famous players
-    data = chess(chess_url="https://api.chess.com/pub/", max_players=MAX_PLAYERS)
+    data = chess(max_players=MAX_PLAYERS)
     load_data_with_retry(pipeline, data)
