@@ -84,6 +84,21 @@ def test_run_command_allows_selection_of_pipeline_source_or_resource():
         assert mocked_ask.call_count == 2
 
 
+def test_run_command_exits_if_exit_choice_selected():
+    with mock.patch(
+        "dlt.common.cli.runner.inquirer.fmt.prompt", return_value="n"
+    ), io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        run_command.run_pipeline_command(
+            str(TEST_PIPELINE),
+            None,
+            None,
+            ["write_disposition=append", "loader_file_format=parquet"],
+        )
+
+        output = buf.getvalue()
+        assert "Stopping..." in output
+
+
 def test_run_command_exits_if_pipeline_run_calls_exist_at_the_top_level():
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
