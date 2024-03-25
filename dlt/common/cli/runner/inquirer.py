@@ -64,7 +64,7 @@ class Inquirer:
 
         real_pipeline_name = ""
         if pipeline.pipeline_name != pipeline_name:
-            real_pipeline_name = f"({pipeline.pipeline_name})"
+            real_pipeline_name = f" ({pipeline.pipeline_name})"
 
         fmt.echo("\nPipeline: " + fmt.style(pipeline_name + real_pipeline_name, fg="blue"))
 

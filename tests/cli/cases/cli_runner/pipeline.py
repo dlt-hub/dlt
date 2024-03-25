@@ -27,7 +27,7 @@ quads_pipeline = dlt.pipeline(
 )
 
 numbers_pipeline = dlt.pipeline(
-    pipeline_name="numbers_pipeline",
+    pipeline_name="my_numbers_pipeline",
     destination="duckdb",
 )
 

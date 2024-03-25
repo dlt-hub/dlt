@@ -18,7 +18,9 @@ TEST_PIPELINE_WITH_IMMEDIATE_RUN = CLI_RUNNER_PIPELINES / "pipeline_with_immedia
 
 
 def test_run_command_happy_path_works_as_expected():
+    # pipeline variable name
     pipeline_name = "numbers_pipeline"
+    real_pipeline_name = "my_numbers_pipeline"
     p = dlt.pipeline(pipeline_name=pipeline_name)
     p._wipe_working_folder()
     shutil.copytree(CLI_RUNNER_PIPELINES, TEST_STORAGE_ROOT, dirs_exist_ok=True)
@@ -33,13 +35,13 @@ def test_run_command_happy_path_works_as_expected():
 
         output = buf.getvalue()
         assert "Current working directory is different from the pipeline script" in output
-        assert "Pipeline: numbers_pipeline" in output
+        assert "Pipeline: numbers_pipeline (my_numbers_pipeline)" in output
         assert "Resource: numbers_resource_instance (numbers_resource)" in output
-        assert "Pipeline numbers_pipeline load step completed" in output
+        assert "Pipeline my_numbers_pipeline load step completed" in output
         assert "contains no failed jobs" in output
 
         # Check if we can successfully attach to pipeline
-        dlt.attach(pipeline_name)
+        dlt.attach(real_pipeline_name)
 
 
 def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_not_found():
@@ -47,18 +49,18 @@ def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_no
         run_command.run_pipeline_command(
             str(TEST_PIPELINE),
             "pipeline_404",
-            "squares_resource_instance",
+            "numbers_resource_instance",
             ["write_disposition=merge", "loader_file_format=jsonl"],
         )
 
         output = buf.getvalue()
         assert "Pipeline pipeline_404 has not been found in pipeline script" in output
-        assert "You can choose one of: quads_pipeline, squares_pipeline" in output
+        assert "You can choose one of: quads_pipeline, numbers_pipeline" in output
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         run_command.run_pipeline_command(
             str(TEST_PIPELINE),
-            "squares_pipeline",
+            "numbers_pipeline",
             "resource_404",
             ["write_disposition=merge", "loader_file_format=jsonl"],
         )
@@ -68,7 +70,7 @@ def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_no
             "Source or resouce with name: resource_404 has not been found in pipeline script."
             in output
         )
-        assert "You can choose one of: quads_resource_instance, squares_resource_instance" in output
+        assert "You can choose one of: quads_resource_instance, numbers_resource_instance" in output
 
 
 def test_run_command_allows_selection_of_pipeline_source_or_resource():
