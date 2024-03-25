@@ -6,8 +6,6 @@ from typing import (
     Any,
     TypeVar,
     Iterable,
-    Union,
-    Callable,
     cast,
 )
 import copy
@@ -20,7 +18,7 @@ from dlt.common import jsonpath
 from dlt.sources.helpers.requests.retry import Client
 from dlt.sources.helpers.requests import Response, Request
 
-from .typing import HTTPMethodBasic, HTTPMethod
+from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
 from .auth import AuthConfigBase
 from .detector import PaginatorFactory, find_records
@@ -30,9 +28,6 @@ from .utils import join_url
 
 
 _T = TypeVar("_T")
-HookFunction = Callable[[Response, Any, Any], None]
-HookEvent = Union[HookFunction, List[HookFunction]]
-Hooks = Dict[str, HookEvent]
 
 
 class PageData(List[_T]):
