@@ -35,7 +35,6 @@ from dlt.pipeline.helpers import retry_load
 from dlt.common.runtime.slack import send_slack_message
 
 
-
 @dlt.source
 def chess(
     chess_url: str = dlt.config.value,

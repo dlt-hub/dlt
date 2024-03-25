@@ -69,6 +69,7 @@ lint-and-test-snippets:
 lint-and-test-examples:
 	poetry run mypy --config-file mypy.ini docs/examples
 	poetry run flake8 --max-line-length=200 docs/examples
+	cd docs/tools && poetry run python prepare_examples_tests.py
 	cd docs/examples && poetry run pytest
 
 
