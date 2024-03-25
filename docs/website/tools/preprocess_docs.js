@@ -265,6 +265,18 @@ function syncExamples() {
     if (exampleDir.includes("archive")) {
       continue;
     }
+    if (exampleDir.includes(".dlt")) {
+      continue;
+    }
+    if (exampleDir.includes("__pycache__")) {
+      continue;
+    }
+    if (exampleDir.includes("_storage")) {
+      continue;
+    }
+    if (exampleDir.includes("local_cache")) {
+      continue;
+    }
     const exampleName = exampleDir.split("/").slice(-1)[0];
     const exampleFile = `${EXAMPLES_SOURCE_DIR}${exampleName}/${exampleName}.py`;
     const targetFileName = `${EXAMPLES_DESTINATION_DIR}/${exampleName}.md`;
