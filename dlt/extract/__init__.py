@@ -4,6 +4,7 @@ from dlt.extract.source import DltSource
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.extract.incremental import Incremental
 from dlt.extract.wrappers import wrap_additional_type
+from dlt.extract.extractors import materialize_schema_item
 
 __all__ = [
     "DltResource",
@@ -17,4 +18,5 @@ __all__ = [
     "defer",
     "Incremental",
     "wrap_additional_type",
+    "materialize_schema_item",
 ]

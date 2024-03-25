@@ -51,7 +51,9 @@ class NormalizeStorage(VersionedStorage):
                 [
                     file
                     for file in files
-                    if not file.endswith(PackageStorage.SCHEMA_FILE_NAME) and os.path.isfile(file)
+                    if not file.endswith(PackageStorage.SCHEMA_FILE_NAME)
+                    and os.path.isfile(file)
+                    and not file.endswith(PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
                 ]
             )
 

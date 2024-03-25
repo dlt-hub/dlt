@@ -56,7 +56,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init asana_dlt duckdb
    ```
 
@@ -94,16 +94,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python asana_dlt_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `asana`, you may also use any
@@ -127,7 +127,7 @@ it is important to note the complete list of the default endpoints given in
 This is a `dlt.source` function, which returns a list of DltResource objects: "workspaces",
 "projects", "sections","tags","tasks","stories", "teams", and "users".
 
-```python
+```py
 @dlt.source
 def asana_source(access_token: str = dlt.secrets.value) -> Any:
     return [
@@ -142,7 +142,7 @@ def asana_source(access_token: str = dlt.secrets.value) -> Any:
 
 This is a `dlt.resource` function, which returns collections of tasks and related information.
 
-```python
+```py
 @dlt.resource(write_disposition="replace")
 def workspaces(
     access_token: str = dlt.secrets.value,
@@ -171,7 +171,7 @@ transformer functions transform or process data from one or more resources.
 The transformer function `projects` process data from the `workspaces` resource. It
 fetches and returns a list of projects for a given workspace from Asana.
 
-```python
+```py
 @dlt.transformer(
     data_from=workspaces,
     write_disposition="replace",
@@ -200,7 +200,7 @@ It uses `@dlt.defer` decorator to enable parallel run in thread pool.
 This [incremental](../../general-usage/incremental-loading.md) resource-transformer fetches all
 tasks for a given project from Asana.
 
-```python
+```py
 @dlt.transformer(data_from=projects, write_disposition="merge", primary_key="gid")
 def tasks(
     project_array: t.List[TDataItem],
@@ -235,7 +235,7 @@ these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="asana_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -248,13 +248,13 @@ these steps:
 
 1. To load the data from all the fields, you can utilise the `asana_source` method as follows:
 
-   ```python
+   ```py
    load_data = asana_source()
    ```
 
 1. Use the method `pipeline.run()` to execute the pipeline.
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data)
    # print the information on data that was loaded
    print(load_info)
@@ -263,7 +263,7 @@ these steps:
 1. To use the method `pipeline.run()` to load custom endpoints “workspaces” and “projects”, the
    above script may be modified as:
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data.with_resources("workspaces", "projects"))
    # print the information on data that was loaded
    print(load_info)

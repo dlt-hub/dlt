@@ -1,5 +1,8 @@
 # Create new destination
 
+:::tip
+You can use `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is a perfect way to implement reverse ETL components that push data back to REST APIs.
+:::
 
 `dlt` can import destinations from external python modules. Below we show how to quickly add a [dbapi](https://peps.python.org/pep-0249/) based destination. `dbapi` is a standardized interface to access
 databases in Python. If you used ie. postgres (ie. `psycopg2`) you are already familiar with it.
@@ -18,7 +21,7 @@ Destinations are implemented in python packages under: `dlt.destinations.impl.<d
 
 ## 1. Copy existing destination to your `dlt` project
 Initialize a new project with [dlt init](../reference/command-line-interface.md#dlt-init)
-```shell
+```sh
 dlt init github postgres
 ```
 This adds `github` verified source (it produces quite complicated datasets and that good for testing, does not require credentials to use) and `postgres` credentials (connection-string-like) that we'll repurpose later.
@@ -174,7 +177,7 @@ Add an import to your factory in [`dlt.destinations.__init__`](https://github.co
 
 ## Testing
 We can quickly repurpose existing github source and `secrets.toml` already present in the project to test new destination. Let's assume that the module name is `presto`, same for the destination name and config section name. Here's our testing script `github_pipeline.py`
-```python
+```py
 import dlt
 
 from github import github_repo_events
@@ -207,7 +210,7 @@ port = 5432
 Mind that in the script above we import the `presto` module and then pass it in `destination` argument to `dlt.pipeline`. Github pipeline will load the events in `append` mode. You may force `replace` and `merge` modes in `pipeline.run` to check more advanced behavior of the destination.
 
 After executing the pipeline script:
-```
+```text
 python github_pipeline.py
 got page https://api.github.com/repos/apache/airflow/events?per_page=100, requests left: 59
 got page https://api.github.com/repositories/33884891/events?per_page=100&page=2, requests left: 58

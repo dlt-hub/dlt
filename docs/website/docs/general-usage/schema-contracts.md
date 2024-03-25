@@ -49,7 +49,7 @@ The `schema_contract` argument accepts two forms:
 2. **shorthand** a contract mode (string) that will be applied to all schema entities.
 
 For example setting `schema_contract` to *freeze* will expand to the full form:
-```python
+```py
 {"tables": "freeze", "columns": "freeze", "data_type": "freeze"}
 ```
 
@@ -65,7 +65,7 @@ You can change the contract on the **source** instance via `schema_contract` pro
 Pydantic models can be used to [define table schemas and validate incoming data](resource.md#define-a-schema-with-pydantic). You can use any model you already have. `dlt` will internally synthesize (if necessary) new models that conform with the **schema contract** on the resource.
 
 Just passing a model in `column` argument of the [dlt.resource](resource.md#define-a-schema-with-pydantic) sets a schema contract that conforms to default Pydantic behavior:
-```python
+```py
 {
   "tables": "evolve",
   "columns": "discard_value",
@@ -121,10 +121,10 @@ Here's how `dlt` deals with column modes:
 When contract is violated in freeze mode, `dlt` raises `DataValidationError` exception. This exception gives access to the full context and passes the evidence to the caller.
 As with any other exception coming from pipeline run, it will be re-raised via `PipelineStepFailed` exception which you should catch in except:
 
-```python
+```py
 try:
   pipeline.run()
-except as pip_ex:
+except Exception as pip_ex:
   if pip_ex.step == "normalize":
     if isinstance(pip_ex.__context__.__context__, DataValidationError):
       ...
@@ -195,7 +195,7 @@ def items():
 def other_items():
     ...
 
-@dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"}):
+@dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"})
 def source():
   return [items(), other_items()]
 

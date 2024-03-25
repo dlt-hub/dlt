@@ -58,8 +58,8 @@ The database above doesn't require a password.
 
 The connection URL can be broken down into:
 
-```python
-connection_url = "connection_string = f"{drivername}://{username}:{password}@{host}:{port}/{database}"
+```py
+connection_url = connection_string = f"{drivername}://{username}:{password}@{host}:{port}{database}"
 ```
 
 `drivername`: Indicates both the database system and driver used.
@@ -116,7 +116,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init sql_database duckdb
    ```
 
@@ -158,7 +158,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 1. You can also pass credentials in the pipeline script the following way:
 
-   ```python
+   ```py
    credentials = ConnectionStringCredentials(
        "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
    )
@@ -176,19 +176,19 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Install the necessary dependencies by running the following command:
 
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. Run the verified source by entering:
 
-   ```bash
+   ```sh
    python sql_database_pipeline.py
    ```
 
 1. Make sure that everything is loaded as expected with:
 
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 
@@ -208,7 +208,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 This function loads data from an SQL database via SQLAlchemy and auto-creates resources for each
 table or from a specified list of tables.
 
-```python
+```py
 @dlt.source
 def sql_database(
     credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
@@ -220,6 +220,7 @@ def sql_database(
     defer_table_reflect: Optional[bool] = dlt.config.value,
     table_adapter_callback: Callable[[Table], None] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `credentials`: Database details or an 'sqlalchemy.Engine' instance.
@@ -244,7 +245,7 @@ remove certain columns to be selected.
 
 This function loads data from specific database tables.
 
-```python
+```py
 @dlt.common.configuration.with_config(
     sections=("sources", "sql_database"), spec=SqlTableResourceConfiguration
 )
@@ -259,6 +260,7 @@ def sql_table(
     defer_table_reflect: Optional[bool] = dlt.config.value,
     table_adapter_callback: Callable[[Table], None] = None,
 ) -> DltResource:
+   ...
 ```
 `incremental`: Optional, enables incremental loading.
 
@@ -284,7 +286,7 @@ certain range.
 1. Consider a table with a `last_modified` timestamp column. By setting this column as your cursor and specifying an
    initial value, the loader generates a SQL query filtering rows with `last_modified` values greater than the specified initial value.
 
-   ```python
+   ```py
    from sql_database import sql_table
    from datetime import datetime
 
@@ -303,7 +305,7 @@ certain range.
 
 1. To incrementally load the "family" table using the sql_database source method:
 
-   ```python
+   ```py
    source = sql_database().with_resources("family")
    #using the "updated" field as an incremental field using initial value of January 1, 2022, at midnight
    source.family.apply_hints(incremental=dlt.sources.incremental("updated"),initial_value=pendulum.DateTime(2022, 1, 1, 0, 0, 0))
@@ -315,7 +317,7 @@ certain range.
 
 1. To incrementally load the "family" table using the 'sql_table' resource.
 
-   ```python
+   ```py
    family = sql_table(
        table="family",
        incremental=dlt.sources.incremental(
@@ -342,7 +344,7 @@ When running on Airflow
 
 ### Parallel extraction
 You can extract each table in a separate thread (no multiprocessing at this point). This will decrease loading time if your queries take time to execute or your network latency/speed is low.
-```python
+```py
 database = sql_database().parallelize()
 table = sql_table().parallelize()
 ```
@@ -358,7 +360,7 @@ To create your own pipeline, use source and resource methods from this verified 
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="rfam",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -370,7 +372,7 @@ To create your own pipeline, use source and resource methods from this verified 
 
 1. To load the entire database, use the `sql_database` source as:
 
-   ```python
+   ```py
    source = sql_database()
    info = pipeline.run(source, write_disposition="replace")
    print(info)
@@ -378,7 +380,7 @@ To create your own pipeline, use source and resource methods from this verified 
 
 1. If you just need the "family" table, use:
 
-   ```python
+   ```py
    source = sql_database().with_resources("family")
    #running the pipeline
    info = pipeline.run(source, write_disposition="replace")
@@ -389,7 +391,7 @@ To create your own pipeline, use source and resource methods from this verified 
    [documentation](https://dlthub.com/docs/general-usage/customising-pipelines/pseudonymizing_columns).
    As an example, here's how to pseudonymize the "rfam_acc" column in the "family" table:
 
-   ```python
+   ```py
    import hashlib
 
    def pseudonymize_name(doc):
@@ -421,7 +423,7 @@ To create your own pipeline, use source and resource methods from this verified 
 
 1. To exclude columns, such as the "rfam_id" column from the "family" table before loading:
 
-   ```python
+   ```py
    def remove_columns(doc):
        del doc["rfam_id"]
        return doc

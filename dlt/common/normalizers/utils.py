@@ -34,9 +34,11 @@ def import_normalizers(
     """
     # add defaults to normalizer_config
     normalizers_config["names"] = names = normalizers_config["names"] or "snake_case"
-    normalizers_config["json"] = item_normalizer = normalizers_config["json"] or {
-        "module": "dlt.common.normalizers.json.relational"
-    }
+    # set default json normalizer module
+    normalizers_config["json"] = item_normalizer = normalizers_config.get("json") or {}
+    if "module" not in item_normalizer:
+        item_normalizer["module"] = "dlt.common.normalizers.json.relational"
+
     try:
         if "." in names:
             # TODO: bump schema engine version and migrate schema. also change the name in  TNormalizersConfig from names to naming
