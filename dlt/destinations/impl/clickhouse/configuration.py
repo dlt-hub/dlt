@@ -1,4 +1,5 @@
-from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Optional
+import logging
+from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Literal
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -7,6 +8,9 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.libs.sql_alchemy import URL
 from dlt.common.utils import digest128
+
+
+TSecureConnection = Literal[0, 1]
 
 
 @configspec
@@ -24,6 +28,8 @@ class ClickhouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
+    secure: TSecureConnection = 1
+    """Enables TLS encryption when connecting to ClickHouse Server. 0 means no encryption, 1 means encrypted."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -32,6 +38,7 @@ class ClickhouseCredentials(ConnectionStringCredentials):
         "database",
         "connect_timeout",
         "send_receive_timeout",
+        "secure",
     ]
 
     def parse_native_representation(self, native_value: Any) -> None:
@@ -40,6 +47,7 @@ class ClickhouseCredentials(ConnectionStringCredentials):
         self.send_receive_timeout = int(
             self.query.get("send_receive_timeout", self.send_receive_timeout)
         )
+        self.secure = int(self.query.get("secure", self.secure))  # type: ignore[assignment]
         if not self.is_partial():
             self.resolve()
 
@@ -49,8 +57,10 @@ class ClickhouseCredentials(ConnectionStringCredentials):
             [
                 ("connect_timeout", str(self.connect_timeout)),
                 ("send_receive_timeout", str(self.send_receive_timeout)),
+                ("secure", str(1) if self.secure else str(0)),
             ]
         )
+        logging.info(url)
         return url
 
 
