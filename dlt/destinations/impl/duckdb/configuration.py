@@ -201,8 +201,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
 
     def __init__(self, conn_or_path: Union[str, DuckDBPyConnection] = None) -> None:
         """Access to duckdb database at a given path or from duckdb connection"""
-        self.database = conn_or_path  # type: ignore[assignment]
-        self.resolve()
+        self._apply_init_value(conn_or_path)
 
 
 @configspec

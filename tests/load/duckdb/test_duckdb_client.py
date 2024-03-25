@@ -110,9 +110,9 @@ def test_duckdb_database_path() -> None:
     # provide absolute path
     db_path = os.path.abspath("_storage/abs_test_quack.duckdb")
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=f"duckdb:///{db_path}")
-    )._bind_dataset_name(
-        dataset_name="test_dataset",
+        DuckDbClientConfiguration(credentials=f"duckdb:///{db_path}")._bind_dataset_name(
+            dataset_name="test_dataset",
+        )
     )
     assert os.path.isabs(c.credentials.database)
     assert c.credentials._conn_str().lower() == db_path.lower()
@@ -123,8 +123,10 @@ def test_duckdb_database_path() -> None:
 
     # set just path as credentials
     db_path = "_storage/path_test_quack.duckdb"
-    c = resolve_configuration(DuckDbClientConfiguration(credentials=db_path))._bind_dataset_name(
-        dataset_name="test_dataset"
+    c = resolve_configuration(
+        DuckDbClientConfiguration(credentials=db_path)._bind_dataset_name(
+            dataset_name="test_dataset"
+        )
     )
     assert c.credentials._conn_str().lower() == os.path.abspath(db_path).lower()
     conn = c.credentials.borrow_conn(read_only=False)
@@ -133,8 +135,10 @@ def test_duckdb_database_path() -> None:
     p = p.drop()
 
     db_path = os.path.abspath("_storage/abs_path_test_quack.duckdb")
-    c = resolve_configuration(DuckDbClientConfiguration(credentials=db_path))._bind_dataset_name(
-        dataset_name="test_dataset"
+    c = resolve_configuration(
+        DuckDbClientConfiguration(credentials=db_path)._bind_dataset_name(
+            dataset_name="test_dataset"
+        )
     )
     assert os.path.isabs(c.credentials.database)
     assert c.credentials._conn_str().lower() == db_path.lower()

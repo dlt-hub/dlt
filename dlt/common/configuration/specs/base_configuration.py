@@ -388,6 +388,8 @@ class CredentialsConfiguration(BaseConfiguration):
             self.update(init_value)
         elif init_value is not None:
             self.parse_native_representation(init_value)
+        else:
+            return
         if not self.is_partial():
             self.resolve()
 
