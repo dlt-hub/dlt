@@ -1,4 +1,3 @@
-import logging
 from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Literal, cast
 
 from dlt.common.configuration import configspec
@@ -18,7 +17,7 @@ class ClickhouseCredentials(ConnectionStringCredentials):
     drivername: str = "clickhouse"
     host: str
     """Host with running ClickHouse server."""
-    port: int = 9000
+    port: int = 9440
     """Port ClickHouse server is bound to. Defaults to 9000."""
     username: str = "default"
     """Database user. Defaults to 'default'."""
@@ -41,7 +40,6 @@ class ClickhouseCredentials(ConnectionStringCredentials):
         "send_receive_timeout",
     ]
 
-
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
@@ -54,14 +52,13 @@ class ClickhouseCredentials(ConnectionStringCredentials):
 
     def to_url(self) -> URL:
         url = super().to_url()
-        url.update_query_pairs(
+        url = url.update_query_pairs(
             [
                 ("connect_timeout", str(self.connect_timeout)),
                 ("send_receive_timeout", str(self.send_receive_timeout)),
                 ("secure", str(1) if self.secure else str(0)),
             ]
         )
-        logging.info(url)
         return url
 
 
