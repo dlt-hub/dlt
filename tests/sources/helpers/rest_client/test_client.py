@@ -2,8 +2,8 @@ import os
 import pytest
 from typing import Any, cast
 from dlt.common.typing import TSecretStrValue
-from dlt.sources.helpers.requests import Response, Request
-from dlt.sources.helpers.rest_client import RESTClient, paginate
+from dlt.sources.helpers.requests import Response, Request, paginate
+from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 
