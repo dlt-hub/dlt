@@ -280,9 +280,9 @@ def my_resource():
     for i in range(10):
         yield {'my_column': i % 2 == 0}
 ```
-This code snippet sets up a nullable boolean column named `column_name` directly in the decorator.
+This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
 
-#### Using `apply_hints` 
+#### Using `apply_hints`
 When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
 
 For example, to apply a complex data type across all collections from a MongoDB source:
@@ -290,8 +290,10 @@ For example, to apply a complex data type across all collections from a MongoDB 
 ```py
 all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
 source_data = mongodb().with_resources(*all_collections)
+
 for col in all_collections:
     source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "complex"}})
+
 pipeline = dlt.pipeline(
     pipeline_name="mongodb_pipeline",
     destination="duckdb",
@@ -299,7 +301,7 @@ pipeline = dlt.pipeline(
 )
 load_info = pipeline.run(source_data)
 ```
-This example iterates through MongoDB collections, applying the complex data type to a specified column, and then processes the data with `pipeline.run`.
+This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## Export and import schema files
 
