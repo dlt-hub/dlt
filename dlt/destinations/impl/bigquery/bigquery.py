@@ -226,7 +226,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         insert_api = table.get("insert_api", self.config.loading_api)
         if insert_api == "streaming":
             if file_path.endswith(".jsonl"):
-                job_cls = DestinationJsonlLoadJob  # type: ignore
+                job_cls = DestinationJsonlLoadJob
             elif file_path.endswith(".parquet"):
                 job_cls = DestinationParquetLoadJob  # type: ignore
             else:
@@ -453,7 +453,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
 
 def _streaming_load(
-    sql_client: SqlClientBase, items: List[Dict[Any, Any]], table: Dict[str, Any]
+    sql_client: SqlClientBase[BigQueryClient], items: List[Dict[Any, Any]], table: Dict[str, Any]
 ) -> None:
     """
     Upload the given items into BigQuery table, using streaming API.
@@ -467,11 +467,11 @@ def _streaming_load(
         table (Dict[Any, Any]): Table schema.
     """
 
-    def _should_retry(exc: api_core_exceptions.GoogleAPIError) -> bool:
+    def _should_retry(exc: api_core_exceptions.GoogleAPICallError) -> bool:
         """Predicate to decide if we need to retry the exception.
 
         Args:
-            exc (google.api_core.exceptions.GoogleAPIError):
+            exc (google.api_core.exceptions.GoogleAPICallError):
                 Exception raised by the client.
 
         Returns:
@@ -482,7 +482,7 @@ def _streaming_load(
 
     full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
 
-    bq_client = sql_client._client  # type: ignore
+    bq_client = sql_client._client
     bq_client.insert_rows_json(
         full_name,
         items,
