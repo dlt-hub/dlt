@@ -17,9 +17,9 @@ from various and often messy data sources into well-structured, live datasets. T
 ```sh
 pip install dlt
 ```
-Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more.
+Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more. `dlt` also supports building a [custom destination](dlt-ecosystem/destinations/destination.md), which you can use as reverse ETL.
 
-The library will create or update tables, infer data types and handle nested data automatically. Here are a few example pipelines:
+The library will create or update tables, infer data types, and handle nested data automatically. Here are a few example pipelines:
 
 <Tabs
   groupId="source-type"
@@ -60,7 +60,7 @@ pip install "dlt[duckdb]"
 Now **run** your Python file or Notebook cell.
 
 How it works? The library extracts data from a [source](general-usage/glossary.md#source) (here: **chess.com REST API**), inspects its structure to create a
-[schema](general-usage/glossary.md#schema), structures, normalizes and verifies the data, and then
+[schema](general-usage/glossary.md#schema), structures, normalizes, and verifies the data, and then
 loads it into a [destination](general-usage/glossary.md#destination) (here: **duckdb**, into a database schema **player_data** and table name **player**).
 
 
@@ -177,7 +177,7 @@ pip install sqlalchemy pymysql
 - Automated maintenance - with schema inference and evolution and alerts, and with short declarative
 code, maintenance becomes simple.
 - Run it where Python runs - on Airflow, serverless functions, notebooks. No
-external APIs, backends or containers, scales on micro and large infra alike.
+external APIs, backends, or containers, scales on micro and large infra alike.
 - User-friendly, declarative interface that removes knowledge obstacles for beginners
 while empowering senior professionals.
 
@@ -187,7 +187,7 @@ while empowering senior professionals.
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.
 3. Read the [Tutorial](tutorial/intro) to learn how to build a pipeline that loads data from an API.
-4. Check out the [How-to guides](walkthroughs/) for recepies on common use cases for creating, running and deploying pipelines.
+4. Check out the [How-to guides](walkthroughs/) for recipes on common use cases for creating, running, and deploying pipelines.
 5. Ask us on
 [Slack](https://dlthub.com/community)
 if you have any questions about use cases or the library.

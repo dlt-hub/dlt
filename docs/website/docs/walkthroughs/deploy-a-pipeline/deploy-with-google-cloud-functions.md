@@ -32,7 +32,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
    - Run the following command to initialise the verified source with Notion and create a pipeline
      example with BigQuery as the target.
 
-     ```bash
+     ```sh
      dlt init notion bigquery
      ```
 
@@ -43,7 +43,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
      in the `dlthub` [documentation](../../dlt-ecosystem/verified-sources/notion).
 1. Create a new Python file called "main.py" in the main directory. The file can be configured as
    follows:
-   ```python
+   ```py
    from notion_pipeline import load_databases
 
    def pipeline_notion(request):
@@ -59,7 +59,7 @@ To deploy the pipeline, we'll use the Google Cloud Source Repositories method.
 In a shell editor, navigate to the main directory where the "main.py" file is located and run the
 following command in the terminal:
 
-```bash
+```sh
 gcloud functions deploy pipeline_notion --runtime python310 \
   --trigger-http --allow-unauthenticated --source . --timeout 300
 ```

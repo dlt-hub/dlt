@@ -90,7 +90,9 @@ class PipelineStateEngineNoUpgradePathException(PipelineException):
         super().__init__(
             pipeline_name,
             f"No engine upgrade path for state in pipeline {pipeline_name} from {init_engine} to"
-            f" {to_engine}, stopped at {from_engine}",
+            f" {to_engine}, stopped at {from_engine}. You possibly tried to run an older dlt"
+            " version against a destination you have previously loaded data to with a newer dlt"
+            " version.",
         )
 
 

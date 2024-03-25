@@ -48,7 +48,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 4. **Chain staging to destination and request `parquet` file format.**
 
     Pass the `staging` argument to `dlt.pipeline`. It works like the destination `argument`:
-    ```python
+    ```py
     # Create a dlt pipeline that will load
     # chess player data to the redshift destination
     # via staging on s3
@@ -60,7 +60,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
     )
     ```
     `dlt` will automatically select an appropriate loader file format for the staging files. Below we explicitly specify `parquet` file format (just to demonstrate how to do it):
-    ```python
+    ```py
     info = pipeline.run(chess(), loader_file_format="parquet")
     ```
 

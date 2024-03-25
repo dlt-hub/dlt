@@ -82,7 +82,9 @@ class Schema:
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
-    _settings: TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    _settings: (
+        TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    )
 
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
@@ -551,14 +553,20 @@ class Schema:
                 if utils.is_complete_column(v)
             }
 
-    def data_tables(self, include_incomplete: bool = False) -> List[TTableSchema]:
+    def data_tables(
+        self, seen_data_only: bool = False, include_incomplete: bool = False
+    ) -> List[TTableSchema]:
         """Gets list of all tables, that hold the loaded data. Excludes dlt tables. Excludes incomplete tables (ie. without columns)"""
         return [
             t
             for t in self._schema_tables.values()
             if not t["name"].startswith(self._dlt_tables_prefix)
             and (
-                include_incomplete or len(self.get_table_columns(t["name"], include_incomplete)) > 0
+                (
+                    include_incomplete
+                    or len(self.get_table_columns(t["name"], include_incomplete)) > 0
+                )
+                and (not seen_data_only or utils.has_table_seen_data(t))
             )
         ]
 

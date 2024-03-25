@@ -8,6 +8,10 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
 
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
