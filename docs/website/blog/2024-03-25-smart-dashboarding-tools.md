@@ -11,7 +11,7 @@ tags: [dashboarding, analyst, LLMs]
 ---
 
 <aside>
-💡 TL;DR: Exploring the theme of "AI replacing jobs," we examine ThoughtSpot's LLM analyst, Sage. This article assesses Sage's application in different analytics techniques, the importance of the data model it analyzes, and dlt's supportive role in this context.
+💡 TL;DR: Exploring the theme of "AI replacing jobs", we examine ThoughtSpot's LLM analyst, **Sage**. This article assesses Sage's application in different analytics techniques, the importance of the data model it analyzes, and dlt's supportive role in this context.
 </aside>
 
 ## The advent of ChatGPT...
@@ -21,7 +21,7 @@ In this article, we explore ThoughtSpot, known for its simplicity and strong dat
 
 ## Analysts: Fallen victims of AI or not?
 
-The data analyst's role encompasses various job descriptions – from data science to dashboarding, data pipeline management, and even ML engineering. However, for this blog, we'll focus on the four key analytics components or techniques that help a company achieve its goals, as outlined by [Garter](https://www.gartner.com/en/topics/data-and-analytics#q8).
+The data analyst's role encompasses various job descriptions – from data science to dashboarding, data pipeline management, and even ML engineering. However, for this blog, we'll focus on the four key analytics components or techniques that help a company achieve its goals, as outlined by [Gartner](https://www.gartner.com/en/topics/data-and-analytics#q8).
 
 **Gartner’s categories:**
 
@@ -69,8 +69,8 @@ Let’s begin asking questions and see how Sage answers! The framing of each que
 2. How many companies do we serve? ✅
 3. How many deals do we have by month? ✅
 4. Deals broken by industry, shown as percentages ❌
-5. Revenue of deal by stage ❌ Proportion of each deal stage’s revenue ❌
-6. What percentage of companies are in the computer software industry? ✅
+5. Revenue of a deal by stage ❌ Proportion of each deal stage’s revenue ❌
+6. What percentage of companies is in the computer software industry? ✅
 7. Show revenue by month ✅ **Worked even though the revenue column is named “amount” - it could infer!**
 8. How many deals are signed by each company? **✅**
 
@@ -92,32 +92,33 @@ Let’s begin asking questions and see how Sage answers! The framing of each que
 
    To extend this result to include company names, I added joins in the ThoughtSpot data model as allowed by the tool, but it still did not seem to make a difference when it came to replacing the foreign keys with names of the companies. Nonetheless, the child table that `dlt` put into place still served its purpose for Sage to understand what it is, and that is a remarkable feat for both the tools!
 9. Best deals **✅**
-    a. Showed by revenue/amount in descending order
+    - Showed by revenue/amount in descending order.
 10. Least successful industry? **✅**
-    a. **Showed by deals lost.** Solving this question by using the status of deals (won/lost), rather than the revenue, as in the last prompt, shows the versatility of Sage and its understanding of data models.
-Summary: Worked impressively well on the different types of questions asked, unless speaking on proportions.
+    - **Showed by deals lost.** Solving this question by using the status of deals (won/lost), rather than the revenue, as in the last prompt, shows the versatility of Sage and its understanding of data models.
+
+**Summary**: Worked impressively well on the different types of questions asked, unless speaking on proportions.
 
 ### Diagnostic Analytics
 
-1. What are the shared characteristics of top 5 deals? ❌ - it tried by showing all columns of 5  highest amounts
-2. Drill through most successful deals **✅  showed characteristics of most successful deals by revenue, and success of deal closing**
-3. What do the most successful deals have in common? ❌ - showed individual deal information as above
-4. Cluster deals ❌ - showed all data
-5. Segment deals ❌ - showed all data
-6. Cluster deals by amount and industry ❌ - showed a useful graph between the two columns but no grouping
+1. What are the shared characteristics of top 5 deals? ❌ - it tried by showing all columns of 5  highest amounts.
+2. Drill through most successful deals **✅ - showed characteristics of most successful deals by revenue, and success of deal closing**.
+3. What do the most successful deals have in common? ❌ - showed individual deal information as above.
+4. Cluster deals ❌ - showed all data.
+5. Segment deals ❌ - showed all data.
+6. Cluster deals by amount and industry ❌ - showed a useful graph between the two columns but no grouping.
 7. Relationship between amounts in closed-won and closed-lost ❌
 8. Regression with closed-won and closed-lost ❌
 
-Summary: Does not work fairly well, will not work at all for business users. The area in ThoughtSpot where queries can be crafted with AI will answer most of these questions, but this tool would more so empower analysts than business users.
+**Summary**: Does not work fairly well, will not work at all for business users. The area in ThoughtSpot where queries can be crafted with AI will answer most of these questions, but this tool would more so empower analysts than business users.
 
 ### Predictive Analytics
 
-1. Probability of closing deals ❌ - showed by industry (however, it is a simple probability calculation, not a future prediction)
+1. Probability of closing deals ❌ - showed by industry (however, it is a simple probability calculation, not a future prediction).
 2. Probability of closing deals in 2024/in the future/in the next 3 months ❌
 3. Predict/estimate/forecast revenue for 2024 ❌
 4. If we keep acquiring deals at the same rate as historical, how many will we have in 2024? ❌
 
-Summary: Works well for probabilities but not predictions - but that was a bit of a stretch anyway, it would be something that would fall into the Forte of Pecan.ai. Sage instead relied on probability and aggregate values for existing data (filtered on future dates, like 2024).
+**Summary**: Works well for probabilities but not predictions - but that was a bit of a stretch anyway, it would be something that would fall into the Forte of Pecan.ai. Sage instead relied on probability and aggregate values for existing data (filtered on future dates, like 2024).
 
 ## Scores
 The summary of our findings was quite predictable: Sage excelled at answering descriptive analytics questions more so than in diagnostic or predictive contexts. Its performance in interpreting descriptive queries was notably impressive.
