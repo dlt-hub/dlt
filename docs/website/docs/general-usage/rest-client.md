@@ -1,6 +1,6 @@
 # Reading data from RESTful APIs
 
-RESTful APIs are a common way to interact with web services. They are based on the HTTP protocol and are used to read and write data from and to a web server. dlt provides a simple way to read data from RESTful APIs using two helper methods: a wrapper around the `requests` library and a `RESTClient` class.
+RESTful APIs are a common way to interact with web services. They are based on the HTTP protocol and are used to read and write data from and to a web server. dlt provides a simple way to read data from RESTful APIs using two helper methods: [a wrapper around the `requests`](../reference/performance#using-the-built-in-requests-client) library and a `RESTClient` class.
 
 :::tip
 There's also shorthand function to read from paginated APIs. Check out the [paginate()](#shortcut-for-paginating-api-responses) function.
