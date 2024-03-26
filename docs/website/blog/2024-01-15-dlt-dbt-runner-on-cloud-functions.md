@@ -150,7 +150,7 @@ The second option is running dbt using data load tool(dlt).
 
 I work at dlthub and often create dlt pipelines. These often need dbt for modeling the data, making
 the dlt-dbt combination highly effective. For using this combination on cloud functions, we used
-[dlt-dbt runner](https://dlthub.com/docs/api_reference/helpers/dbt/runner#create_runner) developed
+[dlt-dbt runner](../../api_reference/helpers/dbt/runner#create_runner) developed
 at dlthub.
 
 The main reason I use this runner is because I load data with dlt and can re-use dlt’s connection to
@@ -331,7 +331,7 @@ event-driven pipelines with small to medium workloads. For larger data loads nea
 consider separating dlt and dbt into different cloud functions.
 
 > For more info on using `dlt-dbt runner` , please refer to the
-> [official documentation by clicking here.](https://dlthub.com/docs/api_reference/helpers/dbt/runner#dbtpackagerunner-objects)
+> [official documentation by clicking here.](../../api_reference/helpers/dbt/runner#dbtpackagerunner-objects)
 
 ### Deployment considerations: How does cloud functions compare to Git Actions?
 
