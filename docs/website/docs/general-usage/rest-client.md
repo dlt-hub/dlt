@@ -18,7 +18,7 @@ This guide demonstrates how to use the `RESTClient` class to read data APIs focu
 
 Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is `https://api.github.com/repos/dlt-hub/dlt/issues`. The result is "paginated", meaning that the API returns a limited number of issues per page. The `paginate()` iterates over all pages and yields the results which are then processed by the pipeline.
 
-```python
+```py
 import dlt
 from dlt.sources.helpers.rest_client import RESTClient
 
@@ -68,7 +68,7 @@ The `RESTClient` class is initialized with parameters that define its behavior f
 
 To perform basic GET and POST requests, use the get() and post() methods respectively. This works similarly to the requests library:
 
-```python
+```py
 client = RESTClient(base_url="https://api.example.com")
 response = client.get("/posts/1")
 ```
@@ -77,7 +77,7 @@ response = client.get("/posts/1")
 
 The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` objects for each page:
 
-```python
+```py
 for page in client.paginate("/posts"):
     print(page)
 ```
@@ -114,7 +114,7 @@ The available authentication methods are:
 
 RESTClient.paginate() allows to specify a custom hook function that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
-```python
+```py
 def custom_response_handler(response):
     if response.status_code == 404:
         # Handle not found
@@ -129,7 +129,7 @@ The handler function may raise `IgnoreResponseException` to exit the pagination 
 
 The `paginate()` helper function provides a shorthand for paginating API responses. It takes the same parameters as the `RESTClient.paginate()` method but automatically creates a RESTClient instance with the specified base URL:
 
-```python
+```py
 from dlt.sources.helpers.requests import paginate
 
 for page in paginate("https://api.example.com/posts"):
