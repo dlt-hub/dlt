@@ -41,7 +41,20 @@ def test_run_command_happy_path_works_as_expected():
         assert "contains no failed jobs" in output
 
         # Check if we can successfully attach to pipeline
-        dlt.attach(real_pipeline_name)
+        pipeline = dlt.attach(real_pipeline_name)
+        assert pipeline.schema_names == ["my_numbers"]
+
+        trace = pipeline.last_trace
+        assert trace is not None
+        assert len(trace.steps) == 4
+
+        step = trace.steps[0]
+        assert step.step == "extract"
+
+        with pipeline.sql_client() as c:
+            with c.execute_query("select count(id) from numbers_resource") as cur:
+                row = list(cur.fetchall())[0]
+                assert row[0] == 10
 
 
 def test_run_command_fails_with_relevant_error_if_pipeline_resource_or_source_not_found():
