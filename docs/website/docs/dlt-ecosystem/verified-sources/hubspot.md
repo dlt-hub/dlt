@@ -3,14 +3,11 @@ title: Hubspot
 description: dlt verified source for Hubspot API
 keywords: [hubspot api, hubspot verified source, hubspot]
 ---
+import Header from './_source-info-header.md';
 
 # HubSpot
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 HubSpot is a customer relationship management (CRM) software and inbound marketing platform that
 helps businesses to attract visitors, engage customers, and close leads.

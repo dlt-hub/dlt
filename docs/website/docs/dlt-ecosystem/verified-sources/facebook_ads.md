@@ -3,14 +3,11 @@ title: Facebook Ads
 description: dlt verified source for Facebook Ads
 keywords: [facebook ads api, verified source, facebook ads]
 ---
+import Header from './_source-info-header.md';
 
 # Facebook Ads
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 Facebook Ads is the advertising platform that lets businesses and individuals create targeted ads on
 Facebook and its affiliated apps like Instagram and Messenger.

@@ -3,13 +3,11 @@ title: Filesystem
 description: dlt verified source for Readers Source and Filesystem
 keywords: [readers source and filesystem, filesystem, readers source]
 ---
+import Header from './_source-info-header.md';
+
 # Readers Source and Filesystem
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 This verified source easily streams files from AWS S3, Google Cloud Storage, Google Drive, Azure, or local filesystem using the reader source.
 

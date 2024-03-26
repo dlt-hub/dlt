@@ -1,9 +1,13 @@
+---
+title: Salesforce
+description: dlt pipeline for Salesforce API
+keywords: [salesforce api, salesforce pipeline, salesforce]
+---
+import Header from './_source-info-header.md';
+
 # Salesforce
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-[Join our Slack community](https://dlthub.com/community) or
-[book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations
 and customer relationship management, encompassing sales, marketing, and customer service.
@@ -271,11 +275,11 @@ To create your data pipeline using single loading and
    > overwriting existing data. Conversely, the "task" endpoint supports "merge" mode for
    > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
    > previously loaded data.
-   
-1. Salesforce enforces specific limits on API data requests. These limits 
+
+1. Salesforce enforces specific limits on API data requests. These limits
    vary based on the Salesforce edition and license type, as outlined in the [Salesforce API Request Limits documentation](https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_api.htm).
 
-   To limit the number of Salesforce API data requests, developers can control the environment for production or 
+   To limit the number of Salesforce API data requests, developers can control the environment for production or
    development purposes. For development, you can set the `IS_PRODUCTION` variable
    to `False` in "[salesforce/settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce/settings.py)",
    which limits API call requests to 100. To modify this limit, you can update the query limit in
