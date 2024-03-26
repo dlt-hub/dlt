@@ -352,7 +352,7 @@ def textual(nesting_level: int):
     schema.remove_type_detection("iso_timestamp")
     # convert UNIX timestamp (float, withing a year from NOW) into timestamp
     schema.add_type_detection("timestamp")
-    schema.compile_settings()
+    schema._compile_settings()
 
-    return dlt.resource(...)
+    return dlt.resource([])
 ```

@@ -81,9 +81,9 @@ in-depth guide, please refer to the detailed documentation.
 1. Set the environment to Python 3.10 and prepare to insert code into main.py:
    ```py
    import dlt
-   import json
    import time
    from google.cloud import bigquery
+   from dlt.common import json
 
    def github_webhook(request):
        # Extract relevant data from the request payload

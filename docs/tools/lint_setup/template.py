@@ -8,8 +8,8 @@ from typing import Optional, Dict, List, Any, Iterable, Iterator, Tuple, Sequenc
 import os
 
 import pendulum
-from pendulum import DateTime
 from datetime import datetime  # noqa: I251
+from pendulum import DateTime
 
 import dlt
 from dlt.common import json
@@ -26,6 +26,7 @@ from dlt.common.configuration.specs import (
     BaseConfiguration,
 )
 from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 # some universal variables
 pipeline: dlt.Pipeline = None  # type: ignore[assignment]
@@ -33,3 +34,4 @@ p: dlt.Pipeline = None  # type: ignore[assignment]
 ex: Exception = None  # type: ignore[assignment]
 load_info: LoadInfo = None  # type: ignore[assignment]
 url: str = None  # type: ignore[assignment]
+my_resource: DltResource = None  # type: ignore[assignment]

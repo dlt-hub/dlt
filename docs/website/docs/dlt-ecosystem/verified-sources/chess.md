@@ -124,7 +124,9 @@ def players_profiles(players: List[str]) -> Iterator[TDataItem]:
     @dlt.defer
     def _get_profile(username: str) -> TDataItem:
         return get_path_with_retry(f"player/{username}")
-    ...
+    
+    for username in players:
+        yield _get_profile(username)
 ```
 
 `players`: Is a list of player usernames for which you want to fetch profile data.
@@ -155,10 +157,10 @@ specified otherwise.
 @dlt.resource(write_disposition="append")
 def players_games(
     players: List[str], start_month: str = None, end_month: str = None
-) -> Iterator[Callable[[], List[TDataItem]]]:
+) -> Iterator[TDataItems]:
     # gets a list of already checked(loaded) archives.
     checked_archives = dlt.current.resource_state().setdefault("archives", [])
-    ...
+    yield {}  # return your retrieved data here
 ```
 
 `players`: Is a list of player usernames for which you want to fetch games.

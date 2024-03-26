@@ -194,9 +194,9 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
    ```py
    import dlt
    import logging
-   import json
    from flask import jsonify
    from dlt.common.runtime.slack import send_slack_message
+   from dlt.common import json
 
    def run_pipeline(request):
        """

@@ -210,10 +210,11 @@ create and store a mapping of custom fields for different entities in the source
 ```py
 @dlt.resource(selected=False)
 def create_state(pipedrive_api_key: str) -> Iterator[Dict[str, Any]]:
-    def _get_pages_for_rename(
-        entity: str, fields_entity: str, pipedrive_api_key: str
-    ) -> Dict[str, Any]:
+   def _get_pages_for_rename(
+      entity: str, fields_entity: str, pipedrive_api_key: str
+   ) -> Dict[str, Any]:
       ...
+   yield _get_pages_for_rename("", "", "")
 ```
 
 It processes each entity in ENTITY_MAPPINGS, updating the custom fields mapping if a related fields
