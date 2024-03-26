@@ -1,6 +1,7 @@
 import os
-from typing import TYPE_CHECKING, Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
+from typing import Any, Callable, ClassVar, Dict, Literal, Optional, Type, get_args, Union
 from urllib.parse import urlparse
+from typing_extensions import TypeAlias
 
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -13,12 +14,18 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     BaseConfiguration,
 )
+
 from dlt.common.typing import DictStrAny
+from dlt.common.schema import Schema
 from dlt.common.utils import digest128
 
+from pendulum import datetime
 
 TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)
+TDatetimeFormatter: TypeAlias = Callable[[datetime], str]
+TDatetimeFormat: TypeAlias = Union[str, TDatetimeFormatter]
+TLayoutParamCallback: TypeAlias = Callable[[Schema, datetime], str]
 
 
 @configspec
@@ -74,7 +81,9 @@ class FilesystemConfiguration(BaseConfiguration):
         "adl": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
     }
 
-    bucket_url: str = None
+    bucket_url: Optional[str] = None
+    datetime_format: Optional[TDatetimeFormat] = None
+    layout_params: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
 
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials = None
