@@ -2,9 +2,11 @@ import io
 import contextlib
 
 import shutil
+from typing import List
 from unittest import mock
 
 import dlt
+import pytest
 
 from dlt.cli import run_command
 
@@ -128,3 +130,53 @@ def test_run_command_exits_if_pipeline_run_calls_exist_at_the_top_level():
         )
         output = buf.getvalue()
         assert "Please move all pipeline.run calls inside __main__ or remove them" in output
+
+
+@pytest.mark.parametrize(
+    "arguments,expected_error_message",
+    [
+        [
+            ["write_disposition=merge", "loader_file_format=markdown"],
+            (
+                "Invalid loader file format, select one of"
+                " jsonl|puae-jsonl|insert_values|sql|parquet|reference|arrow"
+            ),
+        ],
+        [
+            ["write_disposition=guess", "loader_file_format=jsonl"],
+            "Invalid write disposition, select one of skip|append|replace|merge",
+        ],
+        [
+            ["schema_contract=guess", "loader_file_format=jsonl"],
+            "Invalid schema_contract mode, select one of evolve|discard_value|freeze|discard_row",
+        ],
+        [
+            ["yolo=yes", "moon=yes"],
+            "Invalid argument yolo\nInvalid argument moon",
+        ],
+        # Good case
+        [["write_disposition=append", "loader_file_format=parquet"], ""],
+    ],
+)
+def test_run_command_with_invalid_pipeline_run_arguments(
+    arguments: List[str], expected_error_message: str
+):
+    pipeline_name = "numbers_pipeline"
+    p = dlt.pipeline(pipeline_name=pipeline_name)
+    p._wipe_working_folder()
+    shutil.copytree(CLI_RUNNER_PIPELINES, TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf), set_working_dir(TEST_STORAGE_ROOT):
+        run_command.run_pipeline_command(
+            str(TEST_PIPELINE),
+            pipeline_name,
+            "numbers_resource_instance",
+            arguments,
+        )
+
+        output = buf.getvalue()
+        if expected_error_message:
+            assert expected_error_message in output
+        else:
+            # Check if we can attach to pipeline
+            dlt.attach("my_numbers_pipeline")
