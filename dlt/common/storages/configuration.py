@@ -19,13 +19,13 @@ from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema
 from dlt.common.utils import digest128
 
-from pendulum import datetime
+from pendulum.datetime import DateTime
 
 TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)
-TDatetimeFormatter: TypeAlias = Callable[[datetime], str]
-TDatetimeFormat: TypeAlias = Union[str, TDatetimeFormatter]
-TLayoutParamCallback: TypeAlias = Callable[[Schema, datetime], str]
+TDatetimeFormatterCallback: TypeAlias = Callable[[DateTime], str]
+TDatetimeFormat: TypeAlias = Union[str, TDatetimeFormatterCallback]
+TLayoutParamCallback: TypeAlias = Callable[[Schema, DateTime], str]
 
 
 @configspec
