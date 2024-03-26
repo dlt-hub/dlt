@@ -30,13 +30,13 @@ Such, it follows that if we want to cater to the data crowd, we need to be Pytho
 
 ## There’s synergy with ETL
 
-Reverse ETL is ultimately ETL. Data is extracted from a source, its transformed, and then loaded to a destination. The challenges are similar, the most notable difference being that pulling data from a strongly typed environment like a DB and converting it to weakly typed JSON is MUCH easier than the other way around. So in fact you can argue that Reverse ETL is simpler than ETL.
+Reverse ETL is ultimately ETL. Data is extracted from a source, its transformed, and then loaded to a destination. The challenges are similar, the most notable difference being that pulling data from a strongly typed environment like a DB and converting it to weakly typed JSON is MUCH easier than the other way around. You can argue that Reverse ETL is simpler than ETL.
 
 ### Flavors of Reverse ETL
 
 Just like we have ETL and ELT, we also have flavors of Reverse ETL
 
-- **Reverse ETL or TEL:** Transform the data to a specification, read it from DB, and send it to the application.
+- **Reverse ETL or TEL:** Transform the data to a specification, read it from DB, and send it to an application.
 - **Tool Reverse ETL or ETL:** Extract from DB, map fields to destination in the tool, load to destination.
 - **Pythonic Freestyle Reverse ETL:** You extract data from wherever you want and put it anywhere except storage/DB. Transformations are optional.
 
@@ -55,7 +55,7 @@ So why is it much better to do reverse ETL in Python?
 - **Customization and Scalability**: Python's versatility allows for tailored solutions that can scale with minimal overhead, reducing the reliance on additional tools and simplifying maintenance.
 - **Collaboration and Governance**: By keeping the entire data workflow within Python, teams can ensure better governance, compliance, and collaboration, leveraging common tools and repositories.
 
-## **Example: Building a Custom Destination and a pipeline in under 1h.**
+## Example: Building a Custom Destination and a pipeline in under 1h
 
 Documentation used:
 Building a destination: [docs](https://dlthub.com/devel/dlt-ecosystem/destinations/destination)
@@ -66,13 +66,13 @@ DLT allows you to define custom destination functions. You'll write a function t
 
 This example assumes you have set up Google Sheets API access and obtained the necessary credentials to authenticate.
 
-### **Step 1: Setting Up Google Sheets API (10min)**
+### Step 1: Setting Up Google Sheets API (10min)
 
 1. Enable the Google Sheets API in the Google Developers Console.
 2. Download the credentials JSON file.
 3. Share the target Google Sheet with the email address found in your credentials JSON file.
 
-### **Step 2: Define the Destination method in its own file `sheets_destination.py` (20min)**
+### Step 2: Define the Destination method in its own file `sheets_destination.py` (20min)
 
 Install the required package for the Google API client:
 
@@ -114,7 +114,7 @@ def append_to_google_sheets(items, table_schema, sheets_id: str = dlt.config.val
 
 ```
 
-### **Step 3: Configure secrets (5min)**
+### Step 3: Configure secrets (5min)
 
 For the custom destination, you can follow this example. Configure the source as instructed in the source [documentation](https://dlthub.com/devel/dlt-ecosystem/verified-sources/shopify).
 
@@ -140,7 +140,7 @@ id = "your_google_sheet_id_here"
 
 ```
 
-### **Step 4: Running the pipeline in `my_pipeline.py`(10min)**
+### Step 4: Running the pipeline in `my_pipeline.py`(10min)
 
 Now, assuming you have a source function **`sql_database()`** from the verified sources, you can set up and run your pipeline as follows:
 
@@ -173,21 +173,21 @@ In this setup, **`send_to_google_sheets`** acts as a custom destination within y
 
 ## What does dlt do for me here?
 
-Using dlt for reverse ETL instead of plain Python, especially with its **`@dlt.destination`** decorator, provides you with a structured framework that streamlines the process of integrating data into various destinations. Here’s how the dlt decorator specifically aids you compared to crafting everything from scratch in plain Python:
+Using dlt for reverse ETL instead of plain Python, especially with its **`@dlt.destination`** decorator, provides a structured framework that streamlines the process of data integrating into various destinations. Here’s how the dlt decorator specifically aids you compared to crafting everything from scratch in plain Python:
 
-### Faster time to Production grade pipelines.
+### Faster time to Production grade pipelines
 
 The **`@dlt.destination`** decorator significantly reduces the need for custom boilerplate code. It provides a structured approach to manage batch processing, error handling, and retries, which would otherwise require complex custom implementations in plain Python. This built-in functionality ensures reliability and resilience in your data pipelines.
 
-### **Focus on custom business logic and adding value**
+### Focus on custom business logic and adding value
 
 The flexibility of creating custom destinations with dlt shifts the focus from the possibilities to the necessities of your specific use case. This empowers you to concentrate on implementing the best solutions for your unique business requirements.
 
-### **Scalability and efficient resource use**
+### Scalability and efficient resource use
 
-dlt facilitates efficient handling of large data loads through chunking and batching, allowing for optimal use of computing resources. This means even small worker machines can stream data effectively into your chosen endpoint instead of wasting a large machine waiting for the network. The library design supports easy scaling and adjustments. Making changes to batch sizes or configurations is straightforward, ensuring your data pipelines can grow and evolve with minimal effort. This approach not only makes maintenance simpler but ensures that once a solution is implemented, it's broadly applicable across your projects.
+dlt facilitates efficient handling of large data loads through chunking and batching, allowing for optimal use of computing resources. This means even small worker machines can stream data effectively into your chosen endpoint instead of wasting a large machine waiting for the network. The library design supports easy scaling and adjustments. Making changes to batch sizes or configurations is straightforward, ensuring your data pipelines can grow and evolve with minimal effort. This approach simplifies maintenance and ensures that once a solution is implemented, it's broadly applicable across your projects.
 
-### **In Conclusion**
+### In Conclusion
 
 Reverse ETL is just a piece of the ETL puzzle. It could be done cleaner and better when done in Python end to end.
 
