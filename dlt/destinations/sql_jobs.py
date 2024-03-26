@@ -15,6 +15,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.exceptions import DatabaseTransientException
 
 
 class SqlJobParams(TypedDict):
@@ -164,16 +165,15 @@ class SqlMergeJob(SqlBaseJob):
     ) -> List[str]:
         """Generate sql clauses to select rows to delete via merge and primary key. Return select all clause if no keys defined."""
         clauses: List[str] = []
-        if primary_keys or merge_keys:
-            if primary_keys:
-                clauses.append(
-                    " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in primary_keys])
-                )
-            if merge_keys:
-                clauses.append(
-                    " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in merge_keys])
-                )
-        return clauses or ["1=1"]
+        if primary_keys:
+            clauses.append(
+                " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in primary_keys])
+            )
+        if merge_keys:
+            clauses.append(
+                " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in merge_keys])
+            )
+        return clauses
 
     @classmethod
     def gen_key_table_clauses(
@@ -360,6 +360,14 @@ class SqlMergeJob(SqlBaseJob):
                 get_columns_names_with_prop(root_table, "merge_key"),
             )
         )
+
+        if not primary_keys and not merge_keys:
+            # NOTE: this should never happen, the loader should select append for each tables that does not have
+            # the required keys
+            raise DatabaseTransientException(
+                "Could not find primary or merge keys, aborting merge job."
+            )
+
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
 
         unique_column: str = None

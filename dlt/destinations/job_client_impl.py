@@ -214,6 +214,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             yield
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+        table = self.prepare_load_table(table["name"])
         return (
             table["write_disposition"] == "replace"
             and self.config.replace_strategy == "truncate-and-insert"
@@ -240,7 +241,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
-        write_disposition = table_chain[0]["write_disposition"]
+        root_table = self.prepare_load_table(table_chain[0]["name"])
+        write_disposition = root_table["write_disposition"]
         if write_disposition == "append":
             jobs.extend(self._create_append_followup_jobs(table_chain))
         elif write_disposition == "merge":

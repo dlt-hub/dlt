@@ -547,12 +547,35 @@ def get_inherited_table_hint(
     )
 
 
+def get_root_table(tables: TSchemaTables, table: TTableSchema) -> TTableSchema:
+    while table.get("parent"):
+        table = tables[table["parent"]]
+    return table
+
+
 def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDisposition:
     """Returns table hint of a table if present. If not, looks up into parent table"""
     return cast(
         TWriteDisposition,
         get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=False),
     )
+
+
+def ensure_write_disposition(tables: TSchemaTables, table: TTableSchema) -> None:
+    """
+    Ensures the table has inherited the correct write disposition
+    Also falls back to append for tables that are declared as merge but
+    do not have merge keys
+    """
+    root_table = get_root_table(tables, table)
+    w_d = root_table["write_disposition"]
+    if (
+        w_d == "merge"
+        and (not get_columns_names_with_prop(root_table, "primary_key"))
+        and (not get_columns_names_with_prop(root_table, "merge_key"))
+    ):
+        w_d = "append"
+    table["write_disposition"] = w_d
 
 
 def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:

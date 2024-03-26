@@ -32,6 +32,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         table_name="items",
         write_disposition="merge",
         loader_file_format=destination_config.file_format,
+        primary_key="id",
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
@@ -112,6 +113,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         table_name="items",
         write_disposition="append",
         loader_file_format=destination_config.file_format,
+        primary_key="id",
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
 
