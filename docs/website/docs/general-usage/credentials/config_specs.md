@@ -118,12 +118,12 @@ It also allows for the addition of scopes and provides methods for client authen
 
 Usage:
 ```py
-credentials = OAuth2Credentials({
-    "client_id": "CLIENT_ID",
-    "client_secret": "CLIENT_SECRET",
-    "refresh_token": "REFRESH_TOKEN",
-    "scopes": ["scope1", "scope2"]
-})
+credentials = OAuth2Credentials(
+    client_id="CLIENT_ID",
+    client_secret="CLIENT_SECRET",  # type: ignore
+    refresh_token="REFRESH_TOKEN",  # type: ignore
+    scopes=["scope1", "scope2"]
+)
 
 # Authorize the client
 credentials.auth()
