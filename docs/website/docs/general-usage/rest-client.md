@@ -123,7 +123,7 @@ def custom_response_handler(response):
 client.paginate("/posts", hooks={"response": [custom_response_handler]})
 ```
 
-The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for the enpoints
+The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for the enpoints that return a 404 status code when there are no items to paginate.
 
 ## Shortcut for Paginating API Responses
 
