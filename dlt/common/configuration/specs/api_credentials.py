@@ -6,9 +6,9 @@ from dlt.common.configuration.specs.base_configuration import CredentialsConfigu
 
 @configspec
 class OAuth2Credentials(CredentialsConfiguration):
-    client_id: str
-    client_secret: TSecretValue
-    refresh_token: Optional[TSecretValue]
+    client_id: str = None
+    client_secret: TSecretValue = None
+    refresh_token: Optional[TSecretValue] = None
     scopes: Optional[List[str]] = None
 
     token: Optional[TSecretValue] = None

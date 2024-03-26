@@ -1,5 +1,6 @@
+import dataclasses
 import warnings
-from typing import TYPE_CHECKING, ClassVar, List, Optional, Final
+from typing import ClassVar, List, Final
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
@@ -10,7 +11,7 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 
 @configspec
 class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "bigquery"  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="bigquery", init=False, repr=False, compare=False)  # type: ignore
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"
 
@@ -38,31 +39,3 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.credentials and self.credentials.project_id:
             return digest128(self.credentials.project_id)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Optional[GcpServiceAccountCredentials] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            location: str = "US",
-            http_timeout: float = 15.0,
-            file_upload_timeout: float = 30 * 60.0,
-            retry_deadline: float = 60.0,
-            destination_name: str = None,
-            environment: str = None
-        ) -> None:
-            super().__init__(
-                credentials=credentials,
-                dataset_name=dataset_name,
-                default_schema_name=default_schema_name,
-                destination_name=destination_name,
-                environment=environment,
-            )
-            self.retry_deadline = retry_deadline
-            self.file_upload_timeout = file_upload_timeout
-            self.http_timeout = http_timeout
-            self.location = location
-            ...

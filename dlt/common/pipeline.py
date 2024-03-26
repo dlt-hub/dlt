@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import dataclasses
 import os
 import datetime  # noqa: 251
 import humanize
@@ -553,8 +554,12 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _deferred_pipeline: Callable[[], SupportsPipeline]
-    _pipeline: SupportsPipeline
+    _deferred_pipeline: Callable[[], SupportsPipeline] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _pipeline: SupportsPipeline = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     can_create_default: ClassVar[bool] = True
 
@@ -592,13 +597,9 @@ class PipelineContext(ContainerInjectableContext):
 
 @configspec
 class StateInjectableContext(ContainerInjectableContext):
-    state: TPipelineState
+    state: TPipelineState = None
 
     can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-
-        def __init__(self, state: TPipelineState = None) -> None: ...
 
 
 def pipeline_state(

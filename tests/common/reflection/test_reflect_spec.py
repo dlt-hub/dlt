@@ -314,7 +314,7 @@ def test_argument_have_dlt_config_defaults() -> None:
 def test_reflect_custom_base() -> None:
     @configspec
     class BaseParams(BaseConfiguration):
-        str_str: str
+        str_str: str = None
 
     def _f_1(str_str=dlt.config.value, p_def: bool = True):
         pass

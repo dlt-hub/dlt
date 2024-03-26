@@ -16,6 +16,11 @@ if t.TYPE_CHECKING:
 class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
     spec = SynapseClientConfiguration
 
+    # TODO: implement as property everywhere and makes sure not accessed as class property
+    # @property
+    # def spec(self) -> t.Type[SynapseClientConfiguration]:
+    #     return SynapseClientConfiguration
+
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities()
 

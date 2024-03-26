@@ -15,11 +15,12 @@ from requests import (
 from requests.exceptions import ChunkedEncodingError
 from dlt.sources.helpers.requests.retry import Client
 from dlt.sources.helpers.requests.session import Session
+from dlt.sources.helpers.rest_client import paginate
 from dlt.common.configuration.specs import RunConfiguration
 
 client = Client()
 
-get, post, put, patch, delete, options, head, request = (
+get, post, put, patch, delete, options, head, request, paginate = (
     client.get,
     client.post,
     client.put,
@@ -28,6 +29,7 @@ get, post, put, patch, delete, options, head, request = (
     client.options,
     client.head,
     client.request,
+    paginate,
 )
 
 

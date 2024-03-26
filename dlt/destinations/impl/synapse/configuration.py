@@ -1,9 +1,8 @@
+import dataclasses
+from dlt import version
 from typing import Final, Any, List, Dict, Optional, ClassVar
 
-from dlt.common import logger
 from dlt.common.configuration import configspec
-from dlt.common.schema.typing import TSchemaTables
-from dlt.common.schema.utils import get_write_disposition
 
 from dlt.destinations.impl.mssql.configuration import (
     MsSqlCredentials,
@@ -14,9 +13,9 @@ from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 
-@configspec
+@configspec(init=False)
 class SynapseCredentials(MsSqlCredentials):
-    drivername: Final[str] = "synapse"  # type: ignore
+    drivername: Final[str] = dataclasses.field(default="synapse", init=False, repr=False, compare=False)  # type: ignore
 
     # LongAsMax keyword got introduced in ODBC Driver 18 for SQL Server.
     SUPPORTED_DRIVERS: ClassVar[List[str]] = ["ODBC Driver 18 for SQL Server"]
@@ -32,8 +31,8 @@ class SynapseCredentials(MsSqlCredentials):
 
 @configspec
 class SynapseClientConfiguration(MsSqlClientConfiguration):
-    destination_type: Final[str] = "synapse"  # type: ignore
-    credentials: SynapseCredentials
+    destination_type: Final[str] = dataclasses.field(default="synapse", init=False, repr=False, compare=False)  # type: ignore
+    credentials: SynapseCredentials = None
 
     # While Synapse uses CLUSTERED COLUMNSTORE INDEX tables by default, we use
     # HEAP tables (no indexing) by default. HEAP is a more robust choice, because

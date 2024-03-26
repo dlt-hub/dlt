@@ -72,26 +72,18 @@ from dlt.extract.resource import DltResource, TUnboundDltResource
 class SourceSchemaInjectableContext(ContainerInjectableContext):
     """A context containing the source schema, present when dlt.source/resource decorated function is executed"""
 
-    schema: Schema
+    schema: Schema = None
 
     can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-
-        def __init__(self, schema: Schema = None) -> None: ...
 
 
 @configspec
 class SourceInjectableContext(ContainerInjectableContext):
     """A context containing the source schema, present when dlt.resource decorated function is executed"""
 
-    source: DltSource
+    source: DltSource = None
 
     can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-
-        def __init__(self, source: DltSource = None) -> None: ...
 
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
