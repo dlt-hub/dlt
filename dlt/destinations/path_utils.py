@@ -1,5 +1,5 @@
 # this can probably go some other place, but it is shared by destinations, so for now it is here
-from typing import List, Sequence, Tuple
+from typing import List, Sequence
 
 import pendulum
 import re
