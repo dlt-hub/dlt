@@ -75,7 +75,7 @@ response = client.get("/posts/1")
 
 ## Paginating API Responses
 
-The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` objects for each page:
+The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` instances for each page:
 
 ```py
 for page in client.paginate("/posts"):
@@ -84,9 +84,9 @@ for page in client.paginate("/posts"):
 
 If `paginator` is not specified, the `paginate()` method will attempt to automatically detect the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
 
-### PageData Object
+### PageData
 
-Each `PageData` object contains the data for a single page, along with context like the original request and response objects, allowing for detailed inspection. The `PageData` is a list-like object that contains the following attributes:
+Each `PageData` instance contains the data for a single page, along with context like the original request and response objects, allowing for detailed inspection. The `PageData` is a list-like object that contains the following attributes:
 
 - `request`: The original request object.
 - `response`: The response object.
