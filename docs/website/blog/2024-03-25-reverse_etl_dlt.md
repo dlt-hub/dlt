@@ -12,43 +12,43 @@ tags: [reverse etl, pythonic]
 
 # Pythonic reverse ETL is here
 
-## Why python is the right approach for doing Reverse ETL
+## Why Python is the right approach for doing Reverse ETL
 
-Reverse ETL is generally about putting data into a business app. This data would often come from a SQL database used as a middle layer for data integrations and calculations.
+Reverse ETL is generally about putting data into a business application. This data would often come from a SQL database used as a middle layer for data integrations and calculations.
 
-That’s fine - but nowadays most data people speak python, and the types of things we want to put into an operational app don’t always come from a DB, they often come from other business apps, or from things like a dataframe on which we did some scoring, etc.
+That’s fine - but nowadays most data people speak Python, and the types of things we want to put into an operational application don’t always come from a DB, they often come from other business applications, or from things like a dataframe on which we did some scoring, etc.
 
 ![reverse etl](https://storage.googleapis.com/dlt-blog-images/reverse-etl.png)
 
 ### The full potential of Reverse ETL is in the flexibility of sources
 
-Sql databases are a good start, but in reality very often our data source is something else. More often than not, it’s a python analyst’s implementation of some scoring, or some business calculation.
+SQL databases are a good start, but in reality very often our data source is something else. More often than not, it’s a Python analyst’s implementation of some scoring or some business calculation.
 
-Other times, it’s a business app - for example, we might have a form that sends the response data to a webhook, from where it could end up in Salesforce, DWH and Slack as a notification. And of course, if this is done by a data person it will be done in Python.
+Other times, it’s a business application - for example, we might have a form that sends the response data to a webhook, from where it could end up in Salesforce, DWH, and Slack as a notification. And of course, if this is done by a data person it will be done in Python.
 
-Such, it follows that if we want to cater to the data crowd, we need to be pythonic.
+Such, it follows that if we want to cater to the data crowd, we need to be Pythonic.
 
 ## There’s synergy with ETL
 
-Reverse ETL is ultimately ETL. Data is extracted from a source, it’s transformer, and then loaded to a destination. The challenges are similar, the most notable difference being in the fact that pulling data from a strongly typed environment like a db and converting it to weakly typed JSON is MUCH easier than the other way around. So in fact you can argue that Reverse ETL is simpler than ETL.
+Reverse ETL is ultimately ETL. Data is extracted from a source, its transformed, and then loaded to a destination. The challenges are similar, the most notable difference being that pulling data from a strongly typed environment like a DB and converting it to weakly typed JSON is MUCH easier than the other way around. So in fact you can argue that Reverse ETL is simpler than ETL.
 
 ### Flavors of Reverse ETL
 
 Just like we have ETL and ELT, we also have flavors of Reverse ETL
 
-- Reverse ETL, or TEL: Transform the data to a specification, read it from db and send it to the app. An example could be.
-- Tool Reverse ETL or ETL: Extract from db, map fields to destination in the tool, load to destination.
-- Pythonic Freestyle Reverse ETL: You extract data from wherever you want and put it anywhere except storage/db. Transformations optional.
+- **Reverse ETL or TEL:** Transform the data to a specification, read it from DB, and send it to the application.
+- **Tool Reverse ETL or ETL:** Extract from DB, map fields to destination in the tool, load to destination.
+- **Pythonic Freestyle Reverse ETL:** You extract data from wherever you want and put it anywhere except storage/DB. Transformations are optional.
 
 Examples of Python reverse ETL
 
-- Read data from Mongo, do anomaly detection, notify anomalies to slack.
-- Read membership data from Stripe, calculate chance to churn, upload to CRM for account managers.
-- Capture a form response with a webhook and send the information to CRM, DWH and slack.
+- Read data from Mongo, do anomaly detection, and notify anomalies to Slack.
+- Read membership data from Stripe, calculate the chance to churn, and upload to CRM for account managers.
+- Capture a form response with a webhook and send the information to CRM, DWH, and Slack.
 
 ## Add python? - new skills unlocked!
 
-So why is it much better to do reverse ETL in python?
+So why is it much better to do reverse ETL in Python?
 
 - **Live Streaming and Flexibility**: Python's ability to handle live data streams and integrate with various APIs and services surpasses the capabilities of SQL-based data warehouses designed for batch processing.
 - **End-to-End Workflow**: Employing Python from data extraction to operational integration facilitates a streamlined workflow, enabling data teams to maintain consistency and efficiency across the pipeline.
@@ -64,7 +64,7 @@ In this example, you will see why it’s faster to build a custom destination th
 
 DLT allows you to define custom destination functions. You'll write a function that extracts the relevant data from your dataframe and formats it for the Notion API.
 
-This example assumes you have set up Google Sheets API access and obtained the necessary credentials to authenticate.T
+This example assumes you have set up Google Sheets API access and obtained the necessary credentials to authenticate.
 
 ### **Step 1: Setting Up Google Sheets API (10min)**
 
@@ -74,7 +74,7 @@ This example assumes you have set up Google Sheets API access and obtained the n
 
 ### **Step 2: Define the Destination method in its own file `sheets_destination.py` (20min)**
 
-Install the required package for Google API client:
+Install the required package for the Google API client:
 
 ```bash
 pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
@@ -140,7 +140,7 @@ id = "your_google_sheet_id_here"
 
 ```
 
-### **Step 4: Running the pieline in `my_pipeline.py`(10min)**
+### **Step 4: Running the pipeline in `my_pipeline.py`(10min)**
 
 Now, assuming you have a source function **`sql_database()`** from the verified sources, you can set up and run your pipeline as follows:
 
@@ -185,12 +185,12 @@ The flexibility of creating custom destinations with dlt shifts the focus from t
 
 ### **Scalability and efficient resource use**
 
-dlt facilitates efficient handling of large data loads through chunking and batching, allowing for optimal use of computing resources. This means even small worker machines can stream data effectively into your chosen endpoint instead of wasting a large machine waiting for network. The library design supports easy scaling and adjustments. Making changes to batch sizes or configurations is straightforward, ensuring your data pipelines can grow and evolve with minimal effort. This approach not only makes maintenance simpler but ensures that once a solution is implemented, it's broadly applicable across your projects.
+dlt facilitates efficient handling of large data loads through chunking and batching, allowing for optimal use of computing resources. This means even small worker machines can stream data effectively into your chosen endpoint instead of wasting a large machine waiting for the network. The library design supports easy scaling and adjustments. Making changes to batch sizes or configurations is straightforward, ensuring your data pipelines can grow and evolve with minimal effort. This approach not only makes maintenance simpler but ensures that once a solution is implemented, it's broadly applicable across your projects.
 
 ### **In Conclusion**
 
-Reverse ETL is just a piece of the ETL puzzle. It could be done cleaner and better when done in python end to end.
+Reverse ETL is just a piece of the ETL puzzle. It could be done cleaner and better when done in Python end to end.
 
-Tools will always appeal to the non technical folks. However, anyone with ability to do python pipelines can do Reverse ETL pipelines too, bringing typical benefits of code vs tool to a dev team - customisation, collaboration, best practices etc.
+Tools will always appeal to the non-technical folks. However, anyone with the ability to do Python pipelines can do Reverse ETL pipelines too, bringing typical benefits of code vs tool to a dev team - customisation, collaboration, best practices, etc.
 
 So read more about [how to built a dlt destination](https://dlthub.com/devel/dlt-ecosystem/destinations/destination) and consider giving it a try in your next reverse ETL pipeline.
