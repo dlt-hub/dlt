@@ -10,6 +10,7 @@ from typing import (
 
 import clickhouse_driver  # type: ignore[import-untyped]
 import clickhouse_driver.errors  # type: ignore[import-untyped]
+from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -28,6 +29,7 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 from dlt.destinations.typing import DBTransaction, DBApi
+from dlt.destinations.utils import _convert_to_old_pyformat
 
 
 TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
@@ -106,16 +108,16 @@ class ClickhouseSqlClient(
             """
             SELECT name
             FROM system.tables
-            WHERE database = %(db_name)s
-            AND name LIKE %(dataset_name)s
+            WHERE database = %s
+            AND name LIKE %s
             """,
-            {"db_name": self.database_name, "dataset_name": self.dataset_name},
+            (self.database_name, f"{self.dataset_name}%"),
         )
         for to_drop_result in to_drop_results:
             table = to_drop_result[0]
             self.execute_sql(
-                "DROP TABLE %(database)s.%(table)s SYNC",
-                {"database": self.database_name, "table": table},
+                "DROP TABLE %s.%s SYNC",
+                (self.database_name, table),
             )
 
     @contextmanager
@@ -123,15 +125,23 @@ class ClickhouseSqlClient(
     def execute_query(
         self, query: AnyStr, *args: Any, **kwargs: Any
     ) -> Iterator[ClickhouseDBApiCursorImpl]:
-        cur: clickhouse_driver.dbapi.connection.Cursor
-        with self._conn.cursor() as cur:
-            try:
-                cur.execute(query, args or (kwargs or None))
-                yield ClickhouseDBApiCursorImpl(cur)  # type: ignore[abstract]
-            except clickhouse_driver.dbapi.Error:
-                self.close_connection()
-                self.open_connection()
-                raise
+        assert isinstance(query, str), "Query must be a string"
+
+        db_args = kwargs.copy()
+
+        if args:
+            query, db_args = _convert_to_old_pyformat(query, args, OperationalError)
+            db_args.update(kwargs)
+
+        with self._conn.cursor() as cursor:
+            for query_line in query.split(";"):
+                if query_line := query_line.strip():
+                    try:
+                        cursor.execute(query_line, db_args)
+                    except KeyError as e:
+                        raise DatabaseTransientException(OperationalError()) from e
+
+            yield ClickhouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         database_name = (
@@ -188,15 +198,6 @@ class ClickhouseSqlClient(
             return DatabaseTransientException(ex)
         else:
             return ex
-
-    def has_dataset(self) -> bool:
-        query = """
-                SELECT 1 FROM INFORMATION_SCHEMA.SCHEMATA WHERE
-                catalog_name = %(database)s AND schema_name = %(table)s
-                """
-        database, table = self.fully_qualified_dataset_name(escape=False).split(".", 2)
-        rows = self.execute_sql(query, {"database": database, "table": table})
-        return len(rows) > 0
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error() -> Optional[Exception]:
