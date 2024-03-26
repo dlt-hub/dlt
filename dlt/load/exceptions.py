@@ -1,10 +1,8 @@
 from typing import Sequence
-from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException
-
-
-# class LoadException(DltException):
-#     def __init__(self, msg: str) -> None:
-#         super().__init__(msg)
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 
 
 class LoadClientJobFailed(DestinationTerminalException):

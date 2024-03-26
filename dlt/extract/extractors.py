@@ -105,12 +105,16 @@ class Extractor:
         if isinstance(meta, HintsMeta):
             # update the resource with new hints, remove all caches so schema is recomputed
             # and contracts re-applied
-            resource.merge_hints(meta.hints)
+            resource.merge_hints(meta.hints, meta.create_table_variant)
+            # convert to table meta if created table variant so item is assigned to this table
+            if meta.create_table_variant:
+                # name in hints meta must be a string, otherwise merge_hints would fail
+                meta = TableNameMeta(meta.hints["name"])  # type: ignore[arg-type]
             self._reset_contracts_cache()
 
         if table_name := self._get_static_table_name(resource, meta):
             # write item belonging to table with static name
-            self._write_to_static_table(resource, table_name, items)
+            self._write_to_static_table(resource, table_name, items, meta)
         else:
             # table has name or other hints depending on data items
             self._write_to_dynamic_table(resource, items)
@@ -157,30 +161,32 @@ class Extractor:
             if table_name in self._filtered_tables:
                 continue
             if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
-                item = self._compute_and_update_table(resource, table_name, item)
+                item = self._compute_and_update_table(
+                    resource, table_name, item, TableNameMeta(table_name)
+                )
             # write to storage with inferred table name
             if table_name not in self._filtered_tables:
                 self._write_item(table_name, resource.name, item)
 
     def _write_to_static_table(
-        self, resource: DltResource, table_name: str, items: TDataItems
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> None:
         if table_name not in self._table_contracts:
-            items = self._compute_and_update_table(resource, table_name, items)
+            items = self._compute_and_update_table(resource, table_name, items, meta)
         if table_name not in self._filtered_tables:
             self._write_item(table_name, resource.name, items)
 
-    def _compute_table(self, resource: DltResource, items: TDataItems) -> TTableSchema:
+    def _compute_table(self, resource: DltResource, items: TDataItems, meta: Any) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items))
+        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items, meta))
 
     def _compute_and_update_table(
-        self, resource: DltResource, table_name: str, items: TDataItems
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
-        computed_table = self._compute_table(resource, items)
+        computed_table = self._compute_table(resource, items, meta)
         # overwrite table name (if coming from meta)
         computed_table["name"] = table_name
         # get or compute contract
@@ -193,7 +199,7 @@ class Extractor:
             computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
-            diff_table = utils.diff_tables(existing_table, computed_table)
+            diff_table = utils.diff_table(existing_table, computed_table)
         else:
             diff_table = computed_table
 
@@ -300,9 +306,11 @@ class ArrowExtractor(Extractor):
         ]
         super()._write_item(table_name, resource_name, items, columns)
 
-    def _compute_table(self, resource: DltResource, items: TDataItems) -> TPartialTableSchema:
+    def _compute_table(
+        self, resource: DltResource, items: TDataItems, meta: Any
+    ) -> TPartialTableSchema:
         items = items[0]
-        computed_table = super()._compute_table(resource, items)
+        computed_table = super()._compute_table(resource, items, Any)
 
         # Merge the columns to include primary_key and other hints that may be set on the resource
         arrow_table = copy(computed_table)
@@ -329,9 +337,9 @@ class ArrowExtractor(Extractor):
         return arrow_table
 
     def _compute_and_update_table(
-        self, resource: DltResource, table_name: str, items: TDataItems
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
-        items = super()._compute_and_update_table(resource, table_name, items)
+        items = super()._compute_and_update_table(resource, table_name, items, meta)
         # filter data item as filters could be updated in compute table
         items = [self._apply_contract_filters(item, resource, table_name) for item in items]
         return items

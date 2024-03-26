@@ -3,7 +3,7 @@ from importlib.metadata import version as pkg_version
 
 from dlt.common import logger
 from dlt.common.runtime import exec_info
-from dlt.common.runtime.logger import is_logging
+from dlt.common.logger import is_logging
 from dlt.common.typing import StrStr, DictStrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration

@@ -125,7 +125,7 @@ By using this micro-batch architecture, we strive to maintain a balance of datab
 insert efficiency (by writing multiple records at a time) with near real-time insertion
 (by keeping the window size around 5 seconds).
 
-```python
+```py
 
 pipeline = dlt.pipeline(
     pipeline_name="pubsub_dlt",

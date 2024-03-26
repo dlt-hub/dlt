@@ -4,6 +4,7 @@ from typing import Iterator, List, Mapping, Tuple, cast
 from dlt.common import json, logger
 from dlt.common.configuration import with_config
 from dlt.common.configuration.accessors import config
+from dlt.common.schema.utils import to_pretty_json, to_pretty_yaml
 from dlt.common.storages.configuration import (
     SchemaStorageConfiguration,
     TSchemaFileFormat,
@@ -106,32 +107,33 @@ class SchemaStorage(Mapping[str, Schema]):
             if storage_schema is None:
                 # import schema when no schema in storage
                 rv_schema = Schema.from_dict(imported_schema)
-                # if schema was imported, overwrite storage schema
+                # store import hash to self to track changes
                 rv_schema._imported_version_hash = rv_schema.version_hash
-                self._save_schema(rv_schema)
                 logger.info(
                     f"Schema {name} not present in {self.storage.storage_path} and got imported"
                     f" with version {rv_schema.stored_version} and imported hash"
                     f" {rv_schema._imported_version_hash}"
                 )
+                # if schema was imported, overwrite storage schema
+                self._save_schema(rv_schema)
+                if self.config.export_schema_path:
+                    self._export_schema(rv_schema, self.config.export_schema_path)
             else:
                 # import schema when imported schema was modified from the last import
-                sc = Schema.from_dict(storage_schema)
-                rv_schema = Schema.from_dict(imported_schema)
-                if rv_schema.version_hash != sc._imported_version_hash:
-                    # use imported schema but version must be bumped and imported hash set
-                    rv_schema._stored_version = sc.stored_version + 1
-                    rv_schema._imported_version_hash = rv_schema.version_hash
-                    # if schema was imported, overwrite storage schema
-                    self._save_schema(rv_schema)
+                rv_schema = Schema.from_dict(storage_schema)
+                i_s = Schema.from_dict(imported_schema)
+                if i_s.version_hash != rv_schema._imported_version_hash:
+                    rv_schema.replace_schema_content(i_s, link_to_replaced_schema=True)
+                    rv_schema._imported_version_hash = i_s.version_hash
                     logger.info(
                         f"Schema {name} was present in {self.storage.storage_path} but is"
-                        f" overwritten with imported schema version {rv_schema.stored_version} and"
-                        f" imported hash {rv_schema._imported_version_hash}"
+                        f" overwritten with imported schema version {i_s.version} and"
+                        f" imported hash {i_s.version_hash}"
                     )
-                else:
-                    # use storage schema as nothing changed
-                    rv_schema = sc
+                    # if schema was imported, overwrite storage schema
+                    self._save_schema(rv_schema)
+                    if self.config.export_schema_path:
+                        self._export_schema(rv_schema, self.config.export_schema_path)
         except FileNotFoundError:
             # no schema to import -> skip silently and return the original
             if storage_schema is None:
@@ -154,14 +156,11 @@ class SchemaStorage(Mapping[str, Schema]):
         )
 
     def _export_schema(self, schema: Schema, export_path: str) -> None:
+        stored_schema = schema.to_dict(remove_defaults=True)
         if self.config.external_schema_format == "json":
-            exported_schema_s = schema.to_pretty_json(
-                remove_defaults=self.config.external_schema_format_remove_defaults
-            )
+            exported_schema_s = to_pretty_json(stored_schema)
         elif self.config.external_schema_format == "yaml":
-            exported_schema_s = schema.to_pretty_yaml(
-                remove_defaults=self.config.external_schema_format_remove_defaults
-            )
+            exported_schema_s = to_pretty_yaml(stored_schema)
         else:
             raise ValueError(self.config.external_schema_format)
 
@@ -170,13 +169,19 @@ class SchemaStorage(Mapping[str, Schema]):
         export_storage.save(schema_file, exported_schema_s)
         logger.info(
             f"Schema {schema.name} exported to {export_path} with version"
-            f" {schema.stored_version} as {self.config.external_schema_format}"
+            f" {stored_schema['version']}:{stored_schema['version_hash']} as"
+            f" {self.config.external_schema_format}"
         )
 
     def _save_schema(self, schema: Schema) -> str:
         # save a schema to schema store
         schema_file = self._file_name_in_store(schema.name, "json")
-        return self.storage.save(schema_file, schema.to_pretty_json(remove_defaults=False))
+        stored_schema = schema.to_dict()
+        saved_path = self.storage.save(schema_file, to_pretty_json(stored_schema))
+        # this should be the only place where this function is called. we bump a version and
+        # clean modified status
+        schema._bump_version()
+        return saved_path
 
     @staticmethod
     def load_schema_file(

@@ -1,6 +1,6 @@
 import functools
 
-from typing import Any, Type, Optional, Callable, Union, cast
+from typing import Any, Type, Optional, Callable, Union
 from typing_extensions import Concatenate
 from dlt.common.typing import AnyFun
 
@@ -13,7 +13,6 @@ from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
 )
 from dlt.common.destination import TLoaderFileFormat
-from dlt.common.destination.reference import Destination
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 

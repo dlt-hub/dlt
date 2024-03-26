@@ -15,6 +15,7 @@ from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import make_hints
 
+from dlt.extract.items import TableNameMeta
 from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 
@@ -162,6 +163,52 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
     extract_step.extract(source, 20, 1)
     table = source.schema.tables["dynamic_table"]
     assert "pk" not in table["columns"]
+
+
+def test_extract_hints_table_variant(extract_step: Extract) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    @dlt.resource(primary_key="pk")
+    def with_table_hints():
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A"},
+            make_hints(table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]),
+            create_table_variant=True,
+        )
+        # get the resource
+        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        assert "table_a" in resource._hints_variants
+        # get table
+        table = resource.compute_table_schema(meta=TableNameMeta("table_a"))
+        assert "pk" in table["columns"]
+        assert "id" in table["columns"]
+        assert table["columns"]["pk"]["primary_key"] is True
+        assert table["columns"]["id"]["data_type"] == "bigint"
+
+        schema = dlt.current.source_schema()
+        # table table_a will be created
+        assert "table_a" in schema.tables
+        schema_table = schema.tables["table_a"]
+        assert table == schema_table
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B"},
+            make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+        assert "table_b" in resource._hints_variants
+        # get table
+        table = resource.compute_table_schema(meta=TableNameMeta("table_b"))
+        assert table["write_disposition"] == "replace"
+        schema_table = schema.tables["table_b"]
+        assert table == schema_table
+
+        # item to resource
+        yield {"id": 3, "pk": "C"}
+
+    source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
+    extract_step.extract(source, 20, 1)
 
 
 # def test_extract_pipe_from_unknown_resource():

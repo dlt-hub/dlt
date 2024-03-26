@@ -12,15 +12,15 @@ from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
-from dlt.pipeline.exceptions import PipelineStepFailed
-from dlt.common.utils import uniq_id
-from dlt.common.exceptions import DestinationTerminalException, InvalidDestinationReference
+from dlt.common.destination.exceptions import InvalidDestinationReference
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.destinations.impl.destination.factory import _DESTINATIONS
-from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
+
+from dlt.destinations.impl.destination.factory import _DESTINATIONS
+from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -455,14 +455,13 @@ def test_config_spec() -> None:
 def test_destination_with_spec() -> None:
     @configspec
     class MyDestinationSpec(CustomDestinationClientConfiguration):
-        my_predefined_val: str
+        my_predefined_val: str = None
 
     # check destination without additional config params
     @dlt.destination(spec=MyDestinationSpec)
     def sink_func_with_spec(
         items: TDataItems, table: TTableSchema, my_predefined_val=dlt.config.value
     ) -> None:
-        # raise DestinationTerminalException("NEVER")
         pass
 
     wrapped_callable = sink_func_with_spec().config_params["destination_callable"]

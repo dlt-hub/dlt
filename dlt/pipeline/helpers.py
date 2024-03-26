@@ -12,7 +12,6 @@ from dlt.common.schema.utils import (
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.typing import REPattern
 from dlt.common.pipeline import (
-    TSourceState,
     reset_resource_state,
     _sources_state,
     _delete_source_state_keys,
@@ -26,6 +25,7 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
     PipelineHasPendingDataException,
 )
+from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline import Pipeline
 
@@ -122,7 +122,7 @@ class DropCommand:
         else:
             self.tables_to_drop = []
             self.drop_tables = False  # No tables to drop
-            self.drop_state = not not self.state_paths_to_drop
+            self.drop_state = not not self.state_paths_to_drop  # obtain truth value
 
         self.drop_all = drop_all
         self.info: _DropInfo = dict(
@@ -167,10 +167,11 @@ class DropCommand:
                     with client.with_staging_dataset():
                         client.drop_tables(*table_names, replace_schema=True)
 
-    def _delete_pipeline_tables(self) -> None:
+    def _delete_schema_tables(self) -> None:
         for tbl in self.tables_to_drop:
             del self.schema_tables[tbl["name"]]
-        self.schema.bump_version()
+        # bump schema, we'll save later
+        self.schema._bump_version()
 
     def _list_state_paths(self, source_state: Dict[str, Any]) -> List[str]:
         return resolve_paths(self.state_paths_to_drop, source_state)
@@ -197,7 +198,7 @@ class DropCommand:
             self.info["state_paths"].extend(f"{source_name}.{p}" for p in resolved_paths)
         return state  # type: ignore[return-value]
 
-    def _drop_state_keys(self) -> None:
+    def _extract_state(self) -> None:
         state: Dict[str, Any]
         with self.pipeline.managed_state(extract_state=True) as state:  # type: ignore[assignment]
             state.clear()
@@ -216,12 +217,12 @@ class DropCommand:
             return  # Nothing to drop
 
         if self.drop_tables:
-            self._delete_pipeline_tables()
+            self._delete_schema_tables()
             self._drop_destination_tables()
         if self.drop_tables:
             self.pipeline.schemas.save_schema(self.schema)
         if self.drop_state:
-            self._drop_state_keys()
+            self._extract_state()
         # Send updated state to destination
         self.pipeline.normalize()
         try:
@@ -230,8 +231,7 @@ class DropCommand:
             # Clear extracted state on failure so command can run again
             self.pipeline.drop_pending_packages()
             with self.pipeline.managed_state() as state:
-                state["_local"].pop("_last_extracted_at", None)
-                state["_local"].pop("_last_extracted_hash", None)
+                force_state_extract(state)
             raise
 
 

@@ -61,14 +61,14 @@ The `dlt` [init command](https://dlthub.com/docs/reference/command-line-interfac
 - Open `.dlt/secrets.toml` file on your laptop.
 - Enter the OpenAI secrets:
 
-    ```
+    ```toml
     [sources.unstructured_data]
     openai_api_key = "openai_api_key"
     ```
 
 - Enter your email account secrets in the same section `[sources.unstructured_data]`:
 
-    ```
+    ```toml
     host = 'imap.example.com'
     email_account = "example@example.com"
     password = 'set me up!'
@@ -78,7 +78,7 @@ The `dlt` [init command](https://dlthub.com/docs/reference/command-line-interfac
 
 - Enter the BigQuery secrets:
 
-    ```
+    ```toml
     [destination.bigquery]
     location = "US"
     [destination.bigquery.credentials]
@@ -96,7 +96,7 @@ This is the part where you can define what you’d like to see as an outcome.
 
 Queries example:
 
-```python
+```py
 INVOICE_QUERIES = {
     "recipient_company_name": "Who is the recipient of the invoice? Just return the name. If you don't know, then return None",
     "invoice_amount": "What is the total amount of the invoice? Just return the amount as decimal number, no currency or text. If you don't know, then return None",

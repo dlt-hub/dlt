@@ -158,6 +158,34 @@ def test_connection_string_resolved_from_native_representation_env(environment: 
     assert c.host == "aws.12.1"
 
 
+def test_connection_string_from_init() -> None:
+    c = ConnectionStringCredentials("postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d")
+    assert c.drivername == "postgres"
+    assert c.is_resolved()
+    assert not c.is_partial()
+
+    c = ConnectionStringCredentials(
+        {
+            "drivername": "postgres",
+            "username": "loader",
+            "password": "pass",
+            "host": "localhost",
+            "port": 5432,
+            "database": "dlt_data",
+            "query": {"a": "b", "c": "d"},
+        }
+    )
+    assert c.drivername == "postgres"
+    assert c.username == "loader"
+    assert c.password == "pass"
+    assert c.host == "localhost"
+    assert c.port == 5432
+    assert c.database == "dlt_data"
+    assert c.query == {"a": "b", "c": "d"}
+    assert c.is_resolved()
+    assert not c.is_partial()
+
+
 def test_gcp_service_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpServiceAccountCredentials().parse_native_representation(1)

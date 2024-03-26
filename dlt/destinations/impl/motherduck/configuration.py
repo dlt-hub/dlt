@@ -1,8 +1,9 @@
-from typing import Any, ClassVar, Final, List, TYPE_CHECKING, Optional
+import dataclasses
+from typing import Any, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
-from dlt.common.exceptions import DestinationTerminalException
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -12,9 +13,9 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 MOTHERDUCK_DRIVERNAME = "md"
 
 
-@configspec
+@configspec(init=False)
 class MotherDuckCredentials(DuckDbBaseCredentials):
-    drivername: Final[str] = "md"  # type: ignore
+    drivername: Final[str] = dataclasses.field(default="md", init=False, repr=False, compare=False)  # type: ignore
     username: str = "motherduck"
 
     read_only: bool = False  # open database read/write
@@ -57,8 +58,8 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
 @configspec
 class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "motherduck"  # type: ignore
-    credentials: MotherDuckCredentials
+    destination_type: Final[str] = dataclasses.field(default="motherduck", init=False, repr=False, compare=False)  # type: ignore
+    credentials: MotherDuckCredentials = None
 
     create_indexes: bool = (
         False  # should unique indexes be created, this slows loading down massively
@@ -69,19 +70,6 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.password:
             return digest128(self.credentials.password)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Optional[MotherDuckCredentials] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            create_indexes: Optional[bool] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
 
 
 class MotherduckLocalVersionNotSupported(DestinationTerminalException):

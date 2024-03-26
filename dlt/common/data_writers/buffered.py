@@ -1,6 +1,6 @@
 import gzip
 import time
-from typing import List, IO, Any, Optional, Type, TypeVar, Generic
+from typing import ClassVar, List, IO, Any, Optional, Type, TypeVar, Generic
 
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat
@@ -33,7 +33,7 @@ class BufferedDataWriter(Generic[TWriter]):
         disable_compression: bool = False
         _caps: Optional[DestinationCapabilitiesContext] = None
 
-        __section__ = known_sections.DATA_WRITER
+        __section__: ClassVar[str] = known_sections.DATA_WRITER
 
     @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
