@@ -120,7 +120,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         file_name = (
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
-        file_extension = os.path.splitext(file_name)[1].lower()
+        file_extension = os.path.splitext(file_name)[1][1:].lower()  # Remove dot (.) from file extension.
         if file_extension not in ["parquet", "jsonl"]:
             raise ValueError("Clickhouse staging only supports 'parquet' and 'jsonl' file formats.")
 

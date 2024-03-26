@@ -1,3 +1,5 @@
+import sys
+
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import escape_clickhouse_identifier, escape_clickhouse_literal
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -14,8 +16,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal
 
-    caps.max_identifier_length = 65536
-    caps.max_column_identifier_length = 65536
+    # https://stackoverflow.com/questions/68358686/what-is-the-maximum-length-of-a-column-in-clickhouse-can-it-be-modified
+    caps.max_identifier_length = 255
+    caps.max_column_identifier_length = 255
+
+    # Clickhouse has no max `String` type length.
+    caps.max_text_data_type_length = sys.maxsize
 
     caps.schema_supports_numeric_precision = True
     # Use 'Decimal128' with these defaults.
