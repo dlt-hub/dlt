@@ -1,6 +1,10 @@
 import inspect
 import dataclasses
+
 from typing import Callable, Dict, Final, Type, Optional, TypeAlias, Union, get_args
+
+import pendulum
+
 from pendulum.datetime import DateTime
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.destination.reference import (
@@ -9,6 +13,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.schema.schema import Schema
 from dlt.common.storages import FilesystemConfiguration
+from dlt.destinations.path_utils import check_layout
 
 TCurrentDatetimeCallback: TypeAlias = Callable[[], DateTime]
 """A callback which should return current datetime"""
@@ -38,8 +43,7 @@ class FilesystemDestinationClientConfiguration(
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         # use known credentials or empty credentials for unknown protocol
         return (
-            self.PROTOCOL_CREDENTIALS.get(self.protocol)
-            or Optional[CredentialsConfiguration]
+            self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]
         )  # type: ignore[return-value]
 
     def on_resolved(self) -> None:
@@ -58,4 +62,8 @@ class FilesystemDestinationClientConfiguration(
                             "current_datetime was passed as callable but "
                             "didn't return any instance of pendulum.DateTime"
                         )
+
+        # Validate layout and layout params
+        check_layout(self.layout, self.layout_params)
+
         super().on_resolved()
