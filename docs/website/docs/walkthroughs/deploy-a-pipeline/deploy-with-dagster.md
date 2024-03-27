@@ -8,10 +8,10 @@ keywords: [how to, deploy a pipeline, Dagster]
 
 ## Introduction to Dagster
 
-Dagster is an orchestrator that's designed for developing and maintaining data assets, such as
+Dagster is an orchestrator designed for developing and maintaining data assets, such as
 tables, data sets, machine learning models, and reports. Dagster ensures these processes are
 reliable and focuses on using software-defined assets (SDAs) to simplify complex data management,
-enhance the ability to reuse code and provide a better understanding of data.
+enhance the ability to reuse code, and provide a better understanding of data.
 
 To read more, please refer to Dagster’s
 [documentation.](https://docs.dagster.io/getting-started?_gl=1*19ikq9*_ga*NTMwNTUxNDAzLjE3MDg5Mjc4OTk.*_ga_84VRQZG7TV*MTcwOTkwNDY3MS4zLjEuMTcwOTkwNTYzNi41Ny4wLjA.*_gcl_au*OTM3OTU1ODMwLjE3MDg5Mjc5MDA.)
@@ -28,7 +28,7 @@ The *serverless* option fully hosts the orchestration engine, while the *hybrid*
 flexibility to use your computing resources, with Dagster managing the control plane. Reducing
 operational overhead and ensuring security.
 
-For more info, please [refer.](https://dagster.io/cloud)
+For more info, please refer to the Dagster Cloud [docs.](https://dagster.io/cloud)
 
 ### Using Dagster for Free
 
@@ -46,13 +46,12 @@ building data pipelines with support for extract and load processes.
 
 `dlt` integrates with Dagster for pipeline orchestration, providing a streamlined process for
 building, enhancing, and managing data pipelines. This enables developers to leverage `dlt`'s
-capabilities for handling data extraction and load and Dagster's orchestration features to
-efficiently manage and monitor data pipelines.
+capabilities for handling data extraction and load and Dagster's orchestration features to efficiently manage and monitor data pipelines.
 
 ### Orchestrating `dlt` pipeline on Dagster
 
 Here's a concise guide to orchestrating a `dlt` pipeline with Dagster, using the project "Ingesting
-GitHub issue data from a repository and storing it in BigQuery" as an example. 
+GitHub issues data from a repository and storing it in BigQuery" as an example. 
 
 More details can be found in the article
 [“Orchestrating unstructured data pipelines with dagster and dlt."](https://dagster.io/blog/dagster-dlt)
@@ -131,8 +130,6 @@ More details can be found in the article
    ```sh
    dagster dev
    ```
-
-1. View the populated metadata and data in the configured destination.
 
 :::info 
 For the complete hands-on project on “Orchestrating unstructured data pipelines with dagster and
