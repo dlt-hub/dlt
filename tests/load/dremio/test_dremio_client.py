@@ -12,7 +12,7 @@ def dremio_client(empty_schema) -> DremioClient:
     creds.database = "test_database"
     return DremioClient(
         empty_schema,
-        DremioClientConfiguration(dataset_name="test_dataset", credentials=creds),
+        DremioClientConfiguration(dataset_name="test_dataset", credentials=creds),  # type: ignore[call-arg]
     )
 
 
