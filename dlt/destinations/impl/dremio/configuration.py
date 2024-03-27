@@ -32,8 +32,8 @@ class DremioCredentials(ConnectionStringCredentials):
 @configspec
 class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = "dremio"  # type: ignore[misc]
-    credentials: DremioCredentials
-    staging_data_source: str
+    credentials: DremioCredentials = None
+    staging_data_source: str = None
     """The name of the staging data source"""
 
     def fingerprint(self) -> str:
@@ -41,18 +41,3 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            destination_type: str = None,
-            credentials: DremioCredentials = None,
-            staging_data_source: str = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            staging_config: Optional[DestinationClientStagingConfiguration] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
