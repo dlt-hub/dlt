@@ -23,9 +23,6 @@ from pendulum.datetime import DateTime
 
 TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)
-TDatetimeFormatterCallback: TypeAlias = Callable[[DateTime], str]
-TDatetimeFormat: TypeAlias = Union[str, TDatetimeFormatterCallback]
-TLayoutParamCallback: TypeAlias = Callable[[Schema, DateTime], str]
 
 
 @configspec
@@ -82,8 +79,6 @@ class FilesystemConfiguration(BaseConfiguration):
     }
 
     bucket_url: Optional[str] = None
-    datetime_format: Optional[TDatetimeFormat] = None
-    layout_params: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
 
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials = None

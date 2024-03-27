@@ -39,13 +39,23 @@ class LoadFilesystemJob(LoadJob):
         self.config = config
         self.dataset_path = dataset_path
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
+            config.layout,
+            config.datetime_format,
+            config.layout_params,
+            file_name,
+            schema_name,
+            load_id,
         )
 
         super().__init__(file_name)
         fs_client, _ = fsspec_from_config(config)
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
+            config.layout,
+            config.datetime_format,
+            config.layout_params,
+            file_name,
+            schema_name,
+            load_id,
         )
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
