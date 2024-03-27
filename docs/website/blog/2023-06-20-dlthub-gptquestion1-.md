@@ -1,7 +1,7 @@
 ---
 slug: trained-gpt-q&a
 title: "Hey GPT, tell me about dlthub!"
-image: /img/traingptblog.jpg
+image: https://storage.googleapis.com/dlt-blog-images/traingptblog.jpg
 authors:
   name: Tong Chen
   title: Data Engineer Intern at dltHub

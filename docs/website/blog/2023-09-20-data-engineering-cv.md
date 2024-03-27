@@ -1,7 +1,7 @@
 ---
 slug: data-engineering-cv
 title: "How to write a data engineering CV for Europe and America - A hiring manager’s perspective"
-image: /img/dall-e-de-cv.png
+image: https://storage.googleapis.com/dlt-blog-images/dall-e-de-cv.png
 authors:
   name: Adrian Brudaru
   title: Open source data engineer

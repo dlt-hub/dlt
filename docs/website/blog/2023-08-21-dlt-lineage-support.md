@@ -1,7 +1,7 @@
 ---
 slug: dlt-lineage-support
 title: "Trust your data! Column and row level lineages, an explainer and a recipe."
-image: /img/eye_of_data_lineage.png
+image: https://storage.googleapis.com/dlt-blog-images/eye_of_data_lineage.png
 authors:
   name: Adrian Brudaru
   title: Open source data engineer

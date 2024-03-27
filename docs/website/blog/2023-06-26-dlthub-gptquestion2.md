@@ -1,7 +1,7 @@
 ---
 slug: trained-gpt-q&a-2
 title: "dlt AI Assistant provides answers you need!"
-image: /img/blog_gpt_QA2.jpg
+image: https://storage.googleapis.com/dlt-blog-images/blog_gpt_QA2.jpg
 authors:
   name: Tong Chen
   title: Data Engineer Intern at dltHub
@@ -100,7 +100,7 @@ Now we understand how `dlt` significantly improves our work efficiency!
   
 Want to ask your own questions to the `dlt` AI Assistant? Just click on the "Get Help" button located at the bottom right.
 
-![dlthelp](\img\dlthelp.jpg)  
+![dlthelp](https://storage.googleapis.com/dlt-blog-images/dlthelp.jpg)  
 
 *** 
 [ What's more? ]

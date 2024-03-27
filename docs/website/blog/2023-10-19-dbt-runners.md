@@ -1,7 +1,7 @@
 ---
 slug: dbt-runners-usage
 title: "Running dbt Cloud or core from python - use cases and simple solutions"
-image: /img/purple-python-spoderweb.png
+image: https://storage.googleapis.com/dlt-blog-images/purple-python-spoderweb.png
 authors:
   name: Adrian Brudaru
   title: Open source data engineer
