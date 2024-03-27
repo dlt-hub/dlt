@@ -234,7 +234,7 @@ response = client.get("/protected/resource")
 
 ## Advanced Usage
 
-RESTClient.paginate() allows to specify a custom hook function that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
+`RESTClient.paginate()` allows to specify a custom hook function that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
 ```py
 def custom_response_handler(response):
