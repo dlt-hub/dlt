@@ -1,7 +1,7 @@
 ---
 slug: data-product-docs
 title: "The role of docs in data products"
-image: /img/parrot-baby.gif
+image: https://storage.googleapis.com/dlt-blog-images/parrot-baby.gif
 authors:
   name: Adrian Brudaru
   title: Open source data engineer
@@ -54,7 +54,7 @@ Examples of data products:
 The term product assumes more than just some code.
 A "quick and dirty" pipeline is what you would call a "proof of concept" in the product world and far from a product.
 
-![Who the duck wrote this garbage??? Ah nvm… it was me…](/img/parrot-baby.gif)
+![Who the duck wrote this garbage??? Ah nvm… it was me…](https://storage.googleapis.com/dlt-blog-images/parrot-baby.gif)
 >  Who the duck wrote this trash??? Ahhhhh it was me :( ...
 
 To create a product, you need to consider how it will be used, by whom, and enable that usage by others.

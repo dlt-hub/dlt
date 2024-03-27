@@ -4,7 +4,7 @@ title: "Building resilient pipelines in minutes with dlt + Prefect"
 meta:
   - name: canonical
     content: https://www.prefect.io/blog/building-resilient-data-pipelines-in-minutes-with-dlt-prefect
-image: /img/prefect-dlt.png
+image: https://storage.googleapis.com/dlt-blog-images/prefect-dlt.png
 authors:
   name: Dylan Hughes & Chris Reuter
   title: Engineering & Community at Prefect.io

@@ -1,7 +1,7 @@
 ---
 slug: training-gpt-with-opensource-codebases
 title: "GPT-accelerated learning: Understanding open source codebases"
-image: /img/blog_gpt_1.jpg
+image: https://storage.googleapis.com/dlt-blog-images/blog_gpt_1.jpg
 authors:
   name: Tong Chen
   title: Data Engineer Intern at dltHub
@@ -150,7 +150,7 @@ After the walkthrough, we can start to experiment different questions and it wil
  
 Here, I asked " why should data teams use dlt? " 
 
-![chatgptq1](\img\chatgptQ1.png)  
+![chatgptq1](https://storage.googleapis.com/dlt-blog-images/chatgptQ1.png)  
 
 It outputted:
 
@@ -160,7 +160,7 @@ It outputted:
 
 Next, I asked " Who is dlt for? "  
 
-![chatgptq2](\img\chatgptQ2..png)  
+![chatgptq2](https://storage.googleapis.com/dlt-blog-images/chatgptQ2..png)  
 
 It outputted:
 1. `dlt` is meant to be accessible to every person on the data team, including data engineers, analysts, data scientists, and other stakeholders involved in data loading. It is designed to reduce knowledge requirements and enable collaborative working between engineers and analysts.

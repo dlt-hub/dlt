@@ -1,7 +1,7 @@
 ---
 slug: dlt-arrow-loading
 title: "Get 30x speedups when reading databases with ConnectorX + Arrow + dlt"
-image: /img/arrow_30x_faster.png
+image: https://storage.googleapis.com/dlt-blog-images/arrow_30x_faster.png
 authors:
   name: Marcin Rudolf
   title: dltHub CTO

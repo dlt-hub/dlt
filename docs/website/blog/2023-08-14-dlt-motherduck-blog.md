@@ -1,7 +1,7 @@
 ---
 slug: dlt-motherduck-demo
 title: "dlt-dbt-DuckDB-MotherDuck: My super simple and highly customizable approach to the Modern Data Stack in a box"
-image: /img/dlt-motherduck-logos.png
+image: https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-logos.png
 authors:
   name: Rahul Joshi
   title: Developer Relations at dltHub
@@ -25,11 +25,11 @@ In my example, I wanted to customize reports on top of Google Analytics 4 (GA4) 
   
 By first pulling all the data from different sources into DuckDB files in my laptop, I was able to do my development and customization locally.  
   
-![local-workflow](/img/dlt-motherduck-local-workflow.png)  
+![local-workflow](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-local-workflow.png)  
   
 And then when I was ready to move to production, I was able to seamlessly switch from DuckDB to MotherDuck with almost no code re-writing!  
   
-![production-workflow](/img/dlt-motherduck-production-workflow.png)  
+![production-workflow](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-production-workflow.png)  
   
 Thus I got a super simple and highly customizable MDS in a box that is also close to company production setting.  
   
@@ -90,11 +90,11 @@ This is a perfect problem to test out my new super simple and highly customizabl
         
         `dlt` simplifies this process by automatically normalizing such nested data on load.
         
-        ![nested-bigquery](/img/dlt-motherduck-nested-bigquery.png)
+        ![nested-bigquery](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-nested-bigquery.png)
         
         Example of what the nested data in BigQuery looks like.
         
-        ![normalized-bigquery](/img/dlt-motherduck-normalized-bigquery.png)
+        ![normalized-bigquery](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-normalized-bigquery.png)
         
         `dlt` loads the main data into table `ga_events`, and creates another table `ga_events__event_params` for the nested data.
     
@@ -109,7 +109,7 @@ This is a perfect problem to test out my new super simple and highly customizabl
     
     In this example, after running the BigQuery pipeline, the data was loaded into a locally created DuckDB file called ‘bigquery.duckdb’, and this allowed me to use python to the explore the loaded data:
     
-    ![duckdb-explore](/img/dlt-motherduck-duckdb-explore.png)
+    ![duckdb-explore](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-duckdb-explore.png)
     
     The best thing about using DuckDB is that it provides a local testing and development environment. This means that you can quickly and without any additional costs test and validate your workflow before deploying it to production.
     
@@ -127,13 +127,13 @@ This is a perfect problem to test out my new super simple and highly customizabl
     
     Metabase OSS has a DuckDB driver, which meant that I could simply point it to the DuckDB files in my system and build a dashboard on top of this data.
     
-    ![dashboard-1](/img/dlt-motherduck-dashboard-1.png)
+    ![dashboard-1](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-dashboard-1.png)
     
-    ![dashboard-2](/img/dlt-motherduck-dashboard-2.png)
+    ![dashboard-2](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-dashboard-2.png)
     
-    ![dashboard-3](/img/dlt-motherduck-dashboard-3.png)
+    ![dashboard-3](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-dashboard-3.png)
     
-    ![dashboard-4](/img/dlt-motherduck-dashboard-4.png)
+    ![dashboard-4](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-dashboard-4.png)
     
 5. **Going to production: Using MotherDuck as the destination**
     
@@ -169,7 +169,7 @@ This is a perfect problem to test out my new super simple and highly customizabl
         
         In my example, after I load the data to MotherDuck, I can provide access to my team just by clicking on ‘Share’ in the menu of their web UI.
         
-        ![motherduck-share](/img/dlt-motherduck-share.png)
+        ![motherduck-share](https://storage.googleapis.com/dlt-blog-images/dlt-motherduck-share.png)
 
 **Conclusion:**
 

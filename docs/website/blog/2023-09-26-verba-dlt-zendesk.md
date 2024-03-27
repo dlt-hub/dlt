@@ -1,7 +1,7 @@
 ---
 slug: verba-dlt-zendesk
 title: "Talk to your Zendesk tickets with Weaviate’s Verba and dlt: A Step by Step Guide"
-image: /img/dlt-business-knowledge-retrieval-augmented-generation-diagram.png
+image: https://storage.googleapis.com/dlt-blog-images/dlt-business-knowledge-retrieval-augmented-generation-diagram.png
 authors:
   name: Anton Burnashev
   title: Software Engineer
@@ -16,7 +16,7 @@ As businesses scale and the volume of internal knowledge grows, it becomes incre
 
 With the latest advancements in large language models (LLMs) and [vector databases](https://weaviate.io/blog/what-is-a-vector-database), it's now possible to build a new class of tools that can help get insights from this data. One approach to do so is Retrieval-Augmented Generation (RAG). The idea behind RAGs is to retrieve relevant information from your database and use LLMs to generate a customised response to a question. Leveraging RAG enables the LLM to tailor its responses based on your proprietary data.
 
-![Diagram illustrating the process of internal business knowledge retrieval and augmented generation (RAG), involving components like Salesforce, Zendesk, Asana, Jira, Notion, Slack and HubSpot, to answer user queries and generate responses.](/img/dlt-business-knowledge-retrieval-augmented-generation-diagram.png)
+![Diagram illustrating the process of internal business knowledge retrieval and augmented generation (RAG), involving components like Salesforce, Zendesk, Asana, Jira, Notion, Slack and HubSpot, to answer user queries and generate responses.](https://storage.googleapis.com/dlt-blog-images/dlt-business-knowledge-retrieval-augmented-generation-diagram.png)
 
 One such source of internal knowledge is help desk software. It contains a wealth of information about the company's customers and their interactions with the support team.
 
@@ -78,7 +78,7 @@ INFO:     Application startup complete.
 
 Now, open your browser and navigate to [http://localhost:8000](http://localhost:8000/).
 
-![A user interface screenshot showing Verba, retrieval and augmented generation chatbot, powered by Weaviate](/img/dlt-weaviate-verba-ui-1.png)
+![A user interface screenshot showing Verba, retrieval and augmented generation chatbot, powered by Weaviate](https://storage.googleapis.com/dlt-blog-images/dlt-weaviate-verba-ui-1.png)
 
 Great! Verba is up and running.
 
@@ -272,7 +272,7 @@ verba start
 
 Head back to [http://localhost:8000](http://localhost:8000/) and ask Verba a question. For example, "What are common issues our users report?".
 
-![A user interface screenshot of Verba showing Zendesk tickets with different issues like API problems and update failures, with responses powered by Weaviate](/img/dlt-weaviate-verba-ui-2.png)
+![A user interface screenshot of Verba showing Zendesk tickets with different issues like API problems and update failures, with responses powered by Weaviate](https://storage.googleapis.com/dlt-blog-images/dlt-weaviate-verba-ui-2.png)
 
 As you can see, Verba is able to retrieve relevant information from Zendesk Support and generate an answer to our question. It also displays the list of relevant documents for the question. You can click on them to see the full text.
 
