@@ -1,3 +1,33 @@
+"""
+---
+title: Similarity Searching with Qdrant
+description: Learn how to use the dlt source, Zendesk and dlt destination, Qdrant to conduct a similarity search on your tickets data.
+keywords: [similarity search, example]
+---
+
+This article outlines a system to map vectorized ticket data from Zendesk to Qdrant, similar to our guide on the topic concerning [Weaviate](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant). In this example, we will:
+- Connect to our [Zendesk source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/zendesk).
+- Extract tickets data from our Zendesk source.
+- [Create a dlt pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline) with Qdrant as destination.
+- Vectorize/embed the tickets data from Zendesk.
+- Pass the vectorized data to be stored in Qdrant via the dlt pipeline.
+- Query data that we stored in Qdrant.
+- Explore the similarity search results.
+
+First, configure the destination credentials for [Qdrant](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant#setup-guide) and [Zendesk](https://dlthub.com/docs/walkthroughs/zendesk-weaviate#configuration) in `.dlt/secrets.toml`.
+
+Next, make sure you have the following dependencies installed:
+
+```sh
+pip install qdrant-client>=1.6.9
+pip install fastembed>=0.1.1
+```
+
+"""
+
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
+__source_name__ = "zendesk"
+
 from typing import Optional, Dict, Any, Tuple
 
 import dlt
@@ -148,6 +178,9 @@ if __name__ == "__main__":
 
     print(load_info)
 
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
+
     # running the Qdrant client to connect to your Qdrant database
 
     @with_config(sections=("destination", "qdrant", "credentials"))
@@ -169,3 +202,8 @@ if __name__ == "__main__":
         query_text=["cancel", "cancel subscription"],  # prompt to search
         limit=3,  # limit the number of results to the nearest 3 embeddings
     )
+
+    assert len(response) <= 3 and len(response) > 0
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

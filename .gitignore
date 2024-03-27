@@ -12,7 +12,6 @@ experiments/*
 # !experiments/pipeline/
 # !experiments/pipeline/*
 secrets.toml
-!docs/**/secrets.toml
 *.session.sql
 *.duckdb
 *.wal
@@ -142,3 +141,6 @@ tmp
 
 # Qdrant embedding models cache
 local_cache/
+
+# test file for examples are generated and should not be committed
+docs/examples/**/test*.py

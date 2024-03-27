@@ -1,3 +1,26 @@
+"""
+---
+title: Google Sheets minimal example
+description: Learn how work with Google services
+keywords: [google sheets, credentials, example]
+---
+
+In this example, you'll find a Python script that demonstrates how to load Google Sheets data using the `dlt` library.
+
+We'll learn how to:
+- use [built-in credentials](../general-usage/credentials/config_specs#gcp-credentials);
+- use [union of credentials](../general-usage/credentials/config_specs#working-with-alternatives-of-credentials-union-types);
+- create [dynamically generated resources](../general-usage/source#create-resources-dynamically).
+
+:::tip
+This example is for educational purposes. For best practices, we recommend using [Google Sheets verified source](../dlt-ecosystem/verified-sources/google_sheets.md).
+:::
+
+"""
+
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
+__source_name__ = "google_sheets"
+
 from typing import Any, Iterator, Sequence, Union, cast
 
 from googleapiclient.discovery import build
@@ -64,10 +87,18 @@ if __name__ == "__main__":
     sheet_id = "1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
     range_names = ["hidden_columns_merged_cells", "Blank Columns"]
     # "2022-05", "model_metadata"
-    info = pipeline.run(
+    load_info = pipeline.run(
         google_spreadsheet(
             spreadsheet_id=sheet_id,
             sheet_names=range_names,
         )
     )
-    print(info)
+    print(load_info)
+
+    row_counts = pipeline.last_trace.last_normalize_info.row_counts
+    print(row_counts.keys())
+    assert row_counts["hidden_columns_merged_cells"] == 7
+    assert row_counts["blank_columns"] == 21
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
