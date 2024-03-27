@@ -11,6 +11,7 @@ from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import Destination
+from dlt.sources.helpers.transform import pivot
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -484,6 +485,27 @@ def test_transform_function_state_write() -> None:
         ]["form"]
         == 3
     )
+
+
+def test_transform_function_pivot() -> None:
+    @dlt.resource
+    def test_resource():
+        for row in (
+            [[1, 2, 3], [4, 5, 6]],
+            [[7, 8, 9], [10, 11, 12]],
+        ):
+            yield row
+
+    res = test_resource()
+    res.add_map(pivot(["a", "b", "c"], "prefix_"))
+
+    result = list(res)
+    assert result == [
+        {"prefix_a": 1, "prefix_b": 2, "prefix_c": 3},
+        {"prefix_a": 4, "prefix_b": 5, "prefix_c": 6},
+        {"prefix_a": 7, "prefix_b": 8, "prefix_c": 9},
+        {"prefix_a": 10, "prefix_b": 11, "prefix_c": 12},
+    ]
 
 
 def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
