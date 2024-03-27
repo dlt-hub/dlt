@@ -48,6 +48,7 @@ IMPLEMENTED_DESTINATIONS = {
     "destination",
     "synapse",
     "databricks",
+    "dremio",
 }
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "destination"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
@@ -60,7 +61,7 @@ EXCLUDED_DESTINATION_CONFIGURATIONS = set(
 
 # filter out active destinations for current tests
 ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
-
+ACTIVE_DESTINATIONS = {"dremio"}
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 

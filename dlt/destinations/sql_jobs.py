@@ -254,7 +254,7 @@ class SqlMergeJob(SqlBaseJob):
             1) To select the values for an INSERT INTO statement.
             2) To select the values for a temporary table used for inserts.
         """
-        order_by = "(SELECT NULL)"
+        order_by = "NULL"
         if dedup_sort is not None:
             order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
         if condition is None:

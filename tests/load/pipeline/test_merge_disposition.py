@@ -861,7 +861,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # compare observed records with expected records, now for child table
     qual_name = p.sql_client().make_qualified_table_name(table_name + "__val")
-    observed = [row[0] for row in select_data(p, f"SELECT value FROM {qual_name}")]
+    observed = [row[0] for row in select_data(p, f'SELECT "value" FROM {qual_name}')]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
     table_name = "test_dedup_sort_hint_with_hard_delete"
