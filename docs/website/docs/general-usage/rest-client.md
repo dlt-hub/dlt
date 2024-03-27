@@ -143,6 +143,12 @@ def get_data():
 
 This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub).
 
+##### Parameters:
+
+- `links_next_key`: The relation type (rel) to identify the next page link within the Link header. Defaults to "next".
+
+Note: normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may need to specify when the API uses a different relation type.
+
 #### OffsetPaginator
 
 `OffsetPaginator` handles pagination based on an offset and limit in the query parameters. This works only if the API returns the total number of items in the response.
@@ -151,14 +157,41 @@ This paginator handles pagination based on a link to the next page in the respon
 
 `JSONResponseCursorPaginator` handles pagination based on a cursor in the JSON response.
 
-### Authentication
+## Authentication
 
-The RESTClient supports various authentication strategies, such as bearer tokens, API keys, and HTTP basic auth, configured through the `auth` parameter of both the RESTClient and the paginate() method.
+The RESTClient supports various authentication strategies, such as bearer tokens, API keys, and HTTP basic auth, configured through the `auth` parameter of both the `RESTClient` and the `paginate()` method.
 
-The available authentication methods are:
-- `BearerTokenAuth`: For authenticating with a bearer token in the `Authorization` header. Example header: `Authorization: Bearer <token>`
-- `ApiKeyAuth`: For authenticating with an API key like `X-API-Key`.
-- `HttpBasicAuth`: For authenticating with HTTP basic auth.
+The available authentication methods are defined in the `dlt.sources.helpers.rest_client.auth` module.
+
+### Bearer Token Authentication (`BearerTokenAuth` class)
+
+Bearer Token Authentication is a widely used method where the client sends a token in the request's Authorization header (e.g. `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
+
+#### Parameters:
+
+- `token`: The bearer token to use for authentication.
+
+#### Example:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient, BearerTokenAuth
+
+client = RESTClient(
+    base_url="https://api.example.com",
+    auth=BearerTokenAuth(token="your_access_token_here")
+)
+
+for page in client.paginate("/protected/resource"):
+    print(page)
+```
+
+### `ApiKeyAuth`
+
+For authenticating with an API key like `X-API-Key`.
+
+### `HttpBasicAuth`
+
+For authenticating with HTTP basic auth.
 
 ## Advanced Usage
 
