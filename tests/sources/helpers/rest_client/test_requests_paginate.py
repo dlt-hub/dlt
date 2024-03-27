@@ -1,6 +1,6 @@
 import pytest
 
-from dlt.sources.helpers.requests import paginate
+from dlt.sources.helpers.rest_client import paginate
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 from .conftest import assert_pagination
 
