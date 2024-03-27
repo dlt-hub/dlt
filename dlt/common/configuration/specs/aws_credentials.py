@@ -121,3 +121,9 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
                 self.__is_resolved__ = True
         except Exception:
             raise InvalidBoto3Session(self.__class__, native_value)
+
+    @classmethod
+    def from_session(cls, botocore_session: Any) -> "AwsCredentials":
+        self = cls()
+        self.parse_native_representation(botocore_session)
+        return self

@@ -10,6 +10,7 @@
  */
 
 // @ts-check
+const fs = require('fs');
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
@@ -68,6 +69,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/personio',
             'dlt-ecosystem/verified-sources/pipedrive',
             'dlt-ecosystem/verified-sources/salesforce',
+            'dlt-ecosystem/verified-sources/scrapy',
             'dlt-ecosystem/verified-sources/shopify',
             'dlt-ecosystem/verified-sources/sql_database',
             'dlt-ecosystem/verified-sources/slack',
@@ -216,7 +218,7 @@ const sidebars = {
             'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
-            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+            'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
           ]
         },
         {
@@ -292,7 +294,6 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
-        require("./docs/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
         'reference/telemetry',
@@ -306,6 +307,15 @@ const sidebars = {
     // }
   ]
 };
+
+// inject api reference if it exists
+if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
+  for (const item of sidebars.tutorialSidebar) {
+    if (item.label === 'Reference') {
+      item.items.splice(0,0,require("./docs_processed/api_reference/sidebar.json"));
+    }
+  }
+}
 
 // on the master branch link to devel and vice versa
 if (process.env.IS_MASTER_BRANCH) {

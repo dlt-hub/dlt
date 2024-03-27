@@ -76,8 +76,7 @@ def data_to_sources(
         """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
         if schema:
             schema_ = schema
-        # TODO: We should start with a new schema of the same name here ideally, but many tests fail
-        # because of this. So some investigation is needed.
+        # take pipeline schema to make newest version visible to the resources
         elif pipeline.default_schema_name:
             schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
         else:

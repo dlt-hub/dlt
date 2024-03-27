@@ -9,13 +9,13 @@ from dlt.common.typing import TSecretValue
 class DBTCloudConfiguration(BaseConfiguration):
     api_token: TSecretValue = TSecretValue("")
 
-    account_id: Optional[str]
-    job_id: Optional[str]
-    project_id: Optional[str]
-    environment_id: Optional[str]
-    run_id: Optional[str]
+    account_id: Optional[str] = None
+    job_id: Optional[str] = None
+    project_id: Optional[str] = None
+    environment_id: Optional[str] = None
+    run_id: Optional[str] = None
 
     cause: str = "Triggered via API"
-    git_sha: Optional[str]
-    git_branch: Optional[str]
-    schema_override: Optional[str]
+    git_sha: Optional[str] = None
+    git_branch: Optional[str] = None
+    schema_override: Optional[str] = None

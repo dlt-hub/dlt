@@ -1,10 +1,13 @@
+---
+title: Notion
+description: dlt pipeline for Notion API
+keywords: [notion api, notion pipeline, notion]
+---
+import Header from './_source-info-header.md';
+
 # Notion
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Notion](https://www.notion.so/) is a flexible workspace tool for organizing personal and
 professional tasks, offering customizable notes, documents, databases, and more.
@@ -189,16 +192,4 @@ uniquely identifies a specific page or database.
 The database name ("use_name") is optional; if skipped, the pipeline will fetch it from Notion
 automatically.
 
-<!--@@@DLT_SNIPPET_START tuba::notion-->
-## Additional Setup guides
-
-- [Load data from Notion to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-bigquery)
-- [Load data from Notion to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-athena)
-- [Load data from Notion to Redshift in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-redshift)
-- [Load data from Notion to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-synapse)
-- [Load data from Notion to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
-- [Load data from Notion to Databricks in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-databricks)
-- [Load data from Notion to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-duckdb)
-- [Load data from Notion to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-snowflake)
-- [Load data from Notion to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-mssql)
-<!--@@@DLT_SNIPPET_END tuba::notion-->
+<!--@@@DLT_TUBA notion-->

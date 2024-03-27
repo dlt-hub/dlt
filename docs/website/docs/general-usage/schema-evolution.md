@@ -97,7 +97,7 @@ What happened?
 - Removed column stopped loading:
     - New data to column `room` is not loaded.
 - Column stopped loading and new one was added:
-    - A new column `address__building` was added and now data will be loaded to that and stop loading in the column `address__main_block`.
+    - A new column `address__main_block` was added and now data will be loaded to that and stop loading in the column `address__building`.
 
 ## Alert schema changes to curate new data
 
@@ -163,7 +163,7 @@ data = [{
 
 pipeline = dlt.pipeline("organizations_pipeline", destination="duckdb")
 # Adding not null constraint
-pipeline.run(data, table_name="org", columns={"room": {"data_type": "integer", "nullable": False}})
+pipeline.run(data, table_name="org", columns={"room": {"data_type": "bigint", "nullable": False}})
 ```
 During pipeline execution a data validation error indicates that a removed column is being passed as null.
 

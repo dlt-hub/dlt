@@ -35,13 +35,13 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    DestinationClientDwhWithStagingConfiguration,
     NewLoadJob,
     WithStagingDataset,
     TLoadJobState,
@@ -50,15 +50,10 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
 )
-from dlt.destinations.exceptions import (
-    DatabaseUndefinedRelation,
-    DestinationSchemaTampered,
-    DestinationSchemaWillNotUpdate,
-)
+
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
-
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -539,10 +534,6 @@ WHERE """
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
-        # make sure that schema being saved was not modified from the moment it was loaded from storage
-        version_hash = schema.version_hash
-        if version_hash != schema.stored_version_hash:
-            raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())
         # TODO: not all databases store data as utf-8 but this exception is mostly for redshift

@@ -268,8 +268,43 @@ settings:
     re:^updated_at$: timestamp
     re:^_dlt_list_idx$: bigint
 ```
+### Applying data types directly with `@dlt.resource` and `apply_hints`
+`dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
+
+### Direct specification in `@dlt.resource`
+Directly define data types and their properties, such as nullability, within the `@dlt.resource` decorator. This eliminates the dependency on external schema files. For example:
+
+```py
+@dlt.resource(name='my_table', columns={"my_column": {"data_type": "bool", "nullable": True}})
+def my_resource():
+    for i in range(10):
+        yield {'my_column': i % 2 == 0}
+```
+This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
+
+#### Using `apply_hints`
+When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
+
+For example, to apply a complex data type across all collections from a MongoDB source:
+
+```py
+all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
+source_data = mongodb().with_resources(*all_collections)
+
+for col in all_collections:
+    source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "complex"}})
+
+pipeline = dlt.pipeline(
+    pipeline_name="mongodb_pipeline",
+    destination="duckdb",
+    dataset_name="mongodb_data"
+)
+load_info = pipeline.run(source_data)
+```
+This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## Export and import schema files
+
 
 Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
 schema files in your pipeline.
@@ -317,7 +352,7 @@ def textual(nesting_level: int):
     schema.remove_type_detection("iso_timestamp")
     # convert UNIX timestamp (float, withing a year from NOW) into timestamp
     schema.add_type_detection("timestamp")
-    schema.compile_settings()
+    schema._compile_settings()
 
-    return dlt.resource(...)
+    return dlt.resource([])
 ```

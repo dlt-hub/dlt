@@ -16,9 +16,12 @@ from typing import (
 
 from dlt.common import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 from dlt.common.destination.reference import (
     FollowupJob,
     NewLoadJob,
@@ -32,10 +35,7 @@ from dlt.common.destination.reference import (
 from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
     LoadJobInvalidStateTransitionException,
-    DestinationTerminalException,
-    DestinationTransientException,
 )
-
 from dlt.destinations.impl.dummy import capabilities
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob

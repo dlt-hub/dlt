@@ -3,14 +3,11 @@ title: GitHub
 description: dlt verified source for GitHub API
 keywords: [github api, github verified source, github]
 ---
+import Header from './_source-info-header.md';
 
 # GitHub
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 This verified source can be used to load data on issues or pull requests from any GitHub repository
 onto a [destination](../../dlt-ecosystem/destinations) of your choice using [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28).
@@ -289,16 +286,4 @@ verified source.
 
    It is optional to use `access_token` or make anonymous API calls.
 
-<!--@@@DLT_SNIPPET_START tuba::github-->
-## Additional Setup guides
-
-- [Load data from GitHub to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
-- [Load data from GitHub to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-athena)
-- [Load data from GitHub to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-snowflake)
-- [Load data from GitHub to Databricks in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-databricks)
-- [Load data from GitHub to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-bigquery)
-- [Load data from GitHub to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-mssql)
-- [Load data from GitHub to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-synapse)
-- [Load data from GitHub to Redshift in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-redshift)
-- [Load data from GitHub to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-duckdb)
-<!--@@@DLT_SNIPPET_END tuba::github-->
+<!--@@@DLT_TUBA github-->

@@ -5,17 +5,17 @@ from threading import Thread, Event
 from time import sleep
 
 from dlt.common import pendulum, Decimal
-from dlt.common.exceptions import IdentifierTooLongException
+from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
-from dlt.common.utils import derives_from_class_of_name, uniq_id
+from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import (
     DatabaseException,
     DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
@@ -570,7 +570,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error

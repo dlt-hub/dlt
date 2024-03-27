@@ -1,10 +1,13 @@
+---
+title: Matomo
+description: dlt verified source for Matomo
+keywords: [matomo api, matomo verified source, matomo]
+---
+import Header from './_source-info-header.md';
+
 # Matomo
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 Matomo is a free and open-source web analytics platform that provides detailed insights into website and application performance with features like visitor maps, site search analytics, real-time visitor tracking, and custom reports.
 
@@ -304,5 +307,4 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::matomo-->
-<!--@@@DLT_SNIPPET_END tuba::matomo-->
+<!--@@@DLT_TUBA matomo-->

@@ -2,6 +2,7 @@ import copy
 import inspect
 import contextlib
 import dataclasses
+import warnings
 
 from collections.abc import Mapping as C_Mapping
 from typing import (
@@ -19,7 +20,7 @@ from typing import (
     ClassVar,
     TypeVar,
 )
-from typing_extensions import get_args, get_origin
+from typing_extensions import get_args, get_origin, dataclass_transform
 from functools import wraps
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ from dlt.common.configuration.exceptions import (
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
 _T = TypeVar("_T", bound="BaseConfiguration")
+_C = TypeVar("_C", bound="CredentialsConfiguration")
 
 
 def is_base_configuration_inner_hint(inner_hint: Type[Any]) -> bool:
@@ -106,17 +108,25 @@ def is_secret_hint(hint: Type[Any]) -> bool:
 
 
 @overload
-def configspec(cls: Type[TAnyClass]) -> Type[TAnyClass]: ...
+def configspec(cls: Type[TAnyClass], init: bool = True) -> Type[TAnyClass]: ...
 
 
 @overload
-def configspec(cls: None = ...) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]: ...
-
-
 def configspec(
-    cls: Optional[Type[Any]] = None,
+    cls: None = ..., init: bool = True
+) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]: ...
+
+
+@dataclass_transform(eq_default=False, field_specifiers=(dataclasses.Field, dataclasses.field))
+def configspec(
+    cls: Optional[Type[Any]] = None, init: bool = True
 ) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
     """Converts (via derivation) any decorated class to a Python dataclass that may be used as a spec to resolve configurations
+
+    __init__ method is synthesized by default. `init` flag is ignored if the decorated class implements custom __init__ as well as
+    when any of base classes has no synthesized __init__
+
+    All fields must have default values. This decorator will add `None` default values that miss one.
 
     In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
     or other types (parsing, deserialization) and control over configuration resolution process. See `BaseConfiguration` and CredentialsConfiguration` for
@@ -142,6 +152,10 @@ def configspec(
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_")):
+                warnings.warn(
+                    f"Missing default value for field {ann} on {cls.__name__}. None assumed. All"
+                    " fields in configspec must have default."
+                )
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
         for att_name, att_value in list(cls.__dict__.items()):
@@ -177,17 +191,18 @@ def configspec(
 
         # We don't want to overwrite user's __init__ method
         # Create dataclass init only when not defined in the class
-        # (never put init on BaseConfiguration itself)
-        try:
-            is_base = cls is BaseConfiguration
-        except NameError:
-            is_base = True
-        init = False
-        base_params = getattr(cls, "__dataclass_params__", None)
-        if not is_base and (base_params and base_params.init or cls.__init__ is object.__init__):
-            init = True
+        # NOTE: any class without synthesized __init__ breaks the creation chain
+        has_default_init = super(cls, cls).__init__ == cls.__init__  # type: ignore[misc]
+        base_params = getattr(cls, "__dataclass_params__", None)  # cls.__init__ is object.__init__
+        synth_init = init and ((not base_params or base_params.init) and has_default_init)
+        if synth_init != init and has_default_init:
+            warnings.warn(
+                f"__init__ method will not be generated on {cls.__name__} because bas class didn't"
+                " synthesize __init__. Please correct `init` flag in confispec decorator. You are"
+                " probably receiving incorrect __init__ signature for type checking"
+            )
         # do not generate repr as it may contain secret values
-        return dataclasses.dataclass(cls, init=init, eq=False, repr=False)  # type: ignore
+        return dataclasses.dataclass(cls, init=synth_init, eq=False, repr=False)  # type: ignore
 
     # called with parenthesis
     if cls is None:
@@ -198,12 +213,14 @@ def configspec(
 
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
-    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False)
+    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False, compare=False)
     """True when all config fields were resolved and have a specified value type"""
-    __section__: str = dataclasses.field(default=None, init=False, repr=False)
-    """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __exception__: Exception = dataclasses.field(default=None, init=False, repr=False)
+    __exception__: Exception = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
     """Holds the exception that prevented the full resolution"""
+    __section__: ClassVar[str] = None
+    """Obligatory section used by config providers when searching for keys, always present in the search path"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
@@ -342,9 +359,10 @@ _F_BaseConfiguration = BaseConfiguration
 class CredentialsConfiguration(BaseConfiguration):
     """Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets."""
 
-    __section__: str = "credentials"
+    __section__: ClassVar[str] = "credentials"
 
-    def __init__(self, init_value: Any = None) -> None:
+    @classmethod
+    def from_init_value(cls: Type[_C], init_value: Any = None) -> _C:
         """Initializes credentials from `init_value`
 
         Init value may be a native representation of the credentials or a dict. In case of native representation (for example a connection string or JSON with service account credentials)
@@ -353,14 +371,10 @@ class CredentialsConfiguration(BaseConfiguration):
 
         Credentials will be marked as resolved if all required fields are set.
         """
-        if init_value is None:
-            return
-        elif isinstance(init_value, C_Mapping):
-            self.update(init_value)
-        else:
-            self.parse_native_representation(init_value)
-        if not self.is_partial():
-            self.resolve()
+        # create an instance
+        self = cls()
+        self._apply_init_value(init_value)
+        return self
 
     def to_native_credentials(self) -> Any:
         """Returns native credentials object.
@@ -368,6 +382,16 @@ class CredentialsConfiguration(BaseConfiguration):
         By default calls `to_native_representation` method.
         """
         return self.to_native_representation()
+
+    def _apply_init_value(self, init_value: Any = None) -> None:
+        if isinstance(init_value, C_Mapping):
+            self.update(init_value)
+        elif init_value is not None:
+            self.parse_native_representation(init_value)
+        else:
+            return
+        if not self.is_partial():
+            self.resolve()
 
     def __str__(self) -> str:
         """Get string representation of credentials to be displayed, with all secret parts removed"""

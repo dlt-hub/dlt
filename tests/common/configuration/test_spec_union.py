@@ -26,8 +26,8 @@ class ZenCredentials(CredentialsConfiguration):
 
 @configspec
 class ZenEmailCredentials(ZenCredentials):
-    email: str
-    password: TSecretValue
+    email: str = None
+    password: TSecretValue = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         assert isinstance(native_value, str)
@@ -44,8 +44,8 @@ class ZenEmailCredentials(ZenCredentials):
 
 @configspec
 class ZenApiKeyCredentials(ZenCredentials):
-    api_key: str
-    api_secret: TSecretValue
+    api_key: str = None
+    api_secret: TSecretValue = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         assert isinstance(native_value, str)
@@ -62,14 +62,14 @@ class ZenApiKeyCredentials(ZenCredentials):
 
 @configspec
 class ZenConfig(BaseConfiguration):
-    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials]
+    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials] = None
     some_option: bool = False
 
 
 @configspec
 class ZenConfigOptCredentials:
     # add none to union to make it optional
-    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, None]
+    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, None] = None
     some_option: bool = False
 
 
@@ -200,10 +200,10 @@ class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
     This class is used to store credentials Google Analytics
     """
 
-    client_id: str
-    client_secret: TSecretValue
-    project_id: TSecretValue
-    refresh_token: TSecretValue
+    client_id: str = None
+    client_secret: TSecretValue = None
+    project_id: TSecretValue = None
+    refresh_token: TSecretValue = None
     access_token: Optional[TSecretValue] = None
 
 

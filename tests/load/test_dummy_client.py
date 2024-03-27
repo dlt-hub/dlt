@@ -6,8 +6,7 @@ from unittest.mock import patch
 from typing import List
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
-from dlt.common.schema.typing import TWriteDisposition
-from dlt.common.storages import FileStorage, LoadStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
 from dlt.common.destination.reference import LoadJob, TDestination
@@ -814,7 +813,9 @@ def setup_loader(
     if filesystem_staging:
         # do not accept jsonl to not conflict with filesystem destination
         client_config = client_config or DummyClientConfiguration(loader_file_format="reference")
-        staging_system_config = FilesystemDestinationClientConfiguration(dataset_name="dummy")
+        staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy"
+        )
         staging_system_config.as_staging = True
         os.makedirs(REMOTE_FILESYSTEM)
         staging = filesystem(bucket_url=REMOTE_FILESYSTEM)

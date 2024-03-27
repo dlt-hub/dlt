@@ -13,6 +13,9 @@ NORMALIZE = "normalize"
 EXTRACT = "extract"
 """extract stage of the pipeline"""
 
+SCHEMA = "schema"
+"""schema configuration, ie. normalizers"""
+
 PROVIDERS = "providers"
 """secrets and config providers"""
 

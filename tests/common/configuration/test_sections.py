@@ -25,33 +25,33 @@ from tests.common.configuration.utils import (
 
 @configspec
 class SingleValConfiguration(BaseConfiguration):
-    sv: str
+    sv: str = None
 
 
 @configspec
 class EmbeddedConfiguration(BaseConfiguration):
-    sv_config: Optional[SingleValConfiguration]
+    sv_config: Optional[SingleValConfiguration] = None
 
 
 @configspec
 class EmbeddedWithSectionedConfiguration(BaseConfiguration):
-    embedded: SectionedConfiguration
+    embedded: SectionedConfiguration = None
 
 
 @configspec
 class EmbeddedIgnoredConfiguration(BaseConfiguration):
     # underscore prevents the field name to be added to embedded sections
-    _sv_config: Optional[SingleValConfiguration]
+    _sv_config: Optional[SingleValConfiguration] = None
 
 
 @configspec
 class EmbeddedIgnoredWithSectionedConfiguration(BaseConfiguration):
-    _embedded: SectionedConfiguration
+    _embedded: SectionedConfiguration = None
 
 
 @configspec
 class EmbeddedWithIgnoredEmbeddedConfiguration(BaseConfiguration):
-    ignored_embedded: EmbeddedIgnoredWithSectionedConfiguration
+    ignored_embedded: EmbeddedIgnoredWithSectionedConfiguration = None
 
 
 def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider) -> None:

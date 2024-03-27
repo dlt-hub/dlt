@@ -15,7 +15,7 @@ Note: All paths in this guide are relative to the `dlt` repository directory.
     - In the section `<Header info=` add the tl;dr for your example, it should be short but informative.
     - Set `slug="<example-name>" run_file="<snippet-name>" />`.
     - List what users will learn from this example. Use bullet points and link corresponding documentation pages.
-    - Use tags `<!--@@@DLT_SNIPPET_START ./code/<snippet-name>-snippets.py::smal_part_of_code-->` to insert example code snippets. Do not write them manually!
+    - Use tags `<!--@@@DLT_SNIPPET ./code/<snippet-name>-snippets.py::smal_part_of_code-->` to insert example code snippets. Do not write them manually!
 
 ## Add tests
 

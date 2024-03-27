@@ -3,14 +3,11 @@ title: Personio
 description: dlt verified source for Personio API
 keywords: [personio api, personio verified source, personio]
 ---
+import Header from './_source-info-header.md';
 
 # Personio
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 Personio is a human resources management software that helps businesses streamline HR processes,
 including recruitment, employee data management, and payroll, in one platform.
@@ -255,5 +252,4 @@ verified source.
    print(pipeline.run(load_data))
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::personio-->
-<!--@@@DLT_SNIPPET_END tuba::personio-->
+<!--@@@DLT_TUBA personio-->

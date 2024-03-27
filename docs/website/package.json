@@ -4,16 +4,16 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_snippets.js && node tools/update_version_env.js && docusaurus start",
-    "watch-snippets": "node tools/update_snippets.js --watch",
-    "build": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_snippets.js && node tools/update_version_env.js && docusaurus build",
-    "build:netlify": "PYTHONPATH=. pydoc-markdown && node tools/update_snippets.js && node tools/update_version_env.js && docusaurus build --out-dir build/docs",
+    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_version_env.js && node tools/preprocess_docs.js && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
+    "build": "node tools/preprocess_docs.js  && PYTHONPATH=. poetry run pydoc-markdown && node tools/update_version_env.js && docusaurus build",
+    "build:netlify": "node tools/preprocess_docs.js && PYTHONPATH=. pydoc-markdown && node tools/update_version_env.js && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "update-snippets": "node tools/update_snippets.js"
+    "preprocess-docs": "node tools/preprocess_docs.js",
+    "generate-api-reference": "PYTHONPATH=. poetry run pydoc-markdown"
   },
   "dependencies": {
     "@docusaurus/core": "2.4.1",
@@ -33,7 +33,8 @@
     "toml": "^3.0.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "2.4.1"
+    "@docusaurus/module-type-aliases": "2.4.1",
+    "concurrently": "^8.2.2"
   },
   "browserslist": {
     "production": [

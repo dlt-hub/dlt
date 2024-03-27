@@ -14,7 +14,7 @@ from cryptography.x509.oid import NameOID
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import LoadJob, TDestination
+from dlt.common.destination.reference import LoadJob
 from dlt.common.pendulum import timedelta, __utcnow
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -24,11 +24,11 @@ from tests.load.utils import prepare_load_package
 
 
 def setup_loader(dataset_name: str) -> Load:
-    destination: TDestination = filesystem()  # type: ignore[assignment]
-    config = filesystem.spec(dataset_name=dataset_name)
+    destination = filesystem()
+    config = destination.spec()._bind_dataset_name(dataset_name=dataset_name)
     # setup loader
     with Container().injectable_context(ConfigSectionContext(sections=("filesystem",))):
-        return Load(destination, initial_client_config=config)
+        return Load(destination, initial_client_config=config)  # type: ignore[arg-type]
 
 
 @contextmanager

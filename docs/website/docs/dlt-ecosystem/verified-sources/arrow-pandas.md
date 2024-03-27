@@ -3,14 +3,11 @@ title: Arrow Table / Pandas
 description: dlt source for Arrow tables and Pandas dataframes
 keywords: [arrow, pandas, parquet, source]
 ---
+import Header from './_source-info-header.md';
 
 # Arrow Table / Pandas
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 You can load data directly from an Arrow table or Pandas dataframe.
 This is supported by all destinations, but recommended especially when using destinations that support the `parquet` file format natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).

@@ -38,7 +38,7 @@ Here’s how a pipeline could look:
 
 The data being used is of a questionnaire, which includes questions, the options of those questions, respondents and responses. This data is contained within a nested json object, that we’ll pass as a raw source to `dlt` to structure, normalize and dump into a BigQuery destination.
 
-```python
+```py
 # initializing the dlt pipeline with your data warehouse destination
 pipeline = dlt.pipeline(
     pipeline_name="survey_pipeline",
@@ -89,20 +89,20 @@ measures:
   - name: surveys_total
     description: The total surveys for each --dimension.
     agg: count
-		# if all rows need to be counted then expr = 1
+    # if all rows need to be counted then expr = 1
     expr: 1
 # where in SQL you would: group by columns
 dimensions:
-	# default dbt requirement
+  # default dbt requirement
   - name: surveyed_at
     type: time
     type_params:
         time_granularity: day
   # count entry per answer
-	- name: people_per_color
+  - name: people_per_color
     type: categorical
     expr: answer
-	# count entry per question
+  # count entry per question
   - name: question
     type: categorical
     expr: question
@@ -117,10 +117,10 @@ metrics:
     type: simple
     label: Favorite Colors
     type_params:
-			# reference of the measure created in the semantic model
+        # reference of the measure created in the semantic model
       measure: surveys_total
-		filter: | # adding a filter on the "question" column for asking about favorite color
-			{{  Dimension('id__question') }} = 'What is your favorite color?'
+    filter: | # adding a filter on the "question" column for asking about favorite color
+       {{  Dimension('id__question') }} = 'What is your favorite color?'
 ```
 
 The DAG then looks like this:
