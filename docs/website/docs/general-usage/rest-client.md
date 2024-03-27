@@ -125,7 +125,8 @@ Suppose the API response for `https://api.example.com/posts` looks like this:
 To paginate this response, you can use the `JSONResponsePaginator` with the `next_url_path` set to `"pagination.next"`:
 
 ```py
-from dlt.sources.helpers.rest_client import RESTClient, JSONResponsePaginator
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 
 client = RESTClient(
     base_url="https://api.example.com",
@@ -163,9 +164,9 @@ The RESTClient supports various authentication strategies, such as bearer tokens
 
 The available authentication methods are defined in the `dlt.sources.helpers.rest_client.auth` module.
 
-### Bearer Token Authentication (`BearerTokenAuth` class)
+### Bearer Token Authentication
 
-Bearer Token Authentication is a widely used method where the client sends a token in the request's Authorization header (e.g. `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
+Bearer Token Authentication (`BearerTokenAuth`) is an auth method where the client sends a token in the request's Authorization header (e.g. `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
 
 #### Parameters:
 
@@ -174,7 +175,8 @@ Bearer Token Authentication is a widely used method where the client sends a tok
 #### Example:
 
 ```py
-from dlt.sources.helpers.rest_client import RESTClient, BearerTokenAuth
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 client = RESTClient(
     base_url="https://api.example.com",
@@ -185,13 +187,50 @@ for page in client.paginate("/protected/resource"):
     print(page)
 ```
 
-### `ApiKeyAuth`
+### API Key Authentication
 
-For authenticating with an API key like `X-API-Key`.
+API Key Authentication (`ApiKeyAuth`) is an auth method where the client sends an API key in a custom header (e.g. `X-API-Key: <key>`, or as a query parameter).
 
-### `HttpBasicAuth`
+#### Parameters:
 
-For authenticating with HTTP basic auth.
+- `name`: The name of the header or query parameter to use for the API key.
+- `api_key`: The API key to use for authentication.
+- `location`: The location of the API key (`header` or `query`). Defaults to "header".
+
+#### Example:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import APIKeyAuth
+
+auth = APIKeyAuth(name="X-API-Key", api_key="your_api_key_here", location="header")
+
+# Create a RESTClient instance with API Key Authentication
+client = RESTClient(base_url="https://api.example.com", auth=auth)
+
+response = client.get("/protected/resource")
+```
+
+### HTTP Basic Authentication
+
+HTTP Basic Authentication is a simple authentication scheme built into the HTTP protocol. It sends a username and password encoded in the Authorization header.
+
+#### Parameters:
+
+- `username`: The username for basic authentication.
+- `password`: The password for basic authentication.
+
+#### Example:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
+
+auth = HttpBasicAuth(username="your_username", password="your_password")
+client = RESTClient(base_url="https://api.example.com", auth=auth)
+
+response = client.get("/protected/resource")
+```
 
 ## Advanced Usage
 
@@ -213,7 +252,7 @@ The handler function may raise `IgnoreResponseException` to exit the pagination 
 The `paginate()` helper function provides a shorthand for paginating API responses. It takes the same parameters as the `RESTClient.paginate()` method but automatically creates a RESTClient instance with the specified base URL:
 
 ```py
-from dlt.sources.helpers.requests import paginate
+from dlt.sources.helpers.rest_client import paginate
 
 for page in paginate("https://api.example.com/posts"):
     print(page)
