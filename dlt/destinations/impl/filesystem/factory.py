@@ -5,6 +5,7 @@ from dlt.destinations.impl.filesystem.configuration import FilesystemDestination
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.destinations.path_utils import PathParams
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -31,6 +32,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         current_datetime: t.Optional[datetime] = None,
         datetime_format: t.Optional[str] = None,
         layout_params: t.Optional[t.Dict[str, t.Any]] = None,
+        suffix_fn: t.Optional[t.Callable[[PathParams], str]] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
@@ -54,6 +56,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             datetime_format: strftime formatting for current_datetime
             layout_params: custom layout parameters, all unknown parameters will be skipped,
                 values can be primitive types or callables which also should return a primitive type.
+            suffix_fn: a callback if specified will be called to generate a suffix string to final path
             **kwargs: Additional arguments passed to the destination config
         """
         # TODO: validate parameters
@@ -64,6 +67,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             current_datetime=current_datetime,
             datetime_format=datetime_format,
             layout_params=layout_params,
+            suffix_fn=suffix_fn,
             environment=environment,
             **kwargs,
         )
