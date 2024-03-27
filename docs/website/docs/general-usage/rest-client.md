@@ -95,11 +95,61 @@ Each `PageData` instance contains the data for a single page, along with context
 
 ### Paginators
 
-Paginators are used to handle paginated responses. The `RESTClient` class comes with built-in paginators for common pagination mechanisms:
- - `JSONResponsePaginator`: Handles pagination based on a link to the next page in the JSON response.
- - `HeaderLinkPaginator`: Handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub).
- - `OffsetPaginator`: Handles pagination based on an offset and limit in the query parameters. This works only if the API returns the total number of items in the response.
- - `JSONResponseCursorPaginator`: Handles pagination based on a cursor in the JSON response.
+Paginators are used to handle paginated responses. The `RESTClient` class comes with built-in paginators for common pagination mechanisms.
+
+#### JSONResponsePaginator
+
+`JSONResponsePaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSON path to locate the next page URL within the JSON response.
+
+##### Parameters:
+
+- `next_url_path`: A JSON path string pointing to the key in the JSON response that contains the next page URL.
+
+###### Example:
+
+Suppose the API response for `https://api.example.com/posts` looks like this:
+
+```json
+{
+    "data": [
+        {"id": 1, "title": "Post 1"},
+        {"id": 2, "title": "Post 2"},
+        {"id": 3, "title": "Post 3"}
+    ],
+    "pagination": {
+        "next": "https://api.example.com/posts?page=2"
+    }
+}
+```
+
+To paginate this response, you can use the `JSONResponsePaginator` with the `next_url_path` set to `"pagination.next"`:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient, JSONResponsePaginator
+
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=JSONResponsePaginator(next_url_path="pagination.next")
+)
+
+@dlt.resource
+def get_data():
+    for page in client.paginate("/posts"):
+        yield page
+```
+
+
+#### HeaderLinkPaginator
+
+This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub).
+
+#### OffsetPaginator
+
+`OffsetPaginator` handles pagination based on an offset and limit in the query parameters. This works only if the API returns the total number of items in the response.
+
+#### JSONResponseCursorPaginator
+
+`JSONResponseCursorPaginator` handles pagination based on a cursor in the JSON response.
 
 ### Authentication
 
