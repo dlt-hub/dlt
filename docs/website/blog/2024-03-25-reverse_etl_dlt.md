@@ -169,7 +169,7 @@ info = pipeline.run(source=source)
 
 ```
 
-In this setup, **`send_to_google_sheets`** acts as a custom destination within your dlt pipeline, pushing the fetched data to the specified Google Sheet. This method enables streamlined and secure data operations, fully utilizing Python's capabilities for Reverse ETL processes into Google Sheets.
+In this setup, **`append_to_google_sheets`** acts as a custom destination within your dlt pipeline, pushing the fetched data to the specified Google Sheet. This method enables streamlined and secure data operations, fully utilizing Python's capabilities for Reverse ETL processes into Google Sheets.
 
 ## What does dlt do for me here?
 
