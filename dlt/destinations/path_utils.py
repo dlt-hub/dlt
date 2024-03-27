@@ -8,9 +8,18 @@ import re
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 
 # TODO: ensure layout only has supported placeholders
-SUPPORTED_PLACEHOLDERS = {"schema_name", "table_name", "load_id", "file_id", "ext", "curr_date"}
+SUPPORTED_PLACEHOLDERS = {
+    "schema_name",
+    "table_name",
+    "load_id",
+    "file_id",
+    "ext",
+    "curr_date",
+    "timestamp",
+}
 
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
+
 
 @dataclass
 class PathParams:
@@ -27,6 +36,7 @@ class PathParams:
     # called and resulting data provided here
     date_format: Optional[str] = None
     layout_params: Optional[Dict[str, str]] = None
+    suffix: Optional[str] = None
 
 
 def check_layout(layout: str, layout_params: Optional[Dict[str, str]] = None) -> List[str]:
@@ -56,11 +66,15 @@ def create_path(params: PathParams) -> str:
         load_id=params.load_id,
         file_id=params.file_id,
         ext=params.ext,
-        curr_date=str(pendulum.today()),
+        curr_date=params.curr_date.today(),
     )
     # if extension is not defined, we append it at the end
     if "ext" not in placeholders:
         path += f".{params.ext}"
+
+    if params.suffix:
+        path += params.suffix
+
     return path
 
 

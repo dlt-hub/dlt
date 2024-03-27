@@ -1,9 +1,7 @@
-import inspect
 import dataclasses
 
-from typing import Callable, Dict, Final, Type, Optional, TypeAlias, Union, get_args
+from typing import Callable, Dict, Final, Type, Optional, TypeAlias, Union
 
-import pendulum
 
 from pendulum.datetime import DateTime
 from dlt.common.configuration import configspec, resolve_type
@@ -13,7 +11,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.schema.schema import Schema
 from dlt.common.storages import FilesystemConfiguration
-from dlt.destinations.path_utils import check_layout
+from dlt.destinations.path_utils import PathParams, check_layout
 
 TCurrentDatetimeCallback: TypeAlias = Callable[[], DateTime]
 """A callback which should return current datetime"""
@@ -38,6 +36,7 @@ class FilesystemDestinationClientConfiguration(
     current_datetime: Optional[Union[DateTime, TCurrentDatetimeCallback]] = None
     datetime_format: Optional[TDatetimeFormat] = None
     layout_params: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
+    suffix: Optional[Callable[[PathParams], str]] = None
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -54,16 +53,16 @@ class FilesystemDestinationClientConfiguration(
         # if it is not DateTime then exit.
         if self.current_datetime is not None:
             if callable(self.current_datetime):
-                signature = inspect.signature(self.current_datetime)
-                if signature.return_annotation is inspect._empty:
-                    result = self.current_datetime()
-                    if not isinstance(result, DateTime):
-                        raise RuntimeError(
-                            "current_datetime was passed as callable but "
-                            "didn't return any instance of pendulum.DateTime"
-                        )
+                result = self.current_datetime()
+                if isinstance(result, DateTime):
+                    self.current_datetime = result
+                else:
+                    raise RuntimeError(
+                        "current_datetime was passed as callable but "
+                        "didn't return any instance of pendulum.DateTime"
+                    )
+
 
         # Validate layout and layout params
         check_layout(self.layout, self.layout_params)
-
         super().on_resolved()
