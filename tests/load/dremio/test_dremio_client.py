@@ -10,10 +10,9 @@ from tests.load.utils import empty_schema
 def dremio_client(empty_schema) -> DremioClient:
     creds = DremioCredentials()
     creds.database = "test_database"
-    return DremioClient(
-        empty_schema,
-        DremioClientConfiguration(dataset_name="test_dataset", credentials=creds),  # type: ignore[call-arg]
-    )
+    config = DremioClientConfiguration(credentials=creds)
+    config.dataset_name = "test_dataset"
+    return DremioClient(empty_schema, config)
 
 
 @pytest.mark.parametrize(
