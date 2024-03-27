@@ -30,7 +30,7 @@ def bigquery_adapter(
     round_half_even: TColumnNames = None,
     table_description: Optional[str] = None,
     table_expiration_datetime: Optional[str] = None,
-    insert_api: Optional[Literal["streaming", "default"]] = "default",
+    insert_api: Optional[Literal["streaming", "default"]] = None,
 ) -> DltResource:
     """
     Prepares data for loading into BigQuery.
@@ -145,7 +145,8 @@ def bigquery_adapter(
         except ValueError as e:
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
-    additional_table_hints |= {"insert_api": insert_api}  # type: ignore[operator]
+    if insert_api is not None:
+        additional_table_hints |= {"x-insert-api": insert_api}  # type: ignore[operator]
 
     if column_hints or additional_table_hints:
         resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)

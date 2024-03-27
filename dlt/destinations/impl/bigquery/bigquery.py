@@ -223,53 +223,54 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        insert_api = table.get("insert_api", self.config.loading_api)
-        if insert_api == "streaming":
-            if file_path.endswith(".jsonl"):
-                job_cls = DestinationJsonlLoadJob
-            elif file_path.endswith(".parquet"):
-                job_cls = DestinationParquetLoadJob  # type: ignore
-            else:
-                raise ValueError(
-                    f"Unsupported file type for BigQuery streaming inserts: {file_path}"
-                )
+        job = super().start_file_load(table, file_path, load_id)  # type: ignore
 
-            job = job_cls(
-                table,
-                file_path,
-                self.config,  # type: ignore
-                self.schema,
-                destination_state(),
-                functools.partial(_streaming_load, self.sql_client),
-                [],
-            )
-        else:
-            job = super().start_file_load(table, file_path, load_id)  # type: ignore
+        if not job:
+            insert_api = table.get("x-insert-api", "default")
+            try:
+                if insert_api == "streaming":
+                    if file_path.endswith(".jsonl"):
+                        job_cls = DestinationJsonlLoadJob
+                    elif file_path.endswith(".parquet"):
+                        job_cls = DestinationParquetLoadJob  # type: ignore
+                    else:
+                        raise ValueError(
+                            f"Unsupported file type for BigQuery streaming inserts: {file_path}"
+                        )
 
-            if not job:
-                try:
+                    job = job_cls(
+                        table,
+                        file_path,
+                        self.config,  # type: ignore
+                        self.schema,
+                        destination_state(),
+                        functools.partial(_streaming_load, self.sql_client),
+                        [],
+                    )
+                else:
                     job = BigQueryLoadJob(  # type: ignore
                         FileStorage.get_file_name_from_file_path(file_path),
                         self._create_load_job(table, file_path),
                         self.config.http_timeout,
                         self.config.retry_deadline,
                     )
-                except api_core_exceptions.GoogleAPICallError as gace:
-                    reason = BigQuerySqlClient._get_reason_from_errors(gace)
-                    if reason == "notFound":
-                        # google.api_core.exceptions.NotFound: 404 – table not found
-                        raise UnknownTableException(table["name"]) from gace
-                    elif (
-                        reason == "duplicate"
-                    ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
-                        return self.restore_file_load(file_path)
-                    elif reason in BQ_TERMINAL_REASONS:
-                        # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-                        raise LoadJobTerminalException(
-                            file_path, f"The server reason was: {reason}"
-                        ) from gace
-                    else:
-                        raise DestinationTransientException(gace) from gace
+            except api_core_exceptions.GoogleAPICallError as gace:
+                reason = BigQuerySqlClient._get_reason_from_errors(gace)
+                if reason == "notFound":
+                    # google.api_core.exceptions.NotFound: 404 – table not found
+                    raise UnknownTableException(table["name"]) from gace
+                elif (
+                    reason == "duplicate"
+                ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
+                    return self.restore_file_load(file_path)
+                elif reason in BQ_TERMINAL_REASONS:
+                    # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
+                    raise LoadJobTerminalException(
+                        file_path, f"The server reason was: {reason}"
+                    ) from gace
+                else:
+                    raise DestinationTransientException(gace) from gace
+
         return job
 
     def _get_table_update_sql(
