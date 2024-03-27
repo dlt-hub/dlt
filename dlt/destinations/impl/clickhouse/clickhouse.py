@@ -140,7 +140,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             table_function = (
                 render_object_storage_table_function(
                     bucket_http_url,
-                    staging_credentials.aws_secret_access_key,
+                    staging_credentials.aws_access_key_id,
                     staging_credentials.aws_secret_access_key,
                     file_format=file_extension,
                 )
