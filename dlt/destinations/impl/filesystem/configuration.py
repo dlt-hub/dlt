@@ -51,11 +51,11 @@ class FilesystemDestinationClientConfiguration(
         if self.current_datetime is not None:
             if callable(self.current_datetime):
                 signature = inspect.signature(self.current_datetime)
-                if isinstance(signature.return_annotation) is inspect._empty:
+                if signature.return_annotation is inspect._empty:
                     result = self.current_datetime()
                     if not isinstance(result, DateTime):
                         raise RuntimeError(
-                            "current_datetime was passed as callable but"
-                            "didn't return any instance of pendulum.DateTime object"
+                            "current_datetime was passed as callable but "
+                            "didn't return any instance of pendulum.DateTime"
                         )
         super().on_resolved()
