@@ -3,15 +3,11 @@ title: Stripe
 description: dlt verified source for Stripe API
 keywords: [stripe api, stripe verified source, stripe]
 ---
+import Header from './_source-info-header.md';
 
 # Stripe
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
-
+<Header/>
 
 [Stripe](https://stripe.com) is an online payment platform that allows businesses to securely process and manage customer transactions over the Internet.
 
@@ -56,7 +52,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init stripe_analytics duckdb
    ```
 
@@ -96,20 +92,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```sh
    python stripe_analytics_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 
@@ -127,7 +123,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 You can write your own pipelines to load data to a destination using this verified source.
 However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
 
-```python
+```py
 # The most popular Stripe API's endpoints
 ENDPOINTS = ("Subscription", "Account", "Coupon", "Customer", "Product", "Price")
 # Possible incremental endpoints
@@ -140,7 +136,7 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 This function retrieves data from the Stripe API for the specified endpoint:
 
-```python
+```py
 @dlt.source
 def stripe_source(
     endpoints: Tuple[str, ...] = ENDPOINTS,
@@ -148,6 +144,7 @@ def stripe_source(
     start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 - `endpoints`: Tuple containing endpoint names.
@@ -159,7 +156,7 @@ def stripe_source(
 
 This source loads data in 'append' mode from incremental endpoints.
 
-```python
+```py
 @dlt.source
 def incremental_stripe_source(
     endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
@@ -167,6 +164,7 @@ def incremental_stripe_source(
     initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 `endpoints`: Tuple containing incremental endpoint names.
 
@@ -183,9 +181,10 @@ For more information, read the [General Usage: Incremental loading](../../genera
 
 This function loads a dictionary with calculated metrics, including MRR and Churn rate, along with the current timestamp.
 
-```python
+```py
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
 def metrics_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 Abrevations MRR and Churn rate are as follows:
@@ -203,7 +202,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="stripe_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -213,7 +212,7 @@ verified source.
 
 1. To load endpoints like "Plan" and "Charge" in replace mode, retrieve all data for the year 2022:
 
-   ```python
+   ```py
    source_single = stripe_source(
        endpoints=("Plan", "Charge"),
        start_date=datetime(2022, 1, 1),
@@ -225,7 +224,7 @@ verified source.
 
 1. To load data from the "Invoice" endpoint, which has static data, using incremental loading:
 
-    ```python
+    ```py
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
@@ -239,7 +238,7 @@ verified source.
 
 1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For incremental_stripe_source, the initial_start_date will auto-update to the last loaded date from the previous run.
 
-    ```python
+    ```py
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
         start_date=datetime(2022, 12, 31),
@@ -254,7 +253,7 @@ verified source.
 
 1. To load important metrics and store them in database:
 
-   ```python
+   ```py
    # Event is an endpoint with uneditable data, so we can use 'incremental_stripe_source'.
    source_event = incremental_stripe_source(endpoints=("Event",))
    # Subscription is an endpoint with editable data, use stripe_source.
@@ -267,16 +266,4 @@ verified source.
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::stripe_analytics-->
-## Additional Setup guides
-
-- [Load data from Stripe to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-mssql)
-- [Load data from Stripe to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-snowflake)
-- [Load data from Stripe to Databricks in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-databricks)
-- [Load data from Stripe to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-duckdb)
-- [Load data from Stripe to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-synapse)
-- [Load data from Stripe to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
-- [Load data from Stripe to Redshift in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-redshift)
-- [Load data from Stripe to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-athena)
-- [Load data from Stripe to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-bigquery)
-<!--@@@DLT_SNIPPET_END tuba::stripe_analytics-->
+<!--@@@DLT_TUBA stripe_analytics-->

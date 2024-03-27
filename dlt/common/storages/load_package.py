@@ -1,6 +1,8 @@
 import contextlib
 import os
 from copy import deepcopy
+import threading
+
 import datetime  # noqa: 251
 import humanize
 from pathlib import Path
@@ -17,23 +19,92 @@ from typing import (
     Set,
     get_args,
     cast,
+    Any,
+    Tuple,
+    TYPE_CHECKING,
+    TypedDict,
 )
 
 from dlt.common import pendulum, json
+
+from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import ContainerInjectableContext
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+from dlt.common.configuration.container import Container
+
 from dlt.common.data_writers import DataWriter, new_file_id
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages import FileStorage
-from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
+from dlt.common.storages.exceptions import LoadPackageNotFound, CurrentLoadPackageStateNotAvailable
+from dlt.common.typing import DictStrAny, SupportsHumanize
 from dlt.common.utils import flatten_list_or_items
+from dlt.common.versioned_state import (
+    generate_state_version_hash,
+    bump_state_version_if_modified,
+    TVersionedState,
+    default_versioned_state,
+)
+from typing_extensions import NotRequired
+
+
+class TLoadPackageState(TVersionedState, total=False):
+    created_at: str
+    """Timestamp when the loadpackage was created"""
+
+    """A section of state that does not participate in change merging and version control"""
+    destination_state: NotRequired[Dict[str, Any]]
+    """private space for destinations to store state relevant only to the load package"""
+
+
+class TLoadPackage(TypedDict, total=False):
+    load_id: str
+    """Load id"""
+    state: TLoadPackageState
+    """State of the load package"""
+
+
+# allows to upgrade state when restored with a new version of state logic/schema
+LOADPACKAGE_STATE_ENGINE_VERSION = 1
+
+
+def generate_loadpackage_state_version_hash(state: TLoadPackageState) -> str:
+    return generate_state_version_hash(state)
+
+
+def bump_loadpackage_state_version_if_modified(state: TLoadPackageState) -> Tuple[int, str, str]:
+    return bump_state_version_if_modified(state)
+
+
+def migrate_load_package_state(
+    state: DictStrAny, from_engine: int, to_engine: int
+) -> TLoadPackageState:
+    # TODO: if you start adding new versions, we need proper tests for these migrations!
+    # NOTE: do not touch destinations state, it is not versioned
+    if from_engine == to_engine:
+        return cast(TLoadPackageState, state)
+
+    # check state engine
+    if from_engine != to_engine:
+        raise Exception("No upgrade path for loadpackage state")
+
+    state["_state_engine_version"] = from_engine
+    return cast(TLoadPackageState, state)
+
+
+def default_load_package_state() -> TLoadPackageState:
+    return {
+        **default_versioned_state(),
+        "_state_engine_version": LOADPACKAGE_STATE_ENGINE_VERSION,
+    }
+
 
 # folders to manage load jobs in a single load package
 TJobState = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
 WORKING_FOLDERS: Set[TJobState] = set(get_args(TJobState))
-TLoadPackageState = Literal["new", "extracted", "normalized", "loaded", "aborted"]
+TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborted"]
 
 
 class ParsedLoadJobFileName(NamedTuple):
@@ -125,7 +196,7 @@ class LoadJobInfo(NamedTuple):
 class _LoadPackageInfo(NamedTuple):
     load_id: str
     package_path: str
-    state: TLoadPackageState
+    state: TLoadPackageStatus
     schema: Schema
     schema_update: TSchemaTables
     completed_at: datetime.datetime
@@ -139,7 +210,7 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
 
     @property
     def schema_hash(self) -> str:
-        return self.schema.stored_version_hash
+        return self.schema.version_hash
 
     def asdict(self) -> DictStrAny:
         d = self._asdict()
@@ -201,8 +272,11 @@ class PackageStorage:
     PACKAGE_COMPLETED_FILE_NAME = (  # completed package marker file, currently only to store data with os.stat
         "package_completed.json"
     )
+    LOAD_PACKAGE_STATE_FILE_NAME = (  # internal state of the load package, will not be synced to the destination
+        "load_package_state.json"
+    )
 
-    def __init__(self, storage: FileStorage, initial_state: TLoadPackageState) -> None:
+    def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
         self.storage = storage
         self.initial_state = initial_state
@@ -334,8 +408,13 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
+        # ensure created timestamp is set in state when load package is created
+        state = self.get_load_package_state(load_id)
+        if not state.get("created_at"):
+            state["created_at"] = pendulum.now().to_iso8601_string()
+            self.save_load_package_state(load_id, state)
 
-    def complete_loading_package(self, load_id: str, load_state: TLoadPackageState) -> str:
+    def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
         load_path = self.get_package_path(load_id)
         # save marker file
@@ -380,6 +459,36 @@ class PackageStorage:
             os.path.join(load_id, PackageStorage.SCHEMA_UPDATES_FILE_NAME), mode="wb"
         ) as f:
             json.dump(schema_update, f)
+
+    #
+    # Loadpackage state
+    #
+    def get_load_package_state(self, load_id: str) -> TLoadPackageState:
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        try:
+            state_dump = self.storage.load(self.get_load_package_state_path(load_id))
+            state = json.loads(state_dump)
+            return migrate_load_package_state(
+                state, state["_state_engine_version"], LOADPACKAGE_STATE_ENGINE_VERSION
+            )
+        except FileNotFoundError:
+            return default_load_package_state()
+
+    def save_load_package_state(self, load_id: str, state: TLoadPackageState) -> None:
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        bump_loadpackage_state_version_if_modified(state)
+        self.storage.save(
+            self.get_load_package_state_path(load_id),
+            json.dumps(state),
+        )
+
+    def get_load_package_state_path(self, load_id: str) -> str:
+        package_path = self.get_package_path(load_id)
+        return os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
 
     #
     # Get package info
@@ -514,3 +623,55 @@ class PackageStorage:
         all_jobs: Iterable[LoadJobInfo], table_name: str
     ) -> Sequence[LoadJobInfo]:
         return [job for job in all_jobs if job.job_file_info.table_name == table_name]
+
+
+@configspec
+class LoadPackageStateInjectableContext(ContainerInjectableContext):
+    storage: PackageStorage = None
+    load_id: str = None
+    can_create_default: ClassVar[bool] = False
+    global_affinity: ClassVar[bool] = False
+
+    def commit(self) -> None:
+        with self.state_save_lock:
+            self.storage.save_load_package_state(self.load_id, self.state)
+
+    def on_resolved(self) -> None:
+        self.state_save_lock = threading.Lock()
+        self.state = self.storage.get_load_package_state(self.load_id)
+
+
+def load_package() -> TLoadPackage:
+    """Get full load package state present in current context. Across all threads this will be the same in memory dict."""
+    container = Container()
+    # get injected state if present. injected load package state is typically "managed" so changes will be persisted
+    # if you need to save the load package state during a load, you need to call commit_load_package_state
+    try:
+        state_ctx = container[LoadPackageStateInjectableContext]
+    except ContextDefaultCannotBeCreated:
+        raise CurrentLoadPackageStateNotAvailable()
+    return TLoadPackage(state=state_ctx.state, load_id=state_ctx.load_id)
+
+
+def commit_load_package_state() -> None:
+    """Commit load package state present in current context. This is thread safe."""
+    container = Container()
+    try:
+        state_ctx = container[LoadPackageStateInjectableContext]
+    except ContextDefaultCannotBeCreated:
+        raise CurrentLoadPackageStateNotAvailable()
+    state_ctx.commit()
+
+
+def destination_state() -> DictStrAny:
+    """Get segment of load package state that is specific to the current destination."""
+    lp = load_package()
+    return lp["state"].setdefault("destination_state", {})
+
+
+def clear_destination_state(commit: bool = True) -> None:
+    """Clear segment of load package state that is specific to the current destination. Optionally commit to load package."""
+    lp = load_package()
+    lp["state"].pop("destination_state", None)
+    if commit:
+        commit_load_package_state()

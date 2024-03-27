@@ -6,13 +6,16 @@ import pytest
 
 import dlt
 
-from dlt.common.pipeline import SupportsPipeline
 from dlt.common import json, sleep
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
+from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract import DltSource
@@ -21,8 +24,6 @@ from dlt.pipeline.exceptions import (
     PipelineConfigMissing,
     PipelineStepFailed,
 )
-from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.exceptions import DestinationHasFailedJobs
 
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
 from tests.pipeline.utils import assert_data_table_counts, assert_load_info
@@ -936,7 +937,7 @@ def test_pipeline_upfront_tables_two_loads(
 
     # load with one empty job, table 3 not created
     load_info = pipeline.run(source.table_3, loader_file_format=destination_config.file_format)
-    assert_load_info(load_info)
+    assert_load_info(load_info, expected_load_packages=0)
     with pytest.raises(DatabaseUndefinedRelation):
         load_table_counts(pipeline, "table_3")
     # print(pipeline.default_schema.to_pretty_yaml())

@@ -74,7 +74,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         return row
 
     def _normalize_chunk(
-        self, root_table_name: str, items: List[TDataItem], may_have_pua: bool
+        self, root_table_name: str, items: List[TDataItem], may_have_pua: bool, skip_write: bool
     ) -> TSchemaUpdate:
         column_schemas = self._column_schemas
         schema_update: TSchemaUpdate = {}
@@ -172,9 +172,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     # store row
                     # TODO: store all rows for particular items all together after item is fully completed
                     #   will be useful if we implement bad data sending to a table
-                    self.load_storage.write_data_item(
-                        self.load_id, schema_name, table_name, row, columns
-                    )
+                    # we skip write when discovering schema for empty file
+                    if not skip_write:
+                        self.load_storage.write_data_item(
+                            self.load_id, schema_name, table_name, row, columns
+                        )
             except StopIteration:
                 pass
             signals.raise_if_signalled()
@@ -193,22 +195,31 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             line: bytes = None
             for line_no, line in enumerate(f):
                 items: List[TDataItem] = json.loadb(line)
-                partial_update = self._normalize_chunk(root_table_name, items, may_have_pua(line))
+                partial_update = self._normalize_chunk(
+                    root_table_name, items, may_have_pua(line), skip_write=False
+                )
                 schema_updates.append(partial_update)
-                logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
+                logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
             if line is None and root_table_name in self.schema.tables:
-                # write only if table seen data before
+                # TODO: we should push the truncate jobs via package state
+                # not as empty jobs. empty jobs should be reserved for
+                # materializing schemas and other edge cases ie. empty parquet files
                 root_table = self.schema.tables[root_table_name]
-                if has_table_seen_data(root_table):
-                    self.load_storage.write_empty_items_file(
-                        self.load_id,
-                        self.schema.name,
-                        root_table_name,
-                        self.schema.get_table_columns(root_table_name),
+                if not has_table_seen_data(root_table):
+                    # if this is a new table, add normalizer columns
+                    partial_update = self._normalize_chunk(
+                        root_table_name, [{}], False, skip_write=True
                     )
-                    logger.debug(
-                        f"No lines in file {extracted_items_file}, written empty load job file"
-                    )
+                    schema_updates.append(partial_update)
+                self.load_storage.write_empty_items_file(
+                    self.load_id,
+                    self.schema.name,
+                    root_table_name,
+                    self.schema.get_table_columns(root_table_name),
+                )
+                logger.debug(
+                    f"No lines in file {extracted_items_file}, written empty load job file"
+                )
 
         return schema_updates
 

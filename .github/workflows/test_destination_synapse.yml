@@ -7,6 +7,10 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
@@ -24,7 +28,7 @@ jobs:
   run_loader:
     name: Tests Synapse loader
     needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'    
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:

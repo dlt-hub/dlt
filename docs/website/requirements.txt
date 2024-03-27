@@ -1,2 +1,4 @@
 pydoc-markdown==4.8.2
 typing-extensions==4.6.3
+databind.json==4.4.2
+databind.core==4.4.2

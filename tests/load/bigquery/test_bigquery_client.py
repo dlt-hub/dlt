@@ -203,7 +203,8 @@ def test_get_oauth_access_token() -> None:
 
 def test_bigquery_configuration() -> None:
     config = resolve_configuration(
-        BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery")
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "bigquery"),
     )
     assert config.location == "US"
     assert config.get_location() == "US"
@@ -215,7 +216,8 @@ def test_bigquery_configuration() -> None:
     # credential location is deprecated
     os.environ["CREDENTIALS__LOCATION"] = "EU"
     config = resolve_configuration(
-        BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery")
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "bigquery"),
     )
     assert config.location == "US"
     assert config.credentials.location == "EU"
@@ -223,17 +225,21 @@ def test_bigquery_configuration() -> None:
     assert config.get_location() == "EU"
     os.environ["LOCATION"] = "ATLANTIS"
     config = resolve_configuration(
-        BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery")
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "bigquery"),
     )
     assert config.get_location() == "ATLANTIS"
     os.environ["DESTINATION__FILE_UPLOAD_TIMEOUT"] = "20000"
     config = resolve_configuration(
-        BigQueryClientConfiguration(dataset_name="dataset"), sections=("destination", "bigquery")
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "bigquery"),
     )
     assert config.file_upload_timeout == 20000.0
 
     # default fingerprint is empty
-    assert BigQueryClientConfiguration(dataset_name="dataset").fingerprint() == ""
+    assert (
+        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset").fingerprint() == ""
+    )
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:

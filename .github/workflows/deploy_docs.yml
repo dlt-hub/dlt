@@ -11,6 +11,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     steps:
       - name: Trigger deploy hook
         run: curl ${{ env.NETLIFY_DOCS_PRODUCTION_DEPLOY_HOOK }} -X POST

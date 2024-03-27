@@ -13,7 +13,7 @@ This destination helps you load data into Qdrant from [dlt resources](../../gene
 
 1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
 
-```bash
+```sh
 pip install dlt[qdrant]
 ```
 
@@ -31,7 +31,7 @@ If no configuration options are provided, the default fallback will be `http://l
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
-```python
+```py
 import dlt
 from dlt.destinations.adapters import qdrant_adapter
 
@@ -53,7 +53,7 @@ movies = [
 
 4. Define the pipeline:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="qdrant",
@@ -63,7 +63,7 @@ pipeline = dlt.pipeline(
 
 5. Run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -74,7 +74,7 @@ info = pipeline.run(
 
 6. Check the results:
 
-```python
+```py
 print(info)
 ```
 
@@ -86,20 +86,20 @@ To use vector search after the data has been loaded, you must specify which fiel
 
 The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
 
-```python
+```py
 qdrant_adapter(data, embed)
 ```
 
 It accepts the following arguments:
 
-- `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
+- `data`: a dlt resource object or a Python data structure (e.g., a list of dictionaries).
 - `embed`: a name of the field or a list of names to generate embeddings for.
 
 Returns: [DLT resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
 
 Example:
 
-```python
+```py
 qdrant_adapter(
     resource,
     embed=["title", "description"],
@@ -122,7 +122,7 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -135,9 +135,9 @@ info = pipeline.run(
 ### Merge
 
 The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination.
-For `merge` disposition, you would need to specify a `primary_key` for the resource:
+For the `merge` disposition, you need to specify a `primary_key` for the resource:
 
-```python
+```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -166,11 +166,11 @@ Qdrant uses collections to categorize and identify data. To avoid potential nami
 
 For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Qdrant collection name would be `movies_dataset_actors` (the default separator is an underscore).
 
-However, if you prefer to have class names without the dataset prefix, skip `dataset_name` argument.
+However, if you prefer to have class names without the dataset prefix, skip the `dataset_name` argument.
 
 For example:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="qdrant",
@@ -185,7 +185,7 @@ pipeline = dlt.pipeline(
 
 - `upload_batch_size`: (int) The batch size for data uploads. The default value is 64.
 
-- `upload_parallelism`: (int) The maximal number of concurrent threads to run data uploads. The default value is 1.
+- `upload_parallelism`: (int) The maximum number of concurrent threads to run data uploads. The default value is 1.
 
 - `upload_max_retries`: (int) The number of retries to upload data in case of failure. The default value is 3.
 
@@ -221,5 +221,5 @@ You can find the setup instructions to run Qdrant [here](https://qdrant.tech/doc
 
 Qdrant destination supports syncing of the `dlt` state.
 
-<!--@@@DLT_SNIPPET_START tuba::qdrant-->
-<!--@@@DLT_SNIPPET_END tuba::qdrant-->
+<!--@@@DLT_TUBA qdrant-->
+

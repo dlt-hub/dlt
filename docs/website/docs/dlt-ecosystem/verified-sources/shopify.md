@@ -1,10 +1,13 @@
+---
+title: Shopify
+description: dlt pipeline for Shopify API
+keywords: [shopify api, shopify pipeline, shopify]
+---
+import Header from './_source-info-header.md';
+
 # Shopify
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Shopify](https://www.shopify.com/) is a user-friendly e-commerce solution that enables anyone to easily create and manage their
 own online store. Whereas a [Shopify partner](https://partners.shopify.com/) is an individual or company that
@@ -61,7 +64,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init shopify_dlt duckdb
    ```
 
@@ -125,16 +128,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python shopify_dlt_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `shopify_data`, you may also
@@ -152,7 +155,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function returns a list of resources to load products, orders, and customers data from Shopify
 API.
 
-```python
+```py
 def shopify_source(
     private_app_password: str = dlt.secrets.value,
     api_version: str = DEFAULT_API_VERSION,
@@ -163,6 +166,7 @@ def shopify_source(
     items_per_page: int = DEFAULT_ITEMS_PER_PAGE,
     order_status: TOrderStatus = "any",
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `private_app_password`: App's password for your shop.
@@ -188,7 +192,7 @@ incremental loading if unspecified.
 This resource loads products from your Shopify shop into the destination. It supports incremental
 loading and pagination.
 
-```python
+```py
 @dlt.resource(primary_key="id", write_disposition="merge")
 def products(
     updated_at: dlt.sources.incremental[
@@ -202,6 +206,7 @@ def products(
     created_at_min: pendulum.DateTime = created_at_min_obj,
     items_per_page: int = items_per_page,
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `updated_at`: The saved [state](../../general-usage/state) of the last 'updated_at' value.
@@ -212,7 +217,7 @@ support incremental loading and pagination.
 ### Resource `shopify_partner_query`:
 This resource can be used to run custom GraphQL queries to load paginated data.
 
-```python
+```py
 @dlt.resource
 def shopify_partner_query(
     query: str,
@@ -224,6 +229,7 @@ def shopify_partner_query(
     organization_id: str = dlt.config.value,
     api_version: str = DEFAULT_PARTNER_API_VERSION,
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `query`: The GraphQL query for execution.
@@ -251,7 +257,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="shopify",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -264,7 +270,7 @@ verified source.
 
 1. To load data from "products", "orders" and "customers" from 1st Jan 2023.
 
-   ```python
+   ```py
    # Add your desired resources to the list...
    resources = ["products", "orders", "customers"]
    start_date="2023-01-01"
@@ -278,7 +284,7 @@ verified source.
    minimizes potential failure during large data loads. Running chunks and incremental loads in
    parallel accelerates the initial load.
 
-   ```python
+   ```py
    # Load all orders from 2023-01-01 to now
    min_start_date = current_start_date = pendulum.datetime(2023, 1, 1)
    max_end_date = pendulum.now()
@@ -310,7 +316,7 @@ verified source.
    print(load_info)
    ```
 1. To load the first 10 transactions via GraphQL query from the Shopify Partner API.
-   ```python
+   ```py
     # Construct query to load transactions 100 per page, the `$after` variable is used to paginate
     query = """query Transactions($after: String) {
     transactions(after: $after, first: 10) {
@@ -339,5 +345,4 @@ verified source.
     print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::shopify_dlt-->
-<!--@@@DLT_SNIPPET_END tuba::shopify_dlt-->
+<!--@@@DLT_TUBA shopify_dlt-->

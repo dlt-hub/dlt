@@ -92,7 +92,7 @@ In this section, we walk through how to set up a MongoDB data pipeline using `dl
 
 Use the command below to install `dlt`.
 
-```bash
+```sh
 pip3 install -U dlt
 ```
 
@@ -100,13 +100,13 @@ Consider setting up a virtual environment for your projects and installing the p
 
 Once we have `dlt` installed, we can go ahead and initialize a verified MongoDB pipeline with the destination set to Google BigQuery. First, create a project directory and then execute the command below:
 
-```python
+```sh
 dlt init mongodb bigquery
 ```
 
 The above command will create a local ready-made pipeline that we can customize to our needs. After executing the command your project directory will look as follows:
 
-```bash
+```text
 .
 ├── .dlt
 │   ├── config.toml
@@ -127,7 +127,7 @@ We also need to set up the GCP service account credentials to get permissions to
 
 Once all the credentials are set add them to the `secrets.toml` file. Your file should look something like this:
 
-```bash
+```toml
 # put your secret values and credentials here. do not share this file and do not push it to github
 [sources.mongodb]
 connection_url = "mongodb+srv://<user>:<password>@<cluster_name>.cvanypn.mongodb.net" # please set me up!
@@ -143,7 +143,7 @@ client_email = "<org_name>@analytics.iam.gserviceaccount.com" # please set me up
 
 The `mongodb_pipeline.py` at the root of your project directory is the script that runs the pipeline. It contains many functions that provide different ways of loading the data. The selection of the function depends on your specific use case, but for this demo, we try to keep it simple and use the `load_entire_database` function. 
 
-```python
+```py
 def load_entire_database(pipeline: Pipeline = None) -> LoadInfo:
     """Use the mongo source to completely load all collection in a database"""
     if pipeline is None:
@@ -165,13 +165,13 @@ def load_entire_database(pipeline: Pipeline = None) -> LoadInfo:
 
 Before we execute the pipeline script let's install the dependencies for the pipeline by executing the `requirements.txt` file.
 
-```bash
+```sh
 pip install -r requirements.txt
 ```
 
 Finally, we are ready to execute the script. In the main function uncomment the `load_entire_database` function call and run the script.
 
-```bash
+```sh
 python mongodb_pipeline.py
 ```
 
@@ -290,7 +290,7 @@ This is a typical way data is structured in a NoSQL database. The data is in a J
 
 The ddl (data definition language) for the movies table in BigQuery can be seen below:
 
-```json
+```sql
 CREATE TABLE `dlthub-analytics.mongo_database.movies`
 (
   _id STRING NOT NULL,
@@ -354,7 +354,7 @@ In Holistics, add a new data source click on the plus sign (+) on the top menu, 
 
 Once the BigQuery source is added we are ready to import the schemas from BigQuery into Holistics. The schema(`dataset_name`)  name under which dlt loaded the MongoDB data is defined in the `load_entire_database` function when we create the MongoDB pipeline. 
 
-```bash
+```sh
 # Create a pipeline
 pipeline = dlt.pipeline(
     pipeline_name="local_mongo",
@@ -399,13 +399,13 @@ The resulting relationship can seen As Code using the Holistics 4.0 Analytics as
 
 Previously, we created the relationship between the `cast` and the `movies` tables using GUI, now let’s add the relationship between the `directors` and `movies` tables using the Analytics as Code feature. In the `dataset.aml` file append the relationships block with the following line of code:
 
-```python
+```py
 relationship(model__mongo_database_movies_directors.dlt_parent_id > model__mongo_database_movies.dlt_id, true)
 ```
 
 After the change, the `dataset.aml` file should look like this:
 
-```python
+```sh
 import '../Models/mongo_database_movies.model.aml' {
   mongo_database_movies as model__mongo_database_movies
 }

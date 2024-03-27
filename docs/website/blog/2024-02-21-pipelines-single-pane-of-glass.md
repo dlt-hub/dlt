@@ -42,7 +42,7 @@ Since “checking” things can be tedious, we rather forget about it and be not
 
 Here’s a gist of how to use it
 
-```python
+```py
 from dlt.common.runtime.slack import send_slack_message
 
 def run_pipeline_and_notify(pipeline, data):

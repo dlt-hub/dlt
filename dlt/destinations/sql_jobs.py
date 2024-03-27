@@ -1,7 +1,7 @@
 from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
-from dlt.common.runtime.logger import pretty_format_exception
+from dlt.common.logger import pretty_format_exception
 
 from dlt.common.schema.typing import TTableSchema, TSortOrder
 from dlt.common.schema.utils import (

@@ -76,7 +76,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
         first_credentials: CredentialsConfiguration = None
         for idx, spec in enumerate(specs_in_union):
             try:
-                credentials = spec(initial_value)
+                credentials = spec.from_init_value(initial_value)
                 if credentials.is_resolved():
                     return credentials
                 # keep first credentials in the union to return in case all of the match but not resolve
@@ -88,17 +88,18 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
         return first_credentials
     else:
         assert issubclass(hint, CredentialsConfiguration)
-        return hint(initial_value)  # type: ignore
+        return hint.from_init_value(initial_value)  # type: ignore
 
 
 def inject_section(
-    section_context: ConfigSectionContext, merge_existing: bool = True
+    section_context: ConfigSectionContext, merge_existing: bool = True, lock_context: bool = False
 ) -> ContextManager[ConfigSectionContext]:
     """Context manager that sets section specified in `section_context` to be used during configuration resolution. Optionally merges the context already in the container with the one provided
 
     Args:
         section_context (ConfigSectionContext): Instance providing a pipeline name and section context
         merge_existing (bool, optional): Merges existing section context with `section_context` in the arguments by executing `merge_style` function on `section_context`. Defaults to True.
+        lock_context (bool, optional): Instruct to threadlock the current thread to prevent race conditions in context injection.
 
     Default Merge Style:
         Gets `pipeline_name` and `sections` from existing context if they are not provided in `section_context` argument.
@@ -112,7 +113,7 @@ def inject_section(
     if merge_existing:
         section_context.merge(existing_context)
 
-    return container.injectable_context(section_context)
+    return container.injectable_context(section_context, lock_context=lock_context)
 
 
 def _maybe_parse_native_value(

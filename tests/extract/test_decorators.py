@@ -45,6 +45,24 @@ from dlt.extract.items import TableNameMeta
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
 
 
+def test_default_resource() -> None:
+    @dlt.resource
+    def resource():
+        yield [1, 2, 3]
+
+    # simple generated table schema
+    assert resource().compute_table_schema() == {
+        "columns": {},
+        "name": "resource",
+        "resource": "resource",
+        "write_disposition": "append",
+    }
+    assert resource().name == "resource"
+    assert resource._args_bound is False
+    assert resource.incremental is None
+    assert resource.write_disposition == "append"
+
+
 def test_none_returning_source() -> None:
     with pytest.raises(SourceNotAFunction):
         dlt.source("data")()  # type: ignore[call-overload]
@@ -631,14 +649,14 @@ def test_sources_no_arguments() -> None:
     def no_args():
         return dlt.resource([1, 2], name="data")
 
-    # there is no spec if no arguments
+    # there is a spec even if no arguments
     SPEC = _SOURCES[no_args.__qualname__].SPEC
-    assert SPEC is None
+    assert SPEC
     _, _, checked = detect_source_configs(_SOURCES, "", ())
     assert no_args.__qualname__ in checked
 
     SPEC = _SOURCES[no_args.__qualname__].SPEC
-    assert SPEC is None
+    assert SPEC
     _, _, checked = detect_source_configs(_SOURCES, "", ())
     assert not_args_r.__qualname__ in checked
 

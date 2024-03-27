@@ -12,6 +12,7 @@ from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
 
 from dlt.extract import DltResource, DltSource, Incremental
+from dlt.extract.items import TableNameMeta
 from dlt.extract.source import DltResourceDict
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -1326,9 +1327,11 @@ def test_apply_dynamic_hints() -> None:
 
     empty_r = empty()
     with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
+        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"], write_disposition=None)
 
-    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
+    empty_r.apply_hints(
+        table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"], write_disposition=None
+    )
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
 
@@ -1358,6 +1361,66 @@ def test_apply_dynamic_hints() -> None:
         {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]}
     )
     assert table["columns"]["tags"] == {"name": "tags"}
+
+
+def test_apply_hints_table_variants() -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+
+    empty = DltResource.from_data(empty_gen)
+
+    # table name must be a string
+    with pytest.raises(ValueError):
+        empty.apply_hints(write_disposition="append", create_table_variant=True)
+    with pytest.raises(ValueError):
+        empty.apply_hints(
+            table_name=lambda ev: ev["t"], write_disposition="append", create_table_variant=True
+        )
+
+    # table a with replace
+    empty.apply_hints(table_name="table_a", write_disposition="replace", create_table_variant=True)
+    table_a = empty.compute_table_schema(meta=TableNameMeta("table_a"))
+    assert table_a["name"] == "table_a"
+    assert table_a["write_disposition"] == "replace"
+
+    # unknown table (without variant) - created out resource hints
+    table_unk = empty.compute_table_schema(meta=TableNameMeta("table_unk"))
+    assert table_unk["name"] == "empty_gen"
+    assert table_unk["write_disposition"] == "append"
+
+    # resource hints are base for table variants
+    empty.apply_hints(
+        primary_key="id",
+        incremental=dlt.sources.incremental(cursor_path="x"),
+        columns=[{"name": "id", "data_type": "bigint"}],
+    )
+    empty.apply_hints(table_name="table_b", write_disposition="merge", create_table_variant=True)
+    table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
+    assert table_b["name"] == "table_b"
+    assert table_b["write_disposition"] == "merge"
+    assert len(table_b["columns"]) == 1
+    assert table_b["columns"]["id"]["primary_key"] is True
+    # overwrite table_b, remove column def and primary_key
+    empty.apply_hints(table_name="table_b", columns=[], primary_key=(), create_table_variant=True)
+    table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
+    assert table_b["name"] == "table_b"
+    assert table_b["write_disposition"] == "merge"
+    assert len(table_b["columns"]) == 0
+
+    # dyn hints not allowed
+    with pytest.raises(InconsistentTableTemplate):
+        empty.apply_hints(
+            table_name="table_b", write_disposition=lambda ev: ev["wd"], create_table_variant=True
+        )
+
+
+def test_resource_no_template() -> None:
+    empty = DltResource.from_data([1, 2, 3], name="table")
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
+    empty.apply_hints()
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
 
 
 def test_selected_pipes_with_duplicates():

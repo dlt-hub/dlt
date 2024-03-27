@@ -6,14 +6,14 @@ keywords: [weaviate, vector database, destination, dlt]
 
 # Weaviate
 
-[Weaviate](https://weaviate.io/) is an open source vector database. It allows you to store data objects and perform similarity searches over them.
-This destination helps you to load data into Weaviate from [dlt resources](../../general-usage/resource.md).
+[Weaviate](https://weaviate.io/) is an open-source vector database. It allows you to store data objects and perform similarity searches over them.
+This destination helps you load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 ## Setup Guide
 
 1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
-```bash
+```sh
 pip install dlt[weaviate]
 ```
 
@@ -30,18 +30,18 @@ X-OpenAI-Api-Key = "your-openai-api-key"
 
 In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings through the [text2vec-openai](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-openai) module.
 
-You can host your own weaviate instance using docker compose, kubernetes or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) or [dlt recipe we use for our tests](#run-weaviate-fully-standalone). In that case you can skip the credentials part altogether:
+You can host your own Weaviate instance using Docker Compose, Kubernetes, or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) or [dlt recipe we use for our tests](#run-weaviate-fully-standalone). In that case, you can skip the credentials part altogether:
 
 ```toml
 [destination.weaviate.credentials.additional_headers]
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
-The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for Weaviate container.
+The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for the Weaviate container.
 
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
-```python
+```py
 import dlt
 from dlt.destinations.adapters import weaviate_adapter
 
@@ -63,7 +63,7 @@ movies = [
 
 4. Define the pipeline:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="weaviate",
@@ -73,7 +73,7 @@ pipeline = dlt.pipeline(
 
 5. Run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -84,7 +84,7 @@ info = pipeline.run(
 
 6. Check the results:
 
-```python
+```py
 print(info)
 ```
 
@@ -96,12 +96,12 @@ Weaviate destination is different from other [dlt destinations](../destinations/
 
 The `weaviate_adapter` is a helper function that configures the resource for the Weaviate destination:
 
-```python
+```py
 weaviate_adapter(data, vectorize, tokenization)
 ```
 
 It accepts the following arguments:
-- `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
+- `data`: a dlt resource object or a Python data structure (e.g., a list of dictionaries).
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
 - `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word". See [Property tokenization](https://weaviate.io/developers/weaviate/config-refs/schema#property-tokenization) in Weaviate documentation for more details.
 
@@ -109,7 +109,7 @@ Returns: a [dlt resource](../../general-usage/resource.md) object that you can p
 
 Example:
 
-```python
+```py
 weaviate_adapter(
     resource,
     vectorize=["title", "description"],
@@ -133,7 +133,7 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
-```python
+```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -146,9 +146,9 @@ info = pipeline.run(
 ### Merge
 
 The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data in the destination.
-For `merge` disposition you would need to specify a `primary_key` for the resource:
+For the `merge` disposition, you would need to specify a `primary_key` for the resource:
 
-```python
+```py
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -159,18 +159,18 @@ info = pipeline.run(
 )
 ```
 
-Internally dlt will use `primary_key` (`document_id` in the example above) to generate a unique identifier ([UUID](https://weaviate.io/developers/weaviate/manage-data/create#id)) for each object in Weaviate. If the object with the same UUID already exists in Weaviate, it will be updated with the new data. Otherwise, a new object will be created.
+Internally, dlt will use `primary_key` (`document_id` in the example above) to generate a unique identifier ([UUID](https://weaviate.io/developers/weaviate/manage-data/create#id)) for each object in Weaviate. If the object with the same UUID already exists in Weaviate, it will be updated with the new data. Otherwise, a new object will be created.
 
 
 :::caution
 
-If you are using the merge write disposition, you must set it from the first run of your pipeline, otherwise the data will be duplicated in the database on subsequent loads.
+If you are using the `merge` write disposition, you must set it from the first run of your pipeline; otherwise, the data will be duplicated in the database on subsequent loads.
 
 :::
 
 ### Append
 
-This is the default disposition. It will append the data to the existing data in the destination ignoring the `primary_key` field.
+This is the default disposition. It will append the data to the existing data in the destination, ignoring the `primary_key` field.
 
 ## Data loading
 
@@ -199,11 +199,11 @@ Weaviate uses classes to categorize and identify data. To avoid potential naming
 
 For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Weaviate class name would be `MoviesDataset_Actors` (the default separator is an underscore).
 
-However, if you prefer to have class names without the dataset prefix, skip `dataset_name` argument.
+However, if you prefer to have class names without the dataset prefix, skip the `dataset_name` argument.
 
 For example:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="weaviate",
@@ -241,15 +241,15 @@ The default naming convention described above will preserve the casing of the pr
 in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitive ie. (`caseName` == `casename`). In such case
 Weaviate destination will fail to create classes and report a conflict.
 
-You can configure alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still if you have a document where clashing properties like:
+You can configure an alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still, if you have a document where clashing properties like:
 ```json
 {"camelCase": 1, "CamelCase": 2}
 ```
 it will be normalized to:
-```
+```json
 {"camelcase": 2}
 ```
-so your best course of action is to clean up the data yourself before loading and use default naming convention. Nevertheless you can configure the alternative in `config.toml`:
+so your best course of action is to clean up the data yourself before loading and use the default naming convention. Nevertheless, you can configure the alternative in `config.toml`:
 ```toml
 [schema]
 naming="dlt.destinations.weaviate.impl.ci_naming"
@@ -291,17 +291,17 @@ Below is an example that configures the **contextionary** vectorizer. You can pu
 vectorizer="text2vec-contextionary"
 module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
 ```
-You can find docker composer with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/weaviate/README.md)
+You can find Docker Compose with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/weaviate/README.md)
 
 
 ### dbt support
 
-Currently Weaviate destination does not support dbt.
+Currently, Weaviate destination does not support dbt.
 
 ### Syncing of `dlt` state
 
 Weaviate destination supports syncing of the `dlt` state.
 
 
-<!--@@@DLT_SNIPPET_START tuba::weaviate-->
-<!--@@@DLT_SNIPPET_END tuba::weaviate-->
+<!--@@@DLT_TUBA weaviate-->
+

@@ -18,7 +18,9 @@ try:
     import pyarrow.compute
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt parquet Helpers", [f"{version.DLT_PKG_NAME}[parquet]"], "dlt Helpers for for parquet."
+        "dlt pyarrow helpers",
+        [f"{version.DLT_PKG_NAME}[parquet]"],
+        "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
     )
 
 

@@ -6,14 +6,18 @@ import pytest
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.schema.schema import Schema, utils
-from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.exceptions import DestinationUndefinedEntity
+from dlt.common.schema.schema import Schema
+from dlt.common.utils import uniq_id
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
+
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable
-
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, load_state_from_destination, state_resource
+from dlt.pipeline.state_sync import (
+    STATE_TABLE_COLUMNS,
+    load_pipeline_state_from_destination,
+    state_resource,
+)
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT
@@ -54,14 +58,14 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     job_client: SqlJobClientBase
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         with pytest.raises(DestinationUndefinedEntity):
-            load_state_from_destination(p.pipeline_name, job_client)
+            load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
         p.sync_schema()
         exists, _ = job_client.get_storage_table(schema.version_table_name)
         assert exists is True
         # dataset exists, still no table
         with pytest.raises(DestinationUndefinedEntity):
-            load_state_from_destination(p.pipeline_name, job_client)
+            load_pipeline_state_from_destination(p.pipeline_name, job_client)
         initial_state = p._get_state()
         # now add table to schema and sync
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
@@ -84,14 +88,14 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         exists, _ = job_client.get_storage_table(schema.state_table_name)
         assert exists is True
         # table is there but no state
-        assert load_state_from_destination(p.pipeline_name, job_client) is None
+        assert load_pipeline_state_from_destination(p.pipeline_name, job_client) is None
         # extract state
         with p.managed_state(extract_state=True):
             pass
         # just run the existing extract
         p.normalize(loader_file_format=destination_config.file_format)
         p.load()
-        stored_state = load_state_from_destination(p.pipeline_name, job_client)
+        stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         local_state = p._get_state()
         local_state.pop("_local")
         assert stored_state == local_state
@@ -101,7 +105,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
         p.normalize(loader_file_format=destination_config.file_format)
         p.load()
-        stored_state = load_state_from_destination(p.pipeline_name, job_client)
+        stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
         local_state = p._get_state()
         local_state.pop("_local")
@@ -116,7 +120,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         p.normalize(loader_file_format=destination_config.file_format)
         info = p.load()
         assert len(info.loads_ids) == 0
-        new_stored_state = load_state_from_destination(p.pipeline_name, job_client)
+        new_stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # new state should not be stored
         assert new_stored_state == stored_state
 
@@ -147,7 +151,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         p.normalize(loader_file_format=destination_config.file_format)
         info = p.load()
         assert len(info.loads_ids) == 1
-        new_stored_state_2 = load_state_from_destination(p.pipeline_name, job_client)
+        new_stored_state_2 = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # the stored state changed to next version
         assert new_stored_state != new_stored_state_2
         assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
@@ -203,6 +207,7 @@ def test_get_schemas_from_destination(
             job_client
         ) == default_schema.naming.normalize_table_identifier(dataset_name)
     schema_two = Schema("two")
+    schema_two._bump_version()
     with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
@@ -405,7 +410,7 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
     job_client: SqlJobClientBase
     with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
         # state without completed load id is not visible
-        state = load_state_from_destination(pipeline_name, job_client)
+        state = load_pipeline_state_from_destination(pipeline_name, job_client)
         assert state is None
 
 

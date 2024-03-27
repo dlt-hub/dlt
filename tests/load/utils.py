@@ -475,7 +475,7 @@ def prepare_table(
     table_name: str = "event_user",
     make_uniq_table: bool = True,
 ) -> str:
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
@@ -483,7 +483,7 @@ def prepare_table(
     else:
         user_table_name = table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     return user_table_name
 

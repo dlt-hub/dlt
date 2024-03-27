@@ -76,8 +76,7 @@ def data_to_sources(
         """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
         if schema:
             schema_ = schema
-        # TODO: We should start with a new schema of the same name here ideally, but many tests fail
-        # because of this. So some investigation is needed.
+        # take pipeline schema to make newest version visible to the resources
         elif pipeline.default_schema_name:
             schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
         else:
@@ -244,6 +243,48 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "hints": clean_hints,
         }
 
+    def _write_empty_files(
+        self, source: DltSource, extractors: Dict[TLoaderFileFormat, Extractor]
+    ) -> None:
+        schema = source.schema
+        json_extractor = extractors["puae-jsonl"]
+        resources_with_items = set().union(*[e.resources_with_items for e in extractors.values()])
+        # find REPLACE resources that did not yield any pipe items and create empty jobs for them
+        # NOTE: do not include tables that have never seen data
+        data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
+        tables_by_resources = utils.group_tables_by_resource(data_tables)
+        for resource in source.resources.selected.values():
+            if resource.write_disposition != "replace" or resource.name in resources_with_items:
+                continue
+            if resource.name not in tables_by_resources:
+                continue
+            for table in tables_by_resources[resource.name]:
+                # we only need to write empty files for the top tables
+                if not table.get("parent", None):
+                    json_extractor.write_empty_items_file(table["name"])
+
+        # collect resources that received empty materialized lists and had no items
+        resources_with_empty = (
+            set()
+            .union(*[e.resources_with_empty for e in extractors.values()])
+            .difference(resources_with_items)
+        )
+        # get all possible tables
+        data_tables = {t["name"]: t for t in schema.data_tables()}
+        tables_by_resources = utils.group_tables_by_resource(data_tables)
+        for resource_name in resources_with_empty:
+            if resource := source.resources.selected.get(resource_name):
+                if tables := tables_by_resources.get("resource_name"):
+                    # write empty tables
+                    for table in tables:
+                        # we only need to write empty files for the top tables
+                        if not table.get("parent", None):
+                            json_extractor.write_empty_items_file(table["name"])
+                else:
+                    table_name = json_extractor._get_static_table_name(resource, None)
+                    if table_name:
+                        json_extractor.write_empty_items_file(table_name)
+
     def _extract_single_source(
         self,
         load_id: str,
@@ -255,14 +296,11 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> None:
         schema = source.schema
         collector = self.collector
-        resources_with_items: Set[str] = set()
         extractors: Dict[TLoaderFileFormat, Extractor] = {
             "puae-jsonl": JsonLExtractor(
-                load_id, self.extract_storage, schema, resources_with_items, collector=collector
+                load_id, self.extract_storage, schema, collector=collector
             ),
-            "arrow": ArrowExtractor(
-                load_id, self.extract_storage, schema, resources_with_items, collector=collector
-            ),
+            "arrow": ArrowExtractor(load_id, self.extract_storage, schema, collector=collector),
         }
         last_item_format: Optional[TLoaderFileFormat] = None
 
@@ -294,23 +332,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
                     last_item_format = item_format
 
-                # find defined resources that did not yield any pipeitems and create empty jobs for them
-                # NOTE: do not include incomplete tables. those tables have never seen data so we do not need to reset them
-                data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=False)}
-                tables_by_resources = utils.group_tables_by_resource(data_tables)
-                for resource in source.resources.selected.values():
-                    if (
-                        resource.write_disposition != "replace"
-                        or resource.name in resources_with_items
-                    ):
-                        continue
-                    if resource.name not in tables_by_resources:
-                        continue
-                    for table in tables_by_resources[resource.name]:
-                        # we only need to write empty files for the top tables
-                        if not table.get("parent", None):
-                            extractors["puae-jsonl"].write_empty_items_file(table["name"])
-
+                self._write_empty_files(source, extractors)
                 if left_gens > 0:
                     # go to 100%
                     collector.update("Resources", left_gens)

@@ -20,13 +20,13 @@ Let's get started!
 
 Install dlt using `pip`:
 
-```bash
+```sh
 pip install -U dlt
 ```
 
 The command above installs (or upgrades) the library core, in the example below we use DuckDB as a destination so let's add a `duckdb` dependency:
 
-```bash
+```sh
 pip install "dlt[duckdb]"
 ```
 
@@ -40,20 +40,8 @@ Make sure that your `dlt` version is **0.3.15** or above. Check it in the termin
 
 For starters, let's load a list of Python dictionaries into DuckDB and inspect the created dataset. Here is the code:
 
-<!--@@@DLT_SNIPPET_START ./getting-started-snippets.py::start-->
-```py
-import dlt
+<!--@@@DLT_SNIPPET ./getting-started-snippets.py::start-->
 
-data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
-
-pipeline = dlt.pipeline(
-    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
-)
-load_info = pipeline.run(data, table_name="users")
-
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END ./getting-started-snippets.py::start-->
 
 When you look at the code above, you can see that we:
 1. Import the `dlt` library.
@@ -63,13 +51,13 @@ When you look at the code above, you can see that we:
 
 Save this Python script with the name `quick_start_pipeline.py` and run the following command:
 
-```bash
+```sh
 python quick_start_pipeline.py
 ```
 
 The output should look like:
 
-```bash
+```sh
 Pipeline quick_start completed in 0.59 seconds
 1 load package(s) were loaded to destination duckdb and into dataset mydata
 The duckdb destination used duckdb:////home/user-name/quick_start/quick_start.duckdb location to store data
@@ -82,13 +70,13 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
 
-```bash
+```sh
 dlt pipeline quick_start show
 ```
 
 **quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
 
-```bash
+```sh
 pip install streamlit
 ```
 

@@ -1,26 +1,29 @@
+---
+title: Jira
+description: dlt verified source for Atlassian Jira
+keywords: [jira api, jira verified source, jira]
+---
+import Header from './_source-info-header.md';
+
 # Jira
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Jira](https://www.atlassian.com/software/jira) by Atlassian helps teams manage projects and tasks
 efficiently, prioritize work, and collaborate.
 
 This Jira `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira_pipeline.py)
-loads data using Jira API to the destination of your choice.
+loads data using the Jira API to the destination of your choice.
 
 The endpoints that this verified source supports are:
 
 | Name      | Description                                                                              |
 | --------- | ---------------------------------------------------------------------------------------- |
-| issues    | individual pieces of work to be completed                                                |
-| users     | administrator of a given project                                                         |
-| workflows | the key aspect of managing and tracking the progress of issues or tasks within a project |
-| projects  | a collection of tasks that need to be completed to achieve a certain outcome             |
+| issues    | Individual pieces of work to be completed                                                |
+| users     | Administrators of a given project                                                         |
+| workflows | The key aspect of managing and tracking the progress of issues or tasks within a project |
+| projects  | A collection of tasks that need to be completed to achieve a certain outcome             |
 
 To get a complete list of sub-endpoints that can be loaded, see
 [jira/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/settings.py)
@@ -51,7 +54,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init jira duckdb
    ```
 
@@ -96,25 +99,25 @@ For more information, read the guide on [how to add a verified source](../../wal
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python jira_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`, you may also
+   For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`. You may also
    use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -134,44 +137,47 @@ it is important to note the complete list of the default endpoints given in
 
 This source function creates a list of resources to load data into the destination.
 
-```python
+```py
 @dlt.source
 def jira(
      subdomain: str = dlt.secrets.value,
      email: str = dlt.secrets.value,
      api_token: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 - `subdomain`: The subdomain of the Jira account. Configured in ".dlt/secrets.toml".
 - `email`: The email associated with the Jira account. Configured in ".dlt/secrets.toml".
-- `api_token`: The API token for accessing the Jira account.Configured in ".dlt/secrets.toml".
+- `api_token`: The API token for accessing the Jira account. Configured in ".dlt/secrets.toml".
 
 ### Source `jira_search`
 
 This function returns a resource for querying issues using JQL
 [(Jira Query Language)](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/).
 
-```python
+```py
 @dlt.source
 def jira_search(
      subdomain: str = dlt.secrets.value,
      email: str = dlt.secrets.value,
      api_token: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
-The above function uses the same arguments `subdomain`, `email` and `api_token` as described above
-for [jira source](jira.md#source-jira).
+The above function uses the same arguments `subdomain`, `email`, and `api_token` as described above
+for the [jira source](jira.md#source-jira).
 
 ### Resource `issues`
 
 The resource function searches issues using JQL queries and then loads them to the destination.
 
-```python
+```py
 @dlt.resource(write_disposition="replace")
 def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
-    api_path = "rest/api/3/search"
+   api_path = "rest/api/3/search"
+   return {}  # return the retrieved values here
 ```
 
 `jql_queries`: Accepts a list of JQL queries.
@@ -179,14 +185,14 @@ def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
 ## Customization
 ### Create your own pipeline
 
-If you wish to create your own pipelines you can leverage source and resource methods as discussed
+If you wish to create your own pipelines, you can leverage source and resource methods as discussed
 above.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more
    about pipeline configuration, please refer to our documentation
    [here](https://dlthub.com/docs/general-usage/pipeline):
 
-    ```python
+    ```py
     pipeline = dlt.pipeline(
         pipeline_name="jira_pipeline",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -196,20 +202,20 @@ above.
 
 2. To load custom endpoints such as “issues” and “users” using the jira source function:
 
-    ```python
+    ```py
     #Run the pipeline
     load_info = pipeline.run(jira().with_resources("issues","users"))
     print(f"Load Information: {load_info}")
     ```
 
-3. To load the custom issues using JQL queries, you can use custom queries, here is an example
+3. To load the custom issues using JQL queries, you can use custom queries. Here is an example
    below:
 
-    ```python
+    ```py
     # Define the JQL queries as follows
     queries = [
               "created >= -30d order by created DESC",
-              "created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC",
+              'created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC',
               ]
     # Run the pipeline
     load_info = pipeline.run(jira_search().issues(jql_queries=queries))
@@ -217,5 +223,5 @@ above.
     print(f"Load Information: {load_info}")
     ```
 
-<!--@@@DLT_SNIPPET_START tuba::jira-->
-<!--@@@DLT_SNIPPET_END tuba::jira-->
+<!--@@@DLT_TUBA jira-->
+
