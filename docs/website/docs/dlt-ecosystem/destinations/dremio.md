@@ -8,7 +8,7 @@ keywords: [dremio, iceberg, aws, glue catalog]
 
 ## Install dlt with Dremio
 **To install the DLT library with Dremio and s3 dependencies:**
-```
+```sh
 pip install dlt[dremio,s3]
 ```
 
@@ -16,7 +16,7 @@ pip install dlt[dremio,s3]
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
-   ```bash
+   ```sh
    dlt init chess dremio
    ```
    > 💡 This command will initialise your pipeline with chess as the source and aws dremio as the destination using the filesystem staging destination
@@ -25,7 +25,7 @@ Let's start by initializing a new dlt project as follows:
 ### 2. Setup bucket storage and dremio credentials
 
 First install dependencies by running:
-```
+```sh
 pip install -r requirements.txt
 ```
 or with `pip install dlt[dremio,s3]` which will install `s3fs`, `pyarrow`, and `botocore` packages.
@@ -89,7 +89,7 @@ Using a staging destination is mandatory when using the dremio destination. If y
 
 ## Table Partitioning and Local Sort
 Apache Iceberg table partitions and local sort properties can be configured as shown below:
-```python
+```py
 import dlt
 from dlt.common.schema import TColumnSchema
 
@@ -112,7 +112,4 @@ This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clau
 ### Syncing of `dlt` state
 - This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-
-<!--@@@DLT_SNIPPET_START tuba::dremio-->
-## Additional Setup guides
-<!--@@@DLT_SNIPPET_END tuba::dremio-->
+<!--@@@DLT_TUBA dremio-->
