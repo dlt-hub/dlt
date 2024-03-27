@@ -29,12 +29,24 @@ def bold(msg: str) -> str:
     return click.style(msg, bold=True, reset=True)
 
 
+def info_style(msg: str) -> str:
+    return click.style(msg, fg="blue", reset=True)
+
+
 def warning_style(msg: str) -> str:
     return click.style(msg, fg="yellow", reset=True)
 
 
+def error_style(msg: str) -> str:
+    return click.style(msg, fg="red", reset=True)
+
+
 def error(msg: str) -> None:
     click.secho("ERROR: " + msg, fg="red")
+
+
+def info(msg: str) -> None:
+    click.secho("INFO: " + msg, fg="blue")
 
 
 def warning(msg: str) -> None:

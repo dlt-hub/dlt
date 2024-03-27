@@ -8,6 +8,7 @@ Run streamlit showing this pipeline like this:
 import os
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -152,13 +153,12 @@ def test_render_with_pipeline_with_different_pipeline_dirs():
     def dummy_render(pipeline: dlt.Pipeline) -> None:
         pass
 
-    old_args = sys.argv[:]
-    with pytest.raises(CannotRestorePipelineException):
-        sys.argv = [*base_args, "/run/dlt"]
+    with pytest.raises(CannotRestorePipelineException), mock.patch.object(
+        sys, "argv", [*base_args, "/run/dlt"]
+    ):
         render_with_pipeline(dummy_render)
 
-    with pytest.raises(CannotRestorePipelineException):
-        sys.argv = [*base_args, "/tmp/dlt"]
+    with pytest.raises(CannotRestorePipelineException), mock.patch.object(
+        sys, "argv", [*base_args, "/tmp/dlt"]
+    ):
         render_with_pipeline(dummy_render)
-
-    sys.argv = old_args
