@@ -29,12 +29,16 @@ def write_data_explorer_page(
 
     st.subheader("Schemas and tables", divider="rainbow")
     schema_picker(pipeline)
-    tables = sorted(
-        st.session_state["schema"].data_tables(),
-        key=lambda table: table["name"],
-    )
+    if schema := st.session_state["schema"]:
+        tables = sorted(
+            schema.data_tables(),
+            key=lambda table: table["name"],
+        )
 
-    list_table_hints(pipeline, tables)
+        list_table_hints(pipeline, tables)
+    else:
+        st.warning("No schemas found")
+
     maybe_run_query(
         pipeline,
         show_charts=show_charts,
