@@ -5,7 +5,6 @@ from dlt.destinations.impl.filesystem.configuration import FilesystemDestination
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.storages.configuration import FileSystemCredentials
-from dlt.destinations.path_utils import PathParams
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -32,7 +31,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         current_datetime: t.Optional[datetime] = None,
         datetime_format: t.Optional[str] = None,
         extra_params: t.Optional[t.Dict[str, t.Any]] = None,
-        suffix_fn: t.Optional[t.Callable[[PathParams], str]] = None,
+        suffix_fn: t.Optional[t.Callable[[], str]] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
