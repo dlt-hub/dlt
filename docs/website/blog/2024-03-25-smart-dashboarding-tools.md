@@ -1,7 +1,7 @@
 ---
 slug: smart-dashboarding-tools
 title: "What is so smart about smart dashboarding tools?"
-image: https://storage.googleapis.com/dlt-blog-images/smart-dashboarding-question-example.png
+image: https://storage.googleapis.com/dlt-blog-images/ai_sql.png
 authors:
   name: Hiba Jamal
   title: Data Science intern at dltHub
