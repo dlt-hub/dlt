@@ -29,15 +29,10 @@ jobs:
     name: Tests dbt cloud
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
-        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
 
     steps:
 
@@ -70,21 +65,4 @@ jobs:
 
       - run: |
           poetry run pytest tests/helpers/dbt_cloud_tests -k '(not venv)'
-        if: runner.os != 'Windows'
         name: Run dbt cloud - Linux/MAC
-      - run: |
-          poetry run pytest tests/helpers/dbt_cloud_tests -k "(not venv)"
-        if: runner.os == 'Windows'
-        name: Run dbt cloud - Windows
-        shell: cmd
-
-  matrix_job_required_check:
-    name: dbt cloud tests
-    needs: run_dbt_cloud
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1

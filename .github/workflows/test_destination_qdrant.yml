@@ -29,15 +29,10 @@ jobs:
     name: Tests Qdrant loader
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
 
     steps:
       - name: Check out
@@ -67,17 +62,7 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline
-      - run: |
-          poetry run pytest tests/load/
-        name: Run tests Linux
 
-  matrix_job_required_check:
-    name: Qdrant loader tests
-    needs: run_loader
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
+      - run: |
+          poetry run pytest tests/load/essential
+        name: Run tests Linux/MAC

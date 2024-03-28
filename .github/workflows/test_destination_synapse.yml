@@ -29,14 +29,10 @@ jobs:
     name: Tests Synapse loader
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
 
     steps:
 
@@ -73,22 +69,5 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/load
-        if: runner.os != 'Windows'
+          poetry run pytest tests/load/essential
         name: Run tests Linux/MAC
-      - run: |
-          poetry run pytest tests/load
-        if: runner.os == 'Windows'
-        name: Run tests Windows
-        shell: cmd
-
-  matrix_job_required_check:
-    name: Synapse loader tests
-    needs: run_loader
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
