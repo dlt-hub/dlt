@@ -55,7 +55,7 @@ psycopg2-binary = {version = ">=2.9.1", optional = true}
 # psycopg2cffi = {git = "https://github.com/chtd/psycopg2cffi.git", optional = true, markers="platform_python_implementation == 'PyPy'"}
 psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_implementation == 'PyPy'"}
 grpcio = {version = ">=1.50.0", optional = true}
-google-cloud-bigquery = {version = ">=2.26.0", optional = true}
+google-cloud-bigquery = {version = ">=3.14", optional = true}
 pyarrow = {version = ">=12.0.0", optional = true}
 duckdb = [
     {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},

@@ -48,7 +48,9 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
     def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
         if chunk_size is not None:
             return super().df(chunk_size=chunk_size)
-        query_job: bigquery.QueryJob = self.native_cursor._query_job
+        query_job: bigquery.QueryJob = getattr(
+            self.native_cursor, "_query_job", self.native_cursor.query_job
+        )
 
         try:
             return query_job.to_dataframe(**kwargs)
