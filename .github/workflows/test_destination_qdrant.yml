@@ -64,5 +64,5 @@ jobs:
         run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline
 
       - run: |
-          poetry run pytest tests/load/essential
+          poetry run pytest tests/load -m "essential"
         name: Run tests Linux/MAC
