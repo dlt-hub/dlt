@@ -1,5 +1,5 @@
 
-name: destinations | test athena
+name: dest | athena
 
 on:
   pull_request:
@@ -24,12 +24,13 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
     # Tests that require credentials do not run in forks
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: test destination athena
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     defaults:

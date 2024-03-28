@@ -1,5 +1,5 @@
 
-name: tools | test dbt runner
+name: tools | dbt runner
 
 on:
   pull_request:
@@ -19,11 +19,12 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_dbt:
-    name: Tests dbt runner
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     defaults:

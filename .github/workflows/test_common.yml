@@ -1,4 +1,4 @@
-name: common | test common
+name: common | common
 
 on:
   pull_request:
@@ -16,10 +16,11 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_common:
-    name: Tests common dlt code
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:

@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: destinations | test local destinations
+name: dest | postgres, duckdb and fs
 
 on:
   pull_request:
@@ -25,10 +25,11 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: test destinations postgres, duckdb and filesystem
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:

@@ -1,4 +1,4 @@
-name: util | get docs changes
+name: util | get docs changes
 
 on:
   workflow_call:
@@ -13,6 +13,7 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     runs-on: ubuntu-latest
     outputs:
       changes_outside_docs: ${{ steps.check_changes.outputs.changes_outside_docs }}

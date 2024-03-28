@@ -1,5 +1,5 @@
 
-name: destinations | test bigquery
+name: dest | bigquery
 
 on:
   pull_request:
@@ -23,11 +23,12 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: Tests BigQuery loader
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     defaults:
