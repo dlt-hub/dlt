@@ -1,6 +1,6 @@
 import dataclasses
 
-from typing import Callable, Dict, Final, Type, Optional, TypeAlias, Union
+from typing import Any, Callable, Dict, Final, Type, Optional, TypeAlias, Union
 
 
 from pendulum.datetime import DateTime
@@ -9,9 +9,7 @@ from dlt.common.destination.reference import (
     CredentialsConfiguration,
     DestinationClientStagingConfiguration,
 )
-from dlt.common.schema.schema import Schema
 from dlt.common.storages import FilesystemConfiguration
-from dlt.destinations.path_utils import PathParams, check_layout
 
 TCurrentDatetimeCallback: TypeAlias = Callable[[], DateTime]
 """A callback which should return current datetime"""
@@ -22,8 +20,10 @@ TDatetimeFormatterCallback: TypeAlias = Callable[[DateTime], str]
 TDatetimeFormat: TypeAlias = Union[str, TDatetimeFormatterCallback]
 """Datetime format or formatter callback"""
 
-TLayoutParamCallback: TypeAlias = Callable[[Schema, DateTime], str]
-"""A callback which should return prepared string value for layout parameter value"""
+TLayoutParamCallback: TypeAlias = Callable[[str, str, str, str, DateTime], str]
+"""A callback which should return prepared string value for layout parameter value
+schema name, table name, load_id, file_id and current_datetime will be passed
+"""
 
 
 @configspec
@@ -35,8 +35,8 @@ class FilesystemDestinationClientConfiguration(
     )  # type: ignore
     current_datetime: Optional[Union[DateTime, TCurrentDatetimeCallback]] = None
     datetime_format: Optional[TDatetimeFormat] = None
-    layout_params: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
-    suffix: Optional[Union[str, Callable[[PathParams], str]]] = None
+    extra_params: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
+    suffix: Optional[Union[str, Callable[[Dict[str, Any]], str]]] = None
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -62,7 +62,6 @@ class FilesystemDestinationClientConfiguration(
                         "didn't return any instance of pendulum.DateTime"
                     )
 
-
         # Validate layout and layout params
-        check_layout(self.layout, self.layout_params)
+        # layout_helper(self.layout, self.extra_params).check_layout()
         super().on_resolved()

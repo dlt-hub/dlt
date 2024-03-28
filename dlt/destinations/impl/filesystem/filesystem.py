@@ -2,6 +2,7 @@ import posixpath
 import os
 from types import TracebackType
 from typing import ClassVar, List, Type, Iterable, Set, Iterator
+from typing_extensions import deprecated
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -20,9 +21,12 @@ from dlt.common.destination.reference import (
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.impl.filesystem import capabilities
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+)
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
+from dlt.destinations.impl.filesystem.layout import make_filename
 
 
 class LoadFilesystemJob(LoadJob):
@@ -38,41 +42,41 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout,
-            config.datetime_format,
-            config.layout_params,
-            file_name,
-            schema_name,
-            load_id,
-        )
+        self.destination_file_name = make_filename(config, file_name, schema_name, load_id)
 
         super().__init__(file_name)
         fs_client, _ = fsspec_from_config(config)
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout,
-            config.datetime_format,
-            config.layout_params,
-            file_name,
-            schema_name,
-            load_id,
-        )
+        self.destination_file_name = make_filename(config, file_name, schema_name, load_id)
+
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
 
     @staticmethod
+    @deprecated("Phase out in tests use layout.make_filename")
     def make_destination_filename(
-        layout: str, file_name: str, schema_name: str, load_id: str
+        config: FilesystemDestinationClientConfiguration,
+        layout: str,
+        file_name: str,
+        schema_name: str,
+        load_id: str,
     ) -> str:
-        job_info = ParsedLoadJobFileName.parse(file_name)
-        return path_utils.create_path(
-            layout,
-            schema_name=schema_name,
-            table_name=job_info.table_name,
-            load_id=load_id,
-            file_id=job_info.file_id,
-            ext=job_info.file_format,
-        )
+        # job_info = ParsedLoadJobFileName.parse(file_name)
+        # layout_helper = PathLayout(
+        #     PathParams(
+        #         schema_name=schema_name,
+        #         table_name=job_info.table_name,
+        #         load_id=load_id,
+        #         file_id=job_info.file_id,
+        #         ext=job_info.file_format,
+        #         current_date=config.current_datetime or ("NOW"),
+        #         datetime_format=config.datetime_format,
+        #         layout=config.layout,
+        #         extra_params=config.layout_params,
+        #         suffix=config.suffix,
+        #     )
+        # )
+        # return layout_helper.create_path()
+        pass
 
     def make_remote_path(self) -> str:
         return (
@@ -91,7 +95,9 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self.make_remote_path()
+                file_name=self.file_name(),
+                status="running",
+                remote_path=self.make_remote_path(),
             )
             jobs.append(ref_job)
         return jobs
@@ -104,7 +110,11 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
     fs_client: AbstractFileSystem
     fs_path: str
 
-    def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        config: FilesystemDestinationClientConfiguration,
+    ) -> None:
         super().__init__(schema, config)
         self.fs_client, self.fs_path = fsspec_from_config(config)
         self.config: FilesystemDestinationClientConfiguration = config
@@ -186,6 +196,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
             self.fs_client.makedirs(directory, exist_ok=True)
         return expected_update
 
+    # FIXME: maybe have to fixup to support all PathParams and create_path updates
     def _get_table_dirs(self, table_names: Iterable[str]) -> Set[str]:
         """Gets unique directories where table data is stored."""
         table_dirs: Set[str] = set()
@@ -224,7 +235,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         pass
 
