@@ -284,6 +284,10 @@ class FileStorage:
         return os.path.basename(file_path)
 
     @staticmethod
+    def get_dir_name_from_file_path(file_path: str) -> str:
+        return os.path.dirname(file_path)
+
+    @staticmethod
     def validate_file_name_component(name: str) -> None:
         # Universal platform bans several characters allowed in POSIX ie. | < \ or "COM1" :)
         try:
