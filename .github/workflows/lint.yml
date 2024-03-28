@@ -1,5 +1,5 @@
 
-name: lint
+name: lint | lint code and tests
 
 on:
   pull_request:
@@ -64,12 +64,6 @@ jobs:
         run: |
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
-
-      # - name: print envs
-      #   run: |
-      #     echo "The GitHub Actor's username is: $GITHUB_ACTOR"
-      #     echo "The GitHub repo owner is: $GITHUB_REPOSITORY_OWNER"
-      #     echo "The GitHub repo is: $GITHUB_REPOSITORY"
 
   matrix_job_required_check:
     name: Lint results

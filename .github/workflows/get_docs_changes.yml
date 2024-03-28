@@ -1,4 +1,4 @@
-name: get docs changes
+name: util | get docs changes
 
 on:
   workflow_call:

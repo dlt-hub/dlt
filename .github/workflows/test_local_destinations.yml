@@ -1,7 +1,7 @@
 # Tests destinations that can run without credentials.
 # i.e. local postgres, duckdb, filesystem (with local fs/memory bucket)
 
-name: test local destinations
+name: destinations | test local destinations
 
 on:
   pull_request:

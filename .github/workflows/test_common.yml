@@ -1,4 +1,4 @@
-name: test common
+name: common | test common
 
 on:
   pull_request:

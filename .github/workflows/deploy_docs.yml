@@ -1,4 +1,4 @@
-name: deploy docs
+name: docs | deploy docs
 
 on:
   schedule:
