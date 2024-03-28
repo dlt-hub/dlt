@@ -1,4 +1,4 @@
-name: test airflow integration
+name: tools | test airflow integration
 
 on:
   pull_request:

@@ -1,4 +1,4 @@
-name: test Qdrant
+name: destinations | test Qdrant
 
 on:
   pull_request:

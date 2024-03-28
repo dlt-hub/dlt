@@ -1,5 +1,5 @@
 
-name: test dbt runner
+name: tools | test dbt runner
 
 on:
   pull_request:

@@ -1,5 +1,5 @@
 
-name: test bigquery
+name: destinations | test bigquery
 
 on:
   pull_request:

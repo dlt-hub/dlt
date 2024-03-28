@@ -1,4 +1,4 @@
-name: test synapse
+name: destinations | test synapse
 
 on:
   pull_request:

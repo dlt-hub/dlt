@@ -1,5 +1,5 @@
 
-name: test redshift, postgres and filesystem buckets
+name: destinations | test redshift, postgres and filesystem buckets
 
 on:
   pull_request:

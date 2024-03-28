@@ -1,5 +1,5 @@
 
-name: test athena iceberg
+name: destinations | test athena iceberg
 
 on:
   pull_request:

@@ -1,4 +1,4 @@
-name: test build docker images
+name: tools | test build docker images
 
 on:
   pull_request:

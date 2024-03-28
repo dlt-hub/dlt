@@ -1,5 +1,5 @@
 
-name: lint
+name: lint | lint code and tests
 
 on:
   pull_request:

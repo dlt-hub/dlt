@@ -1,5 +1,5 @@
 
-name: test dbt cloud
+name: tools | test dbt cloud
 
 on:
   pull_request:

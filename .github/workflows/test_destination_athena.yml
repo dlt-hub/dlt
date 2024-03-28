@@ -1,5 +1,5 @@
 
-name: test athena
+name: destinations | test athena
 
 on:
   pull_request:

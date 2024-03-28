@@ -1,5 +1,5 @@
 
-name: docs snippet lint and test
+name: docs | lint and test snippets & examples
 
 on:
   pull_request:
