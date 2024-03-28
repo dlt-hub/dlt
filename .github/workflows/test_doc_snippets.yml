@@ -1,5 +1,5 @@
 
-name: docs | lint and test snippets & examples
+name: docs | snippets & examples
 
 on:
   pull_request:
@@ -26,7 +26,7 @@ env:
 jobs:
 
   run_lint:
-    name: lint
+    name: lint and test
     runs-on: ubuntu-latest
 
     steps:
