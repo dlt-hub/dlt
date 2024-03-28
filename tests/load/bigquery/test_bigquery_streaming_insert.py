@@ -37,5 +37,5 @@ def test_bigquery_streaming_nested_data():
     with pipe.sql_client() as client:
         with client.execute_query("SELECT * FROM test_streaming_items;") as cursor:
             res = cursor.fetchall()
-            assert res[0]["field1__nested_field"] == 1
-            assert res[0]["field2__nested_field"] == 2
+            assert res[0]["field1__nested_field"] == 1  # type: ignore
+            assert res[0]["field2__nested_field"] == 2  # type: ignore

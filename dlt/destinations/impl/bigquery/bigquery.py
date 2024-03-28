@@ -223,7 +223,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)  # type: ignore
+        job = super().start_file_load(table, file_path, load_id)
 
         if not job:
             insert_api = table.get("x-insert-api", "default")
@@ -248,7 +248,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         [],
                     )
                 else:
-                    job = BigQueryLoadJob(  # type: ignore
+                    job = BigQueryLoadJob(
                         FileStorage.get_file_name_from_file_path(file_path),
                         self._create_load_job(table, file_path),
                         self.config.http_timeout,
