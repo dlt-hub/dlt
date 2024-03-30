@@ -1,3 +1,8 @@
+from typing import Any
+
+import pytest
+
+import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.libs.sql_alchemy import make_url
 from dlt.common.utils import digest128
@@ -9,6 +14,7 @@ from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
+from tests.common.configuration.utils import environment
 
 
 def test_connection_string_with_all_params() -> None:
@@ -41,3 +47,14 @@ def test_clickhouse_configuration() -> None:
         explicit_value="clickhouse://user1:pass1@host1:9000/db1",
     )
     assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
+
+
+@pytest.mark.usefixtures("environment")
+def test_gcp_hmac_getter_accessor(environment: Any) -> None:
+    environment["DESTINATION__FILESYSTEM__CREDENTIALS__GCP_ACCESS_KEY_ID"] = "25g08jaDJacj42"
+    environment["DESTINATION__FILESYSTEM__CREDENTIALS__GCP_SECRET_ACCESS_KEY"] = "ascvntp45uasdf"
+
+    assert dlt.config["destination.filesystem.credentials.gcp_access_key_id"] == "25g08jaDJacj42"
+    assert (
+        dlt.config["destination.filesystem.credentials.gcp_secret_access_key"] == "ascvntp45uasdf"
+    )

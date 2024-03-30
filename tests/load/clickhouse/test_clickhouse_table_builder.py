@@ -167,6 +167,6 @@ def test_create_table_with_hints(client: ClickhouseClient) -> None:
     assert "`col1` bigint SORTKEY NOT NULL" in sql
     assert "`col2` double precision DISTKEY NOT NULL" in sql
     assert "`col5` varchar(max) DISTKEY" in sql
-    # no hints
+    # No hints.
     assert "`col3` boolean  NOT NULL" in sql
     assert "`col4` timestamp with time zone  NOT NULL" in sql

@@ -8,10 +8,10 @@ from dlt.common.destination import DestinationCapabilitiesContext
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
 
-    caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl", "parquet"]
-    caps.preferred_staging_file_format = "jsonl"
-    caps.supported_staging_file_formats = ["jsonl", "parquet"]
+    caps.preferred_loader_file_format = "parquet"
+    caps.supported_loader_file_formats = ["parquet"]
+    caps.preferred_staging_file_format = "parquet"
+    caps.supported_staging_file_formats = ["parquet"]
 
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal

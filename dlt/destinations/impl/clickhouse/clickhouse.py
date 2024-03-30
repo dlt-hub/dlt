@@ -1,12 +1,16 @@
 import os
 from copy import deepcopy
-from typing import ClassVar, Optional, Dict, List, Sequence, cast
+from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
 from urllib.parse import urlparse
 
+import dlt
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
-    AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
+    AwsCredentials,
+    GcpCredentials,
+    AzureCredentials,
+    AwsCredentialsWithoutDefaults,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -16,7 +20,14 @@ from dlt.common.destination.reference import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.typing import TTableFormat, TTableSchema, TColumnHint, TColumnType
+from dlt.common.schema.typing import (
+    TTableFormat,
+    TTableSchema,
+    TColumnHint,
+    TColumnType,
+    TTableSchemaColumns,
+    TColumnSchemaBase,
+)
 from dlt.common.storages import FileStorage
 from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
@@ -120,7 +131,9 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         file_name = (
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
-        file_extension = os.path.splitext(file_name)[1][1:].lower()  # Remove dot (.) from file extension.
+        file_extension = os.path.splitext(file_name)[1][
+            1:
+        ].lower()  # Remove dot (.) from file extension.
         if file_extension not in ["parquet", "jsonl"]:
             raise ValueError("Clickhouse staging only supports 'parquet' and 'jsonl' file formats.")
 
@@ -137,26 +150,29 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         if bucket_scheme in ("s3", "gs", "gcs"):
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
 
-            table_function = (
-                render_object_storage_table_function(
-                    bucket_http_url,
-                    staging_credentials.aws_access_key_id,
-                    staging_credentials.aws_secret_access_key,
-                    file_format=file_extension,
-                )
-                if isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
-                else render_object_storage_table_function(
-                    bucket_http_url, file_format=file_extension
-                )
+            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                access_key_id = staging_credentials.aws_access_key_id
+                secret_access_key = staging_credentials.aws_secret_access_key
+            elif isinstance(staging_credentials, GcpCredentials):
+                # TODO: HMAC keys aren't implemented in `GcpCredentials`.
+                access_key_id = dlt.config["destination.filesystem.credentials.gcp_access_key_id"]
+                secret_access_key = dlt.config[
+                    "destination.filesystem.credentials.gcp_secret_access_key"
+                ]
+            else:
+                access_key_id = None
+                secret_access_key = None
+
+            table_function = render_object_storage_table_function(
+                bucket_http_url, access_key_id, secret_access_key, file_format=file_extension
             )
+
         elif bucket_scheme in ("az", "abfs"):
             if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                 # Authenticated access.
                 account_name = staging_credentials.azure_storage_account_name
-                storage_account_url = (
-                    f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
-                )
-                account_key = staging_credentials.azure_storage_sas_token
+                storage_account_url = f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+                account_key = staging_credentials.azure_storage_account_key
                 container_name = bucket_url.netloc
                 blobpath = bucket_url.path
 
@@ -260,6 +276,34 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_str}"
             .strip()
         )
+
+    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
+        fields = self._get_storage_table_query_columns()
+        db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
+            ".", 3
+        )
+        query = f'SELECT {",".join(fields)} FROM INFORMATION_SCHEMA.COLUMNS WHERE '
+        if len(db_params) == 3:
+            query += "table_catalog = %s AND "
+        query += "table_schema = %s AND table_name = %s ORDER BY ordinal_position;"
+        rows = self.sql_client.execute_sql(query, *db_params)
+
+        # If no rows we assume that table does not exist.
+        schema_table: TTableSchemaColumns = {}
+        if len(rows) == 0:
+            return False, schema_table
+        for c in rows:
+            numeric_precision = (
+                c[3] if self.capabilities.schema_supports_numeric_precision else None
+            )
+            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
+            schema_c: TColumnSchemaBase = {
+                "name": c[0],
+                "nullable": bool(c[2]),
+                **self._from_db_type(c[1], numeric_precision, numeric_scale),
+            }
+            schema_table[c[0]] = schema_c  # type: ignore
+        return True, schema_table
 
     # Clickhouse fields are not nullable by default.
     @staticmethod
