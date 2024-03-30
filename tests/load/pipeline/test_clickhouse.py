@@ -21,7 +21,7 @@ def test_clickhouse_destinations_append(destination_config: DestinationTestConfi
     pipeline = destination_config.setup_pipeline(f"clickhouse_{uniq_id()}", full_refresh=True)
 
     @dlt.resource(name="items", write_disposition="append")
-    def items():
+    def items() -> Iterator[TDataItem]:
         yield {
             "id": 1,
             "name": "item",
@@ -41,7 +41,7 @@ def test_clickhouse_destinations_append(destination_config: DestinationTestConfi
 
     # Load again with schema evolution.
     @dlt.resource(name="items", write_disposition="append")
-    def items2():
+    def items2() -> Iterator[TDataItem]:
         yield {
             "id": 1,
             "name": "item",
@@ -69,7 +69,6 @@ def test_clickhouse_destinations_append(destination_config: DestinationTestConfi
     assert table_counts["_dlt_loads"] == 2
 
 
-@pytest.mark.skip()
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(all_staging_configs=True, subset=["clickhouse"]),
@@ -78,7 +77,7 @@ def test_clickhouse_destinations_append(destination_config: DestinationTestConfi
 def test_clickhouse_destinations_merge(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(f"clickhouse_{uniq_id()}", full_refresh=True)
 
-    @dlt.resource(name="items", write_disposition="append")
+    @dlt.resource(name="items", write_disposition="merge")
     def items() -> Iterator[TDataItem]:
         yield {
             "id": 1,
@@ -99,7 +98,7 @@ def test_clickhouse_destinations_merge(destination_config: DestinationTestConfig
 
     # Load again with schema evolution.
     @dlt.resource(name="items", write_disposition="merge")
-    def items2():
+    def items2() -> Iterator[TDataItem]:
         yield {
             "id": 1,
             "name": "item",
@@ -122,6 +121,6 @@ def test_clickhouse_destinations_merge(destination_config: DestinationTestConfig
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]
     )
-    assert table_counts["items"] == 2
-    assert table_counts["items__sub_items"] == 4
+    assert table_counts["items"] == 1
+    assert table_counts["items__sub_items"] == 2
     assert table_counts["_dlt_loads"] == 2

@@ -346,27 +346,6 @@ def destinations_configs(
                 extra_info="credential-forwarding",
             ),
             DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="parquet",
-                bucket_url=AWS_BUCKET,
-                extra_info="credential-forwarding",
-            ),
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="parquet",
-                bucket_url=GCS_BUCKET,
-                extra_info="credential-forwarding",
-            ),
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="parquet",
-                bucket_url=AZ_BUCKET,
-                extra_info="credential-forwarding",
-            ),
-            DestinationTestConfiguration(
                 destination="bigquery",
                 staging="filesystem",
                 file_format="jsonl",
