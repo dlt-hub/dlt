@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional
+from urllib.parse import urlparse, urljoin
 
 from dlt.sources.helpers.requests import Response, Request
 from dlt.common import jsonpath
@@ -102,6 +103,12 @@ class OffsetPaginator(BasePaginator):
 
 class BaseNextUrlPaginator(BasePaginator):
     def update_request(self, request: Request) -> None:
+        # Handle relative URLs
+        if self.next_reference:
+            parsed_url = urlparse(self.next_reference)
+            if not parsed_url.scheme:
+                self.next_reference = urljoin(request.url, self.next_reference)
+
         request.url = self.next_reference
 
 

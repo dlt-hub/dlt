@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from requests.models import Response
+from requests.models import Response, Request
 
 from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
@@ -88,6 +88,73 @@ class TestJSONResponsePaginator:
         paginator.update_state(response)
         assert paginator.next_reference == test_case["expected"]["next_reference"]
         assert paginator.has_next_page == test_case["expected"]["has_next_page"]
+
+    # Test update_request from BaseNextUrlPaginator
+    @pytest.mark.parametrize(
+        "test_case",
+        [
+            # Test with absolute URL
+            {
+                "next_reference": "http://example.com/api/resource?page=2",
+                "request_url": "http://example.com/api/resource",
+                "expected": "http://example.com/api/resource?page=2",
+            },
+            # Test with relative URL
+            {
+                "next_reference": "/api/resource?page=2",
+                "request_url": "http://example.com/api/resource",
+                "expected": "http://example.com/api/resource?page=2",
+            },
+            # Test with more nested path
+            {
+                "next_reference": "/api/resource/subresource?page=3&sort=desc",
+                "request_url": "http://example.com/api/resource/subresource",
+                "expected": "http://example.com/api/resource/subresource?page=3&sort=desc",
+            },
+            # Test with 'page' in path
+            {
+                "next_reference": "/api/page/4/items?filter=active",
+                "request_url": "http://example.com/api/page/3/items",
+                "expected": "http://example.com/api/page/4/items?filter=active",
+            },
+            # Test with complex query parameters
+            {
+                "next_reference": "/api/resource?page=3&category=books&sort=author",
+                "request_url": "http://example.com/api/resource?page=2",
+                "expected": "http://example.com/api/resource?page=3&category=books&sort=author",
+            },
+            # Test with URL having port number
+            {
+                "next_reference": "/api/resource?page=2",
+                "request_url": "http://example.com:8080/api/resource",
+                "expected": "http://example.com:8080/api/resource?page=2",
+            },
+            # Test with HTTPS protocol
+            {
+                "next_reference": "https://secure.example.com/api/resource?page=2",
+                "request_url": "https://secure.example.com/api/resource",
+                "expected": "https://secure.example.com/api/resource?page=2",
+            },
+            # Test with encoded characters in URL
+            {
+                "next_reference": "/api/resource?page=2&query=%E3%81%82",
+                "request_url": "http://example.com/api/resource",
+                "expected": "http://example.com/api/resource?page=2&query=%E3%81%82",
+            },
+            # Test with missing 'page' parameter in next_reference
+            {
+                "next_reference": "/api/resource?sort=asc",
+                "request_url": "http://example.com/api/resource?page=1",
+                "expected": "http://example.com/api/resource?sort=asc",
+            },
+        ],
+    )
+    def test_update_request(self, test_case):
+        paginator = JSONResponsePaginator()
+        paginator.next_reference = test_case["next_reference"]
+        request = Mock(Request, url=test_case["request_url"])
+        paginator.update_request(request)
+        assert request.url == test_case["expected"]
 
 
 class TestSinglePagePaginator:
