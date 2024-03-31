@@ -7,7 +7,6 @@ from typing import (
     Optional,
     Sequence,
     Set,
-    Tuple,
     Type,
     TypedDict,
     NewType,
@@ -65,6 +64,7 @@ TColumnHint = Literal[
 ]
 """Known hints of a column used to declare hint regexes."""
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TLoaderMergeStrategy = Literal["scd2"]
 TTableFormat = Literal["iceberg", "parquet", "jsonl"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
@@ -171,6 +171,7 @@ class TTableSchema(TypedDict, total=False):
     columns: TTableSchemaColumns
     resource: Optional[str]
     table_format: Optional[TTableFormat]
+    merge_strategy: Optional[TLoaderMergeStrategy]
 
 
 class TPartialTableSchema(TTableSchema):

@@ -228,7 +228,12 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return []
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
+        merge_strategy = self.schema.get_table(table_chain[0]["name"]).get("merge_strategy")
+        return [
+            SqlMergeJob.from_table_chain(
+                table_chain, self.sql_client, {"merge_strategy": merge_strategy}
+            )
+        ]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]

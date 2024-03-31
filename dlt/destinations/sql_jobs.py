@@ -1,9 +1,10 @@
-from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Optional
+from typing import Any, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
 from dlt.common.runtime.logger import pretty_format_exception
 
-from dlt.common.schema.typing import TTableSchema, TSortOrder
+from dlt.common import pendulum
+from dlt.common.schema.typing import TTableSchema, TSortOrder, TLoaderMergeStrategy
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
@@ -15,10 +16,16 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.pipeline.current import load_package as current_load_package
 
 
-class SqlJobParams(TypedDict):
+HIGH_TS = pendulum.datetime(9999, 12, 31)
+"""High timestamp used to indicate active records in `scd2` merge strategy."""
+
+
+class SqlJobParams(TypedDict, total=False):
     replace: Optional[bool]
+    merge_strategy: Optional[TLoaderMergeStrategy]
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
@@ -40,7 +47,7 @@ class SqlBaseJob(NewLoadJobImpl):
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
         """
-        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})  # type: ignore
+        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})
         top_table = table_chain[0]
         file_info = ParsedLoadJobFileName(
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
@@ -156,6 +163,8 @@ class SqlMergeJob(SqlBaseJob):
         If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
         If a dedup_sort column is specified in conjunction with a primary key, records will be sorted before deduplication, so the "latest" record remains.
         """
+        if params["merge_strategy"] == "scd2":
+            return cls.gen_scd2_sql(table_chain, sql_client)
         return cls.gen_merge_sql(table_chain, sql_client)
 
     @classmethod
@@ -477,4 +486,57 @@ class SqlMergeJob(SqlBaseJob):
                 )
 
             sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql};")
+        return sql
+
+    @classmethod
+    def gen_scd2_sql(
+        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """Returns SQL statements for the `scd2` merge strategy.
+
+        The root table can be inserted into and updated.
+        Updates only take place when a record retires (because there is a new version
+        or it is deleted) and only affect the "valid to" column.
+        Child tables are insert-only.
+        """
+        sql: List[str] = []
+        root_table = table_chain[0]
+        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+        with sql_client.with_staging_dataset(staging=True):
+            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+
+        # define values for validity columns
+        boundary_ts = current_load_package()["state"]["created_at"]
+        active_record_ts = HIGH_TS.isoformat()
+
+        # retire updated and deleted records
+        sql.append(f"""
+            UPDATE {root_table_name} SET valid_to = '{boundary_ts}'
+            WHERE NOT EXISTS (
+                SELECT s._dlt_id FROM {staging_root_table_name} AS s
+                WHERE {root_table_name}._dlt_id = s._dlt_id
+            ) AND valid_to = '{active_record_ts}';
+        """)
+
+        # insert new active records in root table
+        columns = list(root_table["columns"].keys())
+        col_str = ", ".join([c for c in columns if c not in ("valid_from", "valid_to")])
+        sql.append(f"""
+            INSERT INTO {root_table_name} ({col_str}, valid_from, valid_to)
+            SELECT {col_str}, '{boundary_ts}' AS valid_from, '{active_record_ts}' AS valid_to
+            FROM {staging_root_table_name} AS s
+            WHERE NOT EXISTS (SELECT s._dlt_id FROM {root_table_name} AS f WHERE f._dlt_id = s._dlt_id);
+        """)
+
+        # insert list elements for new active records in child tables
+        for table in table_chain[1:]:
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.append(f"""
+                INSERT INTO {table_name}
+                SELECT *
+                FROM {staging_table_name} AS s
+                WHERE NOT EXISTS (SELECT s._dlt_id FROM {table_name} AS f WHERE f._dlt_id = s._dlt_id);
+            """)
         return sql

@@ -1317,6 +1317,14 @@ def test_apply_hints() -> None:
         "primary_key": True,
         "merge_key": True,
     }
+    # test merge strategy hint
+    empty_r.apply_hints(merge_strategy="scd2")
+    assert empty_r._hints["merge_strategy"] == "scd2"
+    table = empty_r.compute_table_schema()
+    assert "valid_from" in table["columns"]
+    assert "valid_to" in table["columns"]
+    empty_r.apply_hints(merge_strategy="")
+    assert "merge_strategy" not in empty_r._hints
 
 
 def test_apply_dynamic_hints() -> None:

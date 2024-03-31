@@ -1,12 +1,12 @@
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
-from dlt.common.data_types.typing import TDataType
+from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+from dlt.common import json
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
+from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex, DLT_NAME_PREFIX
 from dlt.common.schema.utils import column_name_validator
 from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import (
@@ -128,6 +128,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         return cast(TDataItemRow, out_rec_row), out_rec_list
 
     @staticmethod
+    def get_row_hash(row: Dict[str, Any]) -> str:
+        """Returns hash of row.
+
+        Hash includes column names and values and is ordered by column name.
+        Excludes dlt system columns.
+        Can be used as deterministic row identifier.
+        """
+        row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
+        row_str = json.dumps(row_filtered, sort_keys=True)
+        return digest128(row_str, DLT_ID_LENGTH_BYTES)
+
+    @staticmethod
     def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> str:
         # create deterministic unique id of the child row taking into account that all lists are ordered
         # and all child tables must be lists
@@ -220,10 +232,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         pos: Optional[int] = None,
         _r_lvl: int = 0,
+        row_hash: bool = False,
     ) -> TNormalizedRowIterator:
         schema = self.schema
         table = schema.naming.shorten_fragments(*parent_path, *ident_path)
-
+        # compute row hash and set as row id
+        if row_hash:
+            row_id = self.get_row_hash(dict_row)  # type: ignore[arg-type]
+            dict_row["_dlt_id"] = row_id
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -296,10 +312,15 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
+        # determine merge strategy
+        merge_strategy = None
+        if table_name in self.schema.data_table_names():
+            merge_strategy = self.schema.get_table(table_name).get("merge_strategy")
         yield from self._normalize_row(
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
+            row_hash=merge_strategy == "scd2",
         )
 
     @classmethod

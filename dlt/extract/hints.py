@@ -14,9 +14,10 @@ from dlt.common.schema.typing import (
 )
 from dlt.common import logger
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_column, new_column, new_table
-from dlt.common.typing import TDataItem, DictStrAny, DictStrStr
+from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
+from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     InconsistentTableTemplate,
@@ -36,6 +37,7 @@ class TResourceHints(TypedDict, total=False):
     columns: TTableHintTemplate[TTableSchemaColumns]
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
+    merge_strategy: TLoaderMergeStrategy
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
     table_format: TTableHintTemplate[TTableFormat]
@@ -61,6 +63,7 @@ def make_hints(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    merge_strategy: TLoaderMergeStrategy = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
 ) -> TResourceHints:
@@ -96,6 +99,8 @@ def make_hints(
         new_template["primary_key"] = primary_key
     if merge_key is not None:
         new_template["merge_key"] = merge_key
+    if merge_strategy is not None:
+        new_template["merge_strategy"] = merge_strategy
     if validator:
         new_template["validator"] = validator
     DltResourceHints.validate_dynamic_hints(new_template)
@@ -167,6 +172,13 @@ class DltResourceHints:
         if "name" not in table_template:
             table_template["name"] = self.name
 
+        # add columns for `scd2` merge strategy
+        if "merge_strategy" in table_template and table_template["merge_strategy"] == "scd2":
+            table_template["columns"] = {
+                "valid_from": {"name": "valid_from", "data_type": "timestamp"},
+                "valid_to": {"name": "valid_to", "data_type": "timestamp"},
+            }
+
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
@@ -193,6 +205,7 @@ class DltResourceHints:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
+        merge_strategy: TLoaderMergeStrategy = None,
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
@@ -242,6 +255,7 @@ class DltResourceHints:
                 columns,
                 primary_key,
                 merge_key,
+                merge_strategy,
                 schema_contract,
                 table_format,
             )
@@ -283,6 +297,11 @@ class DltResourceHints:
                     t["merge_key"] = merge_key
                 else:
                     t.pop("merge_key", None)
+            if merge_strategy is not None:
+                if merge_strategy:
+                    t["merge_strategy"] = merge_strategy
+                else:
+                    t.pop("merge_strategy", None)
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
