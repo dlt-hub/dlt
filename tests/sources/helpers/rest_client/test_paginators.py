@@ -29,21 +29,54 @@ class TestHeaderLinkPaginator:
 
 
 class TestJSONResponsePaginator:
-    def test_update_state_with_next(self):
-        paginator = JSONResponsePaginator()
-        response = Mock(
-            Response, json=lambda: {"next": "http://example.com/next", "results": []}
-        )
+    @pytest.mark.parametrize(
+        "next_url_path, response_json, expected_next_reference, expected_has_next_page",
+        [
+            # Test with empty next_url_path, e.g. auto-detect
+            (
+                None,
+                {"next": "http://example.com/next", "results": []},
+                "http://example.com/next",
+                True,
+            ),
+            # Test with explicit next_url_path
+            (
+                "next_page",
+                {"next_page": "http://example.com/next", "results": []},
+                "http://example.com/next",
+                True,
+            ),
+            # Test with nested next_url_path
+            (
+                "next_page.url",
+                {"next_page": {"url": "http://example.com/next"}, "results": []},
+                "http://example.com/next",
+                True,
+            ),
+            # Test without next_page
+            (
+                None,
+                {"results": []},
+                None,
+                False,
+            ),
+        ],
+    )
+    def test_update_state(
+        self,
+        next_url_path,
+        response_json,
+        expected_next_reference,
+        expected_has_next_page,
+    ):
+        if next_url_path is None:
+            paginator = JSONResponsePaginator()
+        else:
+            paginator = JSONResponsePaginator(next_url_path=next_url_path)
+        response = Mock(Response, json=lambda: response_json)
         paginator.update_state(response)
-        assert paginator.next_reference == "http://example.com/next"
-        assert paginator.has_next_page is True
-
-    def test_update_state_without_next(self):
-        paginator = JSONResponsePaginator()
-        response = Mock(Response, json=lambda: {"results": []})
-        paginator.update_state(response)
-        assert paginator.next_reference is None
-        assert paginator.has_next_page is False
+        assert paginator.next_reference == expected_next_reference
+        assert paginator.has_next_page == expected_has_next_page
 
 
 class TestSinglePagePaginator:
