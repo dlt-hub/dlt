@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from requests.models import Response
 
@@ -30,53 +31,63 @@ class TestHeaderLinkPaginator:
 
 class TestJSONResponsePaginator:
     @pytest.mark.parametrize(
-        "next_url_path, response_json, expected_next_reference, expected_has_next_page",
+        "test_case",
         [
             # Test with empty next_url_path, e.g. auto-detect
-            (
-                None,
-                {"next": "http://example.com/next", "results": []},
-                "http://example.com/next",
-                True,
-            ),
+            {
+                "next_url_path": None,
+                "response_json": {"next": "http://example.com/next", "results": []},
+                "expected": {
+                    "next_reference": "http://example.com/next",
+                    "has_next_page": True,
+                },
+            },
             # Test with explicit next_url_path
-            (
-                "next_page",
-                {"next_page": "http://example.com/next", "results": []},
-                "http://example.com/next",
-                True,
-            ),
+            {
+                "next_url_path": "next_page",
+                "response_json": {
+                    "next_page": "http://example.com/next",
+                    "results": [],
+                },
+                "expected": {
+                    "next_reference": "http://example.com/next",
+                    "has_next_page": True,
+                },
+            },
             # Test with nested next_url_path
-            (
-                "next_page.url",
-                {"next_page": {"url": "http://example.com/next"}, "results": []},
-                "http://example.com/next",
-                True,
-            ),
+            {
+                "next_url_path": "next_page.url",
+                "response_json": {
+                    "next_page": {"url": "http://example.com/next"},
+                    "results": [],
+                },
+                "expected": {
+                    "next_reference": "http://example.com/next",
+                    "has_next_page": True,
+                },
+            },
             # Test without next_page
-            (
-                None,
-                {"results": []},
-                None,
-                False,
-            ),
+            {
+                "next_url_path": None,
+                "response_json": {"results": []},
+                "expected": {
+                    "next_reference": None,
+                    "has_next_page": False,
+                },
+            },
         ],
     )
-    def test_update_state(
-        self,
-        next_url_path,
-        response_json,
-        expected_next_reference,
-        expected_has_next_page,
-    ):
+    def test_update_state(self, test_case):
+        next_url_path = test_case["next_url_path"]
+
         if next_url_path is None:
             paginator = JSONResponsePaginator()
         else:
             paginator = JSONResponsePaginator(next_url_path=next_url_path)
-        response = Mock(Response, json=lambda: response_json)
+        response = Mock(Response, json=lambda: test_case["response_json"])
         paginator.update_state(response)
-        assert paginator.next_reference == expected_next_reference
-        assert paginator.has_next_page == expected_has_next_page
+        assert paginator.next_reference == test_case["expected"]["next_reference"]
+        assert paginator.has_next_page == test_case["expected"]["has_next_page"]
 
 
 class TestSinglePagePaginator:
