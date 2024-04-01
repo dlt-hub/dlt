@@ -95,6 +95,16 @@ pipeline = dlt.pipeline(
     dataset_name='chess_data'
 )
 ```
+To use Active Directory Principal, you can use the `sqlalchemy.engine.URL.create` method to create the connection URL using your Active Directory Service Principal credentials. Once you have the connection URL, you can directly use it in your pipeline configuration or convert it to a string.
+```py
+pipeline = dlt.pipeline(
+    pipeline_name='chess',
+    destination=dlt.destinations.synapse(
+        credentials=connection_url.render_as_string(hide_password=False)
+    ),
+    dataset_name='chess_data'
+)
+```
 
 ## Write disposition
 All write dispositions are supported.
