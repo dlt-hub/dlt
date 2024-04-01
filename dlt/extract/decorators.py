@@ -33,7 +33,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TColumnNames,
     TWriteDisposition,
-    TLoaderMergeStrategy,
+    TMergeConfig,
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
@@ -297,7 +297,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_strategy: TLoaderMergeStrategy = None,
+    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
@@ -316,7 +316,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_strategy: TLoaderMergeStrategy = None,
+    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
@@ -335,7 +335,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_strategy: TLoaderMergeStrategy = None,
+    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
@@ -355,7 +355,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_strategy: TLoaderMergeStrategy = None,
+    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
@@ -373,7 +373,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_strategy: TLoaderMergeStrategy = None,
+    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
@@ -426,7 +426,7 @@ def resource(
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        merge_strategy (TLoaderMergeStrategy): The merge strategy to use. Only applies when the `merge` write disposition is used. If `None`, the standard strategy is used.
+        merge_config (TMergeConfig): A dictionary to customize behavior of the `merge` write disposition. Can for example be used to configure the `scd2` merge strategy.
 
         schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
         table_format (Literal["iceberg"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, other destinations ignore this hint.
@@ -458,7 +458,7 @@ def resource(
             columns=columns,
             primary_key=primary_key,
             merge_key=merge_key,
-            merge_strategy=merge_strategy,
+            merge_config=merge_config,
             schema_contract=schema_contract,
             table_format=table_format,
         )

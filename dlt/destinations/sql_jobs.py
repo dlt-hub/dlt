@@ -4,7 +4,11 @@ import yaml
 from dlt.common.runtime.logger import pretty_format_exception
 
 from dlt.common import pendulum
-from dlt.common.schema.typing import TTableSchema, TSortOrder, TLoaderMergeStrategy
+from dlt.common.schema.typing import (
+    TTableSchema,
+    TSortOrder,
+    TMergeConfig,
+)
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
@@ -25,7 +29,7 @@ HIGH_TS = pendulum.datetime(9999, 12, 31)
 
 class SqlJobParams(TypedDict, total=False):
     replace: Optional[bool]
-    merge_strategy: Optional[TLoaderMergeStrategy]
+    merge_config: Optional[TMergeConfig]
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
@@ -151,19 +155,7 @@ class SqlMergeJob(SqlBaseJob):
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
-        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
-
-        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
-        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
-        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
-
-        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
-        At the end we copy the data from the staging dataset into destination dataset.
-
-        If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
-        If a dedup_sort column is specified in conjunction with a primary key, records will be sorted before deduplication, so the "latest" record remains.
-        """
-        if params["merge_strategy"] == "scd2":
+        if table_chain[0].get("x-merge-strategy") == "scd2":
             return cls.gen_scd2_sql(table_chain, sql_client)
         return cls.gen_merge_sql(table_chain, sql_client)
 
@@ -342,6 +334,18 @@ class SqlMergeJob(SqlBaseJob):
     def gen_merge_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
+        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
+
+        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
+        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
+
+        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
+        At the end we copy the data from the staging dataset into destination dataset.
+
+        If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
+        If a dedup_sort column is specified in conjunction with a primary key, records will be sorted before deduplication, so the "latest" record remains.
+        """
         sql: List[str] = []
         root_table = table_chain[0]
 
@@ -492,7 +496,7 @@ class SqlMergeJob(SqlBaseJob):
     def gen_scd2_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
-        """Returns SQL statements for the `scd2` merge strategy.
+        """Generates SQL statements for the `scd2` merge strategy.
 
         The root table can be inserted into and updated.
         Updates only take place when a record retires (because there is a new version
@@ -505,25 +509,30 @@ class SqlMergeJob(SqlBaseJob):
         with sql_client.with_staging_dataset(staging=True):
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
 
+        # get validity column names
+        escape_id = sql_client.capabilities.escape_identifier
+        from_ = escape_id(get_first_column_name_with_prop(root_table, "x-valid-from"))
+        to = escape_id(get_first_column_name_with_prop(root_table, "x-valid-to"))
+
         # define values for validity columns
         boundary_ts = current_load_package()["state"]["created_at"]
         active_record_ts = HIGH_TS.isoformat()
 
         # retire updated and deleted records
         sql.append(f"""
-            UPDATE {root_table_name} SET valid_to = '{boundary_ts}'
+            UPDATE {root_table_name} SET {to} = '{boundary_ts}'
             WHERE NOT EXISTS (
                 SELECT s._dlt_id FROM {staging_root_table_name} AS s
                 WHERE {root_table_name}._dlt_id = s._dlt_id
-            ) AND valid_to = '{active_record_ts}';
+            ) AND {to} = '{active_record_ts}';
         """)
 
         # insert new active records in root table
-        columns = list(root_table["columns"].keys())
-        col_str = ", ".join([c for c in columns if c not in ("valid_from", "valid_to")])
+        columns = map(escape_id, list(root_table["columns"].keys()))
+        col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
-            INSERT INTO {root_table_name} ({col_str}, valid_from, valid_to)
-            SELECT {col_str}, '{boundary_ts}' AS valid_from, '{active_record_ts}' AS valid_to
+            INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
+            SELECT {col_str}, '{boundary_ts}' AS {from_}, '{active_record_ts}' AS {to}
             FROM {staging_root_table_name} AS s
             WHERE NOT EXISTS (SELECT s._dlt_id FROM {root_table_name} AS f WHERE f._dlt_id = s._dlt_id);
         """)

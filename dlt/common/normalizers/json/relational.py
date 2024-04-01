@@ -315,7 +315,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # determine merge strategy
         merge_strategy = None
         if table_name in self.schema.data_table_names():
-            merge_strategy = self.schema.get_table(table_name).get("merge_strategy")
+            merge_strategy = self.schema.get_table(table_name).get("x-merge-strategy")
         yield from self._normalize_row(
             cast(TDataItemRowChild, row),
             {},

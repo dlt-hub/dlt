@@ -11,13 +11,14 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
+    TMergeConfig,
+    DEFAULT_VALIDITY_COLUMN_NAMES,
 )
 from dlt.common import logger
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_column, new_column, new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
-from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     InconsistentTableTemplate,
@@ -37,7 +38,7 @@ class TResourceHints(TypedDict, total=False):
     columns: TTableHintTemplate[TTableSchemaColumns]
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
-    merge_strategy: TLoaderMergeStrategy
+    merge_config: TMergeConfig
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
     table_format: TTableHintTemplate[TTableFormat]
@@ -63,7 +64,7 @@ def make_hints(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_strategy: TLoaderMergeStrategy = None,
+    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
 ) -> TResourceHints:
@@ -99,8 +100,8 @@ def make_hints(
         new_template["primary_key"] = primary_key
     if merge_key is not None:
         new_template["merge_key"] = merge_key
-    if merge_strategy is not None:
-        new_template["merge_strategy"] = merge_strategy
+    if merge_config is not None:
+        new_template["merge_config"] = merge_config
     if validator:
         new_template["validator"] = validator
     DltResourceHints.validate_dynamic_hints(new_template)
@@ -172,17 +173,11 @@ class DltResourceHints:
         if "name" not in table_template:
             table_template["name"] = self.name
 
-        # add columns for `scd2` merge strategy
-        if "merge_strategy" in table_template and table_template["merge_strategy"] == "scd2":
-            table_template["columns"] = {
-                "valid_from": {"name": "valid_from", "data_type": "timestamp"},
-                "valid_to": {"name": "valid_to", "data_type": "timestamp"},
-            }
-
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
+        merge_config = table_template.pop("merge_config", None)
         resolved_template: TResourceHints = {
             k: self._resolve_hint(item, v)
             for k, v in table_template.items()
@@ -190,6 +185,7 @@ class DltResourceHints:
         }  # type: ignore
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self.name
+        self._resolve_merge_config(merge_config, table_schema)
         validate_dict_ignoring_xkeys(
             spec=TTableSchema,
             doc=table_schema,
@@ -205,7 +201,7 @@ class DltResourceHints:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        merge_strategy: TLoaderMergeStrategy = None,
+        merge_config: TMergeConfig = None,
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
@@ -255,7 +251,7 @@ class DltResourceHints:
                 columns,
                 primary_key,
                 merge_key,
-                merge_strategy,
+                merge_config,
                 schema_contract,
                 table_format,
             )
@@ -297,11 +293,11 @@ class DltResourceHints:
                     t["merge_key"] = merge_key
                 else:
                     t.pop("merge_key", None)
-            if merge_strategy is not None:
-                if merge_strategy:
-                    t["merge_strategy"] = merge_strategy
+            if merge_config is not None:
+                if merge_config:
+                    t["merge_config"] = merge_config
                 else:
-                    t.pop("merge_strategy", None)
+                    t.pop("merge_config", None)
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -419,8 +415,25 @@ class DltResourceHints:
             DltResourceHints._merge_key("primary_key", t_.pop("primary_key"), partial)  # type: ignore
         if "merge_key" in t_:
             DltResourceHints._merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
-
         return partial
+
+    @staticmethod
+    def _resolve_merge_config(
+        merge_config: Optional[TMergeConfig], partial: TPartialTableSchema
+    ) -> None:
+        """Resolves `merge_config` into x-hints on `partial` table schema in place."""
+        if merge_config is not None:
+            if "strategy" in merge_config:
+                partial["x-merge-strategy"] = merge_config["strategy"]  # type: ignore[typeddict-unknown-key]
+
+            # add columns for `scd2` merge strategy
+            if partial.get("x-merge-strategy") == "scd2":
+                if merge_config.get("validity_column_names") is None:
+                    from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
+                else:
+                    from_, to = merge_config["validity_column_names"]
+                partial["columns"][from_] = {"name": from_, "data_type": "timestamp", "x-valid-from": True}  # type: ignore[typeddict-unknown-key]
+                partial["columns"][to] = {"name": to, "data_type": "timestamp", "x-valid-to": True}  # type: ignore[typeddict-unknown-key]
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:

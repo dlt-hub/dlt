@@ -155,6 +155,14 @@ class NormalizerInfo(TypedDict, total=True):
     new_table: bool
 
 
+class TMergeConfig(TypedDict, total=False):
+    strategy: Optional[TLoaderMergeStrategy]
+    validity_column_names: Optional[List[str]]
+
+
+DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
+"""Default values for validity column names used in `scd2` merge strategy."""
+
 # TypedDict that defines properties of a table
 
 
@@ -171,7 +179,6 @@ class TTableSchema(TypedDict, total=False):
     columns: TTableSchemaColumns
     resource: Optional[str]
     table_format: Optional[TTableFormat]
-    merge_strategy: Optional[TLoaderMergeStrategy]
 
 
 class TPartialTableSchema(TTableSchema):

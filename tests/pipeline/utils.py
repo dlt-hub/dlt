@@ -171,7 +171,7 @@ def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[D
         for table_name in table_names:
             table_rows = []
             columns = p.default_schema.get_table_columns(table_name).keys()
-            query_columns = ",".join(columns)
+            query_columns = ",".join(map(p.sql_client().capabilities.escape_identifier, columns))
 
             with p.sql_client() as c:
                 f_q_table_name = c.make_qualified_table_name(table_name)
