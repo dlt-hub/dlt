@@ -20,13 +20,13 @@ TL;DR: By linking each load's metadata to the schema evolution event or schema v
 
 Load IDs are crucial in `dlt` and are present in all the top tables (`_dlt_loads`, `load_id`, etc.). Each pipeline run creates one or more load packages, which can be identified by their `load_id`. A load package typically contains data from all resources of a particular source. The `load_id` of a particular package is added to the top data tables and to the `_dlt_loads` table with a status 0 (when the load process is fully completed).
 
-For more details, refer to the [Load IDs](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#load-ids) section of the documentation.
+For more details, refer to the [Load IDs](/docs/website/docs/general-usage/destination-tables#load-ids) section of the documentation.
 
-### Schema Versioning
+### Schema Versioning https://dlthub.com/
 
 Each schema file in `dlt` contains a content-based hash `version_hash` that is used to detect manual changes to the schema (i.e., user edits content) and to detect if the destination database schema is synchronized with the file schema. Each time the schema is saved, the version hash is updated.
 
-For more details, refer to the [Schema content hash and version](https://dlthub.com/docs/general-usage/schema#schema-content-hash-and-version) section of the documentation.
+For more details, refer to the [Schema content hash and version](/docs/website/docs/general-usage/schema#schema-content-hash-and-version) section of the documentation.
 
 ### Data Lineage
 
@@ -34,7 +34,7 @@ Data lineage can be super relevant for architectures like the data vault archite
 
 You can save complete lineage info for a particular `load_id` including a list of loaded files, error messages (if any), elapsed times, schema changes. This can be helpful, for example, when troubleshooting problems.
 
-For more details, refer to the [Data lineage](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#data-lineage) section of the documentation.
+For more details, refer to the [Data lineage](/docs/website/docs/general-usage/destination-tables#data-lineage) section of the documentation.
 
 By combining the use of `load_id` and schema versioning, you can achieve a robust system for row and column level lineage in your data pipelines with `dlt`.
 
@@ -47,7 +47,7 @@ Row level lineage refers to the ability to track data from its source to its des
 
 In `dlt`, each row in all (top level and child) data tables created by `dlt` contains a unique column named `_dlt_id`. Each child table contains a foreign key column `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table. This allows you to trace the lineage of each row back to its source.
 
-For more details, refer to the [Child and parent tables](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#child-and-parent-tables) section of the documentation.
+For more details, refer to the [Child and parent tables](/docs/website/docs/general-usage/destination-tables#child-and-parent-tables) section of the documentation.
 
 ### Column Level Lineage
 
@@ -55,7 +55,7 @@ Column level lineage refers to the ability to track how each column in your data
 
 In `dlt`, a column schema contains properties such as `name`, `description`, `data_type`, and `is_variant`, which provide information about the column and its transformations. The `is_variant` property, for example, tells you if a column was generated as a variant of another column.
 
-For more details, refer to the [Tables and columns](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#table-and-column-names) section of the documentation.
+For more details, refer to the [Tables and columns](/docs/website/docs/general-usage/destination-tables#table-and-column-names) section of the documentation.
 
 By combining row and column level lineage, you can have an easy overview of where your data is coming from and when changes in its structure occur.
 
