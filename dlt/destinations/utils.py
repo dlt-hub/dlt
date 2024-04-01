@@ -37,9 +37,14 @@ def _convert_to_old_pyformat(
         DatabaseTransientException: If there is a mismatch between the number of
             placeholders in the query string, and the number of arguments provided.
     """
+    if len(args) == 1 and isinstance(args[0], tuple):
+        args = args[0]
+
     keys = [f"arg{str(i)}" for i, _ in enumerate(args)]
     old_style_string, count = re.subn(r"%s", lambda _: f"%({keys.pop(0)})s", new_style_string)
     mapping = dict(zip([f"arg{str(i)}" for i, _ in enumerate(args)], args))
     if count != len(args):
         raise DatabaseTransientException(operational_error_cls())
     return old_style_string, mapping
+
+

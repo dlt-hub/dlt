@@ -7,9 +7,7 @@ import dlt
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
-    AwsCredentials,
     GcpCredentials,
-    AzureCredentials,
     AwsCredentialsWithoutDefaults,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -18,6 +16,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     FollowupJob,
     LoadJob,
+    NewLoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -49,6 +48,7 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
 )
 from dlt.destinations.job_impl import NewReferenceJob, EmptyLoadJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -200,6 +200,12 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         raise NotImplementedError()
 
 
+class ClickhouseMergeJob(SqlMergeJob):
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql};"
+
+
 class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -318,3 +324,6 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
+
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [ClickhouseMergeJob.from_table_chain(table_chain, self.sql_client)]

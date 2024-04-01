@@ -14,7 +14,6 @@ from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-unty
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.runtime import logger
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTransientException,
@@ -75,16 +74,13 @@ class ClickhouseSqlClient(
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:
         yield self
-        logger.warning(TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE)
 
     @raise_database_error
     def commit_transaction(self) -> None:
-        logger.warning(TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE)
         self._conn.commit()
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        logger.warning(TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE)
         self._conn.rollback()
 
     @property
@@ -103,7 +99,7 @@ class ClickhouseSqlClient(
 
     def drop_dataset(self) -> None:
         # Since Clickhouse doesn't have schemas, we need to drop all tables in our virtual schema,
-        # or collection of tables that has the `dataset_name` as a prefix.
+        # or collection of tables, that has the `dataset_name` as a prefix.
         to_drop_results = self.execute_sql(
             """
             SELECT name
@@ -111,13 +107,18 @@ class ClickhouseSqlClient(
             WHERE database = %s
             AND name LIKE %s
             """,
-            (self.database_name, f"{self.dataset_name}%"),
+            (
+                self.database_name,
+                f"{self.dataset_name}%",
+            ),
         )
         for to_drop_result in to_drop_results:
             table = to_drop_result[0]
+            # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
+            # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
+            # To resolve this, we are forced to provide the full query string here.
             self.execute_sql(
-                "DROP TABLE %s.%s SYNC",
-                (self.database_name, table),
+                f"""DROP TABLE {self.capabilities.escape_identifier(self.database_name)}.{self.capabilities.escape_identifier(table)} SYNC"""
             )
 
     @contextmanager
