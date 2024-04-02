@@ -24,6 +24,7 @@ SUPPORTED_PLACEHOLDERS = {
     "day",
     "hour",
     "minute",
+    "dow",
 }
 
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
