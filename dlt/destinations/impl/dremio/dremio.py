@@ -69,6 +69,7 @@ class DremioTypeMapper(TypeMapper):
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
+
 class DremioMergeJob(SqlMergeJob):
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
@@ -77,6 +78,11 @@ class DremioMergeJob(SqlMergeJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"CREATE TABLE {temp_table_name} AS {select_sql};"
+
+    @classmethod
+    def default_order_by(cls) -> str:
+        return "NULL"
+
 
 class DremioLoadJob(LoadJob, FollowupJob):
     def __init__(

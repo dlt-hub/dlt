@@ -194,7 +194,7 @@ class SqlMergeJob(SqlBaseJob):
 
     @classmethod
     def gen_delete_temp_table_sql(
-        cls, unique_column: str, key_table_clauses: Sequence[str], sql_client: SqlClientBase[Any] 
+        cls, unique_column: str, key_table_clauses: Sequence[str], sql_client: SqlClientBase[Any]
     ) -> Tuple[List[str], str]:
         """Generate sql that creates delete temp table and inserts `unique_column` from root table for all records to delete. May return several statements.
 
@@ -254,7 +254,7 @@ class SqlMergeJob(SqlBaseJob):
             1) To select the values for an INSERT INTO statement.
             2) To select the values for a temporary table used for inserts.
         """
-        order_by = "NULL"
+        order_by = cls.default_order_by()
         if dedup_sort is not None:
             order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
         if condition is None:
@@ -270,6 +270,10 @@ class SqlMergeJob(SqlBaseJob):
                     FROM {table_name}
                 ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
         """
+
+    @classmethod
+    def default_order_by(cls) -> str:
+        return "(SELECT NULL)"
 
     @classmethod
     def gen_insert_temp_table_sql(

@@ -133,10 +133,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         return
 
     # without a root key this will fail, it is expected
-    if (
-        not with_root_key
-        and destination_config.supports_merge
-    ):
+    if not with_root_key and destination_config.supports_merge:
         with pytest.raises(PipelineStepFailed):
             pipeline.run(
                 s,
@@ -157,11 +154,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         pipeline,
         {
             "items": 100 if destination_config.supports_merge else 200,
-            "items__sub_items": (
-                100
-                if destination_config.supports_merge
-                else 200
-            ),
+            "items__sub_items": 100 if destination_config.supports_merge else 200,
         },
     )
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
