@@ -13,6 +13,7 @@ from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
+    get_validity_column_names,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
@@ -511,8 +512,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # get validity column names
         escape_id = sql_client.capabilities.escape_identifier
-        from_ = escape_id(get_first_column_name_with_prop(root_table, "x-valid-from"))
-        to = escape_id(get_first_column_name_with_prop(root_table, "x-valid-to"))
+        from_, to = list(map(escape_id, get_validity_column_names(root_table)))
 
         # define values for validity columns
         boundary_ts = current_load_package()["state"]["created_at"]

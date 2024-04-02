@@ -6,8 +6,15 @@ from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex, DLT_NAME_PREFIX
-from dlt.common.schema.utils import column_name_validator
+from dlt.common.schema.typing import (
+    TTableSchema,
+    TColumnSchema,
+    TColumnName,
+    TSimpleRegex,
+    DLT_NAME_PREFIX,
+)
+from dlt.common.schema.utils import column_name_validator, get_validity_column_names
+from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import (
     TNormalizedRowIterator,
@@ -312,15 +319,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
-        # determine merge strategy
-        merge_strategy = None
+        # determine if row hash should be used as dlt id
+        row_hash = False
         if table_name in self.schema.data_table_names():
-            merge_strategy = self.schema.get_table(table_name).get("x-merge-strategy")
+            table = self.schema.get_table(table_name)
+            if table.get("x-merge-strategy") == "scd2":
+                self._validate_validity_column_names(table, item)
+                row_hash = True
         yield from self._normalize_row(
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
-            row_hash=merge_strategy == "scd2",
+            row_hash=row_hash,
         )
 
     @classmethod
@@ -354,3 +364,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             "./normalizers/json/config",
             validator_f=column_name_validator(schema.naming),
         )
+
+    @staticmethod
+    def _validate_validity_column_names(table: TTableSchema, item: TDataItem) -> None:
+        """Raises exception if configured validity column name appears in data item."""
+        for validity_column_name in get_validity_column_names(table):
+            if validity_column_name in item.keys():
+                raise ColumnNameConflictException(
+                    "Found column in data item with same name as validity column"
+                    f' "{validity_column_name}".'
+                )

@@ -514,6 +514,13 @@ def get_dedup_sort_tuple(
     return (dedup_sort_col, dedup_sort_order)
 
 
+def get_validity_column_names(table: TTableSchema) -> List[Optional[str]]:
+    return [
+        get_first_column_name_with_prop(table, "x-valid-from"),
+        get_first_column_name_with_prop(table, "x-valid-to"),
+    ]
+
+
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
     aggregated_update: TSchemaTables = {}
     for schema_update in schema_updates:

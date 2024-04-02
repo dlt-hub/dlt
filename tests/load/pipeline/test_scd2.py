@@ -6,10 +6,12 @@ from datetime import datetime, timezone  # noqa: I251
 
 import dlt
 from dlt.common.pipeline import LoadInfo
+from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.destinations.sql_jobs import HIGH_TS
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info
 from tests.load.pipeline.utils import (
@@ -368,3 +370,30 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
         {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
     ]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_validity_column_name_conflict(destination_config: DestinationTestConfiguration) -> None:
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+
+    @dlt.resource(
+        table_name="dim_test",
+        write_disposition="merge",
+        merge_config={"strategy": "scd2", "validity_column_names": ["from", "to"]},
+    )
+    def r(data):
+        yield data
+
+    # configuring a validity column name that appears in the data should cause an exception
+    dim_snap = {"nk": 1, "foo": 1, "from": 1}  # conflict on "from" column
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r(dim_snap))
+    assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+    dim_snap = {"nk": 1, "foo": 1, "to": 1}  # conflict on "to" column
+    with pytest.raises(PipelineStepFailed):
+        p.run(r(dim_snap))
+    assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
