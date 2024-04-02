@@ -6,10 +6,8 @@ import pytest
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
-from dlt.destinations.impl.filesystem.filesystem import (
-    LoadFilesystemJob,
-    FilesystemDestinationClientConfiguration,
-)
+from dlt.destinations.impl.filesystem.filesystem import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.layout import make_filename
 
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
@@ -102,9 +100,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         # this path will be kept after replace
         job_2_load_1_path = posixpath.join(
             root_path,
-            LoadFilesystemJob.make_destination_filename(
-                layout, NORMALIZED_FILES[1], client.schema.name, load_id1
-            ),
+            make_filename(client.config, NORMALIZED_FILES[1], client.schema.name, load_id1),
         )
 
         with perform_load(
@@ -115,9 +111,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             # this one we expect to be replaced with
             job_1_load_2_path = posixpath.join(
                 root_path,
-                LoadFilesystemJob.make_destination_filename(
-                    layout, NORMALIZED_FILES[0], client.schema.name, load_id2
-                ),
+                make_filename(client.config, NORMALIZED_FILES[0], client.schema.name, load_id2),
             )
 
             # First file from load1 remains, second file is replaced by load2
@@ -147,14 +141,10 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             client, jobs2, root_path, load_id2 = load_info
             layout = client.config.layout
             expected_files = [
-                LoadFilesystemJob.make_destination_filename(
-                    layout, job.file_name(), client.schema.name, load_id1
-                )
+                make_filename(client.config, job.file_name(), client.schema.name, load_id1)
                 for job in jobs1
             ] + [
-                LoadFilesystemJob.make_destination_filename(
-                    layout, job.file_name(), client.schema.name, load_id2
-                )
+                make_filename(client.config, job.file_name(), client.schema.name, load_id2)
                 for job in jobs2
             ]
             expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])

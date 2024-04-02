@@ -4,24 +4,26 @@ from pathlib import Path
 import dlt, os
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.layout import make_filename
 from dlt.common.schema.typing import LOADS_TABLE_NAME
-
 from tests.utils import skip_if_not_active
 
 skip_if_not_active("filesystem")
 
 
 def assert_file_matches(
-    layout: str, job: LoadJobInfo, load_id: str, client: FilesystemClient
+    config: FilesystemDestinationClientConfiguration,
+    job: LoadJobInfo,
+    load_id: str,
+    client: FilesystemClient,
 ) -> None:
     """Verify file contents of load job are identical to the corresponding file in destination"""
     local_path = Path(job.file_path)
     filename = local_path.name
 
-    destination_fn = LoadFilesystemJob.make_destination_filename(
-        layout, filename, client.schema.name, load_id
-    )
+    destination_fn = make_filename(config.layout, filename, client.schema.name, load_id)
     destination_path = posixpath.join(client.dataset_path, destination_fn)
 
     assert local_path.read_bytes() == client.fs_client.read_bytes(destination_path)
