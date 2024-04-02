@@ -75,7 +75,7 @@ jobs:
       - run: |
           poetry run pytest tests/load -m "essential"
         name: Run essential tests Linux
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci full') && !github.event_name == 'schedule'}}
+        if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
 
       - run: |
           poetry run pytest tests/load
