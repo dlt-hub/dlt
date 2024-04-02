@@ -44,10 +44,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     def on_resolved(self) -> None:
         """Resolve configuration for filesystem destination
 
-        The following three variables will override the ones
-        if supplied via filesystem(...) constructor, additionally
-        we merge extra_params if provided and when provided via
-        the constructor it will take the priority over config.toml values
+        The following three variables will override the ones from configuration
+        if supplied via `filesystem(...)` constructor, additionally
+        when provided `extra_params` will be merged with the values from configuration
+        however provided values will always override config.toml.
 
             * current_datetime,
             * datetime_format,
