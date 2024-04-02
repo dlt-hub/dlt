@@ -124,8 +124,17 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
             "config", {}
         )
 
+    # schemaless destinations allow adding of root key without the pipeline failing
+    # for now this is only the case for dremio
+    # doing this will result in somewhat useless behavior
+    destination_allows_adding_root_key = destination_config.destination == "dremio"
+
     # without a root key this will fail, it is expected
-    if not with_root_key and destination_config.supports_merge:
+    if (
+        not with_root_key
+        and destination_config.supports_merge
+        and not destination_allows_adding_root_key
+    ):
         with pytest.raises(PipelineStepFailed):
             pipeline.run(
                 s,
@@ -146,7 +155,11 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         pipeline,
         {
             "items": 100 if destination_config.supports_merge else 200,
-            "items__sub_items": 100 if destination_config.supports_merge else 200,
+            "items__sub_items": (
+                100
+                if (destination_config.supports_merge and not destination_allows_adding_root_key)
+                else 200
+            ),
         },
     )
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
