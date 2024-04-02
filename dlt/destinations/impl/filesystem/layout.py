@@ -115,7 +115,7 @@ class extra_params:
         if self.config.datetime_format:
             self._params["curr_date"] = now.format(self.config.datetime_format)
         else:
-            self._params["curr_date"] = str(now.today())
+            self._params["curr_date"] = str(now.date())
 
         return self._params
 
