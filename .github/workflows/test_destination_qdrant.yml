@@ -24,7 +24,7 @@ jobs:
   get_docs_changes:
     name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
-    if: ${{ !github.event.pull_request.head.repo.fork }}
+    if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_loader:
     name: test ß
