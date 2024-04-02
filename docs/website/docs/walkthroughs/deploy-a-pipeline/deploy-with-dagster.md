@@ -117,12 +117,7 @@ More details can be found in the article
        assets=all_assets,  
        jobs=[simple_pipeline],  
        resources={  
-           "pipeline": DltResource(  
-               pipeline_name = "github_issues",  
-               dataset_name = "dagster_github_issues",  
-               destination = "bigquery",  
-               table_name= "github_issues"  
-           ),  
+           "pipeline": DltResource(),  
        }  
    ) 
    ```
