@@ -7,6 +7,8 @@ on:
       - master
       - devel
   workflow_dispatch:
+  schedule:
+    - cron:  '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -73,11 +75,13 @@ jobs:
       - run: |
           poetry run pytest tests/load -m "essential"
         name: Run essential tests Linux
-        if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci full')}}
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci full') && !github.event_name == 'schedule'}}
 
       - run: |
           poetry run pytest tests/load
         name: Run all tests Linux
-        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full')}}
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+
+
 
           
