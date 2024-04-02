@@ -186,7 +186,7 @@ def make_filename(
 
         # if extension is not defined, we append it at the end
         if "ext" not in placeholders:
-            path += f".{extras.params['ext']}"
+            path += f".{extras.file_format}"
 
         return path
 
