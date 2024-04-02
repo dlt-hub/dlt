@@ -93,7 +93,7 @@ def test_clickhouse_destination_merge(destination_config: DestinationTestConfigu
 
     try:
 
-        @dlt.resource(name="items", write_disposition="merge")
+        @dlt.resource(name="items")
         def items() -> Iterator[TDataItem]:
             yield {
                 "id": 1,
@@ -118,7 +118,7 @@ def test_clickhouse_destination_merge(destination_config: DestinationTestConfigu
         assert table_counts["_dlt_loads"] == 1
 
         # Load again with schema evolution.
-        @dlt.resource(name="items", write_disposition="merge")
+        @dlt.resource(name="items", write_disposition="merge", primary_key="id")
         def items2() -> Iterator[TDataItem]:
             yield {
                 "id": 1,
