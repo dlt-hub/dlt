@@ -2,13 +2,12 @@ import posixpath
 import os
 from types import TracebackType
 from typing import ClassVar, List, Type, Iterable, Set, Iterator
-from typing_extensions import deprecated
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
+from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -42,15 +41,11 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-        self.destination_file_name = make_filename(
-            config, file_name, schema_name, load_id
-        )
+        self.destination_file_name = make_filename(config, file_name, schema_name, load_id)
 
         super().__init__(file_name)
         fs_client, _ = fsspec_from_config(config)
-        self.destination_file_name = make_filename(
-            config, file_name, schema_name, load_id
-        )
+        self.destination_file_name = make_filename(config, file_name, schema_name, load_id)
 
         # Make sure directory exists before moving file
         dir_path = self.make_remote_path(only_dir=True)
@@ -60,43 +55,14 @@ class LoadFilesystemJob(LoadJob):
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
 
-    @staticmethod
-    @deprecated("Phase out in tests use layout.make_filename")
-    def make_destination_filename(
-        config: FilesystemDestinationClientConfiguration,
-        layout: str,
-        file_name: str,
-        schema_name: str,
-        load_id: str,
-    ) -> str:
-        # job_info = ParsedLoadJobFileName.parse(file_name)
-        # layout_helper = PathLayout(
-        #     PathParams(
-        #         schema_name=schema_name,
-        #         table_name=job_info.table_name,
-        #         load_id=load_id,
-        #         file_id=job_info.file_id,
-        #         ext=job_info.file_format,
-        #         current_date=config.current_datetime or ("NOW"),
-        #         datetime_format=config.datetime_format,
-        #         layout=config.layout,
-        #         extra_params=config.layout_params,
-        #         suffix=config.suffix,
-        #     )
-        # )
-        # return layout_helper.create_path()
-        pass
-
     def make_remote_path(self, only_dir: bool = False) -> str:
         if only_dir:
-            dir_path = FileStorage.get_dir_name_from_file_path(
-                self.destination_file_name
-            )
-            return (
-                f"{self.config.protocol}://{posixpath.join(self.dataset_path, dir_path)}"
-            )
+            dir_path = FileStorage.get_dir_name_from_file_path(self.destination_file_name)
+            return f"{self.config.protocol}://{posixpath.join(self.dataset_path, dir_path)}"
         else:
-            return f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
+            return (
+                f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
+            )
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -179,9 +145,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                 # NOTE: without refresh you get random results here
                 logger.info(f"Will truncate tables in {truncate_dir}")
                 try:
-                    all_files = self.fs_client.ls(
-                        truncate_dir, detail=False, refresh=True
-                    )
+                    all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
                     # logger.debug(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
                     # print(f"in truncate dir {truncate_dir}: {all_files}")
                     for item in all_files:
@@ -229,9 +193,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
     def is_storage_initialized(self) -> bool:
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
-    def start_file_load(
-        self, table: TTableSchema, file_path: str, load_id: str
-    ) -> LoadJob:
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         return cls(
             file_path,
