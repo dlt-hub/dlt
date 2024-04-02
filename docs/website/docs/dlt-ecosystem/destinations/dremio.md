@@ -1,5 +1,5 @@
 ---
-title: Dremio
+title: 🧪 Dremio
 description: Dremio `dlt` destination
 keywords: [dremio, iceberg, aws, glue catalog]
 ---
@@ -48,7 +48,7 @@ staging_data_source = "<staging-data-source>" # the name of the "Object Storage"
 [destination.dremio.credentials]
 username = "<username>"  # the dremio username
 password = "<password or pat token>"  # dremio password or PAT token
-database = "<database>" # the name of the "data source" in Dremio
+database = "<database>" # the name of the "data source" set up in Dremio where you want to load your data
 host = "localhost" # the Dremio hostname
 port = 32010 # the Dremio Arrow Flight grpc port
 drivername="grpc" # either 'grpc' or 'grpc+tls'
@@ -79,7 +79,7 @@ Data loading happens by copying a staged parquet files from an object storage bu
 
 Dremio does not support `CREATE SCHEMA` DDL statements.
 
-Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the DLT pipeline. `full_refresh=True`is unsupported for these data sources.
+Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the DLT pipeline. `full_refresh=True` is unsupported for these data sources.
 
 "Object Storage" data sources do not have this limitation.
 
@@ -107,7 +107,6 @@ def my_table_resource():
 This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clauses being added to the `CREATE TABLE` DML statement.
 
 > ***Note:*** Table partition migration is not implemented. The table will need to be dropped and recreated to alter partitions or localsort.
-
 
 ### Syncing of `dlt` state
 - This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
