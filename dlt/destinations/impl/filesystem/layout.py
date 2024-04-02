@@ -18,7 +18,6 @@ SUPPORTED_PLACEHOLDERS = {
     "load_id",
     "file_id",
     "ext",
-    "timestamp",
     "curr_date",
     "year",
     "month",
@@ -26,6 +25,7 @@ SUPPORTED_PLACEHOLDERS = {
     "hour",
     "minute",
     "dow",
+    "timestamp",
 }
 
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
@@ -87,11 +87,13 @@ class extra_params:
                 }
             )
 
-        # If current_datetime is a callable
-        # then we need to inspect it's return type
-        # if return type is not DateTime
-        # then call it and check it's instance
-        # if it is not DateTime then exit.
+        # If current_datetime is not given
+        # Then take current moment in time
+        # If current_datetime is callable
+        # Then call it and check it's instance
+        # If the result id DateTime
+        # Then take it
+        # Else exit.
         if not self.config.current_datetime:
             self.config.current_datetime = pendulum.now()
         elif callable(self.config.current_datetime):
@@ -105,6 +107,13 @@ class extra_params:
                 )
 
         now: pendulum.DateTime = self.config.current_datetime  # type: ignore[assignment]
+
+        # Format curr_date datetime according to given format
+        if self.config.datetime_format:
+            self._params["curr_date"] = now.format(self.config.datetime_format)
+        else:
+            self._params["curr_date"] = str(now.date())
+
         # For each callable extra parameter
         # otherwise take it's value
         for key, value in self.config.extra_params.items():
@@ -133,12 +142,6 @@ class extra_params:
         # Day of week
         self._params["dow"] = now.format("ddd").lower()
         self._params["timestamp"] = int(now.timestamp())
-
-        # Format curr_date datetime according to given format
-        if self.config.datetime_format:
-            self._params["curr_date"] = now.format(self.config.datetime_format)
-        else:
-            self._params["curr_date"] = str(now.date())
 
         return self._params
 
