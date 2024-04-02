@@ -1,6 +1,6 @@
 import re
 from types import TracebackType
-from typing import Any, Dict, List, Optional, Self, Sequence, Set, Type
+from typing import Any, Dict, List, Optional, Sequence, Set, Type
 
 import pendulum
 
@@ -9,6 +9,7 @@ from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesyste
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )
+from typing_extensions import Self
 
 # TODO: ensure layout only has supported placeholders
 SUPPORTED_PLACEHOLDERS = {
@@ -42,7 +43,7 @@ class extra_params:
         self.job_info = job_info
         self.load_id = load_id
         self.schema_name = schema_name
-        self._params = {}
+        self._params: Dict[str, Any] = {}
 
         self.table_name = None
         self.file_id = None
@@ -85,8 +86,25 @@ class extra_params:
                     "ext": self.file_format,
                 }
             )
+        # If current_datetime is a callable
+        # then we need to inspect it's return type
+        # if return type is not DateTime
+        # then call it and check it's instance
+        # if it is not DateTime then exit.
+        if self.config.current_datetime is not None:
+            if callable(self.config.current_datetime):
+                result = self.config.current_datetime()
+                if isinstance(result, pendulum.DateTime):
+                    self.current_datetime = result
+                else:
+                    raise RuntimeError(
+                        "current_datetime was passed as callable but "
+                        "didn't return any instance of pendulum.DateTime"
+                    )
+        else:
+            self.config.current_datetime = pendulum.now()
 
-        now = self.config.current_datetime or pendulum.now()
+        now: pendulum.DateTime = self.config.current_datetime  # type: ignore[assignment]
         for key, value in self.config.extra_params.items():
             if callable(value):
                 self._params[key] = value(
@@ -206,7 +224,7 @@ def get_table_prefix_layout(
     ) as layout:
         # fail if table name is not defined
         if "table_name" not in layout.placeholders:
-            raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
+            raise CantExtractTablePrefix(config.layout, "{table_name} placeholder not found. ")
 
     table_name_index = layout.layout_placeholders.index("table_name")
 
