@@ -54,7 +54,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             datetime_format: strftime formatting for current_datetime
             extra_params: custom layout parameters, all unknown parameters will be skipped,
                 values can be primitive types or callables which also should return a primitive type.
-            suffix_fn: a callback if specified will be called to generate a suffix string to final path
             **kwargs: Additional arguments passed to the destination config
         """
         # TODO: validate parameters

@@ -24,8 +24,10 @@ from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )
 from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations import path_utils
-from dlt.destinations.impl.filesystem.layout import make_filename
+from dlt.destinations.impl.filesystem.layout import (
+    get_table_prefix_layout,
+    make_filename,
+)
 
 
 class LoadFilesystemJob(LoadJob):
@@ -101,7 +103,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
-        self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
+        self.table_prefix_layout = get_table_prefix_layout(config)
         self._dataset_path = self.config.normalize_dataset_name(self.schema)
 
     def drop_storage(self) -> None:
