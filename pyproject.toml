@@ -104,7 +104,7 @@ mssql = ["pyodbc"]
 synapse = ["pyodbc", "adlfs", "pyarrow"]
 qdrant = ["qdrant-client"]
 databricks = ["databricks-sql-connector"]
-clickhouse = ["clickhouse-driver"]
+clickhouse = ["clickhouse-driver", "s3fs", "gcsfs", "pyarrow", "adlfs"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
