@@ -228,8 +228,3 @@ WHERE
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
-
-    def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
-    ) -> List[str]:
-        return ["ADD COLUMNS (" + ", ".join(self._get_column_def_sql(c) for c in new_columns) + ")"]
