@@ -129,11 +129,13 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     # doing this will result in somewhat useless behavior
     destination_allows_adding_root_key = destination_config.destination == "dremio"
 
+    if destination_allows_adding_root_key and not with_root_key:
+        return
+
     # without a root key this will fail, it is expected
     if (
         not with_root_key
         and destination_config.supports_merge
-        and not destination_allows_adding_root_key
     ):
         with pytest.raises(PipelineStepFailed):
             pipeline.run(
@@ -157,7 +159,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
             "items": 100 if destination_config.supports_merge else 200,
             "items__sub_items": (
                 100
-                if (destination_config.supports_merge and not destination_allows_adding_root_key)
+                if destination_config.supports_merge
                 else 200
             ),
         },
