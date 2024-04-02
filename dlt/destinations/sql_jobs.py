@@ -194,14 +194,14 @@ class SqlMergeJob(SqlBaseJob):
 
     @classmethod
     def gen_delete_temp_table_sql(
-        cls, unique_column: str, key_table_clauses: Sequence[str]
+        cls, unique_column: str, key_table_clauses: Sequence[str], sql_client: SqlClientBase[Any] 
     ) -> Tuple[List[str], str]:
         """Generate sql that creates delete temp table and inserts `unique_column` from root table for all records to delete. May return several statements.
 
         Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
-        temp_table_name = cls._new_temp_table_name("delete")
+        temp_table_name = cls._new_temp_table_name("delete", sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
         sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
@@ -275,13 +275,14 @@ class SqlMergeJob(SqlBaseJob):
     def gen_insert_temp_table_sql(
         cls,
         staging_root_table_name: str,
+        sql_client: SqlClientBase[Any],
         primary_keys: Sequence[str],
         unique_column: str,
         dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
-        temp_table_name = cls._new_temp_table_name("insert")
+        temp_table_name = cls._new_temp_table_name("insert", sql_client)
         if len(primary_keys) > 0:
             # deduplicate
             select_sql = cls.gen_select_from_dedup_sql(
@@ -313,7 +314,7 @@ class SqlMergeJob(SqlBaseJob):
         """
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str) -> str:
+    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
         return f"{name_prefix}_{uniq_id()}"
 
     @classmethod
@@ -347,6 +348,7 @@ class SqlMergeJob(SqlBaseJob):
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
         with sql_client.with_staging_dataset(staging=True):
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+
         # get merge and primary keys from top level
         primary_keys = list(
             map(
@@ -390,7 +392,7 @@ class SqlMergeJob(SqlBaseJob):
             unique_column = escape_id(unique_columns[0])
             # create temp table with unique identifier
             create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(
-                unique_column, key_table_clauses
+                unique_column, key_table_clauses, sql_client
             )
             sql.extend(create_delete_temp_table_sql)
 
@@ -444,6 +446,7 @@ class SqlMergeJob(SqlBaseJob):
                     insert_temp_table_name,
                 ) = cls.gen_insert_temp_table_sql(
                     staging_root_table_name,
+                    sql_client,
                     primary_keys,
                     unique_column,
                     dedup_sort,

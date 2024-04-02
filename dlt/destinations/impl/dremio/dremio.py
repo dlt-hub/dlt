@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional, Sequence, Tuple, List
+from typing import ClassVar, Optional, Sequence, Tuple, List, Any
 from urllib.parse import urlparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -22,6 +22,7 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.sql_client import SqlClientBase
 
 
 class DremioTypeMapper(TypeMapper):
@@ -68,6 +69,14 @@ class DremioTypeMapper(TypeMapper):
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
+class DremioMergeJob(SqlMergeJob):
+    @classmethod
+    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+        return sql_client.make_qualified_table_name(f"_temp_{name_prefix}_{uniq_id()}")
+
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        return f"CREATE TABLE {temp_table_name} AS {select_sql};"
 
 class DremioLoadJob(LoadJob, FollowupJob):
     def __init__(
@@ -218,20 +227,6 @@ WHERE
         return True, schema_table
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        def _new_temp_table_name(name_prefix: str) -> str:
-            return self.sql_client.make_qualified_table_name(f"_temp_{name_prefix}_{uniq_id()}")
-
-        class DremioMergeJob(SqlMergeJob):
-            @classmethod
-            def _new_temp_table_name(cls, name_prefix: str) -> str:
-                return _new_temp_table_name(name_prefix)
-
-            @classmethod
-            def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-                return f"CREATE TABLE {temp_table_name} AS {select_sql};"
-
-        DremioMergeJob._new_temp_table_name = _new_temp_table_name  # type: ignore[method-assign]
-
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(

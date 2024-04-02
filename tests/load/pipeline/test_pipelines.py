@@ -57,11 +57,10 @@ def test_default_pipeline_names(
     p = dlt.pipeline()
     p.config.use_single_dataset = use_single_dataset
     # this is a name of executing test harness or blank pipeline on windows
-    possible_names = ["dlt_pytest", "dlt_pipeline", "dlt__jb_pytest_runner"]
+    possible_names = ["dlt_pytest", "dlt_pipeline"]
     possible_dataset_names = [
         "dlt_pytest_dataset",
-        "dlt_pipeline_dataset",
-        "dlt__jb_pytest_runner_dataset",
+        "dlt_pipeline_dataset"
     ]
     assert p.pipeline_name in possible_names
     assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
