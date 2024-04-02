@@ -46,9 +46,11 @@ class extra_params:
 
         self.table_name = None
         self.file_id = None
+        self.file_format = None
         if job_info:
             self.table_name = job_info.table_name
             self.file_id = job_info.file_id
+            self.file_format = job_info.file_format
 
     def __enter__(self) -> Self:
         return self
@@ -78,9 +80,9 @@ class extra_params:
         if self.job_info:
             self._params.update(
                 {
-                    "file_id": self.job_info.file_id,
-                    "ext": self.job_info.file_format,
-                    "table_name": self.job_info.table_name,
+                    "table_name": self.table_name,
+                    "file_id": self.file_id,
+                    "ext": self.file_format,
                 }
             )
 
