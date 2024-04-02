@@ -108,6 +108,8 @@ More details can be found in the article
 
 1. Next, define Dagster definitions as follows:
    ```py
+   import DltResource
+   
    all_assets = load_assets_from_modules([assets])  
    simple_pipeline = define_asset_job(name="simple_pipeline", selection= ['issues_pipeline'])  
 
