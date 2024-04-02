@@ -71,4 +71,6 @@ jobs:
 
       - run: |
           poetry run pytest tests/load -m "essential"
-        name: Run tests Linux/MAC
+        name: Run tests Linux
+
+      
