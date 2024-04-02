@@ -57,6 +57,11 @@ def bigquery_adapter(
         table_description (str, optional): A description for the BigQuery table.
         table_expiration_datetime (str, optional): String representing the datetime when the BigQuery table expires.
             This is always interpreted as UTC, BigQuery's default.
+        insert_api (Optional[Literal["streaming", "default"]]): The API to use for inserting data into BigQuery.
+            If "default" is chosen, the original SQL query mechanism is used.
+            If "streaming" is chosen, the streaming API (https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery)
+            is used.
+            NOTE: due to BigQuery features, streaming insert is only available for `append` write_disposition.
 
     Returns:
         A `DltResource` object that is ready to be loaded into BigQuery.
@@ -135,7 +140,7 @@ def bigquery_adapter(
         if not isinstance(table_expiration_datetime, str):
             raise ValueError(
                 "`table_expiration_datetime` must be string representing the datetime when the"
-                " BigQuery table."
+                " BigQuery table will be deleted."
             )
         try:
             parsed_table_expiration_datetime = parser.parse(table_expiration_datetime).replace(
@@ -146,6 +151,13 @@ def bigquery_adapter(
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
     if insert_api is not None:
+        if insert_api == "streaming" and data.write_disposition != "append":
+            raise ValueError(
+                (
+                    "BigQuery streaming insert can only be used with `append` write_disposition, while "
+                    f"the given resource has `{data.write_disposition}`."
+                )
+            )
         additional_table_hints |= {"x-insert-api": insert_api}  # type: ignore[operator]
 
     if column_hints or additional_table_hints:

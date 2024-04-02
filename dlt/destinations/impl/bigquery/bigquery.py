@@ -29,6 +29,7 @@ from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParque
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.exceptions import (
     DestinationSchemaWillNotUpdate,
+    DestinationTerminalException,
     DestinationTransientException,
     LoadJobNotExistsException,
     LoadJobTerminalException,
@@ -229,6 +230,13 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             insert_api = table.get("x-insert-api", "default")
             try:
                 if insert_api == "streaming":
+                    if table["write_disposition"] != "append":
+                        raise DestinationTerminalException(
+                            (
+                                "BigQuery streaming insert can only be used with `append` write_disposition, while "
+                                f'the given resource has `{table["write_disposition"]}`.'
+                            )
+                        )
                     if file_path.endswith(".jsonl"):
                         job_cls = DestinationJsonlLoadJob
                     elif file_path.endswith(".parquet"):
@@ -479,7 +487,7 @@ def _streaming_load(
             bool: True if the exception is retryable, False otherwise.
         """
         reason = exc.errors[0]["reason"]
-        return reason in (list(_RETRYABLE_REASONS) + ["notFound"])
+        return reason in _RETRYABLE_REASONS
 
     full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
 
