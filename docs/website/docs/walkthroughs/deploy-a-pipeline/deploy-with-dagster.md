@@ -75,7 +75,7 @@ More details can be found in the article
       from dagster import ConfigurableResource  
       import dlt  
 
-      class DltResource(ConfigurableResource):  
+      class DltPipeline(ConfigurableResource):  
           pipeline_name: str  
           dataset_name: str  
           destination: str  
@@ -97,7 +97,7 @@ More details can be found in the article
    1. Define the asset as:
       ```py
       @asset  
-      def issues_pipeline(pipeline: DltResource):  
+      def issues_pipeline(pipeline: DltPipeline):  
           
           logger = get_dagster_logger()  
           results = pipeline.create_pipeline(github_issues_resource, table_name='github_issues')  
@@ -108,8 +108,6 @@ More details can be found in the article
 
 1. Next, define Dagster definitions as follows:
    ```py
-   import DltResource
-   
    all_assets = load_assets_from_modules([assets])  
    simple_pipeline = define_asset_job(name="simple_pipeline", selection= ['issues_pipeline'])  
 
@@ -117,7 +115,11 @@ More details can be found in the article
        assets=all_assets,  
        jobs=[simple_pipeline],  
        resources={  
-           "pipeline": DltResource(),  
+           "pipeline": DltPipeline(
+               pipeline_name = "github_issues",
+               dataset_name = "dagster_github_issues",
+               destination = "bigquery",
+           ),  
        }  
    ) 
    ```
