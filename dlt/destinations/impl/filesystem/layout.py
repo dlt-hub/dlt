@@ -108,7 +108,7 @@ class extra_params:
         self._params["hour"] = now.format("HH")
         self._params["minute"] = now.format("mm")
         # Day of week
-        self._params["dow"] = now.format("ddd")
+        self._params["dow"] = now.format("ddd").lower()
         self._params["timestamp"] = int(now.timestamp())
 
         # Format curr_date datetime according to given format
