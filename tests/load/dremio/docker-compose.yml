@@ -30,6 +30,7 @@ services:
       - minio
     entrypoint: >
       /bin/sh -c "
+      sleep 5;
       /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
       /usr/bin/mc mb myminio/dlt-ci-test-bucket;
       /usr/bin/mc anonymous set public myminio/dlt-ci-test-bucket;
