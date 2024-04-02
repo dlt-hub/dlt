@@ -96,6 +96,8 @@ class extra_params:
             else:
                 self._params[key] = value
 
+        # For formatting options please see
+        # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
         self._params["year"] = now.year
         # month, day, hour and minute padded with 0
         self._params["month"] = now.format("MM")

@@ -1,6 +1,6 @@
 import dataclasses
 
-from typing import Callable, Dict, Final, Type, Optional, TypeAlias, Union
+from typing import Any, Callable, Dict, Final, Type, Optional, TypeAlias, Union
 
 
 from pendulum.datetime import DateTime
@@ -45,14 +45,26 @@ class FilesystemDestinationClientConfiguration(
         )  # type: ignore[return-value]
 
     def on_resolved(self) -> None:
-        # If current_datetime is a callableg
+        """Resolve configuration for filesystem destination
+
+        The following three variables will override the ones
+        if supplied via filesystem(...) constructor, additionally
+        we merge extra_params if provided and when provided via
+        the constructor it will take the priority over config.toml values
+
+            * current_datetime,
+            * datetime_format,
+            * extra_params
+        """
+        # If current_datetime is a callable
         # then we need to inspect it's return type
         # if return type is not DateTime
         # then call it and check it's instance
         # if it is not DateTime then exit.
-        if self.current_datetime is not None:
-            if callable(self.current_datetime):
-                result = self.current_datetime()
+        current_datetime = self.kwargs.get("current_datetime", self.current_datetime)
+        if current_datetime is not None:
+            if callable(current_datetime):
+                result = current_datetime()
                 if isinstance(result, DateTime):
                     self.current_datetime = result
                 else:
@@ -61,6 +73,16 @@ class FilesystemDestinationClientConfiguration(
                         "didn't return any instance of pendulum.DateTime"
                     )
 
-        # Validate layout and layout params
-        # layout_helper(self.layout, self.extra_params).check_layout()
+        datetime_format = self.kwargs.get("datetime_format", self.datetime_format)
+        if datetime_format is not None:
+            self.datetime_format = datetime_format
+
+        extra_params_arg: Dict[str, Any] = self.kwargs.get("extra_params", {})
+        if not self.extra_params and extra_params_arg:
+            self.extra_params = {}
+
+        if extra_params_arg:
+            for key, val in extra_params_arg.items():
+                self.extra_params[key] = val
+
         super().on_resolved()

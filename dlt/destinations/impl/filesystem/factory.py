@@ -1,7 +1,9 @@
 from datetime import datetime
 import typing as t
 
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+)
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.storages.configuration import FileSystemCredentials
@@ -56,14 +58,21 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
                 values can be primitive types or callables which also should return a primitive type.
             **kwargs: Additional arguments passed to the destination config
         """
-        # TODO: validate parameters
+        destinatination_kwargs: t.Dict[str, t.Any] = {}
+        if current_datetime:
+            destinatination_kwargs["current_datetime"] = current_datetime
+
+        if datetime_format:
+            destinatination_kwargs["datetime_format"] = datetime_format
+
+        if extra_params:
+            destinatination_kwargs["extra_params"] = extra_params
+
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,
             destination_name=destination_name,
-            current_datetime=current_datetime,
-            datetime_format=datetime_format,
-            extra_params=extra_params,
             environment=environment,
+            kwargs=destinatination_kwargs,
             **kwargs,
         )
