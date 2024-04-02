@@ -19,7 +19,7 @@ from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
 from dlt.common.pipeline import PipelineContext
-from dlt.common.runtime.logger import init_logging
+from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage

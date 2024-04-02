@@ -28,36 +28,43 @@ from tests.common.utils import (
 )
 
 
-@pytest.fixture
-def storage() -> SchemaStorage:
-    return init_storage(SchemaStorageConfiguration())
+@pytest.fixture(params=[LiveSchemaStorage, SchemaStorage])
+def storage(request) -> SchemaStorage:
+    return init_storage(request.param, SchemaStorageConfiguration())
 
 
 @pytest.fixture
-def synced_storage() -> SchemaStorage:
+def live_storage() -> LiveSchemaStorage:
+    return init_storage(LiveSchemaStorage, SchemaStorageConfiguration())  # type: ignore[return-value]
+
+
+@pytest.fixture(params=[LiveSchemaStorage, SchemaStorage])
+def synced_storage(request) -> SchemaStorage:
     # will be created in /schemas
     return init_storage(
+        request.param,
         SchemaStorageConfiguration(
             import_schema_path=TEST_STORAGE_ROOT + "/import",
             export_schema_path=TEST_STORAGE_ROOT + "/import",
-        )
+        ),
     )
 
 
-@pytest.fixture
-def ie_storage() -> SchemaStorage:
+@pytest.fixture(params=[LiveSchemaStorage, SchemaStorage])
+def ie_storage(request) -> SchemaStorage:
     # will be created in /schemas
     return init_storage(
+        request.param,
         SchemaStorageConfiguration(
             import_schema_path=TEST_STORAGE_ROOT + "/import",
             export_schema_path=TEST_STORAGE_ROOT + "/export",
-        )
+        ),
     )
 
 
-def init_storage(C: SchemaStorageConfiguration) -> SchemaStorage:
+def init_storage(cls, C: SchemaStorageConfiguration) -> SchemaStorage:
     # use live schema storage for test which must be backward compatible with schema storage
-    s = LiveSchemaStorage(C, makedirs=True)
+    s = cls(C, makedirs=True)
     assert C is s.config
     if C.export_schema_path:
         os.makedirs(C.export_schema_path, exist_ok=True)
@@ -101,13 +108,17 @@ def test_import_overwrites_existing_if_modified(
 
 def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
     storage_schema = assert_schema_imported(synced_storage, storage)
+    assert not storage_schema.is_modified
+    initial_version = storage_schema.stored_version
     # stored_version = storage_schema.stored_version
     # stored_version_hash = storage_schema.stored_version_hash
     # evolve schema
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     _, new_table = storage_schema.coerce_row("event_user", None, row)
     storage_schema.update_table(new_table)
+    assert storage_schema.is_modified
     storage.save_schema(storage_schema)
+    assert not storage_schema.is_modified
     # now use synced storage to load schema again
     reloaded_schema = synced_storage.load_schema("ethereum")
     # the schema was not overwritten
@@ -119,6 +130,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
+    # we save the import schema (using export method)
     synced_storage._export_schema(storage_schema, synced_storage.config.export_schema_path)
     # now load will import again
     reloaded_schema = synced_storage.load_schema("ethereum")
@@ -130,8 +142,8 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     assert reloaded_schema._imported_version_hash == storage_schema.version_hash
     assert storage_schema.previous_hashes == reloaded_schema.previous_hashes
 
-    # but original version has increased
-    assert reloaded_schema.stored_version == storage_schema.version + 1
+    # but original version has increased twice (because it was modified twice)
+    assert reloaded_schema.stored_version == storage_schema.version == initial_version + 2
 
 
 def test_store_schema_tampered(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
@@ -188,7 +200,7 @@ def test_remove_schema(storage: SchemaStorage) -> None:
     assert storage.list_schemas() == []
 
 
-def test_mapping_interface(storage: SchemaStorage) -> None:
+def test_getter(storage: SchemaStorage) -> None:
     # empty storage
     assert len(storage) == 0
     assert "ethereum" not in storage
@@ -217,6 +229,34 @@ def test_mapping_interface(storage: SchemaStorage) -> None:
     items = storage.items()
     assert set(i[1].name for i in items) == set(["ethereum", "event"])
     assert set(i[0] for i in items) == set(["ethereum", "event"])
+
+
+def test_getter_with_import(ie_storage: SchemaStorage) -> None:
+    with pytest.raises(KeyError):
+        ie_storage["ethereum"]
+    prepare_import_folder(ie_storage)
+    # schema will be imported
+    schema = ie_storage["ethereum"]
+    assert schema.name == "ethereum"
+    version_hash = schema.version_hash
+    # the import schema gets modified
+    schema.tables["_dlt_loads"]["write_disposition"] = "append"
+    mod_version_hash = schema.version_hash
+    assert schema.is_modified
+    ie_storage.save_schema(schema)
+    assert not schema.is_modified
+    # now load via getter
+    schema_copy = ie_storage["ethereum"]
+    assert schema_copy.version_hash == schema_copy.stored_version_hash == mod_version_hash
+    assert schema_copy._imported_version_hash == version_hash
+
+    # now save the schema as import
+    ie_storage._export_schema(schema, ie_storage.config.import_schema_path)
+    # if you get the schema, import hash will change
+    schema = ie_storage["ethereum"]
+    assert schema._imported_version_hash == mod_version_hash
+    # only true for live schema
+    # assert id(schema) == id(schema_copy)
 
 
 def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
@@ -269,7 +309,11 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
     d_n = explicit_normalizers()
     d_n["names"] = "tests.common.normalizers.custom_normalizers"
     schema = Schema("column_event", normalizers=d_n)
+    assert schema.is_new
+    assert schema.is_modified
     storage.save_schema(schema)
+    assert not schema.is_new
+    assert not schema.is_modified
     assert storage.storage.has_file(
         SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("column_event", "json")
     )
@@ -307,6 +351,118 @@ def test_schema_from_file() -> None:
             "name_mismatch",
             extensions=("yaml",),
         )
+
+
+def test_live_schema_instances(live_storage: LiveSchemaStorage) -> None:
+    schema = Schema("simple")
+    live_storage.save_schema(schema)
+
+    # get schema via getter
+    getter_schema = live_storage["simple"]
+    # same id
+    assert id(getter_schema) == id(schema)
+
+    # live schema is same as in storage
+    assert live_storage.is_live_schema_committed("simple")
+    # modify getter schema
+    getter_schema._schema_description = "this is getter schema"
+    assert getter_schema.is_modified
+    # getter is not committed
+    assert not live_storage.is_live_schema_committed("simple")
+
+    # separate instance via load
+    load_schema = live_storage.load_schema("simple")
+    assert id(load_schema) != id(schema)
+    # changes not visible
+    assert load_schema._schema_description is None
+
+    # bypass live schema to simulate 3rd party change
+    SchemaStorage.save_schema(live_storage, getter_schema)
+    # committed because hashes are matching with file
+    assert live_storage.is_live_schema_committed("simple")
+    getter_schema = live_storage["simple"]
+    assert id(getter_schema) == id(schema)
+
+    SchemaStorage.save_schema(live_storage, load_schema)
+    # still committed
+    assert live_storage.is_live_schema_committed("simple")
+    # and aware of changes in storage
+    getter_schema = live_storage["simple"]
+    assert id(getter_schema) == id(schema)
+    assert getter_schema._schema_description is None
+    getter_schema_mod_hash = getter_schema.version_hash
+
+    # create a new "simple" schema
+    second_simple = Schema("simple")
+    second_simple._schema_description = "Second simple"
+    live_storage.save_schema(second_simple)
+    # got saved
+    load_schema = live_storage.load_schema("simple")
+    assert load_schema._schema_description == "Second simple"
+    # live schema seamlessly updated
+    assert schema._schema_description == "Second simple"
+    assert not schema.is_modified
+    assert getter_schema_mod_hash in schema.previous_hashes
+
+
+def test_commit_live_schema(live_storage: LiveSchemaStorage) -> None:
+    with pytest.raises(SchemaNotFoundError):
+        live_storage.commit_live_schema("simple")
+    # set live schema
+    schema = Schema("simple")
+    set_schema = live_storage.set_live_schema(schema)
+    assert id(set_schema) == id(schema)
+    assert "simple" in live_storage.live_schemas
+    assert not live_storage.is_live_schema_committed("simple")
+    # nothing in storage
+    with pytest.raises(SchemaNotFoundError):
+        SchemaStorage.__getitem__(live_storage, "simple")
+    with pytest.raises(SchemaNotFoundError):
+        live_storage.load_schema("simple")
+    assert not live_storage.is_live_schema_committed("simple")
+
+    # commit
+    assert live_storage.commit_live_schema("simple") is not None
+    # schema in storage
+    live_storage.load_schema("simple")
+    assert live_storage.is_live_schema_committed("simple")
+
+    # second commit does not save
+    assert live_storage.commit_live_schema("simple") is None
+
+    # mod the schema
+    schema._schema_description = "mod the schema"
+    assert not live_storage.is_live_schema_committed("simple")
+    mod_hash = schema.version_hash
+
+    # save another instance under the same name
+    schema_2 = Schema("simple")
+    schema_2._schema_description = "instance 2"
+    live_storage.save_schema(schema_2)
+    assert live_storage.is_live_schema_committed("simple")
+    # content replaces in place
+    assert schema._schema_description == "instance 2"
+    assert mod_hash in schema.previous_hashes
+
+
+def test_live_schema_getter_when_committed(live_storage: LiveSchemaStorage) -> None:
+    # getter on committed is aware of changes to storage (also import)
+    schema = Schema("simple")
+    live_storage.set_live_schema(schema)
+    set_schema = live_storage["simple"]
+    live_storage.commit_live_schema("simple")
+    # change content in storage
+    cloned = set_schema.clone()
+    cloned._schema_description = "cloned"
+    SchemaStorage.save_schema(live_storage, cloned)
+    set_schema_2 = live_storage["simple"]
+    assert set_schema_2._schema_description == "cloned"
+    assert id(set_schema_2) == id(set_schema)
+
+
+def test_new_live_schema_committed(live_storage: LiveSchemaStorage) -> None:
+    with pytest.raises(SchemaNotFoundError):
+        live_storage.is_live_schema_committed("simple")
 
 
 # def test_save_empty_schema_name(storage: SchemaStorage) -> None:

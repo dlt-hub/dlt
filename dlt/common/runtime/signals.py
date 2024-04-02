@@ -2,8 +2,9 @@ import threading
 import signal
 from contextlib import contextmanager
 from threading import Event
-from typing import Any, TYPE_CHECKING, Iterator
+from typing import Any, Iterator
 
+from dlt.common import logger
 from dlt.common.exceptions import SignalReceivedException
 
 _received_signal: int = 0
@@ -11,11 +12,6 @@ exit_event = Event()
 
 
 def signal_receiver(sig: int, frame: Any) -> None:
-    if not TYPE_CHECKING:
-        from dlt.common.runtime import logger
-    else:
-        logger: Any = None
-
     global _received_signal
 
     logger.info(f"Signal {sig} received")
@@ -64,9 +60,5 @@ def delayed_signals() -> Iterator[None]:
             signal.signal(signal.SIGINT, original_sigint_handler)
             signal.signal(signal.SIGTERM, original_sigterm_handler)
     else:
-        if not TYPE_CHECKING:
-            from dlt.common.runtime import logger
-        else:
-            logger: Any = None
         logger.info("Running in daemon thread, signals not enabled")
         yield

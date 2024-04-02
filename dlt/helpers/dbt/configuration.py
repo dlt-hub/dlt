@@ -19,7 +19,7 @@ class DBTRunnerConfiguration(BaseConfiguration):
 
     package_additional_vars: Optional[StrAny] = None
 
-    runtime: RunConfiguration
+    runtime: RunConfiguration = None
 
     def on_resolved(self) -> None:
         if not self.package_profiles_dir:

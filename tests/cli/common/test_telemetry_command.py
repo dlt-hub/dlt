@@ -139,7 +139,6 @@ def test_instrumentation_wrappers() -> None:
         COMMAND_DEPLOY_REPO_LOCATION,
         DeploymentMethods,
     )
-    from dlt.common.exceptions import UnknownDestinationModule
 
     with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
         start_test_telemetry()

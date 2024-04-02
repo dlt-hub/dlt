@@ -35,13 +35,13 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    DestinationClientDwhWithStagingConfiguration,
     NewLoadJob,
     WithStagingDataset,
     TLoadJobState,
@@ -50,15 +50,10 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
 )
-from dlt.destinations.exceptions import (
-    DatabaseUndefinedRelation,
-    DestinationSchemaTampered,
-    DestinationSchemaWillNotUpdate,
-)
+
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
-
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -67,7 +62,7 @@ DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 
 
 class SqlLoadJob(LoadJob):
-    """A job executing sql statement, without followup trait."""
+    """A job executing sql statement, without followup trait"""
 
     def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
@@ -98,10 +93,13 @@ class SqlLoadJob(LoadJob):
         raise NotImplementedError()
 
     def _string_containts_ddl_queries(self, sql: str) -> bool:
-        return any(re.search(cmd, sql, re.IGNORECASE) for cmd in DDL_COMMANDS)
+        for cmd in DDL_COMMANDS:
+            if re.search(cmd, sql, re.IGNORECASE):
+                return True
+        return False
 
     def _split_fragments(self, sql: str) -> List[str]:
-        return [s + ("" if s.endswith(";") else ";") for s in sql.split(";") if s.strip()]
+        return [s + (";" if not s.endswith(";") else "") for s in sql.split(";") if s.strip()]
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
@@ -493,7 +491,7 @@ WHERE """
 
     @staticmethod
     def _gen_not_null(v: bool) -> str:
-        return "" if v else "NOT NULL"
+        return "NOT NULL" if not v else ""
 
     def _create_table_update(
         self, table_name: str, storage_columns: TTableSchemaColumns
@@ -515,9 +513,13 @@ WHERE """
         # get schema as string
         # TODO: Re-use decompress/compress_state() implementation from dlt.pipeline.state_sync
         schema_str: str = row[5]
-        with contextlib.suppress(ValueError):
+        try:
             schema_bytes = base64.b64decode(schema_str, validate=True)
             schema_str = zlib.decompress(schema_bytes).decode("utf-8")
+        except ValueError:
+            # not a base64 string
+            pass
+
         # make utc datetime
         inserted_at = pendulum.instance(row[4])
 
@@ -532,13 +534,9 @@ WHERE """
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
-        # Make sure the schema being saved wasn't modified from the moment it was loaded from storage.
-        version_hash = schema.version_hash
-        if version_hash != schema.stored_version_hash:
-            raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())
-        # TODO: not all databases store data as utf-8 but this exception is mostly for redshift.
+        # TODO: not all databases store data as utf-8 but this exception is mostly for redshift
         schema_bytes = schema_str.encode("utf-8")
         if len(schema_bytes) > self.capabilities.max_text_data_type_length:
             # compress and to base64

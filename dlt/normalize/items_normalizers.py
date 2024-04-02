@@ -199,7 +199,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     root_table_name, items, may_have_pua(line), skip_write=False
                 )
                 schema_updates.append(partial_update)
-                logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
+                logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
             if line is None and root_table_name in self.schema.tables:
                 # TODO: we should push the truncate jobs via package state
                 # not as empty jobs. empty jobs should be reserved for

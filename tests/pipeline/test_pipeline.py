@@ -20,12 +20,12 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
     DestinationTerminalException,
-    PipelineStateNotAvailable,
     UnknownDestinationModule,
 )
+from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
@@ -439,6 +439,86 @@ def test_mark_hints() -> None:
     assert "spec_table" in p.default_schema.tables
     # resource name is kept
     assert p.default_schema.tables["spec_table"]["resource"] == "with_mark"
+
+
+def test_mark_hints_with_variant() -> None:
+    @dlt.resource(primary_key="pk")
+    def with_table_hints():
+        # dispatch to table a
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A"},
+            dlt.mark.make_hints(
+                table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]
+            ),
+            create_table_variant=True,
+        )
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B"},
+            dlt.mark.make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+
+        # item to resource
+        yield {"id": 3, "pk": "C"}
+        # table a with table_hints
+        yield dlt.mark.with_table_name({"id": 4, "pk": "D"}, "table_a")
+        # table b with table_hints
+        yield dlt.mark.with_table_name({"id": 5, "pk": "E"}, "table_b")
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(with_table_hints)
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "table_a": 2,
+        "table_b": 2,
+        "with_table_hints": 1,
+    }
+    # check table counts
+    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
+
+
+def test_mark_hints_variant_dynamic_name() -> None:
+    @dlt.resource(table_name=lambda item: "table_" + item["tag"])
+    def with_table_hints():
+        # dispatch to table a
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A", "tag": "a"},
+            dlt.mark.make_hints(
+                table_name="table_a",
+                primary_key="pk",
+                columns=[{"name": "id", "data_type": "bigint"}],
+            ),
+            create_table_variant=True,
+        )
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B", "tag": "b"},
+            dlt.mark.make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+
+        # dispatch by tag
+        yield {"id": 3, "pk": "C", "tag": "c"}
+        yield {"id": 4, "pk": "D", "tag": "a"}
+        yield {"id": 5, "pk": "E", "tag": "b"}
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(with_table_hints)
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "table_a": 2,
+        "table_b": 2,
+        "table_c": 1,
+    }
+    # check table counts
+    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
 
 
 def test_restore_state_on_dummy() -> None:
@@ -952,6 +1032,73 @@ def test_preserve_fields_order() -> None:
     ]
 
 
+def test_preserve_new_fields_order_on_append() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item = {"c1": 1, "c2": 2, "c3": "list"}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("order_1").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+    # add columns
+    item = {"c1": 1, "c4": 2.0, "c3": "list", "c5": {"x": 1}}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("order_1").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+        "c4",
+        "c5__x",
+    ]
+
+
+def test_preserve_fields_order_incomplete_columns() -> None:
+    p = dlt.pipeline(pipeline_name="column_order", destination="dummy")
+    # incomplete columns (without data type) will be added in order of fields in data
+
+    @dlt.resource(columns={"c3": {"precision": 32}}, primary_key="c2")
+    def items():
+        yield {"c1": 1, "c2": 1, "c3": 1}
+
+    p.extract(items)
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("items").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+    # complete columns preserve order in "columns"
+    p = p.drop()
+
+    @dlt.resource(columns={"c3": {"precision": 32, "data_type": "decimal"}}, primary_key="c1")
+    def items2():
+        yield {"c1": 1, "c2": 1, "c3": 1}
+
+    p.extract(items2)
+    p.normalize()
+    # c3 was first so goes first
+    assert list(p.default_schema.get_table_columns("items2").keys()) == [
+        "c3",
+        "c1",
+        "c2",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+
 def test_pipeline_log_progress() -> None:
     os.environ["TIMEOUT"] = "3.0"
 
@@ -1269,6 +1416,72 @@ def test_drop_with_new_name() -> None:
     assert new_pipeline.pipeline_name == new_test_name
 
 
+def test_schema_version_increase_and_source_update() -> None:
+    now = pendulum.now()
+
+    @dlt.source
+    def autodetect():
+        # add unix ts autodetection to current source schema
+        dlt.current.source_schema().add_type_detection("timestamp")
+        return dlt.resource(
+            [int(now.timestamp()), int(now.timestamp() + 1), int(now.timestamp() + 2)],
+            name="numbers",
+        )
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    # control version of the schema
+    auto_source = autodetect()
+    assert auto_source.schema.stored_version is None
+    pipeline.extract(auto_source)
+    # extract did a first save
+    assert pipeline.default_schema.stored_version == 1
+    # only one prev hash
+    assert len(pipeline.default_schema.previous_hashes) == 1
+    # source schema was updated in the pipeline
+    assert auto_source.schema.stored_version == 1
+    # source has pipeline schema
+    assert pipeline.default_schema is auto_source.schema
+
+    pipeline.normalize()
+    # columns added and schema was saved in between
+    assert pipeline.default_schema.stored_version == 2
+    assert len(pipeline.default_schema.previous_hashes) == 2
+    # source schema still updated
+    assert auto_source.schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    pipeline.load()
+    # nothing changed in load
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+
+    # run same source again
+    pipeline.extract(auto_source)
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    pipeline.normalize()
+    assert pipeline.default_schema.stored_version == 2
+    pipeline.load()
+    assert pipeline.default_schema.stored_version == 2
+
+    # run another instance of the same source
+    pipeline.run(autodetect())
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+
+    # data has compatible schema with "numbers" but schema is taken from pipeline
+    pipeline.run([1, 2, 3], table_name="numbers")
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+
+    # new table will evolve schema
+    pipeline.run([1, 2, 3], table_name="seq")
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    assert pipeline.default_schema.stored_version == 4
+    assert pipeline.default_schema is auto_source.schema
+
+
 def test_remove_autodetect() -> None:
     now = pendulum.now()
 
@@ -1282,12 +1495,15 @@ def test_remove_autodetect() -> None:
         )
 
     pipeline = dlt.pipeline(destination="duckdb")
-    pipeline.run(autodetect())
+    auto_source = autodetect()
+    pipeline.extract(auto_source)
+    pipeline.normalize()
 
     # unix ts recognized
     assert (
         pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
     )
+    pipeline.load()
 
     pipeline = pipeline.drop()
 
@@ -1388,8 +1604,13 @@ def test_pipeline_list_packages() -> None:
     )
     load_ids = pipeline.list_extracted_load_packages()
     assert len(load_ids) == 3
+    extracted_package = pipeline.get_load_package_info(load_ids[1])
+    assert extracted_package.schema_name == "airtable_emojis"
+    extracted_package = pipeline.get_load_package_info(load_ids[2])
+    assert extracted_package.schema_name == "emojis_2"
     extracted_package = pipeline.get_load_package_info(load_ids[0])
     assert extracted_package.state == "extracted"
+    assert extracted_package.schema_name == "airtable_emojis"
     # same load id continues till the end
     pipeline.normalize()
     load_ids_n = pipeline.list_normalized_load_packages()

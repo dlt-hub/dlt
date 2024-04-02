@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Optional, Final, Callable, Union, Any
+import dataclasses
+from typing import Optional, Final, Callable, Union
 from typing_extensions import ParamSpec
 
 from dlt.common.configuration import configspec
@@ -16,19 +17,9 @@ TDestinationCallableParams = ParamSpec("TDestinationCallableParams")
 
 @configspec
 class CustomDestinationClientConfiguration(DestinationClientConfiguration):
-    destination_type: Final[str] = "destination"  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="destination", init=False, repr=False, compare=False)  # type: ignore
     destination_callable: Optional[Union[str, TDestinationCallable]] = None  # noqa: A003
     loader_file_format: TLoaderFileFormat = "puae-jsonl"
     batch_size: int = 10
     skip_dlt_columns_and_tables: bool = True
     max_table_nesting: int = 0
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            loader_file_format: TLoaderFileFormat = "puae-jsonl",
-            batch_size: int = 10,
-            destination_callable: Union[TDestinationCallable, str] = None,
-        ) -> None: ...

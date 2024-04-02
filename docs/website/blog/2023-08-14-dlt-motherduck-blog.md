@@ -70,7 +70,7 @@ This is a perfect problem to test out my new super simple and highly customizabl
             `dlt init bigquery duckdb`
             
             This creates a folder with the directory structure
-            ```
+            ```text
             ├── .dlt
             │   ├── config.toml
             │   └── secrets.toml

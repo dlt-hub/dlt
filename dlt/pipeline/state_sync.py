@@ -68,6 +68,21 @@ def bump_pipeline_state_version_if_modified(state: TPipelineState) -> Tuple[int,
     return bump_state_version_if_modified(state, exclude_attrs=["_local"])
 
 
+def mark_state_extracted(state: TPipelineState, hash_: str) -> None:
+    """Marks state as extracted by setting last extracted hash to hash_ (which is current version_hash)
+
+    `_last_extracted_hash` is kept locally and never synced with the destination
+    """
+    state["_local"]["_last_extracted_at"] = pendulum.now()
+    state["_local"]["_last_extracted_hash"] = hash_
+
+
+def force_state_extract(state: TPipelineState) -> None:
+    """Forces `state` to be extracted by removing local information on the most recent extraction"""
+    state["_local"].pop("_last_extracted_at", None)
+    state["_local"].pop("_last_extracted_hash", None)
+
+
 def migrate_pipeline_state(
     pipeline_name: str, state: DictStrAny, from_engine: int, to_engine: int
 ) -> TPipelineState:

@@ -76,7 +76,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
         first_credentials: CredentialsConfiguration = None
         for idx, spec in enumerate(specs_in_union):
             try:
-                credentials = spec(initial_value)
+                credentials = spec.from_init_value(initial_value)
                 if credentials.is_resolved():
                     return credentials
                 # keep first credentials in the union to return in case all of the match but not resolve
@@ -88,7 +88,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
         return first_credentials
     else:
         assert issubclass(hint, CredentialsConfiguration)
-        return hint(initial_value)  # type: ignore
+        return hint.from_init_value(initial_value)  # type: ignore
 
 
 def inject_section(

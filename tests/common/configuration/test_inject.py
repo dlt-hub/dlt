@@ -167,7 +167,7 @@ def test_inject_with_sections() -> None:
 def test_inject_spec_in_func_params() -> None:
     @configspec
     class TestConfig(BaseConfiguration):
-        base_value: str
+        base_value: str = None
 
     # if any of args (ie. `init` below) is an instance of SPEC, we use it as initial value
 
@@ -179,7 +179,7 @@ def test_inject_spec_in_func_params() -> None:
     spec = get_fun_spec(test_spec_arg)
     assert spec == TestConfig
     # call function with init, should resolve even if we do not provide the base_value in config
-    assert test_spec_arg(init=TestConfig(base_value="A")) == "A"  # type: ignore[call-arg]
+    assert test_spec_arg(init=TestConfig(base_value="A")) == "A"
 
 
 def test_inject_with_sections_and_sections_context() -> None:
@@ -272,7 +272,7 @@ def test_partial() -> None:
 def test_base_spec() -> None:
     @configspec
     class BaseParams(BaseConfiguration):
-        str_str: str
+        str_str: str = None
 
     @with_config(base=BaseParams)
     def f_explicit_base(str_str=dlt.config.value, opt: bool = True):

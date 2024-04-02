@@ -1,4 +1,4 @@
-from dlt.common.exceptions import DestinationException, DestinationTerminalException
+from dlt.common.destination.exceptions import DestinationException, DestinationTerminalException
 
 
 class WeaviateBatchError(DestinationException):

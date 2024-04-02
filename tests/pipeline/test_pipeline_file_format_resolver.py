@@ -3,7 +3,7 @@ from typing import List, TYPE_CHECKING
 import dlt
 import pytest
 
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationLoadingViaStagingNotSupported,
     DestinationNoStagingMode,

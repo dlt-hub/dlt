@@ -61,6 +61,13 @@ You can also pass a SQLAlchemy-like database connection:
 destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15"
 ```
 
+To connect to an `mssql` server using Windows authentication, include `trusted_connection=yes` in the connection string. This method is useful when SQL logins aren't available, and you use Windows credentials.
+
+```toml
+destination.mssql.credentials="mssql://username:password@loader.database.windows.net/dlt_data?trusted_connection=yes"
+```
+> The username and password must be filled out with the appropriate login credentials or left untouched. Leaving these empty is not recommended.
+
 To pass credentials directly, you can use the `credentials` argument passed to `dlt.pipeline` or `pipeline.run` methods.
 ```py
 pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15")

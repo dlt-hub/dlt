@@ -90,7 +90,7 @@ There were no great challenges. The most ~~difficult~~ tedious probably was to m
 1) Authentication
 The provided Authentication was a bit off. The generated code assumed the using of a username and password but what was actually required was — an empty username + api_key as a password. So super easy fix was changing
 
-```python
+```py
 def to_http_params(self) -> CredentialsHttpParams:
 	cred = f"{self.api_key}:{self.password}" if self.password else f"{self.username}"
 	encoded = b64encode(f"{cred}".encode()).decode()
@@ -99,9 +99,9 @@ def to_http_params(self) -> CredentialsHttpParams:
 
 to
 
-```python
+```py
 def to_http_params(self) -> CredentialsHttpParams:
-	encoded = b64encode(f"{self.api_key}".encode()).decode()
+  encoded = b64encode(f"{self.api_key}".encode()).decode()
   return dict(cookies={}, headers={"Authorization": "Basic " + encoded}, params={})
 ```
 
@@ -111,13 +111,14 @@ Also I was pleasantly surprised that generator had several different authenticat
 
 For the code generator it’s hard to guess a pagination method by OpenAPI specification, so the generated code has no pagination 😞. So I had to replace a line
 
-```python
-yield _build_response(requests.request(**kwargs))
+```py
+def f():
+  yield _build_response(requests.request(**kwargs))
 ```
 
   with yielding form a 6-lines `get_page` function
 
-```python
+```py
 def get_pages(kwargs: Dict[str, Any], data_json_path):
     has_more = True
     while has_more:
@@ -133,7 +134,7 @@ The downside — I had to do it for each resource.
 
 The code wouldn’t run because it wasn’t able to find some models. I found a commented line in generator script
 
-```python
+```py
 # self._build_models()
 ```
 

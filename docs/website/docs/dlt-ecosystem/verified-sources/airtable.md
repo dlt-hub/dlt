@@ -3,14 +3,11 @@ title: Airtable
 description: dlt verified source for Airtable
 keywords: [airtable api, airtable verified source, airtable]
 ---
+import Header from './_source-info-header.md';
 
 # Airtable
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Airtable](https://www.airtable.com/) is a cloud-based platform that merges spreadsheet and database functionalities for easy
 data management and collaboration.
@@ -215,7 +212,7 @@ verified source.
       base_id = base_id,
       table_names = table_names
    )
-   load_info = pipeline.run(airtables, write_deposition = "replace")
+   load_info = pipeline.run(airtables, write_disposition = "replace")
    ```
 
    > You have the option to use table names or table IDs in the code above, in place of "Table1" and

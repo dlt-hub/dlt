@@ -81,10 +81,7 @@ TPipeStep = Union[
 
 
 class DataItemWithMeta:
-    __slots__ = "meta", "data"
-
-    meta: Any
-    data: TDataItems
+    __slots__ = ("meta", "data")
 
     def __init__(self, meta: Any, data: TDataItems) -> None:
         self.meta = meta
@@ -92,9 +89,7 @@ class DataItemWithMeta:
 
 
 class TableNameMeta:
-    __slots__ = "table_name"
-
-    table_name: str
+    __slots__ = ("table_name",)
 
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name

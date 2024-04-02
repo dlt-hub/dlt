@@ -3,14 +3,11 @@ title: Inbox
 description: dlt verified source for Mail Inbox
 keywords: [inbox, inbox verified source, inbox mail, email]
 ---
+import Header from './_source-info-header.md';
 
 # Inbox
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
-:::
+<Header/>
 
 This source collects inbox emails, retrieves attachments, and stores relevant email data. It uses the imaplib library for IMAP interactions and the dlt library for data processing.
 

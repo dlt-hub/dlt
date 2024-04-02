@@ -309,11 +309,16 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     f"Table {table_name} has seen data for a first time with load id {load_id}"
                 )
                 x_normalizer["seen-data"] = True
-        logger.info(
-            f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
-        )
         # schema is updated, save it to schema volume
-        self.schema_storage.save_schema(schema)
+        if schema.is_modified:
+            logger.info(
+                f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
+            )
+            self.schema_storage.save_schema(schema)
+        else:
+            logger.info(
+                f"Schema {schema.name} with version {schema.version} was not modified. Save skipped"
+            )
         # save schema new package
         self.load_storage.new_packages.save_schema(load_id, schema)
         # save schema updates even if empty
@@ -376,8 +381,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             schema = self.normalize_storage.extracted_packages.load_schema(load_id)
             # prefer schema from schema storage if it exists
             try:
-                # also import the schema
-                storage_schema = self.schema_storage.load_schema(schema.name)
+                # use live schema instance via getter if on live storage, it will also do import
+                # schema as live schemas are committed before calling normalize
+                storage_schema = self.schema_storage[schema.name]
                 if schema.stored_version_hash != storage_schema.stored_version_hash:
                     logger.warning(
                         f"When normalizing package {load_id} with schema {schema.name}: the storage"

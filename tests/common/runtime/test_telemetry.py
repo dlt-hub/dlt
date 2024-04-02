@@ -35,16 +35,6 @@ class SentryLoggerConfiguration(RunConfiguration):
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            pipeline_name: str = "logger",
-            sentry_dsn: str = "https://sentry.io",
-            dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
-            log_level: str = "CRITICAL",
-        ) -> None: ...
-
 
 def test_sentry_log_level() -> None:
     from dlt.common.runtime.sentry import _get_sentry_log_level

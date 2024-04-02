@@ -46,5 +46,3 @@ def _convert_to_old_pyformat(
     if count != len(args):
         raise DatabaseTransientException(operational_error_cls())
     return old_style_string, mapping
-
-

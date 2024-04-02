@@ -1,3 +1,4 @@
+import dataclasses
 from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Literal, cast
 
 from dlt.common.configuration import configspec
@@ -15,7 +16,7 @@ TSecureConnection = Literal[0, 1]
 @configspec
 class ClickhouseCredentials(ConnectionStringCredentials):
     drivername: str = "clickhouse"
-    host: str
+    host: str  # type: ignore
     """Host with running ClickHouse server."""
     port: int = 9440
     """Port ClickHouse server is bound to. Defaults to 9000."""
@@ -65,7 +66,9 @@ class ClickhouseCredentials(ConnectionStringCredentials):
 @configspec
 class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = "clickhouse"  # type: ignore[misc]
-    credentials: ClickhouseCredentials
+    credentials: ClickhouseCredentials  # type: ignore
+    dataset_name: Final[str] = ""  # type: ignore
+    """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
 
     # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
     # but they do not enforce uniqueness constraints. It permits duplicate values even for the primary key
@@ -90,7 +93,6 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         ) -> None:
             super().__init__(
                 credentials=credentials,
-                dataset_name=dataset_name,
                 destination_name=destination_name,
                 environment=environment,
             )

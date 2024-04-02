@@ -5,8 +5,17 @@ _INITIALIZED = False
 _RUN_CONFIGURATION: RunConfiguration = None
 
 
+def init_logging(config: RunConfiguration) -> None:
+    from dlt.common import logger
+    from dlt.common.runtime.exec_info import dlt_version_info
+
+    version = dlt_version_info(config.pipeline_name)
+    logger.LOGGER = logger._init_logging(
+        logger.DLT_LOGGER_NAME, config.log_level, config.log_format, config.pipeline_name, version
+    )
+
+
 def initialize_runtime(config: RunConfiguration) -> None:
-    from dlt.common.runtime.logger import init_logging
     from dlt.common.runtime.telemetry import start_telemetry
     from dlt.sources.helpers import requests
 
