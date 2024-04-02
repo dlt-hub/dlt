@@ -20,7 +20,7 @@ from tests.load.pipeline.utils import (
 
 
 ACTIVE_TS = datetime.fromisoformat(HIGH_TS.isoformat()).replace(tzinfo=None)
-h = DataItemNormalizer.get_row_hash
+get_row_hash = DataItemNormalizer.get_row_hash
 
 
 def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> datetime:
@@ -191,9 +191,9 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ]
     cname = "value" if simple else "cc1"
     assert get_table(p, "dim_test__c2", cname) == [
-        {"_dlt_root_id": h(l1_1), cname: 1},
-        {"_dlt_root_id": h(l1_2), cname: 2},
-        {"_dlt_root_id": h(l1_2), cname: 3},
+        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
 
     # load 2 — update a record — change not in complex column
@@ -210,10 +210,10 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},  # new
     ]
     assert get_table(p, "dim_test__c2", cname) == [
-        {"_dlt_root_id": h(l1_1), cname: 1},
-        {"_dlt_root_id": h(l2_1), cname: 1},  # new
-        {"_dlt_root_id": h(l1_2), cname: 2},
-        {"_dlt_root_id": h(l1_2), cname: 3},
+        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
 
     # load 3 — update a record — change in complex column
@@ -235,12 +235,12 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {from_: ts_3, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},  # new
     ]
     exp_3 = [
-        {"_dlt_root_id": h(l1_1), cname: 1},
-        {"_dlt_root_id": h(l2_1), cname: 1},
-        {"_dlt_root_id": h(l3_1), cname: 1},  # new
-        {"_dlt_root_id": h(l1_2), cname: 2},
-        {"_dlt_root_id": h(l3_1), cname: 2},  # new
-        {"_dlt_root_id": h(l1_2), cname: 3},
+        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l3_1), cname: 1},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
+        {"_dlt_root_id": get_row_hash(l3_1), cname: 2},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
     assert get_table(p, "dim_test__c2", cname) == exp_3
 
@@ -275,14 +275,14 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {from_: ts_3, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},
     ]
     assert get_table(p, "dim_test__c2", cname) == [
-        {"_dlt_root_id": h(l1_1), cname: 1},
-        {"_dlt_root_id": h(l2_1), cname: 1},
-        {"_dlt_root_id": h(l3_1), cname: 1},
-        {"_dlt_root_id": h(l5_3), cname: 1},  # new
-        {"_dlt_root_id": h(l1_2), cname: 2},
-        {"_dlt_root_id": h(l3_1), cname: 2},
-        {"_dlt_root_id": h(l5_3), cname: 2},  # new
-        {"_dlt_root_id": h(l1_2), cname: 3},
+        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l3_1), cname: 1},
+        {"_dlt_root_id": get_row_hash(l5_3), cname: 1},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
+        {"_dlt_root_id": get_row_hash(l3_1), cname: 2},
+        {"_dlt_root_id": get_row_hash(l5_3), cname: 2},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
 
 
@@ -308,9 +308,9 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap))
     assert_load_info(info)
     assert get_table(p, "dim_test__c2__cc1", "value") == [
-        {"_dlt_root_id": h(l1_1), "value": 1},
-        {"_dlt_root_id": h(l1_2), "value": 1},
-        {"_dlt_root_id": h(l1_2), "value": 2},
+        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
     ]
 
     # load 2 — update a record — change not in complex column
@@ -321,10 +321,10 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap))
     assert_load_info(info)
     assert get_table(p, "dim_test__c2__cc1", "value") == [
-        {"_dlt_root_id": h(l1_1), "value": 1},
-        {"_dlt_root_id": h(l1_2), "value": 1},
-        {"_dlt_root_id": h(l2_1), "value": 1},  # new
-        {"_dlt_root_id": h(l1_2), "value": 2},
+        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
     ]
 
     # load 3 — update a record — change in complex column
@@ -335,12 +335,12 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap))
     assert_load_info(info)
     exp_3 = [
-        {"_dlt_root_id": h(l1_1), "value": 1},
-        {"_dlt_root_id": h(l1_2), "value": 1},
-        {"_dlt_root_id": h(l2_1), "value": 1},
-        {"_dlt_root_id": h(l3_1), "value": 1},  # new
-        {"_dlt_root_id": h(l1_2), "value": 2},
-        {"_dlt_root_id": h(l3_1), "value": 2},  # new
+        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l3_1), "value": 1},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+        {"_dlt_root_id": get_row_hash(l3_1), "value": 2},  # new
     ]
     assert get_table(p, "dim_test__c2__cc1", "value") == exp_3
 
@@ -360,11 +360,11 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     info = p.run(r(dim_snap))
     assert_load_info(info)
     assert get_table(p, "dim_test__c2__cc1", "value") == [
-        {"_dlt_root_id": h(l1_1), "value": 1},
-        {"_dlt_root_id": h(l1_2), "value": 1},
-        {"_dlt_root_id": h(l2_1), "value": 1},
-        {"_dlt_root_id": h(l3_1), "value": 1},
-        {"_dlt_root_id": h(l5_3), "value": 1},  # new
-        {"_dlt_root_id": h(l1_2), "value": 2},
-        {"_dlt_root_id": h(l3_1), "value": 2},
+        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l3_1), "value": 1},
+        {"_dlt_root_id": get_row_hash(l5_3), "value": 1},  # new
+        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+        {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
     ]
