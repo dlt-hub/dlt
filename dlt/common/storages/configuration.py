@@ -1,7 +1,6 @@
 import os
-from typing import Any, Callable, ClassVar, Dict, Literal, Optional, Type, get_args, Union
+from typing import Any, ClassVar, Dict, Literal, Optional, Type, get_args, Union
 from urllib.parse import urlparse
-from typing_extensions import TypeAlias
 
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -16,10 +15,8 @@ from dlt.common.configuration.specs import (
 )
 
 from dlt.common.typing import DictStrAny
-from dlt.common.schema import Schema
 from dlt.common.utils import digest128
 
-from pendulum.datetime import DateTime
 
 TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)

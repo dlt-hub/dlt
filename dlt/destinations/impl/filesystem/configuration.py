@@ -1,6 +1,6 @@
 import dataclasses
 
-from typing import Any, Callable, Dict, Final, Type, Optional, TypeAlias, Union
+from typing import Callable, Dict, Final, Type, Optional, TypeAlias, Union
 
 
 from pendulum.datetime import DateTime
@@ -45,7 +45,7 @@ class FilesystemDestinationClientConfiguration(
         )  # type: ignore[return-value]
 
     def on_resolved(self) -> None:
-        # If current_datetime is a callable
+        # If current_datetime is a callableg
         # then we need to inspect it's return type
         # if return type is not DateTime
         # then call it and check it's instance
