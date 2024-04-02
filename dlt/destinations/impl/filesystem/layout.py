@@ -94,6 +94,7 @@ class extra_params:
                     self.table_name,
                     self.load_id,
                     self.file_id,
+                    self.file_format,
                     now,
                 )
             else:
