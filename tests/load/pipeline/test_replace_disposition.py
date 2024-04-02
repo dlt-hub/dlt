@@ -16,6 +16,7 @@ from tests.load.pipeline.utils import (
 )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -245,7 +246,7 @@ def test_replace_disposition(
         "_dlt_version": increase_loads(dlt_versions),  # new table name -> new schema
     }
 
-
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
