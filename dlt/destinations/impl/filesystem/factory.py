@@ -31,7 +31,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         current_datetime: t.Optional[datetime] = None,
         datetime_format: t.Optional[str] = None,
         extra_params: t.Optional[t.Dict[str, t.Any]] = None,
-        suffix_fn: t.Optional[t.Callable[[], str]] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
@@ -66,7 +65,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             current_datetime=current_datetime,
             datetime_format=datetime_format,
             extra_params=extra_params,
-            suffix_fn=suffix_fn,
             environment=environment,
             **kwargs,
         )

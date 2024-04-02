@@ -36,7 +36,6 @@ class FilesystemDestinationClientConfiguration(
     current_datetime: Optional[Union[DateTime, TCurrentDatetimeCallback]] = None
     datetime_format: Optional[TDatetimeFormat] = None
     extra_params: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
-    suffix: Optional[Union[str, Callable[[Dict[str, Any]], str]]] = None
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

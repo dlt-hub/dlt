@@ -52,9 +52,12 @@ class LoadFilesystemJob(LoadJob):
             config, file_name, schema_name, load_id
         )
 
-        item = self.make_remote_path()
+        # Make sure directory exists before moving file
         dir_path = self.make_remote_path(only_dir=True)
         fs_client.makedirs(dir_path, exist_ok=True)
+
+        # Once directory is created we can move things
+        item = self.make_remote_path()
         fs_client.put_file(local_path, item)
 
     @staticmethod
