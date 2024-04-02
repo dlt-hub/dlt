@@ -73,4 +73,10 @@ jobs:
 
       - run: |
           poetry run pytest tests/load -m "essential"
-        name: Run tests Linux
+        name: Run essential tests Linux
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci full')}}
+
+      - run: |
+          poetry run pytest tests/load
+        name: Run all tests Linux
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full')}}
