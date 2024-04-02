@@ -202,7 +202,10 @@ class InsertValuesWriter(DataWriter):
 
         # if next chunk add separator
         if self._chunks_written > 0:
-            self._f.write(",\n")
+            if self._caps.insert_values_writer_type == "default":
+                self._f.write(",\n")
+            elif self._caps.insert_values_writer_type == "select_union":
+                self._f.write("\nUNION ALL\n")
 
         # write rows
         for row in rows[:-1]:
