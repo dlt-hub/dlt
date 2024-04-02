@@ -68,6 +68,7 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+        
       - run: |
           poetry run pytest tests/load -m "essential"
         name: Run essential tests Linux
