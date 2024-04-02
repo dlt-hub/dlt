@@ -86,25 +86,27 @@ class extra_params:
                     "ext": self.file_format,
                 }
             )
+
         # If current_datetime is a callable
         # then we need to inspect it's return type
         # if return type is not DateTime
         # then call it and check it's instance
         # if it is not DateTime then exit.
-        if self.config.current_datetime is not None:
-            if callable(self.config.current_datetime):
-                result = self.config.current_datetime()
-                if isinstance(result, pendulum.DateTime):
-                    self.current_datetime = result
-                else:
-                    raise RuntimeError(
-                        "current_datetime was passed as callable but "
-                        "didn't return any instance of pendulum.DateTime"
-                    )
-        else:
+        if not self.config.current_datetime:
             self.config.current_datetime = pendulum.now()
+        elif callable(self.config.current_datetime):
+            result = self.config.current_datetime()
+            if isinstance(result, pendulum.DateTime):
+                self.current_datetime = result
+            else:
+                raise RuntimeError(
+                    "current_datetime was passed as callable but "
+                    "didn't return any instance of pendulum.DateTime"
+                )
 
         now: pendulum.DateTime = self.config.current_datetime  # type: ignore[assignment]
+        # For each callable extra parameter
+        # otherwise take it's value
         for key, value in self.config.extra_params.items():
             if callable(value):
                 self._params[key] = value(
