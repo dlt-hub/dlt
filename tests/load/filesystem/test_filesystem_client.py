@@ -40,6 +40,14 @@ ALL_LAYOUTS = (
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # new default layout with schema
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # classic layout
     "{table_name}88{load_id}-u-{file_id}.{ext}",  # default layout with strange separators
+    # Extra layout options
+    "{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}",
+    "{table_name}/{year}/{month}/{day}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{day}/{hour}/{minute}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{dow}/{load_id}.{file_id}.{ext}",
+    # Invalid placeholders before {table_name}
+    "{year}/{month}/{day}/{hour}/{table_name}/{dow}/{load_id}.{file_id}.{ext}",
 )
 
 
