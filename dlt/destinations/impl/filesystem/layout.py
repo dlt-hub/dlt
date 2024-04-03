@@ -31,7 +31,7 @@ SUPPORTED_PLACEHOLDERS = {
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
 
-class extra_params:
+class ExtraParams:
     def __init__(
         self,
         config: FilesystemDestinationClientConfiguration,
@@ -52,17 +52,6 @@ class extra_params:
             self.table_name = job_info.table_name
             self.file_id = job_info.file_id
             self.file_format = job_info.file_format
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]] = None,
-        exc_value: Optional[BaseException] = None,
-        traceback: Optional[TracebackType] = None,
-    ) -> None:
-        pass
 
     @property
     def params(self) -> Optional[Dict[str, Any]]:
@@ -196,21 +185,20 @@ def make_filename(
     load_id: str,
 ) -> str:
     job_info = ParsedLoadJobFileName.parse(file_name)
-    with extra_params(
+    extras = ExtraParams(
         config,
         job_info,
         schema_name,
         load_id,
-    ) as extras, layout_helper(
-        config.layout,
-        extras.params,
-    ) as layout:
+    )
+
+    with layout_helper(config.layout, extras.params) as layout:
         placeholders = layout.placeholders
         path = config.layout.format(**extras.params)
 
         # if extension is not defined, we append it at the end
         if "ext" not in placeholders:
-            path += f".{extras.file_format}"
+            path += f".{job_info.file_format}"
 
         return path
 
@@ -223,10 +211,8 @@ def get_table_prefix_layout(
 
     allowed `supported_prefix_placeholders` that may appear before table.
     """
-    with extra_params(config) as extras, layout_helper(
-        config.layout,
-        extras.params,
-    ) as layout:
+    extras = ExtraParams(config)
+    with layout_helper(config.layout, extras.params) as layout:
         # fail if table name is not defined
         if "table_name" not in layout.placeholders:
             raise CantExtractTablePrefix(config.layout, "{table_name} placeholder not found. ")
