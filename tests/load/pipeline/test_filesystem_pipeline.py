@@ -1,7 +1,8 @@
+import os
 import posixpath
 from pathlib import Path
 
-import dlt, os
+import dlt
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -23,7 +24,7 @@ def assert_file_matches(
     local_path = Path(job.file_path)
     filename = local_path.name
 
-    destination_fn = make_filename(config.layout, filename, client.schema.name, load_id)
+    destination_fn = make_filename(config, filename, client.schema.name, load_id)
     destination_path = posixpath.join(client.dataset_path, destination_fn)
 
     assert local_path.read_bytes() == client.fs_client.read_bytes(destination_path)
