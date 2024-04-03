@@ -81,6 +81,8 @@ class ExtraParams:
             * file id,
             * current datetime
         """
+        if not self.current_datetime:
+            self.current_datetime = pendulum.now()
 
         # If current_datetime is callable
         # Then call it and check it's instance
