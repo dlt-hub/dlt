@@ -186,6 +186,19 @@ class TestOffsetPaginator:
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
+    def test_update_state_with_string_total(self):
+        paginator = OffsetPaginator(0, 10)
+        response = Mock(Response, json=lambda: {"total": "20"})
+        paginator.update_state(response)
+        assert paginator.offset == 10
+        assert paginator.has_next_page is True
+
+    def test_update_state_with_invalid_total(self):
+        paginator = OffsetPaginator(0, 10)
+        response = Mock(Response, json=lambda: {"total": "invalid"})
+        with pytest.raises(ValueError):
+            paginator.update_state(response)
+
     def test_update_state_without_total(self):
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {})

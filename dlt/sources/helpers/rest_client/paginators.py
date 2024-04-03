@@ -88,6 +88,14 @@ class OffsetPaginator(BasePaginator):
                 f"Total count not found in response for {self.__class__.__name__}"
             )
 
+        try:
+            total = int(total)
+        except ValueError:
+            raise ValueError(
+                f"Total count is not an integer in response for {self.__class__.__name__}. "
+                f"Expected an integer, got {total}"
+            )
+
         self.offset += self.limit
 
         if self.offset >= total:
