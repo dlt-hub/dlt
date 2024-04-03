@@ -57,11 +57,10 @@ class ClickhouseSqlClient(
             dsn=self.credentials.to_native_representation()
         )
         with self._conn.cursor() as cur:
-            # Set session settings. There doesn't seem to be a way to set these
-            # without using the library's top-level, non-dbapi2 client.
+            # Toggle experimental settings.
+            # These are necessary for nested datatypes and other operations to work.
             cur.execute("set allow_experimental_object_type = 1")
             cur.execute("set allow_experimental_lightweight_delete = 1")
-
         return self._conn
 
     @raise_open_connection_error

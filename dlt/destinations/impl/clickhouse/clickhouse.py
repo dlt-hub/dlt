@@ -49,8 +49,8 @@ from dlt.destinations.impl.clickhouse.utils import (
     FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING,
     SUPPORTED_FILE_FORMATS,
 )
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_client_impl import (
-    SqlJobClientWithStaging,
     SqlJobClientBase,
 )
 from dlt.destinations.job_impl import NewReferenceJob, EmptyLoadJob
@@ -365,7 +365,7 @@ class ClickhouseMergeJob(SqlMergeJob):
         return sql
 
 
-class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(
@@ -381,8 +381,34 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = ClickhouseTypeMapper(self.capabilities)
 
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [ClickhouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+        # Build column definition.
+        # The primary key and sort order definition is defined outside column specification.
+        hints_str = " ".join(
+            self.active_hints.get(hint)
+            for hint in self.active_hints.keys()
+            if c.get(hint, False) is True
+            and hint not in ("primary_key", "sort")
+            and hint in self.active_hints
+        )
+
+        # Alter table statements only accept `Nullable` modifiers.
+        type_with_nullability_modifier = (
+            f"Nullable({self.type_mapper.to_db_type(c)})"
+            if c.get("nullable", True)
+            else self.type_mapper.to_db_type(c)
+        )
+
+        return (
+            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_str}"
+            .strip()
+        )
+
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return super().start_file_load(table, file_path, load_id) or ClickhouseLoadJob(
+        job = super().start_file_load(table, file_path, load_id) or ClickhouseLoadJob(
             file_path,
             table["name"],
             self.sql_client,
@@ -390,6 +416,11 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 self.config.staging_config.credentials if self.config.staging_config else None
             ),
         )
+        if not job:
+            assert NewReferenceJob.is_reference_job(
+                file_path
+            ), "Clickhouse must use staging to load files."
+        return job
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -418,29 +449,6 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # TODO: Apply sort order and cluster key hints.
 
         return sql
-
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        # Build column definition.
-        # The primary key and sort order definition is defined outside column specification.
-        hints_str = " ".join(
-            self.active_hints.get(hint)
-            for hint in self.active_hints.keys()
-            if c.get(hint, False) is True
-            and hint not in ("primary_key", "sort")
-            and hint in self.active_hints
-        )
-
-        # Alter table statements only accept `Nullable` modifiers.
-        type_with_nullability_modifier = (
-            f"Nullable({self.type_mapper.to_db_type(c)})"
-            if c.get("nullable", True)
-            else self.type_mapper.to_db_type(c)
-        )
-
-        return (
-            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_str}"
-            .strip()
-        )
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         fields = self._get_storage_table_query_columns()
@@ -471,6 +479,7 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return True, schema_table
 
     # Clickhouse fields are not nullable by default.
+
     @staticmethod
     def _gen_not_null(v: bool) -> str:
         # We use the `Nullable` modifier instead of NULL / NOT NULL modifiers to cater for ALTER statement.
@@ -483,6 +492,3 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
-
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [ClickhouseMergeJob.from_table_chain(table_chain, self.sql_client)]
