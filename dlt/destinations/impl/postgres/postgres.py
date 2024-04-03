@@ -1,22 +1,18 @@
 from typing import ClassVar, Dict, Optional, Sequence, List, Any
 
-from dlt.common.wei import EVM_DECIMAL_PRECISION
-from dlt.common.destination.reference import NewLoadJob
+from dlt.common.destination.reference import FollowupJob, LoadJob, NewLoadJob, TLoadJobState
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
-
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-
 from dlt.destinations.impl.postgres import capabilities
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
-
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 
@@ -104,6 +100,29 @@ class PostgresStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
+class PostgresCsvCopyJob(LoadJob, FollowupJob):
+    def __init__(self, table_name: str, file_path: str, sql_client: Psycopg2SqlClient) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+
+        with FileStorage.open_zipsafe_ro(file_path, "rb") as f:
+            # all headers in first line
+            headers = f.readline().decode("utf-8").strip()
+            qualified_table_name = sql_client.make_qualified_table_name(table_name)
+            copy_sql = "COPY %s (%s) FROM STDIN WITH CSV DELIMITER ',' NULL ''" % (
+                qualified_table_name,
+                headers,
+            )
+            with sql_client.begin_transaction():
+                with sql_client.native_connection.cursor() as cursor:
+                    cursor.copy_expert(copy_sql, f, size=8192)
+
+    def state(self) -> TLoadJobState:
+        return "completed"
+
+    def exception(self) -> str:
+        raise NotImplementedError()
+
+
 class PostgresClient(InsertValuesJobClient):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -111,9 +130,15 @@ class PostgresClient(InsertValuesJobClient):
         sql_client = Psycopg2SqlClient(config.normalize_dataset_name(schema), config.credentials)
         super().__init__(schema, config, sql_client)
         self.config: PostgresClientConfiguration = config
-        self.sql_client = sql_client
+        self.sql_client: Psycopg2SqlClient = sql_client
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = PostgresTypeMapper(self.capabilities)
+
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().start_file_load(table, file_path, load_id)
+        if not job and file_path.endswith("csv"):
+            job = PostgresCsvCopyJob(table["name"], file_path, self.sql_client)
+        return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         hints_str = " ".join(
