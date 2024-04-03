@@ -105,18 +105,19 @@ class ExtraParams:
 
         # For each callable extra parameter
         # otherwise take it's value
-        for key, value in self.config.extra_params.items():
-            if callable(value):
-                self._params[key] = value(
-                    self.schema_name,
-                    self.table_name,
-                    self.load_id,
-                    self.file_id,
-                    self.file_format,
-                    now,
-                )
-            else:
-                self._params[key] = value
+        if self.config.extra_params:
+            for key, value in self.config.extra_params.items():
+                if callable(value):
+                    self._params[key] = value(
+                        self.schema_name,
+                        self.table_name,
+                        self.load_id,
+                        self.file_id,
+                        self.file_format,
+                        now,
+                    )
+                else:
+                    self._params[key] = value
 
         # For formatting options please see
         # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
