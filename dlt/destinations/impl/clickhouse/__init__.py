@@ -7,11 +7,11 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-
-    caps.preferred_loader_file_format = "parquet"
-    caps.supported_loader_file_formats = ["parquet"]
+    # Clickhouse only supports loading from staged files on s3 for now.
+    caps.preferred_loader_file_format = "insert_values"
+    caps.supported_loader_file_formats = ["parquet", "jsonl", "insert_values"]
     caps.preferred_staging_file_format = "parquet"
-    caps.supported_staging_file_formats = ["parquet"]
+    caps.supported_staging_file_formats = ["parquet", "jsonl"]
 
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal

@@ -199,6 +199,14 @@ def destinations_configs(
         ]
         destination_configs += [
             DestinationTestConfiguration(
+                destination="clickhouse",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
                 destination="databricks",
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
@@ -319,6 +327,30 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+                disable_compression=True,
             ),
         ]
 
