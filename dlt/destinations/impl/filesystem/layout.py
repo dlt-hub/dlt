@@ -76,16 +76,12 @@ class ExtraParams:
                 }
             )
 
-        # If current_datetime is not given
-        # Then take current moment in time
         # If current_datetime is callable
         # Then call it and check it's instance
         # If the result id DateTime
         # Then take it
         # Else exit.
-        if not self.config.current_datetime:
-            self.config.current_datetime = pendulum.now()
-        elif callable(self.config.current_datetime):
+        if callable(self.config.current_datetime):
             result = self.config.current_datetime()
             if isinstance(result, pendulum.DateTime):
                 self.current_datetime = result
@@ -108,14 +104,23 @@ class ExtraParams:
         if self.config.extra_placeholders:
             for key, value in self.config.extra_placeholders.items():
                 if callable(value):
-                    self._params[key] = value(
-                        self.schema_name,
-                        self.table_name,
-                        self.load_id,
-                        self.file_id,
-                        self.file_format,
-                        now,
-                    )
+                    try:
+                        self._params[key] = value(
+                            self.schema_name,
+                            self.table_name,
+                            self.load_id,
+                            self.file_id,
+                            self.file_format,
+                            now,
+                        )
+                    except TypeError:
+                        fmt.secho(
+                            f"Extra placeholder {key} is callableCallable placeholder should accept"
+                            f" parameters below`schema name`, `table name`, `load_id`, `file_id`,"
+                            f" `extension` and `current_datetime`",
+                            fg="red",
+                        )
+                        raise
                 else:
                     self._params[key] = value
 

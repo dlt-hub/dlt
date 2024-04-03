@@ -48,8 +48,6 @@ class LoadFilesystemJob(LoadJob):
         super().__init__(file_name)
         fs_client, _ = fsspec_from_config(config)
         self.destination_file_name = make_filename(config, file_name, schema_name, load_id)
-
-        # Once directory is created we can move things
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
 
