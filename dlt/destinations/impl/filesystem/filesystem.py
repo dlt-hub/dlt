@@ -38,31 +38,29 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
+        self.destination_file_name = path_utils.create_path(
+            config,
+            file_name,
+            schema_name,
+            load_id,
+            current_datetime=config.current_datetime,
+            datetime_format=config.datetime_format,
+            extra_placeholders=config.extra_placeholders,
         )
 
         super().__init__(file_name)
         fs_client, _ = fsspec_from_config(config)
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
+        self.destination_file_name = path_utils.create_path(
+            config,
+            file_name,
+            schema_name,
+            load_id,
+            current_datetime=config.current_datetime,
+            datetime_format=config.datetime_format,
+            extra_placeholders=config.extra_placeholders,
         )
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
-
-    @staticmethod
-    def make_destination_filename(
-        layout: str, file_name: str, schema_name: str, load_id: str
-    ) -> str:
-        job_info = ParsedLoadJobFileName.parse(file_name)
-        return path_utils.create_path(
-            layout,
-            schema_name=schema_name,
-            table_name=job_info.table_name,
-            load_id=load_id,
-            file_id=job_info.file_id,
-            ext=job_info.file_format,
-        )
 
     def make_remote_path(self) -> str:
         return (
@@ -100,7 +98,12 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
-        self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
+        self.table_prefix_layout = path_utils.get_table_prefix_layout(
+            config.layout,
+            current_datetime=config.current_datetime,
+            datetime_format=config.datetime_format,
+            extra_placeholders=config.extra_placeholders,
+        )
         self._dataset_path = self.config.normalize_dataset_name(self.schema)
 
     def drop_storage(self) -> None:
