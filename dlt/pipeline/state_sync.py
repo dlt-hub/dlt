@@ -27,7 +27,11 @@ PIPELINE_STATE_ENGINE_VERSION = 4
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
     "version": {"name": "version", "data_type": "bigint", "nullable": False},
-    "engine_version": {"name": "engine_version", "data_type": "bigint", "nullable": False},
+    "engine_version": {
+        "name": "engine_version",
+        "data_type": "bigint",
+        "nullable": False,
+    },
     "pipeline_name": {"name": "pipeline_name", "data_type": "text", "nullable": False},
     "state": {"name": "state", "data_type": "text", "nullable": False},
     "created_at": {"name": "created_at", "data_type": "timestamp", "nullable": False},
@@ -64,7 +68,9 @@ def generate_pipeline_state_version_hash(state: TPipelineState) -> str:
     return generate_state_version_hash(state, exclude_attrs=["_local"])
 
 
-def bump_pipeline_state_version_if_modified(state: TPipelineState) -> Tuple[int, str, str]:
+def bump_pipeline_state_version_if_modified(
+    state: TPipelineState,
+) -> Tuple[int, str, str]:
     return bump_state_version_if_modified(state, exclude_attrs=["_local"])
 
 
@@ -128,7 +134,10 @@ def state_resource(state: TPipelineState) -> DltResource:
         "version_hash": state["_version_hash"],
     }
     return dlt.resource(
-        [state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
+        [state_doc],
+        name=STATE_TABLE_NAME,
+        write_disposition="append",
+        columns=STATE_TABLE_COLUMNS,
     )
 
 

@@ -35,7 +35,9 @@ def test_validator_model_in_decorator(yield_list: bool) -> None:
     # Items are passed through model
     data = list(some_data())
     # compare content-wise. model names change due to extra settings on columns
-    assert json.dumpb(data) == json.dumpb([SimpleModel(a=1, b="2"), SimpleModel(a=2, b="3")])
+    assert json.dumpb(data) == json.dumpb(
+        [SimpleModel(a=1, b="2"), SimpleModel(a=2, b="3")]
+    )
 
 
 @pytest.mark.parametrize("yield_list", [True, False])
@@ -55,7 +57,9 @@ def test_validator_model_in_apply_hints(yield_list: bool) -> None:
 
     # Items are passed through model
     data = list(resource)
-    assert json.dumpb(data) == json.dumpb([SimpleModel(a=1, b="2"), SimpleModel(a=2, b="3")])
+    assert json.dumpb(data) == json.dumpb(
+        [SimpleModel(a=1, b="2"), SimpleModel(a=2, b="3")]
+    )
 
 
 @pytest.mark.parametrize("yield_list", [True, False])
@@ -131,7 +135,9 @@ def test_validator_property_setter(yield_list: bool) -> None:
         b: str
         c: float = 0.5
 
-    resource.validator = PydanticValidator(AnotherModel, column_mode="freeze", data_mode="freeze")
+    resource.validator = PydanticValidator(
+        AnotherModel, column_mode="freeze", data_mode="freeze"
+    )
 
     assert resource.validator and resource.validator.model.__name__.startswith(
         AnotherModel.__name__
@@ -206,7 +212,9 @@ def test_validation_with_contracts(yield_list: bool) -> None:
             yield from items
 
     # let it evolve
-    r: DltResource = dlt.resource(some_data(), schema_contract="evolve", columns=SimpleModel)
+    r: DltResource = dlt.resource(
+        some_data(), schema_contract="evolve", columns=SimpleModel
+    )
     validator: PydanticValidator[SimpleModel] = r.validator  # type: ignore[assignment]
     assert validator.column_mode == "evolve"
     assert validator.data_mode == "evolve"

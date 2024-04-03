@@ -3,7 +3,17 @@
 # mypy: disable-error-code="name-defined,import-not-found,import-untyped,empty-body,no-redef"
 
 # some universal imports
-from typing import Optional, Dict, List, Any, Iterable, Iterator, Tuple, Sequence, Callable
+from typing import (
+    Optional,
+    Dict,
+    List,
+    Any,
+    Iterable,
+    Iterator,
+    Tuple,
+    Sequence,
+    Callable,
+)
 
 import os
 

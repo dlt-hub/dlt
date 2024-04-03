@@ -102,7 +102,9 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             else ""
         )
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else file_name
         )
         from_clause = ""
         credentials_clause = ""
@@ -149,9 +151,10 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                     # when loading from bucket stage must be given
                     raise LoadJobTerminalException(
                         file_path,
-                        f"Cannot load from bucket path {bucket_path} without a stage name. See"
-                        " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for"
-                        " instructions on setting up the `stage_name`",
+                        f"Cannot load from bucket path {bucket_path} without a stage"
+                        " name. See"
+                        " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake"
+                        " for instructions on setting up the `stage_name`",
                     )
                 from_clause = f"FROM @{stage_name}/"
                 files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
@@ -172,8 +175,8 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             # PUT and COPY in one tx if local file, otherwise only copy
             if not bucket_path:
                 client.execute_sql(
-                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
-                    " AUTO_COMPRESS = FALSE"
+                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE ='
+                    " TRUE, AUTO_COMPRESS = FALSE"
                 )
             client.execute_sql(f"""COPY INTO {qualified_table_name}
                 {from_clause}
@@ -196,13 +199,17 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: SnowflakeClientConfiguration) -> None:
-        sql_client = SnowflakeSqlClient(config.normalize_dataset_name(schema), config.credentials)
+        sql_client = SnowflakeSqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
         self.type_mapper = SnowflakeTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
 
         if not job:
@@ -214,7 +221,9 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=(
-                    self.config.staging_config.credentials if self.config.staging_config else None
+                    self.config.staging_config.credentials
+                    if self.config.staging_config
+                    else None
                 ),
             )
         return job
@@ -241,7 +250,9 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
         cluster_list = [
-            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
+            self.capabilities.escape_identifier(c["name"])
+            for c in new_columns
+            if c.get("cluster")
         ]
 
         if cluster_list:
@@ -254,14 +265,18 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         name = self.capabilities.escape_identifier(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_name = table_name.upper()  # All snowflake tables are uppercased in information schema
+        table_name = (
+            table_name.upper()
+        )  # All snowflake tables are uppercased in information schema
         exists, table = super().get_storage_table(table_name)
         if not exists:
             return exists, table

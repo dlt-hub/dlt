@@ -8,7 +8,10 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.impl.weaviate import weaviate_adapter
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
-from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_adapter import (
+    VECTORIZE_HINT,
+    TOKENIZATION_HINT,
+)
 from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -170,7 +173,9 @@ def test_pipeline_replace() -> None:
         write_disposition="replace",
     )
     assert_load_info(info)
-    assert info.dataset_name == "TestPipelineReplaceDataset" + uid  # normalized internally
+    assert (
+        info.dataset_name == "TestPipelineReplaceDataset" + uid
+    )  # normalized internally
 
     data = next(generator_instance2)
     assert_class(pipeline, "SomeData", items=data)
@@ -191,14 +196,16 @@ def test_pipeline_merge() -> None:
             "doc_id": 1,
             "title": "The Shawshank Redemption",
             "description": (
-                "Two imprisoned men find redemption through acts of decency over the years."
+                "Two imprisoned men find redemption through acts of decency over the"
+                " years."
             ),
         },
         {
             "doc_id": 2,
             "title": "The Godfather",
             "description": (
-                "A crime dynasty's aging patriarch transfers control to his reluctant son."
+                "A crime dynasty's aging patriarch transfers control to his reluctant"
+                " son."
             ),
         },
         {
@@ -304,13 +311,17 @@ def test_merge_github_nested() -> None:
     assert p.dataset_name.startswith("github1_202")
 
     with open(
-        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+        "tests/normalize/cases/github.issues.load_page_5_duck.json",
+        "r",
+        encoding="utf-8",
     ) as f:
         data = json.load(f)
 
     info = p.run(
         weaviate_adapter(
-            data[:17], vectorize=["title", "body"], tokenization={"user__login": "lowercase"}
+            data[:17],
+            vectorize=["title", "body"],
+            tokenization={"user__login": "lowercase"},
         ),
         table_name="issues",
         write_disposition="merge",
@@ -356,7 +367,9 @@ def test_empty_dataset_allowed() -> None:
         pytest.skip("skip to avoid race condition with other tests")
 
     assert p.dataset_name is None
-    info = p.run(weaviate_adapter(["context", "created", "not a stop word"], vectorize=["value"]))
+    info = p.run(
+        weaviate_adapter(["context", "created", "not a stop word"], vectorize=["value"])
+    )
     # dataset in load info is empty
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]

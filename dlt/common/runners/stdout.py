@@ -56,7 +56,9 @@ def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
 
         # we fail iterator if exit code is not 0
         if exit_code != 0:
-            raise CalledProcessError(exit_code, command, output=line, stderr="".join(stderr))
+            raise CalledProcessError(
+                exit_code, command, output=line, stderr="".join(stderr)
+            )
 
 
 def iter_stdout_with_result(
@@ -80,7 +82,9 @@ def iter_stdout_with_result(
         # try to find last object in stderr
         if cpe.stderr:
             # if exception was decoded from stderr
-            exception = decode_last_obj(cpe.stderr.split("\n"), ignore_pickle_errors=False)
+            exception = decode_last_obj(
+                cpe.stderr.split("\n"), ignore_pickle_errors=False
+            )
             if isinstance(exception, Exception):
                 raise exception from cpe
             else:

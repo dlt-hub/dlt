@@ -18,9 +18,7 @@ COMMON_TEST_CASES_PATH = "./tests/common/cases/"
 # for import schema tests, change when upgrading the schema version
 IMPORTED_VERSION_HASH_ETH_V9 = "PgEHvn5+BHV1jNzNYpx9aDpq6Pq1PSSetufj/h0hKg4="
 # test sentry DSN
-TEST_SENTRY_DSN = (
-    "https://797678dd0af64b96937435326c7d30c1@o1061158.ingest.sentry.io/4504306172821504"
-)
+TEST_SENTRY_DSN = "https://797678dd0af64b96937435326c7d30c1@o1061158.ingest.sentry.io/4504306172821504"
 # preserve secrets path to be able to restore it
 SECRET_STORAGE_PATH = environ_provider.SECRET_STORAGE_PATH
 
@@ -74,7 +72,9 @@ def modify_and_commit_file(
         # one file modified
         index = repo.index.entries
         assert len(index) > 0
-        assert any(e for e in index.keys() if os.path.join(*Path(e[0]).parts) == file_name)
+        assert any(
+            e for e in index.keys() if os.path.join(*Path(e[0]).parts) == file_name
+        )
         repo.index.add(file_name)
         commit = repo.index.commit(f"mod {file_name}")
 

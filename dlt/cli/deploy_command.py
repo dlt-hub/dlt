@@ -4,7 +4,11 @@ import yaml
 from enum import Enum
 from importlib.metadata import version as pkg_version
 
-from dlt.common.configuration.providers import SECRETS_TOML, SECRETS_TOML_KEY, StringTomlProvider
+from dlt.common.configuration.providers import (
+    SECRETS_TOML,
+    SECRETS_TOML_KEY,
+    StringTomlProvider,
+)
 from dlt.common.configuration.paths import make_dlt_settings_path
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.git import is_dirty
@@ -28,10 +32,10 @@ from dlt.common.destination.reference import Destination
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
-DLT_AIRFLOW_GCP_DOCS_URL = (
-    "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer"
+DLT_AIRFLOW_GCP_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer"
+AIRFLOW_GETTING_STARTED = (
+    "https://airflow.apache.org/docs/apache-airflow/stable/start.html"
 )
-AIRFLOW_GETTING_STARTED = "https://airflow.apache.org/docs/apache-airflow/stable/start.html"
 AIRFLOW_DAG_TEMPLATE_SCRIPT = "dag_template.py"
 AIRFLOW_CLOUDBUILD_YAML = "cloudbuild.yaml"
 COMMAND_REPO_LOCATION = "https://github.com/dlt-hub/dlt-%s-template.git"
@@ -69,7 +73,10 @@ def deploy_command(
     # command no longer needed
     kwargs.pop("command", None)
     deployment_class(
-        pipeline_script_path=pipeline_script_path, location=repo_location, branch=branch, **kwargs
+        pipeline_script_path=pipeline_script_path,
+        location=repo_location,
+        branch=branch,
+        **kwargs,
     ).run_deployment()
 
 
@@ -96,8 +103,9 @@ class GithubActionDeployment(BaseDeployment):
         if self.schedule_description is None:
             # TODO: move that check to _dlt and some intelligent help message on missing arg
             raise ValueError(
-                f"Setting 'schedule' for '{self.deployment_method}' is required! Use deploy command"
-                f" as 'dlt deploy chess.py {self.deployment_method} --schedule \"*/30 * * * *\"'."
+                f"Setting 'schedule' for '{self.deployment_method}' is required! Use"
+                " deploy command as 'dlt deploy chess.py"
+                f' {self.deployment_method} --schedule "*/30 * * * *"\'.'
             )
         workflow = self._create_new_workflow()
         serialized_workflow = serialize_templated_yaml(workflow)
@@ -110,7 +118,9 @@ class GithubActionDeployment(BaseDeployment):
             os.path.join(self.deployment_method, "requirements_blacklist.txt")
         ) as f:
             requirements_blacklist = f.readlines()
-        requirements_txt = generate_pip_freeze(requirements_blacklist, REQUIREMENTS_GITHUB_ACTION)
+        requirements_txt = generate_pip_freeze(
+            requirements_blacklist, REQUIREMENTS_GITHUB_ACTION
+        )
         requirements_txt_name = REQUIREMENTS_GITHUB_ACTION
         # if repo_storage.has_file(utils.REQUIREMENTS_TXT):
         self.artifacts["requirements_txt"] = requirements_txt
@@ -121,7 +131,9 @@ class GithubActionDeployment(BaseDeployment):
             self.repo_storage.create_folder(utils.GITHUB_WORKFLOWS_DIR)
 
         self.repo_storage.save(
-            os.path.join(utils.GITHUB_WORKFLOWS_DIR, self.artifacts["serialized_workflow_name"]),
+            os.path.join(
+                utils.GITHUB_WORKFLOWS_DIR, self.artifacts["serialized_workflow_name"]
+            ),
             self.artifacts["serialized_workflow"],
         )
         self.repo_storage.save(
@@ -135,7 +147,8 @@ class GithubActionDeployment(BaseDeployment):
             workflow = yaml.safe_load(f)
         # customize the workflow
         workflow["name"] = (
-            f"Run {self.state['pipeline_name']} pipeline from {self.pipeline_script_path}"
+            f"Run {self.state['pipeline_name']} pipeline from"
+            f" {self.pipeline_script_path}"
         )
         if self.run_on_push is False:
             del workflow["on"]["push"]
@@ -194,9 +207,9 @@ class GithubActionDeployment(BaseDeployment):
             )
         )
         fmt.echo(
-            "* The dependencies that will be used to run the pipeline are stored in %s. If you"
-            " change add more dependencies, remember to refresh your deployment by running the same"
-            " 'deploy' command again."
+            "* The dependencies that will be used to run the pipeline are stored in %s."
+            " If you change add more dependencies, remember to refresh your deployment"
+            " by running the same 'deploy' command again."
             % fmt.bold(self.artifacts["requirements_txt_name"])
         )
         fmt.echo()
@@ -204,11 +217,12 @@ class GithubActionDeployment(BaseDeployment):
             fmt.echo("1. Your pipeline does not seem to need any secrets.")
         else:
             fmt.echo(
-                "You should now add the secrets to github repository secrets, commit and push the"
-                " pipeline files to github."
+                "You should now add the secrets to github repository secrets, commit"
+                " and push the pipeline files to github."
             )
             fmt.echo(
-                "1. Add the following secret values (typically stored in %s): \n%s\nin %s"
+                "1. Add the following secret values (typically stored in %s):"
+                " \n%s\nin %s"
                 % (
                     fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
                     fmt.bold(
@@ -217,33 +231,39 @@ class GithubActionDeployment(BaseDeployment):
                             for s_v in self.secret_envs
                         )
                     ),
-                    fmt.bold(github_origin_to_url(self.origin, "/settings/secrets/actions")),
+                    fmt.bold(
+                        github_origin_to_url(self.origin, "/settings/secrets/actions")
+                    ),
                 )
             )
             fmt.echo()
             self._echo_secrets()
 
         fmt.echo(
-            "2. Add stage deployment files to commit. Use your Git UI or the following command"
+            "2. Add stage deployment files to commit. Use your Git UI or the following"
+            " command"
         )
         new_req_path = self.repo_storage.from_relative_path_to_wd(
             self.artifacts["requirements_txt_name"]
         )
         new_workflow_path = self.repo_storage.from_relative_path_to_wd(
-            os.path.join(utils.GITHUB_WORKFLOWS_DIR, self.artifacts["serialized_workflow_name"])
+            os.path.join(
+                utils.GITHUB_WORKFLOWS_DIR, self.artifacts["serialized_workflow_name"]
+            )
         )
         fmt.echo(fmt.bold(f"git add {new_req_path} {new_workflow_path}"))
         fmt.echo()
         fmt.echo("3. Commit the files above. Use your Git UI or the following command")
         fmt.echo(
             fmt.bold(
-                f"git commit -m 'run {self.state['pipeline_name']} pipeline with github action'"
+                f"git commit -m 'run {self.state['pipeline_name']} pipeline with github"
+                " action'"
             )
         )
         if is_dirty(self.repo):
             fmt.warning(
-                "You have modified files in your repository. Do not forget to push changes to your"
-                " pipeline script as well!"
+                "You have modified files in your repository. Do not forget to push"
+                " changes to your pipeline script as well!"
             )
         fmt.echo()
         fmt.echo("4. Push changes to github. Use your Git UI or the following command")
@@ -253,7 +273,8 @@ class GithubActionDeployment(BaseDeployment):
         fmt.echo(
             fmt.bold(
                 github_origin_to_url(
-                    self.origin, f"/actions/workflows/{self.artifacts['serialized_workflow_name']}"
+                    self.origin,
+                    f"/actions/workflows/{self.artifacts['serialized_workflow_name']}",
                 )
             )
         )
@@ -273,7 +294,9 @@ class AirflowDeployment(BaseDeployment):
     def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.airflow_composer.value
 
-        req_dep = f"{DLT_PKG_NAME}[{Destination.to_name(self.state['destination_type'])}]"
+        req_dep = (
+            f"{DLT_PKG_NAME}[{Destination.to_name(self.state['destination_type'])}]"
+        )
         req_dep_line = f"{req_dep}>={pkg_version(DLT_PKG_NAME)}"
 
         self.artifacts["requirements_txt"] = req_dep_line
@@ -304,16 +327,20 @@ class AirflowDeployment(BaseDeployment):
             self.repo_storage.create_folder(utils.AIRFLOW_BUILD_FOLDER)
 
         # save cloudbuild.yaml only if not exist to allow to run the deploy command for many different pipelines
-        dest_cloud_build = os.path.join(utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML)
+        dest_cloud_build = os.path.join(
+            utils.AIRFLOW_BUILD_FOLDER, AIRFLOW_CLOUDBUILD_YAML
+        )
         if not self.repo_storage.has_file(dest_cloud_build):
             self.repo_storage.save(dest_cloud_build, self.artifacts["cloudbuild_file"])
         else:
             fmt.warning(
-                f"{AIRFLOW_CLOUDBUILD_YAML} already created. Delete the file and run the deploy"
-                " command again to re-create."
+                f"{AIRFLOW_CLOUDBUILD_YAML} already created. Delete the file and run"
+                " the deploy command again to re-create."
             )
 
-        dest_dag_script = os.path.join(utils.AIRFLOW_DAGS_FOLDER, self.artifacts["dag_script_name"])
+        dest_dag_script = os.path.join(
+            utils.AIRFLOW_DAGS_FOLDER, self.artifacts["dag_script_name"]
+        )
         self.repo_storage.save(dest_dag_script, self.artifacts["dag_file"])
 
     def _echo_instructions(self, *args: Optional[Any]) -> None:
@@ -330,7 +357,10 @@ class AirflowDeployment(BaseDeployment):
         )
         fmt.echo(
             "* The %s script was created in %s."
-            % (fmt.bold(self.artifacts["dag_script_name"]), fmt.bold(utils.AIRFLOW_DAGS_FOLDER))
+            % (
+                fmt.bold(self.artifacts["dag_script_name"]),
+                fmt.bold(utils.AIRFLOW_DAGS_FOLDER),
+            )
         )
         fmt.echo()
 
@@ -347,11 +377,12 @@ class AirflowDeployment(BaseDeployment):
         fmt.echo()
 
         fmt.echo(
-            "If you are planning run the pipeline with Google Cloud Composer, follow the next"
-            " instructions:\n"
+            "If you are planning run the pipeline with Google Cloud Composer, follow"
+            " the next instructions:\n"
         )
         fmt.echo(
-            "1. Read this doc and set up the Environment: %s" % (fmt.bold(DLT_AIRFLOW_GCP_DOCS_URL))
+            "1. Read this doc and set up the Environment: %s"
+            % (fmt.bold(DLT_AIRFLOW_GCP_DOCS_URL))
         )
         fmt.echo(
             "2. Set _BUCKET_NAME up in %s/%s file. "
@@ -365,8 +396,8 @@ class AirflowDeployment(BaseDeployment):
         else:
             if self.secrets_format == SecretFormats.env.value:
                 fmt.echo(
-                    "3. Add the following secret values (typically stored in %s): \n%s\n%s\nin"
-                    " ENVIRONMENT VARIABLES using Google Composer UI"
+                    "3. Add the following secret values (typically stored in %s):"
+                    " \n%s\n%s\nin ENVIRONMENT VARIABLES using Google Composer UI"
                     % (
                         fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
                         fmt.bold(
@@ -377,7 +408,8 @@ class AirflowDeployment(BaseDeployment):
                         ),
                         fmt.bold(
                             "\n".join(
-                                self.env_prov.get_key_name(v.key, *v.sections) for v in self.envs
+                                self.env_prov.get_key_name(v.key, *v.sections)
+                                for v in self.envs
                             )
                         ),
                     )
@@ -410,7 +442,8 @@ class AirflowDeployment(BaseDeployment):
         )
         fmt.echo("5. Commit and push the pipeline files to github:")
         fmt.echo(
-            "a. Add stage deployment files to commit. Use your Git UI or the following command"
+            "a. Add stage deployment files to commit. Use your Git UI or the following"
+            " command"
         )
 
         dag_script_path = self.repo_storage.from_relative_path_to_wd(
@@ -424,13 +457,14 @@ class AirflowDeployment(BaseDeployment):
         fmt.echo("b. Commit the files above. Use your Git UI or the following command")
         fmt.echo(
             fmt.bold(
-                f"git commit -m 'initiate {self.state['pipeline_name']} pipeline with Airflow'"
+                f"git commit -m 'initiate {self.state['pipeline_name']} pipeline with"
+                " Airflow'"
             )
         )
         if is_dirty(self.repo):
             fmt.warning(
-                "You have modified files in your repository. Do not forget to push changes to your"
-                " pipeline script as well!"
+                "You have modified files in your repository. Do not forget to push"
+                " changes to your pipeline script as well!"
             )
         fmt.echo("c. Push changes to github. Use your Git UI or the following command")
         fmt.echo(fmt.bold("git push origin"))

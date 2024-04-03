@@ -1,7 +1,9 @@
 import pytest
 
 from dlt.common.normalizers.naming.duck_case import NamingConvention
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeNamingConvention
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeNamingConvention,
+)
 
 
 @pytest.fixture

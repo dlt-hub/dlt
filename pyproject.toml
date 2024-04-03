@@ -198,12 +198,12 @@ pymongo = ">=4.3.3"
 pandas = ">2"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
-line-length = 100
+line-length = 88
 preview = true
 
 [tool.isort] # https://pycqa.github.io/isort/docs/configuration/options.html
 color_output = true
-line_length = 100
+line_length = 88
 profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3

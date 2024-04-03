@@ -47,7 +47,9 @@ def test_load_item(
     def some_data():
         yield item
 
-    load_info = pipeline.run(some_data(), loader_file_format=destination_config.file_format)
+    load_info = pipeline.run(
+        some_data(), loader_file_format=destination_config.file_format
+    )
     # assert the table types
     some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
     assert some_table_columns["string"]["data_type"] == "text"
@@ -144,13 +146,17 @@ def test_parquet_column_names_are_normalized(
     def some_data():
         yield tbl
 
-    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination=destination_config.destination)
+    pipeline = dlt.pipeline(
+        "arrow_" + uniq_id(), destination=destination_config.destination
+    )
     pipeline.extract(some_data())
 
     # Find the extracted file
     norm_storage = pipeline._get_normalize_storage()
     extract_files = [
-        fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
+        fn
+        for fn in norm_storage.list_files_to_normalize_sorted()
+        if fn.endswith(".parquet")
     ]
     assert len(extract_files) == 1
 
@@ -158,7 +164,9 @@ def test_parquet_column_names_are_normalized(
     expected_column_names = [
         pipeline.default_schema.naming.normalize_path(col) for col in df.columns
     ]
-    new_table_name = pipeline.default_schema.naming.normalize_table_identifier("some_data")
+    new_table_name = pipeline.default_schema.naming.normalize_table_identifier(
+        "some_data"
+    )
     schema_columns = pipeline.default_schema.get_table_columns(new_table_name)
 
     # Schema columns are normalized

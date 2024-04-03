@@ -2,8 +2,12 @@ from typing import Type
 import pytest
 
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.normalizers.naming.duck_case import NamingConvention as DuckCaseNamingConvention
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeCaseNamingConvention,
+)
+from dlt.common.normalizers.naming.duck_case import (
+    NamingConvention as DuckCaseNamingConvention,
+)
 
 
 @pytest.fixture
@@ -25,8 +29,14 @@ def test_normalize_identifier(naming_unlimited: NamingConvention) -> None:
     assert naming_unlimited.normalize_identifier("BAN_ANA") == "ban_ana"
     assert naming_unlimited.normalize_identifier("BANaNA") == "ba_na_na"
     # handling spaces
-    assert naming_unlimited.normalize_identifier("Small Love Potion") == "small_love_potion"
-    assert naming_unlimited.normalize_identifier(" Small Love Potion ") == "small_love_potion"
+    assert (
+        naming_unlimited.normalize_identifier("Small Love Potion")
+        == "small_love_potion"
+    )
+    assert (
+        naming_unlimited.normalize_identifier(" Small Love Potion ")
+        == "small_love_potion"
+    )
     # removes trailing _
     assert naming_unlimited.normalize_identifier("BANANA_") == "bananax"
     assert naming_unlimited.normalize_identifier("BANANA____") == "bananaxxxx"
@@ -39,16 +49,22 @@ def test_normalize_identifier(naming_unlimited: NamingConvention) -> None:
 
 def test_alphabet_reduction(naming_unlimited: NamingConvention) -> None:
     assert (
-        naming_unlimited.normalize_identifier(SnakeCaseNamingConvention._REDUCE_ALPHABET[0])
+        naming_unlimited.normalize_identifier(
+            SnakeCaseNamingConvention._REDUCE_ALPHABET[0]
+        )
         == SnakeCaseNamingConvention._REDUCE_ALPHABET[1]
     )
 
 
 def test_normalize_path(naming_unlimited: NamingConvention) -> None:
     assert naming_unlimited.normalize_path("small_love_potion") == "small_love_potion"
-    assert naming_unlimited.normalize_path("small__love__potion") == "small__love__potion"
+    assert (
+        naming_unlimited.normalize_path("small__love__potion") == "small__love__potion"
+    )
     assert naming_unlimited.normalize_path("Small_Love_Potion") == "small_love_potion"
-    assert naming_unlimited.normalize_path("Small__Love__Potion") == "small__love__potion"
+    assert (
+        naming_unlimited.normalize_path("Small__Love__Potion") == "small__love__potion"
+    )
     assert naming_unlimited.normalize_path("Small Love Potion") == "small_love_potion"
     assert naming_unlimited.normalize_path("Small  Love  Potion") == "small_love_potion"
 
@@ -56,10 +72,14 @@ def test_normalize_path(naming_unlimited: NamingConvention) -> None:
 def test_normalize_non_alpha_single_underscore() -> None:
     assert SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "-=!*") == "_"
     assert SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "1-=!0*-") == "1_0_"
-    assert SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "1-=!_0*-") == "1__0_"
+    assert (
+        SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "1-=!_0*-") == "1__0_"
+    )
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DuckCaseNamingConvention))
+@pytest.mark.parametrize(
+    "convention", (SnakeCaseNamingConvention, DuckCaseNamingConvention)
+)
 def test_normalize_break_path(convention: Type[NamingConvention]) -> None:
     naming_unlimited = convention()
     assert naming_unlimited.break_path("A__B__C") == ["A", "B", "C"]
@@ -71,7 +91,9 @@ def test_normalize_break_path(convention: Type[NamingConvention]) -> None:
     assert naming_unlimited.break_path("_a__  \t\r__b") == ["_a", "b"]
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DuckCaseNamingConvention))
+@pytest.mark.parametrize(
+    "convention", (SnakeCaseNamingConvention, DuckCaseNamingConvention)
+)
 def test_normalize_make_path(convention: Type[NamingConvention]) -> None:
     naming_unlimited = convention()
     assert naming_unlimited.make_path("A", "B") == "A__B"
@@ -82,6 +104,10 @@ def test_normalize_make_path(convention: Type[NamingConvention]) -> None:
 
 def test_normalizes_underscores(naming_unlimited: NamingConvention) -> None:
     assert (
-        naming_unlimited.normalize_identifier("event__value_value2____") == "event_value_value2xxxx"
+        naming_unlimited.normalize_identifier("event__value_value2____")
+        == "event_value_value2xxxx"
     )
-    assert naming_unlimited.normalize_path("e_vent__value_value2___") == "e_vent__value_value2__x"
+    assert (
+        naming_unlimited.normalize_path("e_vent__value_value2___")
+        == "e_vent__value_value2__x"
+    )

@@ -1,7 +1,10 @@
 from typing import Any, Iterator, Sequence, Union, cast
 
 import dlt
-from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials
+from dlt.common.configuration.specs import (
+    GcpServiceAccountCredentials,
+    GcpOAuthCredentials,
+)
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.exceptions import MissingDependencyException
 

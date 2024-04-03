@@ -39,7 +39,8 @@ def assert_collection(
 
     drop_keys = ["_dlt_id", "_dlt_load_id"]
     objects_without_dlt_keys = [
-        {k: v for k, v in point.payload.items() if k not in drop_keys} for point in point_records
+        {k: v for k, v in point.payload.items() if k not in drop_keys}
+        for point in point_records
     ]
 
     assert_unordered_list_equal(objects_without_dlt_keys, items)

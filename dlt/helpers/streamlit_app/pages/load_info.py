@@ -22,8 +22,9 @@ def write_load_status_page(pipeline: Pipeline) -> None:
     try:
         loads_df = query_data_live(
             pipeline,
-            f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
-            " status = 0 ORDER BY inserted_at DESC LIMIT 101 ",
+            "SELECT load_id, inserted_at FROM"
+            f" {pipeline.default_schema.loads_table_name} WHERE status = 0 ORDER BY"
+            " inserted_at DESC LIMIT 101 ",
         )
 
         if loads_df is not None:
@@ -57,24 +58,29 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             schemas_df = query_data_live(
                 pipeline,
                 "SELECT schema_name, inserted_at, version, version_hash FROM"
-                f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT"
-                " 101 ",
+                f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at"
+                " DESC LIMIT 101 ",
             )
             st.markdown("**100 recent schema updates**")
             st.dataframe(schemas_df)
     except CannotRestorePipelineException as restore_ex:
-        st.error("Seems like the pipeline does not exist. Did you run it at least once?")
+        st.error(
+            "Seems like the pipeline does not exist. Did you run it at least once?"
+        )
         st.exception(restore_ex)
 
     except ConfigFieldMissingException as cf_ex:
         st.error(
-            "Pipeline credentials/configuration is missing. This most often happen when you run the"
-            " streamlit app from different folder than the `.dlt` with `toml` files resides."
+            "Pipeline credentials/configuration is missing. This most often happen when"
+            " you run the streamlit app from different folder than the `.dlt` with"
+            " `toml` files resides."
         )
         st.text(str(cf_ex))
 
     except Exception as ex:
-        st.error("Pipeline info could not be prepared. Did you load the data at least once?")
+        st.error(
+            "Pipeline info could not be prepared. Did you load the data at least once?"
+        )
         st.exception(ex)
 
 
@@ -83,7 +89,9 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
     remote_state = None
     with pipeline.destination_client() as client:
         if isinstance(client, WithStateSync):
-            remote_state = load_pipeline_state_from_destination(pipeline.pipeline_name, client)
+            remote_state = load_pipeline_state_from_destination(
+                pipeline.pipeline_name, client
+            )
 
     local_state = pipeline.state
 
@@ -111,7 +119,8 @@ def show_state_versions(pipeline: dlt.Pipeline) -> None:
     if remote_state_version != str(local_state["_state_version"]):
         st.text("")
         st.warning(
-            "Looks like that local state is not yet synchronized or synchronization is disabled",
+            "Looks like that local state is not yet synchronized or synchronization is"
+            " disabled",
             icon="⚠️",
         )
 

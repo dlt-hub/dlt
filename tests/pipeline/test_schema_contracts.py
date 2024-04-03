@@ -81,7 +81,9 @@ def items_with_subtable(settings: TSchemaContract) -> Any:
 
 
 def new_items(settings: TSchemaContract) -> Any:
-    @dlt.resource(name="new_items", write_disposition="append", schema_contract=settings)
+    @dlt.resource(
+        name="new_items", write_disposition="append", schema_contract=settings
+    )
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {"id": index, "some_int": 1, "name": f"item {index}"}
@@ -176,7 +178,9 @@ def test_new_tables(
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
-    assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
+    assert table_counts.get("new_items", 0) == (
+        10 if contract_setting in ["evolve"] else 0
+    )
     # delete extracted files if left after exception
     pipeline.drop_pending_packages()
 
@@ -198,7 +202,9 @@ def test_new_tables(
             pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
         )
         assert table_counts["items"] == 30 if contract_setting in ["freeze"] else 40
-        assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
+        assert table_counts.get(SUBITEMS_TABLE, 0) == (
+            10 if contract_setting in ["evolve"] else 0
+        )
 
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
@@ -228,7 +234,9 @@ def test_new_columns(
 
     # test adding new column twice: filter will try to catch it before it is added for the second time
     with raises_frozen_exception(contract_setting == "freeze"):
-        run_resource(pipeline, items_with_new_column, full_settings, item_format, duplicates=2)
+        run_resource(
+            pipeline, items_with_new_column, full_settings, item_format, duplicates=2
+        )
     # delete extracted files if left after exception
     pipeline.drop_pending_packages()
 
@@ -307,11 +315,16 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     if contract_setting == "evolve":
         assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
     else:
-        assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
+        assert (
+            VARIANT_COLUMN_NAME
+            not in pipeline.default_schema.tables["items"]["columns"]
+        )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
-    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard_value"] else 30)
+    assert table_counts["items"] == (
+        40 if contract_setting in ["evolve", "discard_value"] else 30
+    )
 
 
 def test_settings_precedence() -> None:
@@ -321,7 +334,9 @@ def test_settings_precedence() -> None:
     run_resource(pipeline, items, {})
 
     # trying to add new column when forbidden on resource will fail
-    run_resource(pipeline, items_with_new_column, {"resource": {"columns": "discard_row"}})
+    run_resource(
+        pipeline, items_with_new_column, {"resource": {"columns": "discard_row"}}
+    )
 
     # when allowed on override it will work
     run_resource(
@@ -387,14 +402,18 @@ def test_change_mode(setting_location: str) -> None:
     assert table_counts["items"] == 10
 
     # trying to add variant when forbidden will fail
-    run_resource(pipeline, items_with_variant, {setting_location: {"data_type": "discard_row"}})
+    run_resource(
+        pipeline, items_with_variant, {setting_location: {"data_type": "discard_row"}}
+    )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
     assert table_counts["items"] == 10
 
     # now allow
-    run_resource(pipeline, items_with_variant, {setting_location: {"data_type": "evolve"}})
+    run_resource(
+        pipeline, items_with_variant, {setting_location: {"data_type": "evolve"}}
+    )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
@@ -504,7 +523,9 @@ def test_different_objects_in_one_load() -> None:
         yield {"id": 1, "name": "dave", "amount": 50}
         yield {"id": 2, "name": "dave", "amount": 50, "new_column": "some val"}
 
-    pipeline.run([get_items()], schema_contract={"columns": "freeze", "tables": "evolve"})
+    pipeline.run(
+        [get_items()], schema_contract={"columns": "freeze", "tables": "evolve"}
+    )
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
 
 
@@ -540,7 +561,9 @@ def test_dynamic_tables(table_mode: str) -> None:
 def test_defined_column_in_new_table(column_mode: str) -> None:
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
+    @dlt.resource(
+        name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}]
+    )
     def get_items():
         yield {
             "id": 1,
@@ -559,7 +582,9 @@ def test_new_column_from_hint_and_data(column_mode: str) -> None:
     # normalizer does not know that it is a new table and discards the row
     # and it also excepts on column freeze
 
-    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
+    @dlt.resource(
+        name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}]
+    )
     def get_items():
         yield {
             "id": 1,

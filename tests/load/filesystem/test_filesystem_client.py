@@ -48,7 +48,9 @@ def test_filesystem_destination_configuration() -> None:
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
-def test_successful_load(write_disposition: str, layout: str, with_gdrive_buckets_env: str) -> None:
+def test_successful_load(
+    write_disposition: str, layout: str, with_gdrive_buckets_env: str
+) -> None:
     """Test load is successful with an empty destination dataset"""
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
@@ -95,7 +97,9 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
+    with perform_load(
+        dataset_name, NORMALIZED_FILES, write_disposition="replace"
+    ) as load_info:
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
 
@@ -141,9 +145,13 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
+    with perform_load(
+        dataset_name, NORMALIZED_FILES, write_disposition="append"
+    ) as load_info:
         client, jobs1, root_path, load_id1 = load_info
-        with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
+        with perform_load(
+            dataset_name, NORMALIZED_FILES, write_disposition="append"
+        ) as load_info:
             client, jobs2, root_path, load_id2 = load_info
             layout = client.config.layout
             expected_files = [
@@ -157,7 +165,9 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                 )
                 for job in jobs2
             ]
-            expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
+            expected_files = sorted(
+                [posixpath.join(root_path, fn) for fn in expected_files]
+            )
 
             paths = []
             for basedir, _dirs, files in client.fs_client.walk(

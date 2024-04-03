@@ -3,14 +3,20 @@ from typing import Union
 import semver
 
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.storages.exceptions import NoMigrationPathException, WrongStorageVersionException
+from dlt.common.storages.exceptions import (
+    NoMigrationPathException,
+    WrongStorageVersionException,
+)
 
 
 class VersionedStorage:
     VERSION_FILE = ".version"
 
     def __init__(
-        self, version: Union[semver.VersionInfo, str], is_owner: bool, storage: FileStorage
+        self,
+        version: Union[semver.VersionInfo, str],
+        is_owner: bool,
+        storage: FileStorage,
     ) -> None:
         if isinstance(version, str):
             version = semver.VersionInfo.parse(version)
@@ -22,7 +28,10 @@ class VersionedStorage:
                 if existing_version > version:
                     # version cannot be downgraded
                     raise NoMigrationPathException(
-                        storage.storage_path, existing_version, existing_version, version
+                        storage.storage_path,
+                        existing_version,
+                        existing_version,
+                        version,
                     )
                 if is_owner:
                     # only owner can migrate storage
@@ -31,7 +40,10 @@ class VersionedStorage:
                     migrated_version = self._load_version()
                     if version != migrated_version:
                         raise NoMigrationPathException(
-                            storage.storage_path, existing_version, migrated_version, version
+                            storage.storage_path,
+                            existing_version,
+                            migrated_version,
+                            version,
                         )
                 else:
                     # we cannot use storage and we must wait for owner to upgrade it

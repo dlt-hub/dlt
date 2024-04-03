@@ -60,7 +60,9 @@ def test_default_pipeline_names(
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    )
     assert p.dataset_name in possible_dataset_names
     assert p.destination is None
     assert p.default_schema_name is None
@@ -197,7 +199,9 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 def test_skip_sync_schema_for_tables_without_columns(
     destination_config: DestinationTestConfiguration,
@@ -210,7 +214,9 @@ def test_skip_sync_schema_for_tables_without_columns(
         for d in data:
             yield d
 
-    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables", full_refresh=True)
+    p = destination_config.setup_pipeline(
+        "test_skip_sync_schema_for_tables", full_refresh=True
+    )
     p.extract(_data)
     schema = p.default_schema
     assert "data_table" in schema.tables
@@ -269,13 +275,17 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None:
     dataset_name = "d" + uniq_id()
     row = {
         "id": "level0",
-        "f": [{"id": "level1", "l": ["a", "b", "c"], "v": 120, "o": [{"a": 1}, {"a": 2}]}],
+        "f": [
+            {"id": "level1", "l": ["a", "b", "c"], "v": 120, "o": [{"a": 1}, {"a": 2}]}
+        ],
     }
 
     @dlt.source(name="parallel")
@@ -313,12 +323,18 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
                 # yield deferred items resolved in threads
                 yield get_item(no + 100)
 
-        return simple_rows(), extended_rows(), dlt.resource(["a", "b", "c"], name="simple")
+        return (
+            simple_rows(),
+            extended_rows(),
+            dlt.resource(["a", "b", "c"], name="simple"),
+        )
 
     import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
     export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
     p = destination_config.setup_pipeline(
-        "my_pipeline", import_schema_path=import_schema_path, export_schema_path=export_schema_path
+        "my_pipeline",
+        import_schema_path=import_schema_path,
+        export_schema_path=export_schema_path,
     )
 
     p.extract(source(10).with_resources("simple_rows"))
@@ -367,7 +383,8 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     # TODO: test export and import schema
     # test data
     id_data = sorted(
-        ["level" + str(n) for n in range(10)] + ["level" + str(n) for n in range(100, 110)]
+        ["level" + str(n) for n in range(10)]
+        + ["level" + str(n) for n in range(100, 110)]
     )
     with p.sql_client() as client:
         simple_rows_table = client.make_qualified_table_name("simple_rows")
@@ -409,7 +426,9 @@ def test_pipeline_data_writer_compression(
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 def test_source_max_nesting(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
@@ -439,7 +458,9 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 def test_dataset_name_change(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
@@ -449,14 +470,20 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
     ds_2_name = "IteRation" + uniq_id()
     # illegal name that will be later normalized
     ds_3_name = "1it/era 👍 tion__" + uniq_id()
-    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, full_refresh=False)
+    p, s = simple_nested_pipeline(
+        destination_config, dataset_name=ds_1_name, full_refresh=False
+    )
     try:
         info = p.run(s(), loader_file_format=destination_config.file_format)
         assert_load_info(info)
         assert info.dataset_name == ds_1_name
         ds_1_counts = load_table_counts(p, "lists", "lists__value")
         # run to another dataset
-        info = p.run(s(), dataset_name=ds_2_name, loader_file_format=destination_config.file_format)
+        info = p.run(
+            s(),
+            dataset_name=ds_2_name,
+            loader_file_format=destination_config.file_format,
+        )
         assert_load_info(info)
         assert info.dataset_name.startswith("ite_ration")
         # save normalized dataset name to delete correctly later
@@ -493,7 +520,9 @@ def test_pipeline_explicit_destination_credentials(
         destination=Destination.from_reference("postgres", destination_name="mydest"),
         credentials="postgresql://loader:loader@localhost:7777/dlt_data",
     )
-    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
+    c = p._get_destination_clients(
+        Schema("s"), p._get_destination_client_initial_config()
+    )[0]
     assert c.config.credentials.port == 7777  # type: ignore[attr-defined]
 
     # TODO: may want to clear the env completely and ignore/mock config files somehow to avoid side effects
@@ -503,7 +532,9 @@ def test_pipeline_explicit_destination_credentials(
         destination=Destination.from_reference("postgres", destination_name="mydest"),
         credentials="postgresql://loader:loader@localhost:5432/dlt_data",
     )
-    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
+    c = p._get_destination_clients(
+        Schema("s"), p._get_destination_client_initial_config()
+    )[0]
     assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
 
     # explicit partial credentials will use config providers
@@ -513,7 +544,9 @@ def test_pipeline_explicit_destination_credentials(
         destination=Destination.from_reference("postgres", destination_name="mydest"),
         credentials="postgresql://localhost:5432/dlt_data",
     )
-    c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
+    c = p._get_destination_clients(
+        Schema("s"), p._get_destination_client_initial_config()
+    )[0]
     assert c.config.credentials.username == "UN"  # type: ignore[attr-defined]
     # host is also overridden
     assert c.config.credentials.host == "HOST"  # type: ignore[attr-defined]
@@ -619,7 +652,9 @@ def test_pipeline_with_sources_sharing_schema(
     destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
-def test_many_pipelines_single_dataset(destination_config: DestinationTestConfiguration) -> None:
+def test_many_pipelines_single_dataset(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     schema = Schema("shared")
 
     @dlt.source(schema=schema, max_table_nesting=1)
@@ -647,22 +682,30 @@ def test_many_pipelines_single_dataset(destination_config: DestinationTestConfig
 
     # load source_1 to common dataset
     p = dlt.pipeline(
-        pipeline_name="source_1_pipeline", destination="duckdb", dataset_name="shared_dataset"
+        pipeline_name="source_1_pipeline",
+        destination="duckdb",
+        dataset_name="shared_dataset",
     )
     p.run(source_1(), credentials="duckdb:///_storage/test_quack.duckdb")
     counts = load_table_counts(p, *p.default_schema.tables.keys())
-    assert counts.items() >= {"gen1": 1, "_dlt_pipeline_state": 1, "_dlt_loads": 1}.items()
+    assert (
+        counts.items() >= {"gen1": 1, "_dlt_pipeline_state": 1, "_dlt_loads": 1}.items()
+    )
     p._wipe_working_folder()
     p.deactivate()
 
     p = dlt.pipeline(
-        pipeline_name="source_2_pipeline", destination="duckdb", dataset_name="shared_dataset"
+        pipeline_name="source_2_pipeline",
+        destination="duckdb",
+        dataset_name="shared_dataset",
     )
     p.run(source_2(), credentials="duckdb:///_storage/test_quack.duckdb")
     # table_names = [t["name"] for t in p.default_schema.data_tables()]
     counts = load_table_counts(p, *p.default_schema.tables.keys())
     # gen1: one record comes from source_1, 1 record from source_2
-    assert counts.items() >= {"gen1": 2, "_dlt_pipeline_state": 2, "_dlt_loads": 2}.items()
+    assert (
+        counts.items() >= {"gen1": 2, "_dlt_pipeline_state": 2, "_dlt_loads": 2}.items()
+    )
     # assert counts == {'gen1': 2, 'gen2': 3}
     p._wipe_working_folder()
     p.deactivate()
@@ -705,10 +748,14 @@ def test_many_pipelines_single_dataset(destination_config: DestinationTestConfig
     destinations_configs(default_sql_configs=True, subset=["snowflake"]),
     ids=lambda x: x.name,
 )
-def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration) -> None:
+def test_snowflake_custom_stage(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """Using custom stage name instead of the table stage"""
     os.environ["DESTINATION__SNOWFLAKE__STAGE_NAME"] = "my_non_existing_stage"
-    pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
+    pipeline, data = simple_nested_pipeline(
+        destination_config, f"custom_stage_{uniq_id()}", False
+    )
     info = pipeline.run(data(), loader_file_format=destination_config.file_format)
     with pytest.raises(DestinationHasFailedJobs) as f_jobs:
         info.raise_on_failed_jobs()
@@ -721,7 +768,9 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
     # GRANT READ, WRITE ON STAGE DLT_DATA.PUBLIC.MY_CUSTOM_LOCAL_STAGE TO ROLE DLT_LOADER_ROLE;
     stage_name = "PUBLIC.MY_CUSTOM_LOCAL_STAGE"
     os.environ["DESTINATION__SNOWFLAKE__STAGE_NAME"] = stage_name
-    pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
+    pipeline, data = simple_nested_pipeline(
+        destination_config, f"custom_stage_{uniq_id()}", False
+    )
     info = pipeline.run(data(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
 
@@ -742,7 +791,9 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
     destinations_configs(default_sql_configs=True, subset=["snowflake"]),
     ids=lambda x: x.name,
 )
-def test_snowflake_delete_file_after_copy(destination_config: DestinationTestConfiguration) -> None:
+def test_snowflake_delete_file_after_copy(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     """Using keep_staged_files = false option to remove staged files after copy"""
     os.environ["DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES"] = "FALSE"
 
@@ -769,7 +820,9 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
 # do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_staging_configs=True, file_format="parquet"),
+    destinations_configs(
+        default_sql_configs=True, all_staging_configs=True, file_format="parquet"
+    ),
     ids=lambda x: x.name,
 )
 def test_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
@@ -793,14 +846,21 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 
     # parquet on bigquery does not support JSON but we still want to run the test
     if destination_config.destination == "bigquery":
-        column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+        column_schemas["col9_null"]["data_type"] = column_schemas["col9"][
+            "data_type"
+        ] = "text"
 
     # duckdb 0.9.1 does not support TIME other than 6
     if destination_config.destination in ["duckdb", "motherduck"]:
         column_schemas["col11_precision"]["precision"] = 0
 
     # drop TIME from databases not supporting it via parquet
-    if destination_config.destination in ["redshift", "athena", "synapse", "databricks"]:
+    if destination_config.destination in [
+        "redshift",
+        "athena",
+        "synapse",
+        "databricks",
+    ]:
         data_types.pop("col11")
         data_types.pop("col11_null")
         data_types.pop("col11_precision")
@@ -813,7 +873,9 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col7_precision")
 
     # apply the exact columns definitions so we process complex and wei types correctly!
-    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    @dlt.resource(
+        table_name="data_types", write_disposition="merge", columns=column_schemas
+    )
     def my_resource():
         nonlocal data_types
         yield [data_types] * 10
@@ -842,11 +904,15 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         qual_name = sql_client.make_qualified_table_name
         assert [
             row[0]
-            for row in sql_client.execute_sql(f"SELECT * FROM {qual_name('other_data')} ORDER BY 1")
+            for row in sql_client.execute_sql(
+                f"SELECT * FROM {qual_name('other_data')} ORDER BY 1"
+            )
         ] == [1, 2, 3, 4, 5]
         assert [
             row[0]
-            for row in sql_client.execute_sql(f"SELECT * FROM {qual_name('some_data')} ORDER BY 1")
+            for row in sql_client.execute_sql(
+                f"SELECT * FROM {qual_name('some_data')} ORDER BY 1"
+            )
         ] == [1, 2, 3]
         db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')}")
         assert len(db_rows) == 10
@@ -870,7 +936,10 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 def test_pipeline_upfront_tables_two_loads(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
-    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+    if (
+        not destination_config.supports_merge
+        and replace_strategy != "truncate-and-insert"
+    ):
         pytest.skip(
             f"Destination {destination_config.name} does not support merge and thus"
             f" {replace_strategy}"
@@ -932,14 +1001,17 @@ def test_pipeline_upfront_tables_two_loads(
     )
 
     # load with one empty job, table 3 not created
-    load_info = pipeline.run(source.table_3, loader_file_format=destination_config.file_format)
+    load_info = pipeline.run(
+        source.table_3, loader_file_format=destination_config.file_format
+    )
     assert_load_info(load_info, expected_load_packages=0)
     with pytest.raises(DatabaseUndefinedRelation):
         load_table_counts(pipeline, "table_3")
     # print(pipeline.default_schema.to_pretty_yaml())
 
     load_info_2 = pipeline.run(
-        [source.table_1, source.table_3], loader_file_format=destination_config.file_format
+        [source.table_1, source.table_3],
+        loader_file_format=destination_config.file_format,
     )
     assert_load_info(load_info_2)
     # 1 record in table 1
@@ -1027,7 +1099,9 @@ def test_pipeline_upfront_tables_two_loads(
 
 
 def simple_nested_pipeline(
-    destination_config: DestinationTestConfiguration, dataset_name: str, full_refresh: bool
+    destination_config: DestinationTestConfiguration,
+    dataset_name: str,
+    full_refresh: bool,
 ) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 

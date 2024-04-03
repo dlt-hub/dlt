@@ -19,7 +19,9 @@ def test_versioned_state() -> None:
 
     # change attr, but exclude while generating
     state["foo"] = "bar"  # type: ignore
-    version, hash_, previous_hash = bump_state_version_if_modified(state, exclude_attrs=["foo"])
+    version, hash_, previous_hash = bump_state_version_if_modified(
+        state, exclude_attrs=["foo"]
+    )
     assert version == 0
     assert hash_ == previous_hash
 

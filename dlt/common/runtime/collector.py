@@ -21,7 +21,11 @@ from typing import (
 if TYPE_CHECKING:
     from tqdm import tqdm
     import enlighten
-    from enlighten import Counter as EnlCounter, StatusBar as EnlStatusBar, Manager as EnlManager
+    from enlighten import (
+        Counter as EnlCounter,
+        StatusBar as EnlStatusBar,
+        Manager as EnlManager,
+    )
     from alive_progress import alive_bar
 else:
     tqdm = EnlCounter = EnlStatusBar = EnlManager = Any
@@ -37,7 +41,12 @@ class Collector(ABC):
 
     @abstractmethod
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         """Creates or updates a counter
 
@@ -72,7 +81,9 @@ class Collector(ABC):
         self._start(self.step)
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any
+    ) -> None:
         self._stop()
 
 
@@ -80,7 +91,12 @@ class NullCollector(Collector):
     """A default counter that does not count anything."""
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         pass
 
@@ -98,7 +114,12 @@ class DictCollector(Collector):
         self.counters: DefaultDict[str, int] = None
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         assert not label, "labels not supported in dict collector"
         self.counters[name] += inc
@@ -149,16 +170,21 @@ class LogCollector(Collector):
             except ImportError:
                 self._log(
                     logging.WARNING,
-                    "psutil dependency is not installed and mem stats will not be available. add"
-                    " psutil to your environment or pass dump_system_stats argument as False to"
-                    " disable warning.",
+                    "psutil dependency is not installed and mem stats will not be"
+                    " available. add psutil to your environment or pass"
+                    " dump_system_stats argument as False to disable warning.",
                 )
                 dump_system_stats = False
         self.dump_system_stats = dump_system_stats
         self.last_log_time: float = None
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = None
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = None,
     ) -> None:
         counter_key = f"{name}_{label}" if label else name
 
@@ -178,7 +204,10 @@ class LogCollector(Collector):
 
     def maybe_log(self) -> None:
         current_time = time.time()
-        if self.last_log_time is None or current_time - self.last_log_time >= self.log_period:
+        if (
+            self.last_log_time is None
+            or current_time - self.last_log_time >= self.log_period
+        ):
             self.dump_counters()
             self.last_log_time = current_time
 
@@ -198,11 +227,13 @@ class LogCollector(Collector):
             percentage = f"({count / info.total * 100:.1f}%)" if info.total else ""
             elapsed_time_str = f"{elapsed_time:.2f}s"
             items_per_second_str = f"{items_per_second:.2f}/s"
-            message = f"[{self.messages[name]}]" if self.messages[name] is not None else ""
+            message = (
+                f"[{self.messages[name]}]" if self.messages[name] is not None else ""
+            )
 
             counter_line = (
-                f"{info.description}: {progress} {percentage} | Time: {elapsed_time_str} | Rate:"
-                f" {items_per_second_str} {message}"
+                f"{info.description}: {progress} {percentage} | Time:"
+                f" {elapsed_time_str} | Rate: {items_per_second_str} {message}"
             )
             log_lines.append(counter_line.strip())
 
@@ -263,7 +294,12 @@ class TqdmCollector(Collector):
         self.tqdm_kwargs = tqdm_kwargs or {}
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = "",
     ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
@@ -315,7 +351,12 @@ class AliveCollector(Collector):
         self.alive_kwargs = alive_kwargs or {}
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = "",
     ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)
@@ -369,13 +410,19 @@ class EnlightenCollector(Collector):
             raise MissingDependencyException(
                 "EnlightenCollector",
                 ["enlighten"],
-                "We need enlighten to display progress bars with a space for log messages.",
+                "We need enlighten to display progress bars with a space for log"
+                " messages.",
             )
         self.single_bar = single_bar
         self.enlighten_kwargs = enlighten_kwargs
 
     def update(
-        self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = ""
+        self,
+        name: str,
+        inc: int = 1,
+        total: int = None,
+        message: str = None,
+        label: str = "",
     ) -> None:
         key = f"{name}_{label}"
         bar = self._bars.get(key)

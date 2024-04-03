@@ -1,5 +1,15 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Union, Dict
+from typing import (
+    Any,
+    AnyStr,
+    ClassVar,
+    Iterator,
+    Optional,
+    Sequence,
+    List,
+    Union,
+    Dict,
+)
 
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
@@ -68,7 +78,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         return self._conn
 
     def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s CASCADE;" % self.fully_qualified_dataset_name())
+        self.execute_sql(
+            "DROP SCHEMA IF EXISTS %s CASCADE;" % self.fully_qualified_dataset_name()
+        )
 
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
@@ -88,7 +100,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> Iterator[DBApiCursor]:
         curr: DBApiCursor = None
         # TODO: databricks connector 3.0.0 will use :named paramstyle only
         # if args:
@@ -137,7 +151,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.OperationalError):
             return DatabaseTerminalException(ex)
-        elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
+        elif isinstance(
+            ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)
+        ):
             return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.DatabaseError):
             return DatabaseTransientException(ex)

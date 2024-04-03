@@ -19,7 +19,9 @@ class SynapseSqlClient(PyOdbcMsSqlClient):
             return
         # Synapse does not support DROP TABLE IF EXISTS.
         # Workaround: use DROP TABLE and suppress non-existence errors.
-        statements = [f"DROP TABLE {self.make_qualified_table_name(table)};" for table in tables]
+        statements = [
+            f"DROP TABLE {self.make_qualified_table_name(table)};" for table in tables
+        ]
         with suppress(DatabaseUndefinedRelation):
             self.execute_fragments(statements)
 

@@ -127,7 +127,9 @@ def _assert_table_fs(
     assert client.fs_client.size(files[0]) > 0
 
 
-def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
+def select_data(
+    p: dlt.Pipeline, sql: str, schema_name: str = None
+) -> List[Sequence[Any]]:
     with p.sql_client(schema_name=schema_name) as c:
         with c.execute_query(sql) as cur:
             return list(cur.fetchall())

@@ -4,13 +4,18 @@ import pytest
 from typing import Optional, Union, Any
 
 import dlt
-from dlt.common.configuration.exceptions import InvalidNativeValue, ConfigFieldMissingException
+from dlt.common.configuration.exceptions import (
+    InvalidNativeValue,
+    ConfigFieldMissingException,
+)
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
 from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
+from dlt.common.configuration.specs.connection_string_credentials import (
+    ConnectionStringCredentials,
+)
 from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 
@@ -163,7 +168,9 @@ def test_union_decorator() -> None:
     # this will generate equivalent of ZenConfig
     @dlt.source
     def zen_source(
-        credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value,
+        credentials: Union[
+            ZenApiKeyCredentials, ZenEmailCredentials, str
+        ] = dlt.secrets.value,
         some_option: bool = False,
     ):
         # depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in credentials
@@ -240,7 +247,9 @@ class Engine:
 
 
 @dlt.source
-def sql_database(credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value):
+def sql_database(
+    credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value
+):
     yield dlt.resource([credentials], name="creds")
 
 
@@ -274,7 +283,9 @@ def test_initialize_credentials(environment: Any) -> None:
     assert not zen_cred.is_resolved()
     zen_cred = initialize_credentials(ZenEmailCredentials, "email:rfix:pass")
     assert zen_cred.is_resolved()
-    zen_cred = initialize_credentials(ZenEmailCredentials, {"email": "rfix", "password": "pass"})
+    zen_cred = initialize_credentials(
+        ZenEmailCredentials, {"email": "rfix", "password": "pass"}
+    )
     assert zen_cred.is_resolved()
     with pytest.raises(NativeValueError):
         initialize_credentials(ZenEmailCredentials, "email")
@@ -288,7 +299,9 @@ def test_initialize_credentials(environment: Any) -> None:
     assert isinstance(zen_cred, ZenEmailCredentials)
     assert zen_cred.is_resolved()
     # resolve from dict
-    zen_cred = initialize_credentials(ZenUnion, {"api_key": "key", "api_secret": "secret"})
+    zen_cred = initialize_credentials(
+        ZenUnion, {"api_key": "key", "api_secret": "secret"}
+    )
     assert isinstance(zen_cred, ZenApiKeyCredentials)
     assert zen_cred.is_resolved()
     # does not fit any native format

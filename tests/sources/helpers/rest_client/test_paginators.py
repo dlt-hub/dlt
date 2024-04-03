@@ -109,7 +109,9 @@ class TestJSONResponsePaginator:
             {
                 "next_reference": "/api/resource/subresource?page=3&sort=desc",
                 "request_url": "http://example.com/api/resource/subresource",
-                "expected": "http://example.com/api/resource/subresource?page=3&sort=desc",
+                "expected": (
+                    "http://example.com/api/resource/subresource?page=3&sort=desc"
+                ),
             },
             # Test with 'page' in path
             {
@@ -121,7 +123,9 @@ class TestJSONResponsePaginator:
             {
                 "next_reference": "/api/resource?page=3&category=books&sort=author",
                 "request_url": "http://example.com/api/resource?page=2",
-                "expected": "http://example.com/api/resource?page=3&category=books&sort=author",
+                "expected": (
+                    "http://example.com/api/resource?page=3&category=books&sort=author"
+                ),
             },
             # Test with URL having port number
             {
@@ -166,7 +170,9 @@ class TestSinglePagePaginator:
 
     def test_update_state_with_next(self):
         paginator = SinglePagePaginator()
-        response = Mock(Response, json=lambda: {"next": "http://example.com/next", "results": []})
+        response = Mock(
+            Response, json=lambda: {"next": "http://example.com/next", "results": []}
+        )
         response.links = {"next": {"url": "http://example.com/next"}}
         paginator.update_state(response)
         assert paginator.has_next_page is False

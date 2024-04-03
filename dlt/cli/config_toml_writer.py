@@ -85,7 +85,9 @@ def write_value(
             toml_table[name] = default_value
 
 
-def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_existing: bool) -> None:
+def write_spec(
+    toml_table: TOMLTable, config: BaseConfiguration, overwrite_existing: bool
+) -> None:
     for name, hint in config.get_resolvable_fields().items():
         default_value = getattr(config, name, None)
         # check if field is of particular interest and should be included if it has default

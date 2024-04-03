@@ -23,7 +23,9 @@ For more detailed info, see https://dlthub.com/docs/getting-started
 from dlt.version import __version__
 from dlt.common.configuration.accessors import config, secrets
 from dlt.common.typing import TSecretValue as _TSecretValue
-from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
+from dlt.common.configuration.specs import (
+    CredentialsConfiguration as _CredentialsConfiguration,
+)
 from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
 

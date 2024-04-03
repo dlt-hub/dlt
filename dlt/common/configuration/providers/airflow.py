@@ -5,7 +5,9 @@ from .toml import VaultTomlProvider
 
 
 class AirflowSecretsTomlProvider(VaultTomlProvider):
-    def __init__(self, only_secrets: bool = False, only_toml_fragments: bool = False) -> None:
+    def __init__(
+        self, only_secrets: bool = False, only_toml_fragments: bool = False
+    ) -> None:
         super().__init__(only_secrets, only_toml_fragments)
 
     @property
@@ -17,7 +19,9 @@ class AirflowSecretsTomlProvider(VaultTomlProvider):
 
         from airflow.models import Variable
 
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             return Variable.get(full_key, default_var=None)  # type: ignore
 
     @property

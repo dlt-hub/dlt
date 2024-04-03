@@ -7,7 +7,10 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.configuration import NormalizersConfiguration
 from dlt.common.normalizers.json import SupportsDataItemNormalizer, DataItemNormalizer
 from dlt.common.normalizers.naming import NamingConvention, SupportsNamingConvention
-from dlt.common.normalizers.naming.exceptions import UnknownNamingModule, InvalidNamingModule
+from dlt.common.normalizers.naming.exceptions import (
+    UnknownNamingModule,
+    InvalidNamingModule,
+)
 from dlt.common.normalizers.typing import TJSONNormalizer, TNormalizersConfig
 from dlt.common.utils import uniq_id_base64, many_uniq_ids_base64
 
@@ -49,7 +52,8 @@ def import_normalizers(
         else:
             # from known location
             naming_module = cast(
-                SupportsNamingConvention, import_module(f"dlt.common.normalizers.naming.{names}")
+                SupportsNamingConvention,
+                import_module(f"dlt.common.normalizers.naming.{names}"),
             )
     except ImportError:
         raise UnknownNamingModule(names)
@@ -63,7 +67,9 @@ def import_normalizers(
         )
     else:
         max_length = None
-    json_module = cast(SupportsDataItemNormalizer, import_module(item_normalizer["module"]))
+    json_module = cast(
+        SupportsDataItemNormalizer, import_module(item_normalizer["module"])
+    )
 
     return (
         normalizers_config,

@@ -3,8 +3,12 @@ import string
 from typing import List, Type
 
 from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.normalizers.naming.direct import NamingConvention as DirectNamingConvention
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeCaseNamingConvention,
+)
+from dlt.common.normalizers.naming.direct import (
+    NamingConvention as DirectNamingConvention,
+)
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 
@@ -115,11 +119,17 @@ def test_tag_placement() -> None:
 def test_shorten_identifier() -> None:
     # no limit
     long_ident = 8 * LONG_PATH
-    assert NamingConvention.shorten_identifier(long_ident, long_ident, None) == long_ident
-    # within limit
-    assert NamingConvention.shorten_identifier("012345678", "xxx012345678xxx", 10) == "012345678"
     assert (
-        NamingConvention.shorten_identifier("0123456789", "xxx012345678xx?", 10) == "0123456789"
+        NamingConvention.shorten_identifier(long_ident, long_ident, None) == long_ident
+    )
+    # within limit
+    assert (
+        NamingConvention.shorten_identifier("012345678", "xxx012345678xxx", 10)
+        == "012345678"
+    )
+    assert (
+        NamingConvention.shorten_identifier("0123456789", "xxx012345678xx?", 10)
+        == "0123456789"
     )  # max_length
     # tag based on original string placed in the middle
     tag = NamingConvention._compute_tag(
@@ -134,12 +144,16 @@ def test_shorten_identifier() -> None:
         tag = NamingConvention._compute_tag(
             raw_content, collision_prob=NamingConvention._DEFAULT_COLLISION_PROB
         )
-        norm_ident = NamingConvention.shorten_identifier(IDENT_20_CHARS, raw_content, 20)
+        norm_ident = NamingConvention.shorten_identifier(
+            IDENT_20_CHARS, raw_content, 20
+        )
         assert tag in norm_ident
         assert len(norm_ident) == 20
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize(
+    "convention", (SnakeCaseNamingConvention, DirectNamingConvention)
+)
 def test_normalize_with_shorten_identifier(convention: Type[NamingConvention]) -> None:
     naming = convention()
     # None/empty ident raises
@@ -151,7 +165,9 @@ def test_normalize_with_shorten_identifier(convention: Type[NamingConvention]) -
     # normalized string is different
     assert naming.normalize_identifier(RAW_IDENT) != RAW_IDENT
     # strip spaces
-    assert naming.normalize_identifier(RAW_IDENT) == naming.normalize_identifier(RAW_IDENT_W_SPACES)
+    assert naming.normalize_identifier(RAW_IDENT) == naming.normalize_identifier(
+        RAW_IDENT_W_SPACES
+    )
 
     # force to shorten
     naming = convention(len(RAW_IDENT) // 2)
@@ -160,11 +176,15 @@ def test_normalize_with_shorten_identifier(convention: Type[NamingConvention]) -
         RAW_IDENT, collision_prob=NamingConvention._DEFAULT_COLLISION_PROB
     )
     # spaces are stripped
-    assert naming.normalize_identifier(RAW_IDENT) == naming.normalize_identifier(RAW_IDENT_W_SPACES)
+    assert naming.normalize_identifier(RAW_IDENT) == naming.normalize_identifier(
+        RAW_IDENT_W_SPACES
+    )
     assert tag in naming.normalize_identifier(RAW_IDENT)
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize(
+    "convention", (SnakeCaseNamingConvention, DirectNamingConvention)
+)
 def test_normalize_path_shorting(convention: Type[NamingConvention]) -> None:
     naming = convention()
     path = naming.make_path(*LONG_PATH.split("__"))
@@ -207,7 +227,9 @@ def test_normalize_path_shorting(convention: Type[NamingConvention]) -> None:
     assert len(naming.break_path(norm_path)) == 1
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize(
+    "convention", (SnakeCaseNamingConvention, DirectNamingConvention)
+)
 def test_normalize_path(convention: Type[NamingConvention]) -> None:
     naming = convention()
     raw_path_str = naming.make_path(*RAW_PATH)
@@ -239,7 +261,9 @@ def test_normalize_path(convention: Type[NamingConvention]) -> None:
         == naming.normalize_path(tagged_raw_path_str)
         == naming.normalize_path(naming.normalize_path(tagged_raw_path_str))
     )
-    assert tagged_raw_path_str == naming.make_path(*naming.break_path(tagged_raw_path_str))
+    assert tagged_raw_path_str == naming.make_path(
+        *naming.break_path(tagged_raw_path_str)
+    )
 
     # also cut idents
     naming = convention(len(RAW_IDENT) - 4)
@@ -248,7 +272,9 @@ def test_normalize_path(convention: Type[NamingConvention]) -> None:
     assert tag in tagged_raw_path_str
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize(
+    "convention", (SnakeCaseNamingConvention, DirectNamingConvention)
+)
 def test_shorten_fragments(convention: Type[NamingConvention]) -> None:
     # max length around the length of the path
     naming = convention()
@@ -273,4 +299,6 @@ def test_shorten_fragments(convention: Type[NamingConvention]) -> None:
 def assert_short_path(norm_path: str, naming: NamingConvention) -> None:
     assert len(norm_path) == naming.max_length
     assert naming.normalize_path(norm_path) == norm_path
-    assert all(len(ident) <= naming.max_length for ident in naming.break_path(norm_path))
+    assert all(
+        len(ident) <= naming.max_length for ident in naming.break_path(norm_path)
+    )

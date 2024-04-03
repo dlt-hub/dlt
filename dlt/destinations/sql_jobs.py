@@ -57,7 +57,10 @@ class SqlBaseJob(NewLoadJobImpl):
         except Exception:
             # return failed job
             tables_str = yaml.dump(
-                table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
+                table_chain,
+                allow_unicode=True,
+                default_flow_style=False,
+                sort_keys=False,
             )
             job = cls(file_info.file_name(), "failed", pretty_format_exception())
             job._save_text_file("\n".join([cls.failed_text, tables_str]))
@@ -76,7 +79,9 @@ class SqlBaseJob(NewLoadJobImpl):
 class SqlStagingCopyJob(SqlBaseJob):
     """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
 
-    failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
+    failed_text: str = (
+        "Tried to generate a staging copy sql job for the following tables:"
+    )
 
     @classmethod
     def _generate_clone_sql(
@@ -116,7 +121,8 @@ class SqlStagingCopyJob(SqlBaseJob):
             if params["replace"]:
                 sql.append(sql_client._truncate_table_sql(table_name))
             sql.append(
-                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
+                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM"
+                f" {staging_table_name};"
             )
         return sql
 
@@ -167,11 +173,15 @@ class SqlMergeJob(SqlBaseJob):
         if primary_keys or merge_keys:
             if primary_keys:
                 clauses.append(
-                    " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in primary_keys])
+                    " AND ".join(
+                        ["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in primary_keys]
+                    )
                 )
             if merge_keys:
                 clauses.append(
-                    " AND ".join(["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in merge_keys])
+                    " AND ".join(
+                        ["%s.%s = %s.%s" % ("{d}", c, "{s}", c) for c in merge_keys]
+                    )
                 )
         return clauses or ["1=1"]
 
@@ -188,8 +198,9 @@ class SqlMergeJob(SqlBaseJob):
         A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
         return [
-            f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as"
-            f" s WHERE {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"
+            f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM"
+            f" {staging_root_table_name} as s WHERE"
+            f" {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"
         ]
 
     @classmethod
@@ -205,7 +216,9 @@ class SqlMergeJob(SqlBaseJob):
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
         sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
-            sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
+            sql.append(
+                f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};"
+            )
         return sql, temp_table_name
 
     @classmethod
@@ -294,7 +307,10 @@ class SqlMergeJob(SqlBaseJob):
             )
         else:
             # don't deduplicate
-            select_sql = f"SELECT {unique_column} FROM {staging_root_table_name} WHERE {condition}"
+            select_sql = (
+                f"SELECT {unique_column} FROM {staging_root_table_name} WHERE"
+                f" {condition}"
+            )
         return [cls._to_temp_table(select_sql, temp_table_name)], temp_table_name
 
     @classmethod
@@ -339,14 +355,20 @@ class SqlMergeJob(SqlBaseJob):
         escape_id = sql_client.capabilities.escape_identifier
         escape_lit = sql_client.capabilities.escape_literal
         if escape_id is None:
-            escape_id = DestinationCapabilitiesContext.generic_capabilities().escape_identifier
+            escape_id = (
+                DestinationCapabilitiesContext.generic_capabilities().escape_identifier
+            )
         if escape_lit is None:
-            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+            escape_lit = (
+                DestinationCapabilitiesContext.generic_capabilities().escape_literal
+            )
 
         # get top level table full identifiers
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
         with sql_client.with_staging_dataset(staging=True):
-            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+            staging_root_table_name = sql_client.make_qualified_table_name(
+                root_table["name"]
+            )
         # get merge and primary keys from top level
         primary_keys = list(
             map(
@@ -383,14 +405,15 @@ class SqlMergeJob(SqlBaseJob):
                     sql_client.fully_qualified_dataset_name(),
                     staging_root_table_name,
                     [t["name"] for t in table_chain],
-                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
-                    " it is not possible to link child tables to it.",
+                    "There is no unique column (ie _dlt_id) in top table"
+                    f" {root_table['name']} so it is not possible to link child tables"
+                    " to it.",
                 )
             # get first unique column
             unique_column = escape_id(unique_columns[0])
             # create temp table with unique identifier
-            create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(
-                unique_column, key_table_clauses
+            create_delete_temp_table_sql, delete_temp_table_name = (
+                cls.gen_delete_temp_table_sql(unique_column, key_table_clauses)
             )
             sql.extend(create_delete_temp_table_sql)
 
@@ -405,20 +428,26 @@ class SqlMergeJob(SqlBaseJob):
                         staging_root_table_name,
                         [t["name"] for t in table_chain],
                         "There is no root foreign key (ie _dlt_root_id) in child table"
-                        f" {table['name']} so it is not possible to refer to top level table"
-                        f" {root_table['name']} unique column {unique_column}",
+                        f" {table['name']} so it is not possible to refer to top level"
+                        f" table {root_table['name']} unique column {unique_column}",
                     )
                 root_key_column = escape_id(root_key_columns[0])
                 sql.append(
                     cls.gen_delete_from_sql(
-                        table_name, root_key_column, delete_temp_table_name, unique_column
+                        table_name,
+                        root_key_column,
+                        delete_temp_table_name,
+                        unique_column,
                     )
                 )
 
             # delete from top table now that child tables have been prcessed
             sql.append(
                 cls.gen_delete_from_sql(
-                    root_table_name, unique_column, delete_temp_table_name, unique_column
+                    root_table_name,
+                    unique_column,
+                    delete_temp_table_name,
+                    unique_column,
                 )
             )
 
@@ -430,7 +459,9 @@ class SqlMergeJob(SqlBaseJob):
             not_deleted_cond = f"{escape_id(hard_delete_col)} IS NULL"
             if root_table["columns"][hard_delete_col]["data_type"] == "bool":
                 # only True values indicate a delete for boolean columns
-                not_deleted_cond += f" OR {escape_id(hard_delete_col)} = {escape_lit(False)}"
+                not_deleted_cond += (
+                    f" OR {escape_id(hard_delete_col)} = {escape_lit(False)}"
+                )
 
         # get dedup sort information
         dedup_sort = get_dedup_sort_tuple(root_table)
@@ -438,7 +469,9 @@ class SqlMergeJob(SqlBaseJob):
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
             if len(primary_keys) > 0 or hard_delete_col is not None:
-                condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
+                condition_columns = (
+                    [hard_delete_col] if not_deleted_cond is not None else None
+                )
                 (
                     create_insert_temp_table_sql,
                     insert_temp_table_name,
@@ -464,12 +497,18 @@ class SqlMergeJob(SqlBaseJob):
                 and table.get("parent") is not None  # child table
                 and hard_delete_col is not None
             ):
-                uniq_column = unique_column if table.get("parent") is None else root_key_column
-                insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
+                uniq_column = (
+                    unique_column if table.get("parent") is None else root_key_column
+                )
+                insert_cond = (
+                    f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
+                )
 
             columns = list(map(escape_id, get_columns_names_with_prop(table, "name")))
             col_str = ", ".join(columns)
-            select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
+            select_sql = (
+                f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
+            )
             if len(primary_keys) > 0 and len(table_chain) == 1:
                 # without child tables we deduplicate inside the query instead of using a temp table
                 select_sql = cls.gen_select_from_dedup_sql(

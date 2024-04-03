@@ -70,7 +70,9 @@ def perform_load(
 
 @pytest.fixture(scope="function", autouse=False)
 def self_signed_cert() -> Iterator[str]:
-    key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+    key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=default_backend()
+    )
 
     subject = issuer = x509.Name(
         [

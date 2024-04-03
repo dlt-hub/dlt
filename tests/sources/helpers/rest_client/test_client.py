@@ -154,7 +154,9 @@ class TestRESTClient:
     def test_api_key_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/api-key",
-            auth=APIKeyAuth(name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")),
+            auth=APIKeyAuth(
+                name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")
+            ),
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}

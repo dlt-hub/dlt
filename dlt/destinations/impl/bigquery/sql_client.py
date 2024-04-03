@@ -5,7 +5,10 @@ import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
 from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery import dbapi as bq_dbapi
-from google.cloud.bigquery.dbapi import Connection as DbApiConnection, Cursor as BQDbApiCursor
+from google.cloud.bigquery.dbapi import (
+    Connection as DbApiConnection,
+    Cursor as BQDbApiCursor,
+)
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
@@ -205,14 +208,18 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> Iterator[DBApiCursor]:
         conn: DbApiConnection = None
         db_args = args or (kwargs or None)
         try:
             conn = DbApiConnection(client=self._client)
             curr = conn.cursor()
             # if session exists give it a preference
-            curr.execute(query, db_args, job_config=self._session_query or self._default_query)
+            curr.execute(
+                query, db_args, job_config=self._session_query or self._default_query
+            )
             yield BigQueryDBApiCursorImpl(curr)  # type: ignore
         finally:
             if conn:
@@ -221,7 +228,9 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
-            project_id = self.capabilities.escape_identifier(self.credentials.project_id)
+            project_id = self.capabilities.escape_identifier(
+                self.credentials.project_id
+            )
             dataset_name = self.capabilities.escape_identifier(self.dataset_name)
         else:
             project_id = self.credentials.project_id
@@ -236,13 +245,19 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         cloud_ex = ex.args[0]
         reason = cls._get_reason_from_errors(cloud_ex)
         if reason is None:
-            if isinstance(ex, (dbapi_exceptions.DataError, dbapi_exceptions.IntegrityError)):
+            if isinstance(
+                ex, (dbapi_exceptions.DataError, dbapi_exceptions.IntegrityError)
+            ):
                 return DatabaseTerminalException(ex)
             elif isinstance(ex, dbapi_exceptions.ProgrammingError):
                 return DatabaseTransientException(ex)
         if reason == "notFound":
             return DatabaseUndefinedRelation(ex)
-        if reason == "invalidQuery" and "was not found" in str(ex) and "Dataset" in str(ex):
+        if (
+            reason == "invalidQuery"
+            and "was not found" in str(ex)
+            and "Dataset" in str(ex)
+        ):
             return DatabaseUndefinedRelation(ex)
         if (
             reason == "invalidQuery"
@@ -263,7 +278,9 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         return DatabaseTransientException(ex)
 
     @staticmethod
-    def _get_reason_from_errors(gace: api_core_exceptions.GoogleAPICallError) -> Optional[str]:
+    def _get_reason_from_errors(
+        gace: api_core_exceptions.GoogleAPICallError,
+    ) -> Optional[str]:
         errors: List[StrAny] = getattr(gace, "errors", None)
         if errors and isinstance(errors, Sequence):
             return errors[0].get("reason")  # type: ignore
@@ -277,6 +294,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 class TransactionsNotImplementedError(NotImplementedError):
     def __init__(self) -> None:
         super().__init__(
-            "BigQuery does not support transaction management. Instead you may wrap your SQL script"
-            " in BEGIN TRANSACTION; ... COMMIT TRANSACTION;"
+            "BigQuery does not support transaction management. Instead you may wrap"
+            " your SQL script in BEGIN TRANSACTION; ... COMMIT TRANSACTION;"
         )

@@ -26,7 +26,13 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
     DatabaseTerminalException,
 )
-from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+from dlt.destinations.typing import (
+    DBApi,
+    TNativeConn,
+    DBApiCursor,
+    DataFrame,
+    DBTransaction,
+)
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
@@ -62,7 +68,10 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         self.close_connection()
 
@@ -87,17 +96,22 @@ SELECT 1
         self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
 
     def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name())
+        self.execute_sql(
+            "DROP SCHEMA %s CASCADE;" % self.fully_qualified_dataset_name()
+        )
 
     def truncate_tables(self, *tables: str) -> None:
-        statements = [self._truncate_table_sql(self.make_qualified_table_name(t)) for t in tables]
+        statements = [
+            self._truncate_table_sql(self.make_qualified_table_name(t)) for t in tables
+        ]
         self.execute_many(statements)
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
         statements = [
-            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};"
+            for table in tables
         ]
         self.execute_many(statements)
 
@@ -227,7 +241,9 @@ class DBApiCursorImpl(DBApiCursor):
         if chunk_size is None:
             return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
         else:
-            df = _wrap_result(self.native_cursor.fetchmany(chunk_size), columns, **kwargs)
+            df = _wrap_result(
+                self.native_cursor.fetchmany(chunk_size), columns, **kwargs
+            )
             # if no rows return None
             if df.shape[0] == 0:
                 return None
@@ -264,6 +280,8 @@ def raise_open_connection_error(f: TFun) -> TFun:
         try:
             return f(self, *args, **kwargs)
         except Exception as ex:
-            raise DestinationConnectionError(type(self).__name__, self.dataset_name, str(ex), ex)
+            raise DestinationConnectionError(
+                type(self).__name__, self.dataset_name, str(ex), ex
+            )
 
     return _wrap  # type: ignore

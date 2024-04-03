@@ -19,7 +19,9 @@ from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
 
 from dlt.destinations.impl.destination.factory import _DESTINATIONS
-from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
+from dlt.destinations.impl.destination.configuration import (
+    CustomDestinationClientConfiguration,
+)
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import (
@@ -131,7 +133,9 @@ def test_instantiation() -> None:
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     # NOTE: we also test injection of config vars here
-    def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
+    def local_sink_func(
+        items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /
+    ) -> None:
         nonlocal calls
         assert my_val == "something"
         calls.append((items, table))
@@ -150,7 +154,9 @@ def test_instantiation() -> None:
     calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("destination", destination_callable=local_sink_func),
+        destination=Destination.from_reference(
+            "destination", destination_callable=local_sink_func
+        ),
         full_refresh=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -165,7 +171,9 @@ def test_instantiation() -> None:
         "sink_test",
         destination=Destination.from_reference(
             "destination",
-            destination_callable="tests.destinations.test_custom_destination.global_sink_func",
+            destination_callable=(
+                "tests.destinations.test_custom_destination.global_sink_func"
+            ),
         ),
         full_refresh=True,
     )
@@ -174,14 +182,18 @@ def test_instantiation() -> None:
 
     # global func will create an entry
     assert _DESTINATIONS["global_sink_func"]
-    assert issubclass(_DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration)
+    assert issubclass(
+        _DESTINATIONS["global_sink_func"][0], CustomDestinationClientConfiguration
+    )
     assert _DESTINATIONS["global_sink_func"][1] == global_sink_func
     assert _DESTINATIONS["global_sink_func"][2] == inspect.getmodule(global_sink_func)
 
     # pass None as callable arg will fail on load
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("destination", destination_callable=None),
+        destination=Destination.from_reference(
+            "destination", destination_callable=None
+        ),
         full_refresh=True,
     )
     with pytest.raises(PipelineStepFailed):
@@ -213,7 +225,9 @@ def test_instantiation() -> None:
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
 @pytest.mark.parametrize("batch_size", [1, 10, 23])
-def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size: int) -> None:
+def test_batched_transactions(
+    loader_file_format: TLoaderFileFormat, batch_size: int
+) -> None:
     calls: Dict[str, List[TDataItems]] = {}
     # provoke errors on resources
     provoke_error: Dict[str, int] = {}
@@ -345,7 +359,9 @@ def test_naming_convention() -> None:
         assert table["columns"]["snake_case"]["name"] == "snake_case"
         assert table["columns"]["camelCase"]["name"] == "camelCase"
 
-    dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(resource())
+    dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(
+        resource()
+    )
 
 
 def test_file_batch() -> None:
@@ -366,7 +382,9 @@ def test_file_batch() -> None:
         assert table["name"] in ["person", "address"]
 
         with pyarrow.parquet.ParquetFile(file_path) as reader:
-            assert reader.metadata.num_rows == (100 if table["name"] == "person" else 50)
+            assert reader.metadata.num_rows == (
+                100 if table["name"] == "person" else 50
+            )
 
     dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(
         [resource1(), resource2()]
@@ -389,9 +407,9 @@ def test_config_spec() -> None:
         )
 
     # we may give the value via __callable__ function
-    dlt.pipeline("sink_test", destination=my_sink(my_val="something"), full_refresh=True).run(
-        [1, 2, 3], table_name="items"
-    )
+    dlt.pipeline(
+        "sink_test", destination=my_sink(my_val="something"), full_refresh=True
+    ).run([1, 2, 3], table_name="items")
 
     # right value will pass
     os.environ["DESTINATION__MY_SINK__MY_VAL"] = "something"
@@ -471,16 +489,16 @@ def test_destination_with_spec() -> None:
 
     # call fails because `my_predefined_val` is required part of spec, even if not injected
     with pytest.raises(ConfigFieldMissingException):
-        info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), full_refresh=True).run(
-            [1, 2, 3], table_name="items"
-        )
+        info = dlt.pipeline(
+            "sink_test", destination=sink_func_with_spec(), full_refresh=True
+        ).run([1, 2, 3], table_name="items")
         info.raise_on_failed_jobs()
 
     # call happens now
     os.environ["MY_PREDEFINED_VAL"] = "VAL"
-    info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), full_refresh=True).run(
-        [1, 2, 3], table_name="items"
-    )
+    info = dlt.pipeline(
+        "sink_test", destination=sink_func_with_spec(), full_refresh=True
+    ).run([1, 2, 3], table_name="items")
     info.raise_on_failed_jobs()
 
     # check destination with additional config params
@@ -564,7 +582,9 @@ def test_max_nesting_level(nesting: int) -> None:
     data = [
         {
             "level": 1,
-            "children": [{"level": 2, "children": [{"level": 3, "children": [{"level": 4}]}]}],
+            "children": [
+                {"level": 2, "children": [{"level": 3, "children": [{"level": 4}]}]}
+            ],
         }
     ]
 
@@ -579,7 +599,9 @@ def test_max_nesting_level(nesting: int) -> None:
     def source():
         yield dlt.resource(data, name="data")
 
-    p = dlt.pipeline("sink_test_max_nesting", destination=nesting_sink, full_refresh=True)
+    p = dlt.pipeline(
+        "sink_test_max_nesting", destination=nesting_sink, full_refresh=True
+    )
     p.run(source())
 
     # fall back to source setting

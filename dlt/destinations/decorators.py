@@ -28,7 +28,14 @@ def destination(
     max_table_nesting: int = 0,
     spec: Type[CustomDestinationClientConfiguration] = None,
 ) -> Callable[
-    [Callable[Concatenate[Union[TDataItems, str], TTableSchema, TDestinationCallableParams], Any]],
+    [
+        Callable[
+            Concatenate[
+                Union[TDataItems, str], TTableSchema, TDestinationCallableParams
+            ],
+            Any,
+        ]
+    ],
     Callable[TDestinationCallableParams, _destination],
 ]:
     """A decorator that transforms a function that takes two positional arguments "table" and "items" and any number of keyword arguments with defaults
@@ -61,12 +68,16 @@ def destination(
 
     def decorator(
         destination_callable: Callable[
-            Concatenate[Union[TDataItems, str], TTableSchema, TDestinationCallableParams], Any
+            Concatenate[
+                Union[TDataItems, str], TTableSchema, TDestinationCallableParams
+            ],
+            Any,
         ]
     ) -> Callable[TDestinationCallableParams, _destination]:
         @wraps(destination_callable)
         def wrapper(
-            *args: TDestinationCallableParams.args, **kwargs: TDestinationCallableParams.kwargs
+            *args: TDestinationCallableParams.args,
+            **kwargs: TDestinationCallableParams.kwargs,
         ) -> _destination:
             if args:
                 logger.warning(

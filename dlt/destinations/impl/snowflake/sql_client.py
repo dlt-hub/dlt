@@ -29,7 +29,9 @@ class SnowflakeCursorImpl(DBApiCursorImpl):
         return super().df(chunk_size=chunk_size, **kwargs)
 
 
-class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):
+class SnowflakeSqlClient(
+    SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction
+):
     dbapi: ClassVar[DBApi] = snowflake_lib
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -97,7 +99,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> Iterator[DBApiCursor]:
         curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:  # type: ignore[assignment]
@@ -155,7 +159,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                 return DatabaseTransientException(ex)
         elif isinstance(ex, TypeError):
             # snowflake raises TypeError on malformed query parameters
-            return DatabaseTransientException(snowflake_lib.errors.ProgrammingError(str(ex)))
+            return DatabaseTransientException(
+                snowflake_lib.errors.ProgrammingError(str(ex))
+            )
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
         else:

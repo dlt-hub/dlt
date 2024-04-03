@@ -2,7 +2,10 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
+from dlt.destinations.impl.mssql.configuration import (
+    MsSqlCredentials,
+    MsSqlClientConfiguration,
+)
 from dlt.destinations.impl.mssql import capabilities
 
 if t.TYPE_CHECKING:

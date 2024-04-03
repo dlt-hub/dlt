@@ -14,7 +14,9 @@ TSession = TypeVar("TSession", bound=BaseSession)
 DEFAULT_TIMEOUT = 60
 
 
-def _timeout_to_seconds(timeout: TRequestTimeout) -> Optional[Union[Tuple[float, float], float]]:
+def _timeout_to_seconds(
+    timeout: TRequestTimeout,
+) -> Optional[Union[Tuple[float, float], float]]:
     return (
         (to_seconds(timeout[0]), to_seconds(timeout[1]))
         if isinstance(timeout, tuple)

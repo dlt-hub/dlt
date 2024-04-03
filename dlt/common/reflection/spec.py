@@ -22,7 +22,10 @@ def _get_spec_name_from_f(f: AnyFun) -> str:
     def _first_up(s: str) -> str:
         return s[0].upper() + s[1:]
 
-    return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + "Configuration"
+    return (
+        "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name)))
+        + "Configuration"
+    )
 
 
 def spec_from_signature(
@@ -81,7 +84,10 @@ def spec_from_signature(
 
     for p in sig.parameters.values():
         # skip *args and **kwargs, skip typical method params
-        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in [
+        if p.kind not in (
+            Parameter.VAR_KEYWORD,
+            Parameter.VAR_POSITIONAL,
+        ) and p.name not in [
             "self",
             "cls",
         ]:

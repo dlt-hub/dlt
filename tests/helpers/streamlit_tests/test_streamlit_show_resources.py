@@ -84,11 +84,18 @@ def test_multiple_resources_pipeline():
     assert set(load_info.pipeline.schema_names) == set(["source2", "source1"])  # type: ignore[attr-defined]
 
     assert source1_schema.data_tables()[0]["name"] == "one"
-    assert source1_schema.data_tables()[0]["columns"]["column_1"].get("primary_key") is True
-    assert source1_schema.data_tables()[0]["columns"]["column_1"].get("merge_key") is True
+    assert (
+        source1_schema.data_tables()[0]["columns"]["column_1"].get("primary_key")
+        is True
+    )
+    assert (
+        source1_schema.data_tables()[0]["columns"]["column_1"].get("merge_key") is True
+    )
     assert source1_schema.data_tables()[0]["write_disposition"] == "merge"
     os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
-    streamlit_app = AppTest.from_file(str(streamlit_app_path / "index.py"), default_timeout=5)
+    streamlit_app = AppTest.from_file(
+        str(streamlit_app_path / "index.py"), default_timeout=5
+    )
     streamlit_app.run()
     assert not streamlit_app.exception
 

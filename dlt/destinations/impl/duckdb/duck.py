@@ -110,7 +110,9 @@ class DuckDbTypeMapper(TypeMapper):
 
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
+    def __init__(
+        self, table_name: str, file_path: str, sql_client: DuckDbSqlClient
+    ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
 
         qualified_table_name = sql_client.make_qualified_table_name(table_name)
@@ -149,20 +151,26 @@ class DuckDbClient(InsertValuesJobClient):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DuckDbClientConfiguration) -> None:
-        sql_client = DuckDbSqlClient(config.normalize_dataset_name(schema), config.credentials)
+        sql_client = DuckDbSqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
         super().__init__(schema, config, sql_client)
         self.config: DuckDbClientConfiguration = config
         self.sql_client: DuckDbSqlClient = sql_client  # type: ignore
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = DuckDbTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             job = DuckDbCopyJob(table["name"], file_path, self.sql_client)
         return job
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()

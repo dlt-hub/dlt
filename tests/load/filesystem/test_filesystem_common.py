@@ -9,7 +9,10 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from dlt.common import pendulum
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
+from dlt.common.configuration.specs import (
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+)
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
@@ -99,7 +102,9 @@ def test_filesystem_dict(with_gdrive_buckets_env: str, load_content: bool) -> No
         pytest.skip(f"Skipping due to {str(ex)}")
 
 
-@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
+@pytest.mark.skipif(
+    "s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured"
+)
 def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> None:
     """Test that fsspec instance is correctly configured when using endpoint URL.
     E.g. when using an S3 compatible service such as Cloudflare R2
@@ -124,7 +129,9 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
 
 def test_filesystem_configuration_with_additional_arguments() -> None:
     config = FilesystemConfiguration(
-        bucket_url="az://root", kwargs={"use_ssl": True}, client_kwargs={"verify": "public.crt"}
+        bucket_url="az://root",
+        kwargs={"use_ssl": True},
+        client_kwargs={"verify": "public.crt"},
     )
     assert dict(config) == {
         "read_only": False,
@@ -135,10 +142,14 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
     }
 
 
-@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
+@pytest.mark.skipif(
+    "s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured"
+)
 def test_kwargs_propagate_to_s3_instance(default_buckets_env: str) -> None:
     os.environ["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": false}'
-    os.environ["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = '{"verify": false, "foo": "bar"}'
+    os.environ["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = (
+        '{"verify": false, "foo": "bar"}'
+    )
 
     config = get_config()
 
@@ -154,12 +165,18 @@ def test_kwargs_propagate_to_s3_instance(default_buckets_env: str) -> None:
     assert ("foo", "bar") in filesystem.client_kwargs.items()
 
 
-@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
-def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert: str) -> None:
+@pytest.mark.skipif(
+    "s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured"
+)
+def test_s3_wrong_client_certificate(
+    default_buckets_env: str, self_signed_cert: str
+) -> None:
     """Test whether filesystem raises an SSLError when trying to establish
     a connection with the wrong client certificate."""
     os.environ["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": true}'
-    os.environ["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = f'{{"verify": "{self_signed_cert}"}}'
+    os.environ["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = (
+        f'{{"verify": "{self_signed_cert}"}}'
+    )
 
     config = get_config()
 

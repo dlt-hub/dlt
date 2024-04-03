@@ -13,7 +13,12 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 from dlt.common import logger
-from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_column, new_column, new_table
+from dlt.common.schema.utils import (
+    DEFAULT_WRITE_DISPOSITION,
+    merge_column,
+    new_column,
+    new_table,
+)
 from dlt.common.typing import TDataItem, DictStrAny, DictStrStr
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -22,8 +27,16 @@ from dlt.extract.exceptions import (
     InconsistentTableTemplate,
 )
 from dlt.extract.incremental import Incremental
-from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, TableNameMeta, ValidateItem
-from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
+from dlt.extract.items import (
+    TFunHintTemplate,
+    TTableHintTemplate,
+    TableNameMeta,
+    ValidateItem,
+)
+from dlt.extract.utils import (
+    ensure_table_schema_columns,
+    ensure_table_schema_columns_hint,
+)
 from dlt.extract.validation import create_item_validator
 
 
@@ -149,7 +162,9 @@ class DltResourceHints:
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
 
-    def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
+    def compute_table_schema(
+        self, item: TDataItem = None, meta: Any = None
+    ) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
         `item` parameter is used to resolve table hints based on data.
         `meta` parameter is taken from Pipe and may further specify table name if variant is to be used
@@ -218,8 +233,8 @@ class DltResourceHints:
         if create_table_variant:
             if not isinstance(table_name, str):
                 raise ValueError(
-                    "Please provide string table name if you want to create a table variant of"
-                    " hints"
+                    "Please provide string table name if you want to create a table"
+                    " variant of hints"
                 )
             # select hints variant
             t = self._hints_variants.get(table_name, None)
@@ -324,20 +339,21 @@ class DltResourceHints:
             # incremental cannot be specified in variant
             if hints_template.get("incremental"):
                 raise InconsistentTableTemplate(
-                    f"You can specify incremental only for the resource `{self.name}` hints, not in"
-                    f" table `{table_name}` variant-"
+                    f"You can specify incremental only for the resource `{self.name}`"
+                    f" hints, not in table `{table_name}` variant-"
                 )
             if hints_template.get("validator"):
                 logger.warning(
-                    f"A data item validator was created from column schema in {self.name} for a"
-                    f" table `{table_name}` variant. Currently such validator is ignored."
+                    "A data item validator was created from column schema in"
+                    f" {self.name} for a table `{table_name}` variant. Currently such"
+                    " validator is ignored."
                 )
             # dynamic hints will be ignored
             for name, hint in hints_template.items():
                 if callable(hint) and name not in NATURAL_CALLABLES:
                     raise InconsistentTableTemplate(
-                        f"Table `{table_name}` variant hint is resource {self.name} cannot have"
-                        f" dynamic hint but {name} does."
+                        f"Table `{table_name}` variant hint is resource"
+                        f" {self.name} cannot have dynamic hint but {name} does."
                     )
             self._hints_variants[table_name] = hints_template
         else:
@@ -380,7 +396,9 @@ class DltResourceHints:
         return hint(item) if callable(hint) else hint
 
     @staticmethod
-    def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
+    def _merge_key(
+        hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema
+    ) -> None:
         if isinstance(keys, str):
             keys = [keys]
         for key in keys:
@@ -408,8 +426,11 @@ class DltResourceHints:
         table_name = template.get("name")
         # if any of the hints is a function, then name must be as well.
         if any(
-            callable(v) for k, v in template.items() if k not in ["name", *NATURAL_CALLABLES]
+            callable(v)
+            for k, v in template.items()
+            if k not in ["name", *NATURAL_CALLABLES]
         ) and not callable(table_name):
             raise InconsistentTableTemplate(
-                f"Table name {table_name} must be a function if any other table hint is a function"
+                f"Table name {table_name} must be a function if any other table hint is"
+                " a function"
             )

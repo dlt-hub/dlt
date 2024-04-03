@@ -3,12 +3,19 @@ import tempfile  # noqa: 251
 
 from dlt.common.storages import FileStorage
 
-from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import (
+    NewLoadJob,
+    FollowupJob,
+    TLoadJobState,
+    LoadJob,
+)
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 
 class EmptyLoadJobWithoutFollowup(LoadJob):
-    def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
+    def __init__(
+        self, file_name: str, status: TLoadJobState, exception: str = None
+    ) -> None:
         self._status = status
         self._exception = exception
         super().__init__(file_name)
@@ -17,7 +24,11 @@ class EmptyLoadJobWithoutFollowup(LoadJob):
     def from_file_path(
         cls, file_path: str, status: TLoadJobState, message: str = None
     ) -> "EmptyLoadJobWithoutFollowup":
-        return cls(FileStorage.get_file_name_from_file_path(file_path), status, exception=message)
+        return cls(
+            FileStorage.get_file_name_from_file_path(file_path),
+            status,
+            exception=message,
+        )
 
     def state(self) -> TLoadJobState:
         return self._status
@@ -44,7 +55,11 @@ class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
 
 class NewReferenceJob(NewLoadJobImpl):
     def __init__(
-        self, file_name: str, status: TLoadJobState, exception: str = None, remote_path: str = None
+        self,
+        file_name: str,
+        status: TLoadJobState,
+        exception: str = None,
+        remote_path: str = None,
     ) -> None:
         file_name = os.path.splitext(file_name)[0] + ".reference"
         super().__init__(file_name, status, exception)

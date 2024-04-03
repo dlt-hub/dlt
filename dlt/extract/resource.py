@@ -16,7 +16,14 @@ from typing import (
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem, TDataItems, NoneType
+from dlt.common.typing import (
+    AnyFun,
+    DictStrAny,
+    StrAny,
+    TDataItem,
+    TDataItems,
+    NoneType,
+)
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
     PipelineContext,
@@ -162,7 +169,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             # some other data type that is not supported
             raise InvalidResourceDataType(
-                name, data, type(data), f"The data type of supplied type is {type(data).__name__}"
+                name,
+                data,
+                type(data),
+                f"The data type of supplied type is {type(data).__name__}",
             )
 
     @property
@@ -238,8 +248,13 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """
 
         def _filter(item: TDataItem, meta: Any = None) -> bool:
-            is_in_meta = isinstance(meta, TableNameMeta) and meta.table_name in table_names
-            is_in_dyn = self._table_name_hint_fun and self._table_name_hint_fun(item) in table_names
+            is_in_meta = (
+                isinstance(meta, TableNameMeta) and meta.table_name in table_names
+            )
+            is_in_dyn = (
+                self._table_name_hint_fun
+                and self._table_name_hint_fun(item) in table_names
+            )
             return is_in_meta or is_in_dyn
 
         # add filtering function at the end of pipe
@@ -378,13 +393,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             )
             and not (callable(self._pipe.gen) and self.is_transformer)
         ):
-            raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
+            raise InvalidParallelResourceDataType(
+                self.name, self._pipe.gen, type(self._pipe.gen)
+            )
 
         self._pipe.replace_gen(wrap_parallel_iterator(self._pipe.gen))  # type: ignore  # TODO
         return self
 
     def add_step(
-        self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None
+        self,
+        item_transform: ItemTransformFunctionWithMeta[TDataItems],
+        insert_at: int = None,
     ) -> "DltResource":  # noqa: A003
         if insert_at is None:
             self._pipe.append_step(item_transform)
@@ -409,7 +428,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     self.add_step(incremental)
 
             if incremental:
-                primary_key = table_schema_template.get("primary_key", incremental.primary_key)
+                primary_key = table_schema_template.get(
+                    "primary_key", incremental.primary_key
+                )
                 if primary_key is not None:
                     incremental.primary_key = primary_key
 
@@ -498,7 +519,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         section_context = self._get_config_section_context()
 
         # managed pipe iterator will set the context on each call to  __next__
-        with inject_section(section_context), Container().injectable_context(state_context):
+        with inject_section(section_context), Container().injectable_context(
+            state_context
+        ):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes([self._pipe])  # type: ignore
 
         pipe_iterator.set_context([state_context, section_context])
@@ -550,7 +573,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 "",
                 self.source_name or default_schema_name or self.name,
             ),
-            source_state_key=self.source_name or default_schema_name or self.section or uniq_id(),
+            source_state_key=self.source_name
+            or default_schema_name
+            or self.section
+            or uniq_id(),
         )
 
     def __str__(self) -> str:
@@ -572,14 +598,15 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 if self.requires_args:
                     head_sig = inspect.signature(self._pipe.gen)  # type: ignore
                     info += (
-                        "\nThis resource is parametrized and takes the following arguments"
-                        f" {head_sig}. You must call this resource before loading."
+                        "\nThis resource is parametrized and takes the following"
+                        f" arguments {head_sig}. You must call this resource before"
+                        " loading."
                     )
                 else:
                     info += (
-                        "\nIf you want to see the data items in the resource you must iterate it or"
-                        " convert to list ie. list(resource). Note that, like any iterator, you can"
-                        " iterate the resource only once."
+                        "\nIf you want to see the data items in the resource you must"
+                        " iterate it or convert to list ie. list(resource). Note that,"
+                        " like any iterator, you can iterate the resource only once."
                     )
             else:
                 info += "\nThis resource is not bound to the data"
@@ -596,7 +623,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                     name, get_callable_name(data), inspect.signature(data), valid_code
                 )
         else:
-            raise InvalidTransformerDataTypeGeneratorFunctionRequired(name, data, type(data))
+            raise InvalidTransformerDataTypeGeneratorFunctionRequired(
+                name, data, type(data)
+            )
 
     @staticmethod
     def _get_parent_pipe(name: str, data_from: Union["DltResource", Pipe]) -> Pipe:
@@ -608,7 +637,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         else:
             # if this is generator function provide nicer exception
             if callable(data_from):
-                raise InvalidParentResourceIsAFunction(name, get_callable_name(data_from))
+                raise InvalidParentResourceIsAFunction(
+                    name, get_callable_name(data_from)
+                )
             else:
                 raise InvalidParentResourceDataType(name, data_from, type(data_from))
 
@@ -618,7 +649,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if len(sig.parameters) == 0:
             return 1
         # transformer may take only one positional only argument
-        pos_only_len = sum(1 for p in sig.parameters.values() if p.kind == p.POSITIONAL_ONLY)
+        pos_only_len = sum(
+            1 for p in sig.parameters.values() if p.kind == p.POSITIONAL_ONLY
+        )
         if pos_only_len > 1:
             return 2
         first_ar = next(iter(sig.parameters.values()))
@@ -626,7 +659,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if pos_only_len == 1 and first_ar.kind != first_ar.POSITIONAL_ONLY:
             return 2
         # first arg must be positional or kw_pos
-        if first_ar.kind not in (first_ar.POSITIONAL_ONLY, first_ar.POSITIONAL_OR_KEYWORD):
+        if first_ar.kind not in (
+            first_ar.POSITIONAL_ONLY,
+            first_ar.POSITIONAL_OR_KEYWORD,
+        ):
             return 3
         return 0
 

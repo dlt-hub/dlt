@@ -36,8 +36,8 @@ def parse_init_script(
     if len(visitor.mod_aliases) == 0:
         raise CliCommandException(
             command,
-            f"The pipeline script {init_script_name} does not import dlt and does not seem to run"
-            " any pipelines",
+            f"The pipeline script {init_script_name} does not import dlt and does not"
+            " seem to run any pipelines",
         )
 
     return visitor
@@ -51,13 +51,16 @@ def ensure_git_command(command: str) -> None:
             raise
         raise CliCommandException(
             command,
-            "'git' command is not available. Install and setup git with the following the guide %s"
+            "'git' command is not available. Install and setup git with the following"
+            " the guide %s"
             % "https://docs.github.com/en/get-started/quickstart/set-up-git",
             imp_ex,
         ) from imp_ex
 
 
-def track_command(command: str, track_before: bool, *args: str) -> Callable[[TFun], TFun]:
+def track_command(
+    command: str, track_before: bool, *args: str
+) -> Callable[[TFun], TFun]:
     return with_telemetry("command", command, track_before, *args)
 
 

@@ -34,12 +34,20 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy
-from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
+from dlt.extract.exceptions import (
+    InvalidResourceDataTypeBasic,
+    PipeGenInvalid,
+    SourceExhausted,
+)
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
-from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
+from dlt.pipeline.exceptions import (
+    InvalidPipelineName,
+    PipelineNotActive,
+    PipelineStepFailed,
+)
 from dlt.pipeline.helpers import retry_load
 
 from tests.common.utils import TEST_SENTRY_DSN
@@ -61,7 +69,9 @@ def test_default_pipeline() -> None:
     possible_names = ["dlt_pytest", "dlt_pipeline"]
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     assert p.pipeline_name in possible_names
-    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.pipelines_dir == os.path.abspath(
+        os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines")
+    )
     assert p.runtime_config.pipeline_name == p.pipeline_name
     # dataset that will be used to load data is the pipeline name
     assert p.dataset_name in possible_dataset_names
@@ -277,12 +287,16 @@ def test_destination_staging_config(environment: Any) -> None:
     fs_dest = filesystem("file:///testing-bucket")
     p = dlt.pipeline(
         pipeline_name="staging_pipeline",
-        destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
+        destination=redshift(
+            credentials="redshift://loader:loader@localhost:5432/dlt_data"
+        ),
         staging=fs_dest,
     )
     schema = Schema("foo")
     p._inject_schema(schema)
-    initial_config = p._get_destination_client_initial_config(p.staging, as_staging=True)
+    initial_config = p._get_destination_client_initial_config(
+        p.staging, as_staging=True
+    )
     staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
     # Ensure that as_staging flag is set in the final resolved conifg
@@ -304,7 +318,9 @@ def test_destination_factory_defaults_resolve_from_config(environment: Any) -> N
 
 
 def test_destination_credentials_in_factory(environment: Any) -> None:
-    os.environ["DESTINATION__REDSHIFT__CREDENTIALS"] = "redshift://abc:123@localhost:5432/some_db"
+    os.environ["DESTINATION__REDSHIFT__CREDENTIALS"] = (
+        "redshift://abc:123@localhost:5432/some_db"
+    )
 
     redshift_dest = redshift("redshift://abc:123@localhost:5432/other_db")
 
@@ -323,11 +339,15 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
     assert dest_config.credentials.database == "some_db"
 
 
-@pytest.mark.skip(reason="does not work on CI. probably takes right credentials from somewhere....")
+@pytest.mark.skip(
+    reason="does not work on CI. probably takes right credentials from somewhere...."
+)
 def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -> None:
     # if string cannot be parsed
     p = dlt.pipeline(
-        pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM"
+        pipeline_name="postgres_pipeline",
+        destination="filesystem",
+        credentials="PR8BLEM",
     )
     with pytest.raises(NativeValueError):
         p._get_destination_client_initial_config(p.destination)
@@ -372,12 +392,18 @@ def test_extract_multiple_sources() -> None:
     s1 = DltSource(
         dlt.Schema("default"),
         "module",
-        [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")],
+        [
+            dlt.resource([1, 2, 3], name="resource_1"),
+            dlt.resource([3, 4, 5], name="resource_2"),
+        ],
     )
     s2 = DltSource(
         dlt.Schema("default_2"),
         "module",
-        [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")],
+        [
+            dlt.resource([6, 7, 8], name="resource_3"),
+            dlt.resource([9, 10, 0], name="resource_4"),
+        ],
     )
 
     p = dlt.pipeline(destination="dummy")
@@ -400,10 +426,15 @@ def test_extract_multiple_sources() -> None:
     s3 = DltSource(
         dlt.Schema("default_3"),
         "module",
-        [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")],
+        [
+            dlt.resource([1, 2, 3], name="resource_1"),
+            dlt.resource([3, 4, 5], name="resource_2"),
+        ],
     )
     s4 = DltSource(
-        dlt.Schema("default_4"), "module", [dlt.resource([6, 7, 8], name="resource_3"), i_fail]
+        dlt.Schema("default_4"),
+        "module",
+        [dlt.resource([6, 7, 8], name="resource_3"), i_fail],
     )
 
     with pytest.raises(PipelineStepFailed):
@@ -432,7 +463,9 @@ def test_mark_hints() -> None:
     p = dlt.pipeline(destination="dummy", pipeline_name="mark_pipeline")
     p.extract(with_mark())
     storage = ExtractStorage(p._normalize_storage_config())
-    expect_extracted_file(storage, "mark", "spec_table", json.dumps([{"id": 1}, {"id": 2}]))
+    expect_extracted_file(
+        storage, "mark", "spec_table", json.dumps([{"id": 1}, {"id": 2}])
+    )
     p.normalize()
     # no "with_mark" table in the schema: we update resource hints before any table schema is computed
     assert "with_mark" not in p.default_schema.tables
@@ -478,7 +511,9 @@ def test_mark_hints_with_variant() -> None:
         "with_table_hints": 1,
     }
     # check table counts
-    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
+    assert_data_table_counts(
+        pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1}
+    )
 
 
 def test_mark_hints_variant_dynamic_name() -> None:
@@ -693,7 +728,10 @@ def test_pipeline_state_on_extract_exception() -> None:
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
     with pytest.raises(PipelineStepFailed):
-        p.run([data_schema_1(), data_schema_2(), data_schema_3()], write_disposition="replace")
+        p.run(
+            [data_schema_1(), data_schema_2(), data_schema_3()],
+            write_disposition="replace",
+        )
 
     # first run didn't really happen
     assert p.first_run is True
@@ -828,7 +866,9 @@ def test_retry_load() -> None:
     retry_count = 2
     with pytest.raises(PipelineStepFailed) as py_ex:
         for attempt in Retrying(
-            stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(())), reraise=True
+            stop=stop_after_attempt(3),
+            retry=retry_if_exception(retry_load(())),
+            reraise=True,
         ):
             with attempt:
                 p.run(fail_extract())
@@ -903,7 +943,8 @@ def test_changed_write_disposition() -> None:
     p.run(resource_1, write_disposition="replace")
     print(list(p._schema_storage.live_schemas.values())[0].to_pretty_yaml())
     assert (
-        p.schemas[p.default_schema_name].get_table("resource_1")["write_disposition"] == "replace"
+        p.schemas[p.default_schema_name].get_table("resource_1")["write_disposition"]
+        == "replace"
     )
     assert p.default_schema.get_table("resource_1")["write_disposition"] == "replace"
 
@@ -927,13 +968,17 @@ def github_repo_events_table_meta(page):
 def _get_shuffled_events(repeat: int = 1):
     for _ in range(repeat):
         with open(
-            "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
+            "tests/normalize/cases/github.events.load_page_1_duck.json",
+            "r",
+            encoding="utf-8",
         ) as f:
             issues = json.load(f)
             yield issues
 
 
-@pytest.mark.parametrize("github_resource", (github_repo_events_table_meta, github_repo_events))
+@pytest.mark.parametrize(
+    "github_resource", (github_repo_events_table_meta, github_repo_events)
+)
 def test_dispatch_rows_to_tables(github_resource: DltResource):
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
@@ -950,7 +995,9 @@ def test_dispatch_rows_to_tables(github_resource: DltResource):
 
     # all the tables present
     assert (
-        expected_tables.intersection([t["name"] for t in p.default_schema.data_tables()])
+        expected_tables.intersection(
+            [t["name"] for t in p.default_schema.data_tables()]
+        )
         == expected_tables
     )
 
@@ -1083,7 +1130,9 @@ def test_preserve_fields_order_incomplete_columns() -> None:
     # complete columns preserve order in "columns"
     p = p.drop()
 
-    @dlt.resource(columns={"c3": {"precision": 32, "data_type": "decimal"}}, primary_key="c1")
+    @dlt.resource(
+        columns={"c3": {"precision": 32, "data_type": "decimal"}}, primary_key="c1"
+    )
     def items2():
         yield {"c1": 1, "c2": 1, "c3": 1}
 
@@ -1104,7 +1153,8 @@ def test_pipeline_log_progress() -> None:
 
     # will attach dlt logger
     p = dlt.pipeline(
-        destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING)
+        destination="dummy",
+        progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING),
     )
     # collector was created before pipeline so logger is not attached
     assert cast(LogCollector, p.collector).logger is None
@@ -1186,7 +1236,12 @@ def test_pipeline_source_state_activation() -> None:
 def test_extract_add_tables() -> None:
     # we extract and make sure that tables are added to schema
     s = airtable_emojis()
-    assert list(s.resources.keys()) == ["💰Budget", "📆 Schedule", "🦚Peacock", "🦚WidePeacock"]
+    assert list(s.resources.keys()) == [
+        "💰Budget",
+        "📆 Schedule",
+        "🦚Peacock",
+        "🦚WidePeacock",
+    ]
     assert s.resources["🦚Peacock"].compute_table_schema()["resource"] == "🦚Peacock"
     # only name will be normalized
     assert s.resources["🦚Peacock"].compute_table_schema()["name"] == "🦚Peacock"
@@ -1501,7 +1556,8 @@ def test_remove_autodetect() -> None:
 
     # unix ts recognized
     assert (
-        pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
+        pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"]
+        == "timestamp"
     )
     pipeline.load()
 
@@ -1513,7 +1569,10 @@ def test_remove_autodetect() -> None:
     pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(source)
 
-    assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
+    assert (
+        pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"]
+        == "bigint"
+    )
 
 
 def test_flattened_column_hint() -> None:
@@ -1555,7 +1614,10 @@ def test_flattened_column_hint() -> None:
         == "timestamp"
     )
     # make sure data is there
-    assert pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"] == 4
+    assert (
+        pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"]
+        == 4
+    )
 
 
 def test_empty_rows_are_included() -> None:
@@ -1590,7 +1652,9 @@ def test_resource_state_name_not_normalized() -> None:
     with pipeline.destination_client() as client:  # type: ignore[assignment]
         state = load_pipeline_state_from_destination(pipeline.pipeline_name, client)
         assert "airtable_emojis" in state["sources"]
-        assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}
+        assert state["sources"]["airtable_emojis"]["resources"] == {
+            "🦚Peacock": {"🦚🦚🦚": "🦚"}
+        }
 
 
 def test_pipeline_list_packages() -> None:
@@ -1600,7 +1664,11 @@ def test_pipeline_list_packages() -> None:
     assert len(load_ids) == 1
     # two new packages: for emojis schema and emojis_2
     pipeline.extract(
-        [airtable_emojis(), airtable_emojis(), airtable_emojis().clone(with_name="emojis_2")]
+        [
+            airtable_emojis(),
+            airtable_emojis(),
+            airtable_emojis().clone(with_name="emojis_2"),
+        ]
     )
     load_ids = pipeline.list_extracted_load_packages()
     assert len(load_ids) == 3
@@ -1618,14 +1686,18 @@ def test_pipeline_list_packages() -> None:
     normalized_package = pipeline.get_load_package_info(load_ids[0])
     # same number of new jobs
     assert normalized_package.state == "normalized"
-    assert len(normalized_package.jobs["new_jobs"]) == len(extracted_package.jobs["new_jobs"])
+    assert len(normalized_package.jobs["new_jobs"]) == len(
+        extracted_package.jobs["new_jobs"]
+    )
     # load all 3 packages and fail all jobs in them
     os.environ["FAIL_PROB"] = "1.0"
     pipeline.load()
     load_ids_l = pipeline.list_completed_load_packages()
     assert load_ids == load_ids_l
     loaded_package = pipeline.get_load_package_info(load_ids[0])
-    assert len(loaded_package.jobs["failed_jobs"]) == len(extracted_package.jobs["new_jobs"])
+    assert len(loaded_package.jobs["failed_jobs"]) == len(
+        extracted_package.jobs["new_jobs"]
+    )
     assert loaded_package.state == "loaded"
     failed_jobs = pipeline.list_failed_jobs_in_package(load_ids[0])
     assert len(loaded_package.jobs["failed_jobs"]) == len(failed_jobs)
@@ -1680,7 +1752,9 @@ def test_parallel_pipelines_threads(workers: int) -> None:
     os.environ["PIPELINE_1__EXTRA"] = "CFG_P_1"
     os.environ["PIPELINE_2__EXTRA"] = "CFG_P_2"
 
-    def _run_pipeline(pipeline_name: str) -> Tuple[LoadInfo, PipelineContext, DictStrAny]:
+    def _run_pipeline(
+        pipeline_name: str,
+    ) -> Tuple[LoadInfo, PipelineContext, DictStrAny]:
         try:
 
             @dlt.transformer(
@@ -1717,7 +1791,9 @@ def test_parallel_pipelines_threads(workers: int) -> None:
 
             # make sure that only one pipeline is created
             with init_lock:
-                pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+                pipeline = dlt.pipeline(
+                    pipeline_name=pipeline_name, destination="duckdb"
+                )
                 context = Container()[PipelineContext]
         finally:
             sem.release()
@@ -1778,9 +1854,17 @@ def test_parallel_pipelines_threads(workers: int) -> None:
     pipeline_2: dlt.Pipeline = context_2.pipeline()  # type: ignore
 
     n_counts_1 = pipeline_1.last_trace.last_normalize_info
-    assert n_counts_1.row_counts["push_event"] == 8 * page_repeats == counts_1["push_event"]
+    assert (
+        n_counts_1.row_counts["push_event"]
+        == 8 * page_repeats
+        == counts_1["push_event"]
+    )
     n_counts_2 = pipeline_2.last_trace.last_normalize_info
-    assert n_counts_2.row_counts["push_event"] == 8 * page_repeats == counts_2["push_event"]
+    assert (
+        n_counts_2.row_counts["push_event"]
+        == 8 * page_repeats
+        == counts_2["push_event"]
+    )
 
     assert pipeline_1.pipeline_name == "pipeline_1"
     assert pipeline_2.pipeline_name == "pipeline_2"
@@ -1968,7 +2052,8 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
     @dlt.source
     def taxi_demand_source():
         @dlt.resource(
-            primary_key="city", columns=[{"name": "id", "data_type": "bigint", "precision": 4}]
+            primary_key="city",
+            columns=[{"name": "id", "data_type": "bigint", "precision": 4}],
         )
         def locations(idx=dlt.sources.incremental("id")):
             for idx in range(10):

@@ -20,13 +20,19 @@ def github():
         merge_key=("node_id", "url"),
     )
     def load_issues(
-        created_at=dlt.sources.incremental[pendulum.DateTime]("created_at"),  # noqa: B008
+        created_at=dlt.sources.incremental[pendulum.DateTime](  # noqa: B008
+            "created_at"
+        ),
     ):
         # we should be in TEST_STORAGE folder
         with open(
-            "../tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+            "../tests/normalize/cases/github.issues.load_page_5_duck.json",
+            "r",
+            encoding="utf-8",
         ) as f:
-            issues = map(convert_dates, sorted(json.load(f), key=lambda x: x["created_at"]))
+            issues = map(
+                convert_dates, sorted(json.load(f), key=lambda x: x["created_at"])
+            )
             yield from issues
 
     return load_issues
@@ -34,7 +40,10 @@ def github():
 
 if __name__ == "__main__":
     p = dlt.pipeline(
-        "dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False
+        "dlt_github_pipeline",
+        destination="duckdb",
+        dataset_name="github_3",
+        full_refresh=False,
     )
     github_source = github()
     if len(sys.argv) > 1:

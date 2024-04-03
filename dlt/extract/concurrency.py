@@ -10,7 +10,12 @@ from typing import Awaitable, Dict, Optional
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
 from dlt.common.runtime.signals import sleep
-from dlt.extract.items import DataItemWithMeta, TItemFuture, ResolvablePipeItem, FuturePipeItem
+from dlt.extract.items import (
+    DataItemWithMeta,
+    TItemFuture,
+    ResolvablePipeItem,
+    FuturePipeItem,
+)
 
 from dlt.extract.exceptions import (
     DltSourceException,
@@ -27,7 +32,10 @@ class FuturesPool:
     """
 
     def __init__(
-        self, workers: int = 5, poll_interval: float = 0.01, max_parallel_items: int = 20
+        self,
+        workers: int = 5,
+        poll_interval: float = 0.01,
+        max_parallel_items: int = 20,
     ) -> None:
         self.futures: Dict[TItemFuture, FuturePipeItem] = {}
         self._thread_pool: ThreadPoolExecutor = None
@@ -96,7 +104,9 @@ class FuturesPool:
         """
 
         # Sanity check, negative free slots means there's a bug somewhere
-        assert self.free_slots >= 0, "Worker pool has negative free slots, this should never happen"
+        assert (
+            self.free_slots >= 0
+        ), "Worker pool has negative free slots, this should never happen"
 
         if self.free_slots == 0:
             # Wait until some future is completed to ensure there's a free slot
@@ -136,7 +146,13 @@ class FuturesPool:
                 return None
             # Raise if any future fails
             if isinstance(
-                ex, (PipelineException, ExtractorException, DltSourceException, PipeException)
+                ex,
+                (
+                    PipelineException,
+                    ExtractorException,
+                    DltSourceException,
+                    PipeException,
+                ),
             ):
                 raise ex
             raise ResourceExtractionError(pipe.name, future, str(ex), "future") from ex
@@ -152,7 +168,9 @@ class FuturesPool:
 
     def _next_done_future(self) -> Optional[TItemFuture]:
         """Get the done future in the pool (if any). This does not block."""
-        return next((fut for fut in self.futures if fut.done() and not fut.cancelled()), None)
+        return next(
+            (fut for fut in self.futures if fut.done() and not fut.cancelled()), None
+        )
 
     def resolve_next_future(
         self, use_configured_timeout: bool = False
@@ -224,7 +242,9 @@ class FuturesPool:
             )
 
             wait_for_futures([future])
-            self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
+            self._async_pool.call_soon_threadsafe(
+                stop_background_loop, self._async_pool
+            )
 
             self._async_pool_thread.join()
             self._async_pool = None

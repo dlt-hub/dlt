@@ -1,7 +1,17 @@
 from copy import deepcopy
 import pytest
 import yaml
-from typing import Callable, List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
+from typing import (
+    Callable,
+    List,
+    Literal,
+    Mapping,
+    Sequence,
+    TypedDict,
+    TypeVar,
+    Optional,
+    Union,
+)
 
 from dlt.common import Decimal
 from dlt.common.exceptions import DictValidationException
@@ -91,7 +101,9 @@ def test_doc() -> TTestRecord:
 
 def test_validate_schema_cases() -> None:
     with open(
-        "tests/common/cases/schemas/eth/ethereum_schema_v8.yml", mode="r", encoding="utf-8"
+        "tests/common/cases/schemas/eth/ethereum_schema_v8.yml",
+        mode="r",
+        encoding="utf-8",
     ) as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
@@ -282,7 +294,10 @@ def test_callable() -> None:
 
     test_item = {"prop": f}
     validate_dict(
-        TTestRecordCallable, test_item, path=".", validator_f=lambda p, pk, pv, t: callable(pv)
+        TTestRecordCallable,
+        test_item,
+        path=".",
+        validator_f=lambda p, pk, pv, t: callable(pv),
     )
 
 

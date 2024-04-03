@@ -98,10 +98,13 @@ def with_config(
         sig: Signature = inspect.signature(f)
         signature_fields: Dict[str, Any]
         kwargs_arg = next(
-            (p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None
+            (p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD),
+            None,
         )
         if spec is None:
-            SPEC, signature_fields = spec_from_signature(f, sig, include_defaults, base=base)
+            SPEC, signature_fields = spec_from_signature(
+                f, sig, include_defaults, base=base
+            )
         else:
             SPEC = spec
             signature_fields = SPEC.get_resolvable_fields()
@@ -125,7 +128,9 @@ def with_config(
             if p.name == "pipeline_name" and auto_pipeline_section:
                 # if argument has name pipeline_name and auto_section is used, use it to generate section context
                 pipeline_name_arg = p
-                pipeline_name_arg_default = None if p.default == Parameter.empty else p.default
+                pipeline_name_arg_default = (
+                    None if p.default == Parameter.empty else p.default
+                )
 
         def resolve_config(bound_args: inspect.BoundArguments) -> BaseConfiguration:
             """Resolve arguments using the provided spec"""
@@ -161,7 +166,9 @@ def with_config(
             )
 
             # this may be called from many threads so section_context is thread affine
-            with inject_section(section_context, lock_context=lock_context_on_injection):
+            with inject_section(
+                section_context, lock_context=lock_context_on_injection
+            ):
                 # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
                 return resolve_configuration(
                     config or SPEC(),
@@ -170,7 +177,10 @@ def with_config(
                 )
 
         def update_bound_args(
-            bound_args: inspect.BoundArguments, config: BaseConfiguration, args: Any, kwargs: Any
+            bound_args: inspect.BoundArguments,
+            config: BaseConfiguration,
+            args: Any,
+            kwargs: Any,
         ) -> None:
             # overwrite or add resolved params
             resolved_params = dict(config)
@@ -189,7 +199,9 @@ def with_config(
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
                 bound_args.arguments[kwargs_arg.name][_ORIGINAL_ARGS] = (args, kwargs)
 
-        def with_partially_resolved_config(config: Optional[BaseConfiguration] = None) -> Any:
+        def with_partially_resolved_config(
+            config: Optional[BaseConfiguration] = None,
+        ) -> Any:
             # creates a pre-resolved partial of the decorated function
             empty_bound_args = sig.bind_partial()
             if not config:
@@ -203,8 +215,8 @@ def with_config(
                     from dlt.common import logger
 
                     logger.warning(
-                        "Spec argument is provided in kwargs, ignoring it for resolved partial"
-                        " function."
+                        "Spec argument is provided in kwargs, ignoring it for resolved"
+                        " partial function."
                     )
 
                 # we can still overwrite the config
@@ -236,7 +248,9 @@ def with_config(
         _FUNC_SPECS[id(_wrap)] = SPEC
 
         # add a method to create a pre-resolved partial
-        setattr(_wrap, "__RESOLVED_PARTIAL_FUNC__", with_partially_resolved_config)  # noqa: B010
+        setattr(  # noqa: B010
+            _wrap, "__RESOLVED_PARTIAL_FUNC__", with_partially_resolved_config
+        )
 
         return _wrap  # type: ignore
 
@@ -247,8 +261,8 @@ def with_config(
 
     if not callable(func):
         raise ValueError(
-            "First parameter to the with_config must be callable ie. by using it as function"
-            " decorator"
+            "First parameter to the with_config must be callable ie. by using it as"
+            " function decorator"
         )
 
     # We're called as @with_config without parens.
@@ -264,7 +278,9 @@ def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
     return kwargs[_ORIGINAL_ARGS]  # type: ignore
 
 
-def create_resolved_partial(f: AnyFun, config: Optional[BaseConfiguration] = None) -> AnyFun:
+def create_resolved_partial(
+    f: AnyFun, config: Optional[BaseConfiguration] = None
+) -> AnyFun:
     """Create a pre-resolved partial of the with_config decorated function"""
     if partial_func := getattr(f, "__RESOLVED_PARTIAL_FUNC__", None):
         return cast(AnyFun, partial_func(config))

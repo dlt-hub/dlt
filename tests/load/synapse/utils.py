@@ -5,7 +5,9 @@ from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 
-def get_storage_table_index_type(sql_client: SynapseSqlClient, table_name: str) -> TTableIndexType:
+def get_storage_table_index_type(
+    sql_client: SynapseSqlClient, table_name: str
+) -> TTableIndexType:
     """Returns table index type of table in storage destination."""
     with sql_client:
         schema_name = sql_client.fully_qualified_dataset_name(escape=False)

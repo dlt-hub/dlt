@@ -7,7 +7,10 @@ from dlt.common.configuration.container import Container
 from dlt.common.schema.utils import get_columns_names_with_prop
 
 from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
-from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_adapter import (
+    VECTORIZE_HINT,
+    TOKENIZATION_HINT,
+)
 
 
 def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
@@ -45,7 +48,9 @@ def assert_class(
             assert prop["tokenization"] == column[TOKENIZATION_HINT]  # type: ignore[literal-required]
 
     # if there's a single vectorize hint, class must have vectorizer enabled
-    if get_columns_names_with_prop(pipeline.default_schema.get_table(class_name), VECTORIZE_HINT):
+    if get_columns_names_with_prop(
+        pipeline.default_schema.get_table(class_name), VECTORIZE_HINT
+    ):
         assert schema["vectorizer"] == vectorizer_name
     else:
         assert schema["vectorizer"] == "none"

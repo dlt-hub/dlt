@@ -121,9 +121,9 @@ def test_create_table_with_column_hint(
     assert f" {attr} " not in sql
 
     # Case: table with hint, client has indexes enabled.
-    sql = client_with_indexes_enabled._get_table_update_sql("event_test_table", mod_update, False)[
-        0
-    ]
+    sql = client_with_indexes_enabled._get_table_update_sql(
+        "event_test_table", mod_update, False
+    )[0]
     # We expect an error because "PRIMARY KEY NONCLUSTERED NOT ENFORCED" and
     # "UNIQUE NOT ENFORCED" are invalid in the generic "tsql" dialect.
     # They are however valid in the Synapse variant of the dialect.

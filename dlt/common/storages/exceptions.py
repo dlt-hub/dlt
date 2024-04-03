@@ -23,8 +23,8 @@ class NoMigrationPathException(StorageException):
         self.migrated_version = migrated_version
         self.target_version = target_version
         super().__init__(
-            f"Could not find migration path for {storage_path} from v {initial_version} to"
-            f" {target_version}, stopped at {migrated_version}"
+            f"Could not find migration path for {storage_path} from v"
+            f" {initial_version} to {target_version}, stopped at {migrated_version}"
         )
 
 
@@ -39,7 +39,8 @@ class WrongStorageVersionException(StorageException):
         self.initial_version = initial_version
         self.target_version = target_version
         super().__init__(
-            f"Expected storage {storage_path} with v {target_version} but found {initial_version}"
+            f"Expected storage {storage_path} with v {target_version} but found"
+            f" {initial_version}"
         )
 
 
@@ -55,7 +56,8 @@ class StorageMigrationError(StorageException):
         self.from_version = from_version
         self.target_version = target_version
         super().__init__(
-            f"Storage {storage_path} with target v {target_version} at {from_version}: " + info
+            f"Storage {storage_path} with target v {target_version} at {from_version}: "
+            + info
         )
 
 
@@ -65,14 +67,17 @@ class LoadStorageException(StorageException):
 
 class JobWithUnsupportedWriterException(LoadStorageException, TerminalValueError):
     def __init__(
-        self, load_id: str, expected_file_formats: Iterable[TLoaderFileFormat], wrong_job: str
+        self,
+        load_id: str,
+        expected_file_formats: Iterable[TLoaderFileFormat],
+        wrong_job: str,
     ) -> None:
         self.load_id = load_id
         self.expected_file_formats = expected_file_formats
         self.wrong_job = wrong_job
         super().__init__(
-            f"Job {wrong_job} for load id {load_id} requires loader file format that is not one of"
-            f" {expected_file_formats}"
+            f"Job {wrong_job} for load id {load_id} requires loader file format that is"
+            f" not one of {expected_file_formats}"
         )
 
 
@@ -89,9 +94,9 @@ class SchemaStorageException(StorageException):
 class InStorageSchemaModified(SchemaStorageException):
     def __init__(self, schema_name: str, storage_path: str) -> None:
         msg = (
-            f"Schema {schema_name} in {storage_path} was externally modified. This is not allowed"
-            " as that would prevent correct version tracking. Use import/export capabilities of"
-            " dlt to provide external changes."
+            f"Schema {schema_name} in {storage_path} was externally modified. This is"
+            " not allowed as that would prevent correct version tracking. Use"
+            " import/export capabilities of dlt to provide external changes."
         )
         super().__init__(msg)
 
@@ -113,14 +118,15 @@ class SchemaNotFoundError(SchemaStorageException, FileNotFoundError, KeyError):
 class UnexpectedSchemaName(SchemaStorageException, ValueError):
     def __init__(self, schema_name: str, storage_path: str, stored_name: str) -> None:
         super().__init__(
-            f"A schema file name '{schema_name}' in {storage_path} does not correspond to the name"
-            f" of schema in the file {stored_name}"
+            f"A schema file name '{schema_name}' in {storage_path} does not correspond"
+            f" to the name of schema in the file {stored_name}"
         )
 
 
 class CurrentLoadPackageStateNotAvailable(StorageException):
     def __init__(self) -> None:
         super().__init__(
-            "State of the current load package is not available. Current load package state is"
-            " only available in a function decorated with @dlt.destination during loading."
+            "State of the current load package is not available. Current load package"
+            " state is only available in a function decorated with @dlt.destination"
+            " during loading."
         )

@@ -3,8 +3,13 @@ from typing import ClassVar, Final, Optional, Any, Dict, List
 
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.configuration.specs.base_configuration import (
+    CredentialsConfiguration,
+    configspec,
+)
+from dlt.common.destination.reference import (
+    DestinationClientDwhWithStagingConfiguration,
+)
 
 
 @configspec

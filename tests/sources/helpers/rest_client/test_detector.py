@@ -101,7 +101,9 @@ TEST_RESPONSES = [
     },
     {
         "response": {
-            "_embedded": {"items": [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}]},
+            "_embedded": {
+                "items": [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}]
+            },
             "_links": {
                 "first": {"href": "http://api.example.com/items?page=0&size=2"},
                 "self": {"href": "http://api.example.com/items?page=1&size=2"},
@@ -313,7 +315,9 @@ def test_find_records(test_case):
 @pytest.mark.parametrize("test_case", TEST_RESPONSES)
 def test_find_next_page_key(test_case):
     response = test_case["response"]
-    expected = test_case.get("expected").get("next_path", None)  # Some cases may not have next_path
+    expected = test_case.get("expected").get(
+        "next_path", None
+    )  # Some cases may not have next_path
     assert find_next_page_path(response) == expected
 
 

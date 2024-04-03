@@ -225,7 +225,8 @@ def test_json_named_tuple(json_impl: SupportsJson) -> None:
     with io.BytesIO() as b:
         json_impl.typed_dump(NamedTupleTest("STR", Decimal("1.3333")), b)
         assert (
-            b.getvalue().decode("utf-8") == '{"str_field":"STR","dec_field":"%s1.3333"}' % _DECIMAL
+            b.getvalue().decode("utf-8")
+            == '{"str_field":"STR","dec_field":"%s1.3333"}' % _DECIMAL
         )
 
 

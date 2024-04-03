@@ -35,10 +35,14 @@ def test_whole_row_filter(schema: Schema) -> None:
     _add_excludes(schema)
     bot_case: DictStrAny = load_json_case("mod_bot_case")
     # the whole row should be eliminated if the exclude matches all the rows
-    filtered_case = schema.filter_row("event_bot__metadata", deepcopy(bot_case)["metadata"])
+    filtered_case = schema.filter_row(
+        "event_bot__metadata", deepcopy(bot_case)["metadata"]
+    )
     assert filtered_case == {}
     # also child rows will be excluded
-    filtered_case = schema.filter_row("event_bot__metadata__user", deepcopy(bot_case)["metadata"])
+    filtered_case = schema.filter_row(
+        "event_bot__metadata__user", deepcopy(bot_case)["metadata"]
+    )
     assert filtered_case == {}
 
 
@@ -46,7 +50,9 @@ def test_whole_row_filter_with_exception(schema: Schema) -> None:
     _add_excludes(schema)
     bot_case: DictStrAny = load_json_case("mod_bot_case")
     # whole row will be eliminated
-    filtered_case = schema.filter_row("event_bot__custom_data", deepcopy(bot_case)["custom_data"])
+    filtered_case = schema.filter_row(
+        "event_bot__custom_data", deepcopy(bot_case)["custom_data"]
+    )
     # mind that path event_bot__custom_data__included_object was also eliminated
     assert filtered_case == {}
     # this child of the row has exception (^event_bot__custom_data__included_object__ - the __ at the end select all childern but not the parent)
@@ -56,7 +62,8 @@ def test_whole_row_filter_with_exception(schema: Schema) -> None:
     )
     assert filtered_case == bot_case["custom_data"]["included_object"]
     filtered_case = schema.filter_row(
-        "event_bot__custom_data__excluded_path", deepcopy(bot_case)["custom_data"]["excluded_path"]
+        "event_bot__custom_data__excluded_path",
+        deepcopy(bot_case)["custom_data"]["excluded_path"],
     )
     assert filtered_case == {}
 
@@ -99,7 +106,10 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     schema = Schema("event")
     _add_excludes(schema)
     schema.get_table("event_bot")["filters"]["includes"].extend(
-        [TSimpleRegex("re:^metadata___dlt_"), TSimpleRegex("re:^metadata__elvl1___dlt_")]
+        [
+            TSimpleRegex("re:^metadata___dlt_"),
+            TSimpleRegex("re:^metadata__elvl1___dlt_"),
+        ]
     )
     schema._compile_settings()
     for (t, p), row in schema.normalize_data_item(source_row, "load_id", "event_bot"):
@@ -108,7 +118,9 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
             assert "_dlt_id" in row
         else:
             # full linking not wiped out
-            assert set(row.keys()).issuperset(["_dlt_id", "_dlt_parent_id", "_dlt_list_idx"])
+            assert set(row.keys()).issuperset(
+                ["_dlt_id", "_dlt_parent_id", "_dlt_list_idx"]
+            )
         row, partial_table = schema.coerce_row(t, p, row)
         updates.append(partial_table)
         schema.update_table(partial_table)

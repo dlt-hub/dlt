@@ -159,7 +159,9 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         assert "players_profiles" not in pipeline.default_schema.tables
 
 
-def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage) -> None:
+def test_pipeline_command_failed_jobs(
+    repo_dir: str, project_files: FileStorage
+) -> None:
     init_command.init_command("chess", "dummy", False, repo_dir)
 
     try:
@@ -194,7 +196,9 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
         assert "JOB file type: jsonl" in _out
 
 
-def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
+def test_pipeline_command_drop_partial_loads(
+    repo_dir: str, project_files: FileStorage
+) -> None:
     init_command.init_command("chess", "dummy", False, repo_dir)
 
     try:
@@ -221,13 +225,17 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):
-            pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+            pipeline_command.pipeline_command(
+                "drop-pending-packages", "chess_pipeline", None, 1
+            )
             _out = buf.getvalue()
             assert "Pending packages deleted" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+        pipeline_command.pipeline_command(
+            "drop-pending-packages", "chess_pipeline", None, 1
+        )
         _out = buf.getvalue()
         assert "No pending packages found" in _out
     print(_out)

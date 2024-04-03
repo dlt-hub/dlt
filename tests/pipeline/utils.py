@@ -47,7 +47,9 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
     # try sql, could be other destination though
     try:
         with p.sql_client() as c:
-            qualified_names = [c.make_qualified_table_name(name) for name in table_names]
+            qualified_names = [
+                c.make_qualified_table_name(name) for name in table_names
+            ]
             query = "\nUNION ALL\n".join(
                 [
                     f"SELECT '{name}' as name, COUNT(1) as c FROM {q_name}"
@@ -164,7 +166,9 @@ def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, A
     return result
 
 
-def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
+def load_tables_to_dicts(
+    p: dlt.Pipeline, *table_names: str
+) -> Dict[str, List[Dict[str, Any]]]:
     # try sql, could be other destination though
     try:
         result = {}
@@ -195,7 +199,8 @@ def load_table_distinct_counts(
     """Returns counts of distinct values for column `distinct_column` for `table_names` as dict"""
     query = "\nUNION ALL\n".join(
         [
-            f"SELECT '{name}' as name, COUNT(DISTINCT {distinct_column}) as c FROM {name}"
+            f"SELECT '{name}' as name, COUNT(DISTINCT {distinct_column}) as c FROM"
+            f" {name}"
             for name in table_names
         ]
     )

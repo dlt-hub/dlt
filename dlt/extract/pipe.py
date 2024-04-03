@@ -1,7 +1,17 @@
 import inspect
 import makefun
 from copy import copy
-from typing import Any, AsyncIterator, Optional, Union, Callable, Iterable, Iterator, List, Tuple
+from typing import (
+    Any,
+    AsyncIterator,
+    Optional,
+    Union,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Tuple,
+)
 
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
@@ -32,7 +42,9 @@ from dlt.extract.utils import (
 
 
 class ForkPipe:
-    def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:
+    def __init__(
+        self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False
+    ) -> None:
         """A transformer that forks the `pipe` and sends the data items to forks added via `add_pipe` method."""
         self._pipes: List[Tuple["Pipe", int]] = []
         self.copy_on_fork = copy_on_fork
@@ -58,7 +70,9 @@ class ForkPipe:
 
 
 class Pipe(SupportsPipe):
-    def __init__(self, name: str, steps: List[TPipeStep] = None, parent: "Pipe" = None) -> None:
+    def __init__(
+        self, name: str, steps: List[TPipeStep] = None, parent: "Pipe" = None
+    ) -> None:
         self.name = name
         self._gen_idx = 0
         self._steps: List[TPipeStep] = []
@@ -109,7 +123,9 @@ class Pipe(SupportsPipe):
 
     def find(self, *step_type: AnyType) -> int:
         """Finds a step with object of type `step_type`"""
-        return next((i for i, v in enumerate(self._steps) if isinstance(v, step_type)), -1)
+        return next(
+            (i for i, v in enumerate(self._steps) if isinstance(v, step_type)), -1
+        )
 
     def __getitem__(self, i: int) -> TPipeStep:
         return self._steps[i]
@@ -117,9 +133,13 @@ class Pipe(SupportsPipe):
     def __len__(self) -> int:
         return len(self._steps)
 
-    def fork(self, child_pipe: "Pipe", child_step: int = -1, copy_on_fork: bool = False) -> "Pipe":
+    def fork(
+        self, child_pipe: "Pipe", child_step: int = -1, copy_on_fork: bool = False
+    ) -> "Pipe":
         if len(self._steps) == 0:
-            raise CreatePipeException(self.name, f"Cannot fork to empty pipe {child_pipe}")
+            raise CreatePipeException(
+                self.name, f"Cannot fork to empty pipe {child_pipe}"
+            )
         fork_step = self.tail
         if not isinstance(fork_step, ForkPipe):
             fork_step = ForkPipe(child_pipe, child_step, copy_on_fork)
@@ -165,7 +185,8 @@ class Pipe(SupportsPipe):
         if index == self._gen_idx:
             raise CreatePipeException(
                 self.name,
-                f"Step at index {index} holds a data generator for this pipe and cannot be removed",
+                f"Step at index {index} holds a data generator for this pipe and cannot"
+                " be removed",
             )
         self._steps.pop(index)
         if index < self._gen_idx:
@@ -299,10 +320,13 @@ class Pipe(SupportsPipe):
 
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
-        if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(step):
+        if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(
+            step
+        ):
             raise CreatePipeException(
                 self.name,
-                "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or a Callable",
+                "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or"
+                " a Callable",
             )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
@@ -310,18 +334,20 @@ class Pipe(SupportsPipe):
         if isinstance(step, (Iterable, Iterator)) and not callable(step):
             if self.has_parent:
                 raise CreatePipeException(
-                    self.name, "Iterable or Iterator cannot be a step in transformer pipe"
+                    self.name,
+                    "Iterable or Iterator cannot be a step in transformer pipe",
                 )
             else:
                 raise CreatePipeException(
-                    self.name, "Iterable or Iterator can only be a first step in resource pipe"
+                    self.name,
+                    "Iterable or Iterator can only be a first step in resource pipe",
                 )
 
         if not callable(step):
             raise CreatePipeException(
                 self.name,
-                "Pipe step must be a callable taking one data item as argument and optional second"
-                " meta argument",
+                "Pipe step must be a callable taking one data item as argument and"
+                " optional second meta argument",
             )
         else:
             # check the signature
@@ -350,7 +376,11 @@ class Pipe(SupportsPipe):
                     "meta", inspect._ParameterKind.KEYWORD_ONLY, default=None
                 )
                 kwargs_arg = next(
-                    (p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD),
+                    (
+                        p
+                        for p in sig.parameters.values()
+                        if p.kind == inspect.Parameter.VAR_KEYWORD
+                    ),
                     None,
                 )
                 if kwargs_arg:
@@ -378,7 +408,9 @@ class Pipe(SupportsPipe):
             if step_no == self._gen_idx:
                 # error for gen step
                 if len(sig.parameters) == 0:
-                    raise InvalidTransformerGeneratorFunction(self.name, callable_name, sig, code=1)
+                    raise InvalidTransformerGeneratorFunction(
+                        self.name, callable_name, sig, code=1
+                    )
                 else:
                     # show the sig without first argument
                     raise ParametrizedResourceUnbound(
@@ -389,7 +421,9 @@ class Pipe(SupportsPipe):
                         str(ty_ex),
                     )
             else:
-                raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
+                raise InvalidStepFunctionArguments(
+                    self.name, callable_name, sig, str(ty_ex)
+                )
 
     def _clone(self, new_name: str = None, with_parent: bool = False) -> "Pipe":
         """Clones the pipe steps, optionally renaming the pipe. Used internally to clone a list of connected pipes."""

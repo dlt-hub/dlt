@@ -12,7 +12,11 @@ from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.configuration.providers import environ as environ_provider
 
 from tests.utils import preserve_environ
-from tests.common.configuration.utils import WrongConfiguration, SecretConfiguration, environment
+from tests.common.configuration.utils import (
+    WrongConfiguration,
+    SecretConfiguration,
+    environment,
+)
 
 
 @configspec
@@ -37,7 +41,11 @@ def test_resolves_from_environ(environment: Any) -> None:
 
     C = WrongConfiguration()
     resolve._resolve_config_fields(
-        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+        C,
+        explicit_values=None,
+        explicit_sections=(),
+        embedded_sections=(),
+        accept_partial=False,
     )
     assert not C.is_partial()
 
@@ -49,7 +57,11 @@ def test_resolves_from_environ_with_coercion(environment: Any) -> None:
 
     C = SimpleRunConfiguration()
     resolve._resolve_config_fields(
-        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+        C,
+        explicit_values=None,
+        explicit_sections=(),
+        embedded_sections=(),
+        accept_partial=False,
     )
     assert not C.is_partial()
 
@@ -102,9 +114,13 @@ def test_secret_kube_fallback(environment: Any) -> None:
 
 def test_configuration_files(environment: Any) -> None:
     # overwrite config file paths
-    environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"] = "./tests/common/cases/schemas/ev1/"
+    environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"] = (
+        "./tests/common/cases/schemas/ev1/"
+    )
     C = resolve.resolve_configuration(MockProdRunConfigurationVar())
-    assert C.config_files_storage_path == environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"]
+    assert (
+        C.config_files_storage_path == environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"]
+    )
     assert C.has_configuration_file("hasn't") is False
     assert C.has_configuration_file("event.schema.json") is True
     assert (

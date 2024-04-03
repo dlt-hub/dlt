@@ -1,5 +1,8 @@
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_writers.escape import escape_databricks_identifier, escape_databricks_literal
+from dlt.common.data_writers.escape import (
+    escape_databricks_identifier,
+    escape_databricks_literal,
+)
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration

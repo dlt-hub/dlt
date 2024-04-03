@@ -69,7 +69,9 @@ def test_connection_string_credentials_native_representation(environment) -> Non
         ConnectionStringCredentials().parse_native_representation(1)
 
     with pytest.raises(InvalidConnectionString):
-        ConnectionStringCredentials().parse_native_representation("loader@localhost:5432/dlt_data")
+        ConnectionStringCredentials().parse_native_representation(
+            "loader@localhost:5432/dlt_data"
+        )
 
     dsn = "postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d"
     csc = ConnectionStringCredentials()
@@ -111,7 +113,9 @@ def test_connection_string_letter_case(environment: Any) -> None:
     assert csc.to_native_representation() == dsn
 
 
-def test_connection_string_resolved_from_native_representation(environment: Any) -> None:
+def test_connection_string_resolved_from_native_representation(
+    environment: Any,
+) -> None:
     destination_dsn = "mysql+pymsql://localhost:5432/dlt_data"
     c = ConnectionStringCredentials()
     c.parse_native_representation(destination_dsn)
@@ -142,7 +146,9 @@ def test_connection_string_resolved_from_native_representation(environment: Any)
     assert c.password == "pwd"
 
 
-def test_connection_string_resolved_from_native_representation_env(environment: Any) -> None:
+def test_connection_string_resolved_from_native_representation_env(
+    environment: Any,
+) -> None:
     environment["CREDENTIALS"] = "mysql+pymsql://USER@/dlt_data"
     c = resolve_configuration(ConnectionStringCredentials())
     assert not c.is_partial()
@@ -159,7 +165,9 @@ def test_connection_string_resolved_from_native_representation_env(environment: 
 
 
 def test_connection_string_from_init() -> None:
-    c = ConnectionStringCredentials("postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d")
+    c = ConnectionStringCredentials(
+        "postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d"
+    )
     assert c.drivername == "postgres"
     assert c.is_resolved()
     assert not c.is_partial()
@@ -198,9 +206,12 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(
         SERVICE_JSON
-        % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",'
+        % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE'
+        ' KEY-----\\n",'
     )
-    assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
+    assert (
+        gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
+    )
     assert gcpc.project_id == "chat-analytics"
     assert gcpc.client_email == "loader@iam.gserviceaccount.com"
     # location is present but deprecated
@@ -219,7 +230,9 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     assert gcpc_2.default_credentials() is None
 
 
-def test_gcp_service_credentials_resolved_from_native_representation(environment: Any) -> None:
+def test_gcp_service_credentials_resolved_from_native_representation(
+    environment: Any,
+) -> None:
     gcpc = GcpServiceAccountCredentialsWithoutDefaults()
 
     # without PK
@@ -242,7 +255,9 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
         GcpOAuthCredentials().parse_native_representation("notjson")
 
     gcoauth = GcpOAuthCredentials()
-    gcoauth.parse_native_representation(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
+    gcoauth.parse_native_representation(
+        OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",'
+    )
     # is not resolved, we resolve only when default credentials are present
     assert gcoauth.is_resolved() is False
     # but is not partial - all required fields are present
@@ -272,11 +287,15 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
 
     # use OAUTH_USER_INFO without "installed"
     gcpc_3 = GcpOAuthCredentials()
-    gcpc_3.parse_native_representation(OAUTH_USER_INFO % '"refresh_token": "refresh_token",')
+    gcpc_3.parse_native_representation(
+        OAUTH_USER_INFO % '"refresh_token": "refresh_token",'
+    )
     assert dict(gcpc_3) == dict(gcpc_2)
 
 
-def test_gcp_oauth_credentials_resolved_from_native_representation(environment: Any) -> None:
+def test_gcp_oauth_credentials_resolved_from_native_representation(
+    environment: Any,
+) -> None:
     gcpc = GcpOAuthCredentialsWithoutDefaults()
 
     # without refresh token
@@ -328,7 +347,9 @@ def test_run_configuration_slack_credentials(environment: Any) -> None:
     assert c.slack_incoming_hook == hook
 
     # and obfuscated-like but really not
-    environment["RUNTIME__SLACK_INCOMING_HOOK"] = "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
+    environment["RUNTIME__SLACK_INCOMING_HOOK"] = (
+        "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
+    )
     c = resolve_configuration(RunConfiguration())
     assert c.slack_incoming_hook == "DBgAXQFPQVsAAEteXlFRWUoPG0BdHQ-EbAg=="
 

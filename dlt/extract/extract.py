@@ -27,11 +27,18 @@ from dlt.common.schema.typing import (
     TSchemaContract,
     TWriteDisposition,
 )
-from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
+from dlt.common.storages import (
+    NormalizeStorageConfiguration,
+    LoadPackageInfo,
+    SchemaStorage,
+)
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import get_callable_name, get_full_class_name
 
-from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
+from dlt.extract.decorators import (
+    SourceInjectableContext,
+    SourceSchemaInjectableContext,
+)
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.pipe_iterator import PipeIterator
@@ -103,7 +110,9 @@ def data_to_sources(
             # iterator/iterable/generator
             # create resource first without table template
             resources.append(
-                DltResource.from_data(data_item, name=table_name, section=pipeline.pipeline_name)
+                DltResource.from_data(
+                    data_item, name=table_name, section=pipeline.pipeline_name
+                )
             )
 
     if isinstance(data, C_Sequence) and len(data) > 0:
@@ -139,7 +148,9 @@ def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
             data_info.append(
                 {
                     "name": item.name,
-                    "data_type": "resource" if isinstance(item, DltResource) else "source",
+                    "data_type": (
+                        "resource" if isinstance(item, DltResource) else "source"
+                    ),
                 }
             )
             return False
@@ -185,16 +196,21 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         }
         # aggregate by table name
         table_metrics = {
-            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            table_name: sum(
+                map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS
+            )
             for table_name, metrics in itertools.groupby(
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
         }
         # aggregate by resource name
         resource_metrics = {
-            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            resource_name: sum(
+                map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS
+            )
             for resource_name, metrics in itertools.groupby(
-                table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
+                table_metrics.items(),
+                lambda pair: source.schema.get_table(pair[0])["resource"],
             )
         }
         # collect resource hints
@@ -227,7 +243,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if name == "columns":
                     if hint:
                         hints[name] = yaml.dump(
-                            hint, allow_unicode=True, default_flow_style=False, sort_keys=False
+                            hint,
+                            allow_unicode=True,
+                            default_flow_style=False,
+                            sort_keys=False,
                         )
                     continue
                 hints[name] = hint
@@ -236,7 +255,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "started_at": None,
             "finished_at": None,
             "schema_name": source.schema.name,
-            "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
+            "job_metrics": {
+                job.job_id(): metrics for job, metrics in job_metrics.items()
+            },
             "table_metrics": table_metrics,
             "resource_metrics": resource_metrics,
             "dag": source.resources.selected_dag,
@@ -248,13 +269,18 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> None:
         schema = source.schema
         json_extractor = extractors["puae-jsonl"]
-        resources_with_items = set().union(*[e.resources_with_items for e in extractors.values()])
+        resources_with_items = set().union(
+            *[e.resources_with_items for e in extractors.values()]
+        )
         # find REPLACE resources that did not yield any pipe items and create empty jobs for them
         # NOTE: do not include tables that have never seen data
         data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
         tables_by_resources = utils.group_tables_by_resource(data_tables)
         for resource in source.resources.selected.values():
-            if resource.write_disposition != "replace" or resource.name in resources_with_items:
+            if (
+                resource.write_disposition != "replace"
+                or resource.name in resources_with_items
+            ):
                 continue
             if resource.name not in tables_by_resources:
                 continue
@@ -300,7 +326,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "puae-jsonl": JsonLExtractor(
                 load_id, self.extract_storage, schema, collector=collector
             ),
-            "arrow": ArrowExtractor(load_id, self.extract_storage, schema, collector=collector),
+            "arrow": ArrowExtractor(
+                load_id, self.extract_storage, schema, collector=collector
+            ),
         }
         last_item_format: Optional[TLoaderFileFormat] = None
 
@@ -327,9 +355,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     resource = source.resources[pipe_item.pipe.name]
                     # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
                     item_format = (
-                        Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
+                        Extractor.item_format(pipe_item.item)
+                        or last_item_format
+                        or "puae-jsonl"
                     )
-                    extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
+                    extractors[item_format].write_items(
+                        resource, pipe_item.item, pipe_item.meta
+                    )
                     last_item_format = item_format
 
                 self._write_empty_files(source, extractors)
@@ -340,7 +372,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             # flush all buffered writers
             self.extract_storage.close_writers(load_id)
             # gather metrics
-            self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+            self._step_info_complete_load_id(
+                load_id, self._compute_metrics(load_id, source)
+            )
             # remove the metrics of files processed in this extract run
             # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
             self.extract_storage.remove_closed_files(load_id)

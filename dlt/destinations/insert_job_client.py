@@ -13,7 +13,9 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+    def __init__(
+        self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]
+    ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
         # insert file content immediately
@@ -44,7 +46,9 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             max_rows = self._sql_client.capabilities.max_rows_per_insert
 
             insert_sql = []
-            while content := f.read(self._sql_client.capabilities.max_query_length // 2):
+            while content := f.read(
+                self._sql_client.capabilities.max_query_length // 2
+            ):
                 # read one more line in order to
                 # 1. complete the content which ends at "random" position, not an end line
                 # 2. to modify its ending without a need to re-allocating the 8MB of "content"
@@ -69,7 +73,10 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     for chunk in chunks(values_rows, max_rows - 1):
                         processed += len(chunk)
                         insert_sql.append(header.format(qualified_table_name))
-                        if self._sql_client.capabilities.insert_values_writer_type == "default":
+                        if (
+                            self._sql_client.capabilities.insert_values_writer_type
+                            == "default"
+                        ):
                             insert_sql.append(values_mark)
                         if processed == len_rows:
                             # On the last chunk we need to add the extra row read
@@ -79,12 +86,20 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
                 else:
                     # otherwise write all content in a single INSERT INTO
-                    if self._sql_client.capabilities.insert_values_writer_type == "default":
+                    if (
+                        self._sql_client.capabilities.insert_values_writer_type
+                        == "default"
+                    ):
                         insert_sql.extend(
                             [header.format(qualified_table_name), values_mark, content]
                         )
-                    elif self._sql_client.capabilities.insert_values_writer_type == "select_union":
-                        insert_sql.extend([header.format(qualified_table_name), content])
+                    elif (
+                        self._sql_client.capabilities.insert_values_writer_type
+                        == "select_union"
+                    ):
+                        insert_sql.extend(
+                            [header.format(qualified_table_name), content]
+                        )
 
                     if until_nl:
                         insert_sql.append(until_nl)
@@ -117,7 +132,9 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
             job = EmptyLoadJob.from_file_path(file_path, "completed")
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception

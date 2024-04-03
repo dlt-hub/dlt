@@ -116,13 +116,18 @@ def _make_retry(
     respect_retry_after_header: bool,
     max_delay: TimedeltaSeconds,
 ) -> Retrying:
-    retry_conds = [retry_if_status(status_codes), retry_if_exception_type(tuple(exceptions))]
+    retry_conds = [
+        retry_if_status(status_codes),
+        retry_if_exception_type(tuple(exceptions)),
+    ]
     if condition is not None:
         if callable(condition):
             retry_condition = [condition]
         retry_conds.extend([retry_if_predicate(c) for c in retry_condition])
 
-    wait_cls = wait_exponential_retry_after if respect_retry_after_header else wait_exponential
+    wait_cls = (
+        wait_exponential_retry_after if respect_retry_after_header else wait_exponential
+    )
     return Retrying(
         wait=wait_cls(multiplier=backoff_factor, max=max_delay),
         retry=(retry_any(*retry_conds)),
@@ -189,7 +194,9 @@ class Client:
     ) -> None:
         self._adapter = HTTPAdapter(pool_maxsize=max_connections)
         self._local = local()
-        self._session_kwargs = dict(timeout=request_timeout, raise_for_status=raise_for_status)
+        self._session_kwargs = dict(
+            timeout=request_timeout, raise_for_status=raise_for_status
+        )
         self._retry_kwargs: Dict[str, Any] = dict(
             status_codes=status_codes,
             exceptions=exceptions,
@@ -220,9 +227,7 @@ class Client:
         self.options = lambda *a, **kw: self.session.options(*a, **kw)
         self.request = lambda *a, **kw: self.session.request(*a, **kw)
 
-        self._config_version: int = (
-            0  # Incrementing marker to ensure per-thread sessions are recreated on config changes
-        )
+        self._config_version: int = 0  # Incrementing marker to ensure per-thread sessions are recreated on config changes
 
     def update_from_config(self, config: RunConfiguration) -> None:
         """Update session/retry settings from RunConfiguration"""

@@ -88,8 +88,18 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {"name": "col9_null", "data_type": "complex", "nullable": True, "variant": True},
     {"name": "col10_null", "data_type": "date", "nullable": True},
     {"name": "col11_null", "data_type": "time", "nullable": True},
-    {"name": "col1_precision", "data_type": "bigint", "precision": 16, "nullable": False},
-    {"name": "col4_precision", "data_type": "timestamp", "precision": 3, "nullable": False},
+    {
+        "name": "col1_precision",
+        "data_type": "bigint",
+        "precision": 16,
+        "nullable": False,
+    },
+    {
+        "name": "col4_precision",
+        "data_type": "timestamp",
+        "precision": 3,
+        "nullable": False,
+    },
     {"name": "col5_precision", "data_type": "text", "precision": 25, "nullable": False},
     {
         "name": "col6_precision",
@@ -98,7 +108,12 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "scale": 2,
         "nullable": False,
     },
-    {"name": "col7_precision", "data_type": "binary", "precision": 19, "nullable": False},
+    {
+        "name": "col7_precision",
+        "data_type": "binary",
+        "precision": 19,
+        "nullable": False,
+    },
     {"name": "col11_precision", "data_type": "time", "precision": 3, "nullable": False},
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]: t for t in TABLE_UPDATE}
@@ -152,7 +167,11 @@ def table_update_and_row(
     exclude_col_names = list(exclude_columns or [])
     if exclude_types:
         exclude_col_names.extend(
-            [key for key, value in column_schemas.items() if value["data_type"] in exclude_types]
+            [
+                key
+                for key, value in column_schemas.items()
+                if value["data_type"] in exclude_types
+            ]
         )
     for col_name in set(exclude_col_names):
         del column_schemas[col_name]
@@ -178,25 +197,33 @@ def assert_all_data_types_row(
     else:
         db_mapping = {col_name: db_row[i] for i, col_name in enumerate(schema)}
 
-    expected_rows = {key: value for key, value in TABLE_ROW_ALL_DATA_TYPES.items() if key in schema}
+    expected_rows = {
+        key: value for key, value in TABLE_ROW_ALL_DATA_TYPES.items() if key in schema
+    }
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
     if "col4" in expected_rows:
         parsed_date = pendulum.instance(db_mapping["col4"])
-        db_mapping["col4"] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
+        db_mapping["col4"] = reduce_pendulum_datetime_precision(
+            parsed_date, timestamp_precision
+        )
         expected_rows["col4"] = reduce_pendulum_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
             timestamp_precision,
         )
     if "col4_precision" in expected_rows:
         parsed_date = pendulum.instance(db_mapping["col4_precision"])
-        db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(parsed_date, 3)
+        db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(
+            parsed_date, 3
+        )
         expected_rows["col4_precision"] = reduce_pendulum_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
         )
 
     if "col11_precision" in expected_rows:
         parsed_time = ensure_pendulum_time(db_mapping["col11_precision"])
-        db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(parsed_time, 3)
+        db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(
+            parsed_time, 3
+        )
         expected_rows["col11_precision"] = reduce_pendulum_datetime_precision(
             ensure_pendulum_time(expected_rows["col11_precision"]), 3  # type: ignore[arg-type]
         )
@@ -212,7 +239,9 @@ def assert_all_data_types_row(
                 except ValueError:
                     if not allow_base64_binary:
                         raise
-                    db_mapping[binary_col] = base64.b64decode(db_mapping[binary_col], validate=True)
+                    db_mapping[binary_col] = base64.b64decode(
+                        db_mapping[binary_col], validate=True
+                    )
             else:
                 db_mapping[binary_col] = bytes(db_mapping[binary_col])
 
@@ -239,7 +268,9 @@ def assert_all_data_types_row(
 
     for key, expected in expected_rows.items():
         actual = db_mapping[key]
-        assert expected == actual, f"Expected {expected} but got {actual} for column {key}"
+        assert (
+            expected == actual
+        ), f"Expected {expected} but got {actual} for column {key}"
 
     assert db_mapping == expected_rows
 
@@ -278,20 +309,30 @@ def arrow_table_all_data_types(
         "string": [random.choice(ascii_lowercase) for _ in range(num_rows)],
         "float": [round(random.uniform(0, 100), 4) for _ in range(num_rows)],
         "int": [random.randrange(0, 100) for _ in range(num_rows)],
-        "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz="UTC"),
+        "datetime": pd.date_range(
+            "2021-01-01T01:02:03.1234", periods=num_rows, tz="UTC"
+        ),
         "date": pd.date_range("2021-01-01", periods=num_rows, tz="UTC").date,
         "binary": [random.choice(ascii_lowercase).encode() for _ in range(num_rows)],
-        "decimal": [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)],
+        "decimal": [
+            Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)
+        ],
         "bool": [random.choice([True, False]) for _ in range(num_rows)],
-        "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [None],
+        "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [
+            None
+        ],
         "null": pd.Series([None for _ in range(num_rows)]),
     }
 
     if include_name_clash:
-        data["pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
+        data["pre Normalized Column"] = [
+            random.choice(ascii_lowercase) for _ in range(num_rows)
+        ]
         include_not_normalized_name = True
     if include_not_normalized_name:
-        data["Pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
+        data["Pre Normalized Column"] = [
+            random.choice(ascii_lowercase) for _ in range(num_rows)
+        ]
 
     if include_json:
         data["json"] = [{"a": random.randrange(0, 100)} for _ in range(num_rows)]

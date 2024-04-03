@@ -16,7 +16,9 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt.cli import echo as fmt
 
 
-DLT_PIPELINE_COMMAND_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface"
+DLT_PIPELINE_COMMAND_DOCS_URL = (
+    "https://dlthub.com/docs/reference/command-line-interface"
+)
 
 
 def pipeline_command(
@@ -71,7 +73,8 @@ def pipeline_command(
             # remote state was not found
             p._wipe_working_folder()
             fmt.error(
-                f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in {destination}"
+                f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in"
+                f" {destination}"
             )
             return
         if operation == "sync":
@@ -81,7 +84,8 @@ def pipeline_command(
         extracted_packages = p.list_extracted_load_packages()
         if extracted_packages:
             fmt.echo(
-                "Has %s extracted packages ready to be normalized with following load ids:"
+                "Has %s extracted packages ready to be normalized with following load"
+                " ids:"
                 % fmt.bold(str(len(extracted_packages)))
             )
             for load_id in extracted_packages:
@@ -98,12 +102,16 @@ def pipeline_command(
             first_package_info = p.get_load_package_info(norm_packages[0])
             if PackageStorage.is_package_partially_loaded(first_package_info):
                 fmt.warning(
-                    "This package is partially loaded. Data in the destination may be modified."
+                    "This package is partially loaded. Data in the destination may be"
+                    " modified."
                 )
             fmt.echo()
         return extracted_packages, norm_packages
 
-    fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
+    fmt.echo(
+        "Found pipeline %s in %s"
+        % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir))
+    )
 
     if operation == "show":
         from dlt.common.runtime import signals
@@ -145,7 +153,9 @@ def pipeline_command(
             if verbosity > 0:
                 fmt.echo(json.dumps(sources_state, pretty=True))
             else:
-                fmt.echo("Add -v option to see sources state. Note that it could be large.")
+                fmt.echo(
+                    "Add -v option to see sources state. Note that it could be large."
+                )
 
         fmt.echo()
         fmt.echo("Local state:")
@@ -161,7 +171,9 @@ def pipeline_command(
                 fmt.echo("Resources in schema: %s" % fmt.bold(schema_name))
                 schema = p.schemas[schema_name]
                 data_tables = {t["name"]: t for t in schema.data_tables()}
-                for resource_name, tables in group_tables_by_resource(data_tables).items():
+                for resource_name, tables in group_tables_by_resource(
+                    data_tables
+                ).items():
                     res_state_slots = 0
                     if sources_state:
                         source_state = (
@@ -170,7 +182,9 @@ def pipeline_command(
                             else sources_state.get(schema_name)
                         )
                         if source_state:
-                            resource_state_ = resource_state(resource_name, source_state)
+                            resource_state_ = resource_state(
+                                resource_name, source_state
+                            )
                             res_state_slots = len(resource_state_)
                     fmt.echo(
                         "%s with %s table(s) and %s resource state slot(s)"
@@ -223,7 +237,10 @@ def pipeline_command(
                             fmt.bold(failed_job.job_file_info.table_name),
                         )
                     )
-                    fmt.echo("JOB file type: %s" % fmt.bold(failed_job.job_file_info.file_format))
+                    fmt.echo(
+                        "JOB file type: %s"
+                        % fmt.bold(failed_job.job_file_info.file_format)
+                    )
                     fmt.echo("JOB file path: %s" % fmt.bold(failed_job.file_path))
                     if verbosity > 0:
                         fmt.echo(failed_job.asstr(verbosity))
@@ -242,8 +259,8 @@ def pipeline_command(
 
     if operation == "sync":
         if fmt.confirm(
-            "About to drop the local state of the pipeline and reset all the schemas. The"
-            " destination state, data and schemas are left intact. Proceed?",
+            "About to drop the local state of the pipeline and reset all the schemas."
+            " The destination state, data and schemas are left intact. Proceed?",
             default=False,
         ):
             fmt.echo("Dropping local state")
@@ -267,12 +284,15 @@ def pipeline_command(
 
         package_info = p.get_load_package_info(load_id)
         fmt.echo(
-            "Package %s found in %s" % (fmt.bold(load_id), fmt.bold(package_info.package_path))
+            "Package %s found in %s"
+            % (fmt.bold(load_id), fmt.bold(package_info.package_path))
         )
         fmt.echo(package_info.asstr(verbosity))
         if len(package_info.schema_update) > 0:
             if verbosity == 0:
-                print("Add -v option to see schema update. Note that it could be large.")
+                print(
+                    "Add -v option to see schema update. Note that it could be large."
+                )
             else:
                 tables = remove_defaults({"tables": package_info.schema_update})  # type: ignore
                 fmt.echo(fmt.bold("Schema update:"))
@@ -294,7 +314,9 @@ def pipeline_command(
         remove_defaults_ = command_kwargs.get("remove_defaults")
         s = p.default_schema
         if format_ == "json":
-            schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults_), pretty=True)
+            schema_str = json.dumps(
+                s.to_dict(remove_defaults=remove_defaults_), pretty=True
+            )
         else:
             schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
         fmt.echo(schema_str)
@@ -303,8 +325,8 @@ def pipeline_command(
         drop = DropCommand(p, **command_kwargs)
         if drop.is_empty:
             fmt.echo(
-                "Could not select any resources to drop and no resource/source state to reset. Use"
-                " the command below to inspect the pipeline:"
+                "Could not select any resources to drop and no resource/source state to"
+                " reset. Use the command below to inspect the pipeline:"
             )
             fmt.echo(f"dlt pipeline -v {p.pipeline_name} info")
             if len(drop.info["warnings"]):
@@ -320,7 +342,10 @@ def pipeline_command(
                 fmt.bold(p.destination.destination_name),
             )
         )
-        fmt.echo("%s: %s" % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"]))
+        fmt.echo(
+            "%s: %s"
+            % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"])
+        )
         fmt.echo(
             "%s: %s"
             % (
@@ -328,7 +353,9 @@ def pipeline_command(
                 drop.info["resource_names"],
             )
         )
-        fmt.echo("%s: %s" % (fmt.style("Table(s) to drop", fg="green"), drop.info["tables"]))
+        fmt.echo(
+            "%s: %s" % (fmt.style("Table(s) to drop", fg="green"), drop.info["tables"])
+        )
         fmt.echo(
             "%s: %s"
             % (

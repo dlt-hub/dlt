@@ -31,17 +31,28 @@ from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaC
 from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
+from dlt.common.destination.reference import (
+    TLoadJobState,
+    LoadJob,
+    JobClientBase,
+    WithStateSync,
+)
 from dlt.common.data_types import TDataType
 from dlt.common.storages import FileStorage
 
-from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_adapter import (
+    VECTORIZE_HINT,
+    TOKENIZATION_HINT,
+)
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate import capabilities
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
-from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
+from dlt.destinations.impl.weaviate.exceptions import (
+    PropertyNameConflict,
+    WeaviateBatchError,
+)
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -99,9 +110,9 @@ def wrap_weaviate_error(f: TFun) -> TFun:
             if status_ex.status_code == 403:
                 raise DestinationTerminalException(status_ex)
             if status_ex.status_code == 422:
-                if "conflict for property" in str(status_ex) or "none vectorizer module" in str(
+                if "conflict for property" in str(
                     status_ex
-                ):
+                ) or "none vectorizer module" in str(status_ex):
                     raise PropertyNameConflict()
                 raise DestinationTerminalException(status_ex)
             # looks like there are no more terminal exception
@@ -129,7 +140,9 @@ def wrap_batch_error(f: TFun) -> TFun:
                 )
             if "conflict for property" in message:
                 raise PropertyNameConflict()
-            raise DestinationTransientException(f"Batch failed {errors} AND WILL BE RETRIED")
+            raise DestinationTransientException(
+                f"Batch failed {errors} AND WILL BE RETRIED"
+            )
         except Exception:
             raise DestinationTransientException("Batch failed AND WILL BE RETRIED")
 
@@ -188,7 +201,9 @@ class LoadWeaviateJob(LoadJob):
             weaviate_error_retries=weaviate.WeaviateErrorRetryConf(
                 self.client_config.batch_retries
             ),
-            consistency_level=weaviate.ConsistencyLevel[self.client_config.batch_consistency],
+            consistency_level=weaviate.ConsistencyLevel[
+                self.client_config.batch_consistency
+            ],
             num_workers=self.client_config.batch_workers,
             callback=check_batch_result,
         ) as batch:
@@ -202,7 +217,9 @@ class LoadWeaviateJob(LoadJob):
                     if key in data:
                         data[key] = ensure_pendulum_datetime(data[key]).isoformat()
                 if self.unique_identifiers:
-                    uuid = self.generate_uuid(data, self.unique_identifiers, self.class_name)
+                    uuid = self.generate_uuid(
+                        data, self.unique_identifiers, self.class_name
+                    )
                 else:
                     uuid = None
 
@@ -291,7 +308,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def get_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Get the Weaviate class schema for a table."""
         return cast(
-            Dict[str, Any], self.db_client.schema.get(self.make_qualified_class_name(table_name))
+            Dict[str, Any],
+            self.db_client.schema.get(self.make_qualified_class_name(table_name)),
         )
 
     def create_class(
@@ -315,7 +333,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         self.db_client.schema.create_class(updated_schema)
 
-    def create_class_property(self, class_name: str, prop_schema: Dict[str, Any]) -> None:
+    def create_class_property(
+        self, class_name: str, prop_schema: Dict[str, Any]
+    ) -> None:
         """Create a Weaviate class property.
 
         Args:
@@ -350,7 +370,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
         Returns:
             A Weaviate query builder.
         """
-        return self.db_client.query.get(self.make_qualified_class_name(class_name), properties)
+        return self.db_client.query.get(
+            self.make_qualified_class_name(class_name), properties
+        )
 
     def create_object(self, obj: Dict[str, Any], class_name: str) -> None:
         """Create a Weaviate object.
@@ -359,7 +381,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
             obj: The object to create.
             class_name: The name of the class to create the object on.
         """
-        self.db_client.data_object.create(obj, self.make_qualified_class_name(class_name))
+        self.db_client.data_object.create(
+            obj, self.make_qualified_class_name(class_name)
+        )
 
     def drop_storage(self) -> None:
         """Drop the dataset from Weaviate instance.
@@ -428,7 +452,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
         try:
-            schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
+            schema_info = self.get_stored_schema_by_hash(
+                self.schema.stored_version_hash
+            )
         except DestinationUndefinedEntity:
             schema_info = None
         if schema_info is None:
@@ -450,8 +476,13 @@ class WeaviateClient(JobClientBase, WithStateSync):
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
             # TODO: detect columns where vectorization was added or removed and modify it. currently we ignore change of hints
-            new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
-            logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
+            new_columns = self.schema.get_new_table_columns(
+                table_name, existing_columns
+            )
+            logger.info(
+                f"Found {len(new_columns)} updates for {table_name} in"
+                f" {self.schema.name}"
+            )
             if len(new_columns) > 0:
                 if exists:
                     for column in new_columns:
@@ -549,7 +580,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
         except IndexError:
             return None
 
-    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema_by_hash(
+        self, schema_hash: str
+    ) -> Optional[StorageSchemaInfo]:
         try:
             record = self.get_records(
                 self.schema.version_table_name,
@@ -603,7 +636,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
 
         # check if any column requires vectorization
-        if get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT):
+        if get_columns_names_with_prop(
+            self.schema.get_table(table_name), VECTORIZE_HINT
+        ):
             class_schema.update(self._vectorizer_config)
         else:
             class_schema.update(NON_VECTORIZED_CLASS)
@@ -622,7 +657,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
             for column_name, column in self.schema.get_table_columns(table_name).items()
         ]
 
-    def _make_property_schema(self, column_name: str, column: TColumnSchema) -> Dict[str, Any]:
+    def _make_property_schema(
+        self, column_name: str, column: TColumnSchema
+    ) -> Dict[str, Any]:
         extra_kv = {}
 
         vectorizer_name = self._vectorizer_config["vectorizer"]
@@ -646,7 +683,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
             **extra_kv,
         }
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         return LoadWeaviateJob(
             self.schema,
             table,

@@ -38,7 +38,10 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     TABLE_EXPIRATION_HINT,
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
-from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
+from dlt.destinations.impl.bigquery.sql_client import (
+    BigQuerySqlClient,
+    BQ_TERMINAL_REASONS,
+)
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
@@ -108,9 +111,14 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
         super().__init__(file_name)
 
     def state(self) -> TLoadJobState:
-        if not self.bq_load_job.done(retry=self.default_retry, timeout=self.http_timeout):
+        if not self.bq_load_job.done(
+            retry=self.default_retry, timeout=self.http_timeout
+        ):
             return "running"
-        if self.bq_load_job.output_rows is not None and self.bq_load_job.error_result is None:
+        if (
+            self.bq_load_job.output_rows is not None
+            and self.bq_load_job.error_result is None
+        ):
             return "completed"
         reason = self.bq_load_job.error_result.get("reason")
         if reason in BQ_TERMINAL_REASONS:
@@ -157,8 +165,8 @@ class BigQueryMergeJob(SqlMergeJob):
         for_delete: bool,
     ) -> List[str]:
         sql: List[str] = [
-            f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
-            f" s WHERE {clause.format(d='d', s='s')})"
+            f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM"
+            f" {staging_root_table_name} AS s WHERE {clause.format(d='d', s='s')})"
             for clause in key_clauses
         ]
         return sql
@@ -180,7 +188,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
         self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -216,7 +226,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     raise DestinationTransientException(gace) from gace
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
 
         if not job:
@@ -246,7 +258,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def _get_table_update_sql(
-        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
     ) -> List[str]:
         table: Optional[TTableSchema] = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
@@ -256,15 +271,23 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
         ]:
             if len(partition_list) > 1:
-                col_names = [self.capabilities.escape_identifier(c["name"]) for c in partition_list]
+                col_names = [
+                    self.capabilities.escape_identifier(c["name"])
+                    for c in partition_list
+                ]
                 raise DestinationSchemaWillNotUpdate(
-                    canonical_name, col_names, "Partition requested for more than one column"
+                    canonical_name,
+                    col_names,
+                    "Partition requested for more than one column",
                 )
             elif (c := partition_list[0])["data_type"] == "date":
-                sql[0] += f"\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
+                sql[
+                    0
+                ] += f"\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
             elif (c := partition_list[0])["data_type"] == "timestamp":
                 sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+                    f"{sql[0]}\nPARTITION BY"
+                    f" DATE({self.capabilities.escape_identifier(c['name'])})"
                 )
             # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
@@ -273,7 +296,8 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
             elif (c := partition_list[0])["data_type"] == "bigint":
                 sql[0] += (
-                    f"\nPARTITION BY RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
+                    "\nPARTITION BY"
+                    f" RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
@@ -306,7 +330,11 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] += (
                 "\nOPTIONS ("
                 + ", ".join(
-                    [f"{key}={value}" for key, value in table_options.items() if value is not None]
+                    [
+                        f"{key}={value}"
+                        for key, value in table_options.items()
+                        if value is not None
+                    ]
                 )
                 + ")"
             )
@@ -321,12 +349,17 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             if TABLE_DESCRIPTION_HINT not in table:
                 table[TABLE_DESCRIPTION_HINT] = (  # type: ignore[name-defined, typeddict-unknown-key, unused-ignore]
                     get_inherited_table_hint(
-                        self.schema.tables, table_name, TABLE_DESCRIPTION_HINT, allow_none=True
+                        self.schema.tables,
+                        table_name,
+                        TABLE_DESCRIPTION_HINT,
+                        allow_none=True,
                     )
                 )
         return table
 
-    def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, column: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         name = self.capabilities.escape_identifier(column["name"])
         column_def_sql = (
             f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
@@ -345,7 +378,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 retry=self.sql_client._default_retry,
                 timeout=self.config.http_timeout,
             )
-            partition_field = table.time_partitioning.field if table.time_partitioning else None
+            partition_field = (
+                table.time_partitioning.field if table.time_partitioning else None
+            )
             for c in table.schema:
                 schema_c: TColumnSchema = {
                     "name": c.name,
@@ -382,7 +417,8 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             if table_schema_has_type(table, "complex"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Bigquery cannot load into JSON data type from parquet. Use jsonl instead.",
+                    "Bigquery cannot load into JSON data type from parquet. Use jsonl"
+                    " instead.",
                 )
             source_format = bigquery.SourceFormat.PARQUET
             # parquet needs NUMERIC type auto-detection

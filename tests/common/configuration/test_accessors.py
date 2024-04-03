@@ -16,7 +16,9 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentialsWithoutDefaults,
     ConnectionStringCredentials,
 )
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import AnyType, TSecretValue
@@ -33,7 +35,9 @@ def test_accessor_singletons() -> None:
     assert dlt.secrets.value is None
 
 
-def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_getter_accessor(
+    toml_providers: ConfigProvidersContext, environment: Any
+) -> None:
     with pytest.raises(KeyError) as py_ex:
         dlt.config["_unknown"]
     with pytest.raises(ConfigFieldMissingException) as py_ex:
@@ -57,21 +61,41 @@ def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: An
     # get sectioned values
     assert dlt.config["typecheck.str_val"] == "test string"
     assert RESOLVED_TRACES["typecheck.str_val"] == ResolvedValueTrace(
-        "str_val", "test string", None, AnyType, ["typecheck"], ConfigTomlProvider().name, None
+        "str_val",
+        "test string",
+        None,
+        AnyType,
+        ["typecheck"],
+        ConfigTomlProvider().name,
+        None,
     )
 
     environment["DLT__THIS__VALUE"] = "embedded"
     assert dlt.config["dlt.this.value"] == "embedded"
     assert RESOLVED_TRACES["dlt.this.value"] == ResolvedValueTrace(
-        "value", "embedded", None, AnyType, ["dlt", "this"], EnvironProvider().name, None
+        "value",
+        "embedded",
+        None,
+        AnyType,
+        ["dlt", "this"],
+        EnvironProvider().name,
+        None,
     )
     assert dlt.secrets["dlt.this.value"] == "embedded"
     assert RESOLVED_TRACES["dlt.this.value"] == ResolvedValueTrace(
-        "value", "embedded", None, TSecretValue, ["dlt", "this"], EnvironProvider().name, None
+        "value",
+        "embedded",
+        None,
+        TSecretValue,
+        ["dlt", "this"],
+        EnvironProvider().name,
+        None,
     )
 
 
-def test_getter_auto_cast(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_getter_auto_cast(
+    toml_providers: ConfigProvidersContext, environment: Any
+) -> None:
     environment["VALUE"] = "{SET}"
     assert dlt.config["value"] == "{SET}"
     # bool
@@ -123,7 +147,8 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContext, environment: A
     )
     # equivalent
     assert (
-        dlt.secrets["destination.bigquery.client_email"] == "loader@a7513.iam.gserviceaccount.com"
+        dlt.secrets["destination.bigquery.client_email"]
+        == "loader@a7513.iam.gserviceaccount.com"
     )
     assert RESOLVED_TRACES["destination.bigquery.client_email"] == ResolvedValueTrace(
         "client_email",
@@ -136,14 +161,24 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContext, environment: A
     )
 
 
-def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_getter_accessor_typed(
+    toml_providers: ConfigProvidersContext, environment: Any
+) -> None:
     # get a dict as str
-    credentials_str = '{"secret_value":"2137","project_id":"mock-project-id-credentials"}'
+    credentials_str = (
+        '{"secret_value":"2137","project_id":"mock-project-id-credentials"}'
+    )
     # the typed version coerces the value into desired type, in this case "dict" -> "str"
     assert dlt.secrets.get("credentials", str) == credentials_str
     # note that trace keeps original value of "credentials" which was of dictionary type
     assert RESOLVED_TRACES[".credentials"] == ResolvedValueTrace(
-        "credentials", json.loads(credentials_str), None, str, [], SecretsTomlProvider().name, None
+        "credentials",
+        json.loads(credentials_str),
+        None,
+        str,
+        [],
+        SecretsTomlProvider().name,
+        None,
     )
     # unchanged type
     assert isinstance(dlt.secrets.get("credentials"), dict)
@@ -161,7 +196,9 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
         "credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, ConnectionStringCredentials  # type: ignore[arg-type]
     )
     assert c.drivername == "databricks+connector"
-    c2 = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
+    c2 = dlt.secrets.get(
+        "destination.credentials", GcpServiceAccountCredentialsWithoutDefaults
+    )
     assert c2.client_email == "loader@a7513.iam.gserviceaccount.com"
 
 

@@ -31,7 +31,10 @@ from dlt.common.configuration.specs import (
     AzureCredentials,
 )
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
+from dlt.common.storages.configuration import (
+    FileSystemCredentials,
+    FilesystemConfiguration,
+)
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
 
@@ -67,13 +70,21 @@ MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
 # Map of protocol to a filesystem type
 CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]] = {
     "s3": lambda config: cast(AwsCredentials, config.credentials).to_s3fs_credentials(),
-    "adl": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
-    "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "adl": lambda config: cast(
+        AzureCredentials, config.credentials
+    ).to_adlfs_credentials(),
+    "az": lambda config: cast(
+        AzureCredentials, config.credentials
+    ).to_adlfs_credentials(),
     "gcs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
     "gdrive": lambda config: {"credentials": cast(GcpCredentials, config.credentials)},
-    "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
-    "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "abfs": lambda config: cast(
+        AzureCredentials, config.credentials
+    ).to_adlfs_credentials(),
+    "azure": lambda config: cast(
+        AzureCredentials, config.credentials
+    ).to_adlfs_credentials(),
 }
 
 
@@ -94,7 +105,9 @@ def fsspec_filesystem(
     also see filesystem_from_config
     """
     return fsspec_from_config(
-        FilesystemConfiguration(protocol, credentials, kwargs=kwargs, client_kwargs=client_kwargs)
+        FilesystemConfiguration(
+            protocol, credentials, kwargs=kwargs, client_kwargs=client_kwargs
+        )
     )
 
 
@@ -115,7 +128,9 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     if protocol == "gdrive":
         from dlt.common.storages.fsspecs.google_drive import GoogleDriveFileSystem
 
-        register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
+        register_implementation(
+            "gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem"
+        )
 
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
@@ -129,7 +144,9 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     return fs_kwargs
 
 
-def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
+def fsspec_from_config(
+    config: FilesystemConfiguration,
+) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
 
     Authenticates following filesystems:
@@ -210,8 +227,10 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError("""The argument `compression` must have one of the following values:
-                "auto", "enable", "disable".""")
+            raise ValueError(
+                """The argument `compression` must have one of the following values:
+                "auto", "enable", "disable"."""
+            )
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
@@ -227,7 +246,9 @@ class FileItemDict(DictStrAny):
             if "t" not in mode:
                 return bytes_io
             text_kwargs = {
-                k: kwargs.pop(k) for k in ["encoding", "errors", "newline"] if k in kwargs
+                k: kwargs.pop(k)
+                for k in ["encoding", "errors", "newline"]
+                if k in kwargs
             }
             return io.TextIOWrapper(
                 bytes_io,
@@ -256,7 +277,9 @@ def guess_mime_type(file_name: str) -> Sequence[str]:
     type_ = list(mimetypes.guess_type(posixpath.basename(file_name), strict=False))
 
     if not type_[0]:
-        type_[0] = "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
+        type_[0] = "application/" + (
+            posixpath.splitext(file_name)[1][1:] or "octet-stream"
+        )
 
     return type_
 
@@ -278,21 +301,25 @@ def glob_files(
 
     bucket_url_parsed = urlparse(bucket_url)
     # if this is a file path without a scheme
-    if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
+    if not bucket_url_parsed.scheme or (
+        os.path.isabs(bucket_url) and "\\" in bucket_url
+    ):
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
     bucket_url_no_schema = bucket_url_parsed._replace(scheme="", query="").geturl()
     bucket_url_no_schema = (
-        bucket_url_no_schema[2:] if bucket_url_no_schema.startswith("//") else bucket_url_no_schema
+        bucket_url_no_schema[2:]
+        if bucket_url_no_schema.startswith("//")
+        else bucket_url_no_schema
     )
     filter_url = posixpath.join(bucket_url_no_schema, file_glob)
 
     glob_result = fs_client.glob(filter_url, detail=True)
     if isinstance(glob_result, list):
         raise NotImplementedError(
-            "Cannot request details when using fsspec.glob. For adlfs (Azure) please use version"
-            " 2023.9.0 or later"
+            "Cannot request details when using fsspec.glob. For adlfs (Azure) please"
+            " use version 2023.9.0 or later"
         )
 
     for file, md in glob_result.items():

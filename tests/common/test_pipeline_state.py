@@ -57,7 +57,9 @@ def test_get_matching_resources() -> None:
     assert sorted(results) == ["events_a", "events_b"]
 
     # with state context
-    with mock.patch.object(ps, "source_state", autospec=True, return_value=_fake_source_state):
+    with mock.patch.object(
+        ps, "source_state", autospec=True, return_value=_fake_source_state
+    ):
         results = ps._get_matching_resources(pattern, _fake_source_state)
         assert sorted(results) == ["events_a", "events_b"]
 

@@ -42,7 +42,9 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     dbt_vars = {"dbt_schema": schema_name}
 
     # extract postgres creds from env, parse and emit
-    credentials = resolve_configuration(PostgresCredentials(), sections=("destination", "postgres"))
+    credentials = resolve_configuration(
+        PostgresCredentials(), sections=("destination", "postgres")
+    )
     add_config_to_env(credentials, ("dlt",))
 
     repo_path = clone_jaffle_repo(test_storage)
@@ -76,13 +78,17 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     assert results[0] == "jaffle_shop.not_null_orders_amount"
     # run debug, that will fail
     with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "debug", ".", global_args=global_args, package_vars=dbt_vars)
+        run_dbt_command(
+            repo_path, "debug", ".", global_args=global_args, package_vars=dbt_vars
+        )
     # results are bool
     assert dbt_err.value.command == "debug"
 
     # we have no database connectivity so tests will fail
     with pytest.raises(DBTProcessingError) as dbt_err:
-        run_dbt_command(repo_path, "test", ".", global_args=global_args, package_vars=dbt_vars)
+        run_dbt_command(
+            repo_path, "test", ".", global_args=global_args, package_vars=dbt_vars
+        )
     # in that case test results are bool, not list of tests runs
     assert dbt_err.value.command == "test"
 
@@ -101,7 +107,8 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
 
     # copy a correct profile
     shutil.copy(
-        "./tests/helpers/dbt_tests/cases/profiles.yml", os.path.join(repo_path, "profiles.yml")
+        "./tests/helpers/dbt_tests/cases/profiles.yml",
+        os.path.join(repo_path, "profiles.yml"),
     )
 
     results = run_dbt_command(

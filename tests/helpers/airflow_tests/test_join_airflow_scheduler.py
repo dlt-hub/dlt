@@ -56,10 +56,16 @@ def test_date_coercion() -> None:
             assert "Europe/Berlin" in str(state["updated_at"].tz)
             # must have UTC timezone
             assert (
-                state["state"]["initial_value"] == CATCHUP_BEGIN == context["data_interval_start"]
+                state["state"]["initial_value"]
+                == CATCHUP_BEGIN
+                == context["data_interval_start"]
             )
             assert state["state"]["initial_value"].tz == UTC
-            assert state["state"]["last_value"] == CATCHUP_BEGIN == context["data_interval_start"]
+            assert (
+                state["state"]["last_value"]
+                == CATCHUP_BEGIN
+                == context["data_interval_start"]
+            )
             assert state["state"]["last_value"].tz == UTC
             # end date
             assert r.incremental._incremental.end_value == context["data_interval_end"]
@@ -81,7 +87,9 @@ def test_date_coercion() -> None:
             state = list(r)[0]
             # must have UTC timezone
             assert (
-                state["state"]["initial_value"] == CATCHUP_BEGIN == context["data_interval_start"]
+                state["state"]["initial_value"]
+                == CATCHUP_BEGIN
+                == context["data_interval_start"]
             )
             assert state["state"]["initial_value"].tz == UTC
 
@@ -111,13 +119,20 @@ def test_date_coercion() -> None:
                     "updated_at", allow_external_schedulers=True
                 )
             ):
-                yield {"updated_at": CATCHUP_BEGIN.int_timestamp, "state": updated_at.get_state()}
+                yield {
+                    "updated_at": CATCHUP_BEGIN.int_timestamp,
+                    "state": updated_at.get_state(),
+                }
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == context["data_interval_start"].int_timestamp
             assert (
-                r.incremental._incremental.end_value == context["data_interval_end"].int_timestamp
+                state["state"]["initial_value"]
+                == context["data_interval_start"].int_timestamp
+            )
+            assert (
+                r.incremental._incremental.end_value
+                == context["data_interval_end"].int_timestamp
             )
 
             # coerce to float
@@ -127,12 +142,21 @@ def test_date_coercion() -> None:
                     "updated_at", allow_external_schedulers=True
                 )
             ):
-                yield {"updated_at": CATCHUP_BEGIN.timestamp(), "state": updated_at.get_state()}
+                yield {
+                    "updated_at": CATCHUP_BEGIN.timestamp(),
+                    "state": updated_at.get_state(),
+                }
 
             r = incremental_datetime()
             state = list(r)[0]
-            assert state["state"]["initial_value"] == context["data_interval_start"].timestamp()
-            assert r.incremental._incremental.end_value == context["data_interval_end"].timestamp()
+            assert (
+                state["state"]["initial_value"]
+                == context["data_interval_start"].timestamp()
+            )
+            assert (
+                r.incremental._incremental.end_value
+                == context["data_interval_end"].timestamp()
+            )
 
             # coerce to str
             @dlt.resource()  # type: ignore[no-redef]
@@ -341,7 +365,12 @@ def test_scheduler_pipeline_state() -> None:
     dag_def.test(execution_date=CATCHUP_BEGIN)
     assert "sources" not in pipeline.state
 
-    @dag(schedule=None, start_date=CATCHUP_BEGIN, catchup=False, default_args=default_args)
+    @dag(
+        schedule=None,
+        start_date=CATCHUP_BEGIN,
+        catchup=False,
+        default_args=default_args,
+    )
     def dag_no_schedule():
         @task
         def unscheduled() -> None:

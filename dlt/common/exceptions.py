@@ -34,7 +34,9 @@ class DltException(Exception):
         return {
             k: v
             for k, v in vars(self).items()
-            if not k.startswith("_") and not callable(v) and not hasattr(self.__class__, k)
+            if not k.startswith("_")
+            and not callable(v)
+            and not hasattr(self.__class__, k)
         }
 
 
@@ -42,13 +44,15 @@ class UnsupportedProcessStartMethodException(DltException):
     def __init__(self, method: str) -> None:
         self.method = method
         super().__init__(
-            f"Process pool supports only fork start method, {method} not supported. Switch the pool"
-            " type to threading"
+            f"Process pool supports only fork start method, {method} not supported."
+            " Switch the pool type to threading"
         )
 
 
 class CannotInstallDependencies(DltException):
-    def __init__(self, dependencies: Sequence[str], interpreter: str, output: AnyStr) -> None:
+    def __init__(
+        self, dependencies: Sequence[str], interpreter: str, output: AnyStr
+    ) -> None:
         self.dependencies = dependencies
         self.interpreter = interpreter
         if isinstance(output, bytes):
@@ -56,8 +60,8 @@ class CannotInstallDependencies(DltException):
         else:
             str_output = output
         super().__init__(
-            f"Cannot install dependencies {', '.join(dependencies)} with {interpreter} and"
-            f" pip:\n{str_output}\n"
+            f"Cannot install dependencies {', '.join(dependencies)} with"
+            f" {interpreter} and pip:\n{str_output}\n"
         )
 
 
@@ -94,7 +98,9 @@ class SignalReceivedException(KeyboardInterrupt, TerminalException):
 
 
 class DictValidationException(DltException):
-    def __init__(self, msg: str, path: str, field: str = None, value: Any = None) -> None:
+    def __init__(
+        self, msg: str, path: str, field: str = None, value: Any = None
+    ) -> None:
         self.path = path
         self.field = field
         self.value = value
@@ -104,13 +110,18 @@ class DictValidationException(DltException):
 class ArgumentsOverloadException(DltException):
     def __init__(self, msg: str, func_name: str, *args: str) -> None:
         self.func_name = func_name
-        msg = f"Arguments combination not allowed when calling function {func_name}: {msg}"
+        msg = (
+            f"Arguments combination not allowed when calling function {func_name}:"
+            f" {msg}"
+        )
         msg = "\n".join((msg, *args))
         super().__init__(msg)
 
 
 class MissingDependencyException(DltException):
-    def __init__(self, caller: str, dependencies: Sequence[str], appendix: str = "") -> None:
+    def __init__(
+        self, caller: str, dependencies: Sequence[str], appendix: str = ""
+    ) -> None:
         self.caller = caller
         self.dependencies = dependencies
         super().__init__(self._get_msg(appendix))
@@ -144,17 +155,17 @@ class PipelineStateNotAvailable(PipelineException):
     def __init__(self, source_state_key: Optional[str] = None) -> None:
         if source_state_key:
             msg = (
-                f"The source {source_state_key} requested the access to pipeline state but no"
-                " pipeline is active right now."
+                f"The source {source_state_key} requested the access to pipeline state"
+                " but no pipeline is active right now."
             )
         else:
             msg = (
-                "The resource you called requested the access to pipeline state but no pipeline is"
-                " active right now."
+                "The resource you called requested the access to pipeline state but no"
+                " pipeline is active right now."
             )
         msg += (
-            " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource decorated"
-            " function."
+            " Call dlt.pipeline(...) before you call the @dlt.source or  @dlt.resource"
+            " decorated function."
         )
         self.source_state_key = source_state_key
         super().__init__(None, msg)
@@ -164,16 +175,17 @@ class ResourceNameNotAvailable(PipelineException):
     def __init__(self) -> None:
         super().__init__(
             None,
-            "A resource state was requested but no active extract pipe context was found. Resource"
-            " state may be only requested from @dlt.resource decorated function or with explicit"
-            " resource name.",
+            "A resource state was requested but no active extract pipe context was"
+            " found. Resource state may be only requested from @dlt.resource decorated"
+            " function or with explicit resource name.",
         )
 
 
 class SourceSectionNotAvailable(PipelineException):
     def __init__(self) -> None:
         msg = (
-            "Access to state was requested without source section active. State should be requested"
-            " from within the @dlt.source and @dlt.resource decorated function."
+            "Access to state was requested without source section active. State should"
+            " be requested from within the @dlt.source and @dlt.resource decorated"
+            " function."
         )
         super().__init__(None, msg)

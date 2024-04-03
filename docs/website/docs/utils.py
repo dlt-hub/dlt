@@ -19,7 +19,8 @@ def parse_toml_file(filename: str) -> None:
                     tomlkit.loads(toml_snippet)
                 except Exception as e:
                     print(
-                        f"Error while testing snippet between: {current_marker} and {line.strip()}"
+                        f"Error while testing snippet between: {current_marker} and"
+                        f" {line.strip()}"
                     )
                     raise e
                 current_lines = []

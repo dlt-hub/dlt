@@ -6,22 +6,34 @@ from dlt.common.schema import TSchemaTables
 from dlt.common.storages import PackageStorage, LoadStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathException
 
-from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
+from tests.common.storages.utils import (
+    start_loading_file,
+    assert_package_info,
+    load_storage,
+)
 from tests.utils import write_version, autouse_test_storage
 
 
 def test_complete_successful_package(load_storage: LoadStorage) -> None:
     # should delete package in full
     load_storage.config.delete_completed_jobs = True
-    load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
-    assert load_storage.storage.has_folder(load_storage.get_normalized_package_path(load_id))
+    load_id, file_name = start_loading_file(
+        load_storage, [{"content": "a"}, {"content": "b"}]
+    )
+    assert load_storage.storage.has_folder(
+        load_storage.get_normalized_package_path(load_id)
+    )
     load_storage.normalized_packages.complete_job(load_id, file_name)
     assert_package_info(load_storage, load_id, "normalized", "completed_jobs")
     load_storage.complete_load_package(load_id, False)
     # deleted from loading
-    assert not load_storage.storage.has_folder(load_storage.get_normalized_package_path(load_id))
+    assert not load_storage.storage.has_folder(
+        load_storage.get_normalized_package_path(load_id)
+    )
     # has package
-    assert load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
+    assert load_storage.storage.has_folder(
+        load_storage.get_loaded_package_path(load_id)
+    )
     assert load_storage.storage.has_file(
         os.path.join(
             load_storage.get_loaded_package_path(load_id),
@@ -36,16 +48,24 @@ def test_complete_successful_package(load_storage: LoadStorage) -> None:
     assert_package_info(load_storage, load_id, "loaded", "completed_jobs", jobs_count=0)
     # delete completed package
     load_storage.delete_loaded_package(load_id)
-    assert not load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
+    assert not load_storage.storage.has_folder(
+        load_storage.get_loaded_package_path(load_id)
+    )
     # do not delete completed jobs
     load_storage.config.delete_completed_jobs = False
-    load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
+    load_id, file_name = start_loading_file(
+        load_storage, [{"content": "a"}, {"content": "b"}]
+    )
     load_storage.normalized_packages.complete_job(load_id, file_name)
     load_storage.complete_load_package(load_id, False)
     # deleted from loading
-    assert not load_storage.storage.has_folder(load_storage.get_normalized_package_path(load_id))
+    assert not load_storage.storage.has_folder(
+        load_storage.get_normalized_package_path(load_id)
+    )
     # has load preserved
-    assert load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
+    assert load_storage.storage.has_folder(
+        load_storage.get_loaded_package_path(load_id)
+    )
     assert load_storage.storage.has_file(
         os.path.join(
             load_storage.get_loaded_package_path(load_id),
@@ -57,11 +77,15 @@ def test_complete_successful_package(load_storage: LoadStorage) -> None:
         load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
     )
     load_storage.delete_loaded_package(load_id)
-    assert not load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
+    assert not load_storage.storage.has_folder(
+        load_storage.get_loaded_package_path(load_id)
+    )
 
 
 def test_wipe_normalized_packages(load_storage: LoadStorage) -> None:
-    load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
+    load_id, file_name = start_loading_file(
+        load_storage, [{"content": "a"}, {"content": "b"}]
+    )
     load_storage.wipe_normalized_packages()
     assert not load_storage.storage.has_folder(load_storage.NORMALIZED_FOLDER)
 
@@ -69,15 +93,23 @@ def test_wipe_normalized_packages(load_storage: LoadStorage) -> None:
 def test_complete_package_failed_jobs(load_storage: LoadStorage) -> None:
     # loads with failed jobs are always persisted
     load_storage.config.delete_completed_jobs = True
-    load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
-    assert load_storage.storage.has_folder(load_storage.get_normalized_package_path(load_id))
+    load_id, file_name = start_loading_file(
+        load_storage, [{"content": "a"}, {"content": "b"}]
+    )
+    assert load_storage.storage.has_folder(
+        load_storage.get_normalized_package_path(load_id)
+    )
     load_storage.normalized_packages.fail_job(load_id, file_name, "EXCEPTION")
     assert_package_info(load_storage, load_id, "normalized", "failed_jobs")
     load_storage.complete_load_package(load_id, False)
     # deleted from loading
-    assert not load_storage.storage.has_folder(load_storage.get_normalized_package_path(load_id))
+    assert not load_storage.storage.has_folder(
+        load_storage.get_normalized_package_path(load_id)
+    )
     # present in completed loads folder
-    assert load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
+    assert load_storage.storage.has_folder(
+        load_storage.get_loaded_package_path(load_id)
+    )
     # has completed loads
     assert load_storage.loaded_packages.storage.has_folder(
         load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
@@ -90,9 +122,9 @@ def test_complete_package_failed_jobs(load_storage: LoadStorage) -> None:
     assert len(failed_files) == 2
     assert load_storage.loaded_packages.storage.has_file(failed_files[0])
     failed_info = load_storage.list_failed_jobs_in_loaded_package(load_id)
-    assert failed_info[0].file_path == load_storage.loaded_packages.storage.make_full_path(
-        failed_files[0]
-    )
+    assert failed_info[
+        0
+    ].file_path == load_storage.loaded_packages.storage.make_full_path(failed_files[0])
     assert failed_info[0].failed_message == "EXCEPTION"
     assert failed_info[0].job_file_info.table_name == "mock_table"
     # a few stats
@@ -109,8 +141,12 @@ def test_complete_package_failed_jobs(load_storage: LoadStorage) -> None:
 def test_abort_package(load_storage: LoadStorage) -> None:
     # loads with failed jobs are always persisted
     load_storage.config.delete_completed_jobs = True
-    load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
-    assert load_storage.storage.has_folder(load_storage.get_normalized_package_path(load_id))
+    load_id, file_name = start_loading_file(
+        load_storage, [{"content": "a"}, {"content": "b"}]
+    )
+    assert load_storage.storage.has_folder(
+        load_storage.get_normalized_package_path(load_id)
+    )
     load_storage.normalized_packages.fail_job(load_id, file_name, "EXCEPTION")
     assert_package_info(load_storage, load_id, "normalized", "failed_jobs")
     load_storage.complete_load_package(load_id, True)
@@ -140,7 +176,9 @@ def test_process_schema_update(load_storage: LoadStorage) -> None:
     assert load_storage.storage.has_file(applied_update_path) is True
     assert json.loads(load_storage.storage.load(applied_update_path)) == applied_update
     # verify info package
-    package_info = assert_package_info(load_storage, load_id, "normalized", "started_jobs")
+    package_info = assert_package_info(
+        load_storage, load_id, "normalized", "started_jobs"
+    )
     # applied update is present
     assert package_info.schema_update == applied_update
     # should be in dict

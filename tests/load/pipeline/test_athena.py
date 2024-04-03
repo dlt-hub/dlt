@@ -18,14 +18,19 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
     ids=lambda x: x.name,
 )
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline(
+        "athena_" + uniq_id(), full_refresh=True
+    )
 
     @dlt.resource(name="items", write_disposition="append")
     def items():
         yield {
             "id": 1,
             "name": "item",
-            "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
+            "sub_items": [
+                {"id": 101, "name": "sub item 101"},
+                {"id": 101, "name": "sub item 102"},
+            ],
         }
 
     pipeline.run(items, loader_file_format=destination_config.file_format)
@@ -76,13 +81,17 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
 def test_athena_all_datatypes_and_timestamps(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline(
+        "athena_" + uniq_id(), full_refresh=True
+    )
 
     # TIME is not supported
     column_schemas, data_types = table_update_and_row(exclude_types=["time"])
 
     # apply the exact columns definitions so we process complex and wei types correctly!
-    @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
+    @dlt.resource(
+        table_name="data_types", write_disposition="append", columns=column_schemas
+    )
     def my_resource() -> Iterator[Any]:
         nonlocal data_types
         yield [data_types] * 10
@@ -116,7 +125,8 @@ def test_athena_all_datatypes_and_timestamps(
         assert len(db_rows) == 10
         # no rows - TIMESTAMP(6) not supported
         db_rows = sql_client.execute_sql(
-            "SELECT * FROM data_types WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176145'"
+            "SELECT * FROM data_types WHERE col4 = TIMESTAMP '2022-05-23"
+            " 13:26:45.176145'"
         )
         assert len(db_rows) == 0
         # use pendulum
@@ -146,7 +156,9 @@ def test_athena_all_datatypes_and_timestamps(
         assert len(db_rows) == 0
 
         # check date
-        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col10 = DATE '2023-02-27'")
+        db_rows = sql_client.execute_sql(
+            "SELECT * FROM data_types WHERE col10 = DATE '2023-02-27'"
+        )
         assert len(db_rows) == 10
         db_rows = sql_client.execute_sql(
             "SELECT * FROM data_types WHERE col10 = %s", pendulum.date(2023, 2, 27)
@@ -163,13 +175,19 @@ def test_athena_all_datatypes_and_timestamps(
     destinations_configs(default_sql_configs=True, subset=["athena"]),
     ids=lambda x: x.name,
 )
-def test_athena_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+def test_athena_blocks_time_column(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "athena_" + uniq_id(), full_refresh=True
+    )
 
     column_schemas, data_types = table_update_and_row()
 
     # apply the exact columns definitions so we process complex and wei types correctly!
-    @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
+    @dlt.resource(
+        table_name="data_types", write_disposition="append", columns=column_schemas
+    )
     def my_resource() -> Iterator[Any]:
         nonlocal data_types
         yield [data_types] * 10

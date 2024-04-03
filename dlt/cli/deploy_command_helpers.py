@@ -84,7 +84,8 @@ class BaseDeployment(abc.ABC):
         # load a pipeline script and extract full_refresh and pipelines_dir args
         self.pipeline_script = self.repo_storage.load(self.repo_pipeline_script_path)
         fmt.echo(
-            "Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location)
+            "Looking up the deployment template scripts in %s...\n"
+            % fmt.bold(self.repo_location)
         )
         self.template_storage = git.get_fresh_repo_files(
             self.repo_location, get_dlt_repos_dir(), branch=self.branch
@@ -97,14 +98,17 @@ class BaseDeployment(abc.ABC):
             if "github.com" not in origin:
                 raise CliCommandException(
                     "deploy",
-                    f"Your current repository origin is not set to github but to {origin}.\nYou"
-                    " must change it to be able to run the pipelines with github actions:"
+                    "Your current repository origin is not set to github but to"
+                    f" {origin}.\nYou"
+                    " must change it to be able to run the pipelines with github"
+                    " actions:"
                     " https://docs.github.com/en/get-started/getting-started-with-git/managing-remote-repositories",
                 )
         except ValueError:
             raise CliCommandException(
                 "deploy",
-                "Your current repository has no origin set. Please set it up to be able to run the"
+                "Your current repository has no origin set. Please set it up to be able"
+                " to run the"
                 " pipelines with github actions:"
                 " https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github",
             )
@@ -127,13 +131,17 @@ class BaseDeployment(abc.ABC):
             elif len(uniq_possible_pipelines) > 1:
                 choices = list(uniq_possible_pipelines.keys())
                 choices_str = "".join([str(i + 1) for i in range(len(choices))])
-                choices_selection = [f"{idx+1}-{name}" for idx, name in enumerate(choices)]
+                choices_selection = [
+                    f"{idx+1}-{name}" for idx, name in enumerate(choices)
+                ]
                 sel = fmt.prompt(
                     "Several pipelines found in script, please select one: "
                     + ", ".join(choices_selection),
                     choices=choices_str,
                 )
-                pipeline_name, pipelines_dir = uniq_possible_pipelines[choices[int(sel) - 1]]
+                pipeline_name, pipelines_dir = uniq_possible_pipelines[
+                    choices[int(sel) - 1]
+                ]
 
             if pipelines_dir:
                 self.pipelines_dir = os.path.abspath(pipelines_dir)
@@ -146,11 +154,13 @@ class BaseDeployment(abc.ABC):
                 if not self.pipeline_name:
                     self.pipeline_name = dlt.config.get("pipeline_name")
                     if not self.pipeline_name:
-                        self.pipeline_name = get_default_pipeline_name(self.pipeline_script_path)
+                        self.pipeline_name = get_default_pipeline_name(
+                            self.pipeline_script_path
+                        )
                         fmt.warning(
-                            f"Using default pipeline name {self.pipeline_name}. The pipeline name"
-                            " is not passed as argument to dlt.pipeline nor configured via config"
-                            " provides ie. config.toml"
+                            f"Using default pipeline name {self.pipeline_name}. The"
+                            " pipeline name is not passed as argument to dlt.pipeline"
+                            " nor configured via config provides ie. config.toml"
                         )
                 # fmt.echo("Generating deployment for pipeline %s" % fmt.bold(self.pipeline_name))
 
@@ -231,34 +241,40 @@ def get_state_and_trace(pipeline: Pipeline) -> Tuple[TPipelineState, PipelineTra
     trace = pipeline.last_trace
     if trace is None or len(trace.steps) == 0:
         raise PipelineWasNotRun(
-            "Pipeline run trace could not be found. Please run the pipeline at least once locally."
+            "Pipeline run trace could not be found. Please run the pipeline at least"
+            " once locally."
         )
     last_step = trace.steps[-1]
     if last_step.step_exception is not None:
         raise PipelineWasNotRun(
-            "The last pipeline run ended with error. Please make sure that pipeline runs correctly"
-            f" before deployment.\n{last_step.step_exception}"
+            "The last pipeline run ended with error. Please make sure that pipeline"
+            f" runs correctly before deployment.\n{last_step.step_exception}"
         )
     if not isinstance(last_step.step_info, LoadInfo):
         raise PipelineWasNotRun(
-            "The last pipeline run did not reach the load step. Please run the pipeline locally"
-            " until it loads data into destination."
+            "The last pipeline run did not reach the load step. Please run the pipeline"
+            " locally until it loads data into destination."
         )
 
     return pipeline.state, trace
 
 
-def get_visitors(pipeline_script: str, pipeline_script_path: str) -> PipelineScriptVisitor:
+def get_visitors(
+    pipeline_script: str, pipeline_script_path: str
+) -> PipelineScriptVisitor:
     visitor = utils.parse_init_script("deploy", pipeline_script, pipeline_script_path)
     if n.RUN not in visitor.known_calls:
         raise CliCommandException(
             "deploy",
-            f"The pipeline script {pipeline_script_path} does not seem to run the pipeline.",
+            f"The pipeline script {pipeline_script_path} does not seem to run the"
+            " pipeline.",
         )
     return visitor
 
 
-def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optional[str]]]:
+def parse_pipeline_info(
+    visitor: PipelineScriptVisitor,
+) -> List[Tuple[str, Optional[str]]]:
     pipelines: List[Tuple[str, Optional[str]]] = []
     if n.PIPELINE in visitor.known_calls:
         for call_args in visitor.known_calls[n.PIPELINE]:
@@ -268,17 +284,19 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 f_r_value = evaluate_node_literal(f_r_node)
                 if f_r_value is None:
                     fmt.warning(
-                        "The value of `full_refresh` in call to `dlt.pipeline` cannot be"
-                        f" determined from {unparse(f_r_node).strip()}. We assume that you know"
-                        " what you are doing :)"
+                        "The value of `full_refresh` in call to `dlt.pipeline` cannot"
+                        f" be determined from {unparse(f_r_node).strip()}. We assume"
+                        " that you know what you are doing :)"
                     )
                 if f_r_value is True:
                     if fmt.confirm(
-                        "The value of 'full_refresh' is set to True. Do you want to abort to set it"
-                        " to False?",
+                        "The value of 'full_refresh' is set to True. Do you want to"
+                        " abort to set it to False?",
                         default=True,
                     ):
-                        raise CliCommandException("deploy", "Please set the full_refresh to False")
+                        raise CliCommandException(
+                            "deploy", "Please set the full_refresh to False"
+                        )
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
@@ -286,9 +304,10 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 if pipelines_dir is None:
                     raise CliCommandException(
                         "deploy",
-                        "The value of 'pipelines_dir' argument in call to `dlt_pipeline` cannot be"
-                        f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
-                        " be found. Pass it directly with --pipelines-dir option.",
+                        "The value of 'pipelines_dir' argument in call to"
+                        " `dlt_pipeline` cannot be determined from"
+                        f" {unparse(p_d_node).strip()}. Pipeline working dir will be"
+                        " found. Pass it directly with --pipelines-dir option.",
                     )
 
             p_n_node = call_args.arguments.get("pipeline_name")
@@ -297,9 +316,10 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 if pipeline_name is None:
                     raise CliCommandException(
                         "deploy",
-                        "The value of 'pipeline_name' argument in call to `dlt_pipeline` cannot be"
-                        f" determined from {unparse(p_d_node).strip()}. Pipeline working dir will"
-                        " be found. Pass it directly with --pipeline-name option.",
+                        "The value of 'pipeline_name' argument in call to"
+                        " `dlt_pipeline` cannot be determined from"
+                        f" {unparse(p_d_node).strip()}. Pipeline working dir will be"
+                        " found. Pass it directly with --pipeline-name option.",
                     )
             pipelines.append((pipeline_name, pipelines_dir))
 
@@ -309,7 +329,9 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
 def str_representer(dumper: yaml.Dumper, data: str) -> yaml.ScalarNode:
     # format multiline strings as blocks with the exception of placeholders
     # that will be expanded as yaml
-    if len(data.splitlines()) > 1 and "{{ toYaml" not in data:  # check for multiline string
+    if (
+        len(data.splitlines()) > 1 and "{{ toYaml" not in data
+    ):  # check for multiline string
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
@@ -327,7 +349,9 @@ def serialize_templated_yaml(tree: StrAny) -> str:
             tree, allow_unicode=True, default_flow_style=False, sort_keys=False
         )
         # removes apostrophes around the template
-        serialized = re.sub(r"'([\s\n]*?\${{.+?}})'", r"\1", serialized, flags=re.DOTALL)
+        serialized = re.sub(
+            r"'([\s\n]*?\${{.+?}})'", r"\1", serialized, flags=re.DOTALL
+        )
         # print(serialized)
         # fix the new lines in templates ending }}
         serialized = re.sub(r"(\${{.+)\n.+(}})", r"\1 \2", serialized)
@@ -336,7 +360,9 @@ def serialize_templated_yaml(tree: StrAny) -> str:
         yaml.add_representer(str, old_representer)
 
 
-def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_name: str) -> str:
+def generate_pip_freeze(
+    requirements_blacklist: List[str], requirements_file_name: str
+) -> str:
     pkgs = pipdeptree.get_installed_distributions(local_only=True, user_only=False)
 
     # construct graph with all packages
@@ -346,8 +372,12 @@ def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_nam
     nodes = [p for p in tree.keys() if p.key not in branch_keys]
 
     # compute excludes to compute includes as set difference
-    excludes = set(req.strip() for req in requirements_blacklist if not req.strip().startswith("#"))
-    includes = set(node.project_name for node in nodes if node.project_name not in excludes)
+    excludes = set(
+        req.strip() for req in requirements_blacklist if not req.strip().startswith("#")
+    )
+    includes = set(
+        node.project_name for node in nodes if node.project_name not in excludes
+    )
 
     # prepare new filtered DAG
     tree = tree.sort()

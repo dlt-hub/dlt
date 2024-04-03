@@ -7,7 +7,9 @@ from airflow.configuration import conf
 from airflow.models.variable import Variable
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
 

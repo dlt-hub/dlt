@@ -294,7 +294,9 @@ def test_call_clone_separate_pipe() -> None:
     # create two resource instances and extract in single ad hoc resource
     data1 = some_data("state1")
     data1._pipe.name = "state1_data"
-    dlt.pipeline(full_refresh=True).extract([data1, some_data("state2")], schema=Schema("default"))
+    dlt.pipeline(full_refresh=True).extract(
+        [data1, some_data("state2")], schema=Schema("default")
+    )
     # both should be extracted. what we test here is the combination of binding the resource by calling it that clones the internal pipe
     # and then creating a source with both clones. if we keep same pipe id when cloning on call, a single pipe would be created shared by two resources
     assert all_yields == ["state1", "state2"]
@@ -346,7 +348,12 @@ def test_transformer_preliminary_step() -> None:
     # filter out small caps and insert this before the head
     tx_stage.add_filter(lambda letter: letter.isupper(), 0)
     # be got filtered out before duplication
-    assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ["A", "A", "C", "C"]
+    assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == [
+        "A",
+        "A",
+        "C",
+        "C",
+    ]
 
     # filter after duplication
     tx_stage = dlt.transformer()(yield_twice)()
@@ -766,7 +773,11 @@ def test_add_transform_steps() -> None:
 
 
 def test_add_transform_steps_pipe() -> None:
-    r = dlt.resource([1, 2, 3], name="all") | (lambda i: str(i) * i) | (lambda i: (yield from i))
+    r = (
+        dlt.resource([1, 2, 3], name="all")
+        | (lambda i: str(i) * i)
+        | (lambda i: (yield from i))
+    )
     assert list(r) == ["1", "2", "2", "3", "3", "3"]
 
 
@@ -1243,7 +1254,13 @@ def test_apply_hints() -> None:
 
     empty_r = empty()
     # check defaults
-    assert empty_r.name == empty.name == empty_r.table_name == empty.table_name == "empty_gen"
+    assert (
+        empty_r.name
+        == empty.name
+        == empty_r.table_name
+        == empty.table_name
+        == "empty_gen"
+    )
     # assert empty_r._table_schema_template is None
     assert empty_r.compute_table_schema() == empty_table_schema
     assert empty_r.write_disposition == "append"
@@ -1271,7 +1288,11 @@ def test_apply_hints() -> None:
         "nullable": False,
         "primary_key": True,
     }
-    assert table["columns"]["b"] == {"name": "b", "nullable": False, "primary_key": True}
+    assert table["columns"]["b"] == {
+        "name": "b",
+        "nullable": False,
+        "primary_key": True,
+    }
     assert table["columns"]["c"] == {"merge_key": True, "name": "c", "nullable": False}
     assert table["name"] == "table"
     assert table["parent"] == "parent"
@@ -1309,7 +1330,11 @@ def test_apply_hints() -> None:
         merge_key="tags",
     )
     # primary key not set here
-    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
+    assert empty_r.columns["tags"] == {
+        "data_type": "complex",
+        "name": "tags",
+        "primary_key": False,
+    }
     # only in the computed table
     assert empty_r.compute_table_schema()["columns"]["tags"] == {
         "data_type": "complex",
@@ -1327,10 +1352,14 @@ def test_apply_dynamic_hints() -> None:
 
     empty_r = empty()
     with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"], write_disposition=None)
+        empty_r.apply_hints(
+            parent_table_name=lambda ev: ev["p"], write_disposition=None
+        )
 
     empty_r.apply_hints(
-        table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"], write_disposition=None
+        table_name=lambda ev: ev["t"],
+        parent_table_name=lambda ev: ev["p"],
+        write_disposition=None,
     )
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
@@ -1342,7 +1371,9 @@ def test_apply_dynamic_hints() -> None:
     assert table["parent"] == "parent"
 
     # try write disposition and primary key
-    empty_r.apply_hints(primary_key=lambda ev: ev["pk"], write_disposition=lambda ev: ev["wd"])
+    empty_r.apply_hints(
+        primary_key=lambda ev: ev["pk"], write_disposition=lambda ev: ev["wd"]
+    )
     table = empty_r.compute_table_schema(
         {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip"}
     )
@@ -1358,7 +1389,13 @@ def test_apply_dynamic_hints() -> None:
     # dynamic columns
     empty_r.apply_hints(columns=lambda ev: ev["c"])
     table = empty_r.compute_table_schema(
-        {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]}
+        {
+            "t": "table",
+            "p": "parent",
+            "pk": ["a", "b"],
+            "wd": "skip",
+            "c": [{"name": "tags"}],
+        }
     )
     assert table["columns"]["tags"] == {"name": "tags"}
 
@@ -1374,11 +1411,15 @@ def test_apply_hints_table_variants() -> None:
         empty.apply_hints(write_disposition="append", create_table_variant=True)
     with pytest.raises(ValueError):
         empty.apply_hints(
-            table_name=lambda ev: ev["t"], write_disposition="append", create_table_variant=True
+            table_name=lambda ev: ev["t"],
+            write_disposition="append",
+            create_table_variant=True,
         )
 
     # table a with replace
-    empty.apply_hints(table_name="table_a", write_disposition="replace", create_table_variant=True)
+    empty.apply_hints(
+        table_name="table_a", write_disposition="replace", create_table_variant=True
+    )
     table_a = empty.compute_table_schema(meta=TableNameMeta("table_a"))
     assert table_a["name"] == "table_a"
     assert table_a["write_disposition"] == "replace"
@@ -1394,14 +1435,18 @@ def test_apply_hints_table_variants() -> None:
         incremental=dlt.sources.incremental(cursor_path="x"),
         columns=[{"name": "id", "data_type": "bigint"}],
     )
-    empty.apply_hints(table_name="table_b", write_disposition="merge", create_table_variant=True)
+    empty.apply_hints(
+        table_name="table_b", write_disposition="merge", create_table_variant=True
+    )
     table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
     assert table_b["name"] == "table_b"
     assert table_b["write_disposition"] == "merge"
     assert len(table_b["columns"]) == 1
     assert table_b["columns"]["id"]["primary_key"] is True
     # overwrite table_b, remove column def and primary_key
-    empty.apply_hints(table_name="table_b", columns=[], primary_key=(), create_table_variant=True)
+    empty.apply_hints(
+        table_name="table_b", columns=[], primary_key=(), create_table_variant=True
+    )
     table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
     assert table_b["name"] == "table_b"
     assert table_b["write_disposition"] == "merge"
@@ -1410,7 +1455,9 @@ def test_apply_hints_table_variants() -> None:
     # dyn hints not allowed
     with pytest.raises(InconsistentTableTemplate):
         empty.apply_hints(
-            table_name="table_b", write_disposition=lambda ev: ev["wd"], create_table_variant=True
+            table_name="table_b",
+            write_disposition=lambda ev: ev["wd"],
+            create_table_variant=True,
         )
 
 
@@ -1448,7 +1495,10 @@ def test_selected_pipes_with_duplicates():
     source = DltSource(
         Schema("dupes"),
         "module",
-        [DltResource.from_data(input_gen), DltResource.from_data(input_gen).with_name("gen_2")],
+        [
+            DltResource.from_data(input_gen),
+            DltResource.from_data(input_gen).with_name("gen_2"),
+        ],
     )
     assert list(source) == [1, 2, 3, 1, 2, 3]
 

@@ -21,10 +21,14 @@ def test_py_arrow_to_table_schema_columns():
     caps = DestinationCapabilitiesContext.generic_capabilities()
     # The arrow schema will add precision
     dlt_schema["col4"]["precision"] = caps.timestamp_precision
-    dlt_schema["col6"]["precision"], dlt_schema["col6"]["scale"] = caps.decimal_precision
+    dlt_schema["col6"]["precision"], dlt_schema["col6"]["scale"] = (
+        caps.decimal_precision
+    )
     dlt_schema["col11"]["precision"] = caps.timestamp_precision
     dlt_schema["col4_null"]["precision"] = caps.timestamp_precision
-    dlt_schema["col6_null"]["precision"], dlt_schema["col6_null"]["scale"] = caps.decimal_precision
+    dlt_schema["col6_null"]["precision"], dlt_schema["col6_null"]["scale"] = (
+        caps.decimal_precision
+    )
     dlt_schema["col11_null"]["precision"] = caps.timestamp_precision
 
     # Ignoring wei as we can't distinguish from decimal
@@ -63,9 +67,9 @@ def test_to_arrow_scalar() -> None:
     naive_dt = get_py_arrow_timestamp(6, tz=None)
     # print(naive_dt)
     # naive datetimes are converted as UTC when time aware python objects are used
-    assert to_arrow_scalar(datetime(2021, 1, 1, 5, 2, 32), naive_dt).as_py() == datetime(
-        2021, 1, 1, 5, 2, 32
-    )
+    assert to_arrow_scalar(
+        datetime(2021, 1, 1, 5, 2, 32), naive_dt
+    ).as_py() == datetime(2021, 1, 1, 5, 2, 32)
     assert to_arrow_scalar(
         datetime(2021, 1, 1, 5, 2, 32, tzinfo=timezone.utc), naive_dt
     ).as_py() == datetime(2021, 1, 1, 5, 2, 32)

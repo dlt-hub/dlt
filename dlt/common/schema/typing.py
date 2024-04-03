@@ -67,7 +67,12 @@ TColumnHint = Literal[
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg", "parquet", "jsonl"]
 TTypeDetections = Literal[
-    "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
+    "timestamp",
+    "iso_timestamp",
+    "iso_date",
+    "large_integer",
+    "hexbytes_to_text",
+    "wei_to_double",
 ]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnNames = Union[str, Sequence[str]]
@@ -124,7 +129,10 @@ TTableSchemaColumns = Dict[str, TColumnSchema]
 
 
 TAnySchemaColumns = Union[
-    TTableSchemaColumns, Sequence[TColumnSchema], _PydanticBaseModel, Type[_PydanticBaseModel]
+    TTableSchemaColumns,
+    Sequence[TColumnSchema],
+    _PydanticBaseModel,
+    Type[_PydanticBaseModel],
 ]
 
 TSimpleRegex = NewType("TSimpleRegex", str)

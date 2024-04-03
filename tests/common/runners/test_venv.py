@@ -33,7 +33,9 @@ def test_restore_venv() -> None:
         assert venv.context.env_dir == restored_venv.context.env_dir
         assert venv.context.env_exe == restored_venv.context.env_exe
         script = "print('success')"
-        assert restored_venv.run_command(venv.context.env_exe, "-c", script) == "success\n"
+        assert (
+            restored_venv.run_command(venv.context.env_exe, "-c", script) == "success\n"
+        )
     # restored env will fail - venv deleted
     with pytest.raises(FileNotFoundError):
         restored_venv.run_command(venv.context.env_exe, "-c", script)
@@ -98,7 +100,9 @@ import os
 
 print(os.getcwd())
         """
-        assert venv.run_command(venv.context.env_exe, "-c", script).strip() == os.getcwd()
+        assert (
+            venv.run_command(venv.context.env_exe, "-c", script).strip() == os.getcwd()
+        )
 
 
 def test_run_command_with_error() -> None:
@@ -150,7 +154,9 @@ def test_run_script() -> None:
         assert lines[-1] == "exit"
 
         # argv
-        result = venv.run_script(os.path.abspath("tests/common/scripts/args.py"), "--with-arg")
+        result = venv.run_script(
+            os.path.abspath("tests/common/scripts/args.py"), "--with-arg"
+        )
         lines = result.splitlines()
         assert lines[0] == "2"
         assert "'--with-arg'" in lines[1]
@@ -164,7 +170,9 @@ def test_run_script() -> None:
 
         # non exiting script
         with pytest.raises(FileNotFoundError):
-            venv.run_script(os.path.abspath("tests/common/scripts/_non_existing_.py"), "--with-arg")
+            venv.run_script(
+                os.path.abspath("tests/common/scripts/_non_existing_.py"), "--with-arg"
+            )
 
         # raising script
         with pytest.raises(CalledProcessError) as cpe:
@@ -202,7 +210,9 @@ def test_current_venv() -> None:
     assert "dlt" in freeze
 
     # use command
-    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+    with venv.start_command(
+        "pip", "freeze", "--all", stdout=PIPE, text=True
+    ) as process:
         output, _ = process.communicate()
         assert process.poll() == 0
         assert "pip" in output
@@ -220,7 +230,9 @@ def test_current_base_python() -> None:
     assert "dlt" in freeze
 
     # use command
-    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+    with venv.start_command(
+        "pip", "freeze", "--all", stdout=PIPE, text=True
+    ) as process:
         output, _ = process.communicate()
         assert process.poll() == 0
         assert "pip" in output
@@ -228,7 +240,9 @@ def test_current_base_python() -> None:
 
 def test_start_command() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
-        with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        with venv.start_command(
+            "pip", "freeze", "--all", stdout=PIPE, text=True
+        ) as process:
             output, _ = process.communicate()
             assert process.poll() == 0
             assert "pip" in output
@@ -247,5 +261,7 @@ def test_start_command() -> None:
             venv.start_command("blip", "freeze", "--all", stdout=PIPE, text=True)
 
         # command exit code
-        with venv.start_command("pip", "wrong_command", stdout=PIPE, text=True) as process:
+        with venv.start_command(
+            "pip", "wrong_command", stdout=PIPE, text=True
+        ) as process:
             assert process.wait() == 1

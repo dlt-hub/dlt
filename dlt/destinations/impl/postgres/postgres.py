@@ -100,7 +100,9 @@ class PostgresStagingCopyJob(SqlStagingCopyJob):
                 f" {sql_client.fully_qualified_dataset_name()};"
             )
             # recreate staging table
-            sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
+            sql.append(
+                f"CREATE TABLE {staging_table_name} (like {table_name} including all);"
+            )
         return sql
 
 
@@ -108,14 +110,18 @@ class PostgresClient(InsertValuesJobClient):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: PostgresClientConfiguration) -> None:
-        sql_client = Psycopg2SqlClient(config.normalize_dataset_name(schema), config.credentials)
+        sql_client = Psycopg2SqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
         super().__init__(schema, config, sql_client)
         self.config: PostgresClientConfiguration = config
         self.sql_client = sql_client
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = PostgresTypeMapper(self.capabilities)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         hints_str = " ".join(
             self.active_hints.get(h, "")
             for h in self.active_hints.keys()
@@ -130,7 +136,9 @@ class PostgresClient(InsertValuesJobClient):
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:
         if self.config.replace_strategy == "staging-optimized":
-            return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+            return [
+                PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+            ]
         return super()._create_replace_followup_jobs(table_chain)
 
     def _from_db_type(

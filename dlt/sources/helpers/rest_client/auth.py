@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 else:
     PrivateKeyTypes = Any
 
-TApiKeyLocation = Literal["header", "cookie", "query", "param"]  # Alias for scheme "in" field
+TApiKeyLocation = Literal[
+    "header", "cookie", "query", "param"
+]  # Alias for scheme "in" field
 
 
 class AuthConfigBase(AuthBase, CredentialsConfiguration):
@@ -146,7 +148,9 @@ class OAuthJWTAuth(BearerTokenAuth):
     default_token_expiration: int = 3600
 
     def __post_init__(self) -> None:
-        self.scopes = self.scopes if isinstance(self.scopes, str) else " ".join(self.scopes)
+        self.scopes = (
+            self.scopes if isinstance(self.scopes, str) else " ".join(self.scopes)
+        )
         self.token = None
         self.token_expiry: Optional[pendulum.DateTime] = None
 
@@ -168,7 +172,9 @@ class OAuthJWTAuth(BearerTokenAuth):
         payload = self.create_jwt_payload()
         data = {
             "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-            "assertion": jwt.encode(payload, self.load_private_key(), algorithm="RS256"),
+            "assertion": jwt.encode(
+                payload, self.load_private_key(), algorithm="RS256"
+            ),
         }
 
         logger.debug(f"Obtaining token from {self.auth_endpoint}")
@@ -204,7 +210,9 @@ class OAuthJWTAuth(BearerTokenAuth):
         return serialization.load_pem_private_key(
             private_key_bytes,
             password=(
-                self.private_key_passphrase.encode("utf-8") if self.private_key_passphrase else None
+                self.private_key_passphrase.encode("utf-8")
+                if self.private_key_passphrase
+                else None
             ),
             backend=default_backend(),
         )

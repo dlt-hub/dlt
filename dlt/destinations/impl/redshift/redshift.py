@@ -3,7 +3,10 @@ import os
 
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 
-from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
+from dlt.common.schema.utils import (
+    table_schema_has_type,
+    table_schema_has_type_with_precision,
+)
 
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
@@ -29,7 +32,10 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeJob
-from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
+from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
+    LoadJobTerminalException,
+)
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 
 from dlt.destinations.impl.redshift import capabilities
@@ -156,16 +162,16 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         if table_schema_has_type(table, "time"):
             raise LoadJobTerminalException(
                 self.file_name(),
-                f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file"
-                " format or convert `datetime.time` objects in your data to `str` or"
-                " `datetime.datetime`",
+                f"Redshift cannot load TIME columns from {ext} files. Switch to direct"
+                " INSERT file format or convert `datetime.time` objects in your data"
+                " to `str` or `datetime.datetime`",
             )
         if ext == "jsonl":
             if table_schema_has_type(table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
-                    "Redshift cannot load VARBYTE columns from json files. Switch to parquet to"
-                    " load binaries.",
+                    "Redshift cannot load VARBYTE columns from json files. Switch to"
+                    " parquet to load binaries.",
                 )
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
@@ -174,8 +180,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             if table_schema_has_type_with_precision(table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
-                    f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to"
-                    " direct INSERT file format or use binary columns without precision.",
+                    "Redshift cannot load fixed width VARBYTE columns from"
+                    f" {ext} files. Switch to direct INSERT file format or use binary"
+                    " columns without precision.",
                 )
             file_type = "PARQUET"
             # if table contains complex types then SUPER field will be used.
@@ -229,16 +236,22 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
-        sql_client = RedshiftSqlClient(config.normalize_dataset_name(schema), config.credentials)
+        sql_client = RedshiftSqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         hints_str = " ".join(
             HINT_TO_REDSHIFT_ATTR.get(h, "")
             for h in HINT_TO_REDSHIFT_ATTR.keys()
@@ -249,7 +262,9 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         job = super().start_file_load(table, file_path, load_id)
         if not job:

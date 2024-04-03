@@ -35,7 +35,9 @@ def test_postgres_and_redshift_credentials_defaults() -> None:
     assert red_cred.port == 5439
     assert red_cred.connect_timeout == 15
     assert RedshiftCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
-    resolve_configuration(red_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
+    resolve_configuration(
+        red_cred, explicit_value="postgres://loader:loader@localhost/dlt_data"
+    )
     assert red_cred.port == 5439
 
 
@@ -53,9 +55,13 @@ def test_text_too_long(client: RedshiftClient, file_storage: FileStorage) -> Non
     # max_len_str_b = max_len_str.encode("utf-8")
     # print(len(max_len_str_b))
     row_id = uniq_id()
-    insert_values = f"('{row_id}', '{uniq_id()}', '{max_len_str}' , '{str(pendulum.now())}');"
+    insert_values = (
+        f"('{row_id}', '{uniq_id()}', '{max_len_str}' , '{str(pendulum.now())}');"
+    )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) is psycopg2.errors.StringDataRightTruncation
 
 
@@ -72,7 +78,9 @@ def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
         f" '{str(pendulum.now())}', {10**38});"
     )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) is psycopg2.errors.InternalError_
 
 
@@ -83,7 +91,9 @@ def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
         os.path.join(COMMON_TEST_CASES_PATH, "schemas/ev1"), "event", ("json",)
     )
     schema_str = json.dumps(schema.to_dict())
-    assert len(schema_str.encode("utf-8")) > client.capabilities.max_text_data_type_length
+    assert (
+        len(schema_str.encode("utf-8")) > client.capabilities.max_text_data_type_length
+    )
     client._update_schema_in_storage(schema)
     schema_info = client.get_stored_schema()
     assert schema_info.schema == schema_str
@@ -107,13 +117,18 @@ def test_maximum_query_size(client: RedshiftClient, file_storage: FileStorage) -
     with patch.object(RedshiftClient, "capabilities") as caps:
         caps.return_value = mocked_caps
 
-        insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+        insert_sql = (
+            "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+        )
         insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'){}"
         insert_sql = (
             insert_sql
-            + insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ",\n") * 150000
+            + insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ",\n")
+            * 150000
         )
-        insert_sql += insert_values.format(uniq_id(), uniq_id(), str(pendulum.now()), ";")
+        insert_sql += insert_values.format(
+            uniq_id(), uniq_id(), str(pendulum.now()), ";"
+        )
 
         user_table_name = prepare_table(client)
         with pytest.raises(DatabaseTerminalException) as exv:

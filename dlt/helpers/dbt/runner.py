@@ -91,14 +91,17 @@ class DBTPackageRunner:
                 logger.error(f"Model {res.model_name} error! Error: {res.message}")
             else:
                 logger.info(
-                    f"Model {res.model_name} {res.status} in {res.time} seconds with {res.message}"
+                    f"Model {res.model_name} {res.status} in {res.time} seconds with"
+                    f" {res.message}"
                 )
 
     def ensure_newest_package(self) -> None:
         """Clones or brings the dbt package at `package_location` up to date."""
         from git import GitError
 
-        with git_custom_key_command(self.config.package_repository_ssh_key) as ssh_command:
+        with git_custom_key_command(
+            self.config.package_repository_ssh_key
+        ) as ssh_command:
             try:
                 ensure_remote_head(
                     self.package_path,
@@ -107,7 +110,9 @@ class DBTPackageRunner:
                 )
             except GitError as err:
                 # cleanup package folder
-                logger.info(f"Package will be cloned due to {type(err).__name__}:{str(err)}")
+                logger.info(
+                    f"Package will be cloned due to {type(err).__name__}:{str(err)}"
+                )
                 logger.info(
                     f"Will clone {self.config.package_location} head"
                     f" {self.config.package_repository_branch} into {self.package_path}"
@@ -122,7 +127,10 @@ class DBTPackageRunner:
 
     @with_custom_environ
     def _run_dbt_command(
-        self, command: str, command_args: Sequence[str] = None, package_vars: StrAny = None
+        self,
+        command: str,
+        command_args: Sequence[str] = None,
+        package_vars: StrAny = None,
     ) -> Sequence[DBTNodeResult]:
         logger.info(
             f"Exec dbt command: {command} {command_args} {package_vars} on profile"
@@ -184,7 +192,9 @@ with exec_to_stdout(f):
             DBTProcessingError: `run` command failed. Contains a list of models with their execution statuses and error messages
         """
         return self._run_dbt_command(
-            "run", cmd_params, self._get_package_vars(additional_vars, destination_dataset_name)
+            "run",
+            cmd_params,
+            self._get_package_vars(additional_vars, destination_dataset_name),
         )
 
     def test(
@@ -209,11 +219,16 @@ with exec_to_stdout(f):
             DBTProcessingError: `test` command failed. Contains a list of models with their execution statuses and error messages
         """
         return self._run_dbt_command(
-            "test", cmd_params, self._get_package_vars(additional_vars, destination_dataset_name)
+            "test",
+            cmd_params,
+            self._get_package_vars(additional_vars, destination_dataset_name),
         )
 
     def _run_db_steps(
-        self, run_params: Sequence[str], package_vars: StrAny, source_tests_selector: str
+        self,
+        run_params: Sequence[str],
+        package_vars: StrAny,
+        source_tests_selector: str,
     ) -> Sequence[DBTNodeResult]:
         if self.repo_storage:
             # make sure we use package from the remote head
@@ -240,7 +255,9 @@ with exec_to_stdout(f):
             return self.run(run_params, package_vars)
         except IncrementalSchemaOutOfSyncError:
             if self.config.auto_full_refresh_when_out_of_sync:
-                logger.warning("Attempting full refresh due to incremental model out of sync")
+                logger.warning(
+                    "Attempting full refresh due to incremental model out of sync"
+                )
                 return self.run(run_params + ["--full-refresh"], package_vars)
             else:
                 raise

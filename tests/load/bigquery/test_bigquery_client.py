@@ -19,8 +19,14 @@ from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredent
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
 
-from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
-from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
+from dlt.destinations.impl.bigquery.bigquery import (
+    BigQueryClient,
+    BigQueryClientConfiguration,
+)
+from dlt.destinations.exceptions import (
+    LoadJobNotExistsException,
+    LoadJobTerminalException,
+)
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ
 from tests.common.utils import json_case_path as common_json_case_path
@@ -94,7 +100,11 @@ def test_service_credentials_native_credentials_object(environment: Any) -> None
     def _assert_credentials(gcp_credentials):
         assert gcp_credentials.to_native_credentials() is credentials
         # check props
-        assert gcp_credentials.project_id == credentials.project_id == "level-dragon-333019"
+        assert (
+            gcp_credentials.project_id
+            == credentials.project_id
+            == "level-dragon-333019"
+        )
         assert gcp_credentials.client_email == credentials.service_account_email
         assert gcp_credentials.private_key is credentials
 
@@ -121,7 +131,12 @@ def test_oauth_credentials_with_default(environment: Any) -> None:
     # resolve will miss values and try to find default credentials on the machine
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve_configuration(gcoauth)
-    assert py_ex.value.fields == ["client_id", "client_secret", "refresh_token", "project_id"]
+    assert py_ex.value.fields == [
+        "client_id",
+        "client_secret",
+        "refresh_token",
+        "project_id",
+    ]
 
     # prepare real service.json
     oauth_str, _ = prepare_oauth_json()
@@ -161,7 +176,9 @@ def test_oauth_credentials_native_credentials_object(environment: Any) -> None:
     oauth_dict = json.loads(oauth_str)
     # must add refresh_token
     oauth_dict["installed"]["refresh_token"] = "REFRESH TOKEN"
-    credentials = GoogleOAuth2Credentials.from_authorized_user_info(oauth_dict["installed"])
+    credentials = GoogleOAuth2Credentials.from_authorized_user_info(
+        oauth_dict["installed"]
+    )
 
     def _assert_credentials(gcp_credentials):
         # check props
@@ -238,7 +255,10 @@ def test_bigquery_configuration() -> None:
 
     # default fingerprint is empty
     assert (
-        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset").fingerprint() == ""
+        BigQueryClientConfiguration()
+        ._bind_dataset_name(dataset_name="dataset")
+        .fingerprint()
+        == ""
     )
 
 
@@ -264,7 +284,9 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     # start a job with invalid name
     dest_path = file_storage.save("!!aaaa", b"data")
     with pytest.raises(LoadJobTerminalException):
-        client.start_file_load(client.schema.get_table(user_table_name), dest_path, uniq_id())
+        client.start_file_load(
+            client.schema.get_table(user_table_name), dest_path, uniq_id()
+        )
 
     user_table_name = prepare_table(client)
     load_json = {
@@ -296,7 +318,9 @@ def test_bigquery_location(location: str, file_storage: FileStorage, client) -> 
             "sender_id": "90238094809sajlkjxoiewjhduuiuehd",
             "timestamp": str(pendulum.now()),
         }
-        job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+        job = expect_load_file(
+            client, file_storage, json.dumps(load_json), user_table_name
+        )
 
         # start a job from the same file. it should be a fallback to retrieve a job silently
         client.start_file_load(
@@ -304,7 +328,9 @@ def test_bigquery_location(location: str, file_storage: FileStorage, client) -> 
             file_storage.make_full_path(job.file_name()),
             uniq_id(),
         )
-        canonical_name = client.sql_client.make_qualified_table_name(user_table_name, escape=False)
+        canonical_name = client.sql_client.make_qualified_table_name(
+            user_table_name, escape=False
+        )
         t = client.sql_client.native_connection.get_table(canonical_name)
         assert t.location == location
 
@@ -331,7 +357,9 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     job = expect_load_file(
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
-    assert "Only optional fields can be set to NULL. Field: timestamp;" in job.exception()
+    assert (
+        "Only optional fields can be set to NULL. Field: timestamp;" in job.exception()
+    )
 
     # insert a wrong type
     insert_json = copy(load_json)
@@ -365,7 +393,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
         client, file_storage, json.dumps(insert_json), user_table_name, status="failed"
     )
     assert (
-        "Invalid NUMERIC value: 100000000000000000000000000000 Field: parse_data__intent__id;"
+        "Invalid NUMERIC value: 100000000000000000000000000000 Field:"
+        " parse_data__intent__id;"
         in job.exception()
     )
 
@@ -379,8 +408,8 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     )
     assert (
         "Invalid BIGNUMERIC value:"
-        " 578960446186580977117854925043439539266.34992332820282019728792003956564819968 Field:"
-        " parse_data__metadata__rasa_x_id;"
+        " 578960446186580977117854925043439539266.34992332820282019728792003956564819968"
+        " Field: parse_data__metadata__rasa_x_id;"
         in job.exception()
     )
 
@@ -388,7 +417,9 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
 def prepare_oauth_json() -> Tuple[str, str]:
     # prepare real service.json
     storage = FileStorage("_secrets", makedirs=True)
-    with open(common_json_case_path("oauth_client_secret_929384042504"), encoding="utf-8") as f:
+    with open(
+        common_json_case_path("oauth_client_secret_929384042504"), encoding="utf-8"
+    ) as f:
         oauth_str = f.read()
     dest_path = storage.save("oauth_client_secret_929384042504.json", oauth_str)
     return oauth_str, dest_path
@@ -397,7 +428,9 @@ def prepare_oauth_json() -> Tuple[str, str]:
 def prepare_service_json() -> Tuple[str, str]:
     # prepare real service.json
     storage = FileStorage("_secrets", makedirs=True)
-    with open(common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="rb") as f:
+    with open(
+        common_json_case_path("level-dragon-333019-707809ee408a") + ".b64", mode="rb"
+    ) as f:
         services_str = base64.b64decode(f.read().strip(), validate=True).decode()
     dest_path = storage.save("level-dragon-333019-707809ee408a.json", services_str)
     return services_str, dest_path

@@ -178,7 +178,9 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
 #     return dicts
 
 
-def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) -> Iterator[TAny]:
+def flatten_list_or_items(
+    _iter: Union[Iterable[TAny], Iterable[List[TAny]]]
+) -> Iterator[TAny]:
     for items in _iter:
         if isinstance(items, List):
             yield from items
@@ -186,7 +188,9 @@ def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) ->
             yield items
 
 
-def concat_strings_with_limit(strings: List[str], separator: str, limit: int) -> Iterator[str]:
+def concat_strings_with_limit(
+    strings: List[str], separator: str, limit: int
+) -> Iterator[str]:
     """
     Generator function to concatenate strings.
 
@@ -218,7 +222,9 @@ def concat_strings_with_limit(strings: List[str], separator: str, limit: int) ->
             start = i
             current_length = len(strings[i])
         else:
-            current_length += len(strings[i]) + sep_len  # accounts for the length of separator
+            current_length += (
+                len(strings[i]) + sep_len
+            )  # accounts for the length of separator
 
     yield separator.join(strings[start:])
 
@@ -447,7 +453,9 @@ def is_inner_callable(f: AnyFun) -> bool:
 
 def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
     return base64.b64encode(
-        bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key * 250)])
+        bytes(
+            [_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key * 250)]
+        )
     ).decode()
 
 
@@ -456,7 +464,8 @@ def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
         [
             _a ^ _b
             for _a, _b in zip(
-                base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key * 250
+                base64.b64decode(obfuscated_secret.encode("ascii"), validate=True),
+                pseudo_key * 250,
             )
         ]
     ).decode("utf-8")
@@ -500,10 +509,14 @@ def merge_row_counts(row_counts_1: RowCounts, row_counts_2: RowCounts) -> None:
     """merges row counts_2 into row_counts_1"""
     # only keys present in row_counts_2 are modifed
     for counter_name in row_counts_2.keys():
-        row_counts_1[counter_name] = row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
+        row_counts_1[counter_name] = (
+            row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
+        )
 
 
-def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[Any]) -> List[Any]:
+def extend_list_deduplicated(
+    original_list: List[Any], extending_list: Iterable[Any]
+) -> List[Any]:
     """extends the first list by the second, but does not add duplicates"""
     list_keys = set(original_list)
     for item in extending_list:
@@ -538,7 +551,10 @@ def get_full_class_name(obj: Any) -> str:
 
 def get_exception_trace(exc: BaseException) -> ExceptionTrace:
     """Get exception trace and additional information for DltException(s)"""
-    trace: ExceptionTrace = {"message": str(exc), "exception_type": get_full_class_name(exc)}
+    trace: ExceptionTrace = {
+        "message": str(exc),
+        "exception_type": get_full_class_name(exc),
+    }
     if exc.__traceback__:
         tb_extract = traceback.extract_tb(exc.__traceback__)
         trace["stack_trace"] = traceback.format_list(tb_extract)
@@ -563,7 +579,13 @@ def get_exception_trace(exc: BaseException) -> ExceptionTrace:
             except Exception:
                 continue
             # extract special attrs
-            if k in ["load_id", "pipeline_name", "source_name", "resource_name", "job_id"]:
+            if k in [
+                "load_id",
+                "pipeline_name",
+                "source_name",
+                "resource_name",
+                "job_id",
+            ]:
                 trace[k] = v  # type: ignore[literal-required]
 
         trace["exception_attrs"] = str_attrs

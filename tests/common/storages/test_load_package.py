@@ -10,7 +10,11 @@ from dlt.common.schema import Schema
 from dlt.common.storages import PackageStorage, LoadStorage, ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 
-from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
+from tests.common.storages.utils import (
+    start_loading_file,
+    assert_package_info,
+    load_storage,
+)
 from tests.utils import autouse_test_storage
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.container import Container
@@ -44,7 +48,9 @@ def test_is_partially_loaded(load_storage: LoadStorage) -> None:
     assert PackageStorage.is_package_partially_loaded(info) is False
 
     # abort package
-    load_id, file_name = start_loading_file(load_storage, [{"content": "a"}, {"content": "b"}])
+    load_id, file_name = start_loading_file(
+        load_storage, [{"content": "a"}, {"content": "b"}]
+    )
     load_storage.complete_load_package(load_id, True)
     info = load_storage.get_load_package_info(load_id)
     assert PackageStorage.is_package_partially_loaded(info) is True
@@ -59,7 +65,9 @@ def test_save_load_schema(load_storage: LoadStorage) -> None:
     saved_file_name = load_storage.new_packages.save_schema("copy", schema)
     assert saved_file_name.endswith(
         os.path.join(
-            load_storage.new_packages.storage.storage_path, "copy", PackageStorage.SCHEMA_FILE_NAME
+            load_storage.new_packages.storage.storage_path,
+            "copy",
+            PackageStorage.SCHEMA_FILE_NAME,
         )
     )
     assert load_storage.new_packages.storage.has_file(
@@ -109,15 +117,24 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         injected_state["state"]["new_key"] = "new_value"  # type: ignore
 
         # not persisted yet
-        assert load_storage.new_packages.get_load_package_state("copy").get("new_key") is None
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get("new_key")
+            is None
+        )
         # commit
         commit_load_package_state()
 
         # now it should be persisted
         assert (
-            load_storage.new_packages.get_load_package_state("copy").get("new_key") == "new_value"
+            load_storage.new_packages.get_load_package_state("copy").get("new_key")
+            == "new_value"
         )
-        assert load_storage.new_packages.get_load_package_state("copy").get("_state_version") == 1
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get(
+                "_state_version"
+            )
+            == 1
+        )
 
         # check that second injection is the same as first
         second_injected_instance = load_package()
@@ -125,7 +142,9 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
 
         # check scoped destination states
         assert (
-            load_storage.new_packages.get_load_package_state("copy").get("destination_state")
+            load_storage.new_packages.get_load_package_state("copy").get(
+                "destination_state"
+            )
             is None
         )
         dstate = destination_state()
@@ -141,7 +160,9 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         # clear destination state
         clear_destination_state()
         assert (
-            load_storage.new_packages.get_load_package_state("copy").get("destination_state")
+            load_storage.new_packages.get_load_package_state("copy").get(
+                "destination_state"
+            )
             is None
         )
 

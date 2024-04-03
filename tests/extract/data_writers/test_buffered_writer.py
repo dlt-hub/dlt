@@ -62,7 +62,9 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
     assert writer.closed_files[0].items_count == 9
     assert writer.closed_files[0].file_size > 0
     # check the content, mind that we swapped the columns
-    with FileStorage.open_zipsafe_ro(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+    with FileStorage.open_zipsafe_ro(
+        writer.closed_files[0].file_path, "r", encoding="utf-8"
+    ) as f:
         content = f.readlines()
     assert "col2,col1" in content[0]
     assert "NULL,0" in content[2]
@@ -114,7 +116,9 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         assert len(writer.closed_files) == 2
         assert writer._buffered_items == []
     # the last file must contain text value of the column3
-    with FileStorage.open_zipsafe_ro(writer.closed_files[-1].file_path, "r", encoding="utf-8") as f:
+    with FileStorage.open_zipsafe_ro(
+        writer.closed_files[-1].file_path, "r", encoding="utf-8"
+    ) as f:
         content = f.readlines()
     assert "(col3_value" in content[-1]
     # check metrics
@@ -149,7 +153,9 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
         # only the initial 15 items written
         assert writer._writer.items_count == 15
     # all written
-    with FileStorage.open_zipsafe_ro(writer.closed_files[-1].file_path, "r", encoding="utf-8") as f:
+    with FileStorage.open_zipsafe_ro(
+        writer.closed_files[-1].file_path, "r", encoding="utf-8"
+    ) as f:
         content = f.readlines()
     assert content[-1] == '{"col1":1,"col2":3}\n'
 
@@ -183,7 +189,9 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
 @pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
-def test_write_empty_file(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+def test_write_empty_file(
+    disable_compression: bool, format_: TLoaderFileFormat
+) -> None:
     # just single schema is enough
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
@@ -226,7 +234,10 @@ def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
     with get_writer(
-        format_, disable_compression=disable_compression, buffer_max_items=2, file_max_items=2
+        format_,
+        disable_compression=disable_compression,
+        buffer_max_items=2,
+        file_max_items=2,
     ) as writer:
         time.sleep(0.55)
         count = writer.write_data_item([{"col1": 182812}, {"col1": -1}], t1)
@@ -238,7 +249,9 @@ def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -
         assert metrics.last_modified - metrics.created >= 0.55
         assert metrics.created >= now
         time.sleep(0.35)
-        count = writer.write_data_item([{"col1": 182812}, {"col1": -1}, {"col1": 182811}], t1)
+        count = writer.write_data_item(
+            [{"col1": 182812}, {"col1": -1}, {"col1": 182811}], t1
+        )
         assert count == 3
         # file rotated
         assert len(writer.closed_files) == 2
@@ -254,11 +267,16 @@ def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
 @pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
-def test_special_write_rotates(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+def test_special_write_rotates(
+    disable_compression: bool, format_: TLoaderFileFormat
+) -> None:
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
     with get_writer(
-        format_, disable_compression=disable_compression, buffer_max_items=100, file_max_items=100
+        format_,
+        disable_compression=disable_compression,
+        buffer_max_items=100,
+        file_max_items=100,
     ) as writer:
         writer.write_data_item([{"col1": 182812}, {"col1": -1}], t1)
         assert len(writer.closed_files) == 0

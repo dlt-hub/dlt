@@ -23,7 +23,10 @@ from tests.utils import TEST_STORAGE_ROOT, test_storage
 
 
 DEPLOY_PARAMS = [
-    ("github-action", {"schedule": "*/30 * * * *", "run_on_push": True, "run_manually": True}),
+    (
+        "github-action",
+        {"schedule": "*/30 * * * *", "run_on_push": True, "run_manually": True},
+    ),
     ("airflow-composer", {"secrets_format": "toml"}),
     ("airflow-composer", {"secrets_format": "env"}),
 ]
@@ -64,7 +67,9 @@ def test_deploy_command(
     p = dlt.pipeline(pipeline_name="debug_pipeline")
     p._wipe_working_folder()
 
-    shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+    shutil.copytree(
+        "tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True
+    )
 
     with set_working_dir(TEST_STORAGE_ROOT):
         from git import Repo, Remote

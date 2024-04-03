@@ -11,7 +11,9 @@ class ConfigProvider(abc.ABC):
     ) -> Tuple[Optional[Any], str]:
         pass
 
-    def set_value(self, key: str, value: Any, pipeline_name: str, *sections: str) -> None:
+    def set_value(
+        self, key: str, value: Any, pipeline_name: str, *sections: str
+    ) -> None:
         raise NotImplementedError()
 
     @property

@@ -1,6 +1,16 @@
 from datetime import datetime, date  # noqa: I251
 from pendulum.tz import UTC
-from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
+from typing import (
+    Any,
+    Tuple,
+    Optional,
+    Union,
+    Callable,
+    Iterable,
+    Iterator,
+    Sequence,
+    Tuple,
+)
 
 from dlt import version
 from dlt.common import pendulum
@@ -20,7 +30,8 @@ except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
         [f"{version.DLT_PKG_NAME}[parquet]"],
-        "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
+        "Install pyarrow to be allow to load arrow tables, panda frames and to use"
+        " parquet files.",
     )
 
 
@@ -38,7 +49,9 @@ def get_py_arrow_datatype(
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        return get_py_arrow_timestamp(column.get("precision") or caps.timestamp_precision, tz)
+        return get_py_arrow_timestamp(
+            column.get("precision") or caps.timestamp_precision, tz
+        )
     elif column_type == "bigint":
         return get_pyarrow_int(column.get("precision"))
     elif column_type == "binary":
@@ -169,7 +182,9 @@ def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem
         return item.drop(columns)
     elif isinstance(item, pyarrow.RecordBatch):
         # NOTE: select is available in pyarrow 12 an up
-        return item.select([n for n in item.schema.names if n not in columns])  # reverse selection
+        return item.select(
+            [n for n in item.schema.names if n not in columns]
+        )  # reverse selection
     else:
         raise ValueError(item)
 
@@ -187,7 +202,9 @@ def append_column(item: TAnyArrowItem, name: str, data: Any) -> TAnyArrowItem:
         raise ValueError(item)
 
 
-def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAnyArrowItem:
+def rename_columns(
+    item: TAnyArrowItem, new_column_names: Sequence[str]
+) -> TAnyArrowItem:
     """Rename arrow columns on Table or RecordBatch, returns same data but with renamed schema"""
 
     if list(item.schema.names) == list(new_column_names):
@@ -198,9 +215,12 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         return item.rename_columns(new_column_names)
     elif isinstance(item, pyarrow.RecordBatch):
         new_fields = [
-            field.with_name(new_name) for new_name, field in zip(new_column_names, item.schema)
+            field.with_name(new_name)
+            for new_name, field in zip(new_column_names, item.schema)
         ]
-        return pyarrow.RecordBatch.from_arrays(item.columns, schema=pyarrow.schema(new_fields))
+        return pyarrow.RecordBatch.from_arrays(
+            item.columns, schema=pyarrow.schema(new_fields)
+        )
     else:
         raise TypeError(f"Unsupported data item type {type(item)}")
 
@@ -268,7 +288,9 @@ def normalize_py_arrow_schema(
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
 
 
-def get_normalized_arrow_fields_mapping(item: TAnyArrowItem, naming: NamingConvention) -> StrStr:
+def get_normalized_arrow_fields_mapping(
+    item: TAnyArrowItem, naming: NamingConvention
+) -> StrStr:
     """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
     norm_f = naming.normalize_identifier
     name_mapping = {n.name: norm_f(n.name) for n in item.schema}
@@ -330,13 +352,17 @@ def from_arrow_scalar(arrow_value: pyarrow.Scalar) -> Any:
     # datetimes as dates and keeping the exact time inside. probably a bug
     # but can be corrected this way
     if isinstance(row_value, date) and not isinstance(row_value, datetime):
-        row_value = pendulum.from_timestamp(arrow_value.cast(pyarrow.int64()).as_py() / 1000)
+        row_value = pendulum.from_timestamp(
+            arrow_value.cast(pyarrow.int64()).as_py() / 1000
+        )
     elif isinstance(row_value, datetime):
         row_value = pendulum.instance(row_value).in_tz("UTC")
     return row_value
 
 
-TNewColumns = Sequence[Tuple[int, pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]
+TNewColumns = Sequence[
+    Tuple[int, pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]
+]
 """Sequence of tuples: (field index, field, generating function)"""
 
 

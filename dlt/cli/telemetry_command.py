@@ -8,7 +8,9 @@ from dlt.common.configuration.specs import RunConfiguration
 from dlt.cli import echo as fmt
 from dlt.cli.utils import get_telemetry_status
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.runtime.segment import get_anonymous_id
 
 DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
@@ -25,7 +27,9 @@ def telemetry_status_command() -> None:
 def change_telemetry_status_command(enabled: bool) -> None:
     # value to write
     telemetry_value = [
-        WritableConfigValue("dlthub_telemetry", bool, enabled, (RunConfiguration.__section__,))
+        WritableConfigValue(
+            "dlthub_telemetry", bool, enabled, (RunConfiguration.__section__,)
+        )
     ]
     # write local config
     config = ConfigTomlProvider(add_global_config=False)

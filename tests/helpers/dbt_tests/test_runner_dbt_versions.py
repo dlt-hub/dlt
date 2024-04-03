@@ -8,7 +8,10 @@ import pytest
 from dlt.common import json
 
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import GcpServiceAccountCredentials, CredentialsWithDefault
+from dlt.common.configuration.specs import (
+    GcpServiceAccountCredentials,
+    CredentialsWithDefault,
+)
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.runners import Venv
 from dlt.common.runners.synth_pickle import decode_obj, encode_obj
@@ -71,7 +74,11 @@ def dbt_package_f(request: Any) -> Iterator[Tuple[str, AnyFun]]:
 
 def test_infer_venv_deps() -> None:
     requirements = _create_dbt_deps(["postgres", "mssql"])
-    assert requirements[:3] == [f"dbt-core{DEFAULT_DBT_VERSION}", "dbt-postgres", "dbt-sqlserver"]
+    assert requirements[:3] == [
+        f"dbt-core{DEFAULT_DBT_VERSION}",
+        "dbt-postgres",
+        "dbt-sqlserver",
+    ]
     # should lead to here
     assert os.path.isdir(requirements[-1])
     # provide exact version
@@ -87,7 +94,9 @@ def test_infer_venv_deps() -> None:
 
 
 def test_default_profile_name() -> None:
-    bigquery_config = BigQueryClientConfiguration(credentials=GcpServiceAccountCredentials())
+    bigquery_config = BigQueryClientConfiguration(
+        credentials=GcpServiceAccountCredentials()
+    )
     assert isinstance(bigquery_config.credentials, CredentialsWithDefault)
     # default credentials are not present
     assert _default_profile_name(bigquery_config) == "bigquery"
@@ -193,10 +202,15 @@ def test_runner_dbt_destinations(
         jaffle_base_dir = "jaffle_" + destination_name
         test_storage.create_folder(jaffle_base_dir)
         results = dbt_func(
-            client.config, test_storage.make_full_path(jaffle_base_dir), JAFFLE_SHOP_REPO
+            client.config,
+            test_storage.make_full_path(jaffle_base_dir),
+            JAFFLE_SHOP_REPO,
         ).run_all(["--fail-fast", "--full-refresh"])
         assert_jaffle_completed(
-            test_storage, results, destination_name, jaffle_dir=jaffle_base_dir + "/jaffle_shop"
+            test_storage,
+            results,
+            destination_name,
+            jaffle_dir=jaffle_base_dir + "/jaffle_shop",
         )
 
 
@@ -212,18 +226,25 @@ def test_run_jaffle_from_folder_incremental(
             os.path.join(repo_path, "models", "customers.sql"),
         )
         results = dbt_func(client.config, None, repo_path).run_all(run_params=None)
-        assert_jaffle_completed(test_storage, results, destination_name, jaffle_dir="jaffle_shop")
+        assert_jaffle_completed(
+            test_storage, results, destination_name, jaffle_dir="jaffle_shop"
+        )
         results = dbt_func(client.config, None, repo_path).run_all()
         # out of 100 records 0 was inserted
         customers = find_run_result(results, "customers")
-        assert customers.message in JAFFLE_MESSAGES_INCREMENTAL[destination_name]["customers"]
+        assert (
+            customers.message
+            in JAFFLE_MESSAGES_INCREMENTAL[destination_name]["customers"]
+        )
         # change the column name. that will force dbt to fail (on_schema_change='fail'). the runner should do a full refresh
         shutil.copy(
             "./tests/helpers/dbt_tests/cases/jaffle_customers_incremental_new_column.sql",
             os.path.join(repo_path, "models", "customers.sql"),
         )
         results = dbt_func(client.config, None, repo_path).run_all(run_params=None)
-        assert_jaffle_completed(test_storage, results, destination_name, jaffle_dir="jaffle_shop")
+        assert_jaffle_completed(
+            test_storage, results, destination_name, jaffle_dir="jaffle_shop"
+        )
 
 
 def test_run_jaffle_fail_prerequisites(
@@ -239,7 +260,9 @@ def test_run_jaffle_fail_prerequisites(
             ).run_all(["--fail-fast", "--full-refresh"], source_tests_selector="*")
         proc_err = pr_exc.value.args[0]
         assert isinstance(proc_err, DBTProcessingError)
-        customers = find_run_result(proc_err.run_results, "unique_customers_customer_id")
+        customers = find_run_result(
+            proc_err.run_results, "unique_customers_customer_id"
+        )
         assert customers.status == "error"
         assert len(proc_err.run_results) == 20
         assert all(r.status == "error" for r in proc_err.run_results)
@@ -257,7 +280,10 @@ def test_run_jaffle_invalid_run_args(
                 client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO
             ).run_all(["--wrong_flag"])
         # dbt < 1.5 raises systemexit, dbt >= 1.5 just returns success False
-        assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results is None
+        assert (
+            isinstance(pr_exc.value.dbt_results, SystemExit)
+            or pr_exc.value.dbt_results is None
+        )
 
 
 def test_run_jaffle_failed_run(

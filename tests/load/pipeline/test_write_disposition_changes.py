@@ -20,7 +20,9 @@ def data_with_subtables(offset: int) -> Any:
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     pipeline = destination_config.setup_pipeline(
@@ -34,9 +36,9 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         loader_file_format=destination_config.file_format,
     )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+        "tables"
+    ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
     info = pipeline.run(
         data_with_subtables(10),
@@ -52,9 +54,9 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
             "items__sub_items": 100 if destination_config.supports_merge else 200,
         },
     )
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+        "tables"
+    ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
     info = pipeline.run(
         data_with_subtables(10),
@@ -70,9 +72,9 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
             "items__sub_items": 200 if destination_config.supports_merge else 300,
         },
     )
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+        "tables"
+    ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
     info = pipeline.run(
         data_with_subtables(10),
@@ -82,16 +84,20 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     )
     assert_load_info(info)
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+        "tables"
+    ]["items"] == {"_dlt_id": "_dlt_root_id"}
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("with_root_key", [True, False])
-def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_root_key: bool):
+def test_switch_to_merge(
+    destination_config: DestinationTestConfiguration, with_root_key: bool
+):
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_switch_to_merge", full_refresh=True
     )
@@ -116,13 +122,13 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
 
     if with_root_key:
-        assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
-            "root"
-        ] == {"_dlt_id": "_dlt_root_id"}
+        assert pipeline.default_schema._normalizers_config["json"]["config"][
+            "propagation"
+        ]["root"] == {"_dlt_id": "_dlt_root_id"}
     else:
-        assert "propagation" not in pipeline.default_schema._normalizers_config["json"].get(
-            "config", {}
-        )
+        assert "propagation" not in pipeline.default_schema._normalizers_config[
+            "json"
+        ].get("config", {})
 
     # without a root key this will fail, it is expected
     if not with_root_key and destination_config.supports_merge:
@@ -149,6 +155,6 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
             "items__sub_items": 100 if destination_config.supports_merge else 200,
         },
     )
-    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
-        "items"
-    ] == {"_dlt_id": "_dlt_root_id"}
+    assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"][
+        "tables"
+    ]["items"] == {"_dlt_id": "_dlt_root_id"}

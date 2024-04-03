@@ -156,6 +156,10 @@ def test_create_ancestry() -> None:
         assert schema._stored_version == version + i
 
         # we never have more than 10 previous_hashes
-        assert len(schema._stored_previous_hashes) == i + hash_count if i + hash_count <= 10 else 10
+        assert (
+            len(schema._stored_previous_hashes) == i + hash_count
+            if i + hash_count <= 10
+            else 10
+        )
 
     assert len(schema._stored_previous_hashes) == 10

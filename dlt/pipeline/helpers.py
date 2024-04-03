@@ -1,5 +1,16 @@
 import contextlib
-from typing import Callable, Sequence, Iterable, Optional, Any, List, Dict, Tuple, Union, TypedDict
+from typing import (
+    Callable,
+    Sequence,
+    Iterable,
+    Optional,
+    Any,
+    List,
+    Dict,
+    Tuple,
+    Union,
+    TypedDict,
+)
 from itertools import chain
 
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
@@ -50,7 +61,10 @@ def retry_load(
 
     def _retry_load(ex: BaseException) -> bool:
         # do not retry in normalize or extract stages
-        if isinstance(ex, PipelineStepFailed) and ex.step not in retry_on_pipeline_steps:
+        if (
+            isinstance(ex, PipelineStepFailed)
+            and ex.step not in retry_on_pipeline_steps
+        ):
             return False
         # do not retry on terminal exceptions
         if isinstance(ex, TerminalException) or (
@@ -78,7 +92,9 @@ class DropCommand:
     def __init__(
         self,
         pipeline: Pipeline,
-        resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
+        resources: Union[
+            Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]
+        ] = (),
         schema_name: Optional[str] = None,
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
@@ -93,7 +109,9 @@ class DropCommand:
         if not pipeline.default_schema_name:
             raise PipelineNeverRan(pipeline.pipeline_name, pipeline.pipelines_dir)
 
-        self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
+        self.schema = pipeline.schemas[
+            schema_name or pipeline.default_schema_name
+        ].clone()
         self.schema_tables = self.schema.tables
         self.drop_tables = not state_only
         self.drop_state = True
@@ -102,9 +120,13 @@ class DropCommand:
         resources = set(resources)
         resource_names = []
         if drop_all:
-            self.resource_pattern = compile_simple_regex(TSimpleRegex("re:.*"))  # Match everything
+            self.resource_pattern = compile_simple_regex(
+                TSimpleRegex("re:.*")
+            )  # Match everything
         elif resources:
-            self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
+            self.resource_pattern = compile_simple_regexes(
+                TSimpleRegex(r) for r in resources
+            )
         else:
             self.resource_pattern = None
 
@@ -112,9 +134,13 @@ class DropCommand:
             data_tables = {
                 t["name"]: t for t in self.schema.data_tables()
             }  # Don't remove _dlt tables
-            resource_tables = group_tables_by_resource(data_tables, pattern=self.resource_pattern)
+            resource_tables = group_tables_by_resource(
+                data_tables, pattern=self.resource_pattern
+            )
             if self.drop_tables:
-                self.tables_to_drop = list(chain.from_iterable(resource_tables.values()))
+                self.tables_to_drop = list(
+                    chain.from_iterable(resource_tables.values())
+                )
                 self.tables_to_drop.reverse()
             else:
                 self.tables_to_drop = []
@@ -138,8 +164,8 @@ class DropCommand:
         )
         if self.resource_pattern and not resource_tables:
             self.info["warnings"].append(
-                f"Specified resource(s) {str(resources)} did not select any table(s) in schema"
-                f" {self.schema.name}. Possible resources are:"
+                f"Specified resource(s) {str(resources)} did not select any table(s) in"
+                f" schema {self.schema.name}. Possible resources are:"
                 f" {list(group_tables_by_resource(data_tables).keys())}"
             )
         self._new_state = self._create_modified_state()
@@ -156,8 +182,8 @@ class DropCommand:
         table_names = [tbl["name"] for tbl in self.tables_to_drop]
         for table_name in table_names:
             assert table_name not in self.schema._schema_tables, (
-                f"You are dropping table {table_name} in {self.schema.name} but it is still present"
-                " in the schema"
+                f"You are dropping table {table_name} in {self.schema.name} but it is"
+                " still present in the schema"
             )
         with self.pipeline._sql_job_client(self.schema) as client:
             client.drop_tables(*table_names, replace_schema=True)
@@ -191,11 +217,13 @@ class DropCommand:
             resolved_paths = resolve_paths(self.state_paths_to_drop, source_state)
             if self.state_paths_to_drop and not resolved_paths:
                 self.info["warnings"].append(
-                    f"State paths {self.state_paths_to_drop} did not select any paths in source"
-                    f" {source_name}"
+                    f"State paths {self.state_paths_to_drop} did not select any paths"
+                    f" in source {source_name}"
                 )
             _delete_source_state_keys(resolved_paths, source_state)
-            self.info["state_paths"].extend(f"{source_name}.{p}" for p in resolved_paths)
+            self.info["state_paths"].extend(
+                f"{source_name}.{p}" for p in resolved_paths
+            )
         return state  # type: ignore[return-value]
 
     def _extract_state(self) -> None:
@@ -243,4 +271,6 @@ def drop(
     drop_all: bool = False,
     state_only: bool = False,
 ) -> None:
-    return DropCommand(pipeline, resources, schema_name, state_paths, drop_all, state_only)()
+    return DropCommand(
+        pipeline, resources, schema_name, state_paths, drop_all, state_only
+    )()

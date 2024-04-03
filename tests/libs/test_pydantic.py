@@ -153,7 +153,9 @@ class User(BaseModel):
     account_id: UUID4
     optional_uuid: Optional[UUID4]
     name: Annotated[str, "PII", "name"]
-    favorite_book: Annotated[Union[Annotated[BookInfo, "meta"], BookGenre, None], "union metadata"]
+    favorite_book: Annotated[
+        Union[Annotated[BookInfo, "meta"], BookGenre, None], "union metadata"
+    ]
     created_at: Optional[datetime]
     labels: List[str]
     user_label: UserLabel
@@ -358,7 +360,9 @@ def test_nested_model_config_propagation() -> None:
     # print(model_freeze.__fields__["address"].annotation)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runs only on Python 3.10 and later")
+@pytest.mark.skipif(
+    sys.version_info < (3, 10), reason="Runs only on Python 3.10 and later"
+)
 def test_nested_model_config_propagation_optional_with_pipe():
     """We would like to test that using Optional and new | syntax works as expected
     when generating a schema thus two versions of user model are defined and both instantiated
@@ -427,7 +431,9 @@ def test_item_list_validation() -> None:
         dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
 
     # non validating items removed from the list (both extra and declared)
-    discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    discard_model = apply_schema_contract_to_model(
+        ItemModel, "discard_row", "discard_row"
+    )
     discard_list_model = create_list_model(discard_model)
     # violate data type
     items = validate_items(
@@ -490,7 +496,9 @@ def test_item_list_validation() -> None:
     assert val_ex.value.data_item == {"a": 2, "b": False}
 
     # discard values
-    discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
+    discard_value_model = apply_schema_contract_to_model(
+        ItemModel, "discard_value", "freeze"
+    )
     discard_list_model = create_list_model(discard_value_model)
     # violate extra field
     items = validate_items(
@@ -564,13 +572,22 @@ def test_item_validation() -> None:
         dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
 
     # non validating items removed from the list (both extra and declared)
-    discard_model = apply_schema_contract_to_model(ItemModel, "discard_row", "discard_row")
+    discard_model = apply_schema_contract_to_model(
+        ItemModel, "discard_row", "discard_row"
+    )
     # violate data type
-    assert validate_item("items", discard_model, {"b": 2}, "discard_row", "discard_row") is None
+    assert (
+        validate_item("items", discard_model, {"b": 2}, "discard_row", "discard_row")
+        is None
+    )
     # violate extra field
     assert (
         validate_item(
-            "items", discard_model, {"b": False, "a": False}, "discard_row", "discard_row"
+            "items",
+            discard_model,
+            {"b": False, "a": False},
+            "discard_row",
+            "discard_row",
         )
         is None
     )
@@ -599,10 +616,16 @@ def test_item_validation() -> None:
     assert val_ex.value.data_item == {"a": 2, "b": False}
 
     # discard values
-    discard_value_model = apply_schema_contract_to_model(ItemModel, "discard_value", "freeze")
+    discard_value_model = apply_schema_contract_to_model(
+        ItemModel, "discard_value", "freeze"
+    )
     # violate extra field
     item = validate_item(
-        "items", discard_value_model, {"b": False, "a": False}, "discard_value", "freeze"
+        "items",
+        discard_value_model,
+        {"b": False, "a": False},
+        "discard_value",
+        "freeze",
     )
     # "a" extra got removed
     assert item.dict() == {"b": False}
@@ -613,7 +636,9 @@ def test_item_validation() -> None:
     item = validate_item("items", evolve_model, {"b": 2}, "evolve", "evolve")
     assert item.b == 2
     # extra fields allowed
-    item = validate_item("items", evolve_model, {"b": False, "a": False}, "evolve", "evolve")
+    item = validate_item(
+        "items", evolve_model, {"b": False, "a": False}, "evolve", "evolve"
+    )
     assert item.b is False
     assert item.a is False  # type: ignore[attr-defined]
 
@@ -624,7 +649,9 @@ def test_item_validation() -> None:
     assert item.b == 3
     # extra fields forbidden - full rows discarded
     assert (
-        validate_item("items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve")
+        validate_item(
+            "items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve"
+        )
         is None
     )
 
@@ -673,7 +700,11 @@ def test_considers_model_as_complex_when_skip_complex_types_is_false():
 
     assert schema == {
         "child": {"data_type": "complex", "name": "child", "nullable": False},
-        "data_dictionary": {"data_type": "complex", "name": "data_dictionary", "nullable": False},
+        "data_dictionary": {
+            "data_type": "complex",
+            "name": "data_dictionary",
+            "nullable": False,
+        },
         "optional_parent_attribute": {
             "data_type": "text",
             "name": "optional_parent_attribute",

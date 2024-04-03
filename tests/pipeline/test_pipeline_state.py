@@ -12,7 +12,10 @@ from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import Destination
 
-from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
+from dlt.pipeline.exceptions import (
+    PipelineStateEngineNoUpgradePathException,
+    PipelineStepFailed,
+)
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
     generate_pipeline_state_version_hash,
@@ -41,8 +44,12 @@ def some_data_resource_state():
 def test_restore_state_props() -> None:
     p = dlt.pipeline(
         pipeline_name="restore_state_props",
-        destination=Destination.from_reference("redshift", destination_name="redshift_name"),
-        staging=Destination.from_reference("filesystem", destination_name="filesystem_name"),
+        destination=Destination.from_reference(
+            "redshift", destination_name="redshift_name"
+        ),
+        staging=Destination.from_reference(
+            "filesystem", destination_name="filesystem_name"
+        ),
         dataset_name="the_dataset",
     )
     p.extract(some_data())
@@ -239,7 +246,10 @@ def test_unmanaged_state() -> None:
 def test_unmanaged_state_no_pipeline() -> None:
     list(some_data())
     print(state_module._last_full_state)
-    assert state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"] == 1
+    assert (
+        state_module._last_full_state["sources"]["test_pipeline_state"]["last_value"]
+        == 1
+    )
 
     def _gen_inner():
         dlt.current.state()["gen"] = True
@@ -270,9 +280,9 @@ def test_resource_state_write() -> None:
     r = dlt.resource(_gen_inner(), name="name_ovrd")
     assert list(r) == [1]
     assert (
-        state_module._last_full_state["sources"][p._make_schema_with_default_name().name][
-            "resources"
-        ]["name_ovrd"]["gen"]
+        state_module._last_full_state["sources"][
+            p._make_schema_with_default_name().name
+        ]["resources"]["name_ovrd"]["gen"]
         is True
     )
     with pytest.raises(ResourceNameNotAvailable):
@@ -295,9 +305,9 @@ def test_resource_state_in_pipeline() -> None:
     p.extract(r)
     assert r.state["gen"] == "gen_tf"
     assert (
-        state_module._last_full_state["sources"][p.default_schema_name]["resources"]["name_ovrd"][
-            "gen"
-        ]
+        state_module._last_full_state["sources"][p.default_schema_name]["resources"][
+            "name_ovrd"
+        ]["gen"]
         == "gen_tf"
     )
     with pytest.raises(ResourceNameNotAvailable):
@@ -393,7 +403,11 @@ def test_transformer_state_write() -> None:
 
     # p = dlt.pipeline()
     # p.extract(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name"))
-    assert list(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name")) == [2, 4, 6]
+    assert list(dlt.transformer(_gen_inner, data_from=r, name="tx_other_name")) == [
+        2,
+        4,
+        6,
+    ]
     assert (
         state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
             "some_data_resource_state"
@@ -413,7 +427,9 @@ def test_transformer_state_write() -> None:
         return item * 2
 
     r = some_data_resource_state()
-    assert list(dlt.transformer(_gen_inner_rv, data_from=r, name="tx_other_name_rv")) == [
+    assert list(
+        dlt.transformer(_gen_inner_rv, data_from=r, name="tx_other_name_rv")
+    ) == [
         1,
         2,
         3,
@@ -437,7 +453,13 @@ def test_transformer_state_write() -> None:
     r = some_data_resource_state()
     # not available because executed in a pool
     with pytest.raises(ResourceNameNotAvailable):
-        print(list(dlt.transformer(_gen_inner_rv_defer, data_from=r, name="tx_other_name_defer")))
+        print(
+            list(
+                dlt.transformer(
+                    _gen_inner_rv_defer, data_from=r, name="tx_other_name_defer"
+                )
+            )
+        )
 
     # async transformer
     async def _gen_inner_rv_async(item):
@@ -447,7 +469,13 @@ def test_transformer_state_write() -> None:
     r = some_data_resource_state()
     # not available because executed in a pool
     with pytest.raises(ResourceNameNotAvailable):
-        print(list(dlt.transformer(_gen_inner_rv_async, data_from=r, name="tx_other_name_async")))
+        print(
+            list(
+                dlt.transformer(
+                    _gen_inner_rv_async, data_from=r, name="tx_other_name_async"
+                )
+            )
+        )
 
     # async transformer with explicit resource name
     async def _gen_inner_rv_async_name(item, r_name):
@@ -456,9 +484,9 @@ def test_transformer_state_write() -> None:
 
     r = some_data_resource_state()
     assert list(
-        dlt.transformer(_gen_inner_rv_async_name, data_from=r, name="tx_other_name_async")(
-            "tx_other_name_async"
-        )
+        dlt.transformer(
+            _gen_inner_rv_async_name, data_from=r, name="tx_other_name_async"
+        )("tx_other_name_async")
     ) == [1, 2, 3]
     assert (
         state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
@@ -489,7 +517,9 @@ def test_transform_function_state_write() -> None:
 def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     # test generation of version hash on migration to v3
     state_v1 = load_json_case("state/state.v1")
-    state = migrate_pipeline_state("test_pipeline", state_v1, state_v1["_state_engine_version"], 3)
+    state = migrate_pipeline_state(
+        "test_pipeline", state_v1, state_v1["_state_engine_version"], 3
+    )
     assert state["_state_engine_version"] == 3
     assert "_local" in state
     assert "_version_hash" in state
@@ -498,7 +528,10 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     # full migration
     state_v1 = load_json_case("state/state.v1")
     state = migrate_pipeline_state(
-        "test_pipeline", state_v1, state_v1["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION
+        "test_pipeline",
+        state_v1,
+        state_v1["_state_engine_version"],
+        PIPELINE_STATE_ENGINE_VERSION,
     )
     assert state["_state_engine_version"] == PIPELINE_STATE_ENGINE_VERSION
 
@@ -525,7 +558,9 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
         json_case_path("state/state.v1"),
         test_storage.make_full_path(f"debug_pipeline/{Pipeline.STATE_FILE}"),
     )
-    p = dlt.attach(pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path)
+    p = dlt.attach(
+        pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path
+    )
     assert p.dataset_name == "debug_pipeline_data"
     assert p.default_schema_name == "example_source"
     state = p.state

@@ -44,9 +44,13 @@ def get_venv(
     # try to restore existing venv
     with contextlib.suppress(VenvNotFound):
         # TODO: check dlt version in venv and update it if local version updated
-        return _restore_venv(venv_dir, [pipeline.destination.spec().destination_type], dbt_version)
+        return _restore_venv(
+            venv_dir, [pipeline.destination.spec().destination_type], dbt_version
+        )
 
-    return _create_venv(venv_dir, [pipeline.destination.spec().destination_type], dbt_version)
+    return _create_venv(
+        venv_dir, [pipeline.destination.spec().destination_type], dbt_version
+    )
 
 
 def package(

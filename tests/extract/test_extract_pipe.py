@@ -9,7 +9,11 @@ import pytest
 import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError, UnclosablePipe
+from dlt.extract.exceptions import (
+    CreatePipeException,
+    ResourceExtractionError,
+    UnclosablePipe,
+)
 from dlt.extract.items import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe
 from dlt.extract.pipe_iterator import PipeIterator, ManagedPipeIterator, PipeItem
@@ -44,7 +48,11 @@ def test_next_item_mode() -> None:
     assert [pi.item for pi in _l] == [1, 2, 3, 4, 10, 5, 6, 8, 7, 9, 11, 12, 13, 14, 15]
 
     # force fifo, no rotation at all when crossing the initial source count
-    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo", max_parallel_items=1))
+    _l = list(
+        PipeIterator.from_pipes(
+            get_pipes(), next_item_mode="fifo", max_parallel_items=1
+        )
+    )
     # order the same as above - same rules apply
     assert [pi.item for pi in _l] == [1, 2, 3, 4, 10, 5, 6, 8, 7, 9, 11, 12, 13, 14, 15]
 
@@ -56,7 +64,9 @@ def test_next_item_mode() -> None:
     # round robin with max parallel items triggers strict fifo in some cases (after gen2 and 3 are exhausted we already have the first yielded gen,
     # items appear in order as sources are processed strictly from front)
     _l = list(
-        PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin", max_parallel_items=1)
+        PipeIterator.from_pipes(
+            get_pipes(), next_item_mode="round_robin", max_parallel_items=1
+        )
     )
     # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
     # NOTE: 4, 10, 5 - after 4 there's NONE in fifo so we do next element (round robin style)
@@ -459,7 +469,9 @@ def test_map_step() -> None:
 def test_yield_map_step() -> None:
     p = Pipe.from_data("data", [1, 2, 3])
     # this creates number of rows as passed by the data
-    p.append_step(YieldMapItem(lambda item: (yield from [f"item_{x}" for x in range(item)])))
+    p.append_step(
+        YieldMapItem(lambda item: (yield from [f"item_{x}" for x in range(item)]))
+    )
     assert _f_items(list(PipeIterator.from_pipe(p))) == [
         "item_0",
         "item_0",
@@ -474,7 +486,9 @@ def test_yield_map_step() -> None:
     meta_data = [DataItemWithMeta(m, d) for m, d in zip(meta, data)]
     p = Pipe.from_data("data", meta_data)
     p.append_step(
-        YieldMapItem(lambda item, meta: (yield from [f"item_{meta}_{x}" for x in range(item)]))
+        YieldMapItem(
+            lambda item, meta: (yield from [f"item_{meta}_{x}" for x in range(item)])
+        )
     )
     assert _f_items(list(PipeIterator.from_pipe(p))) == [
         "item_A_0",
@@ -493,12 +507,20 @@ def test_pipe_copy_on_fork() -> None:
     child2 = Pipe("tr2", [lambda x: x], parent=parent)
 
     # no copy, construct iterator
-    elems = list(PipeIterator.from_pipes([child1, child2], yield_parents=False, copy_on_fork=False))
+    elems = list(
+        PipeIterator.from_pipes(
+            [child1, child2], yield_parents=False, copy_on_fork=False
+        )
+    )
     # those are the same instances
     assert doc is elems[0].item is elems[1].item
 
     # copy item on fork
-    elems = list(PipeIterator.from_pipes([child1, child2], yield_parents=False, copy_on_fork=True))
+    elems = list(
+        PipeIterator.from_pipes(
+            [child1, child2], yield_parents=False, copy_on_fork=True
+        )
+    )
     # first fork does not copy
     assert doc is elems[0].item
     # second fork copies
@@ -754,7 +776,9 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
 
     pit: PipeIterator = None
     with PipeIterator.from_pipe(
-        Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen()))
+        Pipe.from_data(
+            "failing", raise_gen, parent=Pipe.from_data("endless", long_gen())
+        )
     ) as pit:
         with pytest.raises(ResourceExtractionError) as py_ex:
             list(pit)
@@ -768,7 +792,9 @@ def assert_pipes_closed(raise_gen, long_gen) -> None:
     close_pipe_got_exit = False
     close_pipe_yielding = False
     pit = ManagedPipeIterator.from_pipe(
-        Pipe.from_data("failing", raise_gen, parent=Pipe.from_data("endless", long_gen()))
+        Pipe.from_data(
+            "failing", raise_gen, parent=Pipe.from_data("endless", long_gen())
+        )
     )
     with pytest.raises(ResourceExtractionError) as py_ex:
         list(pit)

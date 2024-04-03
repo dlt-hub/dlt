@@ -13,7 +13,9 @@ class TVersionedState(TypedDict, total=False):
     _state_engine_version: int
 
 
-def generate_state_version_hash(state: TVersionedState, exclude_attrs: List[str] = None) -> str:
+def generate_state_version_hash(
+    state: TVersionedState, exclude_attrs: List[str] = None
+) -> str:
     # generates hash out of stored schema content, excluding hash itself, version and local state
     state_copy = copy(state)
     exclude_attrs = exclude_attrs or []

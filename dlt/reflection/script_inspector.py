@@ -109,7 +109,9 @@ def load_script_module(
         # path must be first so we always load our module of
         sys.path.insert(0, sys_path)
     try:
-        logger.info(f"Importing pipeline script from path {module_path} and module: {module}")
+        logger.info(
+            f"Importing pipeline script from path {module_path} and module: {module}"
+        )
         if ignore_missing_imports:
             return _import_module(f"{module}")
         else:
@@ -129,15 +131,17 @@ def inspect_pipeline_script(
         DltSource, "__init__", patch__init__
     ), patch.object(ManagedPipeIterator, "__init__", patch__init__):
         return load_script_module(
-            module_path, script_relative_path, ignore_missing_imports=ignore_missing_imports
+            module_path,
+            script_relative_path,
+            ignore_missing_imports=ignore_missing_imports,
         )
 
 
 class PipelineIsRunning(DltException):
     def __init__(self, obj: object, args: Tuple[str, ...], kwargs: DictStrAny) -> None:
         super().__init__(
-            "The pipeline script instantiates the pipeline on import. Did you forget to use if"
-            f" __name__ == 'main':? in {obj.__class__.__name__}",
+            "The pipeline script instantiates the pipeline on import. Did you forget"
+            f" to use if __name__ == 'main':? in {obj.__class__.__name__}",
             obj,
             args,
             kwargs,

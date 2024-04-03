@@ -11,9 +11,15 @@ class UnknownDestinationModule(DestinationException):
     def __init__(self, destination_module: str) -> None:
         self.destination_module = destination_module
         if "." in destination_module:
-            msg = f"Destination module {destination_module} could not be found and imported"
+            msg = (
+                f"Destination module {destination_module} could not be found and"
+                " imported"
+            )
         else:
-            msg = f"Destination {destination_module} is not one of the standard dlt destinations"
+            msg = (
+                f"Destination {destination_module} is not one of the standard dlt"
+                " destinations"
+            )
         super().__init__(msg)
 
 
@@ -39,13 +45,17 @@ class DestinationTransientException(DestinationException, TransientException):
 class DestinationLoadingViaStagingNotSupported(DestinationTerminalException):
     def __init__(self, destination: str) -> None:
         self.destination = destination
-        super().__init__(f"Destination {destination} does not support loading via staging.")
+        super().__init__(
+            f"Destination {destination} does not support loading via staging."
+        )
 
 
 class DestinationLoadingWithoutStagingNotSupported(DestinationTerminalException):
     def __init__(self, destination: str) -> None:
         self.destination = destination
-        super().__init__(f"Destination {destination} does not support loading without staging.")
+        super().__init__(
+            f"Destination {destination} does not support loading without staging."
+        )
 
 
 class DestinationNoStagingMode(DestinationTerminalException):
@@ -56,7 +66,11 @@ class DestinationNoStagingMode(DestinationTerminalException):
 
 class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalException):
     def __init__(
-        self, destination: str, staging: str, file_format: str, supported_formats: Iterable[str]
+        self,
+        destination: str,
+        staging: str,
+        file_format: str,
+        supported_formats: Iterable[str],
     ) -> None:
         self.destination = destination
         self.staging = staging
@@ -66,20 +80,20 @@ class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalExcept
         if self.staging:
             if not supported_formats:
                 msg = (
-                    f"Staging {staging} cannot be used with destination {destination} because they"
-                    " have no file formats in common."
+                    f"Staging {staging} cannot be used with destination"
+                    f" {destination} because they have no file formats in common."
                 )
             else:
                 msg = (
-                    f"Unsupported file format {file_format} for destination {destination} in"
-                    f" combination with staging destination {staging}. Supported formats:"
-                    f" {supported_formats_str}"
+                    f"Unsupported file format {file_format} for destination"
+                    f" {destination} in combination with staging destination {staging}."
+                    f" Supported formats: {supported_formats_str}"
                 )
         else:
             msg = (
-                f"Unsupported file format {file_format} destination {destination}. Supported"
-                f" formats: {supported_formats_str}. Check the staging option in the dlt.pipeline"
-                " for additional formats."
+                f"Unsupported file format {file_format} destination {destination}."
+                f" Supported formats: {supported_formats_str}. Check the staging option"
+                " in the dlt.pipeline for additional formats."
             )
         super().__init__(msg)
 
@@ -103,7 +117,9 @@ class IdentifierTooLongException(DestinationTerminalException):
 
 
 class DestinationHasFailedJobs(DestinationTerminalException):
-    def __init__(self, destination_name: str, load_id: str, failed_jobs: List[Any]) -> None:
+    def __init__(
+        self, destination_name: str, load_id: str, failed_jobs: List[Any]
+    ) -> None:
         self.destination_name = destination_name
         self.load_id = load_id
         self.failed_jobs = failed_jobs
@@ -113,14 +129,17 @@ class DestinationHasFailedJobs(DestinationTerminalException):
 
 
 class DestinationSchemaTampered(DestinationTerminalException):
-    def __init__(self, schema_name: str, version_hash: str, stored_version_hash: str) -> None:
+    def __init__(
+        self, schema_name: str, version_hash: str, stored_version_hash: str
+    ) -> None:
         self.version_hash = version_hash
         self.stored_version_hash = stored_version_hash
         super().__init__(
-            f"Schema {schema_name} content was changed - by a loader or by destination code - from"
-            " the moment it was retrieved by load package. Such schema cannot reliably be updated"
-            f" nor saved. Current version hash: {version_hash} != stored version hash"
-            f" {stored_version_hash}. If you are using destination client directly, without storing"
-            " schema in load package, you should first save it into schema storage. You can also"
-            " use schema._bump_version() in test code to remove modified flag."
+            f"Schema {schema_name} content was changed - by a loader or by destination"
+            " code - from the moment it was retrieved by load package. Such schema"
+            " cannot reliably be updated nor saved. Current version hash:"
+            f" {version_hash} != stored version hash {stored_version_hash}. If you are"
+            " using destination client directly, without storing schema in load"
+            " package, you should first save it into schema storage. You can also use"
+            " schema._bump_version() in test code to remove modified flag."
         )

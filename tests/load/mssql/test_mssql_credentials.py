@@ -13,7 +13,9 @@ def test_mssql_credentials_defaults() -> None:
     assert creds.connect_timeout == 15
     assert MsSqlCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     # port should be optional
-    resolve_configuration(creds, explicit_value="mssql://loader:loader@localhost/dlt_data")
+    resolve_configuration(
+        creds, explicit_value="mssql://loader:loader@localhost/dlt_data"
+    )
     assert creds.port == 1433
 
 
@@ -122,7 +124,9 @@ def test_to_odbc_dsn_arbitrary_keys_specified() -> None:
     }
 
 
-available_drivers = [d for d in pyodbc.drivers() if d in MsSqlCredentials.SUPPORTED_DRIVERS]
+available_drivers = [
+    d for d in pyodbc.drivers() if d in MsSqlCredentials.SUPPORTED_DRIVERS
+]
 
 
 @pytest.mark.skipif(not available_drivers, reason="no supported driver available")

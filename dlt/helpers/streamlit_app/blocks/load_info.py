@@ -10,8 +10,9 @@ from dlt.helpers.streamlit_app.widgets import stat
 def last_load_info(pipeline: dlt.Pipeline) -> None:
     loads_df = query_data_live(
         pipeline,
-        f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
-        " status = 0 ORDER BY inserted_at DESC LIMIT 101 ",
+        "SELECT load_id, inserted_at FROM"
+        f" {pipeline.default_schema.loads_table_name} WHERE status = 0 ORDER BY"
+        " inserted_at DESC LIMIT 101 ",
     )
 
     if loads_df is None:
@@ -24,7 +25,8 @@ def last_load_info(pipeline: dlt.Pipeline) -> None:
         if loads_df.shape[0] > 0:
             rel_time = (
                 humanize.naturaldelta(
-                    pendulum.now() - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())
+                    pendulum.now()
+                    - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())
                 )
                 + " ago"
             )

@@ -190,14 +190,16 @@ def test_pipeline_merge() -> None:
             "doc_id": 1,
             "title": "The Shawshank Redemption",
             "description": (
-                "Two imprisoned men find redemption through acts of decency over the years."
+                "Two imprisoned men find redemption through acts of decency over the"
+                " years."
             ),
         },
         {
             "doc_id": 2,
             "title": "The Godfather",
             "description": (
-                "A crime dynasty's aging patriarch transfers control to his reluctant son."
+                "A crime dynasty's aging patriarch transfers control to his reluctant"
+                " son."
             ),
         },
         {
@@ -225,7 +227,9 @@ def test_pipeline_merge() -> None:
         dataset_name="TestPipelineAppendDataset" + uniq_id(),
     )
     info = pipeline.run(
-        movies_data(), write_disposition="merge", dataset_name="MoviesDataset" + uniq_id()
+        movies_data(),
+        write_disposition="merge",
+        dataset_name="MoviesDataset" + uniq_id(),
     )
     assert_load_info(info)
     assert_collection(pipeline, "movies_data", items=data)
@@ -302,7 +306,9 @@ def test_merge_github_nested() -> None:
     assert p.dataset_name.startswith("github1_202")
 
     with open(
-        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+        "tests/normalize/cases/github.issues.load_page_5_duck.json",
+        "r",
+        encoding="utf-8",
     ) as f:
         data = json.load(f)
 
@@ -348,7 +354,9 @@ def test_empty_dataset_allowed() -> None:
     client: QdrantClient = p.destination_client()  # type: ignore[assignment]
 
     assert p.dataset_name is None
-    info = p.run(qdrant_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    info = p.run(
+        qdrant_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
     # dataset in load info is empty
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]

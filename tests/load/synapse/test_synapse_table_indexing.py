@@ -84,7 +84,9 @@ def test_default_table_index_type_configuration(
             yield TABLE_ROW_ALL_DATA_TYPES
 
         pipeline.run(
-            synapse_adapter(items_with_table_index_type_specified, "clustered_columnstore_index")
+            synapse_adapter(
+                items_with_table_index_type_specified, "clustered_columnstore_index"
+            )
         )
         applied_table_index_type = get_storage_table_index_type(
             job_client.sql_client,  # type: ignore[attr-defined]
@@ -131,7 +133,9 @@ def test_resource_table_index_type_configuration(
         pipeline.run(synapse_adapter(items_with_table_index_type_specified, "foo"))  # type: ignore[arg-type]
 
     # Run the pipeline and create the tables.
-    pipeline.run(synapse_adapter(items_with_table_index_type_specified, table_index_type))
+    pipeline.run(
+        synapse_adapter(items_with_table_index_type_specified, table_index_type)
+    )
 
     # For all tables, assert the applied index type equals the expected index type.
     # Child tables, if any, inherit the index type of their parent.

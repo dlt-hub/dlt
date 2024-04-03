@@ -43,7 +43,9 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
     return timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
 
 
-def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
+def parse_iso_like_datetime(
+    value: Any,
+) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     """Parses ISO8601 string into pendulum datetime, date or time. Preserves timezone info.
     Note: naive datetimes will generated from string without timezone
 

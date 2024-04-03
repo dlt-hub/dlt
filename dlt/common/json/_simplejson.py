@@ -15,7 +15,9 @@ from dlt.common.arithmetics import Decimal
 _impl_name = "simplejson"
 
 
-def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:
+def dump(
+    obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False
+) -> None:
     if pretty:
         indent = 2
     else:

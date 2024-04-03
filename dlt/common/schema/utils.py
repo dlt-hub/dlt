@@ -3,7 +3,18 @@ import base64
 import hashlib
 import yaml
 from copy import deepcopy, copy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
+from typing import (
+    Dict,
+    List,
+    Sequence,
+    Tuple,
+    Type,
+    Any,
+    cast,
+    Iterable,
+    Optional,
+    Union,
+)
 
 from dlt.common import json
 from dlt.common.data_types import TDataType
@@ -160,7 +171,9 @@ def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     return copy(column)  # type: ignore
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, Sequence[str]]:
+def bump_version_if_modified(
+    stored_schema: TStoredSchema,
+) -> Tuple[int, str, str, Sequence[str]]:
     """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash, 10 last hashes) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
@@ -174,7 +187,12 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, st
         store_prev_hash(stored_schema, previous_hash)
 
     stored_schema["version_hash"] = hash_
-    return stored_schema["version"], hash_, previous_hash, stored_schema["previous_hashes"]
+    return (
+        stored_schema["version"],
+        hash_,
+        previous_hash,
+        stored_schema["previous_hashes"],
+    )
 
 
 def store_prev_hash(
@@ -183,7 +201,9 @@ def store_prev_hash(
     # unshift previous hash to previous_hashes and limit array to 10 entries
     if previous_hash not in stored_schema["previous_hashes"]:
         stored_schema["previous_hashes"].insert(0, previous_hash)
-        stored_schema["previous_hashes"] = stored_schema["previous_hashes"][:max_history_len]
+        stored_schema["previous_hashes"] = stored_schema["previous_hashes"][
+            :max_history_len
+        ]
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
@@ -227,8 +247,8 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     if t is TSimpleRegex:
         if not isinstance(pv, str):
             raise DictValidationException(
-                f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while str"
-                " is expected",
+                f"In {path}: field {pk} value {pv} has invalid type"
+                f" {type(pv).__name__} while str is expected",
                 path,
                 pk,
                 pv,
@@ -239,7 +259,8 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
                 re.compile(pv[3:])
             except Exception as e:
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv[3:]} does not compile as regex: {str(e)}",
+                    f"In {path}: field {pk} value {pv[3:]} does not compile as regex:"
+                    f" {str(e)}",
                     path,
                     pk,
                     pv,
@@ -247,7 +268,8 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         else:
             if RE_NON_ALPHANUMERIC_UNDERSCORE.match(pv):
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} looks like a regex, please prefix with re:",
+                    f"In {path}: field {pk} value {pv} looks like a regex, please"
+                    " prefix with re:",
                     path,
                     pk,
                     pv,
@@ -264,8 +286,8 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
         if t is TColumnName:
             if not isinstance(pv, str):
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    " str is expected",
+                    f"In {path}: field {pk} value {pv} has invalid type"
+                    f" {type(pv).__name__} while str is expected",
                     path,
                     pk,
                     pv,
@@ -273,11 +295,17 @@ def column_name_validator(naming: NamingConvention) -> TCustomValidator:
             try:
                 if naming.normalize_path(pv) != pv:
                     raise DictValidationException(
-                        f"In {path}: field {pk}: {pv} is not a valid column name", path, pk, pv
+                        f"In {path}: field {pk}: {pv} is not a valid column name",
+                        path,
+                        pk,
+                        pv,
                     )
             except ValueError:
                 raise DictValidationException(
-                    f"In {path}: field {pk}: {pv} is not a valid column name", path, pk, pv
+                    f"In {path}: field {pk}: {pv} is not a valid column name",
+                    path,
+                    pk,
+                    pv,
                 )
             return True
         else:
@@ -309,7 +337,10 @@ def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
     # use lambda to verify only non extra fields
     validate_dict_ignoring_xkeys(
-        spec=TStoredSchema, doc=stored_schema, path=".", validator_f=simple_regex_validator
+        spec=TStoredSchema,
+        doc=stored_schema,
+        path=".",
+        validator_f=simple_regex_validator,
     )
     # check child parent relationships
     for table_name, table in stored_schema["tables"].items():
@@ -319,7 +350,9 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
                 raise ParentTableNotFoundException(table_name, parent_table_name)
 
 
-def autodetect_sc_type(detection_fs: Sequence[TTypeDetections], t: Type[Any], v: Any) -> TDataType:
+def autodetect_sc_type(
+    detection_fs: Sequence[TTypeDetections], t: Type[Any], v: Any
+) -> TDataType:
     if detection_fs:
         for detection_fn in detection_fs:
             # the method must exist in the module
@@ -430,7 +463,9 @@ def diff_table(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTable
 #         return False
 
 
-def merge_table(table: TTableSchema, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+def merge_table(
+    table: TTableSchema, partial_table: TPartialTableSchema
+) -> TPartialTableSchema:
     """Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
 
     `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`:
@@ -472,19 +507,24 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
 
 
 def get_columns_names_with_prop(
-    table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
+    table: TTableSchema,
+    column_prop: Union[TColumnProp, str],
+    include_incomplete: bool = False,
 ) -> List[str]:
     # column_prop: TColumnProp = hint_to_column_prop(hint_type)
     # default = column_prop != "nullable"  # default is true, only for nullable false
     return [
         c["name"]
         for c in table["columns"].values()
-        if bool(c.get(column_prop, False)) and (include_incomplete or is_complete_column(c))
+        if bool(c.get(column_prop, False))
+        and (include_incomplete or is_complete_column(c))
     ]
 
 
 def get_first_column_name_with_prop(
-    table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
+    table: TTableSchema,
+    column_prop: Union[TColumnProp, str],
+    include_incomplete: bool = False,
 ) -> Optional[str]:
     """Returns name of first column in `table` schema with property `column_prop` or None if no such column exists."""
     column_names = get_columns_names_with_prop(table, column_prop, include_incomplete)
@@ -494,7 +534,9 @@ def get_first_column_name_with_prop(
 
 
 def has_column_with_prop(
-    table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
+    table: TTableSchema,
+    column_prop: Union[TColumnProp, str],
+    include_incomplete: bool = False,
 ) -> bool:
     """Checks if `table` schema contains column with property `column_prop`."""
     return len(get_columns_names_with_prop(table, column_prop, include_incomplete)) > 0
@@ -509,7 +551,9 @@ def get_dedup_sort_tuple(
 
     Returns None if "dedup_sort" hint was not provided.
     """
-    dedup_sort_col = get_first_column_name_with_prop(table, "dedup_sort", include_incomplete)
+    dedup_sort_col = get_first_column_name_with_prop(
+        table, "dedup_sort", include_incomplete
+    )
     if dedup_sort_col is None:
         return None
     dedup_sort_order = table["columns"][dedup_sort_col]["dedup_sort"]
@@ -522,13 +566,18 @@ def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTabl
         for table_name, table_updates in schema_update.items():
             for partial_table in table_updates:
                 # aggregate schema updates
-                aggregated_table = aggregated_update.setdefault(table_name, partial_table)
+                aggregated_table = aggregated_update.setdefault(
+                    table_name, partial_table
+                )
                 aggregated_table["columns"].update(partial_table["columns"])
     return aggregated_update
 
 
 def get_inherited_table_hint(
-    tables: TSchemaTables, table_name: str, table_hint_name: str, allow_none: bool = False
+    tables: TSchemaTables,
+    table_name: str,
+    table_hint_name: str,
+    allow_none: bool = False,
 ) -> Any:
     table = tables.get(table_name, {})
     hint = table.get(table_hint_name)
@@ -543,7 +592,8 @@ def get_inherited_table_hint(
         return None
 
     raise ValueError(
-        f"No table hint '{table_hint_name} found in the chain of tables for '{table_name}'."
+        f"No table hint '{table_hint_name} found in the chain of tables for"
+        f" '{table_name}'."
     )
 
 
@@ -551,13 +601,16 @@ def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDispo
     """Returns table hint of a table if present. If not, looks up into parent table"""
     return cast(
         TWriteDisposition,
-        get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=False),
+        get_inherited_table_hint(
+            tables, table_name, "write_disposition", allow_none=False
+        ),
     )
 
 
 def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:
     return cast(
-        TTableFormat, get_inherited_table_hint(tables, table_name, "table_format", allow_none=True)
+        TTableFormat,
+        get_inherited_table_hint(tables, table_name, "table_format", allow_none=True),
     )
 
 
@@ -741,4 +794,6 @@ def to_pretty_json(stored_schema: TStoredSchema) -> str:
 
 
 def to_pretty_yaml(stored_schema: TStoredSchema) -> str:
-    return yaml.dump(stored_schema, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    return yaml.dump(
+        stored_schema, allow_unicode=True, default_flow_style=False, sort_keys=False
+    )

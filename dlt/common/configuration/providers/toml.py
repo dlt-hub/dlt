@@ -48,7 +48,9 @@ class BaseTomlProvider(ConfigProvider):
         except KeyError:
             return None, full_key
 
-    def set_value(self, key: str, value: Any, pipeline_name: str, *sections: str) -> None:
+    def set_value(
+        self, key: str, value: Any, pipeline_name: str, *sections: str
+    ) -> None:
         if pipeline_name:
             sections = (pipeline_name,) + sections
 
@@ -165,7 +167,9 @@ class VaultTomlProvider(BaseTomlProvider):
             # generate auxiliary paths to get from vault
             for known_section in [known_sections.SOURCES, known_sections.DESTINATION]:
 
-                def _look_at_idx(idx: int, full_path: Tuple[str, ...], pipeline_name: str) -> None:
+                def _look_at_idx(
+                    idx: int, full_path: Tuple[str, ...], pipeline_name: str
+                ) -> None:
                     lookup_key = full_path[idx]
                     lookup_sections = full_path[:idx]
                     lookup_fk = self.get_key_name(lookup_key, *lookup_sections)
@@ -185,7 +189,9 @@ class VaultTomlProvider(BaseTomlProvider):
                             _look_at_idx(idx + 1, full_path, pipeline_name_)
 
                 # first query the shortest paths so the longer paths can override it
-                _lookup_paths(None, known_section)  # check sources and sources.<source_name>
+                _lookup_paths(
+                    None, known_section
+                )  # check sources and sources.<source_name>
                 if pipeline_name:
                     _lookup_paths(
                         pipeline_name, known_section
@@ -213,7 +219,12 @@ class VaultTomlProvider(BaseTomlProvider):
         pass
 
     def _update_from_vault(
-        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: Tuple[str, ...]
+        self,
+        full_key: str,
+        key: str,
+        hint: type,
+        pipeline_name: str,
+        sections: Tuple[str, ...],
     ) -> None:
         if full_key in self._vault_lookups:
             return
@@ -259,11 +270,15 @@ class TomlFileProvider(BaseTomlProvider):
         try:
             project_toml = self._read_toml(self._toml_path)
             if add_global_config:
-                global_toml = self._read_toml(os.path.join(self.global_config_path(), file_name))
+                global_toml = self._read_toml(
+                    os.path.join(self.global_config_path(), file_name)
+                )
                 project_toml = update_dict_nested(global_toml, project_toml)
             return project_toml
         except Exception as ex:
-            raise TomlProviderReadException(self.name, file_name, self._toml_path, str(ex))
+            raise TomlProviderReadException(
+                self.name, file_name, self._toml_path, str(ex)
+            )
 
     @staticmethod
     def global_config_path() -> str:
@@ -287,8 +302,12 @@ class TomlFileProvider(BaseTomlProvider):
 
 
 class ConfigTomlProvider(TomlFileProvider):
-    def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
-        super().__init__(CONFIG_TOML, project_dir=project_dir, add_global_config=add_global_config)
+    def __init__(
+        self, project_dir: str = None, add_global_config: bool = False
+    ) -> None:
+        super().__init__(
+            CONFIG_TOML, project_dir=project_dir, add_global_config=add_global_config
+        )
 
     @property
     def name(self) -> str:
@@ -304,8 +323,12 @@ class ConfigTomlProvider(TomlFileProvider):
 
 
 class SecretsTomlProvider(TomlFileProvider):
-    def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
-        super().__init__(SECRETS_TOML, project_dir=project_dir, add_global_config=add_global_config)
+    def __init__(
+        self, project_dir: str = None, add_global_config: bool = False
+    ) -> None:
+        super().__init__(
+            SECRETS_TOML, project_dir=project_dir, add_global_config=add_global_config
+        )
 
     @property
     def name(self) -> str:

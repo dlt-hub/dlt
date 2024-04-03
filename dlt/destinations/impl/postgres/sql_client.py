@@ -90,7 +90,9 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> Iterator[DBApiCursor]:
         curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:
@@ -109,12 +111,16 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
         # compose the statements using psycopg2 library
-        composed = Composed(sql if isinstance(sql, Composable) else SQL(sql) for sql in fragments)
+        composed = Composed(
+            sql if isinstance(sql, Composable) else SQL(sql) for sql in fragments
+        )
         return self.execute_sql(composed, *args, **kwargs)
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+            self.capabilities.escape_identifier(self.dataset_name)
+            if escape
+            else self.dataset_name
         )
 
     def _reset_connection(self) -> None:
@@ -124,7 +130,9 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, (psycopg2.errors.UndefinedTable, psycopg2.errors.InvalidSchemaName)):
+        if isinstance(
+            ex, (psycopg2.errors.UndefinedTable, psycopg2.errors.InvalidSchemaName)
+        ):
             raise DatabaseUndefinedRelation(ex)
         if isinstance(
             ex,

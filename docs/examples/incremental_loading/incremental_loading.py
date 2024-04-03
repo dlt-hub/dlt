@@ -32,7 +32,9 @@ from dlt.sources.helpers.requests import client
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
+        year=2000, month=1, day=1
+    ),
     end_date: Optional[TAnyDateTime] = None,
 ):
     """

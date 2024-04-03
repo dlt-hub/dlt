@@ -24,7 +24,9 @@ from tests.extract.utils import expect_extracted_file
 def extract_step() -> Extract:
     clean_test_storage(init_normalize=True)
     schema_storage = SchemaStorage(
-        SchemaStorageConfiguration(schema_volume_path=os.path.join(TEST_STORAGE_ROOT, "schemas")),
+        SchemaStorageConfiguration(
+            schema_volume_path=os.path.join(TEST_STORAGE_ROOT, "schemas")
+        ),
         makedirs=True,
     )
     return Extract(schema_storage, NormalizeStorageConfiguration())
@@ -44,7 +46,9 @@ def test_storage_reuse_package() -> None:
     # we have a new load id (the package with schema moved to extracted)
     load_id_3 = storage.create_load_package(dlt.Schema("first"))
     assert load_id != load_id_3
-    load_id_4 = storage.create_load_package(dlt.Schema("first"), reuse_exiting_package=False)
+    load_id_4 = storage.create_load_package(
+        dlt.Schema("first"), reuse_exiting_package=False
+    )
     assert load_id_4 != load_id_3
 
     # this will fail - not all extracts committed
@@ -103,7 +107,9 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
     def with_table_hints():
         yield dlt.mark.with_hints(
             {"id": 1, "pk": "A"},
-            make_hints(columns=[{"name": "id", "data_type": "bigint"}], primary_key="pk"),
+            make_hints(
+                columns=[{"name": "id", "data_type": "bigint"}], primary_key="pk"
+            ),
         )
         schema = dlt.current.source_schema()
         # table and columns got updated in the schema
@@ -125,7 +131,10 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
             {"id": 1, "pk2": "B"},
             make_hints(
                 write_disposition="merge",
-                columns=[{"name": "id", "precision": 16}, {"name": "text", "data_type": "decimal"}],
+                columns=[
+                    {"name": "id", "precision": 16},
+                    {"name": "text", "data_type": "decimal"},
+                ],
                 primary_key="pk2",
             ),
         )
@@ -146,7 +155,8 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
 
         # make table name dynamic
         yield dlt.mark.with_hints(
-            {"namer": "dynamic"}, make_hints(table_name=lambda item: f"{item['namer']}_table")
+            {"namer": "dynamic"},
+            make_hints(table_name=lambda item: f"{item['namer']}_table"),
         )
         # dynamic table was created in the schema and it contains the newest resource table schema
         table = schema.tables["dynamic_table"]
@@ -172,7 +182,9 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
     def with_table_hints():
         yield dlt.mark.with_hints(
             {"id": 1, "pk": "A"},
-            make_hints(table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]),
+            make_hints(
+                table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]
+            ),
             create_table_variant=True,
         )
         # get the resource
@@ -240,7 +252,9 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
     input_tx = DltResource.from_data(tx_step, data_from=DltResource.Empty)
 
     source = DltSource(
-        dlt.Schema("selectables"), "module", [input_r, (input_r | input_tx).with_name("tx_clone")]
+        dlt.Schema("selectables"),
+        "module",
+        [input_r, (input_r | input_tx).with_name("tx_clone")],
     )
     extract_step.extract(source, 20, 1)
     assert "input_gen" in source.schema._schema_tables
@@ -263,10 +277,16 @@ def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     # check resulting files
     assert len(extract_step.extract_storage.list_files_to_normalize_sorted()) == 2
     expect_extracted_file(
-        extract_step.extract_storage, "selectables", "odd_table", json.dumps([1, 3, 5, 7, 9])
+        extract_step.extract_storage,
+        "selectables",
+        "odd_table",
+        json.dumps([1, 3, 5, 7, 9]),
     )
     expect_extracted_file(
-        extract_step.extract_storage, "selectables", "even_table", json.dumps([0, 2, 4, 6, 8])
+        extract_step.extract_storage,
+        "selectables",
+        "even_table",
+        json.dumps([0, 2, 4, 6, 8]),
     )
     schema = source.schema
 

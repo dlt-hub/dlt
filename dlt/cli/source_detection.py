@@ -15,7 +15,9 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 
 
 def find_call_arguments_to_replace(
-    visitor: PipelineScriptVisitor, replace_nodes: List[Tuple[str, str]], init_script_name: str
+    visitor: PipelineScriptVisitor,
+    replace_nodes: List[Tuple[str, str]],
+    init_script_name: str,
 ) -> List[Tuple[ast.AST, ast.AST]]:
     # the input tuple (call argument name, replacement value)
     # the returned tuple (node, replacement value, node type)
@@ -27,14 +29,19 @@ def find_call_arguments_to_replace(
             for t_arg_name, t_value in replace_nodes:
                 dn_node: ast.AST = args.arguments.get(t_arg_name)
                 if dn_node is not None:
-                    if not isinstance(dn_node, ast.Constant) or not isinstance(dn_node.value, str):
+                    if not isinstance(dn_node, ast.Constant) or not isinstance(
+                        dn_node.value, str
+                    ):
                         raise CliCommandException(
                             "init",
-                            f"The pipeline script {init_script_name} must pass the {t_arg_name} as"
-                            f" string to '{arg_name}' function in line {dn_node.lineno}",
+                            f"The pipeline script {init_script_name} must pass the"
+                            f" {t_arg_name} as string to '{arg_name}' function in line"
+                            f" {dn_node.lineno}",
                         )
                     else:
-                        transformed_nodes.append((dn_node, ast.Constant(value=t_value, kind=None)))
+                        transformed_nodes.append(
+                            (dn_node, ast.Constant(value=t_value, kind=None))
+                        )
                         replaced_args.add(t_arg_name)
 
     # there was at least one replacement
@@ -43,8 +50,8 @@ def find_call_arguments_to_replace(
             raise CliCommandException(
                 "init",
                 f"The pipeline script {init_script_name} is not explicitly passing the"
-                f" '{t_arg_name}' argument to 'pipeline' or 'run' function. In init script the"
-                " default and configured values are not accepted.",
+                f" '{t_arg_name}' argument to 'pipeline' or 'run' function. In init"
+                " script the default and configured values are not accepted.",
             )
     return transformed_nodes
 
@@ -73,7 +80,11 @@ def find_source_calls_to_replace(
 
 def detect_source_configs(
     sources: Dict[str, SourceInfo], module_prefix: str, section: Tuple[str, ...]
-) -> Tuple[Dict[str, WritableConfigValue], Dict[str, WritableConfigValue], Dict[str, SourceInfo]]:
+) -> Tuple[
+    Dict[str, WritableConfigValue],
+    Dict[str, WritableConfigValue],
+    Dict[str, SourceInfo],
+]:
     # all detected secrets with sections
     required_secrets: Dict[str, WritableConfigValue] = {}
     # all detected configs with sections
@@ -85,7 +96,9 @@ def detect_source_configs(
         # accept only sources declared in the `init` or `pipeline` modules
         if source_info.module.__name__.startswith(module_prefix):
             checked_sources[source_name] = source_info
-            source_config = source_info.SPEC() if source_info.SPEC else BaseConfiguration()
+            source_config = (
+                source_info.SPEC() if source_info.SPEC else BaseConfiguration()
+            )
             spec_fields = source_config.get_resolvable_fields()
             for field_name, field_type in spec_fields.items():
                 val_store = None
@@ -94,7 +107,8 @@ def detect_source_configs(
                     val_store = required_secrets
                 # all configs that are required and do not have a default value must go to config.toml
                 elif (
-                    not is_optional_type(field_type) and getattr(source_config, field_name) is None
+                    not is_optional_type(field_type)
+                    and getattr(source_config, field_name) is None
                 ):
                     val_store = required_config
 

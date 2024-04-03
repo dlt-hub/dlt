@@ -128,19 +128,31 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     destination_caps.preferred_loader_file_format
                     or destination_caps.preferred_staging_file_format
                 )
-            return LoadStorage(False, file_format, supported_formats, loader_storage_config)
+            return LoadStorage(
+                False, file_format, supported_formats, loader_storage_config
+            )
 
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
-            def _get_items_normalizer(file_format: TLoaderFileFormat) -> ItemsNormalizer:
+            def _get_items_normalizer(
+                file_format: TLoaderFileFormat,
+            ) -> ItemsNormalizer:
                 if file_format in item_normalizers:
                     return item_normalizers[file_format]
-                klass = ParquetItemsNormalizer if file_format == "parquet" else JsonLItemsNormalizer
+                klass = (
+                    ParquetItemsNormalizer
+                    if file_format == "parquet"
+                    else JsonLItemsNormalizer
+                )
                 norm = item_normalizers[file_format] = klass(
-                    _create_load_storage(file_format), normalize_storage, schema, load_id, config
+                    _create_load_storage(file_format),
+                    normalize_storage,
+                    schema,
+                    load_id,
+                    config,
                 )
                 return norm
 
@@ -157,8 +169,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     root_tables.add(root_table_name)
                     normalizer = _get_items_normalizer(parsed_file_name.file_format)
                     logger.debug(
-                        f"Processing extracted items in {extracted_items_file} in load_id"
-                        f" {load_id} with table name {root_table_name} and schema {schema.name}"
+                        f"Processing extracted items in {extracted_items_file} in"
+                        f" load_id {load_id} with table name {root_table_name} and"
+                        f" schema {schema.name}"
                     )
                     partial_updates = normalizer(extracted_items_file, root_table_name)
                     schema_updates.extend(partial_updates)
@@ -181,7 +194,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         for schema_update in schema_updates:
             for table_name, table_updates in schema_update.items():
                 logger.info(
-                    f"Updating schema for table {table_name} with {len(table_updates)} deltas"
+                    f"Updating schema for table {table_name} with"
+                    f" {len(table_updates)} deltas"
                 )
                 for partial_table in table_updates:
                     # merge columns
@@ -204,7 +218,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             l_idx = idx + 1
         return chunk_files
 
-    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
+    def map_parallel(
+        self, schema: Schema, load_id: str, files: Sequence[str]
+    ) -> TWorkerRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
@@ -244,12 +260,16 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         # update metrics
                         self.collector.update("Files", len(result.file_metrics))
                         self.collector.update(
-                            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
+                            "Items",
+                            sum(
+                                result.file_metrics, EMPTY_DATA_WRITER_METRICS
+                            ).items_count,
                         )
                     except CannotCoerceColumnException as exc:
                         # schema conflicts resulting from parallel executing
                         logger.warning(
-                            f"Parallel schema update conflict, retrying task ({str(exc)}"
+                            "Parallel schema update conflict, retrying task"
+                            f" ({str(exc)}"
                         )
                         # delete all files produced by the task
                         for metrics in result.file_metrics:
@@ -268,7 +288,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
 
         return summary
 
-    def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
+    def map_single(
+        self, schema: Schema, load_id: str, files: Sequence[str]
+    ) -> TWorkerRV:
         result = Normalize.w_normalize_files(
             self.config,
             self.normalize_storage.config,
@@ -290,9 +312,13 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # process files in parallel or in single thread, depending on map_f
         schema_updates, writer_metrics = map_f(schema, load_id, files)
         # compute metrics
-        job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
+        job_metrics = {
+            ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics
+        }
         table_metrics: Dict[str, DataWriterMetrics] = {
-            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            table_name: sum(
+                map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS
+            )
             for table_name, metrics in itertools.groupby(
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
@@ -306,18 +332,21 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             # mark that table have seen data only if there was data
             if "seen-data" not in x_normalizer:
                 logger.info(
-                    f"Table {table_name} has seen data for a first time with load id {load_id}"
+                    f"Table {table_name} has seen data for a first time with load id"
+                    f" {load_id}"
                 )
                 x_normalizer["seen-data"] = True
         # schema is updated, save it to schema volume
         if schema.is_modified:
             logger.info(
-                f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
+                f"Saving schema {schema.name} with version"
+                f" {schema.stored_version}:{schema.version}"
             )
             self.schema_storage.save_schema(schema)
         else:
             logger.info(
-                f"Schema {schema.name} with version {schema.version} was not modified. Save skipped"
+                f"Schema {schema.name} with version {schema.version} was not modified."
+                " Save skipped"
             )
         # save schema new package
         self.load_storage.new_packages.save_schema(load_id, schema)
@@ -339,12 +368,16 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             {
                 "started_at": None,
                 "finished_at": None,
-                "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
+                "job_metrics": {
+                    job.job_id(): metrics for job, metrics in job_metrics.items()
+                },
                 "table_metrics": table_metrics,
             },
         )
 
-    def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
+    def spool_schema_files(
+        self, load_id: str, schema: Schema, files: Sequence[str]
+    ) -> str:
         # delete existing folder for the case that this is a retry
         self.load_storage.new_packages.delete_package(load_id, not_exists_ok=True)
         # normalized files will go here before being atomically renamed
@@ -358,12 +391,15 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         except CannotCoerceColumnException as exc:
             # schema conflicts resulting from parallel executing
             logger.warning(
-                f"Parallel schema update conflict, switching to single thread ({str(exc)}"
+                "Parallel schema update conflict, switching to single thread"
+                f" ({str(exc)}"
             )
             # start from scratch
             self.load_storage.new_packages.delete_package(load_id)
             self.load_storage.new_packages.create_package(load_id)
-            self.spool_files(load_id, schema.clone(update_normalizers=True), self.map_single, files)
+            self.spool_files(
+                load_id, schema.clone(update_normalizers=True), self.map_single, files
+            )
 
         return load_id
 
@@ -386,18 +422,22 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 storage_schema = self.schema_storage[schema.name]
                 if schema.stored_version_hash != storage_schema.stored_version_hash:
                     logger.warning(
-                        f"When normalizing package {load_id} with schema {schema.name}: the storage"
-                        f" schema hash {storage_schema.stored_version_hash} is different from"
-                        f" extract package schema hash {schema.stored_version_hash}. Storage schema"
-                        " was used."
+                        f"When normalizing package {load_id} with schema {schema.name}:"
+                        " the storage schema hash"
+                        f" {storage_schema.stored_version_hash} is different from"
+                        f" extract package schema hash {schema.stored_version_hash}."
+                        " Storage schema was used."
                     )
                 schema = storage_schema
             except FileNotFoundError:
                 pass
             # read all files to normalize placed as new jobs
-            schema_files = self.normalize_storage.extracted_packages.list_new_jobs(load_id)
+            schema_files = self.normalize_storage.extracted_packages.list_new_jobs(
+                load_id
+            )
             logger.info(
-                f"Found {len(schema_files)} files in schema {schema.name} load_id {load_id}"
+                f"Found {len(schema_files)} files in schema {schema.name} load_id"
+                f" {load_id}"
             )
             if len(schema_files) == 0:
                 # delete empty package
@@ -411,14 +451,18 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 self.spool_schema_files(load_id, schema, schema_files)
 
         # return info on still pending packages (if extractor saved something in the meantime)
-        return TRunMetrics(False, len(self.normalize_storage.extracted_packages.list_packages()))
+        return TRunMetrics(
+            False, len(self.normalize_storage.extracted_packages.list_packages())
+        )
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
         try:
             return self.load_storage.get_load_package_info(load_id)
         except LoadPackageNotFound:
-            return self.normalize_storage.extracted_packages.get_load_package_info(load_id)
+            return self.normalize_storage.extracted_packages.get_load_package_info(
+                load_id
+            )
 
     def get_step_info(
         self,
@@ -431,4 +475,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             load_package = self.get_load_package_info(load_id)
             load_packages.append(load_package)
             metrics[load_id] = self._step_info_metrics(load_id)
-        return NormalizeInfo(pipeline, metrics, load_ids, load_packages, pipeline.first_run)
+        return NormalizeInfo(
+            pipeline, metrics, load_ids, load_packages, pipeline.first_run
+        )

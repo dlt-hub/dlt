@@ -17,7 +17,9 @@ from dlt.common.normalizers.utils import import_normalizers
 from dlt.common.schema.utils import new_table, version_table, load_table
 
 
-def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
+def migrate_schema(
+    schema_dict: DictStrAny, from_engine: int, to_engine: int
+) -> TStoredSchema:
     if from_engine == to_engine:
         return cast(TStoredSchema, schema_dict)
 

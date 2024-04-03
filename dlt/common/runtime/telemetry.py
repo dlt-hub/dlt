@@ -6,7 +6,12 @@ from typing import Any, Callable
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
-from dlt.common.runtime.segment import TEventCategory, init_segment, disable_segment, track
+from dlt.common.runtime.segment import (
+    TEventCategory,
+    init_segment,
+    disable_segment,
+    track,
+)
 
 _TELEMETRY_STARTED = False
 
@@ -62,7 +67,9 @@ def with_telemetry(
         def _wrap(*f_args: Any, **f_kwargs: Any) -> Any:
             # look for additional arguments
             bound_args = sig.bind(*f_args, **f_kwargs)
-            props = {p: bound_args.arguments[p] for p in args if p in bound_args.arguments}
+            props = {
+                p: bound_args.arguments[p] for p in args if p in bound_args.arguments
+            }
             start_ts = time.time()
 
             def _track(success: bool) -> None:

@@ -21,7 +21,9 @@ from dlt.common.configuration.specs import (
     ConnectionStringCredentials,
 )
 from dlt.common.configuration.specs.base_configuration import configspec, is_secret_hint
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
 from dlt.common.typing import StrAny, TSecretValue, is_newtype_type
@@ -94,7 +96,9 @@ def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) ->
     # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpServiceAccountCredentialsWithoutDefaults must be replaced with it
 
     @with_config
-    def f_credentials(gcp_storage: GcpServiceAccountCredentialsWithoutDefaults = dlt.secrets.value):
+    def f_credentials(
+        gcp_storage: GcpServiceAccountCredentialsWithoutDefaults = dlt.secrets.value,
+    ):
         # unique project name
         assert gcp_storage.project_id == "mock-project-id-gcp-storage"
 
@@ -104,7 +108,9 @@ def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) ->
 def test_inject_secret_value_secret_type(environment: Any) -> None:
     @with_config
     def f_custom_secret_type(
-        _dict: Dict[str, Any] = dlt.secrets.value, _int: int = dlt.secrets.value, **kwargs: Any
+        _dict: Dict[str, Any] = dlt.secrets.value,
+        _int: int = dlt.secrets.value,
+        **kwargs: Any,
     ):
         # secret values were coerced into types
         assert _dict == {"a": 1}
@@ -192,7 +198,9 @@ def test_inject_with_sections_and_sections_context() -> None:
         return value
 
     # a section context that prefers existing context
-    @with_config(sections=("test",), sections_merge_style=ConfigSectionContext.prefer_existing)
+    @with_config(
+        sections=("test",), sections_merge_style=ConfigSectionContext.prefer_existing
+    )
     def test_sections_pref_existing(value=dlt.config.value):
         return value
 
@@ -409,12 +417,16 @@ def test_use_most_specific_union_type(
 ) -> None:
     @with_config
     def postgres_union(
-        local_credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value
+        local_credentials: Union[
+            ConnectionStringCredentials, str, StrAny
+        ] = dlt.secrets.value
     ):
         return local_credentials
 
     @with_config
-    def postgres_direct(local_credentials: ConnectionStringCredentials = dlt.secrets.value):
+    def postgres_direct(
+        local_credentials: ConnectionStringCredentials = dlt.secrets.value,
+    ):
         return local_credentials
 
     conn_str = "postgres://loader:loader@localhost:5432/dlt_data"
@@ -497,6 +509,11 @@ def test_auto_derived_spec_type_name() -> None:
     # synthesized spec present in current module
     assert "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration" in globals()
     # instantiate
-    C: BaseConfiguration = globals()["TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration"]()
+    C: BaseConfiguration = globals()[
+        "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration"
+    ]()
     # pos_par converted to secrets, kw_par converted to optional
-    assert C.get_resolvable_fields() == {"pos_par": TSecretValue, "kw_par": Optional[Any]}
+    assert C.get_resolvable_fields() == {
+        "pos_par": TSecretValue,
+        "kw_par": Optional[Any],
+    }

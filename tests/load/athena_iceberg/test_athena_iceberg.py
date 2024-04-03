@@ -37,14 +37,19 @@ def test_iceberg() -> None:
         yield {
             "id": 1,
             "name": "item",
-            "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
+            "sub_items": [
+                {"id": 101, "name": "sub item 101"},
+                {"id": 101, "name": "sub item 102"},
+            ],
         }
 
     @dlt.resource(name="items_normal", write_disposition="append")
     def items_normal():
         yield from items()
 
-    @dlt.resource(name="items_iceberg", write_disposition="append", table_format="iceberg")
+    @dlt.resource(
+        name="items_iceberg", write_disposition="append", table_format="iceberg"
+    )
     def items_iceberg():
         yield from items()
 
@@ -67,10 +72,18 @@ def test_iceberg() -> None:
         # modifying regular athena table will fail
         with pytest.raises(DatabaseTerminalException) as dbex:
             client.execute_sql("UPDATE items_normal SET name='new name'")
-        assert "Modifying Hive table rows is only supported for transactional tables" in str(dbex)
+        assert (
+            "Modifying Hive table rows is only supported for transactional tables"
+            in str(dbex)
+        )
         with pytest.raises(DatabaseTerminalException) as dbex:
-            client.execute_sql("UPDATE items_normal__sub_items SET name='super new name'")
-        assert "Modifying Hive table rows is only supported for transactional tables" in str(dbex)
+            client.execute_sql(
+                "UPDATE items_normal__sub_items SET name='super new name'"
+            )
+        assert (
+            "Modifying Hive table rows is only supported for transactional tables"
+            in str(dbex)
+        )
 
         # modifying iceberg table will succeed
         client.execute_sql("UPDATE items_iceberg SET name='new name'")

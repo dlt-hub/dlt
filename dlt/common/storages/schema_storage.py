@@ -59,7 +59,9 @@ class SchemaStorage(Mapping[str, Schema]):
         # check if there's schema to import
         if self.config.import_schema_path:
             try:
-                imported_schema = Schema.from_dict(self._load_import_schema(schema.name))
+                imported_schema = Schema.from_dict(
+                    self._load_import_schema(schema.name)
+                )
                 # link schema being saved to current imported schema so it will not overwrite this save when loaded
                 schema._imported_version_hash = imported_schema.stored_version_hash
             except FileNotFoundError:
@@ -100,7 +102,9 @@ class SchemaStorage(Mapping[str, Schema]):
     def __contains__(self, name: str) -> bool:  # type: ignore
         return name in self.list_schemas()
 
-    def _maybe_import_schema(self, name: str, storage_schema: DictStrAny = None) -> Schema:
+    def _maybe_import_schema(
+        self, name: str, storage_schema: DictStrAny = None
+    ) -> Schema:
         rv_schema: Schema = None
         try:
             imported_schema = self._load_import_schema(name)
@@ -110,9 +114,9 @@ class SchemaStorage(Mapping[str, Schema]):
                 # store import hash to self to track changes
                 rv_schema._imported_version_hash = rv_schema.version_hash
                 logger.info(
-                    f"Schema {name} not present in {self.storage.storage_path} and got imported"
-                    f" with version {rv_schema.stored_version} and imported hash"
-                    f" {rv_schema._imported_version_hash}"
+                    f"Schema {name} not present in {self.storage.storage_path} and got"
+                    f" imported with version {rv_schema.stored_version} and imported"
+                    f" hash {rv_schema._imported_version_hash}"
                 )
                 # if schema was imported, overwrite storage schema
                 self._save_schema(rv_schema)
@@ -126,9 +130,9 @@ class SchemaStorage(Mapping[str, Schema]):
                     rv_schema.replace_schema_content(i_s, link_to_replaced_schema=True)
                     rv_schema._imported_version_hash = i_s.version_hash
                     logger.info(
-                        f"Schema {name} was present in {self.storage.storage_path} but is"
-                        f" overwritten with imported schema version {i_s.version} and"
-                        f" imported hash {i_s.version_hash}"
+                        f"Schema {name} was present in {self.storage.storage_path} but"
+                        " is overwritten with imported schema version"
+                        f" {i_s.version} and imported hash {i_s.version_hash}"
                     )
                     # if schema was imported, overwrite storage schema
                     self._save_schema(rv_schema)
@@ -165,7 +169,9 @@ class SchemaStorage(Mapping[str, Schema]):
             raise ValueError(self.config.external_schema_format)
 
         export_storage = FileStorage(export_path, makedirs=True)
-        schema_file = self._file_name_in_store(schema.name, self.config.external_schema_format)
+        schema_file = self._file_name_in_store(
+            schema.name, self.config.external_schema_format
+        )
         export_storage.save(schema_file, exported_schema_s)
         logger.info(
             f"Schema {schema.name} exported to {export_path} with version"
@@ -185,13 +191,17 @@ class SchemaStorage(Mapping[str, Schema]):
 
     @staticmethod
     def load_schema_file(
-        path: str, name: str, extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions
+        path: str,
+        name: str,
+        extensions: Tuple[TSchemaFileFormat, ...] = SchemaFileExtensions,
     ) -> Schema:
         storage = FileStorage(path)
         for extension in extensions:
             file = SchemaStorage._file_name_in_store(name, extension)
             if storage.has_file(file):
-                parsed_schema = SchemaStorage._parse_schema_str(storage.load(file), extension)
+                parsed_schema = SchemaStorage._parse_schema_str(
+                    storage.load(file), extension
+                )
                 schema = Schema.from_dict(parsed_schema)
                 if schema.name != name:
                     raise UnexpectedSchemaName(name, path, schema.name)

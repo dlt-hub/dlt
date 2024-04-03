@@ -31,7 +31,9 @@ class DltDeprecationWarning(DeprecationWarning):
         super().__init__(message, *args)
         self.message = message.rstrip(".")
         self.since = (
-            since if isinstance(since, semver.VersionInfo) else semver.parse_version_info(since)
+            since
+            if isinstance(since, semver.VersionInfo)
+            else semver.parse_version_info(since)
         )
         if expected_due:
             expected_due = (
@@ -39,11 +41,14 @@ class DltDeprecationWarning(DeprecationWarning):
                 if isinstance(expected_due, semver.VersionInfo)
                 else semver.parse_version_info(expected_due)
             )
-        self.expected_due = expected_due if expected_due is not None else self.since.bump_minor()
+        self.expected_due = (
+            expected_due if expected_due is not None else self.since.bump_minor()
+        )
 
     def __str__(self) -> str:
         message = (
-            f"{self.message}. Deprecated in dlt {self.since} to be removed in {self.expected_due}."
+            f"{self.message}. Deprecated in dlt {self.since} to be removed in"
+            f" {self.expected_due}."
         )
         return message
 
@@ -51,7 +56,9 @@ class DltDeprecationWarning(DeprecationWarning):
 class Dlt04DeprecationWarning(DltDeprecationWarning):
     V04 = semver.parse_version_info("0.4.0")
 
-    def __init__(self, message: str, *args: typing.Any, expected_due: VersionString = None) -> None:
+    def __init__(
+        self, message: str, *args: typing.Any, expected_due: VersionString = None
+    ) -> None:
         super().__init__(
             message, *args, since=Dlt04DeprecationWarning.V04, expected_due=expected_due
         )

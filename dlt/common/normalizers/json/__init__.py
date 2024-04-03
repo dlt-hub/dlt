@@ -1,5 +1,14 @@
 import abc
-from typing import Any, Generic, Type, Generator, Tuple, Protocol, TYPE_CHECKING, TypeVar
+from typing import (
+    Any,
+    Generic,
+    Type,
+    Generator,
+    Tuple,
+    Protocol,
+    TYPE_CHECKING,
+    TypeVar,
+)
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 
@@ -38,7 +47,9 @@ class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
 
     @classmethod
     @abc.abstractmethod
-    def update_normalizer_config(cls, schema: Schema, config: TNormalizerConfig) -> None:
+    def update_normalizer_config(
+        cls, schema: Schema, config: TNormalizerConfig
+    ) -> None:
         pass
 
     @classmethod

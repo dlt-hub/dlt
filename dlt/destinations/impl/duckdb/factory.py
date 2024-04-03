@@ -1,7 +1,10 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
+from dlt.destinations.impl.duckdb.configuration import (
+    DuckDbCredentials,
+    DuckDbClientConfiguration,
+)
 from dlt.destinations.impl.duckdb import capabilities
 
 if t.TYPE_CHECKING:

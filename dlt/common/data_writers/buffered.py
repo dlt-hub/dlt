@@ -48,7 +48,9 @@ class BufferedDataWriter(Generic[TWriter]):
         _caps: DestinationCapabilitiesContext = None
     ):
         self.file_format = file_format
-        self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
+        self._file_format_spec = DataWriter.data_format_from_file_format(
+            self.file_format
+        )
         if self._file_format_spec.requires_destination_capabilities and not _caps:
             raise DestinationCapabilitiesRequired(file_format)
         self._caps = _caps
@@ -56,7 +58,9 @@ class BufferedDataWriter(Generic[TWriter]):
         self.file_name_template = file_name_template
         self.closed_files: List[DataWriterMetrics] = []  # all fully processed files
         # buffered items must be less than max items in file
-        self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
+        self.buffer_max_items = min(
+            buffer_max_items, file_max_items or buffer_max_items
+        )
         self.file_max_bytes = file_max_bytes
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
@@ -125,7 +129,9 @@ class BufferedDataWriter(Generic[TWriter]):
             if self.file_max_bytes and self._file.tell() >= self.file_max_bytes:
                 self._rotate_file()
             # rotate on max items
-            elif self.file_max_items and self._writer.items_count >= self.file_max_items:
+            elif (
+                self.file_max_items and self._writer.items_count >= self.file_max_items
+            ):
                 self._rotate_file()
         return new_rows_count
 
@@ -138,7 +144,9 @@ class BufferedDataWriter(Generic[TWriter]):
         self._last_modified = time.time()
         return self._rotate_file(allow_empty_file=True)
 
-    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> DataWriterMetrics:
+    def import_file(
+        self, file_path: str, metrics: DataWriterMetrics
+    ) -> DataWriterMetrics:
         """Import a file from `file_path` into items storage under a new file name. Does not check
         the imported file format. Uses counts from `metrics` as a base. Logically closes the imported file
 
@@ -177,13 +185,17 @@ class BufferedDataWriter(Generic[TWriter]):
     def __enter__(self) -> "BufferedDataWriter[TWriter]":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any
+    ) -> None:
         self.close()
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
         self._file_name = (
-            self.file_name_template % new_file_id() + "." + self._file_format_spec.file_extension
+            self.file_name_template % new_file_id()
+            + "."
+            + self._file_format_spec.file_extension
         )
         self._created = time.time()
         return metrics
@@ -206,7 +218,9 @@ class BufferedDataWriter(Generic[TWriter]):
             self._buffered_items.clear()
             self._buffered_items_count = 0
 
-    def _flush_and_close_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
+    def _flush_and_close_file(
+        self, allow_empty_file: bool = False
+    ) -> DataWriterMetrics:
         # if any buffered items exist, flush them
         self._flush_items(allow_empty_file)
         # if writer exists then close it

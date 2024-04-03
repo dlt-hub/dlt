@@ -20,7 +20,12 @@ from typing import (
 )
 from typing_extensions import TypeVar
 
-from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
+from dlt.common.configuration import (
+    with_config,
+    get_fun_spec,
+    known_sections,
+    configspec,
+)
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.resolve import inject_section
@@ -118,7 +123,9 @@ def source(
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]: ...
+) -> Callable[
+    [Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]
+]: ...
 
 
 def source(
@@ -195,7 +202,9 @@ def source(
 
         if not schema:
             # load the schema from file with name_schema.yaml/json from the same directory, the callable resides OR create new default schema
-            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(effective_name)
+            schema = _maybe_load_schema_for_callable(f, effective_name) or Schema(
+                effective_name
+            )
 
         if name and name != schema.name:
             raise ExplicitSourceNameInvalid(name, schema.name)
@@ -216,7 +225,9 @@ def source(
                 _rv = list(_rv)
 
             # convert to source
-            s = _impl_cls.from_data(schema.clone(update_normalizers=True), source_section, _rv)
+            s = _impl_cls.from_data(
+                schema.clone(update_normalizers=True), source_section, _rv
+            )
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
@@ -231,7 +242,9 @@ def source(
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
-                pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                pipeline_name = (
+                    None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                )
                 with inject_section(
                     ConfigSectionContext(
                         pipeline_name=pipeline_name,
@@ -250,7 +263,9 @@ def source(
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
-                pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                pipeline_name = (
+                    None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                )
                 with inject_section(
                     ConfigSectionContext(
                         pipeline_name=pipeline_name,
@@ -264,7 +279,9 @@ def source(
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
         # get correct wrapper
-        wrapper = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap
+        wrapper = (
+            _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap
+        )
         # store the source information
         _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, wrapper, func_module)
         if inspect.iscoroutinefunction(inspect.unwrap(f)):
@@ -332,7 +349,9 @@ def resource(
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
     standalone: Literal[True] = True,
-) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]: ...
+) -> Callable[
+    [Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]
+]: ...
 
 
 @overload
@@ -436,7 +455,10 @@ def resource(
     """
 
     def make_resource(
-        _name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None
+        _name: str,
+        _section: str,
+        _data: Any,
+        incremental: IncrementalResourceWrapper = None,
     ) -> DltResource:
         table_template = make_hints(
             table_name,
@@ -501,7 +523,9 @@ def resource(
         )
         is_inner_resource = is_inner_callable(f)
         if conf_f != incr_f and is_inner_resource and not standalone:
-            raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
+            raise ResourceInnerCallableConfigWrapDisallowed(
+                resource_name, source_section
+            )
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
 
@@ -517,7 +541,9 @@ def resource(
 
             @wraps(conf_f)
             def _wrap(*args: Any, **kwargs: Any) -> DltResource:
-                _, mod_sig, bound_args = simulate_func_call(conf_f, skip_args, *args, **kwargs)
+                _, mod_sig, bound_args = simulate_func_call(
+                    conf_f, skip_args, *args, **kwargs
+                )
                 actual_resource_name = (
                     name(bound_args.arguments) if callable(name) else resource_name
                 )
@@ -569,7 +595,9 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
+) -> Callable[
+    [Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource
+]: ...
 
 
 @overload
@@ -699,8 +727,8 @@ def transformer(
     """
     if isinstance(f, DltResource):
         raise ValueError(
-            "Please pass `data_from=` argument as keyword argument. The only positional argument to"
-            " transformer is the decorated function"
+            "Please pass `data_from=` argument as keyword argument. The only positional"
+            " argument to transformer is the decorated function"
         )
 
     return resource(  # type: ignore

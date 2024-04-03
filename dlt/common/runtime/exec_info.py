@@ -79,7 +79,9 @@ def is_colab() -> bool:
 
 def airflow_info() -> StrAny:
     try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             from airflow.operators.python import get_current_context
 
             get_current_context()
@@ -90,7 +92,9 @@ def airflow_info() -> StrAny:
 
 def is_airflow_installed() -> bool:
     try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             import airflow
         return True
     except Exception:
@@ -99,7 +103,9 @@ def is_airflow_installed() -> bool:
 
 def is_running_in_airflow_task() -> bool:
     try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             from airflow.operators.python import get_current_context
 
             context = get_current_context()
@@ -124,7 +130,9 @@ def kube_pod_info() -> StrStr:
 
 def github_info() -> StrStr:
     """Extracts github info"""
-    info = filter_env_vars(["GITHUB_USER", "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER"])
+    info = filter_env_vars(
+        ["GITHUB_USER", "GITHUB_REPOSITORY", "GITHUB_REPOSITORY_OWNER"]
+    )
     # set GITHUB_REPOSITORY_OWNER as github user if not present. GITHUB_REPOSITORY_OWNER is available in github action context
     if "github_user" not in info and "github_repository_owner" in info:
         info["github_user"] = info["github_repository_owner"]  # type: ignore

@@ -4,7 +4,12 @@ import requests
 from dlt.common.managed_thread_pool import ManagedThreadPool
 from urllib.parse import urljoin
 
-from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
+from dlt.pipeline.trace import (
+    PipelineTrace,
+    PipelineStepTrace,
+    TPipelineStep,
+    SupportsPipeline,
+)
 from dlt.common import json
 from dlt.common import logger
 from dlt.common.pipeline import LoadInfo
@@ -39,7 +44,8 @@ def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) ->
             response = requests.put(url, data=trace_dump)
             if response.status_code != 200:
                 logger.debug(
-                    f"Failed to send trace to platform, response code: {response.status_code}"
+                    "Failed to send trace to platform, response code:"
+                    f" {response.status_code}"
                 )
         except Exception as e:
             logger.debug(f"Exception while sending trace to platform: {e}")
@@ -84,7 +90,8 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
             response = requests.put(url, data=json.dumps(payload))
             if response.status_code != 200:
                 logger.debug(
-                    f"Failed to send state to platform, response code: {response.status_code}"
+                    "Failed to send state to platform, response code:"
+                    f" {response.status_code}"
                 )
         except Exception as e:
             logger.debug(f"Exception while sending state to platform: {e}")
@@ -92,7 +99,9 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
     _THREAD_POOL.thread_pool.submit(_future_send)
 
 
-def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+def on_start_trace(
+    trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+) -> None:
     pass
 
 
@@ -114,5 +123,7 @@ def on_end_trace_step(
         _sync_schemas_to_platform(trace, pipeline)
 
 
-def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
+def on_end_trace(
+    trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+) -> None:
     _send_trace_to_platform(trace, pipeline)

@@ -109,13 +109,20 @@ class PipelineScriptVisitor(NodeVisitor):
                     pass
             else:
                 # check if this is a call to any known source
-                if alias_name in self.known_sources or alias_name in self.known_resources:
+                if (
+                    alias_name in self.known_sources
+                    or alias_name in self.known_resources
+                ):
                     # set parent to the outer function
                     node.parent = find_outer_func_def(node)  # type: ignore
                     if alias_name in self.known_sources:
-                        decorated_calls = self.known_source_calls.setdefault(alias_name, [])
+                        decorated_calls = self.known_source_calls.setdefault(
+                            alias_name, []
+                        )
                     else:
-                        decorated_calls = self.known_resource_calls.setdefault(alias_name, [])
+                        decorated_calls = self.known_resource_calls.setdefault(
+                            alias_name, []
+                        )
                     decorated_calls.append(node)
         # visit the children
         super().generic_visit(node)

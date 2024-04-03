@@ -276,7 +276,9 @@ def test_parallelized_resource(parallelized: bool) -> None:
 @pytest.mark.parametrize(
     "n_resources,next_item_mode", product([8, 1, 5, 25, 20], ["fifo", "round_robin"])
 )
-def test_parallelized_resource_extract_order(n_resources: int, next_item_mode: str) -> None:
+def test_parallelized_resource_extract_order(
+    n_resources: int, next_item_mode: str
+) -> None:
     os.environ["EXTRACT__NEXT_ITEM_MODE"] = next_item_mode
 
     threads = set()
@@ -396,7 +398,10 @@ def test_test_parallelized_resource_transformers() -> None:
 
     # Nothing runs in main thread
     assert len(threads) > 1 and threading.get_ident() not in threads
-    assert len(transformer_threads) > 1 and threading.get_ident() not in transformer_threads
+    assert (
+        len(transformer_threads) > 1
+        and threading.get_ident() not in transformer_threads
+    )
 
 
 def test_parallelized_resource_bare_generator() -> None:

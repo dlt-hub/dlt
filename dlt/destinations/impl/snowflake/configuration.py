@@ -9,7 +9,9 @@ from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.reference import (
+    DestinationClientDwhWithStagingConfiguration,
+)
 from dlt.common.utils import digest128
 
 
@@ -75,8 +77,9 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     def on_resolved(self) -> None:
         if not self.password and not self.private_key:
             raise ConfigurationValueError(
-                "Please specify password or private_key. SnowflakeCredentials supports password and"
-                " private key authentication and one of those must be specified."
+                "Please specify password or private_key. SnowflakeCredentials supports"
+                " password and private key authentication and one of those must be"
+                " specified."
             )
 
     def to_url(self) -> URL:
@@ -98,7 +101,9 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     def to_connector_params(self) -> Dict[str, Any]:
         private_key: Optional[bytes] = None
         if self.private_key:
-            private_key = _read_private_key(self.private_key, self.private_key_passphrase)
+            private_key = _read_private_key(
+                self.private_key, self.private_key_passphrase
+            )
         conn_params = dict(
             self.query or {},
             user=self.username,

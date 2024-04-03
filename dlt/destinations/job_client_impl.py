@@ -99,7 +99,11 @@ class SqlLoadJob(LoadJob):
         return False
 
     def _split_fragments(self, sql: str) -> List[str]:
-        return [s + (";" if not s.endswith(";") else "") for s in sql.split(";") if s.strip()]
+        return [
+            s + (";" if not s.endswith(";") else "")
+            for s in sql.split(";")
+            if s.strip()
+        ]
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
@@ -154,7 +158,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         sql_client: SqlClientBase[TNativeConn],
     ) -> None:
         self.version_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in self._VERSION_TABLE_SCHEMA_COLUMNS
+            sql_client.escape_column_name(col)
+            for col in self._VERSION_TABLE_SCHEMA_COLUMNS
         )
         self.state_table_columns = ", ".join(
             sql_client.escape_column_name(col) for col in self._STATE_TABLE_COLUMNS
@@ -185,8 +190,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(
-                f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
-                " upgrading"
+                f"Schema with hash {self.schema.stored_version_hash} not found in the"
+                " storage. upgrading"
             )
 
             with self.maybe_ddl_transaction():
@@ -219,10 +224,14 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             and self.config.replace_strategy == "truncate-and-insert"
         )
 
-    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_append_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         return []
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
@@ -231,7 +240,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         jobs: List[NewLoadJob] = []
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             jobs.append(
-                SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
+                SqlStagingCopyJob.from_table_chain(
+                    table_chain, self.sql_client, {"replace": True}
+                )
             )
         return jobs
 
@@ -249,7 +260,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             jobs.extend(self._create_replace_followup_jobs(table_chain))
         return jobs
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
@@ -276,8 +289,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at, schema_version_hash)"
-            " VALUES(%s, %s, %s, %s, %s);",
+            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at,"
+            " schema_version_hash) VALUES(%s, %s, %s, %s, %s);",
             load_id,
             self.schema.name,
             0,
@@ -290,7 +303,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         self.sql_client.close_connection()
 
@@ -312,9 +328,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             raise ValueError(v)
 
         fields = self._get_storage_table_query_columns()
-        db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
-            ".", 3
-        )
+        db_params = self.sql_client.make_qualified_table_name(
+            table_name, escape=False
+        ).split(".", 3)
         query = f"""
 SELECT {",".join(fields)}
     FROM INFORMATION_SCHEMA.COLUMNS
@@ -334,7 +350,9 @@ WHERE """
             numeric_precision = (
                 c[3] if self.capabilities.schema_supports_numeric_precision else None
             )
-            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
+            numeric_scale = (
+                c[4] if self.capabilities.schema_supports_numeric_precision else None
+            )
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),
@@ -352,18 +370,22 @@ WHERE """
     def get_stored_schema(self) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         query = (
-            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE schema_name = %s ORDER"
-            " BY inserted_at DESC;"
+            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE schema_name"
+            " = %s ORDER BY inserted_at DESC;"
         )
         return self._row_to_schema_info(query, self.schema.name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
-        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
-        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        state_table = self.sql_client.make_qualified_table_name(
+            self.schema.state_table_name
+        )
+        loads_table = self.sql_client.make_qualified_table_name(
+            self.schema.loads_table_name
+        )
         query = (
-            f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
-            " l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY"
-            " created_at DESC"
+            f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN"
+            f" {loads_table} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name ="
+            " %s AND l.status = 0 ORDER BY created_at DESC"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
@@ -382,7 +404,10 @@ WHERE """
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s;"
+        query = (
+            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash"
+            " = %s;"
+        )
         return self._row_to_schema_info(query, version_hash)
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
@@ -416,7 +441,9 @@ WHERE """
             new_columns = self._create_table_update(table_name, storage_table)
             if len(new_columns) > 0:
                 # build and add sql to execute
-                sql_statements = self._get_table_update_sql(table_name, new_columns, exists)
+                sql_statements = self._get_table_update_sql(
+                    table_name, new_columns, exists
+                )
                 for sql in sql_statements:
                     if not sql.endswith(";"):
                         sql += ";"
@@ -433,10 +460,16 @@ WHERE """
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
     ) -> List[str]:
         """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
+        return [
+            f"ADD COLUMN {self._get_column_def_sql(c, table_format)}"
+            for c in new_columns
+        ]
 
     def _get_table_update_sql(
-        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
     ) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
@@ -446,7 +479,9 @@ WHERE """
         if not generate_alter:
             # build CREATE
             sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+            sql += ",\n".join(
+                [self._get_column_def_sql(c, table_format) for c in new_columns]
+            )
             sql += ")"
             sql_result.append(sql)
         else:
@@ -458,7 +493,10 @@ WHERE """
             else:
                 # build ALTER as a separate statement for each column (redshift limitation)
                 sql_result.extend(
-                    [sql_base + col_statement for col_statement in add_column_statements]
+                    [
+                        sql_base + col_statement
+                        for col_statement in add_column_statements
+                    ]
                 )
 
         # scan columns to get hints
@@ -473,20 +511,22 @@ WHERE """
                     ]
                     if hint == "not_null":
                         logger.warning(
-                            f"Column(s) {hint_columns} with NOT NULL are being added to existing"
-                            f" table {canonical_name}. If there's data in the table the operation"
-                            " will fail."
+                            f"Column(s) {hint_columns} with NOT NULL are being added to"
+                            f" existing table {canonical_name}. If there's data in the"
+                            " table the operation will fail."
                         )
                     else:
                         logger.warning(
-                            f"Column(s) {hint_columns} with hint {hint} are being added to existing"
-                            f" table {canonical_name}. Several hint types may not be added to"
-                            " existing tables."
+                            f"Column(s) {hint_columns} with hint {hint} are being added"
+                            f" to existing table {canonical_name}. Several hint types"
+                            " may not be added to existing tables."
                         )
         return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         pass
 
     @staticmethod
@@ -498,7 +538,9 @@ WHERE """
     ) -> Sequence[TColumnSchema]:
         # compare table with stored schema and produce delta
         updates = self.schema.get_new_table_columns(table_name, storage_columns)
-        logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
+        logger.info(
+            f"Found {len(updates)} updates for {table_name} in {self.schema.name}"
+        )
         return updates
 
     def _row_to_schema_info(self, query: str, *args: Any) -> StorageSchemaInfo:
@@ -523,14 +565,18 @@ WHERE """
         # make utc datetime
         inserted_at = pendulum.instance(row[4])
 
-        return StorageSchemaInfo(row[0], row[1], row[2], row[3], inserted_at, schema_str)
+        return StorageSchemaInfo(
+            row[0], row[1], row[2], row[3], inserted_at, schema_str
+        )
 
     def _replace_schema_in_storage(self, schema: Schema) -> None:
         """
         Save the given schema in storage and remove all previous versions with the same name
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE schema_name = %s;", schema.name)
+        self.sql_client.execute_sql(
+            f"DELETE FROM {name} WHERE schema_name = %s;", schema.name
+        )
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
@@ -540,7 +586,9 @@ WHERE """
         schema_bytes = schema_str.encode("utf-8")
         if len(schema_bytes) > self.capabilities.max_text_data_type_length:
             # compress and to base64
-            schema_str = base64.b64encode(zlib.compress(schema_bytes, level=9)).decode("ascii")
+            schema_str = base64.b64encode(zlib.compress(schema_bytes, level=9)).decode(
+                "ascii"
+            )
         self._commit_schema_update(schema, schema_str)
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
@@ -548,8 +596,8 @@ WHERE """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s,"
-            " %s);",
+            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s,"
+            " %s, %s, %s, %s);",
             schema.stored_version_hash,
             schema.name,
             schema.version,

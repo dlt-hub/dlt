@@ -1,6 +1,10 @@
 from dlt.common.normalizers.json import TNormalizedRowIterator
-from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.normalizers.json.relational import (
+    DataItemNormalizer as RelationalNormalizer,
+)
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeCaseNamingConvention,
+)
 from dlt.common.typing import TDataItem
 
 

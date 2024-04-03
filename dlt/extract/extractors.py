@@ -121,7 +121,9 @@ class Extractor:
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
-        self.storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
+        self.storage.write_empty_items_file(
+            self.load_id, self.schema.name, table_name, None
+        )
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
         if resource._table_name_hint_fun:
@@ -133,7 +135,9 @@ class Extractor:
         return self.naming.normalize_table_identifier(table_name)
 
     def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
-        return self.naming.normalize_table_identifier(resource._table_name_hint_fun(item))
+        return self.naming.normalize_table_identifier(
+            resource._table_name_hint_fun(item)
+        )
 
     def _write_item(
         self,
@@ -160,7 +164,10 @@ class Extractor:
             table_name = self._get_dynamic_table_name(resource, item)
             if table_name in self._filtered_tables:
                 continue
-            if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
+            if (
+                table_name not in self._table_contracts
+                or resource._table_has_other_dynamic_hints
+            ):
                 item = self._compute_and_update_table(
                     resource, table_name, item, TableNameMeta(table_name)
                 )
@@ -176,9 +183,13 @@ class Extractor:
         if table_name not in self._filtered_tables:
             self._write_item(table_name, resource.name, items)
 
-    def _compute_table(self, resource: DltResource, items: TDataItems, meta: Any) -> TTableSchema:
+    def _compute_table(
+        self, resource: DltResource, items: TDataItems, meta: Any
+    ) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items, meta))
+        return self.schema.normalize_table_identifiers(
+            resource.compute_table_schema(items, meta)
+        )
 
     def _compute_and_update_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
@@ -191,11 +202,14 @@ class Extractor:
         computed_table["name"] = table_name
         # get or compute contract
         schema_contract = self._table_contracts.setdefault(
-            table_name, self.schema.resolve_contract_settings_for_table(table_name, computed_table)
+            table_name,
+            self.schema.resolve_contract_settings_for_table(table_name, computed_table),
         )
 
         # this is a new table so allow evolve once
-        if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
+        if schema_contract["columns"] != "evolve" and self.schema.is_new_table(
+            table_name
+        ):
             computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
@@ -257,7 +271,10 @@ class ArrowExtractor(Extractor):
         super().write_items(resource, items, meta)
 
     def _apply_contract_filters(
-        self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]
+        self,
+        item: "TAnyArrowItem",
+        resource: DltResource,
+        static_table_name: Optional[str],
     ) -> "TAnyArrowItem":
         """Removes the columns (discard value) or rows (discard rows) as indicated by contract filters."""
         # convert arrow schema names into normalized names
@@ -274,7 +291,11 @@ class ArrowExtractor(Extractor):
                 name for name, mode in filtered_columns.items() if mode == "discard_row"
             ]:
                 is_null = pyarrow.pyarrow.compute.is_null(item[rev_mapping[column]])
-                mask = is_null if mask is None else pyarrow.pyarrow.compute.and_(mask, is_null)
+                mask = (
+                    is_null
+                    if mask is None
+                    else pyarrow.pyarrow.compute.and_(mask, is_null)
+                )
             # filter the table using the mask
             if mask is not None:
                 item = item.filter(mask)
@@ -324,9 +345,10 @@ class ArrowExtractor(Extractor):
                     if (src_hint := src_column.get(hint_name)) is not None:
                         if src_hint != hint:
                             logger.warning(
-                                f"In resource: {resource.name}, when merging arrow schema on column"
-                                f" {col_name}. The hint {hint_name} value {src_hint} defined in"
-                                f" resource is overwritten from arrow with value {hint}."
+                                f"In resource: {resource.name}, when merging arrow"
+                                f" schema on column {col_name}. The hint"
+                                f" {hint_name} value {src_hint} defined in resource is"
+                                f" overwritten from arrow with value {hint}."
                             )
 
         # we must override the columns to preserve the order in arrow table
@@ -341,5 +363,7 @@ class ArrowExtractor(Extractor):
     ) -> TDataItems:
         items = super()._compute_and_update_table(resource, table_name, items, meta)
         # filter data item as filters could be updated in compute table
-        items = [self._apply_contract_filters(item, resource, table_name) for item in items]
+        items = [
+            self._apply_contract_filters(item, resource, table_name) for item in items
+        ]
         return items

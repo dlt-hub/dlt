@@ -89,7 +89,9 @@ def test_configuredworker(method: str) -> None:
         p.map(_worker_1, *zip(*[(config, "PX1", "PX2")]))
 
 
-def _worker_1(CONFIG: SchemaStorageConfiguration, par1: str, par2: str = "DEFAULT") -> None:
+def _worker_1(
+    CONFIG: SchemaStorageConfiguration, par1: str, par2: str = "DEFAULT"
+) -> None:
     # a correct type was passed
     assert type(CONFIG) is SchemaStorageConfiguration
     # check if config values are restored

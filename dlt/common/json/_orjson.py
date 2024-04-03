@@ -8,7 +8,11 @@ _impl_name = "orjson"
 
 
 def _dumps(
-    obj: Any, sort_keys: bool, pretty: bool, default: AnyFun = custom_encode, options: int = 0
+    obj: Any,
+    sort_keys: bool,
+    pretty: bool,
+    default: AnyFun = custom_encode,
+    options: int = 0,
 ) -> bytes:
     options = options | orjson.OPT_UTC_Z | orjson.OPT_NON_STR_KEYS
     if pretty:
@@ -18,7 +22,9 @@ def _dumps(
     return orjson.dumps(obj, default=default, option=options)
 
 
-def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:
+def dump(
+    obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False
+) -> None:
     fp.write(_dumps(obj, sort_keys, pretty))
 
 
@@ -27,7 +33,9 @@ def typed_dump(obj: Any, fp: IO[bytes], pretty: bool = False) -> None:
 
 
 def typed_dumpb(obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes:
-    return _dumps(obj, sort_keys, pretty, custom_pua_encode, orjson.OPT_PASSTHROUGH_DATETIME)
+    return _dumps(
+        obj, sort_keys, pretty, custom_pua_encode, orjson.OPT_PASSTHROUGH_DATETIME
+    )
 
 
 def typed_dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:

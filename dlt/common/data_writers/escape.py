@@ -24,7 +24,9 @@ def _escape_extended(
 ) -> str:
     escape_dict = escape_dict or SQL_ESCAPE_DICT
     escape_re = escape_re or SQL_ESCAPE_RE
-    return "{}{}{}".format(prefix, escape_re.sub(lambda x: escape_dict[x.group(0)], v), "'")
+    return "{}{}{}".format(
+        prefix, escape_re.sub(lambda x: escape_dict[x.group(0)], v), "'"
+    )
 
 
 def escape_redshift_literal(v: Any) -> Any:
@@ -95,7 +97,10 @@ def escape_mssql_literal(v: Any) -> Any:
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return _escape_extended(
-            json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE
+            json.dumps(v),
+            prefix="N'",
+            escape_dict=MS_SQL_ESCAPE_DICT,
+            escape_re=MS_SQL_ESCAPE_RE,
         )
     if isinstance(v, bytes):
         from dlt.destinations.impl.mssql.mssql import VARBINARY_MAX_N
@@ -144,7 +149,9 @@ def escape_databricks_literal(v: Any) -> Any:
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return _escape_extended(json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
+        return _escape_extended(
+            json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT
+        )
     if isinstance(v, bytes):
         return f"X'{v.hex()}'"
     if v is None:

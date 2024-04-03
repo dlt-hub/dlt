@@ -17,7 +17,10 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 
-from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient, DuckDBDBApiCursorImpl
+from dlt.destinations.impl.duckdb.sql_client import (
+    DuckDbSqlClient,
+    DuckDBDBApiCursorImpl,
+)
 from dlt.destinations.impl.motherduck import capabilities
 from dlt.destinations.impl.motherduck.configuration import MotherDuckCredentials
 
@@ -36,6 +39,8 @@ class MotherDuckSqlClient(DuckDbSqlClient):
             else self.database_name
         )
         dataset_name = (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+            self.capabilities.escape_identifier(self.dataset_name)
+            if escape
+            else self.dataset_name
         )
         return f"{database_name}.{dataset_name}"

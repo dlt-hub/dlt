@@ -1,5 +1,15 @@
 import os
-from typing import TYPE_CHECKING, Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Optional,
+    Type,
+    get_args,
+    ClassVar,
+    Dict,
+    Union,
+)
 from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec, resolve_type
@@ -24,9 +34,13 @@ SchemaFileExtensions = get_args(TSchemaFileFormat)
 @configspec
 class SchemaStorageConfiguration(BaseConfiguration):
     schema_volume_path: str = None  # path to volume with default schemas
-    import_schema_path: Optional[str] = None  # path from which to import a schema into storage
+    import_schema_path: Optional[str] = (
+        None  # path from which to import a schema into storage
+    )
     export_schema_path: Optional[str] = None  # path to which export schema from storage
-    external_schema_format: TSchemaFileFormat = "yaml"  # format in which to expect external schema
+    external_schema_format: TSchemaFileFormat = (  # format in which to expect external schema
+        "yaml"
+    )
     external_schema_format_remove_defaults: bool = (
         True  # remove default values when exporting schema
     )
@@ -34,7 +48,9 @@ class SchemaStorageConfiguration(BaseConfiguration):
 
 @configspec
 class NormalizeStorageConfiguration(BaseConfiguration):
-    normalize_volume_path: str = None  # path to volume where normalized loader files will be stored
+    normalize_volume_path: str = (
+        None  # path to volume where normalized loader files will be stored
+    )
 
 
 @configspec
@@ -89,7 +105,9 @@ class FilesystemConfiguration(BaseConfiguration):
         """`bucket_url` protocol"""
         url = urlparse(self.bucket_url)
         # this prevents windows absolute paths to be recognized as schemas
-        if not url.scheme or (os.path.isabs(self.bucket_url) and "\\" in self.bucket_url):
+        if not url.scheme or (
+            os.path.isabs(self.bucket_url) and "\\" in self.bucket_url
+        ):
             return "file"
         else:
             return url.scheme
@@ -98,8 +116,9 @@ class FilesystemConfiguration(BaseConfiguration):
         url = urlparse(self.bucket_url)
         if not url.path and not url.netloc:
             raise ConfigurationValueError(
-                "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
-                " must contain valid url with a path or host:password component."
+                "File path or netloc missing. Field bucket_url of"
+                " FilesystemClientConfiguration must contain valid url with a path or"
+                " host:password component."
             )
         # this is just a path in a local file system
         if url.path == self.bucket_url:

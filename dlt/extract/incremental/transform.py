@@ -75,12 +75,14 @@ class IncrementalTransform:
     ) -> str:
         try:
             assert not self.deduplication_disabled, (
-                f"{self.resource_name}: Attempt to compute unique values when deduplication is"
-                " disabled"
+                f"{self.resource_name}: Attempt to compute unique values when"
+                " deduplication is disabled"
             )
 
             if primary_key:
-                return digest128(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
+                return digest128(
+                    json.dumps(resolve_column_value(primary_key, row), sort_keys=True)
+                )
             elif primary_key is None:
                 return digest128(json.dumps(row, sort_keys=True))
             else:
@@ -96,7 +98,9 @@ class IncrementalTransform:
     @property
     def deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0"""
-        return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
+        return (
+            isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
+        )
 
 
 class JsonIncremental(IncrementalTransform):
@@ -116,7 +120,9 @@ class JsonIncremental(IncrementalTransform):
             except Exception:
                 pass
         if row_value is None:
-            raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
+            raise IncrementalCursorPathMissing(
+                self.resource_name, self.cursor_path, row
+            )
         return row_value
 
     def __call__(
@@ -193,7 +199,9 @@ class JsonIncremental(IncrementalTransform):
 class ArrowIncremental(IncrementalTransform):
     _dlt_index = "_dlt_index"
 
-    def compute_unique_values(self, item: "TAnyArrowItem", unique_columns: List[str]) -> List[str]:
+    def compute_unique_values(
+        self, item: "TAnyArrowItem", unique_columns: List[str]
+    ) -> List[str]:
         if not unique_columns:
             return []
         rows = item.select(unique_columns).to_pylist()
@@ -215,7 +223,9 @@ class ArrowIncremental(IncrementalTransform):
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
-            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(numpy.arange(tbl.num_rows)))
+            tbl = pyarrow.append_column(
+                tbl, self._dlt_index, pa.array(numpy.arange(tbl.num_rows))
+            )
         return tbl
 
     def __call__(
@@ -226,7 +236,9 @@ class ArrowIncremental(IncrementalTransform):
         if is_pandas:
             tbl = pandas_to_arrow(tbl)
 
-        primary_key = self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
+        primary_key = (
+            self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
+        )
         if primary_key:
             # create a list of unique columns
             if isinstance(primary_key, str):
@@ -275,9 +287,9 @@ class ArrowIncremental(IncrementalTransform):
                 self.resource_name,
                 cursor_path,
                 tbl,
-                f"Column name {cursor_path} was not found in the arrow table. Not nested JSON paths"
-                " are not supported for arrow tables and dataframes, the incremental cursor_path"
-                " must be a column name.",
+                f"Column name {cursor_path} was not found in the arrow table. Not"
+                " nested JSON paths are not supported for arrow tables and dataframes,"
+                " the incremental cursor_path must be a column name.",
             ) from e
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
@@ -286,21 +298,29 @@ class ArrowIncremental(IncrementalTransform):
             tbl = tbl.filter(end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
-            end_out_of_range = not end_compare(row_value_scalar, end_value_scalar).as_py()
+            end_out_of_range = not end_compare(
+                row_value_scalar, end_value_scalar
+            ).as_py()
 
         if self.start_value is not None:
             start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
             # Remove rows lower or equal than the last start value
             keep_filter = last_value_compare(tbl[cursor_path], start_value_scalar)
-            start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
+            start_out_of_range = bool(
+                pa.compute.any(pa.compute.invert(keep_filter)).as_py()
+            )
             tbl = tbl.filter(keep_filter)
             if not self.deduplication_disabled:
                 # Deduplicate after filtering old values
                 tbl = self._add_unique_index(tbl)
                 # Remove already processed rows where the cursor is equal to the start value
-                eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
+                eq_rows = tbl.filter(
+                    pa.compute.equal(tbl[cursor_path], start_value_scalar)
+                )
                 # compute index, unique hash mapping
-                unique_values_index = self.compute_unique_values_with_index(eq_rows, unique_columns)
+                unique_values_index = self.compute_unique_values_with_index(
+                    eq_rows, unique_columns
+                )
                 unique_values_index = [
                     (i, uq_val)
                     for i, uq_val in unique_values_index
@@ -310,7 +330,9 @@ class ArrowIncremental(IncrementalTransform):
                 remove_idx = pa.array(i for i, _ in unique_values_index)
                 # Filter the table
                 tbl = tbl.filter(
-                    pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
+                    pa.compute.invert(
+                        pa.compute.is_in(tbl[self._dlt_index], remove_idx)
+                    )
                 )
 
         if (
@@ -324,7 +346,9 @@ class ArrowIncremental(IncrementalTransform):
                 # Compute unique hashes for all rows equal to row value
                 self.unique_hashes = set(
                     self.compute_unique_values(
-                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
+                        tbl.filter(
+                            pa.compute.equal(tbl[cursor_path], row_value_scalar)
+                        ),
                         unique_columns,
                     )
                 )
@@ -333,7 +357,9 @@ class ArrowIncremental(IncrementalTransform):
             self.unique_hashes.update(
                 set(
                     self.compute_unique_values(
-                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
+                        tbl.filter(
+                            pa.compute.equal(tbl[cursor_path], row_value_scalar)
+                        ),
                         unique_columns,
                     )
                 )

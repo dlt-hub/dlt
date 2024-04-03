@@ -20,11 +20,16 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 
 
 @dlt.resource(
-    table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url")
+    table_name="issues",
+    write_disposition="merge",
+    primary_key="id",
+    merge_key=("node_id", "url"),
 )
 def load_modified_issues():
     with open(
-        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+        "tests/normalize/cases/github.issues.load_page_5_duck.json",
+        "r",
+        encoding="utf-8",
     ) as f:
         issues = json.load(f)
 
@@ -39,11 +44,14 @@ def load_modified_issues():
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(all_staging_configs=True),
+    ids=lambda x: x.name,
 )
 def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
-        pipeline_name="test_stage_loading_5", dataset_name="test_staging_load" + uniq_id()
+        pipeline_name="test_stage_loading_5",
+        dataset_name="test_staging_load" + uniq_id(),
     )
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
@@ -100,12 +108,16 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
                 f"SELECT TOP 1 url FROM {qual_name('issues')} WHERE id = 388089021"
             )
         else:
-            rows = sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
+            rows = sql_client.execute_sql(
+                "SELECT url FROM issues WHERE id = 388089021 LIMIT 1"
+            )
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
     if destination_config.supports_merge:
         # test merging in some changed values
-        info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
+        info = pipeline.run(
+            load_modified_issues, loader_file_format=destination_config.file_format
+        )
         assert_load_info(info)
         assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
         merge_counts = load_table_counts(
@@ -118,10 +130,12 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
             if destination_config.destination in ["mssql", "synapse"]:
                 qual_name = sql_client.make_qualified_table_name
                 rows_1 = sql_client.execute_sql(
-                    f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1232152492"
+                    f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id ="
+                    " 1232152492"
                 )
                 rows_2 = sql_client.execute_sql(
-                    f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1142699354"
+                    f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id ="
+                    " 1142699354"
                 )
             else:
                 rows_1 = sql_client.execute_sql(
@@ -163,7 +177,9 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(all_staging_configs=True),
+    ids=lambda x: x.name,
 )
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline(
@@ -181,16 +197,26 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")
-    if destination_config.destination == "synapse" and destination_config.file_format == "parquet":
+    if (
+        destination_config.destination == "synapse"
+        and destination_config.file_format == "parquet"
+    ):
         # TIME columns are not supported for staged parquet loads into Synapse
         exclude_types.append("time")
-    if destination_config.destination == "redshift" and destination_config.file_format in (
-        "parquet",
-        "jsonl",
+    if (
+        destination_config.destination == "redshift"
+        and destination_config.file_format
+        in (
+            "parquet",
+            "jsonl",
+        )
     ):
         # Redshift can't load fixed width binary columns from parquet
         exclude_columns.append("col7_precision")
-    if destination_config.destination == "databricks" and destination_config.file_format == "jsonl":
+    if (
+        destination_config.destination == "databricks"
+        and destination_config.file_format == "jsonl"
+    ):
         exclude_types.extend(["decimal", "binary", "wei", "complex", "date"])
         exclude_columns.append("col1_precision")
 
@@ -202,7 +228,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     if destination_config.file_format == "parquet":
         if destination_config.destination == "bigquery":
             # change datatype to text and then allow for it in the assert (parse_complex_strings)
-            column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+            column_schemas["col9_null"]["data_type"] = column_schemas["col9"][
+                "data_type"
+            ] = "text"
     # redshift cannot load from json into VARBYTE
     if destination_config.file_format == "jsonl":
         if destination_config.destination == "redshift":
@@ -212,7 +240,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
                 column_schemas[col]["data_type"] = "text"
 
     # apply the exact columns definitions so we process complex and wei types correctly!
-    @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
+    @dlt.resource(
+        table_name="data_types", write_disposition="merge", columns=column_schemas
+    )
     def my_resource():
         nonlocal data_types
         yield [data_types] * 10

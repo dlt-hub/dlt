@@ -19,7 +19,9 @@ from dlt.common.configuration.providers.toml import (
     StringTomlProvider,
     TomlProviderReadException,
 )
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     GcpServiceAccountCredentialsWithoutDefaults,
@@ -71,7 +73,9 @@ def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> No
 
 def test_toml_types(toml_providers: ConfigProvidersContext) -> None:
     # resolve CoercionTestConfiguration from typecheck section
-    c = resolve.resolve_configuration(CoercionTestConfiguration(), sections=("typecheck",))
+    c = resolve.resolve_configuration(
+        CoercionTestConfiguration(), sections=("typecheck",)
+    )
     for k, v in COERCIONS.items():
         # toml does not know tuples
         if isinstance(v, tuple):
@@ -81,7 +85,9 @@ def test_toml_types(toml_providers: ConfigProvidersContext) -> None:
         assert v == c[k]
 
 
-def test_config_provider_order(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+def test_config_provider_order(
+    toml_providers: ConfigProvidersContext, environment: Any
+) -> None:
     # add env provider
 
     @with_config(sections=("api",))
@@ -125,18 +131,25 @@ def test_toml_sections(toml_providers: ConfigProvidersContext) -> None:
     cfg = toml_providers["config.toml"]
     assert cfg.get_value("api_type", str, None) == ("REST", "api_type")
     assert cfg.get_value("port", int, None, "api") == (1024, "api.port")
-    assert cfg.get_value("param1", str, None, "api", "params") == ("a", "api.params.param1")
+    assert cfg.get_value("param1", str, None, "api", "params") == (
+        "a",
+        "api.params.param1",
+    )
 
 
-def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvidersContext) -> None:
+def test_secrets_toml_credentials(
+    environment: Any, toml_providers: ConfigProvidersContext
+) -> None:
     # there are credentials exactly under destination.bigquery.credentials
     c = resolve.resolve_configuration(
-        GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "bigquery")
+        GcpServiceAccountCredentialsWithoutDefaults(),
+        sections=("destination", "bigquery"),
     )
     assert c.project_id.endswith("destination.bigquery.credentials")
     # there are no destination.gcp_storage.credentials so it will fallback to "destination"."credentials"
     c = resolve.resolve_configuration(
-        GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "gcp_storage")
+        GcpServiceAccountCredentialsWithoutDefaults(),
+        sections=("destination", "gcp_storage"),
     )
     assert c.project_id.endswith("destination.credentials")
     # also explicit
@@ -146,7 +159,13 @@ def test_secrets_toml_credentials(environment: Any, toml_providers: ConfigProvid
     assert c.project_id.endswith("destination.credentials")
     # there's "credentials" key but does not contain valid gcp credentials
     with pytest.raises(ConfigFieldMissingException):
-        print(dict(resolve.resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())))
+        print(
+            dict(
+                resolve.resolve_configuration(
+                    GcpServiceAccountCredentialsWithoutDefaults()
+                )
+            )
+        )
     # also try postgres credentials
     c2 = ConnectionStringCredentials()
     c2.update({"drivername": "postgres"})
@@ -222,7 +241,9 @@ def test_secrets_toml_credentials_from_native_repr(
     # but project id got overridden from credentials.project_id
     assert c.project_id.endswith("-credentials")
     # also try sql alchemy url (native repr)
-    c2 = resolve.resolve_configuration(ConnectionStringCredentials(), sections=("databricks",))
+    c2 = resolve.resolve_configuration(
+        ConnectionStringCredentials(), sections=("databricks",)
+    )
     assert c2.drivername == "databricks+connector"
     assert c2.username == "token"
     assert c2.password == "<databricks_token>"
@@ -292,11 +313,19 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         # set single key
         provider.set_value("_new_key_bool", True, None)
         TAny: Type[Any] = Any  # type: ignore[assignment]
-        assert provider.get_value("_new_key_bool", TAny, None) == (True, "_new_key_bool")
+        assert provider.get_value("_new_key_bool", TAny, None) == (
+            True,
+            "_new_key_bool",
+        )
         provider.set_value("_new_key_literal", TSecretValue("literal"), None)
-        assert provider.get_value("_new_key_literal", TAny, None) == ("literal", "_new_key_literal")
+        assert provider.get_value("_new_key_literal", TAny, None) == (
+            "literal",
+            "_new_key_literal",
+        )
         # this will create path of tables
-        provider.set_value("deep_int", 2137, "deep_pipeline", "deep", "deep", "deep", "deep")
+        provider.set_value(
+            "deep_int", 2137, "deep_pipeline", "deep", "deep", "deep", "deep"
+        )
         assert provider._toml["deep_pipeline"]["deep"]["deep"]["deep"]["deep"]["deep_int"] == 2137  # type: ignore[index]
         assert provider.get_value(
             "deep_int", TAny, "deep_pipeline", "deep", "deep", "deep", "deep"
@@ -304,7 +333,9 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         # same without the pipeline
         now = pendulum.now()
         provider.set_value("deep_date", now, None, "deep", "deep", "deep", "deep")
-        assert provider.get_value("deep_date", TAny, None, "deep", "deep", "deep", "deep") == (
+        assert provider.get_value(
+            "deep_date", TAny, None, "deep", "deep", "deep", "deep"
+        ) == (
             now,
             "deep.deep.deep.deep.deep_date",
         )
@@ -315,7 +346,9 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             "deep.deep.deep.deep_list",
         )
         # still there
-        assert provider.get_value("deep_date", TAny, None, "deep", "deep", "deep", "deep") == (
+        assert provider.get_value(
+            "deep_date", TAny, None, "deep", "deep", "deep", "deep"
+        ) == (
             now,
             "deep.deep.deep.deep.deep_date",
         )
@@ -327,7 +360,9 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         )
         # invalid type
         with pytest.raises(ValueError):
-            provider.set_value("deep_decimal", Decimal("1.2"), None, "deep", "deep", "deep", "deep")
+            provider.set_value(
+                "deep_decimal", Decimal("1.2"), None, "deep", "deep", "deep", "deep"
+            )
 
         # write new dict to a new key
         test_d1 = {"key": "top", "embed": {"inner": "bottom", "inner_2": True}}
@@ -343,7 +378,9 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             "dict_test.deep_dict",
         )
         # get a fragment
-        assert provider.get_value("inner_2", TAny, None, "dict_test", "deep_dict", "embed") == (
+        assert provider.get_value(
+            "inner_2", TAny, None, "dict_test", "deep_dict", "embed"
+        ) == (
             True,
             "dict_test.deep_dict.embed.inner_2",
         )
@@ -354,7 +391,11 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             "deep.deep.deep.deep_list",
         )
         # merge dicts
-        test_d2 = {"key": "_top", "key2": "new2", "embed": {"inner": "_bottom", "inner_3": 2121}}
+        test_d2 = {
+            "key": "_top",
+            "key2": "new2",
+            "embed": {"inner": "_bottom", "inner_3": 2121},
+        }
         provider.set_value("deep_dict", test_d2, None, "dict_test")
         test_m_d1_d2 = {
             "key": "_top",

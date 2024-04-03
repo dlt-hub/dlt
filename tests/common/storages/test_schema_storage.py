@@ -106,7 +106,9 @@ def test_import_overwrites_existing_if_modified(
     assert_schema_imported(synced_storage, storage)
 
 
-def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
+def test_skip_import_if_not_modified(
+    synced_storage: SchemaStorage, storage: SchemaStorage
+) -> None:
     storage_schema = assert_schema_imported(synced_storage, storage)
     assert not storage_schema.is_modified
     initial_version = storage_schema.stored_version
@@ -125,13 +127,17 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     assert "event_user" in reloaded_schema.tables
     assert storage_schema.version == reloaded_schema.stored_version
     assert storage_schema.version_hash == reloaded_schema.stored_version_hash
-    assert storage_schema._imported_version_hash == reloaded_schema._imported_version_hash
+    assert (
+        storage_schema._imported_version_hash == reloaded_schema._imported_version_hash
+    )
     assert storage_schema.previous_hashes == reloaded_schema.previous_hashes
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
     # we save the import schema (using export method)
-    synced_storage._export_schema(storage_schema, synced_storage.config.export_schema_path)
+    synced_storage._export_schema(
+        storage_schema, synced_storage.config.export_schema_path
+    )
     # now load will import again
     reloaded_schema = synced_storage.load_schema("ethereum")
     # we have overwritten storage schema
@@ -143,10 +149,14 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     assert storage_schema.previous_hashes == reloaded_schema.previous_hashes
 
     # but original version has increased twice (because it was modified twice)
-    assert reloaded_schema.stored_version == storage_schema.version == initial_version + 2
+    assert (
+        reloaded_schema.stored_version == storage_schema.version == initial_version + 2
+    )
 
 
-def test_store_schema_tampered(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
+def test_store_schema_tampered(
+    synced_storage: SchemaStorage, storage: SchemaStorage
+) -> None:
     storage_schema = assert_schema_imported(synced_storage, storage)
     # break hash
     stored_schema = storage_schema.to_dict()
@@ -247,7 +257,9 @@ def test_getter_with_import(ie_storage: SchemaStorage) -> None:
     assert not schema.is_modified
     # now load via getter
     schema_copy = ie_storage["ethereum"]
-    assert schema_copy.version_hash == schema_copy.stored_version_hash == mod_version_hash
+    assert (
+        schema_copy.version_hash == schema_copy.stored_version_hash == mod_version_hash
+    )
     assert schema_copy._imported_version_hash == version_hash
 
     # now save the schema as import
@@ -334,14 +346,18 @@ def test_schema_from_file() -> None:
     assert schema.name == "event"
 
     schema = SchemaStorage.load_schema_file(
-        os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml",)
+        os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"),
+        "event",
+        extensions=("yaml",),
     )
     assert schema.name == "event"
     assert "blocks" in schema.tables
 
     with pytest.raises(SchemaNotFoundError):
         SchemaStorage.load_schema_file(
-            os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "eth", extensions=("yaml",)
+            os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"),
+            "eth",
+            extensions=("yaml",),
         )
 
     # file name and schema content mismatch
@@ -481,7 +497,9 @@ def prepare_import_folder(storage: SchemaStorage) -> None:
     )
 
 
-def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:
+def assert_schema_imported(
+    synced_storage: SchemaStorage, storage: SchemaStorage
+) -> Schema:
     prepare_import_folder(synced_storage)
     eth_V9: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v9")
     schema = synced_storage.load_schema("ethereum")

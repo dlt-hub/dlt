@@ -38,10 +38,10 @@ class DestinationConnectionError(DestinationTransientException):
         self.dataset_name = dataset_name
         self.inner_exc = inner_exc
         super().__init__(
-            f"Connection with {client_type} to dataset name {dataset_name} failed. Please check if"
-            " you configured the credentials at all and provided the right credentials values. You"
-            " can be also denied access or your internet connection may be down. The actual reason"
-            f" given is: {reason}"
+            f"Connection with {client_type} to dataset name {dataset_name} failed."
+            " Please check if you configured the credentials at all and provided the"
+            " right credentials values. You can be also denied access or your internet"
+            f" connection may be down. The actual reason given is: {reason}"
         )
 
 
@@ -50,8 +50,9 @@ class LoadClientNotConnected(DestinationTransientException):
         self.client_type = client_type
         self.dataset_name = dataset_name
         super().__init__(
-            f"Connection with {client_type} to dataset {dataset_name} is closed. Open the"
-            " connection with 'client.open_connection' or with the 'with client:' statement"
+            f"Connection with {client_type} to dataset {dataset_name} is closed. Open"
+            " the connection with 'client.open_connection' or with the 'with client:'"
+            " statement"
         )
 
 
@@ -72,7 +73,8 @@ class LoadJobNotExistsException(DestinationTerminalException):
 class LoadJobTerminalException(DestinationTerminalException):
     def __init__(self, file_path: str, message: str) -> None:
         super().__init__(
-            f"Job with id/file name {file_path} encountered unrecoverable problem: {message}"
+            f"Job with id/file name {file_path} encountered unrecoverable problem:"
+            f" {message}"
         )
 
 
@@ -86,14 +88,18 @@ class LoadJobInvalidStateTransitionException(DestinationTerminalException):
 class LoadJobFileTooBig(DestinationTerminalException):
     def __init__(self, file_name: str, max_size: int) -> None:
         super().__init__(
-            f"File {file_name} exceeds {max_size} and cannot be loaded. Split the file and try"
-            " again."
+            f"File {file_name} exceeds {max_size} and cannot be loaded. Split the file"
+            " and try again."
         )
 
 
 class MergeDispositionException(DestinationTerminalException):
     def __init__(
-        self, dataset_name: str, staging_dataset_name: str, tables: Sequence[str], reason: str
+        self,
+        dataset_name: str,
+        staging_dataset_name: str,
+        tables: Sequence[str],
+        reason: str,
     ) -> None:
         self.dataset_name = dataset_name
         self.staging_dataset_name = staging_dataset_name
@@ -101,11 +107,12 @@ class MergeDispositionException(DestinationTerminalException):
         self.reason = reason
         msg = (
             f"Merge sql job for dataset name {dataset_name}, staging dataset name"
-            f" {staging_dataset_name} COULD NOT BE GENERATED. Merge will not be performed. "
+            f" {staging_dataset_name} COULD NOT BE GENERATED. Merge will not be"
+            " performed. "
         )
         msg += (
-            f"Data for the following tables ({tables}) is loaded to staging dataset. You may need"
-            " to write your own materialization. The reason is:\n"
+            f"Data for the following tables ({tables}) is loaded to staging dataset."
+            " You may need to write your own materialization. The reason is:\n"
         )
         msg += reason
         super().__init__(msg)
@@ -114,7 +121,9 @@ class MergeDispositionException(DestinationTerminalException):
 class InvalidFilesystemLayout(DestinationTerminalException):
     def __init__(self, invalid_placeholders: Sequence[str]) -> None:
         self.invalid_placeholders = invalid_placeholders
-        super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
+        super().__init__(
+            f"Invalid placeholders found in filesystem layout: {invalid_placeholders}"
+        )
 
 
 class CantExtractTablePrefix(DestinationTerminalException):

@@ -29,13 +29,21 @@ def get_schema() -> Schema:
     s.update_table(cast(TTableSchema, {"name": "tables", "columns": columns}))
 
     s.update_table(
-        cast(TTableSchema, {"name": "child_table", "parent": "tables", "columns": columns})
+        cast(
+            TTableSchema,
+            {"name": "child_table", "parent": "tables", "columns": columns},
+        )
     )
 
-    s.update_table(cast(TTableSchema, {"name": "incomplete_table", "columns": incomplete_columns}))
+    s.update_table(
+        cast(TTableSchema, {"name": "incomplete_table", "columns": incomplete_columns})
+    )
 
     s.update_table(
-        cast(TTableSchema, {"name": "mixed_table", "columns": {**incomplete_columns, **columns}})
+        cast(
+            TTableSchema,
+            {"name": "mixed_table", "columns": {**incomplete_columns, **columns}},
+        )
     )
 
     s.update_table(
@@ -55,8 +63,14 @@ def get_schema() -> Schema:
 def test_resolve_contract_settings() -> None:
     # defaults
     schema = get_schema()
-    assert schema.resolve_contract_settings_for_table("tables") == DEFAULT_SCHEMA_CONTRACT_MODE
-    assert schema.resolve_contract_settings_for_table("child_table") == DEFAULT_SCHEMA_CONTRACT_MODE
+    assert (
+        schema.resolve_contract_settings_for_table("tables")
+        == DEFAULT_SCHEMA_CONTRACT_MODE
+    )
+    assert (
+        schema.resolve_contract_settings_for_table("child_table")
+        == DEFAULT_SCHEMA_CONTRACT_MODE
+    )
 
     # table specific full setting
     schema = get_schema()
@@ -143,7 +157,11 @@ def test_resolve_contract_settings() -> None:
 base_settings = [
     {"tables": "evolve", "columns": "evolve", "data_type": "evolve"},
     {"tables": "discard_row", "columns": "discard_row", "data_type": "discard_row"},
-    {"tables": "discard_value", "columns": "discard_value", "data_type": "discard_value"},
+    {
+        "tables": "discard_value",
+        "columns": "discard_value",
+        "data_type": "discard_value",
+    },
     {"tables": "freeze", "columns": "freeze", "data_type": "freeze"},
 ]
 
@@ -162,11 +180,13 @@ def test_check_adding_table(base_settings) -> None:
     )
     assert (partial, filters) == (new_table, [])
     partial, filters = schema.apply_schema_contract(
-        cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_row"}}), new_table
+        cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_row"}}),
+        new_table,
     )
     assert (partial, filters) == (None, [("tables", "new_table", "discard_row")])
     partial, filters = schema.apply_schema_contract(
-        cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_value"}}), new_table
+        cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_value"}}),
+        new_table,
     )
     assert (partial, filters) == (None, [("tables", "new_table", "discard_value")])
     partial, filters = schema.apply_schema_contract(
@@ -187,7 +207,9 @@ def test_check_adding_table(base_settings) -> None:
     assert val_ex.value.column_name is None
     assert val_ex.value.schema_entity == "tables"
     assert val_ex.value.contract_mode == "freeze"
-    assert val_ex.value.table_schema is None  # there's no validating schema on new table
+    assert (
+        val_ex.value.table_schema is None
+    )  # there's no validating schema on new table
     assert val_ex.value.data_item == {"item": 1}
 
 
@@ -213,7 +235,9 @@ def test_check_adding_new_columns(base_settings) -> None:
             [("columns", column_name, "discard_row")],
         )
         partial, filters = schema.apply_schema_contract(
-            cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_value"}}),
+            cast(
+                TSchemaContractDict, {**base_settings, **{"columns": "discard_value"}}
+            ),
             copy.deepcopy(table_update),
         )
         assert (partial, filters) == (
@@ -225,7 +249,10 @@ def test_check_adding_new_columns(base_settings) -> None:
             copy.deepcopy(table_update),
             raise_on_freeze=False,
         )
-        assert (partial, filters) == (popped_table_update, [("columns", column_name, "freeze")])
+        assert (partial, filters) == (
+            popped_table_update,
+            [("columns", column_name, "freeze")],
+        )
 
         with pytest.raises(DataValidationError) as val_ex:
             schema.apply_schema_contract(
@@ -275,7 +302,9 @@ def test_check_adding_new_columns(base_settings) -> None:
             },
         },
     }
-    partial, filters = schema.apply_schema_contract(base_settings, copy.deepcopy(table_update))
+    partial, filters = schema.apply_schema_contract(
+        base_settings, copy.deepcopy(table_update)
+    )
     assert (partial, filters) == (table_update, [])
 
 
@@ -288,19 +317,29 @@ def test_check_adding_new_variant() -> None:
     table_update: TTableSchema = {
         "name": "tables",
         "columns": {
-            "column_2_variant": {"name": "column_2_variant", "data_type": "bigint", "variant": True}
+            "column_2_variant": {
+                "name": "column_2_variant",
+                "data_type": "bigint",
+                "variant": True,
+            }
         },
     }
     popped_table_update = copy.deepcopy(table_update)
     popped_table_update["columns"].pop("column_2_variant")
 
     partial, filters = schema.apply_schema_contract(
-        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve"}}),
+        cast(
+            TSchemaContractDict,
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve"}},
+        ),
         copy.deepcopy(table_update),
     )
     assert (partial, filters) == (table_update, [])
     partial, filters = schema.apply_schema_contract(
-        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_row"}}),
+        cast(
+            TSchemaContractDict,
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_row"}},
+        ),
         copy.deepcopy(table_update),
     )
     assert (partial, filters) == (
@@ -309,7 +348,8 @@ def test_check_adding_new_variant() -> None:
     )
     partial, filters = schema.apply_schema_contract(
         cast(
-            TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_value"}}
+            TSchemaContractDict,
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_value"}},
         ),
         copy.deepcopy(table_update),
     )
@@ -318,15 +358,24 @@ def test_check_adding_new_variant() -> None:
         [("columns", "column_2_variant", "discard_value")],
     )
     partial, filters = schema.apply_schema_contract(
-        cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+        cast(
+            TSchemaContractDict,
+            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}},
+        ),
         copy.deepcopy(table_update),
         raise_on_freeze=False,
     )
-    assert (partial, filters) == (popped_table_update, [("columns", "column_2_variant", "freeze")])
+    assert (partial, filters) == (
+        popped_table_update,
+        [("columns", "column_2_variant", "freeze")],
+    )
 
     with pytest.raises(DataValidationError) as val_ex:
         schema.apply_schema_contract(
-            cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+            cast(
+                TSchemaContractDict,
+                {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}},
+            ),
             copy.deepcopy(table_update),
         )
     assert val_ex.value.schema_name == schema.name
@@ -341,7 +390,10 @@ def test_check_adding_new_variant() -> None:
     partial, filters = schema.apply_schema_contract(
         cast(
             TSchemaContractDict,
-            {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "freeze"}},
+            {
+                **DEFAULT_SCHEMA_CONTRACT_MODE,
+                **{"data_type": "evolve", "columns": "freeze"},
+            },
         ),
         copy.deepcopy(table_update),
     )
@@ -351,6 +403,9 @@ def test_check_adding_new_variant() -> None:
     table_update["name"] = "evolve_once_table"
     with pytest.raises(DataValidationError):
         schema.apply_schema_contract(
-            cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}),
+            cast(
+                TSchemaContractDict,
+                {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}},
+            ),
             copy.deepcopy(table_update),
         )

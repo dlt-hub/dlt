@@ -68,7 +68,8 @@ def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
                 elif current_snippet:
                     current_snippet.code += line
         assert not current_snippet, (
-            "It seems that the last snippet in the file was not closed. Please check the file "
+            "It seems that the last snippet in the file was not closed. Please check"
+            " the file "
             + file
         )
 
@@ -83,7 +84,9 @@ def collect_snippets(markdown_files: List[str], verbose: bool) -> List[Snippet]:
     return snippets
 
 
-def filter_snippets(snippets: List[Snippet], files: str, snippet_numbers: str) -> List[Snippet]:
+def filter_snippets(
+    snippets: List[Snippet], files: str, snippet_numbers: str
+) -> List[Snippet]:
     """
     Filter out snippets based on file or snippet number
     """
@@ -100,8 +103,8 @@ def filter_snippets(snippets: List[Snippet], files: str, snippet_numbers: str) -
         filtered_snippets.append(snippet)
     if filtered_count:
         fmt.note(
-            f"{filtered_count} Snippets skipped based on file and snippet number settings."
-            f" {len(filtered_snippets)} snippets remaining."
+            f"{filtered_count} Snippets skipped based on file and snippet number"
+            f" settings. {len(filtered_snippets)} snippets remaining."
         )
     else:
         fmt.note("0 Snippets skipped based on file and snippet number settings")
@@ -120,7 +123,9 @@ def check_language(snippets: List[Snippet]) -> None:
     failed_count = 0
     for snippet in snippets:
         if snippet.language not in ALLOWED_LANGUAGES:
-            fmt.warning(f"{str(snippet)} has an invalid language {snippet.language} setting.")
+            fmt.warning(
+                f"{str(snippet)} has an invalid language {snippet.language} setting."
+            )
             failed_count += 1
 
     if failed_count:
@@ -193,7 +198,9 @@ def lint_snippets(snippets: List[Snippet], verbose: bool) -> None:
     for snippet in snippets:
         count += 1
         prepare_for_linting(snippet)
-        result = subprocess.run(["ruff", "check", LINT_FILE], capture_output=True, text=True)
+        result = subprocess.run(
+            ["ruff", "check", LINT_FILE], capture_output=True, text=True
+        )
         if verbose:
             fmt.echo(f"Linting {snippet} ({count} of {len(snippets)})")
         if "error" in result.stdout.lower():
@@ -236,27 +243,30 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
 
 if __name__ == "__main__":
     fmt.note(
-        "Welcome to Snippet Checker 3000, run 'python check_embedded_snippets.py --help' for help."
+        "Welcome to Snippet Checker 3000, run 'python check_embedded_snippets.py"
+        " --help' for help."
     )
 
     # setup cli
     parser = argparse.ArgumentParser(
         description=(
-            "Check embedded snippets. Discover, parse, lint, and type check all code snippets in"
-            " the docs."
+            "Check embedded snippets. Discover, parse, lint, and type check all code"
+            " snippets in the docs."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "command",
         help=(
-            'Which checks to run. "full" will run all checks, parse, lint or typecheck will only'
-            " run that specific step"
+            'Which checks to run. "full" will run all checks, parse, lint or typecheck'
+            " will only run that specific step"
         ),
         choices=["full", "parse", "lint", "typecheck"],
         default="full",
     )
-    parser.add_argument("-v", "--verbose", help="Increase output verbosity", action="store_true")
+    parser.add_argument(
+        "-v", "--verbose", help="Increase output verbosity", action="store_true"
+    )
     parser.add_argument(
         "-f",
         "--files",
@@ -267,8 +277,8 @@ if __name__ == "__main__":
         "-s",
         "--snippetnumbers",
         help=(
-            "Filter checked snippets to snippetnumbers contained in this string, example:"
-            ' "13,412,345"'
+            "Filter checked snippets to snippetnumbers contained in this string,"
+            ' example: "13,412,345"'
         ),
         type=lambda i: i.split(","),
         default=None,

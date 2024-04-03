@@ -35,10 +35,14 @@ _DESTINATIONS: t.Dict[str, DestinationInfo] = {}
 """A registry of all the decorated destinations"""
 
 
-class destination(Destination[CustomDestinationClientConfiguration, "DestinationClient"]):
+class destination(
+    Destination[CustomDestinationClientConfiguration, "DestinationClient"]
+):
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities(
-            preferred_loader_file_format=self.config_params.get("loader_file_format", "puae-jsonl"),
+            preferred_loader_file_format=self.config_params.get(
+                "loader_file_format", "puae-jsonl"
+            ),
             naming_convention=self.config_params.get("naming_convention", "direct"),
             max_table_nesting=self.config_params.get("max_table_nesting", None),
         )
@@ -67,8 +71,8 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
     ) -> None:
         if spec and not issubclass(spec, CustomDestinationClientConfiguration):
             raise ValueError(
-                "A SPEC for a sink destination must use CustomDestinationClientConfiguration as a"
-                " base."
+                "A SPEC for a sink destination must use"
+                " CustomDestinationClientConfiguration as a base."
             )
         # resolve callable
         if callable(destination_callable):
@@ -92,19 +96,22 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         # this is needed for cli commands to work
         if not destination_callable:
             logger.warning(
-                "No destination callable provided, providing dummy callable which will fail on"
-                " load."
+                "No destination callable provided, providing dummy callable which will"
+                " fail on load."
             )
 
             def dummy_callable(*args: t.Any, **kwargs: t.Any) -> None:
                 raise DestinationTransientException(
-                    "You tried to load to a custom destination without a valid callable."
+                    "You tried to load to a custom destination without a valid"
+                    " callable."
                 )
 
             destination_callable = dummy_callable
 
         elif not callable(destination_callable):
-            raise ConfigurationValueError("Resolved Sink destination callable is not a callable.")
+            raise ConfigurationValueError(
+                "Resolved Sink destination callable is not a callable."
+            )
 
         # resolve destination name
         if destination_name is None:

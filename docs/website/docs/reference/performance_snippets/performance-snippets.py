@@ -14,13 +14,19 @@ def parallel_config_snippet() -> None:
         while item_slice := list(islice(rows, 1000)):
             now = pendulum.now().isoformat()
             yield [
-                {"row": _id, "description": "this is row with id {_id}", "timestamp": now}
+                {
+                    "row": _id,
+                    "description": "this is row with id {_id}",
+                    "timestamp": now,
+                }
                 for _id in item_slice
             ]
 
     # this prevents process pool to run the initialization code again
     if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
-        pipeline = dlt.pipeline("parallel_load", destination="duckdb", full_refresh=True)
+        pipeline = dlt.pipeline(
+            "parallel_load", destination="duckdb", full_refresh=True
+        )
         pipeline.extract(read_table(1000000))
 
         load_id = pipeline.list_extracted_load_packages()[0]

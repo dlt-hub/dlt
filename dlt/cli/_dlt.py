@@ -59,7 +59,9 @@ def init_command_wrapper(
     branch: str,
 ) -> int:
     try:
-        init_command(source_name, destination_type, use_generic_template, repo_location, branch)
+        init_command(
+            source_name, destination_type, use_generic_template, repo_location, branch
+        )
     except Exception as ex:
         on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
@@ -102,19 +104,22 @@ def deploy_command_wrapper(
         )
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
         fmt.note(
-            "You must run the pipeline locally successfully at least once in order to deploy it."
+            "You must run the pipeline locally successfully at least once in order to"
+            " deploy it."
         )
         on_exception(ex, DLT_DEPLOY_DOCS_URL)
         return -2
     except InvalidGitRepositoryError:
         click.secho(
-            "No git repository found for pipeline script %s." % fmt.bold(pipeline_script_path),
+            "No git repository found for pipeline script %s."
+            % fmt.bold(pipeline_script_path),
             err=True,
             fg="red",
         )
         fmt.note("If you do not have a repository yet, you can do either of:")
         fmt.note(
-            "- Run the following command to initialize new repository: %s" % fmt.bold("git init")
+            "- Run the following command to initialize new repository: %s"
+            % fmt.bold("git init")
         )
         fmt.note(
             "- Add your local code to Github as described here: %s"
@@ -122,10 +127,14 @@ def deploy_command_wrapper(
                 "https://docs.github.com/en/get-started/importing-your-projects-to-github/importing-source-code-to-github/adding-locally-hosted-code-to-github"
             )
         )
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        fmt.note(
+            "Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL)
+        )
         return -3
     except NoSuchPathError as path_ex:
-        click.secho("The pipeline script does not exist\n%s" % str(path_ex), err=True, fg="red")
+        click.secho(
+            "The pipeline script does not exist\n%s" % str(path_ex), err=True, fg="red"
+        )
         return -4
     except Exception as ex:
         on_exception(ex, DLT_DEPLOY_DOCS_URL)
@@ -135,10 +144,16 @@ def deploy_command_wrapper(
 
 @utils.track_command("pipeline", True, "operation")
 def pipeline_command_wrapper(
-    operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
+    operation: str,
+    pipeline_name: str,
+    pipelines_dir: str,
+    verbosity: int,
+    **command_kwargs: Any,
 ) -> int:
     try:
-        pipeline_command(operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs)
+        pipeline_command(
+            operation, pipeline_name, pipelines_dir, verbosity, **command_kwargs
+        )
         return 0
     except CannotRestorePipelineException as ex:
         click.secho(str(ex), err=True, fg="red")
@@ -205,7 +220,11 @@ class TelemetryAction(argparse.Action):
         help: str = None,  # noqa
     ) -> None:
         super(TelemetryAction, self).__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
         )
 
     def __call__(
@@ -230,7 +249,11 @@ class NonInteractiveAction(argparse.Action):
         help: str = None,  # noqa
     ) -> None:
         super(NonInteractiveAction, self).__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
         )
 
     def __call__(
@@ -252,7 +275,11 @@ class DebugAction(argparse.Action):
         help: str = None,  # noqa
     ) -> None:
         super(DebugAction, self).__init__(
-            option_strings=option_strings, dest=dest, default=default, nargs=0, help=help
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
         )
 
     def __call__(
@@ -273,7 +300,9 @@ def main() -> int:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--version", action="version", version="%(prog)s {version}".format(version=__version__)
+        "--version",
+        action="version",
+        version="%(prog)s {version}".format(version=__version__),
     )
     parser.add_argument(
         "--disable-telemetry",
@@ -289,8 +318,8 @@ def main() -> int:
         "--non-interactive",
         action=NonInteractiveAction,
         help=(
-            "Non interactive mode. Default choices are automatically made for confirmations and"
-            " prompts."
+            "Non interactive mode. Default choices are automatically made for"
+            " confirmations and prompts."
         ),
     )
     parser.add_argument(
@@ -301,8 +330,8 @@ def main() -> int:
     init_cmd = subparsers.add_parser(
         "init",
         help=(
-            "Creates a pipeline project in the current folder by adding existing verified source or"
-            " creating a new one from template."
+            "Creates a pipeline project in the current folder by adding existing"
+            " verified source or creating a new one from template."
         ),
     )
     init_cmd.add_argument(
@@ -316,9 +345,9 @@ def main() -> int:
         "source",
         nargs="?",
         help=(
-            "Name of data source for which to create a pipeline. Adds existing verified source or"
-            " creates a new pipeline template if verified source for your data source is not yet"
-            " implemented."
+            "Name of data source for which to create a pipeline. Adds existing verified"
+            " source or creates a new pipeline template if verified source for your"
+            " data source is not yet implemented."
         ),
     )
     init_cmd.add_argument(
@@ -327,21 +356,27 @@ def main() -> int:
     init_cmd.add_argument(
         "--location",
         default=DEFAULT_VERIFIED_SOURCES_REPO,
-        help="Advanced. Uses a specific url or local path to verified sources repository.",
+        help=(
+            "Advanced. Uses a specific url or local path to verified sources"
+            " repository."
+        ),
     )
     init_cmd.add_argument(
         "--branch",
         default=None,
-        help="Advanced. Uses specific branch of the init repository to fetch the template.",
+        help=(
+            "Advanced. Uses specific branch of the init repository to fetch the"
+            " template."
+        ),
     )
     init_cmd.add_argument(
         "--generic",
         default=False,
         action="store_true",
         help=(
-            "When present uses a generic template with all the dlt loading code present will be"
-            " used. Otherwise a debug template is used that can be immediately run to get familiar"
-            " with the dlt sources."
+            "When present uses a generic template with all the dlt loading code present"
+            " will be used. Otherwise a debug template is used that can be immediately"
+            " run to get familiar with the dlt sources."
         ),
     )
 
@@ -359,14 +394,19 @@ def main() -> int:
         )
         deploy_comm.add_argument(
             "--branch",
-            help="Advanced. Uses specific branch of the deploy repository to fetch the template.",
+            help=(
+                "Advanced. Uses specific branch of the deploy repository to fetch the"
+                " template."
+            ),
         )
 
         deploy_cmd = subparsers.add_parser(
             "deploy", help="Creates a deployment package for a selected pipeline script"
         )
         deploy_cmd.add_argument(
-            "pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script"
+            "pipeline_script_path",
+            metavar="pipeline-script-path",
+            help="Path to a pipeline script",
         )
         deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
 
@@ -380,9 +420,9 @@ def main() -> int:
             "--schedule",
             required=True,
             help=(
-                "A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *'"
-                " will run the pipeline every 30 minutes. Remember to enclose the scheduler"
-                " expression in quotation marks!"
+                "A schedule with which to run the pipeline, in cron format. Example:"
+                " '*/30 * * * *' will run the pipeline every 30 minutes. Remember to"
+                " enclose the scheduler expression in quotation marks!"
             ),
         )
         deploy_github_cmd.add_argument(
@@ -416,32 +456,49 @@ def main() -> int:
         deploy_cmd = subparsers.add_parser(
             "deploy",
             help=(
-                'Install additional dependencies with pip install "dlt[cli]" to create deployment'
-                " packages"
+                'Install additional dependencies with pip install "dlt[cli]" to create'
+                " deployment packages"
             ),
             add_help=False,
         )
         deploy_cmd.add_argument("--help", "-h", nargs="?", const=True)
         deploy_cmd.add_argument(
-            "pipeline_script_path", metavar="pipeline-script-path", nargs=argparse.REMAINDER
+            "pipeline_script_path",
+            metavar="pipeline-script-path",
+            nargs=argparse.REMAINDER,
         )
 
-    schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
-    schema.add_argument(
-        "file", help="Schema file name, in yaml or json format, will autodetect based on extension"
+    schema = subparsers.add_parser(
+        "schema", help="Shows, converts and upgrades schemas"
     )
     schema.add_argument(
-        "--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format"
+        "file",
+        help=(
+            "Schema file name, in yaml or json format, will autodetect based on"
+            " extension"
+        ),
     )
     schema.add_argument(
-        "--remove-defaults", action="store_true", help="Does not show default hint values"
+        "--format",
+        choices=["json", "yaml"],
+        default="yaml",
+        help="Display schema in this format",
+    )
+    schema.add_argument(
+        "--remove-defaults",
+        action="store_true",
+        help="Does not show default hint values",
     )
 
     pipe_cmd = subparsers.add_parser(
         "pipeline", help="Operations on pipelines that were ran locally"
     )
     pipe_cmd.add_argument(
-        "--list-pipelines", "-l", default=False, action="store_true", help="List local pipelines"
+        "--list-pipelines",
+        "-l",
+        default=False,
+        action="store_true",
+        help="List local pipelines",
     )
     pipe_cmd.add_argument(
         "--hot-reload",
@@ -450,7 +507,9 @@ def main() -> int:
         help="Reload streamlit app (for core development)",
     )
     pipe_cmd.add_argument("pipeline_name", nargs="?", help="Pipeline name")
-    pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
+    pipe_cmd.add_argument(
+        "--pipelines-dir", help="Pipelines working directory", default=None
+    )
     pipe_cmd.add_argument(
         "--verbose",
         "-v",
@@ -464,10 +523,12 @@ def main() -> int:
 
     pipe_cmd_sync_parent = argparse.ArgumentParser(add_help=False)
     pipe_cmd_sync_parent.add_argument(
-        "--destination", help="Sync from this destination when local pipeline state is missing."
+        "--destination",
+        help="Sync from this destination when local pipeline state is missing.",
     )
     pipe_cmd_sync_parent.add_argument(
-        "--dataset-name", help="Dataset name to sync from when local pipeline state is missing."
+        "--dataset-name",
+        help="Dataset name to sync from when local pipeline state is missing.",
     )
 
     pipeline_subparsers.add_parser(
@@ -475,34 +536,40 @@ def main() -> int:
     )
     pipeline_subparsers.add_parser(
         "show",
-        help="Generates and launches Streamlit app with the loading status and dataset explorer",
+        help=(
+            "Generates and launches Streamlit app with the loading status and dataset"
+            " explorer"
+        ),
     )
     pipeline_subparsers.add_parser(
         "failed-jobs",
         help=(
-            "Displays information on all the failed loads in all completed packages, failed jobs"
-            " and associated error messages"
+            "Displays information on all the failed loads in all completed packages,"
+            " failed jobs and associated error messages"
         ),
     )
     pipeline_subparsers.add_parser(
         "drop-pending-packages",
         help=(
-            "Deletes all extracted and normalized packages including those that are partially"
-            " loaded."
+            "Deletes all extracted and normalized packages including those that are"
+            " partially loaded."
         ),
     )
     pipeline_subparsers.add_parser(
         "sync",
         help=(
-            "Drops the local state of the pipeline and resets all the schemas and restores it from"
-            " destination. The destination state, data and schemas are left intact."
+            "Drops the local state of the pipeline and resets all the schemas and"
+            " restores it from destination. The destination state, data and schemas are"
+            " left intact."
         ),
         parents=[pipe_cmd_sync_parent],
     )
     pipeline_subparsers.add_parser(
         "trace", help="Displays last run trace, use -v or -vv for more info"
     )
-    pipe_cmd_schema = pipeline_subparsers.add_parser("schema", help="Displays default schema")
+    pipe_cmd_schema = pipeline_subparsers.add_parser(
+        "schema", help="Displays default schema"
+    )
     pipe_cmd_schema.add_argument(
         "--format",
         choices=["json", "yaml"],
@@ -510,7 +577,9 @@ def main() -> int:
         help="Display schema in this format",
     )
     pipe_cmd_schema.add_argument(
-        "--remove-defaults", action="store_true", help="Does not show default hint values"
+        "--remove-defaults",
+        action="store_true",
+        help="Does not show default hint values",
     )
 
     pipe_cmd_drop = pipeline_subparsers.add_parser(
@@ -518,16 +587,16 @@ def main() -> int:
         help="Selectively drop tables and reset state",
         parents=[pipe_cmd_sync_parent],
         epilog=(
-            f"See {DLT_PIPELINE_COMMAND_DOCS_URL}#selectively-drop-tables-and-reset-state for more"
-            " info"
+            f"See {DLT_PIPELINE_COMMAND_DOCS_URL}#selectively-drop-tables-and-reset-state"
+            " for more info"
         ),
     )
     pipe_cmd_drop.add_argument(
         "resources",
         nargs="*",
         help=(
-            "One or more resources to drop. Can be exact resource name(s) or regex pattern(s)."
-            " Regex patterns must start with re:"
+            "One or more resources to drop. Can be exact resource name(s) or regex"
+            " pattern(s). Regex patterns must start with re:"
         ),
     )
     pipe_cmd_drop.add_argument(
@@ -552,13 +621,17 @@ def main() -> int:
     )
 
     pipe_cmd_package = pipeline_subparsers.add_parser(
-        "load-package", help="Displays information on load package, use -v or -vv for more info"
+        "load-package",
+        help="Displays information on load package, use -v or -vv for more info",
     )
     pipe_cmd_package.add_argument(
         "load_id",
         metavar="load-id",
         nargs="?",
-        help="Load id of completed or normalized package. Defaults to the most recent package.",
+        help=(
+            "Load id of completed or normalized package. Defaults to the most recent"
+            " package."
+        ),
     )
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
@@ -567,17 +640,19 @@ def main() -> int:
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
         fmt.warning(
-            "You are running dlt installed in the global environment, however you have virtual"
-            " environment activated. The dlt command will not see dependencies from virtual"
-            " environment. You should uninstall the dlt from global environment and install it in"
-            " the current virtual environment instead."
+            "You are running dlt installed in the global environment, however you have"
+            " virtual environment activated. The dlt command will not see dependencies"
+            " from virtual environment. You should uninstall the dlt from global"
+            " environment and install it in the current virtual environment instead."
         )
 
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
     elif args.command == "pipeline":
         if args.list_pipelines:
-            return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
+            return pipeline_command_wrapper(
+                "list", "-", args.pipelines_dir, args.verbosity
+            )
         else:
             command_kwargs = dict(args._get_kwargs())
             if not command_kwargs.get("pipeline_name"):
@@ -596,7 +671,11 @@ def main() -> int:
                 return -1
             else:
                 return init_command_wrapper(
-                    args.source, args.destination, args.generic, args.location, args.branch
+                    args.source,
+                    args.destination,
+                    args.generic,
+                    args.location,
+                    args.branch,
                 )
     elif args.command == "deploy":
         try:
@@ -610,12 +689,13 @@ def main() -> int:
             )
         except (NameError, KeyError):
             fmt.warning(
-                "Please install additional command line dependencies to use deploy command:"
+                "Please install additional command line dependencies to use deploy"
+                " command:"
             )
             fmt.secho('pip install "dlt[cli]"', bold=True)
             fmt.echo(
-                "We ask you to install those dependencies separately to keep our core library small"
-                " and make it work everywhere."
+                "We ask you to install those dependencies separately to keep our core"
+                " library small and make it work everywhere."
             )
             return -1
     elif args.command == "telemetry":

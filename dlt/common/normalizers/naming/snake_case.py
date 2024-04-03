@@ -2,7 +2,9 @@ import re
 from typing import Any, List, Sequence
 from functools import lru_cache
 
-from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
+from dlt.common.normalizers.naming.naming import (
+    NamingConvention as BaseNamingConvention,
+)
 
 
 class NamingConvention(BaseNamingConvention):
@@ -36,7 +38,9 @@ class NamingConvention(BaseNamingConvention):
         """Normalizes the identifier according to naming convention represented by this function"""
         # all characters that are not letters digits or a few special chars are replaced with underscore
         normalized_ident = identifier.translate(NamingConvention._TR_REDUCE_ALPHABET)
-        normalized_ident = NamingConvention._RE_NON_ALPHANUMERIC.sub("_", normalized_ident)
+        normalized_ident = NamingConvention._RE_NON_ALPHANUMERIC.sub(
+            "_", normalized_ident
+        )
 
         # shorten identifier
         return NamingConvention.shorten_identifier(

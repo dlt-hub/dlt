@@ -37,7 +37,12 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
 )
 from dlt.extract.pipe import Pipe
-from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
+from dlt.extract.items import (
+    DataItemWithMeta,
+    PipeItem,
+    ResolvablePipeItem,
+    SourcePipeItem,
+)
 from dlt.extract.utils import wrap_async_iterator
 from dlt.extract.concurrency import FuturesPool
 
@@ -96,7 +101,9 @@ class PipeIterator(Iterator[PipeItem]):
 
         # create extractor
         sources = [SourcePipeItem(pipe.gen, 0, pipe, None)]
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        return cls(
+            max_parallel_items, workers, futures_poll_interval, sources, next_item_mode
+        )
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -125,7 +132,9 @@ class PipeIterator(Iterator[PipeItem]):
                 # make the parent yield by sending a clone of item to itself with position at the end
                 if yield_parents and pipe.parent in pipes:
                     # fork is last step of the pipe so it will yield
-                    pipe.parent.fork(pipe.parent, len(pipe.parent) - 1, copy_on_fork=copy_on_fork)
+                    pipe.parent.fork(
+                        pipe.parent, len(pipe.parent) - 1, copy_on_fork=copy_on_fork
+                    )
                 _fork_pipeline(pipe.parent)
             else:
                 # head of independent pipe must be iterator
@@ -142,7 +151,9 @@ class PipeIterator(Iterator[PipeItem]):
             _fork_pipeline(pipe)
 
         # create extractor
-        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
+        return cls(
+            max_parallel_items, workers, futures_poll_interval, sources, next_item_mode
+        )
 
     def __next__(self) -> PipeItem:
         pipe_item: Union[ResolvablePipeItem, SourcePipeItem] = None
@@ -192,7 +203,10 @@ class PipeIterator(Iterator[PipeItem]):
             if isinstance(item, AsyncIterator):
                 self._sources.append(
                     SourcePipeItem(
-                        wrap_async_iterator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
+                        wrap_async_iterator(item),
+                        pipe_item.step,
+                        pipe_item.pipe,
+                        pipe_item.meta,
                     ),
                 )
                 pipe_item = None
@@ -208,12 +222,15 @@ class PipeIterator(Iterator[PipeItem]):
             # if we are at the end of the pipe then yield element
             if pipe_item.step == len(pipe_item.pipe) - 1:
                 # must be resolved
-                if isinstance(item, (Iterator, Awaitable, AsyncIterator)) or callable(item):
+                if isinstance(item, (Iterator, Awaitable, AsyncIterator)) or callable(
+                    item
+                ):
                     raise PipeItemProcessingError(
                         pipe_item.pipe.name,
-                        f"Pipe item at step {pipe_item.step} was not fully evaluated and is of type"
-                        f" {type(pipe_item.item).__name__}. This is internal error or you are"
-                        " yielding something weird from resources ie. functions or awaitables.",
+                        f"Pipe item at step {pipe_item.step} was not fully evaluated"
+                        f" and is of type {type(pipe_item.item).__name__}. This is"
+                        " internal error or you are yielding something weird from"
+                        " resources ie. functions or awaitables.",
                     )
                 # mypy not able to figure out that item was resolved
                 return pipe_item  # type: ignore
@@ -235,7 +252,12 @@ class PipeIterator(Iterator[PipeItem]):
                     inspect.signature(step),
                     str(ty_ex),
                 )
-            except (PipelineException, ExtractorException, DltSourceException, PipeException):
+            except (
+                PipelineException,
+                ExtractorException,
+                DltSourceException,
+                PipeException,
+            ):
                 raise
             except Exception as ex:
                 raise ResourceExtractionError(
@@ -259,11 +281,14 @@ class PipeIterator(Iterator[PipeItem]):
             # always reset to end of list for fifo mode, also take into account that new sources can be added
             # if too many new sources is added we switch to fifo not to exhaust them
             if self._next_item_mode == "fifo" or (
-                sources_count - self._initial_sources_count >= self._futures_pool.max_parallel_items
+                sources_count - self._initial_sources_count
+                >= self._futures_pool.max_parallel_items
             ):
                 self._current_source_index = sources_count - 1
             else:
-                self._current_source_index = (self._current_source_index - 1) % sources_count
+                self._current_source_index = (
+                    self._current_source_index - 1
+                ) % sources_count
             while True:
                 # if we have checked all sources once and all returned None, return and poll/resolve some futures
                 if self._current_source_index == first_evaluated_index:
@@ -280,7 +305,9 @@ class PipeIterator(Iterator[PipeItem]):
                     if not isinstance(pipe_item, ResolvablePipeItem):
                         # keep the item assigned step and pipe when creating resolvable item
                         if isinstance(pipe_item, DataItemWithMeta):
-                            return ResolvablePipeItem(pipe_item.data, step, pipe, pipe_item.meta)
+                            return ResolvablePipeItem(
+                                pipe_item.data, step, pipe, pipe_item.meta
+                            )
                         else:
                             return ResolvablePipeItem(pipe_item, step, pipe, meta)
 
@@ -291,7 +318,9 @@ class PipeIterator(Iterator[PipeItem]):
                 if first_evaluated_index is None:
                     first_evaluated_index = self._current_source_index
                 # always go round robin if None was returned or item is to be run as future
-                self._current_source_index = (self._current_source_index - 1) % sources_count
+                self._current_source_index = (
+                    self._current_source_index - 1
+                ) % sources_count
 
         except StopIteration:
             # remove empty iterator and try another source
@@ -300,7 +329,12 @@ class PipeIterator(Iterator[PipeItem]):
             if self._current_source_index < self._initial_sources_count:
                 self._initial_sources_count -= 1
             return self._get_source_item()
-        except (PipelineException, ExtractorException, DltSourceException, PipeException):
+        except (
+            PipelineException,
+            ExtractorException,
+            DltSourceException,
+            PipeException,
+        ):
             raise
         except Exception as ex:
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
@@ -324,7 +358,10 @@ class PipeIterator(Iterator[PipeItem]):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: types.TracebackType,
     ) -> None:
         self.close()
 
@@ -333,7 +370,9 @@ class PipeIterator(Iterator[PipeItem]):
         pipes: Sequence[Pipe], existing_cloned_pairs: Dict[int, Pipe] = None
     ) -> Tuple[List[Pipe], Dict[int, Pipe]]:
         """This will clone pipes and fix the parent/dependent references"""
-        cloned_pipes = [p._clone() for p in pipes if id(p) not in (existing_cloned_pairs or {})]
+        cloned_pipes = [
+            p._clone() for p in pipes if id(p) not in (existing_cloned_pairs or {})
+        ]
         cloned_pairs = {id(p): c for p, c in zip(pipes, cloned_pipes)}
         if existing_cloned_pairs:
             cloned_pairs.update(existing_cloned_pairs)

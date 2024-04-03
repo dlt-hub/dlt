@@ -100,7 +100,9 @@ def test_synthesize_spec_from_sig() -> None:
     ) -> None:
         pass
 
-    SPEC, _ = spec_from_signature(f_untyped_default, inspect.signature(f_untyped_default))
+    SPEC, _ = spec_from_signature(
+        f_untyped_default, inspect.signature(f_untyped_default)
+    )
     assert SPEC.untyped_p1 == "str"
     assert SPEC.untyped_p2 == _DECIMAL_DEFAULT
     assert isinstance(SPEC().untyped_p3, ConnectionStringCredentials)
@@ -157,7 +159,9 @@ def test_synthesize_spec_from_sig() -> None:
 
     SPEC, _ = spec_from_signature(f_variadic, inspect.signature(f_variadic))
     assert SPEC.var_1 == "A"
-    assert not hasattr(SPEC, "kw_var_1")  # kw parameters that must be explicitly passed are removed
+    assert not hasattr(
+        SPEC, "kw_var_1"
+    )  # kw parameters that must be explicitly passed are removed
     assert not hasattr(SPEC, "args")
     fields = SPEC.get_resolvable_fields()
     assert fields == {"var_1": str}
@@ -167,7 +171,9 @@ def test_spec_when_no_fields() -> None:
     def f_default_only(arg1, arg2=None):
         pass
 
-    SPEC, fields = spec_from_signature(f_default_only, inspect.signature(f_default_only))
+    SPEC, fields = spec_from_signature(
+        f_default_only, inspect.signature(f_default_only)
+    )
     assert len(fields) > 0
 
     del globals()[SPEC.__name__]
@@ -223,7 +229,11 @@ def test_argument_have_dlt_config_defaults() -> None:
 
     @with_config
     def f_kw_defaults(
-        *, kw1=dlt.config.value, kw_lit="12131", kw_secret_val=dlt.secrets.value, **kwargs
+        *,
+        kw1=dlt.config.value,
+        kw_lit="12131",
+        kw_secret_val=dlt.secrets.value,
+        **kwargs,
     ):
         pass
 

@@ -24,10 +24,16 @@ from dlt.common.utils import is_interactive
 @configspec
 class GcpCredentials(CredentialsConfiguration):
     token_uri: Final[str] = dataclasses.field(
-        default="https://oauth2.googleapis.com/token", init=False, repr=False, compare=False
+        default="https://oauth2.googleapis.com/token",
+        init=False,
+        repr=False,
+        compare=False,
     )
     auth_uri: Final[str] = dataclasses.field(
-        default="https://accounts.google.com/o/oauth2/auth", init=False, repr=False, compare=False
+        default="https://accounts.google.com/o/oauth2/auth",
+        init=False,
+        repr=False,
+        compare=False,
     )
 
     project_id: str = None
@@ -64,7 +70,8 @@ class GcpCredentials(CredentialsConfiguration):
             "project": self.project_id,
             "token": (
                 None
-                if isinstance(self, CredentialsWithDefault) and self.has_default_credentials()
+                if isinstance(self, CredentialsWithDefault)
+                and self.has_default_credentials()
                 else dict(self)
             ),
         }
@@ -82,14 +89,18 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
         """Accepts ServiceAccountCredentials as native value. In other case reverts to serialized services.json"""
         service_dict: DictStrAny = None
         try:
-            from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+            from google.oauth2.service_account import (
+                Credentials as ServiceAccountCredentials,
+            )
 
             if isinstance(native_value, ServiceAccountCredentials):
                 # extract credentials
                 service_dict = {
                     "project_id": native_value.project_id,
                     "client_email": native_value.service_account_email,
-                    "private_key": native_value,  # keep native credentials in private key
+                    "private_key": (
+                        native_value
+                    ),  # keep native credentials in private key
                 }
                 self.__is_resolved__ = True
         except ImportError:
@@ -113,7 +124,9 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
 
     def to_native_credentials(self) -> Any:
         """Returns google.oauth2.service_account.Credentials"""
-        from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+        from google.oauth2.service_account import (
+            Credentials as ServiceAccountCredentials,
+        )
 
         if isinstance(self.private_key, ServiceAccountCredentials):
             # private key holds the native instance if it was passed to parse_native_representation
@@ -170,7 +183,9 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     def to_native_representation(self) -> str:
         return json.dumps(self._info_dict())
 
-    def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:
+    def auth(
+        self, scopes: Union[str, List[str]] = None, redirect_url: str = None
+    ) -> None:
         if not self.refresh_token:
             self.add_scopes(scopes)
             if not self.scopes:
@@ -199,7 +214,9 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         try:
             from requests_oauthlib import OAuth2Session
         except ModuleNotFoundError:
-            raise MissingDependencyException("GcpOAuthCredentials", ["requests_oauthlib"])
+            raise MissingDependencyException(
+                "GcpOAuthCredentials", ["requests_oauthlib"]
+            )
 
         google = OAuth2Session(client_id=self.client_id, scope=self.scopes)
         extra = {"client_id": self.client_id, "client_secret": self.client_secret}
@@ -208,12 +225,18 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         )["access_token"]
         return TSecretValue(token)
 
-    def _get_refresh_token(self, redirect_url: str) -> Tuple[TSecretValue, TSecretValue]:
+    def _get_refresh_token(
+        self, redirect_url: str
+    ) -> Tuple[TSecretValue, TSecretValue]:
         try:
             from google_auth_oauthlib.flow import InstalledAppFlow
         except ModuleNotFoundError:
-            raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
-        flow = InstalledAppFlow.from_client_config(self._installed_dict(redirect_url), self.scopes)
+            raise MissingDependencyException(
+                "GcpOAuthCredentials", ["google-auth-oauthlib"]
+            )
+        flow = InstalledAppFlow.from_client_config(
+            self._installed_dict(redirect_url), self.scopes
+        )
         credentials = flow.run_local_server(port=0)
         return TSecretValue(credentials.refresh_token), TSecretValue(credentials.token)
 
@@ -222,7 +245,9 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         try:
             from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
         except ModuleNotFoundError:
-            raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
+            raise MissingDependencyException(
+                "GcpOAuthCredentials", ["google-auth-oauthlib"]
+            )
 
         credentials = GoogleOAuth2Credentials.from_authorized_user_info(info=dict(self))
         return credentials
@@ -312,7 +337,9 @@ class GcpServiceAccountCredentials(
             GcpDefaultCredentials.parse_native_representation(self, native_value)
         except NativeValueError:
             pass
-        GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(self, native_value)
+        GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(
+            self, native_value
+        )
 
 
 @configspec
@@ -322,4 +349,6 @@ class GcpOAuthCredentials(GcpDefaultCredentials, GcpOAuthCredentialsWithoutDefau
             GcpDefaultCredentials.parse_native_representation(self, native_value)
         except NativeValueError:
             pass
-        GcpOAuthCredentialsWithoutDefaults.parse_native_representation(self, native_value)
+        GcpOAuthCredentialsWithoutDefaults.parse_native_representation(
+            self, native_value
+        )

@@ -27,7 +27,9 @@ from dlt.common.configuration.providers import (
     SecretsTomlProvider,
 )
 from dlt.common.configuration.utils import get_resolved_traces
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.typing import TSecretValue, StrAny
 
 

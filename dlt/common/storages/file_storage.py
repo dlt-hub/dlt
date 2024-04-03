@@ -16,7 +16,9 @@ FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
 
 
 class FileStorage:
-    def __init__(self, storage_path: str, file_type: str = "t", makedirs: bool = False) -> None:
+    def __init__(
+        self, storage_path: str, file_type: str = "t", makedirs: bool = False
+    ) -> None:
         # make it absolute path
         self.storage_path = os.path.realpath(storage_path)  # os.path.join(, '')
         self.file_type = file_type
@@ -24,10 +26,14 @@ class FileStorage:
             os.makedirs(storage_path, exist_ok=True)
 
     def save(self, relative_path: str, data: Any) -> str:
-        return self.save_atomic(self.storage_path, relative_path, data, file_type=self.file_type)
+        return self.save_atomic(
+            self.storage_path, relative_path, data, file_type=self.file_type
+        )
 
     @staticmethod
-    def save_atomic(storage_path: str, relative_path: str, data: Any, file_type: str = "t") -> str:
+    def save_atomic(
+        storage_path: str, relative_path: str, data: Any, file_type: str = "t"
+    ) -> str:
         mode = "w" + file_type
         with tempfile.NamedTemporaryFile(
             dir=storage_path, mode=mode, delete=False, encoding=encoding_for_mode(mode)
@@ -114,12 +120,19 @@ class FileStorage:
             mode = mode + self.file_type
         if "r" in mode:
             return FileStorage.open_zipsafe_ro(self.make_full_path(relative_path), mode)
-        return open(self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode))
+        return open(
+            self.make_full_path(relative_path), mode, encoding=encoding_for_mode(mode)
+        )
 
-    def open_temp(self, delete: bool = False, mode: str = "w", file_type: str = None) -> IO[Any]:
+    def open_temp(
+        self, delete: bool = False, mode: str = "w", file_type: str = None
+    ) -> IO[Any]:
         mode = mode + file_type or self.file_type
         return tempfile.NamedTemporaryFile(
-            dir=self.storage_path, mode=mode, delete=delete, encoding=encoding_for_mode(mode)
+            dir=self.storage_path,
+            mode=mode,
+            delete=delete,
+            encoding=encoding_for_mode(mode),
         )
 
     def has_file(self, relative_path: str) -> bool:
@@ -142,7 +155,9 @@ class FileStorage:
         if to_root:
             # list files in relative path, returning paths relative to storage root
             return [
-                os.path.join(relative_path, e.name) for e in os.scandir(scan_path) if e.is_file()
+                os.path.join(relative_path, e.name)
+                for e in os.scandir(scan_path)
+                if e.is_file()
             ]
         else:
             # or to the folder
@@ -154,7 +169,9 @@ class FileStorage:
         if to_root:
             # list folders in relative path, returning paths relative to storage root
             return [
-                os.path.join(relative_path, e.name) for e in os.scandir(scan_path) if e.is_dir()
+                os.path.join(relative_path, e.name)
+                for e in os.scandir(scan_path)
+                if e.is_dir()
             ]
         else:
             # or to the folder
@@ -165,7 +182,10 @@ class FileStorage:
 
     def link_hard(self, from_relative_path: str, to_relative_path: str) -> None:
         # note: some interesting stuff on links https://lightrun.com/answers/conan-io-conan-research-investigate-symlinks-and-hard-links
-        os.link(self.make_full_path(from_relative_path), self.make_full_path(to_relative_path))
+        os.link(
+            self.make_full_path(from_relative_path),
+            self.make_full_path(to_relative_path),
+        )
 
     @staticmethod
     def link_hard_with_fallback(external_file_path: str, to_file_path: str) -> None:
@@ -188,7 +208,10 @@ class FileStorage:
         3. All buckets mapped with FUSE are not atomic
         """
 
-        os.rename(self.make_full_path(from_relative_path), self.make_full_path(to_relative_path))
+        os.rename(
+            self.make_full_path(from_relative_path),
+            self.make_full_path(to_relative_path),
+        )
 
     def rename_tree(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a tree using os.rename if possible making it atomic
@@ -228,7 +251,10 @@ class FileStorage:
                 os.rmdir(root)
 
     def atomic_import(
-        self, external_file_path: str, to_folder: str, new_file_name: Optional[str] = None
+        self,
+        external_file_path: str,
+        to_folder: str,
+        new_file_name: Optional[str] = None,
     ) -> str:
         """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage
 
@@ -294,7 +320,9 @@ class FileStorage:
         # component cannot contain "."
         if FILE_COMPONENT_INVALID_CHARACTERS.search(name):
             raise pathvalidate.error.InvalidCharError(
-                description="Component name cannot contain the following characters: . % { }"
+                description=(
+                    "Component name cannot contain the following characters: . % { }"
+                )
             )
 
     @staticmethod

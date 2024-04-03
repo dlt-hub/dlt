@@ -9,7 +9,10 @@ from dlt.common import json
 from dlt.common.typing import AnyType, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
-from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
+from dlt.common.configuration.exceptions import (
+    ConfigValueCannotBeCoercedException,
+    LookupTrace,
+)
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     is_base_configuration_inner_hint,
@@ -149,7 +152,9 @@ def get_resolved_traces() -> Dict[str, ResolvedValueTrace]:
     return _RESOLVED_TRACES
 
 
-def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ()) -> None:
+def add_config_to_env(
+    config: BaseConfiguration, sections: Tuple[str, ...] = ()
+) -> None:
     """Writes values in configuration back into environment using the naming convention of EnvironProvider. Will descend recursively if embedded BaseConfiguration instances are found"""
     if config.__section__:
         sections += (config.__section__,)
@@ -157,7 +162,9 @@ def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ())
 
 
 def add_config_dict_to_env(
-    dict_: Mapping[str, Any], sections: Tuple[str, ...] = (), overwrite_keys: bool = False
+    dict_: Mapping[str, Any],
+    sections: Tuple[str, ...] = (),
+    overwrite_keys: bool = False,
 ) -> None:
     """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `sections` if specified. Does not overwrite existing keys by default"""
     for k, v in dict_.items():

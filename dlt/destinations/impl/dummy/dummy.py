@@ -96,7 +96,9 @@ class LoadDummyJob(LoadDummyBaseJob, FollowupJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
         if self.config.create_followup_jobs and final_state == "completed":
             new_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self._file_name
+                file_name=self.file_name(),
+                status="running",
+                remote_path=self._file_name,
             )
             CREATED_FOLLOWUP_JOBS[new_job.job_id()] = new_job
             return [new_job]
@@ -136,7 +138,9 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             )
         return applied_update
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         # return existing job if already there
@@ -179,7 +183,10 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         pass
 

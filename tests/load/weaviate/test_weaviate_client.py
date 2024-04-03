@@ -6,7 +6,11 @@ from dlt.common.schema import Schema
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.utils import uniq_id
-from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
+from dlt.common.schema.typing import (
+    TWriteDisposition,
+    TColumnSchema,
+    TTableSchemaColumns,
+)
 
 from dlt.destinations import weaviate
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
@@ -69,7 +73,9 @@ def file_storage() -> FileStorage:
 
 @pytest.mark.parametrize("write_disposition", ["append", "replace", "merge"])
 def test_all_data_types(
-    client: WeaviateClient, write_disposition: TWriteDisposition, file_storage: FileStorage
+    client: WeaviateClient,
+    write_disposition: TWriteDisposition,
+    file_storage: FileStorage,
 ) -> None:
     class_name = "AllTypes"
     # we should have identical content with all disposition types
@@ -81,7 +87,9 @@ def test_all_data_types(
 
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [TABLE_ROW_ALL_DATA_TYPES], TABLE_UPDATE_COLUMNS_SCHEMA)
+        write_dataset(
+            client, f, [TABLE_ROW_ALL_DATA_TYPES], TABLE_UPDATE_COLUMNS_SCHEMA
+        )
         query = f.getvalue().decode()
     expect_load_file(client, file_storage, query, class_name)
     _, table_columns = client.get_storage_table("AllTypes")
@@ -89,7 +97,11 @@ def test_all_data_types(
     assert len(table_columns) == len(TABLE_UPDATE_COLUMNS_SCHEMA)
     for col_name in table_columns:
         assert col_name in TABLE_UPDATE_COLUMNS_SCHEMA
-        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in ["decimal", "complex", "time"]:
+        if TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] in [
+            "decimal",
+            "complex",
+            "time",
+        ]:
             # no native representation
             assert table_columns[col_name]["data_type"] == "text"
         elif TABLE_UPDATE_COLUMNS_SCHEMA[col_name]["data_type"] == "wei":
@@ -111,7 +123,9 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
         {"name": "coL1", "data_type": "double", "nullable": False},
     ]
     client.schema.update_table(
-        client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
+        client.schema.normalize_table_identifiers(
+            new_table(class_name, columns=table_create)
+        )
     )
     client.schema._bump_version()
     with pytest.raises(PropertyNameConflict):
@@ -126,7 +140,9 @@ def test_case_insensitive_properties_create(ci_client: WeaviateClient) -> None:
         {"name": "coL1", "data_type": "double", "nullable": False},
     ]
     ci_client.schema.update_table(
-        ci_client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
+        ci_client.schema.normalize_table_identifiers(
+            new_table(class_name, columns=table_create)
+        )
     )
     ci_client.schema._bump_version()
     ci_client.update_stored_schema()
@@ -138,18 +154,24 @@ def test_case_insensitive_properties_create(ci_client: WeaviateClient) -> None:
 def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
     class_name = "col_class"
     # we have two properties which will map to the same name in Weaviate
-    table_create: List[TColumnSchema] = [{"name": "col1", "data_type": "bigint", "nullable": False}]
+    table_create: List[TColumnSchema] = [
+        {"name": "col1", "data_type": "bigint", "nullable": False}
+    ]
     table_update: List[TColumnSchema] = [
         {"name": "coL1", "data_type": "double", "nullable": False},
     ]
     client.schema.update_table(
-        client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
+        client.schema.normalize_table_identifiers(
+            new_table(class_name, columns=table_create)
+        )
     )
     client.schema._bump_version()
     client.update_stored_schema()
 
     client.schema.update_table(
-        client.schema.normalize_table_identifiers(new_table(class_name, columns=table_update))
+        client.schema.normalize_table_identifiers(
+            new_table(class_name, columns=table_update)
+        )
     )
     client.schema._bump_version()
     with pytest.raises(PropertyNameConflict):
@@ -159,7 +181,9 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
     # print(table_columns)
 
 
-def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStorage) -> None:
+def test_load_case_sensitive_data(
+    client: WeaviateClient, file_storage: FileStorage
+) -> None:
     class_name = "col_class"
     # we have two properties which will map to the same name in Weaviate
     table_create: TTableSchemaColumns = {
@@ -178,7 +202,9 @@ def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStor
         expect_load_file(client, file_storage, query, class_name)
 
 
-def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: FileStorage) -> None:
+def test_load_case_sensitive_data_ci(
+    ci_client: WeaviateClient, file_storage: FileStorage
+) -> None:
     class_name = "col_class"
     # we have two properties which will map to the same name in Weaviate
     table_create: TTableSchemaColumns = {

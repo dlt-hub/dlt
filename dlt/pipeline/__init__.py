@@ -7,12 +7,23 @@ from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
-from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
+from dlt.common.destination import (
+    TLoaderFileFormat,
+    Destination,
+    TDestinationReferenceArg,
+)
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
-from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
+from dlt.pipeline.configuration import (
+    PipelineConfiguration,
+    ensure_correct_pipeline_kwargs,
+)
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
+from dlt.pipeline.progress import (
+    _from_name as collector_from_name,
+    TCollectorArg,
+    _NULL_COLLECTOR,
+)
 from dlt.pipeline.warnings import credentials_argument_deprecated
 
 
@@ -81,7 +92,8 @@ def pipeline(
 @overload
 def pipeline() -> Pipeline:  # type: ignore
     """When called without any arguments, returns the recently created `Pipeline` instance.
-    If not found, it creates a new instance with all the pipeline options set to defaults."""
+    If not found, it creates a new instance with all the pipeline options set to defaults.
+    """
 
 
 @with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
@@ -120,7 +132,8 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = Destination.from_reference(
-        destination or kwargs["destination_type"], destination_name=kwargs["destination_name"]
+        destination or kwargs["destination_type"],
+        destination_name=kwargs["destination_name"],
     )
     staging = Destination.from_reference(
         staging or kwargs.get("staging_type", None),

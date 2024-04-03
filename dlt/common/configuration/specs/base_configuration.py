@@ -53,16 +53,22 @@ def is_base_configuration_inner_hint(inner_hint: Type[Any]) -> bool:
 
 
 def is_context_inner_hint(inner_hint: Type[Any]) -> bool:
-    return inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext)
+    return inspect.isclass(inner_hint) and issubclass(
+        inner_hint, ContainerInjectableContext
+    )
 
 
 def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
-    return inspect.isclass(inner_hint) and issubclass(inner_hint, CredentialsConfiguration)
+    return inspect.isclass(inner_hint) and issubclass(
+        inner_hint, CredentialsConfiguration
+    )
 
 
 def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
     if is_union_type(hint):
-        return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
+        return next(
+            (t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None
+        )
     return None
 
 
@@ -117,7 +123,9 @@ def configspec(
 ) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]: ...
 
 
-@dataclass_transform(eq_default=False, field_specifiers=(dataclasses.Field, dataclasses.field))
+@dataclass_transform(
+    eq_default=False, field_specifiers=(dataclasses.Field, dataclasses.field)
+)
 def configspec(
     cls: Optional[Type[Any]] = None, init: bool = True
 ) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
@@ -153,8 +161,8 @@ def configspec(
         for ann in cls.__annotations__:
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_")):
                 warnings.warn(
-                    f"Missing default value for field {ann} on {cls.__name__}. None assumed. All"
-                    " fields in configspec must have default."
+                    f"Missing default value for field {ann} on {cls.__name__}. None"
+                    " assumed. All fields in configspec must have default."
                 )
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
@@ -187,19 +195,28 @@ def configspec(
                     def default_factory(att_value=att_value):  # type: ignore[no-untyped-def]
                         return att_value.copy()
 
-                    setattr(cls, att_name, dataclasses.field(default_factory=default_factory))
+                    setattr(
+                        cls,
+                        att_name,
+                        dataclasses.field(default_factory=default_factory),
+                    )
 
         # We don't want to overwrite user's __init__ method
         # Create dataclass init only when not defined in the class
         # NOTE: any class without synthesized __init__ breaks the creation chain
         has_default_init = super(cls, cls).__init__ == cls.__init__  # type: ignore[misc]
-        base_params = getattr(cls, "__dataclass_params__", None)  # cls.__init__ is object.__init__
-        synth_init = init and ((not base_params or base_params.init) and has_default_init)
+        base_params = getattr(
+            cls, "__dataclass_params__", None
+        )  # cls.__init__ is object.__init__
+        synth_init = init and (
+            (not base_params or base_params.init) and has_default_init
+        )
         if synth_init != init and has_default_init:
             warnings.warn(
-                f"__init__ method will not be generated on {cls.__name__} because bas class didn't"
-                " synthesize __init__. Please correct `init` flag in confispec decorator. You are"
-                " probably receiving incorrect __init__ signature for type checking"
+                f"__init__ method will not be generated on {cls.__name__} because bas"
+                " class didn't synthesize __init__. Please correct `init` flag in"
+                " confispec decorator. You are probably receiving incorrect __init__"
+                " signature for type checking"
             )
         # do not generate repr as it may contain secret values
         return dataclasses.dataclass(cls, init=synth_init, eq=False, repr=False)  # type: ignore
@@ -213,7 +230,9 @@ def configspec(
 
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
-    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False, compare=False)
+    __is_resolved__: bool = dataclasses.field(
+        default=False, init=False, repr=False, compare=False
+    )
     """True when all config fields were resolved and have a specified value type"""
     __exception__: Exception = dataclasses.field(
         default=None, init=False, repr=False, compare=False
@@ -225,7 +244,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
-    __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
+    __hint_resolvers__: ClassVar[
+        Dict[str, Callable[["BaseConfiguration"], Type[Any]]]
+    ] = {}
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -314,7 +335,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Iterator or valid key names"""
         return map(
             lambda field: field.name,
-            filter(lambda val: self.__is_valid_field(val), self.__dataclass_fields__.values()),
+            filter(
+                lambda val: self.__is_valid_field(val),
+                self.__dataclass_fields__.values(),
+            ),
         )
 
     def __len__(self) -> int:
@@ -434,7 +458,9 @@ TSpec = TypeVar("TSpec", bound=BaseConfiguration)
 THintResolver = Callable[[TSpec], Type[Any]]
 
 
-def resolve_type(field_name: str) -> Callable[[THintResolver[TSpec]], THintResolver[TSpec]]:
+def resolve_type(
+    field_name: str,
+) -> Callable[[THintResolver[TSpec]], THintResolver[TSpec]]:
     def decorator(func: THintResolver[TSpec]) -> THintResolver[TSpec]:
         func.__hint_for_field__ = field_name  # type: ignore[attr-defined]
 

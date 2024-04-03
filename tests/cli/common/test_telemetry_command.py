@@ -8,13 +8,18 @@ from unittest.mock import patch
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.paths import DOT_DLT
 from dlt.common.configuration.providers import ConfigTomlProvider, CONFIG_TOML
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import set_working_dir
 
 from dlt.cli.utils import track_command
-from dlt.cli.telemetry_command import telemetry_status_command, change_telemetry_status_command
+from dlt.cli.telemetry_command import (
+    telemetry_status_command,
+    change_telemetry_status_command,
+)
 
 from tests.utils import patch_random_home_dir, start_test_telemetry, test_storage
 
@@ -30,9 +35,9 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
     glob_ctx = ConfigProvidersContext()
     glob_ctx.providers = _initial_providers()
 
-    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(
-        glob_ctx
-    ), patch(
+    with set_working_dir(
+        test_storage.make_full_path("project")
+    ), Container().injectable_context(glob_ctx), patch(
         "dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers",
         _initial_providers,
     ):
@@ -174,7 +179,10 @@ def test_instrumentation_wrappers() -> None:
         )
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_deploy"
-        assert msg["properties"]["deployment_method"] == DeploymentMethods.github_actions.value
+        assert (
+            msg["properties"]["deployment_method"]
+            == DeploymentMethods.github_actions.value
+        )
         assert msg["properties"]["success"] is False
 
 

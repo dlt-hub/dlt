@@ -3,7 +3,9 @@ from dlt.common.typing import TDataItem
 
 
 class IncrementalCursorPathMissing(PipeException):
-    def __init__(self, pipe_name: str, json_path: str, item: TDataItem, msg: str = None) -> None:
+    def __init__(
+        self, pipe_name: str, json_path: str, item: TDataItem, msg: str = None
+    ) -> None:
         self.json_path = json_path
         self.item = item
         msg = (
@@ -14,12 +16,14 @@ class IncrementalCursorPathMissing(PipeException):
 
 
 class IncrementalPrimaryKeyMissing(PipeException):
-    def __init__(self, pipe_name: str, primary_key_column: str, item: TDataItem) -> None:
+    def __init__(
+        self, pipe_name: str, primary_key_column: str, item: TDataItem
+    ) -> None:
         self.primary_key_column = primary_key_column
         self.item = item
         msg = (
-            f"Primary key column {primary_key_column} was not found in extracted data item. All"
-            " data items must contain this column. Use the same names of fields as in your JSON"
-            " document."
+            f"Primary key column {primary_key_column} was not found in extracted data"
+            " item. All data items must contain this column. Use the same names of"
+            " fields as in your JSON document."
         )
         super().__init__(pipe_name, msg)

@@ -46,22 +46,34 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}')"
     )
-    expect_load_file(client, file_storage, insert_sql + insert_values + ";", user_table_name)
-    rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
+    expect_load_file(
+        client, file_storage, insert_sql + insert_values + ";", user_table_name
+    )
+    rows_count = client.sql_client.execute_sql(
+        f"SELECT COUNT(1) FROM {canonical_name}"
+    )[0][0]
     assert rows_count == 1
     # insert 100 more rows
     query = insert_sql + (insert_values + ",\n") * 99 + insert_values + ";"
     expect_load_file(client, file_storage, query, user_table_name)
-    rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
+    rows_count = client.sql_client.execute_sql(
+        f"SELECT COUNT(1) FROM {canonical_name}"
+    )[0][0]
     assert rows_count == 101
     # insert null value
-    insert_sql_nc = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text)\nVALUES\n"
+    insert_sql_nc = (
+        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text)\nVALUES\n"
+    )
     insert_values_nc = (
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', NULL);"
     )
-    expect_load_file(client, file_storage, insert_sql_nc + insert_values_nc, user_table_name)
-    rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
+    expect_load_file(
+        client, file_storage, insert_sql_nc + insert_values_nc, user_table_name
+    )
+    rows_count = client.sql_client.execute_sql(
+        f"SELECT COUNT(1) FROM {canonical_name}"
+    )[0][0]
     assert rows_count == 102
 
 
@@ -72,7 +84,9 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
+def test_loading_errors(
+    client: InsertValuesJobClient, file_storage: FileStorage
+) -> None:
     # test expected dbiapi exceptions for supported destinations
     import duckdb
     from dlt.destinations.impl.postgres.sql_client import psycopg2
@@ -91,29 +105,42 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
 
     user_table_name = prepare_table(client)
     # insert into unknown column
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_)\nVALUES\n"
+    insert_sql = (
+        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, _unk_)\nVALUES\n"
+    )
     insert_values = (
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
         f" '{str(pendulum.now())}', NULL);"
     )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) is TUndefinedColumn
     # insert null value
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
-    insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', NULL);"
+    )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) is TNotNullViolation
     # insert wrong type
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
-    insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
+    )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) is TDatatypeMismatch
     # numeric overflow on bigint
     insert_sql = (
-        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, metadata__rasa_x_id)\nVALUES\n"
+        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
+        " metadata__rasa_x_id)\nVALUES\n"
     )
     # 2**64//2 - 1 is a maximum bigint value
     insert_values = (
@@ -121,7 +148,9 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f" '{str(pendulum.now())}', {2**64//2});"
     )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) in (TNumericValueOutOfRange,)
     # numeric overflow on NUMERIC
     insert_sql = (
@@ -144,7 +173,9 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         f" '{str(pendulum.now())}', {above_limit});"
     )
     with pytest.raises(DatabaseTerminalException) as exv:
-        expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
+        expect_load_file(
+            client, file_storage, insert_sql + insert_values, user_table_name
+        )
     assert type(exv.value.dbapi_exception) in (
         TNumericValueOutOfRange,
         psycopg2.errors.InternalError_,
@@ -223,7 +254,9 @@ def assert_load_with_max_query(
         user_table_name = prepare_table(client)
         insert_sql = prepare_insert_statement(insert_lines)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
-        rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {user_table_name}")[0][0]
+        rows_count = client.sql_client.execute_sql(
+            f"SELECT COUNT(1) FROM {user_table_name}"
+        )[0][0]
         assert rows_count == insert_lines
         # get all uniq ids in order
         with client.sql_client.execute_query(
@@ -242,7 +275,9 @@ def prepare_insert_statement(lines: int) -> str:
     for i in range(lines):
         # id_ = uniq_id()
         # ids.append(id_)
-        insert_sql += insert_values.format(str(i), uniq_id(), str(pendulum.now().add(seconds=i)))
+        insert_sql += insert_values.format(
+            str(i), uniq_id(), str(pendulum.now().add(seconds=i))
+        )
         if i < 9:
             insert_sql += ",\n"
         else:

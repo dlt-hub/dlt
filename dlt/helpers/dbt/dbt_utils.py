@@ -169,7 +169,9 @@ def run_dbt_command(
         # oftentimes dbt tries to exit on error
         raise DBTProcessingError(command, None, sys_ex)
     except FailFastException as ff:
-        dbt_exc = DBTProcessingError(command, parse_dbt_execution_results(ff.result), ff.result)
+        dbt_exc = DBTProcessingError(
+            command, parse_dbt_execution_results(ff.result), ff.result
+        )
         # detect incremental model out of sync
         if is_incremental_schema_out_of_sync_error(ff.result):
             raise IncrementalSchemaOutOfSyncError(dbt_exc) from ff

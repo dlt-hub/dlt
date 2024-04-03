@@ -1,4 +1,15 @@
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any, Iterable, Type, cast
+from typing import (
+    ClassVar,
+    Dict,
+    Optional,
+    Sequence,
+    Tuple,
+    List,
+    Any,
+    Iterable,
+    Type,
+    cast,
+)
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -18,7 +29,12 @@ from dlt.common.configuration.specs import (
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
+from dlt.common.schema.typing import (
+    TTableSchema,
+    TColumnType,
+    TSchemaTables,
+    TTableFormat,
+)
 from dlt.common.schema.utils import table_schema_has_type
 
 
@@ -125,7 +141,9 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             else ""
         )
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else file_name
         )
         from_clause = ""
         credentials_clause = ""
@@ -166,14 +184,14 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             else:
                 raise LoadJobTerminalException(
                     file_path,
-                    f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and"
-                    " azure buckets are supported",
+                    f"Databricks cannot load data from staging bucket {bucket_path}."
+                    " Only s3 and azure buckets are supported",
                 )
         else:
             raise LoadJobTerminalException(
                 file_path,
-                "Cannot load from local file. Databricks does not support loading from local files."
-                " Configure staging with an s3 or azure storage bucket.",
+                "Cannot load from local file. Databricks does not support loading from"
+                " local files. Configure staging with an s3 or azure storage bucket.",
             )
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
@@ -183,33 +201,34 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             if not config.get("data_writer.disable_compression"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader does not support gzip compressed JSON files. Please disable"
+                    "Databricks loader does not support gzip compressed JSON files."
+                    " Please disable"
                     " compression in the data writer configuration:"
                     " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
             if table_schema_has_type(table, "decimal"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load DECIMAL type columns from json files. Switch to"
-                    " parquet format to load decimals.",
+                    "Databricks loader cannot load DECIMAL type columns from json"
+                    " files. Switch to parquet format to load decimals.",
                 )
             if table_schema_has_type(table, "binary"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load BINARY type columns from json files. Switch to"
-                    " parquet format to load byte values.",
+                    "Databricks loader cannot load BINARY type columns from json files."
+                    " Switch to parquet format to load byte values.",
                 )
             if table_schema_has_type(table, "complex"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load complex columns (lists and dicts) from json"
-                    " files. Switch to parquet format to load complex types.",
+                    "Databricks loader cannot load complex columns (lists and dicts)"
+                    " from json files. Switch to parquet format to load complex types.",
                 )
             if table_schema_has_type(table, "date"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load DATE type columns from json files. Switch to"
-                    " parquet format to load dates.",
+                    "Databricks loader cannot load DATE type columns from json files."
+                    " Switch to parquet format to load dates.",
                 )
 
             source_format = "JSON"
@@ -242,7 +261,11 @@ class DatabricksMergeJob(SqlMergeJob):
 
     @classmethod
     def gen_delete_from_sql(
-        cls, table_name: str, column_name: str, temp_table_name: str, temp_table_column: str
+        cls,
+        table_name: str,
+        column_name: str,
+        temp_table_name: str,
+        temp_table_column: str,
     ) -> str:
         # Databricks does not support subqueries in DELETE FROM statements so we use a MERGE statement instead
         return f"""MERGE INTO {table_name}
@@ -256,13 +279,17 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DatabricksClientConfiguration) -> None:
-        sql_client = DatabricksSqlClient(config.normalize_dataset_name(schema), config.credentials)
+        sql_client = DatabricksSqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client
         self.type_mapper = DatabricksTypeMapper(self.capabilities)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
 
         if not job:
@@ -272,21 +299,28 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
                 table["name"],
                 load_id,
                 self.sql_client,
-                staging_config=cast(FilesystemConfiguration, self.config.staging_config),
+                staging_config=cast(
+                    FilesystemConfiguration, self.config.staging_config
+                ),
             )
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
     ) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
-        return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+        return [
+            "ADD COLUMN\n"
+            + ",\n".join(self._get_column_def_sql(c) for c in new_columns)
+        ]
 
     def _get_table_update_sql(
         self,
@@ -298,7 +332,9 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
         cluster_list = [
-            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
+            self.capabilities.escape_identifier(c["name"])
+            for c in new_columns
+            if c.get("cluster")
         ]
 
         if cluster_list:
@@ -311,7 +347,9 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         name = self.capabilities.escape_identifier(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
@@ -319,7 +357,9 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
     def _get_storage_table_query_columns(self) -> List[str]:
         fields = super()._get_storage_table_query_columns()
-        fields[1] = (  # Override because this is the only way to get data type with precision
+        fields[
+            1
+        ] = (  # Override because this is the only way to get data type with precision
             "full_data_type"
         )
         return fields

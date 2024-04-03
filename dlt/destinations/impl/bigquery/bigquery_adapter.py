@@ -17,9 +17,15 @@ CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
 ROUND_HALF_AWAY_FROM_ZERO_HINT: Literal["x-bigquery-round-half-away-from-zero"] = (
     "x-bigquery-round-half-away-from-zero"
 )
-ROUND_HALF_EVEN_HINT: Literal["x-bigquery-round-half-even"] = "x-bigquery-round-half-even"
-TABLE_EXPIRATION_HINT: Literal["x-bigquery-table-expiration"] = "x-bigquery-table-expiration"
-TABLE_DESCRIPTION_HINT: Literal["x-bigquery-table-description"] = "x-bigquery-table-description"
+ROUND_HALF_EVEN_HINT: Literal["x-bigquery-round-half-even"] = (
+    "x-bigquery-round-half-even"
+)
+TABLE_EXPIRATION_HINT: Literal["x-bigquery-table-expiration"] = (
+    "x-bigquery-table-expiration"
+)
+TABLE_DESCRIPTION_HINT: Literal["x-bigquery-table-description"] = (
+    "x-bigquery-table-description"
+)
 
 
 def bigquery_adapter(
@@ -87,7 +93,8 @@ def bigquery_adapter(
             cluster = [cluster]
         if not isinstance(cluster, list):
             raise ValueError(
-                "`cluster` must be a list of column names or a single column name as a string."
+                "`cluster` must be a list of column names or a single column name as a"
+                " string."
             )
         for column_name in cluster:
             column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
@@ -98,8 +105,8 @@ def bigquery_adapter(
             round_half_away_from_zero = [round_half_away_from_zero]
         if not isinstance(round_half_away_from_zero, list):
             raise ValueError(
-                "`round_half_away_from_zero` must be a list of column names or a single column"
-                " name."
+                "`round_half_away_from_zero` must be a list of column names or a single"
+                " column name."
             )
         for column_name in round_half_away_from_zero:
             column_hints[column_name] = {"name": column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT: True}  # type: ignore[typeddict-unknown-key]
@@ -109,7 +116,8 @@ def bigquery_adapter(
             round_half_even = [round_half_even]
         if not isinstance(round_half_even, list):
             raise ValueError(
-                "`round_half_even` must be a list of column names or a single column name."
+                "`round_half_even` must be a list of column names or a single column"
+                " name."
             )
         for column_name in round_half_even:
             column_hints[column_name] = {"name": column_name, ROUND_HALF_EVEN_HINT: True}  # type: ignore[typeddict-unknown-key]
@@ -119,37 +127,41 @@ def bigquery_adapter(
             set(round_half_even)
         ):
             raise ValueError(
-                f"Columns `{intersection_columns}` are present in both `round_half_away_from_zero`"
-                " and `round_half_even` which is not allowed. They must be mutually exclusive."
+                f"Columns `{intersection_columns}` are present in both"
+                " `round_half_away_from_zero` and `round_half_even` which is not"
+                " allowed. They must be mutually exclusive."
             )
 
     if table_description:
         if not isinstance(table_description, str):
             raise ValueError(
-                "`table_description` must be string representing BigQuery table description."
+                "`table_description` must be string representing BigQuery table"
+                " description."
             )
         additional_table_hints |= {TABLE_DESCRIPTION_HINT: table_description}  # type: ignore[operator]
 
     if table_expiration_datetime:
         if not isinstance(table_expiration_datetime, str):
             raise ValueError(
-                "`table_expiration_datetime` must be string representing the datetime when the"
-                " BigQuery table."
+                "`table_expiration_datetime` must be string representing the datetime"
+                " when the BigQuery table."
             )
         try:
-            parsed_table_expiration_datetime = parser.parse(table_expiration_datetime).replace(
-                tzinfo=timezone.utc
-            )
+            parsed_table_expiration_datetime = parser.parse(
+                table_expiration_datetime
+            ).replace(tzinfo=timezone.utc)
             additional_table_hints |= {TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime}  # type: ignore[operator]
         except ValueError as e:
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
     if column_hints or additional_table_hints:
-        resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)
+        resource.apply_hints(
+            columns=column_hints, additional_table_hints=additional_table_hints
+        )
     else:
         raise ValueError(
             "AT LEAST one of `partition`, `cluster`, `round_half_away_from_zero`,"
-            " `round_half_even`, `table_description` or `table_expiration_datetime` must be"
-            " specified."
+            " `round_half_even`, `table_description` or `table_expiration_datetime`"
+            " must be specified."
         )
     return resource

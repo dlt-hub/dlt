@@ -12,7 +12,12 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
-from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
+from dlt.common.storages import (
+    NormalizeStorage,
+    LoadStorage,
+    ParsedLoadJobFileName,
+    PackageStorage,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.container import Container
 
@@ -101,7 +106,9 @@ def test_normalize_single_user_event_jsonl(
     for expected_table in expected_tables:
         get_line_from_file(raw_normalize.load_storage, load_files[expected_table])
     # return first line from event_user file
-    event_text, lines = get_line_from_file(raw_normalize.load_storage, load_files["event"], 0)
+    event_text, lines = get_line_from_file(
+        raw_normalize.load_storage, load_files["event"], 0
+    )
     assert lines == 1
     event_json = json.loads(event_text)
     assert event_json["event"] == "user"
@@ -131,7 +138,9 @@ def test_normalize_single_user_event_insert(
     for expected_table in expected_tables:
         get_line_from_file(raw_normalize.load_storage, load_files[expected_table])
     # return first values line from event_user file
-    event_text, lines = get_line_from_file(raw_normalize.load_storage, load_files["event"], 2)
+    event_text, lines = get_line_from_file(
+        raw_normalize.load_storage, load_files["event"], 2
+    )
     assert lines == 3
     assert "'user'" in event_text
     assert "'greet'" in event_text
@@ -149,7 +158,9 @@ def test_normalize_single_user_event_insert(
 def test_normalize_filter_user_event(
     caps: DestinationCapabilitiesContext, rasa_normalize: Normalize
 ) -> None:
-    load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.user_load_v228_1"])
+    load_id = extract_and_normalize_cases(
+        rasa_normalize, ["event.event.user_load_v228_1"]
+    )
     _, load_files = expect_load_package(
         rasa_normalize.load_storage,
         load_id,
@@ -162,7 +173,9 @@ def test_normalize_filter_user_event(
             "event_user__parse_data__intent_ranking",
         ],
     )
-    event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_user"], 0)
+    event_text, lines = get_line_from_file(
+        rasa_normalize.load_storage, load_files["event_user"], 0
+    )
     assert lines == 1
     filtered_row = json.loads(event_text)
     assert "parse_data__intent__name" in filtered_row
@@ -180,7 +193,9 @@ def test_normalize_filter_bot_event(
     _, load_files = expect_load_package(
         rasa_normalize.load_storage, load_id, ["event", "event_bot"]
     )
-    event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_bot"], 0)
+    event_text, lines = get_line_from_file(
+        rasa_normalize.load_storage, load_files["event_bot"], 0
+    )
     assert lines == 1
     filtered_row = json.loads(event_text)
     assert "metadata__utter_action" in filtered_row
@@ -191,11 +206,15 @@ def test_normalize_filter_bot_event(
 def test_preserve_slot_complex_value_json_l(
     caps: DestinationCapabilitiesContext, rasa_normalize: Normalize
 ) -> None:
-    load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
+    load_id = extract_and_normalize_cases(
+        rasa_normalize, ["event.event.slot_session_metadata_1"]
+    )
     _, load_files = expect_load_package(
         rasa_normalize.load_storage, load_id, ["event", "event_slot"]
     )
-    event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_slot"], 0)
+    event_text, lines = get_line_from_file(
+        rasa_normalize.load_storage, load_files["event_slot"], 0
+    )
     assert lines == 1
     filtered_row = json.loads(event_text)
     assert type(filtered_row["value"]) is dict
@@ -206,11 +225,15 @@ def test_preserve_slot_complex_value_json_l(
 def test_preserve_slot_complex_value_insert(
     caps: DestinationCapabilitiesContext, rasa_normalize: Normalize
 ) -> None:
-    load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
+    load_id = extract_and_normalize_cases(
+        rasa_normalize, ["event.event.slot_session_metadata_1"]
+    )
     _, load_files = expect_load_package(
         rasa_normalize.load_storage, load_id, ["event", "event_slot"]
     )
-    event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_slot"], 2)
+    event_text, lines = get_line_from_file(
+        rasa_normalize.load_storage, load_files["event_slot"], 2
+    )
     assert lines == 3
     c_val = json.dumps({"user_id": "world", "mitter_id": "hello"})
     assert c_val in event_text
@@ -223,10 +246,17 @@ def test_normalize_many_events_insert(
     load_id = extract_and_normalize_cases(
         rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"]
     )
-    expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+    expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + [
+        "event_bot",
+        "event_action",
+    ]
+    _, load_files = expect_load_package(
+        rasa_normalize.load_storage, load_id, expected_tables
+    )
     # return first values line from event_user file
-    event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event"], 4)
+    event_text, lines = get_line_from_file(
+        rasa_normalize.load_storage, load_files["event"], 4
+    )
     # 2 lines header + 3 lines data
     assert lines == 5
     assert f"'{load_id}'" in event_text
@@ -239,10 +269,17 @@ def test_normalize_many_events(
     load_id = extract_and_normalize_cases(
         rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"]
     )
-    expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+    expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + [
+        "event_bot",
+        "event_action",
+    ]
+    _, load_files = expect_load_package(
+        rasa_normalize.load_storage, load_id, expected_tables
+    )
     # return first values line from event_user file
-    event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event"], 2)
+    event_text, lines = get_line_from_file(
+        rasa_normalize.load_storage, load_files["event"], 2
+    )
     # 3 lines data
     assert lines == 3
     assert f"{load_id}" in event_text
@@ -275,12 +312,16 @@ def test_multiprocessing_row_counting(
     # get step info
     step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
     assert step_info.row_counts["events"] == 100
-    assert step_info.row_counts["events__payload__pull_request__requested_reviewers"] == 24
+    assert (
+        step_info.row_counts["events__payload__pull_request__requested_reviewers"] == 24
+    )
     # check if single load id
     assert len(step_info.loads_ids) == 1
     row_counts = {
         t: m.items_count
-        for t, m in step_info.metrics[step_info.loads_ids[0]][0]["table_metrics"].items()
+        for t, m in step_info.metrics[step_info.loads_ids[0]][0][
+            "table_metrics"
+        ].items()
     }
     assert row_counts == step_info.row_counts
 
@@ -315,11 +356,17 @@ def test_normalize_many_packages(
         schemas.append(schema.name)
         # expect event tables
         if schema.name == "event":
-            expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
+            expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + [
+                "event_bot",
+                "event_action",
+            ]
             expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
         if schema.name == "ethereum":
             expect_load_package(
-                rasa_normalize.load_storage, load_id, EXPECTED_ETH_TABLES, full_schema_update=False
+                rasa_normalize.load_storage,
+                load_id,
+                EXPECTED_ETH_TABLES,
+                full_schema_update=False,
             )
     assert set(schemas) == set(["ethereum", "event"])
 
@@ -328,7 +375,9 @@ def test_normalize_many_packages(
 def test_normalize_typed_json(
     caps: DestinationCapabilitiesContext, raw_normalize: Normalize
 ) -> None:
-    extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], Schema("special"), "special")
+    extract_items(
+        raw_normalize.normalize_storage, [JSON_TYPED_DICT], Schema("special"), "special"
+    )
     with ThreadPoolExecutor(max_workers=1) as pool:
         raw_normalize.run(pool)
     loads = raw_normalize.load_storage.list_normalized_packages()
@@ -344,7 +393,9 @@ def test_normalize_typed_json(
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
-def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
+def test_schema_changes(
+    caps: DestinationCapabilitiesContext, raw_normalize: Normalize
+) -> None:
     doc = {"str": "text", "int": 1}
     extract_items(raw_normalize.normalize_storage, [doc], Schema("evolution"), "doc")
     load_id = normalize_pending(raw_normalize)
@@ -372,13 +423,18 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     doc3_2v = {"comp": [doc2]}
     doc3_doc_v = {"comp": [doc_v]}
     extract_items(
-        raw_normalize.normalize_storage, [doc3, doc, doc_v, doc3_2v, doc3_doc_v], schema, "doc"
+        raw_normalize.normalize_storage,
+        [doc3, doc, doc_v, doc3_2v, doc3_doc_v],
+        schema,
+        "doc",
     )
     # schema = raw_normalize.schema_storage.load_schema("evolution")
     # extract_items(raw_normalize.normalize_storage, [doc3_2v, doc3_doc_v], schema, "doc")
     load_id = normalize_pending(raw_normalize)
 
-    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc", "doc__comp"])
+    _, table_files = expect_load_package(
+        raw_normalize.load_storage, load_id, ["doc", "doc__comp"]
+    )
     assert len(table_files["doc"]) == 1
     assert len(table_files["doc__comp"]) == 1
     schema = raw_normalize.schema_storage.load_schema("evolution")
@@ -403,9 +459,13 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
 def test_normalize_twice_with_flatten(
     caps: DestinationCapabilitiesContext, raw_normalize: Normalize
 ) -> None:
-    load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    load_id = extract_and_normalize_cases(
+        raw_normalize, ["github.issues.load_page_5_duck"]
+    )
     _, table_files = expect_load_package(
-        raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"]
+        raw_normalize.load_storage,
+        load_id,
+        ["issues", "issues__labels", "issues__assignees"],
     )
     assert len(table_files["issues"]) == 1
     _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
@@ -422,7 +482,9 @@ def test_normalize_twice_with_flatten(
     schema = raw_normalize.schema_storage.load_schema("github")
     assert_schema(schema)
 
-    load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    load_id = extract_and_normalize_cases(
+        raw_normalize, ["github.issues.load_page_5_duck"]
+    )
     _, table_files = expect_load_package(
         raw_normalize.load_storage,
         load_id,
@@ -454,7 +516,9 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
     # subsequent run must succeed
     raw_normalize.run(None)
     _, table_files = expect_load_package(
-        raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"]
+        raw_normalize.load_storage,
+        load_id,
+        ["issues", "issues__labels", "issues__assignees"],
     )
     assert len(table_files["issues"]) == 1
 
@@ -465,7 +529,12 @@ def test_group_worker_files() -> None:
     assert Normalize.group_worker_files([], 4) == []
     assert Normalize.group_worker_files(["f001"], 1) == [["f001"]]
     assert Normalize.group_worker_files(["f001"], 100) == [["f001"]]
-    assert Normalize.group_worker_files(files[:4], 4) == [["f000"], ["f001"], ["f002"], ["f003"]]
+    assert Normalize.group_worker_files(files[:4], 4) == [
+        ["f000"],
+        ["f001"],
+        ["f002"],
+        ["f003"],
+    ]
     assert Normalize.group_worker_files(files[:5], 4) == [
         ["f000"],
         ["f001"],
@@ -526,11 +595,16 @@ EXPECTED_USER_TABLES = [
 
 
 def extract_items(
-    normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema: Schema, table_name: str
+    normalize_storage: NormalizeStorage,
+    items: Sequence[StrAny],
+    schema: Schema,
+    table_name: str,
 ) -> str:
     extractor = ExtractStorage(normalize_storage.config)
     load_id = extractor.create_load_package(schema)
-    extractor.write_data_item("puae-jsonl", load_id, schema.name, table_name, items, None)
+    extractor.write_data_item(
+        "puae-jsonl", load_id, schema.name, table_name, items, None
+    )
     extractor.close_writers(load_id)
     extractor.commit_new_load_package(load_id, schema)
     return load_id
@@ -559,7 +633,9 @@ def normalize_pending(normalize: Normalize) -> str:
         # read schema from package
         schema = normalize.normalize_storage.extracted_packages.load_schema(load_id)
         # get files
-        schema_files = normalize.normalize_storage.extracted_packages.list_new_jobs(load_id)
+        schema_files = normalize.normalize_storage.extracted_packages.list_new_jobs(
+            load_id
+        )
         # normalize without pool
         normalize.spool_files(load_id, schema, normalize.map_single, schema_files)
 
@@ -654,4 +730,6 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     loads = load_storage.list_normalized_packages()
     event_schema = load_storage.normalized_packages.load_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
-    assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
+    assert (
+        event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
+    )

@@ -20,8 +20,18 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
-from dlt.common.utils import custom_environ, get_exception_trace, get_exception_trace_chain
-from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
+from dlt.common.utils import (
+    custom_environ,
+    get_exception_trace,
+    get_exception_trace_chain,
+)
+from dlt.common.typing import (
+    AnyType,
+    DictStrAny,
+    StrAny,
+    TSecretValue,
+    extract_inner_type,
+)
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingTypeHintException,
     ConfigFieldTypeHintNotSupported,
@@ -72,7 +82,9 @@ from tests.common.configuration.utils import (
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
     "int_val": "a12345",
-    "bool_val": "not_bool",  # bool overridden by string - that is the most common problem
+    "bool_val": (
+        "not_bool"
+    ),  # bool overridden by string - that is the most common problem
     "list_val": {"2": 1, "3": 3.0},
     "dict_val": "{'a': 1, 'b', '2'}",
     "bytes_val": "Hello World!",
@@ -261,7 +273,9 @@ def test_set_default_config_value(environment: Any) -> None:
     )
     assert c.to_native_representation() == "h>a>b>he"
     # set from native form
-    c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="h>a>b>he")
+    c = resolve.resolve_configuration(
+        InstrumentedConfiguration(), explicit_value="h>a>b>he"
+    )
     assert c.head == "h"
     assert c.tube == ["a", "b"]
     assert c.heels == "he"
@@ -295,7 +309,9 @@ def test_explicit_values(environment: Any) -> None:
 
     # unknown field in explicit value dict is ignored
     c = resolve.resolve_configuration(
-        CoercionTestConfiguration(), explicit_value={"created_val": "3343"}, accept_partial=True
+        CoercionTestConfiguration(),
+        explicit_value={"created_val": "3343"},
+        accept_partial=True,
     )
     assert "created_val" not in c
 
@@ -303,7 +319,8 @@ def test_explicit_values(environment: Any) -> None:
 def test_explicit_values_false_when_bool() -> None:
     # values like 0, [], "" all coerce to bool False
     c = resolve.resolve_configuration(
-        InstrumentedConfiguration(), explicit_value={"head": "", "tube": [], "heels": ""}
+        InstrumentedConfiguration(),
+        explicit_value={"head": "", "tube": [], "heels": ""},
     )
     assert c.head == ""
     assert c.tube == []
@@ -354,7 +371,9 @@ def test_explicit_native_always_skips_resolve(environment: Any) -> None:
     with patch.object(InstrumentedConfiguration, "__section__", "ins"):
         # explicit native representations skips resolve
         environment["INS__HEELS"] = "xhe"
-        c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="h>a>b>he")
+        c = resolve.resolve_configuration(
+            InstrumentedConfiguration(), explicit_value="h>a>b>he"
+        )
         assert c.heels == "he"
 
         # normal resolve (heels from env)
@@ -371,7 +390,9 @@ def test_explicit_native_always_skips_resolve(environment: Any) -> None:
         assert c.heels == "uhe"
 
         # also the native explicit value
-        c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="h>a>b>uhe")
+        c = resolve.resolve_configuration(
+            InstrumentedConfiguration(), explicit_value="h>a>b>uhe"
+        )
         assert c.heels == "uhe"
 
 
@@ -412,7 +433,9 @@ def test_invalid_native_config_value() -> None:
 def test_on_resolved(environment: Any) -> None:
     with pytest.raises(RuntimeError):
         # head over hells
-        resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="he>a>b>h")
+        resolve.resolve_configuration(
+            InstrumentedConfiguration(), explicit_value="he>a>b>h"
+        )
 
 
 def test_embedded_config(environment: Any) -> None:
@@ -526,7 +549,9 @@ def test_run_configuration_gen_name(environment: Any) -> None:
     assert C.pipeline_name.startswith("dlt_")
 
 
-def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
+def test_configuration_is_mutable_mapping(
+    environment: Any, env_provider: ConfigProvider
+) -> None:
     @configspec
     class _SecretCredentials(RunConfiguration):
         pipeline_name: Optional[str] = "secret"
@@ -632,7 +657,9 @@ def test_multi_derivation_defaults(environment: Any) -> None:
     assert C.__section__ == "DLT_TEST"
 
 
-def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvider) -> None:
+def test_raises_on_unresolved_field(
+    environment: Any, env_provider: ConfigProvider
+) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(WrongConfiguration())
@@ -656,7 +683,9 @@ def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvid
     assert exception_trace["exception_attrs"]["fields"] == ["NoneConfigVar"]
 
 
-def test_raises_on_many_unresolved_fields(environment: Any, env_provider: ConfigProvider) -> None:
+def test_raises_on_many_unresolved_fields(
+    environment: Any, env_provider: ConfigProvider
+) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
@@ -666,7 +695,9 @@ def test_raises_on_many_unresolved_fields(environment: Any, env_provider: Config
     assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
     # get all fields that must be set
     val_fields = [
-        f for f in CoercionTestConfiguration().get_resolvable_fields() if f.lower().endswith("_val")
+        f
+        for f in CoercionTestConfiguration().get_resolvable_fields()
+        if f.lower().endswith("_val")
     ]
     traces = cf_missing_exc.value.traces
     assert len(traces) == len(val_fields)
@@ -726,7 +757,11 @@ def test_coercion_to_hint_types(environment: Any) -> None:
 
     C = CoercionTestConfiguration()
     resolve._resolve_config_fields(
-        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+        C,
+        explicit_values=None,
+        explicit_sections=(),
+        embedded_sections=(),
+        accept_partial=False,
     )
 
     for key in COERCIONS:
@@ -762,24 +797,34 @@ def test_values_serialization() -> None:
 
     # test credentials
     credentials_str = "databricks+connector://token:-databricks_token-@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a%2Cb%2Cc"
-    credentials = deserialize_value("credentials", credentials_str, ConnectionStringCredentials)
+    credentials = deserialize_value(
+        "credentials", credentials_str, ConnectionStringCredentials
+    )
     assert credentials.drivername == "databricks+connector"
     assert credentials.query == {"conn_timeout": "15", "search_path": "a,b,c"}
     assert credentials.password == "-databricks_token-"
     assert serialize_value(credentials) == credentials_str
     # using dict also works
     credentials_dict = dict(credentials)
-    credentials_2 = deserialize_value("credentials", credentials_dict, ConnectionStringCredentials)
+    credentials_2 = deserialize_value(
+        "credentials", credentials_dict, ConnectionStringCredentials
+    )
     assert serialize_value(credentials_2) == credentials_str
     # if string is not a valid native representation of credentials but is parsable json dict then it works as well
     credentials_json = json.dumps(credentials_dict)
-    credentials_3 = deserialize_value("credentials", credentials_json, ConnectionStringCredentials)
+    credentials_3 = deserialize_value(
+        "credentials", credentials_json, ConnectionStringCredentials
+    )
     assert serialize_value(credentials_3) == credentials_str
 
     # test config without native representation
-    secret_config = deserialize_value("credentials", {"secret_value": "a"}, SecretConfiguration)
+    secret_config = deserialize_value(
+        "credentials", {"secret_value": "a"}, SecretConfiguration
+    )
     assert secret_config.secret_value == "a"
-    secret_config = deserialize_value("credentials", '{"secret_value": "a"}', SecretConfiguration)
+    secret_config = deserialize_value(
+        "credentials", '{"secret_value": "a"}', SecretConfiguration
+    )
     assert secret_config.secret_value == "a"
     assert serialize_value(secret_config) == '{"secret_value":"a"}'
 
@@ -803,7 +848,9 @@ def test_invalid_coercions(environment: Any) -> None:
             # overwrite with valid value and go to next env
             environment[key.upper()] = serialize_value(COERCIONS[key])
             continue
-        raise AssertionError("%s was coerced with %s which is invalid type" % (key, value))
+        raise AssertionError(
+            "%s was coerced with %s which is invalid type" % (key, value)
+        )
 
 
 def test_excepted_coercions(environment: Any) -> None:
@@ -811,7 +858,11 @@ def test_excepted_coercions(environment: Any) -> None:
     add_config_dict_to_env(COERCIONS)
     add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
     resolve._resolve_config_fields(
-        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+        C,
+        explicit_values=None,
+        explicit_sections=(),
+        embedded_sections=(),
+        accept_partial=False,
     )
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
@@ -911,7 +962,10 @@ def test_is_valid_hint() -> None:
     # in case of generics, origin will be used and args are not checked
     assert is_valid_hint(MutableMapping[TSecretValue, Any]) is True
     # this is valid (args not checked)
-    assert is_valid_hint(MutableMapping[TSecretValue, ConfigValueCannotBeCoercedException]) is True
+    assert (
+        is_valid_hint(MutableMapping[TSecretValue, ConfigValueCannotBeCoercedException])
+        is True
+    )
     assert is_valid_hint(Wei) is True
     # any class type, except deriving from BaseConfiguration is wrong type
     assert is_valid_hint(ConfigFieldMissingException) is False
@@ -945,7 +999,9 @@ def test_secret_value_not_secret_provider(mock_provider: MockProvider) -> None:
     # anything derived from CredentialsConfiguration will fail
     with patch.object(SecretCredentials, "__section__", "credentials"):
         with pytest.raises(ValueNotSecretException) as py_ex:
-            resolve.resolve_configuration(WithCredentialsConfiguration(), sections=("mock",))
+            resolve.resolve_configuration(
+                WithCredentialsConfiguration(), sections=("mock",)
+            )
         assert py_ex.value.provider_name == "Mock Provider"
         assert py_ex.value.key == "-credentials"
 
@@ -1027,7 +1083,13 @@ def test_resolved_trace(environment: Any) -> None:
     )
     # value is before casting
     assert traces["instrumented.tube"] == ResolvedValueTrace(
-        "tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented
+        "tube",
+        '["tu", "u", "be"]',
+        None,
+        List[str],
+        ["instrumented"],
+        prov_name,
+        c.instrumented,
     )
     assert deserialize_value(
         "tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
@@ -1053,7 +1115,9 @@ def test_resolved_trace(environment: Any) -> None:
             c = resolve.resolve_configuration(EmbeddedConfiguration())
             resolve.resolve_configuration(InstrumentedConfiguration())
 
-    assert traces[".default"] == ResolvedValueTrace("default", "UNDEF", None, str, [], prov_name, c)
+    assert traces[".default"] == ResolvedValueTrace(
+        "default", "UNDEF", None, str, [], prov_name, c
+    )
     assert traces[".instrumented"] == ResolvedValueTrace(
         "instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c
     )
@@ -1075,7 +1139,10 @@ def test_extract_inner_hint() -> None:
     # extracts new types
     assert resolve.extract_inner_hint(TSecretValue) is AnyType
     # preserves new types on extract
-    assert resolve.extract_inner_hint(TSecretValue, preserve_new_types=True) is TSecretValue
+    assert (
+        resolve.extract_inner_hint(TSecretValue, preserve_new_types=True)
+        is TSecretValue
+    )
 
 
 def test_is_secret_hint() -> None:
@@ -1085,7 +1152,9 @@ def test_is_secret_hint() -> None:
     assert resolve.is_secret_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
     assert resolve.is_secret_hint(InstrumentedConfiguration) is False
     # do not recognize new types
-    TTestSecretNt = NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults)
+    TTestSecretNt = NewType(
+        "TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults
+    )
     assert resolve.is_secret_hint(TTestSecretNt) is False
     # recognize unions with credentials
     assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True  # type: ignore[arg-type]
@@ -1127,7 +1196,9 @@ def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
     environment["DUMMY__DISCRIMINATOR"] = "c"
     environment["DUMMY__EMBEDDED_CONFIG__FIELD_FOR_C"] = "some_value"
 
-    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=("dummy",))
+    config = resolve.resolve_configuration(
+        SubclassConfigWithDynamicType(), sections=("dummy",)
+    )
 
     assert isinstance(config.embedded_config, DynamicConfigC)
     assert config.embedded_config.field_for_c == "some_value"
@@ -1136,7 +1207,9 @@ def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
     environment["DUMMY__DISCRIMINATOR"] = "b"
     environment["DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B"] = "some_value"
 
-    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=("dummy",))
+    config = resolve.resolve_configuration(
+        SubclassConfigWithDynamicType(), sections=("dummy",)
+    )
 
     assert isinstance(config.embedded_config, DynamicConfigB)
     assert config.embedded_config.field_for_b == "some_value"
@@ -1146,7 +1219,9 @@ def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
     environment["DUMMY__DYNAMIC_TYPE_FIELD"] = "some"
 
     with pytest.raises(ConfigValueCannotBeCoercedException) as e:
-        config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=("dummy",))
+        config = resolve.resolve_configuration(
+            SubclassConfigWithDynamicType(), sections=("dummy",)
+        )
 
     assert e.value.field_name == "dynamic_type_field"
     assert e.value.hint == int
@@ -1219,11 +1294,14 @@ def test_configuration_copy() -> None:
 
     # try credentials
     cred = ConnectionStringCredentials()
-    cred.parse_native_representation("postgresql://loader:loader@localhost:5432/dlt_data")
+    cred.parse_native_representation(
+        "postgresql://loader:loader@localhost:5432/dlt_data"
+    )
     copy_cred = cred.copy()
     assert dict(copy_cred) == dict(cred)
     assert (
-        copy_cred.to_native_representation() == "postgresql://loader:loader@localhost:5432/dlt_data"
+        copy_cred.to_native_representation()
+        == "postgresql://loader:loader@localhost:5432/dlt_data"
     )
     # resolve the copy
     assert not copy_cred.is_resolved()
@@ -1235,7 +1313,9 @@ def test_configuration_with_configuration_as_default() -> None:
     instrumented_default = InstrumentedConfiguration()
     instrumented_default.parse_native_representation("h>a>b>he")
     cred = ConnectionStringCredentials()
-    cred.parse_native_representation("postgresql://loader:loader@localhost:5432/dlt_data")
+    cred.parse_native_representation(
+        "postgresql://loader:loader@localhost:5432/dlt_data"
+    )
 
     @configspec
     class EmbeddedConfigurationWithDefaults(BaseConfiguration):

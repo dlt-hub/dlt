@@ -4,8 +4,15 @@ from pathlib import Path
 from typing import Any, ClassVar, Optional, IO
 from dlt.common.typing import TSecretStrValue
 
-from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_pseudo_secret
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
+from dlt.common.utils import (
+    encoding_for_mode,
+    main_module_file_path,
+    reveal_pseudo_secret,
+)
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    configspec,
+)
 from dlt.common.configuration.exceptions import ConfigFileNotFoundException
 
 

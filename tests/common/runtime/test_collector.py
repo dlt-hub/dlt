@@ -35,7 +35,9 @@ def test_dict_collector_context_manager():
 
 def test_dict_collector_no_labels():
     with DictCollector()("test") as collector:
-        with pytest.raises(AssertionError, match="labels not supported in dict collector"):
+        with pytest.raises(
+            AssertionError, match="labels not supported in dict collector"
+        ):
             collector.update("counter1", inc=1, label="label1")
 
 

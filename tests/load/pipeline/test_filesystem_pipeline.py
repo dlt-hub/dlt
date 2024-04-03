@@ -4,7 +4,10 @@ from pathlib import Path
 import dlt, os
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+from dlt.destinations.impl.filesystem.filesystem import (
+    FilesystemClient,
+    LoadFilesystemJob,
+)
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 from tests.utils import skip_if_not_active
@@ -86,8 +89,12 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     complete_fn = f"{client.schema.name}.{LOADS_TABLE_NAME}.%s"
 
     # Test complete_load markers are saved
-    assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id1))
-    assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id2))
+    assert client.fs_client.isfile(
+        posixpath.join(client.dataset_path, complete_fn % load_id1)
+    )
+    assert client.fs_client.isfile(
+        posixpath.join(client.dataset_path, complete_fn % load_id2)
+    )
 
     # Force replace
     pipeline.run(some_source(), write_disposition="replace")

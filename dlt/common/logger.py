@@ -93,7 +93,9 @@ def _init_logging(
             version: Mapping[str, str] = None
 
             def _format_log_object(self, record: LogRecord) -> Any:
-                json_log_object = super(_CustomJsonFormatter, self)._format_log_object(record)
+                json_log_object = super(_CustomJsonFormatter, self)._format_log_object(
+                    record
+                )
                 if self.version:
                     json_log_object.update({"version": self.version})
                 return json_log_object

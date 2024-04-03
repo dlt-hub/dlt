@@ -73,7 +73,9 @@ def test_singleton(container: Container) -> None:
 
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
-def test_container_items(container: Container, spec: Type[InjectableTestContext]) -> None:
+def test_container_items(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     # will add InjectableTestContext instance to container
     container[spec]
     assert spec in container
@@ -150,7 +152,9 @@ def test_container_injectable_context_mangled(
 
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
-def test_container_thread_affinity(container: Container, spec: Type[InjectableTestContext]) -> None:
+def test_container_thread_affinity(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     event = threading.Semaphore(0)
     thread_item: InjectableTestContext = None
 
@@ -182,7 +186,9 @@ def test_container_thread_affinity(container: Container, spec: Type[InjectableTe
 
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
-def test_container_pool_affinity(container: Container, spec: Type[InjectableTestContext]) -> None:
+def test_container_pool_affinity(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     event = threading.Semaphore(0)
     thread_item: InjectableTestContext = None
 
@@ -194,7 +200,9 @@ def test_container_pool_affinity(container: Container, spec: Type[InjectableTest
         thread_item = container[spec]
         event.release()
 
-    threading.Thread(target=_thread, daemon=True, name=Container.thread_pool_prefix()).start()
+    threading.Thread(
+        target=_thread, daemon=True, name=Container.thread_pool_prefix()
+    ).start()
     event.acquire()
     # it may be or separate copy (InjectableTestContext) or single copy (GlobalTestContext)
     main_item = container[spec]
@@ -214,7 +222,9 @@ def test_thread_pool_affinity(container: Container) -> None:
     def _context() -> InjectableTestContext:
         return container[InjectableTestContext]
 
-    main_item = container[InjectableTestContext] = InjectableTestContext(current_value="MAIN")
+    main_item = container[InjectableTestContext] = InjectableTestContext(
+        current_value="MAIN"
+    )
 
     with ThreadPoolExecutor(thread_name_prefix=container.thread_pool_prefix()) as p:
         future = p.submit(_context)
@@ -231,7 +241,9 @@ def test_thread_pool_affinity(container: Container) -> None:
 
 
 @pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
-def test_container_provider(container: Container, spec: Type[InjectableTestContext]) -> None:
+def test_container_provider(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     provider = ContextProvider()
     # default value will be created
     v, k = provider.get_value("n/a", spec, None)
@@ -261,9 +273,13 @@ def test_container_provider(container: Container, spec: Type[InjectableTestConte
     assert k == "typing.Literal['a']"
 
 
-def test_container_provider_embedded_inject(container: Container, environment: Any) -> None:
+def test_container_provider_embedded_inject(
+    container: Container, environment: Any
+) -> None:
     environment["INJECTED"] = "unparsable"
-    with container.injectable_context(InjectableTestContext(current_value="Embed")) as injected:
+    with container.injectable_context(
+        InjectableTestContext(current_value="Embed")
+    ) as injected:
         # must have top precedence - over the environ provider. environ provider is returning a value that will cannot be parsed
         # but the container provider has a precedence and the lookup in environ provider will never happen
         C = resolve_configuration(EmbeddedWithInjectableContext())

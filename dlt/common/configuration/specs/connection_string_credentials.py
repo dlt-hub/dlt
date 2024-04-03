@@ -4,12 +4,17 @@ from typing import Any, ClassVar, Dict, List, Optional, Union
 from dlt.common.libs.sql_alchemy import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import (
+    CredentialsConfiguration,
+    configspec,
+)
 
 
 @configspec
 class ConnectionStringCredentials(CredentialsConfiguration):
-    drivername: str = dataclasses.field(default=None, init=False, repr=False, compare=False)
+    drivername: str = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
     database: str = None
     password: Optional[TSecretValue] = None
     username: str = None

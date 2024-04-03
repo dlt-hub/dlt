@@ -98,8 +98,9 @@ def validate_dict(
                         for ut in union_types
                     ]
                     raise DictValidationException(
-                        f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__}."
-                        f" One of these types expected: {', '.join(type_names)}.",
+                        f"In {path}: field {pk} value {pv} has invalid type"
+                        f" {type(pv).__name__}. One of these types expected:"
+                        f" {', '.join(type_names)}.",
                         path,
                         pk,
                         pv,
@@ -108,13 +109,16 @@ def validate_dict(
             a_l = get_args(t)
             if pv not in a_l:
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} not in allowed {a_l}", path, pk, pv
+                    f"In {path}: field {pk} value {pv} not in allowed {a_l}",
+                    path,
+                    pk,
+                    pv,
                 )
         elif t in [int, bool, str, float]:
             if not isinstance(pv, t):
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    f" {t.__name__} is expected",
+                    f"In {path}: field {pk} value {pv} has invalid type"
+                    f" {type(pv).__name__} while {t.__name__} is expected",
                     path,
                     pk,
                     pv,
@@ -122,8 +126,8 @@ def validate_dict(
         elif is_typeddict(t):
             if not isinstance(pv, dict):
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    " dict is expected",
+                    f"In {path}: field {pk} value {pv} has invalid type"
+                    f" {type(pv).__name__} while dict is expected",
                     path,
                     pk,
                     pv,
@@ -132,8 +136,8 @@ def validate_dict(
         elif is_list_generic_type(t):
             if not isinstance(pv, list):
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    " list is expected",
+                    f"In {path}: field {pk} value {pv} has invalid type"
+                    f" {type(pv).__name__} while list is expected",
                     path,
                     pk,
                     pv,
@@ -145,8 +149,8 @@ def validate_dict(
         elif is_dict_generic_type(t):
             if not isinstance(pv, dict):
                 raise DictValidationException(
-                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
-                    " dict is expected",
+                    f"In {path}: field {pk} value {pv} has invalid type"
+                    f" {type(pv).__name__} while dict is expected",
                     path,
                     pk,
                     pv,
@@ -156,7 +160,10 @@ def validate_dict(
             for d_k, d_v in pv.items():
                 if not isinstance(d_k, str):
                     raise DictValidationException(
-                        f"In {path}: field {pk} key {d_k} must be a string", path, pk, d_k
+                        f"In {path}: field {pk} key {d_k} must be a string",
+                        path,
+                        pk,
+                        d_k,
                     )
                 verify_prop(f"{pk}[{d_k}]", d_v, d_v_t)
         elif t is Any:
@@ -174,8 +181,8 @@ def validate_dict(
                 if inspect.isclass(t):
                     if not isinstance(pv, t):
                         raise DictValidationException(
-                            f"In {path}: field {pk} expect class {type_name} but got instance of"
-                            f" {pv_type_name}",
+                            f"In {path}: field {pk} expect class {type_name} but got"
+                            f" instance of {pv_type_name}",
                             path,
                             pk,
                         )
@@ -183,7 +190,8 @@ def validate_dict(
                 # dropped, just __name__ can be used
                 type_name = getattr(t, "__name__", str(t))
                 raise DictValidationException(
-                    f"In {path}: field {pk} has expected type {type_name} which lacks validator",
+                    f"In {path}: field {pk} has expected type {type_name} which lacks"
+                    " validator",
                     path,
                     pk,
                 )

@@ -21,12 +21,17 @@ from dlt.common.storages.load_package import (
     TJobState,
     TLoadPackageState,
 )
-from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
+from dlt.common.storages.exceptions import (
+    JobWithUnsupportedWriterException,
+    LoadPackageNotFound,
+)
 
 
 class LoadStorage(DataItemStorage, VersionedStorage):
     STORAGE_VERSION = "1.0.0"
-    NORMALIZED_FOLDER = "normalized"  # folder within the volume where load packages are stored
+    NORMALIZED_FOLDER = (  # folder within the volume where load packages are stored
+        "normalized"
+    )
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
     NEW_PACKAGES_FOLDER = "new"  # folder where new packages are created
 
@@ -45,9 +50,14 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             supported_file_formats = list(supported_file_formats)
             supported_file_formats.append("jsonl")
 
-        if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
+        if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(
+            supported_file_formats
+        ):
             raise TerminalValueError(supported_file_formats)
-        if preferred_file_format and preferred_file_format not in supported_file_formats:
+        if (
+            preferred_file_format
+            and preferred_file_format not in supported_file_formats
+        ):
             raise TerminalValueError(preferred_file_format)
         self.supported_file_formats = supported_file_formats
         self.config = config
@@ -61,13 +71,16 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             self.initialize_storage()
         # create package storages
         self.new_packages = PackageStorage(
-            FileStorage(join(config.load_volume_path, LoadStorage.NEW_PACKAGES_FOLDER)), "new"
+            FileStorage(join(config.load_volume_path, LoadStorage.NEW_PACKAGES_FOLDER)),
+            "new",
         )
         self.normalized_packages = PackageStorage(
-            FileStorage(join(config.load_volume_path, LoadStorage.NORMALIZED_FOLDER)), "normalized"
+            FileStorage(join(config.load_volume_path, LoadStorage.NORMALIZED_FOLDER)),
+            "normalized",
         )
         self.loaded_packages = PackageStorage(
-            FileStorage(join(config.load_volume_path, LoadStorage.LOADED_FOLDER)), "loaded"
+            FileStorage(join(config.load_volume_path, LoadStorage.LOADED_FOLDER)),
+            "loaded",
         )
 
     def initialize_storage(self) -> None:
@@ -75,7 +88,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         self.storage.create_folder(LoadStorage.NORMALIZED_FOLDER, exists_ok=True)
         self.storage.create_folder(LoadStorage.LOADED_FOLDER, exists_ok=True)
 
-    def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
+    def _get_data_item_path_template(
+        self, load_id: str, _: str, table_name: str
+    ) -> str:
         # implements DataItemStorage._get_data_item_path_template
         file_name = PackageStorage.build_job_file_name(table_name, "%s")
         file_path = self.new_packages.get_job_file_path(
@@ -91,17 +106,21 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             (
                 j
                 for j in new_jobs
-                if ParsedLoadJobFileName.parse(j).file_format not in self.supported_file_formats
+                if ParsedLoadJobFileName.parse(j).file_format
+                not in self.supported_file_formats
             ),
             None,
         )
         if wrong_job is not None:
-            raise JobWithUnsupportedWriterException(load_id, self.supported_file_formats, wrong_job)
+            raise JobWithUnsupportedWriterException(
+                load_id, self.supported_file_formats, wrong_job
+            )
         return new_jobs
 
     def commit_new_load_package(self, load_id: str) -> None:
         self.storage.rename_tree(
-            self.get_new_package_path(load_id), self.get_normalized_package_path(load_id)
+            self.get_new_package_path(load_id),
+            self.get_normalized_package_path(load_id),
         )
 
     def list_normalized_packages(self) -> Sequence[str]:
@@ -122,7 +141,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             raise FileNotFoundError(package_path)
         schema_update_file = join(package_path, PackageStorage.SCHEMA_UPDATES_FILE_NAME)
         if self.storage.has_file(schema_update_file):
-            schema_update: TSchemaTables = json.loads(self.storage.load(schema_update_file))
+            schema_update: TSchemaTables = json.loads(
+                self.storage.load(schema_update_file)
+            )
             return schema_update
         else:
             return None
@@ -161,7 +182,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         )
         # move to completed
         completed_path = self.get_loaded_package_path(load_id)
-        self.storage.rename_tree(self.get_normalized_package_path(load_id), completed_path)
+        self.storage.rename_tree(
+            self.get_normalized_package_path(load_id), completed_path
+        )
 
     def maybe_remove_completed_jobs(self, load_id: str) -> None:
         """Deletes completed jobs if delete_completed_jobs config flag is set. If package has failed jobs, nothing gets deleted."""
@@ -175,15 +198,20 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         self.storage.delete_folder(self.NORMALIZED_FOLDER, recursively=True)
 
     def get_new_package_path(self, load_id: str) -> str:
-        return join(LoadStorage.NEW_PACKAGES_FOLDER, self.new_packages.get_package_path(load_id))
+        return join(
+            LoadStorage.NEW_PACKAGES_FOLDER, self.new_packages.get_package_path(load_id)
+        )
 
     def get_normalized_package_path(self, load_id: str) -> str:
         return join(
-            LoadStorage.NORMALIZED_FOLDER, self.normalized_packages.get_package_path(load_id)
+            LoadStorage.NORMALIZED_FOLDER,
+            self.normalized_packages.get_package_path(load_id),
         )
 
     def get_loaded_package_path(self, load_id: str) -> str:
-        return join(LoadStorage.LOADED_FOLDER, self.loaded_packages.get_package_path(load_id))
+        return join(
+            LoadStorage.LOADED_FOLDER, self.loaded_packages.get_package_path(load_id)
+        )
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Gets information on normalized OR loaded package with given load_id, all jobs and their statuses."""

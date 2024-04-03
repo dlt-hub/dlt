@@ -16,7 +16,9 @@ def client(empty_schema: Schema) -> DuckDbClient:
     # return client without opening connection
     return DuckDbClient(
         empty_schema,
-        DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
+        DuckDbClientConfiguration()._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
 
 

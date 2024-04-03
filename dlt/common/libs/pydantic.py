@@ -18,7 +18,9 @@ from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeCaseNamingConvention,
+)
 from dlt.common.typing import (
     TDataItem,
     TDataItems,
@@ -204,8 +206,8 @@ def apply_schema_contract_to_model(
         model = create_model(model.__name__ + "Any", **{n: (Any, None) for n in model.__fields__})  # type: ignore[call-overload, attr-defined]
     elif data_mode == "discard_value":
         raise NotImplementedError(
-            "data_mode is discard_value. Cannot discard defined fields with validation errors using"
-            " Pydantic models."
+            "data_mode is discard_value. Cannot discard defined fields with validation"
+            " errors using Pydantic models."
         )
 
     extra = column_mode_to_extra(column_mode)
@@ -349,7 +351,8 @@ def validate_items(
                     deleted.add(err_idx)
                 else:
                     raise NotImplementedError(
-                        f"{column_mode} column mode not implemented for Pydantic validation"
+                        f"{column_mode} column mode not implemented for Pydantic"
+                        " validation"
                     )
             else:
                 if data_mode == "freeze":
@@ -368,7 +371,8 @@ def validate_items(
                     deleted.add(err_idx)
                 else:
                     raise NotImplementedError(
-                        f"{column_mode} column mode not implemented for Pydantic validation"
+                        f"{column_mode} column mode not implemented for Pydantic"
+                        " validation"
                     )
 
         # validate again with error items removed

@@ -74,7 +74,8 @@ def init(custom_formatter: Type[logging.Formatter] = None) -> None:
     if custom_formatter:
         if not issubclass(custom_formatter, logging.Formatter):
             raise ValueError(
-                "custom_formatter is not subclass of logging.Formatter", custom_formatter
+                "custom_formatter is not subclass of logging.Formatter",
+                custom_formatter,
             )
 
     _default_formatter = custom_formatter if custom_formatter else JSONLogFormatter
@@ -195,7 +196,10 @@ def update_formatter_for_loggers(
 
 
 def epoch_nano_second(datetime_: datetime) -> int:
-    return int((datetime_ - _epoch).total_seconds()) * 1000000000 + datetime_.microsecond * 1000
+    return (
+        int((datetime_ - _epoch).total_seconds()) * 1000000000
+        + datetime_.microsecond * 1000
+    )
 
 
 def iso_time_format(datetime_: datetime) -> str:

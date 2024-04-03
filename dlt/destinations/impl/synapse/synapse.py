@@ -23,7 +23,11 @@ from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
+from dlt.destinations.job_client_impl import (
+    SqlJobClientBase,
+    LoadJob,
+    CopyRemoteFileLoadJob,
+)
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (
@@ -68,13 +72,18 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             self.active_hints.pop("unique", None)
 
     def _get_table_update_sql(
-        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
     ) -> List[str]:
         table = self.prepare_load_table(table_name, staging=self.in_staging_mode)
         table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
         if self.in_staging_mode:
             final_table = self.prepare_load_table(table_name, staging=False)
-            final_table_index_type = cast(TTableIndexType, final_table.get(TABLE_INDEX_TYPE_HINT))
+            final_table_index_type = cast(
+                TTableIndexType, final_table.get(TABLE_INDEX_TYPE_HINT)
+            )
         else:
             final_table_index_type = table_index_type
         if final_table_index_type == "clustered_columnstore_index":
@@ -127,10 +136,14 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:
         if self.config.replace_strategy == "staging-optimized":
-            return [SynapseStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+            return [
+                SynapseStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+            ]
         return super()._create_replace_followup_jobs(table_chain)
 
-    def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
+    def prepare_load_table(
+        self, table_name: str, staging: bool = False
+    ) -> TTableSchema:
         table = super().prepare_load_table(table_name, staging)
         if staging and self.config.replace_strategy == "insert-from-staging":
             # Staging tables should always be heap tables, because "when you are
@@ -150,14 +163,19 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             if TABLE_INDEX_TYPE_HINT not in table:
                 # If present in parent table, fetch hint from there.
                 table[TABLE_INDEX_TYPE_HINT] = get_inherited_table_hint(  # type: ignore[typeddict-unknown-key]
-                    self.schema.tables, table_name, TABLE_INDEX_TYPE_HINT, allow_none=True
+                    self.schema.tables,
+                    table_name,
+                    TABLE_INDEX_TYPE_HINT,
+                    allow_none=True,
                 )
         if table[TABLE_INDEX_TYPE_HINT] is None:  # type: ignore[typeddict-item]
             # Hint still not defined, fall back to default.
             table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
         return table
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             assert NewReferenceJob.is_reference_job(
@@ -167,7 +185,10 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
                 table,
                 file_path,
                 self.sql_client,
-                cast(AzureCredentialsWithoutDefaults, self.config.staging_config.credentials),
+                cast(
+                    AzureCredentialsWithoutDefaults,
+                    self.config.staging_config.credentials,
+                ),
                 self.config.staging_use_msi,
             )
         return job
@@ -197,7 +218,10 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
             job_client = current.pipeline().destination_client()  # type: ignore[operator]
             with job_client.with_staging_dataset():
                 # get table columns from schema
-                columns = [c for c in job_client.schema.get_table_columns(table["name"]).values()]
+                columns = [
+                    c
+                    for c in job_client.schema.get_table_columns(table["name"]).values()
+                ]
                 # generate CREATE TABLE statement
                 create_table_stmt = job_client._get_table_update_sql(
                     table["name"], columns, generate_alter=False
@@ -228,9 +252,9 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
                 # an incompatibility error.
                 raise LoadJobTerminalException(
                     self.file_name(),
-                    "Synapse cannot load TIME columns from Parquet files. Switch to direct INSERT"
-                    " file format or convert `datetime.time` objects in your data to `str` or"
-                    " `datetime.datetime`",
+                    "Synapse cannot load TIME columns from Parquet files. Switch to"
+                    " direct INSERT file format or convert `datetime.time` objects in"
+                    " your data to `str` or `datetime.datetime`",
                 )
             file_type = "PARQUET"
 

@@ -32,13 +32,17 @@ def test_set_name_and_environment() -> None:
     )
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     assert (
-        p.destination.destination_type == "dlt.destinations.duckdb" == p.state["destination_type"]
+        p.destination.destination_type
+        == "dlt.destinations.duckdb"
+        == p.state["destination_type"]
     )
     assert p.destination.destination_name == "duck1" == p.state["destination_name"]
 
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
     assert (
-        p.destination.destination_type == "dlt.destinations.duckdb" == p.state["destination_type"]
+        p.destination.destination_type
+        == "dlt.destinations.duckdb"
+        == p.state["destination_type"]
     )
     assert p.destination.destination_name == "duck1" == p.state["destination_name"]
 
@@ -63,7 +67,9 @@ def test_preserve_destination_instance() -> None:
         destination_name="local_fs",
         environment="devel",
     )
-    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=dummy1, staging=filesystem1)
+    p = dlt.pipeline(
+        pipeline_name="dummy_pipeline", destination=dummy1, staging=filesystem1
+    )
     destination_id = id(p.destination)
     staging_id = id(p.staging)
     import os
@@ -87,7 +93,11 @@ def test_preserve_destination_instance() -> None:
         == p.state["destination_type"]
         == load_info.destination_type
     )
-    assert p.destination.config_params["environment"] == "dev/null/1" == load_info.environment
+    assert (
+        p.destination.config_params["environment"]
+        == "dev/null/1"
+        == load_info.environment
+    )
     assert (
         p.staging.destination_name
         == "local_fs"
@@ -105,9 +115,17 @@ def test_preserve_destination_instance() -> None:
     # attach pipeline
     p = dlt.attach(pipeline_name="dummy_pipeline")
     assert p.destination.destination_name == "dummy1" == p.state["destination_name"]
-    assert p.destination.destination_type == "dlt.destinations.dummy" == p.state["destination_type"]
+    assert (
+        p.destination.destination_type
+        == "dlt.destinations.dummy"
+        == p.state["destination_type"]
+    )
     assert p.staging.destination_name == "local_fs" == p.state["staging_name"]
-    assert p.staging.destination_type == "dlt.destinations.filesystem" == p.state["staging_type"]
+    assert (
+        p.staging.destination_type
+        == "dlt.destinations.filesystem"
+        == p.state["staging_type"]
+    )
 
     # config args should not contain self
     assert "self" not in p.destination.config_params
@@ -147,7 +165,8 @@ def test_config_respects_dataset_name(environment: DictStrStr) -> None:
 
     # duck1 will be staging
     duck = duckdb(
-        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"), destination_name="duck1"
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"),
+        destination_name="duck1",
     )
     p = dlt.pipeline(pipeline_name="quack_pipeline_staging", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table")
@@ -158,7 +177,8 @@ def test_config_respects_dataset_name(environment: DictStrStr) -> None:
 
     # duck2 will be production
     duck = duckdb(
-        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"), destination_name="duck2"
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"),
+        destination_name="duck2",
     )
     p = dlt.pipeline(pipeline_name="quack_pipeline_production", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table")
@@ -209,7 +229,7 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     with pytest.raises(ConfigFieldMissingException):
         p.destination_client()
 
-    environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = "file://" + posixpath.abspath(
-        TEST_STORAGE_ROOT
+    environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = (
+        "file://" + posixpath.abspath(TEST_STORAGE_ROOT)
     )
     assert p.destination_client().fs_path.endswith(TEST_STORAGE_ROOT)  # type: ignore[attr-defined]

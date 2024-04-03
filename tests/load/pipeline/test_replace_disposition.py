@@ -19,7 +19,9 @@ from tests.load.pipeline.utils import (
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True, default_staging_configs=True, default_sql_configs=True
+        local_filesystem_configs=True,
+        default_staging_configs=True,
+        default_sql_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -27,7 +29,10 @@ from tests.load.pipeline.utils import (
 def test_replace_disposition(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
-    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+    if (
+        not destination_config.supports_merge
+        and replace_strategy != "truncate-and-insert"
+    ):
         pytest.skip(
             f"Destination {destination_config.name} does not support merge and thus"
             f" {replace_strategy}"
@@ -38,10 +43,14 @@ def test_replace_disposition(
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
     # make duckdb to reuse database in working folder
-    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = "duckdb:///test_replace_disposition.duckdb"
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = (
+        "duckdb:///test_replace_disposition.duckdb"
+    )
 
     # TODO: start storing _dlt_loads with right json content
-    increase_loads = lambda x: x if destination_config.destination == "filesystem" else x + 1
+    increase_loads = lambda x: (
+        x if destination_config.destination == "filesystem" else x + 1
+    )
     increase_state_loads = lambda info: len(
         [
             job
@@ -65,7 +74,9 @@ def test_replace_disposition(
     offset = 1000
 
     # keep merge key with unknown column to test replace SQL generator
-    @dlt.resource(name="items", write_disposition="replace", primary_key="id", merge_key="NA")
+    @dlt.resource(
+        name="items", write_disposition="replace", primary_key="id", merge_key="NA"
+    )
     def load_items():
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
@@ -161,7 +172,8 @@ def test_replace_disposition(
             yield
 
     info = pipeline.run(
-        [load_items_none, append_items], loader_file_format=destination_config.file_format
+        [load_items_none, append_items],
+        loader_file_format=destination_config.file_format,
     )
     assert_load_info(info)
     state_records += increase_state_loads(info)
@@ -194,7 +206,9 @@ def test_replace_disposition(
         "test_replace_strategies_2", dataset_name=dataset_name
     )
     info = pipeline_2.run(
-        load_items, table_name="items_copy", loader_file_format=destination_config.file_format
+        load_items,
+        table_name="items_copy",
+        loader_file_format=destination_config.file_format,
     )
     assert_load_info(info)
     new_state_records = increase_state_loads(info)
@@ -209,14 +223,18 @@ def test_replace_disposition(
         "_dlt_pipeline_state": 1,
     }
 
-    info = pipeline_2.run(append_items, loader_file_format=destination_config.file_format)
+    info = pipeline_2.run(
+        append_items, loader_file_format=destination_config.file_format
+    )
     assert_load_info(info)
     new_state_records = increase_state_loads(info)
     assert new_state_records == 0
     dlt_loads = increase_loads(dlt_loads)
 
     # new pipeline
-    table_counts = load_table_counts(pipeline_2, *pipeline_2.default_schema.tables.keys())
+    table_counts = load_table_counts(
+        pipeline_2, *pipeline_2.default_schema.tables.keys()
+    )
     assert norm_table_counts(table_counts) == {
         "append_items": 48,
         "items_copy": 120,
@@ -249,7 +267,9 @@ def test_replace_disposition(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        local_filesystem_configs=True, default_staging_configs=True, default_sql_configs=True
+        local_filesystem_configs=True,
+        default_staging_configs=True,
+        default_sql_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -257,7 +277,10 @@ def test_replace_disposition(
 def test_replace_table_clearing(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
-    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+    if (
+        not destination_config.supports_merge
+        and replace_strategy != "truncate-and-insert"
+    ):
         pytest.skip(
             f"Destination {destination_config.name} does not support merge and thus"
             f" {replace_strategy}"
@@ -267,7 +290,9 @@ def test_replace_table_clearing(
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
     pipeline = destination_config.setup_pipeline(
-        "test_replace_table_clearing", dataset_name="test_replace_table_clearing", full_refresh=True
+        "test_replace_table_clearing",
+        dataset_name="test_replace_table_clearing",
+        full_refresh=True,
     )
 
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
@@ -275,7 +300,10 @@ def test_replace_table_clearing(
         data = {
             "id": 1,
             "name": "item",
-            "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
+            "sub_items": [
+                {"id": 101, "name": "sub item 101"},
+                {"id": 101, "name": "sub item 102"},
+            ],
         }
         yield dlt.mark.with_table_name(data, "items")
         yield dlt.mark.with_table_name(data, "other_items")
@@ -310,7 +338,10 @@ def test_replace_table_clearing(
         yield {
             "id": 1,
             "name": "item",
-            "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
+            "sub_items": [
+                {"id": 101, "name": "sub item 101"},
+                {"id": 101, "name": "sub item 102"},
+            ],
         }
 
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
@@ -329,7 +360,8 @@ def test_replace_table_clearing(
 
     # regular call
     pipeline.run(
-        [items_with_subitems, static_items], loader_file_format=destination_config.file_format
+        [items_with_subitems, static_items],
+        loader_file_format=destination_config.file_format,
     )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
@@ -352,7 +384,9 @@ def test_replace_table_clearing(
     }
 
     # see if child table gets cleared
-    pipeline.run(items_without_subitems, loader_file_format=destination_config.file_format)
+    pipeline.run(
+        items_without_subitems, loader_file_format=destination_config.file_format
+    )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
@@ -363,11 +397,16 @@ def test_replace_table_clearing(
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
     # check trace
-    assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 1, "other_items": 1}
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "items": 1,
+        "other_items": 1,
+    }
 
     # see if yield none clears everything
     for empty_resource in [yield_none, no_yield, yield_empty_list]:
-        pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
+        pipeline.run(
+            items_with_subitems, loader_file_format=destination_config.file_format
+        )
         pipeline.run(empty_resource, loader_file_format=destination_config.file_format)
         table_counts = load_table_counts(
             pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
@@ -379,10 +418,16 @@ def test_replace_table_clearing(
         assert table_counts["static_items"] == 1
         assert table_counts["static_items__sub_items"] == 2
         # check trace
-        assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
+        assert pipeline.last_trace.last_normalize_info.row_counts == {
+            "items": 0,
+            "other_items": 0,
+        }
 
     # see if yielding something next to other none entries still goes into db
-    pipeline.run(items_with_subitems_yield_none, loader_file_format=destination_config.file_format)
+    pipeline.run(
+        items_with_subitems_yield_none,
+        loader_file_format=destination_config.file_format,
+    )
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )

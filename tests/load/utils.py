@@ -2,7 +2,18 @@ import pytest
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+from typing import (
+    Any,
+    Iterator,
+    List,
+    Sequence,
+    IO,
+    Tuple,
+    Optional,
+    Dict,
+    Union,
+    Generator,
+)
 import shutil
 from pathlib import Path
 from dataclasses import dataclass
@@ -67,7 +78,9 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 # Filter out buckets not in all filesystem drivers
 DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
 DEFAULT_BUCKETS = [
-    bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+    bucket
+    for bucket in DEFAULT_BUCKETS
+    if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
@@ -135,7 +148,11 @@ class DestinationTestConfiguration:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
     def setup_pipeline(
-        self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
+        self,
+        pipeline_name: str,
+        dataset_name: str = None,
+        full_refresh: bool = False,
+        **kwargs,
     ) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
         self.setup()
@@ -165,7 +182,9 @@ def destinations_configs(
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
-        assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
+        assert (
+            item in IMPLEMENTED_DESTINATIONS
+        ), f"Destination {item} is not implemented"
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
@@ -348,7 +367,9 @@ def destinations_configs(
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="insert_values",
             )
         ]
         destination_configs += [
@@ -377,7 +398,9 @@ def destinations_configs(
 
     # filter out destinations not in subset
     if subset:
-        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+        destination_configs = [
+            conf for conf in destination_configs if conf.destination in subset
+        ]
     if exclude:
         destination_configs = [
             conf for conf in destination_configs if conf.destination not in exclude
@@ -392,7 +415,9 @@ def destinations_configs(
         ]
     if supports_merge is not None:
         destination_configs = [
-            conf for conf in destination_configs if conf.supports_merge == supports_merge
+            conf
+            for conf in destination_configs
+            if conf.supports_merge == supports_merge
         ]
     if supports_dbt is not None:
         destination_configs = [
@@ -401,7 +426,9 @@ def destinations_configs(
 
     # filter out excluded configs
     destination_configs = [
-        conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
+        conf
+        for conf in destination_configs
+        if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
     return destination_configs
@@ -420,8 +447,8 @@ def get_normalized_dataset_name(client: JobClientBase) -> str:
         return client.config.normalize_dataset_name(client.schema)
     else:
         raise TypeError(
-            f"{type(client)} client has configuration {type(client.config)} that does not support"
-            " dataset name"
+            f"{type(client)} client has configuration {type(client.config)} that does"
+            " not support dataset name"
         )
 
 
@@ -445,7 +472,9 @@ def expect_load_file(
     ).file_name()
     file_storage.save(file_name, query.encode("utf-8"))
     table = client.prepare_load_table(table_name)
-    job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
+    job = client.start_file_load(
+        table, file_storage.make_full_path(file_name), uniq_id()
+    )
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
@@ -466,7 +495,9 @@ def prepare_table(
         user_table_name = table_name + uniq_id()
     else:
         user_table_name = table_name
-    client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
+    client.schema.update_table(
+        new_table(user_table_name, columns=list(user_table.values()))
+    )
     client.schema._bump_version()
     client.update_stored_schema()
     return user_table_name
@@ -531,11 +562,15 @@ def cm_yield_client(
     default_config_values: StrAny = None,
     schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client(destination_type, dataset_name, default_config_values, schema_name)
+    return yield_client(
+        destination_type, dataset_name, default_config_values, schema_name
+    )
 
 
 def yield_client_with_storage(
-    destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
+    destination_type: str,
+    default_config_values: StrAny = None,
+    schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
     # create dataset with random name
     dataset_name = "test_" + uniq_id()
@@ -562,9 +597,13 @@ def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> 
 
 @contextlib.contextmanager
 def cm_yield_client_with_storage(
-    destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
+    destination_type: str,
+    default_config_values: StrAny = None,
+    schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client_with_storage(destination_type, default_config_values, schema_name)
+    return yield_client_with_storage(
+        destination_type, default_config_values, schema_name
+    )
 
 
 def write_dataset(
@@ -609,7 +648,9 @@ def prepare_load_package(
     full_package_path = load_storage.new_packages.storage.make_full_path(
         load_storage.new_packages.get_package_path(load_id)
     )
-    Path(full_package_path).joinpath(schema_path.name).write_text(json.dumps(data), encoding="utf8")
+    Path(full_package_path).joinpath(schema_path.name).write_text(
+        json.dumps(data), encoding="utf8"
+    )
 
     schema_update_path = "./tests/load/cases/loading/schema_updates.json"
     shutil.copy(schema_update_path, full_package_path)

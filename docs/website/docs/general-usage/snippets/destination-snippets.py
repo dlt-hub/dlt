@@ -33,7 +33,9 @@ def destination_instantiation_snippet() -> None:
     # @@@DLT_SNIPPET_START instance
     import dlt
 
-    azure_bucket = filesystem("az://dlt-azure-bucket", destination_name="production_az_bucket")
+    azure_bucket = filesystem(
+        "az://dlt-azure-bucket", destination_name="production_az_bucket"
+    )
     pipeline = dlt.pipeline("pipeline", destination=azure_bucket)
     # @@@DLT_SNIPPET_END instance
     assert pipeline.destination.destination_name == "production_az_bucket"
@@ -45,7 +47,9 @@ def destination_instantiation_snippet() -> None:
     # pass full credentials - together with the password (not recommended)
     pipeline = dlt.pipeline(
         "pipeline",
-        destination=postgres(credentials="postgresql://loader:loader@localhost:5432/dlt_data"),
+        destination=postgres(
+            credentials="postgresql://loader:loader@localhost:5432/dlt_data"
+        ),
     )
     # @@@DLT_SNIPPET_END config_explicit
 
@@ -75,7 +79,8 @@ def destination_instantiation_snippet() -> None:
     # fill only the account name, leave key to be taken from secrets
     credentials.azure_storage_account_name = "production_storage"
     pipeline = dlt.pipeline(
-        "pipeline", destination=filesystem("az://dlt-azure-bucket", credentials=credentials)
+        "pipeline",
+        destination=filesystem("az://dlt-azure-bucket", credentials=credentials),
     )
     # @@@DLT_SNIPPET_END config_partial_spec
 

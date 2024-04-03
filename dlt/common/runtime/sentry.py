@@ -11,7 +11,8 @@ except ModuleNotFoundError:
     raise MissingDependencyException(
         "sentry telemetry",
         ["sentry-sdk"],
-        "Please install sentry-sdk if you have `sentry_dsn` set in your RuntimeConfiguration",
+        "Please install sentry-sdk if you have `sentry_dsn` set in your"
+        " RuntimeConfiguration",
     )
 
 from dlt.common.typing import DictStrAny, Any, StrAny
@@ -56,7 +57,9 @@ def disable_sentry() -> None:
     sentry_sdk.init()
 
 
-def before_send(event: DictStrAny, _unused_hint: Optional[StrAny] = None) -> Optional[DictStrAny]:
+def before_send(
+    event: DictStrAny, _unused_hint: Optional[StrAny] = None
+) -> Optional[DictStrAny]:
     """Called by sentry before sending event. Does nothing, patch this function in the module for custom behavior"""
     return event
 

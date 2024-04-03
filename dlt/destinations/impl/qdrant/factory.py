@@ -2,7 +2,10 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.destinations.impl.qdrant.configuration import QdrantCredentials, QdrantClientConfiguration
+from dlt.destinations.impl.qdrant.configuration import (
+    QdrantCredentials,
+    QdrantClientConfiguration,
+)
 from dlt.destinations.impl.qdrant import capabilities
 
 if t.TYPE_CHECKING:

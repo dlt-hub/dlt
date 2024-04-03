@@ -19,7 +19,13 @@ from dlt.cli.requirements import SourceRequirements
 
 SOURCES_INIT_INFO_ENGINE_VERSION = 1
 SOURCES_INIT_INFO_FILE = ".sources"
-IGNORE_FILES = ["*.py[cod]", "*$py.class", "__pycache__", "py.typed", "requirements.txt"]
+IGNORE_FILES = [
+    "*.py[cod]",
+    "*$py.class",
+    "__pycache__",
+    "py.typed",
+    "requirements.txt",
+]
 IGNORE_SOURCES = [".*", "_*"]
 
 
@@ -53,13 +59,19 @@ class TVerifiedSourcesFileIndex(TypedDict):
 
 
 def _save_dot_sources(index: TVerifiedSourcesFileIndex) -> None:
-    with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8") as f:
-        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    with open(
+        make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "w", encoding="utf-8"
+    ) as f:
+        yaml.dump(
+            index, f, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
 
 
 def _load_dot_sources() -> TVerifiedSourcesFileIndex:
     try:
-        with open(make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8") as f:
+        with open(
+            make_dlt_settings_path(SOURCES_INIT_INFO_FILE), "r", encoding="utf-8"
+        ) as f:
             index: TVerifiedSourcesFileIndex = yaml.safe_load(f)
             if not index:
                 raise FileNotFoundError(SOURCES_INIT_INFO_FILE)
@@ -155,7 +167,10 @@ def get_verified_source_names(sources_storage: FileStorage) -> List[str]:
         if not any(fnmatch.fnmatch(n, ignore) for ignore in IGNORE_SOURCES)
     ]:
         # must contain at least one valid python script
-        if any(f.endswith(".py") for f in sources_storage.list_folder_files(name, to_root=False)):
+        if any(
+            f.endswith(".py")
+            for f in sources_storage.list_folder_files(name, to_root=False)
+        ):
             candidates.append(name)
     return candidates
 
@@ -165,13 +180,15 @@ def get_verified_source_files(
 ) -> VerifiedSourceFiles:
     if not sources_storage.has_folder(source_name):
         raise VerifiedSourceRepoError(
-            f"Verified source {source_name} could not be found in the repository", source_name
+            f"Verified source {source_name} could not be found in the repository",
+            source_name,
         )
     # find example script
     example_script = f"{source_name}_pipeline.py"
     if not sources_storage.has_file(example_script):
         raise VerifiedSourceRepoError(
-            f"Pipeline example script {example_script} could not be found in the repository",
+            f"Pipeline example script {example_script} could not be found in the"
+            " repository",
             source_name,
         )
     # get all files recursively
@@ -199,12 +216,20 @@ def get_verified_source_files(
     # read requirements
     requirements_path = os.path.join(source_name, utils.REQUIREMENTS_TXT)
     if sources_storage.has_file(requirements_path):
-        requirements = SourceRequirements.from_string(sources_storage.load(requirements_path))
+        requirements = SourceRequirements.from_string(
+            sources_storage.load(requirements_path)
+        )
     else:
         requirements = SourceRequirements([])
     # find requirements
     return VerifiedSourceFiles(
-        False, sources_storage, example_script, example_script, files, requirements, docstring
+        False,
+        sources_storage,
+        example_script,
+        example_script,
+        files,
+        requirements,
+        docstring,
     )
 
 
@@ -267,7 +292,9 @@ def find_conflict_files(
     for file, entry in remote_modified.items():
         if dest_storage.has_file(file):
             # if local file was changes and it is different from incoming
-            if is_file_modified(file, entry) and is_file_modified(file, local_index["files"][file]):
+            if is_file_modified(file, entry) and is_file_modified(
+                file, local_index["files"][file]
+            ):
                 conflict_modified.append(file)
         else:
             # file was deleted but is modified on remote

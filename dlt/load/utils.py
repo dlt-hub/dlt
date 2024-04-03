@@ -30,7 +30,10 @@ def get_completed_table_chain(
     # returns ordered list of tables from parent to child leaf tables
     table_chain: List[TTableSchema] = []
     # allow for jobless tables for those write disposition
-    skip_jobless_table = top_merged_table["write_disposition"] not in ("replace", "merge")
+    skip_jobless_table = top_merged_table["write_disposition"] not in (
+        "replace",
+        "merge",
+    )
 
     # make sure all the jobs for the table chain is completed
     for table in map(
@@ -40,7 +43,9 @@ def get_completed_table_chain(
         table_jobs = PackageStorage.filter_jobs_for_table(all_jobs, table["name"])
         # skip tables that never seen data
         if not has_table_seen_data(table):
-            assert len(table_jobs) == 0, f"Tables that never seen data cannot have jobs {table}"
+            assert (
+                len(table_jobs) == 0
+            ), f"Tables that never seen data cannot have jobs {table}"
             continue
         # skip jobless tables
         if len(table_jobs) == 0 and skip_jobless_table:
@@ -86,14 +91,18 @@ def init_client(
     dlt_tables = set(schema.dlt_table_names())
     # tables without data (TODO: normalizer removes such jobs, write tests and remove the line below)
     tables_no_data = set(
-        table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
+        table["name"]
+        for table in schema.data_tables()
+        if not has_table_seen_data(table)
     )
     # get all tables that actually have load jobs with data
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their child tables
     truncate_tables = set(
-        _extend_tables_with_table_chain(schema, tables_with_jobs, tables_with_jobs, truncate_filter)
+        _extend_tables_with_table_chain(
+            schema, tables_with_jobs, tables_with_jobs, truncate_filter
+        )
     )
 
     applied_update = _init_dataset_and_update_schema(
@@ -114,7 +123,8 @@ def init_client(
                 _init_dataset_and_update_schema(
                     job_client,
                     expected_update,
-                    staging_tables | {schema.version_table_name},  # keep only schema version
+                    staging_tables
+                    | {schema.version_table_name},  # keep only schema version
                     staging_tables,  # all eligible tables must be also truncated
                     staging_info=True,
                 )
@@ -136,14 +146,15 @@ def _init_dataset_and_update_schema(
     )
     job_client.initialize_storage()
     logger.info(
-        f"Client for {job_client.config.destination_type} will update schema to package schema"
-        f" {staging_text}"
+        f"Client for {job_client.config.destination_type} will update schema to package"
+        f" schema {staging_text}"
     )
     applied_update = job_client.update_stored_schema(
         only_tables=update_tables, expected_update=expected_update
     )
     logger.info(
-        f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
+        f"Client for {job_client.config.destination_type} will truncate tables"
+        f" {staging_text}"
     )
     job_client.initialize_storage(truncate_tables=truncate_tables)
     return applied_update
@@ -167,7 +178,10 @@ def _extend_tables_with_table_chain(
         # for replace and merge write dispositions we should include tables
         # without jobs in the table chain, because child tables may need
         # processing due to changes in the root table
-        skip_jobless_table = top_job_table["write_disposition"] not in ("replace", "merge")
+        skip_jobless_table = top_job_table["write_disposition"] not in (
+            "replace",
+            "merge",
+        )
         for table in map(
             lambda t: fill_hints_from_parent_and_clone_table(schema.tables, t),
             get_child_tables(schema.tables, top_job_table["name"]),

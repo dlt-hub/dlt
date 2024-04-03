@@ -39,9 +39,13 @@ class NamingConvention(ABC):
 
     def normalize_path(self, path: str) -> str:
         """Breaks path into identifiers, normalizes components, reconstitutes and shortens the path"""
-        normalized_idents = [self.normalize_identifier(ident) for ident in self.break_path(path)]
+        normalized_idents = [
+            self.normalize_identifier(ident) for ident in self.break_path(path)
+        ]
         # shorten the whole path
-        return self.shorten_identifier(self.make_path(*normalized_idents), path, self.max_length)
+        return self.shorten_identifier(
+            self.make_path(*normalized_idents), path, self.max_length
+        )
 
     def normalize_tables_path(self, path: str) -> str:
         """Breaks path of table identifiers, normalizes components, reconstitutes and shortens the path"""
@@ -49,7 +53,9 @@ class NamingConvention(ABC):
             self.normalize_table_identifier(ident) for ident in self.break_path(path)
         ]
         # shorten the whole path
-        return self.shorten_identifier(self.make_path(*normalized_idents), path, self.max_length)
+        return self.shorten_identifier(
+            self.make_path(*normalized_idents), path, self.max_length
+        )
 
     def shorten_fragments(self, *normalized_idents: str) -> str:
         """Reconstitutes and shortens the path of normalized identifiers"""
@@ -70,7 +76,9 @@ class NamingConvention(ABC):
         if max_length and len(normalized_ident) > max_length:
             # use original identifier to compute tag
             tag = NamingConvention._compute_tag(identifier, collision_prob)
-            normalized_ident = NamingConvention._trim_and_tag(normalized_ident, tag, max_length)
+            normalized_ident = NamingConvention._trim_and_tag(
+                normalized_ident, tag, max_length
+            )
 
         return normalized_ident
 
@@ -80,7 +88,9 @@ class NamingConvention(ABC):
         # take into account that we are case insensitive in base64 so we need ~1.5x more bits (2+1)
         tl_bytes = int(((2 + 1) * math.log2(1 / (collision_prob)) // 8) + 1)
         tag = (
-            base64.b64encode(hashlib.shake_128(identifier.encode("utf-8")).digest(tl_bytes))
+            base64.b64encode(
+                hashlib.shake_128(identifier.encode("utf-8")).digest(tl_bytes)
+            )
             .rstrip(b"=")
             .translate(NamingConvention._TR_TABLE)
             .lower()

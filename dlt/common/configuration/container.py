@@ -32,7 +32,9 @@ class Container:
     _MAIN_THREAD_ID: ClassVar[int] = threading.get_ident()
     """A main thread id to which get item will fallback for contexts without default"""
 
-    thread_contexts: Dict[int, Dict[Type[ContainerInjectableContext], ContainerInjectableContext]]
+    thread_contexts: Dict[
+        int, Dict[Type[ContainerInjectableContext], ContainerInjectableContext]
+    ]
     """A thread aware mapping of injection context """
     _context_container_locks: Dict[str, threading.Lock]
     """Locks for container types on threads."""

@@ -1,7 +1,10 @@
 from typing import ClassVar, List, Union, Optional
 
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
+from dlt.common.configuration.specs.base_configuration import (
+    CredentialsConfiguration,
+    configspec,
+)
 
 
 @configspec
@@ -17,7 +20,9 @@ class OAuth2Credentials(CredentialsConfiguration):
     # add refresh_token when generating config samples
     __config_gen_annotations__: ClassVar[List[str]] = ["refresh_token"]
 
-    def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:
+    def auth(
+        self, scopes: Union[str, List[str]] = None, redirect_url: str = None
+    ) -> None:
         """Authorizes the client using the available credentials
 
         Uses the `refresh_token` grant if refresh token is available. Note that `scopes` and `redirect_url` are ignored in this flow.

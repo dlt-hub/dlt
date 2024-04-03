@@ -5,7 +5,11 @@ from dlt.common import json, logger
 from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
-from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
+from dlt.common.schema.typing import (
+    TSchemaEvolutionMode,
+    TTableSchemaColumns,
+    TSchemaContractDict,
+)
 from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.storages import (
     NormalizeStorage,
@@ -43,7 +47,9 @@ class ItemsNormalizer:
         self.config = config
 
     @abstractmethod
-    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
+    def __call__(
+        self, extracted_items_file: str, root_table_name: str
+    ) -> List[TSchemaUpdate]: ...
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):
@@ -74,7 +80,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         return row
 
     def _normalize_chunk(
-        self, root_table_name: str, items: List[TDataItem], may_have_pua: bool, skip_write: bool
+        self,
+        root_table_name: str,
+        items: List[TDataItem],
+        may_have_pua: bool,
+        skip_write: bool,
     ) -> TSchemaUpdate:
         column_schemas = self._column_schemas
         schema_update: TSchemaUpdate = {}
@@ -106,7 +116,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
                     # filter columns or full rows if schema contract said so
                     # do it before schema inference in `coerce_row` to not trigger costly migration code
-                    filtered_columns = self._filtered_tables_columns.get(table_name, None)
+                    filtered_columns = self._filtered_tables_columns.get(
+                        table_name, None
+                    )
                     if filtered_columns:
                         row = self._filter_columns(filtered_columns, row)  # type: ignore[arg-type]
                         # if whole row got dropped
@@ -120,7 +132,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             row[k] = custom_pua_decode(v)  # type: ignore
 
                     # coerce row of values into schema table, generating partial table with new columns if any
-                    row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                    row, partial_table = schema.coerce_row(
+                        table_name, parent_table, row
+                    )
 
                     # if we detect a migration, check schema contract
                     if partial_table:
@@ -138,8 +152,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                                 if entity == "tables":
                                     self._filtered_tables.add(name)
                                 elif entity == "columns":
-                                    filtered_columns = self._filtered_tables_columns.setdefault(
-                                        table_name, {}
+                                    filtered_columns = (
+                                        self._filtered_tables_columns.setdefault(
+                                            table_name, {}
+                                        )
                                     )
                                     filtered_columns[name] = mode
 
@@ -154,7 +170,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         table_updates.append(partial_table)
 
                         # update our columns
-                        column_schemas[table_name] = schema.get_table_columns(table_name)
+                        column_schemas[table_name] = schema.get_table_columns(
+                            table_name
+                        )
 
                         # apply new filters
                         if filtered_columns and filters:
@@ -199,7 +217,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     root_table_name, items, may_have_pua(line), skip_write=False
                 )
                 schema_updates.append(partial_update)
-                logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
+                logger.debug(
+                    f"Processed {line_no+1} lines from file {extracted_items_file}"
+                )
             if line is None and root_table_name in self.schema.tables:
                 # TODO: we should push the truncate jobs via package state
                 # not as empty jobs. empty jobs should be reserved for
@@ -218,7 +238,8 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     self.schema.get_table_columns(root_table_name),
                 )
                 logger.debug(
-                    f"No lines in file {extracted_items_file}, written empty load job file"
+                    f"No lines in file {extracted_items_file}, written empty load job"
+                    " file"
                 )
 
         return schema_updates
@@ -228,7 +249,11 @@ class ParquetItemsNormalizer(ItemsNormalizer):
     REWRITE_ROW_GROUPS = 1
 
     def _write_with_dlt_columns(
-        self, extracted_items_file: str, root_table_name: str, add_load_id: bool, add_dlt_id: bool
+        self,
+        extracted_items_file: str,
+        root_table_name: str,
+        add_load_id: bool,
+        add_dlt_id: bool,
     ) -> List[TSchemaUpdate]:
         new_columns: List[Any] = []
         schema = self.schema
@@ -255,7 +280,9 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 (
                     -1,
                     pa.field("_dlt_load_id", load_id_type, nullable=False),
-                    lambda batch: pa.array([load_id] * batch.num_rows, type=load_id_type),
+                    lambda batch: pa.array(
+                        [load_id] * batch.num_rows, type=load_id_type
+                    ),
                 )
             )
 
@@ -264,7 +291,11 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 {
                     "name": root_table_name,
                     "columns": {
-                        "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False}
+                        "_dlt_id": {
+                            "name": "_dlt_id",
+                            "data_type": "text",
+                            "nullable": False,
+                        }
                     },
                 }
             )
@@ -322,16 +353,26 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         if not new_cols:
             return []
         return [
-            {root_table_name: [schema.update_table({"name": root_table_name, "columns": new_cols})]}
+            {
+                root_table_name: [
+                    schema.update_table({"name": root_table_name, "columns": new_cols})
+                ]
+            }
         ]
 
-    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+    def __call__(
+        self, extracted_items_file: str, root_table_name: str
+    ) -> List[TSchemaUpdate]:
         base_schema_update = self._fix_schema_precisions(root_table_name)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id
 
-        if add_dlt_id or add_dlt_load_id or self.load_storage.loader_file_format != "arrow":
+        if (
+            add_dlt_id
+            or add_dlt_load_id
+            or self.load_storage.loader_file_format != "arrow"
+        ):
             schema_update = self._write_with_dlt_columns(
                 extracted_items_file, root_table_name, add_dlt_load_id, add_dlt_id
             )
@@ -342,14 +383,18 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
-            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell(), 0, 0)
+            file_metrics = DataWriterMetrics(
+                extracted_items_file, get_row_count(f), f.tell(), 0, 0
+            )
 
         parts = ParsedLoadJobFileName.parse(extracted_items_file)
         self.load_storage.import_items_file(
             self.load_id,
             self.schema.name,
             parts.table_name,
-            self.normalize_storage.extracted_packages.storage.make_full_path(extracted_items_file),
+            self.normalize_storage.extracted_packages.storage.make_full_path(
+                extracted_items_file
+            ),
             file_metrics,
         )
 

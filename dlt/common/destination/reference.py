@@ -49,10 +49,16 @@ from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
-TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
-TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
+TLoaderReplaceStrategy = Literal[
+    "truncate-and-insert", "insert-from-staging", "staging-optimized"
+]
+TDestinationConfig = TypeVar(
+    "TDestinationConfig", bound="DestinationClientConfiguration"
+)
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
-TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
+TDestinationDwhClient = TypeVar(
+    "TDestinationDwhClient", bound="DestinationClientDwhConfiguration"
+)
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -131,7 +137,10 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             raise ValueError("schema_name is None or empty")
 
         # if default schema is None then suffix is not added
-        if self.default_schema_name is not None and schema.name != self.default_schema_name:
+        if (
+            self.default_schema_name is not None
+            and schema.name != self.default_schema_name
+        ):
             # also normalize schema name. schema name is Python identifier and here convention may be different
             return schema.naming.normalize_table_identifier(
                 (self.dataset_name or "") + "_" + schema.name
@@ -295,7 +304,9 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         """Creates and starts a load job for a particular `table` with content in `file_path`"""
         pass
 
@@ -324,7 +335,10 @@ class JobClientBase(ABC):
 
     @abstractmethod
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         pass
 
@@ -347,7 +361,8 @@ class JobClientBase(ABC):
             if has_column_with_prop(table, "hard_delete"):
                 if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                     raise SchemaException(
-                        f'Found multiple "hard_delete" column hints for table "{table_name}" in'
+                        'Found multiple "hard_delete" column hints for table'
+                        f' "{table_name}" in'
                         f' schema "{self.schema.name}" while only one is allowed:'
                         f' {", ".join(get_columns_names_with_prop(table, "hard_delete"))}.'
                     )
@@ -363,7 +378,8 @@ class JobClientBase(ABC):
             if has_column_with_prop(table, "dedup_sort"):
                 if len(get_columns_names_with_prop(table, "dedup_sort")) > 1:
                     raise SchemaException(
-                        f'Found multiple "dedup_sort" column hints for table "{table_name}" in'
+                        'Found multiple "dedup_sort" column hints for table'
+                        f' "{table_name}" in'
                         f' schema "{self.schema.name}" while only one is allowed:'
                         f' {", ".join(get_columns_names_with_prop(table, "dedup_sort"))}.'
                     )
@@ -376,9 +392,9 @@ class JobClientBase(ABC):
                         ' The "dedup_sort" column hint is only applied when using'
                         ' the "merge" write disposition.'
                     )
-                if table.get("write_disposition") == "merge" and not has_column_with_prop(
-                    table, "primary_key"
-                ):
+                if table.get(
+                    "write_disposition"
+                ) == "merge" and not has_column_with_prop(table, "primary_key"):
                     logger.warning(
                         f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
                         f'in table "{table_name}" with write disposition'
@@ -398,9 +414,10 @@ class JobClientBase(ABC):
                 if not is_complete_column(column):
                     logger.warning(
                         f"A column {column_name} in table {table_name} in schema"
-                        f" {self.schema.name} is incomplete. It was not bound to the data during"
-                        " normalizations stage and its data type is unknown. Did you add this"
-                        " column manually in code ie. as a merge key?"
+                        f" {self.schema.name} is incomplete. It was not bound to the"
+                        " data during normalizations stage and its data type is"
+                        " unknown. Did you add this column manually in code ie. as a"
+                        " merge key?"
                     )
 
     def prepare_load_table(
@@ -411,7 +428,9 @@ class JobClientBase(ABC):
             table = deepcopy(self.schema.tables[table_name])
             # add write disposition if not specified - in child tables
             if "write_disposition" not in table:
-                table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
+                table["write_disposition"] = get_write_disposition(
+                    self.schema.tables, table_name
+                )
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             return table
@@ -456,7 +475,9 @@ class SupportsStagingDestination:
     ) -> bool:
         return False
 
-    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load_on_staging_destination(
+        self, table: TTableSchema
+    ) -> bool:
         # the default is to truncate the tables on the staging destination...
         return True
 
@@ -495,7 +516,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     def destination_name(self) -> str:
         """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
-        return self.config_params.get("destination_name") or self.to_name(self.destination_type)
+        return self.config_params.get("destination_name") or self.to_name(
+            self.destination_type
+        )
 
     @property
     def destination_type(self) -> str:
@@ -566,8 +589,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         if isinstance(ref, Destination):
             if credentials or destination_name or environment:
                 logger.warning(
-                    "Cannot override credentials, destination_name or environment when passing a"
-                    " Destination instance, these values will be ignored."
+                    "Cannot override credentials, destination_name or environment when"
+                    " passing a Destination instance, these values will be ignored."
                 )
             return ref
         if not isinstance(ref, str):
@@ -579,9 +602,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             raise UnknownDestinationModule(ref) from e
 
         try:
-            factory: Type[Destination[DestinationClientConfiguration, JobClientBase]] = getattr(
-                dest_module, attr_name
-            )
+            factory: Type[
+                Destination[DestinationClientConfiguration, JobClientBase]
+            ] = getattr(dest_module, attr_name)
         except AttributeError as e:
             raise UnknownDestinationModule(ref) from e
         if credentials:

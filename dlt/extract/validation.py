@@ -7,7 +7,11 @@ except ModuleNotFoundError:
     PydanticBaseModel = Any  # type: ignore[misc, assignment]
 
 from dlt.common.typing import TDataItems
-from dlt.common.schema.typing import TAnySchemaColumns, TSchemaContract, TSchemaEvolutionMode
+from dlt.common.schema.typing import (
+    TAnySchemaColumns,
+    TSchemaContract,
+    TSchemaEvolutionMode,
+)
 from dlt.extract.items import TTableHintTemplate, ValidateItem
 
 
@@ -23,7 +27,10 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         column_mode: TSchemaEvolutionMode,
         data_mode: TSchemaEvolutionMode,
     ) -> None:
-        from dlt.common.libs.pydantic import apply_schema_contract_to_model, create_list_model
+        from dlt.common.libs.pydantic import (
+            apply_schema_contract_to_model,
+            create_list_model,
+        )
 
         self.column_mode: TSchemaEvolutionMode = column_mode
         self.data_mode: TSchemaEvolutionMode = data_mode
@@ -43,7 +50,9 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
             return validate_items(
                 self.table_name, self.list_model, item, self.column_mode, self.data_mode
             )
-        return validate_item(self.table_name, self.model, item, self.column_mode, self.data_mode)
+        return validate_item(
+            self.table_name, self.model, item, self.column_mode, self.data_mode
+        )
 
     def __str__(self, *args: Any, **kwargs: Any) -> str:
         return f"PydanticValidator(model={self.model.__qualname__})"
@@ -81,7 +90,9 @@ def create_item_validator(
         )
         return (
             PydanticValidator(
-                columns, expanded_schema_contract["columns"], expanded_schema_contract["data_type"]
+                columns,
+                expanded_schema_contract["columns"],
+                expanded_schema_contract["data_type"],
             ),
             schema_contract or expanded_schema_contract,
         )

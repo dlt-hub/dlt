@@ -94,15 +94,25 @@ def test_wei_to_double() -> None:
 
 def test_detection_function() -> None:
     assert autodetect_sc_type(None, str, str(pendulum.now())) is None
-    assert autodetect_sc_type(["iso_timestamp"], str, str(pendulum.now())) == "timestamp"
+    assert (
+        autodetect_sc_type(["iso_timestamp"], str, str(pendulum.now())) == "timestamp"
+    )
     assert autodetect_sc_type(["iso_timestamp"], float, str(pendulum.now())) is None
     assert autodetect_sc_type(["iso_date"], str, str(pendulum.now().date())) == "date"
     assert autodetect_sc_type(["iso_date"], float, str(pendulum.now().date())) is None
     assert autodetect_sc_type(["timestamp"], str, str(pendulum.now())) is None
     assert (
-        autodetect_sc_type(["timestamp", "iso_timestamp"], float, pendulum.now().timestamp())
+        autodetect_sc_type(
+            ["timestamp", "iso_timestamp"], float, pendulum.now().timestamp()
+        )
         == "timestamp"
     )
     assert autodetect_sc_type(["timestamp", "large_integer"], int, 2**64) == "wei"
-    assert autodetect_sc_type(["large_integer", "hexbytes_to_text"], HexBytes, b"hey") == "text"
-    assert autodetect_sc_type(["large_integer", "wei_to_double"], Wei, Wei(10**18)) == "double"
+    assert (
+        autodetect_sc_type(["large_integer", "hexbytes_to_text"], HexBytes, b"hey")
+        == "text"
+    )
+    assert (
+        autodetect_sc_type(["large_integer", "wei_to_double"], Wei, Wei(10**18))
+        == "double"
+    )

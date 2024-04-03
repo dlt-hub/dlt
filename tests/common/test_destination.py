@@ -1,8 +1,14 @@
 import pytest
 
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
+from dlt.common.destination.reference import (
+    DestinationClientDwhConfiguration,
+    Destination,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
+from dlt.common.destination.exceptions import (
+    InvalidDestinationReference,
+    UnknownDestinationModule,
+)
 from dlt.common.schema import Schema
 
 from tests.utils import ACTIVE_DESTINATIONS
@@ -19,7 +25,9 @@ def test_import_unknown_destination() -> None:
 
 def test_invalid_destination_reference() -> None:
     with pytest.raises(InvalidDestinationReference):
-        Destination.from_reference("tests.load.cases.fake_destination.not_a_destination")
+        Destination.from_reference(
+            "tests.load.cases.fake_destination.not_a_destination"
+        )
 
 
 def test_custom_destination_module() -> None:
@@ -75,7 +83,9 @@ def test_import_all_destinations() -> None:
 
 def test_import_destination_config() -> None:
     # importing destination by type will work
-    dest = Destination.from_reference(ref="dlt.destinations.duckdb", environment="stage")
+    dest = Destination.from_reference(
+        ref="dlt.destinations.duckdb", environment="stage"
+    )
     assert dest.destination_type == "dlt.destinations.duckdb"
     assert dest.config_params["environment"] == "stage"
     config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
@@ -84,7 +94,9 @@ def test_import_destination_config() -> None:
     assert config.environment == "stage"
 
     # importing destination by will work
-    dest = Destination.from_reference(ref=None, destination_name="duckdb", environment="production")
+    dest = Destination.from_reference(
+        ref=None, destination_name="duckdb", environment="production"
+    )
     assert dest.destination_type == "dlt.destinations.duckdb"
     assert dest.config_params["environment"] == "production"
     config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
@@ -113,14 +125,18 @@ def test_normalize_dataset_name() -> None:
 
     assert (
         DestinationClientDwhConfiguration()
-        ._bind_dataset_name(dataset_name="ban_ana_dataset", default_schema_name="default")
+        ._bind_dataset_name(
+            dataset_name="ban_ana_dataset", default_schema_name="default"
+        )
         .normalize_dataset_name(Schema("banana"))
         == "ban_ana_dataset_banana"
     )
     # without schema name appended
     assert (
         DestinationClientDwhConfiguration()
-        ._bind_dataset_name(dataset_name="ban_ana_dataset", default_schema_name="default")
+        ._bind_dataset_name(
+            dataset_name="ban_ana_dataset", default_schema_name="default"
+        )
         .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )

@@ -71,7 +71,10 @@ class Venv:
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: types.TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: types.TracebackType,
     ) -> None:
         self.delete_environment()
 

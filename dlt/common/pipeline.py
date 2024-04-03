@@ -36,7 +36,12 @@ from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TColumnSchema,
+    TWriteDisposition,
+    TSchemaContract,
+)
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
@@ -104,7 +109,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         # to be mixed with NamedTuple
         step_info: DictStrAny = self._asdict()  # type: ignore
         step_info["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
-        step_info["load_packages"] = [package.asdict() for package in self.load_packages]
+        step_info["load_packages"] = [
+            package.asdict() for package in self.load_packages
+        ]
         if self.metrics:
             step_info["started_at"] = self.started_at
             step_info["finished_at"] = self.finished_at
@@ -120,23 +127,36 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         return self.asstr(verbosity=0)
 
     @staticmethod
-    def _load_packages_asstr(load_packages: List[LoadPackageInfo], verbosity: int) -> str:
+    def _load_packages_asstr(
+        load_packages: List[LoadPackageInfo], verbosity: int
+    ) -> str:
         msg: str = ""
         for load_package in load_packages:
             cstr = (
                 load_package.state.upper()
                 if load_package.completed_at
-                else f"{load_package.state.upper()} and NOT YET LOADED to the destination"
+                else (
+                    f"{load_package.state.upper()} and NOT YET LOADED to the"
+                    " destination"
+                )
             )
             # now enumerate all complete loads if we have any failed packages
             # complete but failed job will not raise any exceptions
             failed_jobs = load_package.jobs["failed_jobs"]
-            jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
-            msg += f"\nLoad package {load_package.load_id} is {cstr} and contains {jobs_str}"
+            jobs_str = (
+                "no failed jobs"
+                if not failed_jobs
+                else f"{len(failed_jobs)} FAILED job(s)!"
+            )
+            msg += (
+                f"\nLoad package {load_package.load_id} is {cstr} and contains"
+                f" {jobs_str}"
+            )
             if verbosity > 0:
                 for failed_job in failed_jobs:
                     msg += (
-                        f"\n\t[{failed_job.job_file_info.job_id()}]: {failed_job.failed_message}\n"
+                        f"\n\t[{failed_job.job_file_info.job_id()}]:"
+                        f" {failed_job.failed_message}\n"
                     )
             if verbosity > 1:
                 msg += "\nPackage details:\n"
@@ -145,7 +165,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
 
     @staticmethod
     def job_metrics_asdict(
-        job_metrics: Dict[str, DataWriterMetrics], key_name: str = "job_id", extend: StrAny = None
+        job_metrics: Dict[str, DataWriterMetrics],
+        key_name: str = "job_id",
+        extend: StrAny = None,
     ) -> List[DictStrAny]:
         jobs = []
         for job_id, metrics in job_metrics.items():
@@ -228,7 +250,9 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
                 )
                 load_metrics["resource_metrics"].extend(
                     self.job_metrics_asdict(
-                        metrics["resource_metrics"], key_name="resource_name", extend=extend
+                        metrics["resource_metrics"],
+                        key_name="resource_name",
+                        extend=extend,
                     )
                 )
                 load_metrics["dag"].extend(
@@ -279,9 +303,12 @@ class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore
             return {}
         counts: RowCounts = {}
         for metrics in self.metrics.values():
-            assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
+            assert (
+                len(metrics) == 1
+            ), "Cannot deal with more than 1 normalize metric per load_id"
             merge_row_counts(
-                counts, {t: m.items_count for t, m in metrics[0]["table_metrics"].items()}
+                counts,
+                {t: m.items_count for t, m in metrics[0]["table_metrics"].items()},
             )
         return counts
 
@@ -419,8 +446,8 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
         assert self._current_load_id == load_id, (
-            f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
-            " info"
+            f"Current load id mismatch {self._current_load_id} != {load_id} when"
+            " completing step info"
         )
         metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
         metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
@@ -568,8 +595,8 @@ class PipelineContext(ContainerInjectableContext):
         if not self._pipeline:
             # delayed pipeline creation
             assert self._deferred_pipeline is not None, (
-                "Deferred pipeline creation function not provided to PipelineContext. Are you"
-                " calling dlt.pipeline() from another thread?"
+                "Deferred pipeline creation function not provided to PipelineContext."
+                " Are you calling dlt.pipeline() from another thread?"
             )
             self.activate(self._deferred_pipeline())
         return self._pipeline
@@ -590,7 +617,9 @@ class PipelineContext(ContainerInjectableContext):
             self._pipeline._set_context(False)
         self._pipeline = None
 
-    def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
+    def __init__(
+        self, deferred_pipeline: Callable[..., SupportsPipeline] = None
+    ) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
         self._deferred_pipeline = deferred_pipeline
 
@@ -745,7 +774,9 @@ def resource_state(
     return state_.setdefault("resources", {}).setdefault(resource_name, {})  # type: ignore
 
 
-def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> None:
+def reset_resource_state(
+    resource_name: str, source_state_: Optional[DictStrAny] = None, /
+) -> None:
     """Resets the resource state with name `resource_name` by removing it from `source_state`
 
     Args:

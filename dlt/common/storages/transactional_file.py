@@ -56,13 +56,16 @@ class TransactionalFile:
             path: The path to lock.
             fs: The fsspec file system.
         """
-        proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
+        proto = (
+            fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
+        )
         self.extract_mtime = MTIME_DISPATCH.get(proto, MTIME_DISPATCH["file"])
 
         parsed_path = Path(path)
         if not parsed_path.is_absolute():
             raise ValueError(
-                f"{path} is not absolute. Please pass only absolute paths to TransactionalFile"
+                f"{path} is not absolute. Please pass only absolute paths to"
+                " TransactionalFile"
             )
         self.path = path
         if proto == "file":
@@ -98,7 +101,9 @@ class TransactionalFile:
         output = []
         now = pendulum.now()
 
-        for lock in self._fs.ls(posixpath.dirname(self.lock_path), refresh=True, detail=True):
+        for lock in self._fs.ls(
+            posixpath.dirname(self.lock_path), refresh=True, detail=True
+        ):
             name = lock["name"]
             if not name.startswith(self.lock_prefix):
                 continue
@@ -114,8 +119,8 @@ class TransactionalFile:
             output.append(name)
         if not output:
             raise RuntimeError(
-                f"When syncing locks for path {self.path} and lock {self.lock_path} no lock file"
-                " was found"
+                f"When syncing locks for path {self.path} and lock {self.lock_path} no"
+                " lock file was found"
             )
         return output
 
@@ -172,7 +177,9 @@ class TransactionalFile:
             return True
 
         if jitter_mean > 0:
-            time.sleep(random.random() * jitter_mean)  # Add jitter to avoid thundering herd
+            time.sleep(
+                random.random() * jitter_mean
+            )  # Add jitter to avoid thundering herd
         self.lock_path = f"{self.lock_prefix}.{lock_id()}"
         self._fs.touch(self.lock_path)
         locks = self._sync_locks()

@@ -105,7 +105,9 @@ def _extra_providers() -> List[ConfigProvider]:
         extra_providers.extend(_airflow_providers())
     if providers_config.enable_google_secrets:
         extra_providers.append(
-            _google_secrets_provider(only_toml_fragments=providers_config.only_toml_fragments)
+            _google_secrets_provider(
+                only_toml_fragments=providers_config.only_toml_fragments
+            )
         )
     return extra_providers
 
@@ -116,7 +118,8 @@ def _google_secrets_provider(
     from dlt.common.configuration.resolve import resolve_configuration
 
     c = resolve_configuration(
-        GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets")
+        GcpServiceAccountCredentials(),
+        sections=(known_sections.PROVIDERS, "google_secrets"),
     )
     return GoogleSecretsProvider(
         c, only_secrets=only_secrets, only_toml_fragments=only_toml_fragments
@@ -140,10 +143,14 @@ def _airflow_providers() -> List[ConfigProvider]:
 
     try:
         # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             # try to get dlt secrets variable. many broken Airflow installations break here. in that case do not create
             from airflow.models import Variable, TaskInstance  # noqa
-            from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+            from dlt.common.configuration.providers.airflow import (
+                AirflowSecretsTomlProvider,
+            )
 
             # probe if Airflow variable containing all secrets is present
             from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
@@ -164,8 +171,8 @@ def _airflow_providers() -> List[ConfigProvider]:
                 f"Airflow variable '{SECRETS_TOML_KEY}' was not found. "
                 + "This Airflow variable is a recommended place to hold the content of"
                 " secrets.toml."
-                + "If you do not use Airflow variables to hold dlt configuration or use variables"
-                " with other names you can ignore this warning."
+                + "If you do not use Airflow variables to hold dlt configuration or use"
+                " variables with other names you can ignore this warning."
             )
             ti.log.warning(message)
 

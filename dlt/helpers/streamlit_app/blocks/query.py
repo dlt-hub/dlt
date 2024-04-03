@@ -37,8 +37,8 @@ def maybe_run_query(
                                 raise MissingDependencyException(
                                     "DLT Streamlit Helpers",
                                     ["altair"],
-                                    "DLT Helpers for Streamlit should be run within a streamlit"
-                                    " app.",
+                                    "DLT Helpers for Streamlit should be run within a"
+                                    " streamlit app.",
                                 )
 
                             # try altair
@@ -46,7 +46,8 @@ def maybe_run_query(
                                 alt.Chart(df)
                                 .mark_bar()
                                 .encode(
-                                    x=f"{df.columns[1]}:Q", y=alt.Y(f"{df.columns[0]}:N", sort="-x")
+                                    x=f"{df.columns[1]}:Q",
+                                    y=alt.Y(f"{df.columns[0]}:N", sort="-x"),
                                 )
                             )
                             st.altair_chart(bar_chart, use_container_width=True)

@@ -1,6 +1,12 @@
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
+from dlt.common.data_writers.escape import (
+    escape_postgres_identifier,
+    escape_postgres_literal,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
+from dlt.common.destination.reference import (
+    JobClientBase,
+    DestinationClientConfiguration,
+)
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 

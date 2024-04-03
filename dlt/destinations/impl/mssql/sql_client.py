@@ -28,7 +28,9 @@ from dlt.destinations.impl.mssql import capabilities
 
 def handle_datetimeoffset(dto_value: bytes) -> datetime:
     # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
-    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 500000000, -6, 0)
+    tup = struct.unpack(
+        "<6hI2h", dto_value
+    )  # e.g., (2017, 3, 16, 10, 35, 18, 500000000, -6, 0)
     return datetime(
         tup[0],
         tup[1],
@@ -113,12 +115,15 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if not tables:
             return
         statements = [
-            f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
+            f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};"
+            for table in tables
         ]
         self.execute_many(statements)
 
     def _drop_schema(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+        self.execute_sql(
+            "DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name()
+        )
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
@@ -132,11 +137,15 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     @contextmanager
     @raise_database_error
-    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+    def execute_query(
+        self, query: AnyStr, *args: Any, **kwargs: Any
+    ) -> Iterator[DBApiCursor]:
         assert isinstance(query, str)
         curr: DBApiCursor = None
         if kwargs:
-            raise NotImplementedError("pyodbc does not support named parameters in queries")
+            raise NotImplementedError(
+                "pyodbc does not support named parameters in queries"
+            )
         if args:
             # TODO: this is bad. See duckdb & athena also
             query = query.replace("%s", "?")
@@ -151,7 +160,9 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+            self.capabilities.escape_identifier(self.dataset_name)
+            if escape
+            else self.dataset_name
         )
 
     @classmethod

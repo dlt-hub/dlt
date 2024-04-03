@@ -41,7 +41,11 @@ class DataItemStorage(ABC):
         return writer.write_data_item(item, columns)
 
     def write_empty_items_file(
-        self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns
+        self,
+        load_id: str,
+        schema_name: str,
+        table_name: str,
+        columns: TTableSchemaColumns,
     ) -> DataWriterMetrics:
         """Writes empty file: only header and footer without actual items. Closed the
         empty file and returns metrics. Mind that header and footer will be written."""
@@ -70,8 +74,8 @@ class DataItemStorage(ABC):
         for name, writer in self.buffered_writers.items():
             if name.startswith(load_id) and not writer.closed:
                 logger.debug(
-                    f"Closing writer for {name} with file {writer._file} and actual name"
-                    f" {writer._file_name}"
+                    f"Closing writer for {name} with file {writer._file} and actual"
+                    f" name {writer._file_name}"
                 )
                 writer.close()
 
@@ -112,6 +116,8 @@ class DataItemStorage(ABC):
         return Path(file_name).name
 
     @abstractmethod
-    def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
+    def _get_data_item_path_template(
+        self, load_id: str, schema_name: str, table_name: str
+    ) -> str:
         """Returns a file template for item writer. note: use %s for file id to create required template format"""
         pass

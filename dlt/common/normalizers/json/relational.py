@@ -95,7 +95,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
         schema_naming = self.schema.naming
 
-        def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
+        def norm_row_dicts(
+            dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()
+        ) -> None:
             for k, v in dict_row.items():
                 if k.strip():
                     norm_k = schema_naming.normalize_identifier(k)
@@ -105,7 +107,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 # if norm_k != k:
                 #     print(f"{k} -> {norm_k}")
                 child_name = (
-                    norm_k if path == () else schema_naming.shorten_fragments(*path, norm_k)
+                    norm_k
+                    if path == ()
+                    else schema_naming.shorten_fragments(*path, norm_k)
                 )
                 # for lists and dicts we must check if type is possibly complex
                 if isinstance(v, (dict, list)):
@@ -116,7 +120,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                             norm_row_dicts(v, __r_lvl + 1, path + (norm_k,))
                         else:
                             # pass the list to out_rec_list
-                            out_rec_list[path + (schema_naming.normalize_table_identifier(k),)] = v
+                            out_rec_list[
+                                path + (schema_naming.normalize_table_identifier(k),)
+                            ] = v
                         continue
                     else:
                         # pass the complex value to out_rec_row
@@ -131,10 +137,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> str:
         # create deterministic unique id of the child row taking into account that all lists are ordered
         # and all child tables must be lists
-        return digest128(f"{parent_row_id}_{child_table}_{list_idx}", DLT_ID_LENGTH_BYTES)
+        return digest128(
+            f"{parent_row_id}_{child_table}_{list_idx}", DLT_ID_LENGTH_BYTES
+        )
 
     @staticmethod
-    def _link_row(row: TDataItemRowChild, parent_row_id: str, list_idx: int) -> TDataItemRowChild:
+    def _link_row(
+        row: TDataItemRowChild, parent_row_id: str, list_idx: int
+    ) -> TDataItemRowChild:
         assert parent_row_id
         row["_dlt_parent_id"] = parent_row_id
         row["_dlt_list_idx"] = list_idx
@@ -154,13 +164,19 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             primary_key = self.schema.filter_row_with_hint(table, "primary_key", row)
             if not primary_key:
                 # child table row deterministic hash
-                row_id = DataItemNormalizer._get_child_row_hash(parent_row_id, table, pos)
+                row_id = DataItemNormalizer._get_child_row_hash(
+                    parent_row_id, table, pos
+                )
                 # link to parent table
-                DataItemNormalizer._link_row(cast(TDataItemRowChild, row), parent_row_id, pos)
+                DataItemNormalizer._link_row(
+                    cast(TDataItemRowChild, row), parent_row_id, pos
+                )
         row["_dlt_id"] = row_id
         return row_id
 
-    def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
+    def _get_propagated_values(
+        self, table: str, row: TDataItemRow, _r_lvl: int
+    ) -> StrAny:
         extend: DictStrAny = {}
 
         config = self.propagation_config
@@ -200,11 +216,19 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             elif isinstance(v, list):
                 # to normalize lists of lists, we must create a tracking intermediary table by creating a mock row
                 yield from self._normalize_row(
-                    {"list": v}, extend, ident_path, parent_path, parent_row_id, idx, _r_lvl + 1
+                    {"list": v},
+                    extend,
+                    ident_path,
+                    parent_path,
+                    parent_row_id,
+                    idx,
+                    _r_lvl + 1,
                 )
             else:
                 # list of simple types
-                child_row_hash = DataItemNormalizer._get_child_row_hash(parent_row_id, table, idx)
+                child_row_hash = DataItemNormalizer._get_child_row_hash(
+                    parent_row_id, table, idx
+                )
                 wrap_v = wrap_in_dict(v)
                 wrap_v["_dlt_id"] = child_row_hash
                 e = DataItemNormalizer._link_row(wrap_v, parent_row_id, idx)
@@ -237,20 +261,29 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))
 
         # yield parent table first
-        should_descend = yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
+        should_descend = (
+            yield (table, schema.naming.shorten_fragments(*parent_path)),
+            flattened_row,
+        )
         if should_descend is False:
             return
 
         # normalize and yield lists
         for list_path, list_content in lists.items():
             yield from self._normalize_list(
-                list_content, extend, list_path, parent_path + ident_path, row_id, _r_lvl + 1
+                list_content,
+                extend,
+                list_path,
+                parent_path + ident_path,
+                row_id,
+                _r_lvl + 1,
             )
 
     def extend_schema(self) -> None:
         # validate config
         config = cast(
-            RelationalNormalizerConfig, self.schema._normalizers_config["json"].get("config") or {}
+            RelationalNormalizerConfig,
+            self.schema._normalizers_config["json"].get("config") or {},
         )
         DataItemNormalizer._validate_normalizer_config(self.schema, config)
 
@@ -283,7 +316,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         if not table.get("parent") and table.get("write_disposition") == "merge":
             DataItemNormalizer.update_normalizer_config(
                 self.schema,
-                {"propagation": {"tables": {table_name: {"_dlt_id": TColumnName("_dlt_root_id")}}}},
+                {
+                    "propagation": {
+                        "tables": {table_name: {"_dlt_id": TColumnName("_dlt_root_id")}}
+                    }
+                },
             )
 
     def normalize_data_item(
@@ -310,7 +347,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             raise InvalidJsonNormalizer(__name__, present_normalizer)
 
     @classmethod
-    def update_normalizer_config(cls, schema: Schema, config: RelationalNormalizerConfig) -> None:
+    def update_normalizer_config(
+        cls, schema: Schema, config: RelationalNormalizerConfig
+    ) -> None:
         cls._validate_normalizer_config(schema, config)
         norm_config = schema._normalizers_config["json"]
         cls.ensure_this_normalizer(norm_config)
@@ -326,7 +365,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         return cast(RelationalNormalizerConfig, norm_config.get("config", {}))
 
     @staticmethod
-    def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
+    def _validate_normalizer_config(
+        schema: Schema, config: RelationalNormalizerConfig
+    ) -> None:
         validate_dict(
             RelationalNormalizerConfig,
             config,

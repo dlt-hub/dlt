@@ -24,7 +24,9 @@ def get_metrics_from_prometheus(gauges: Iterable[MetricWrapperBase]) -> StrAny:
         if g._is_parent():
             # for gauges containing many label values, enumerate all
             metrics.update(
-                get_metrics_from_prometheus([g.labels(*label) for label in g._metrics.keys()])
+                get_metrics_from_prometheus(
+                    [g.labels(*label) for label in g._metrics.keys()]
+                )
             )
             continue
         # for gauges with labels: add the label to the name and enumerate samples

@@ -9,7 +9,9 @@ from airflow.utils.types import DagRunType
 import dlt
 from dlt.common import pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
 DEFAULT_DATE = pendulum.datetime(2023, 4, 18, tz="Europe/Berlin")
@@ -23,7 +25,9 @@ api_key = "test_value"
 def test_airflow_secrets_toml_provider() -> None:
     @dag(start_date=DEFAULT_DATE)
     def test_dag():
-        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+        )
 
         Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
         # make sure provider works while creating DAG
@@ -149,7 +153,9 @@ def test_airflow_secrets_toml_provider_is_loaded():
     dag = DAG(dag_id="test_dag", start_date=DEFAULT_DATE)
 
     def test_task():
-        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+        )
 
         Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
 
@@ -203,13 +209,17 @@ def test_airflow_secrets_toml_provider_missing_variable():
 
     def test_task():
         from dlt.common.configuration.specs import config_providers_context
-        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+        )
 
         # Make sure the variable is not set
         Variable.delete(SECRETS_TOML_KEY)
         providers = config_providers_context._extra_providers()
         provider = next(
-            provider for provider in providers if isinstance(provider, AirflowSecretsTomlProvider)
+            provider
+            for provider in providers
+            if isinstance(provider, AirflowSecretsTomlProvider)
         )
         return {
             "airflow_secrets_toml": provider._toml.as_string(),
@@ -239,7 +249,9 @@ def test_airflow_secrets_toml_provider_invalid_content():
 
     def test_task():
         import tomlkit
-        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+        from dlt.common.configuration.providers.airflow import (
+            AirflowSecretsTomlProvider,
+        )
 
         Variable.set(SECRETS_TOML_KEY, "invalid_content")
 

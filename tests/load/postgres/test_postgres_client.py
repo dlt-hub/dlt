@@ -3,7 +3,10 @@ from typing import Iterator
 import pytest
 
 from dlt.common import pendulum, Wei
-from dlt.common.configuration.resolve import resolve_configuration, ConfigFieldMissingException
+from dlt.common.configuration.resolve import (
+    resolve_configuration,
+    ConfigFieldMissingException,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
@@ -11,7 +14,12 @@ from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.sql_client import psycopg2
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy, preserve_environ
+from tests.utils import (
+    TEST_STORAGE_ROOT,
+    delete_test_storage,
+    skipifpypy,
+    preserve_environ,
+)
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 from tests.common.configuration.utils import environment
 
@@ -37,7 +45,9 @@ def test_postgres_credentials_defaults() -> None:
     assert pg_cred.connect_timeout == 15
     assert PostgresCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     # port should be optional
-    resolve_configuration(pg_cred, explicit_value="postgres://loader:loader@localhost/DLT_DATA")
+    resolve_configuration(
+        pg_cred, explicit_value="postgres://loader:loader@localhost/DLT_DATA"
+    )
     assert pg_cred.port == 5432
     # preserve case
     assert pg_cred.database == "DLT_DATA"
@@ -57,7 +67,8 @@ def test_postgres_credentials_native_value(environment) -> None:
     assert c.password == "pass"
     # but if password is specified - it is final
     c = resolve_configuration(
-        PostgresCredentials(), explicit_value="postgres://loader:loader@localhost/dlt_data"
+        PostgresCredentials(),
+        explicit_value="postgres://loader:loader@localhost/dlt_data",
     )
     assert c.is_resolved()
     assert c.password == "loader"

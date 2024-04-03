@@ -1,4 +1,7 @@
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_mssql_literal
+from dlt.common.data_writers.escape import (
+    escape_postgres_identifier,
+    escape_mssql_literal,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
@@ -14,7 +17,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet"]
 
-    caps.insert_values_writer_type = "select_union"  # https://stackoverflow.com/a/77014299
+    caps.insert_values_writer_type = (  # https://stackoverflow.com/a/77014299
+        "select_union"
+    )
 
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_mssql_literal

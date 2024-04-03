@@ -165,7 +165,8 @@ except ImportError:
                     return tuple(_assert_value(elem) for elem in val)
                 else:
                     raise TypeError(
-                        "Query dictionary values must be strings or sequences of strings"
+                        "Query dictionary values must be strings or sequences of"
+                        " strings"
                     )
 
             def _assert_str(v: str) -> str:
@@ -250,7 +251,9 @@ except ImportError:
                     new_keys[key] = to_list(new_keys[key])
                     cast("List[str]", new_keys[key]).append(cast(str, value))
                 else:
-                    new_keys[key] = to_list(value) if isinstance(value, (list, tuple)) else value
+                    new_keys[key] = (
+                        to_list(value) if isinstance(value, (list, tuple)) else value
+                    )
 
             new_query: Mapping[str, Union[str, Sequence[str]]]
             if append:
@@ -258,18 +261,26 @@ except ImportError:
 
                 for k in new_keys:
                     if k in existing_query:
-                        new_query[k] = tuple(to_list(existing_query[k]) + to_list(new_keys[k]))
+                        new_query[k] = tuple(
+                            to_list(existing_query[k]) + to_list(new_keys[k])
+                        )
                     else:
                         new_query[k] = new_keys[k]
 
                 new_query.update(
-                    {k: existing_query[k] for k in set(existing_query).difference(new_keys)}
+                    {
+                        k: existing_query[k]
+                        for k in set(existing_query).difference(new_keys)
+                    }
                 )
             else:
                 new_query = ImmutableDict(
                     {
                         **self.query,
-                        **{k: tuple(v) if isinstance(v, list) else v for k, v in new_keys.items()},
+                        **{
+                            k: tuple(v) if isinstance(v, list) else v
+                            for k, v in new_keys.items()
+                        },
                     }
                 )
             return self.set(query=new_query)
@@ -287,7 +298,9 @@ except ImportError:
             if self.username is not None:
                 s += quote(self.username, safe=" +")
                 if self.password is not None:
-                    s += ":" + ("***" if hide_password else quote(str(self.password), safe=" +"))
+                    s += ":" + (
+                        "***" if hide_password else quote(str(self.password), safe=" +")
+                    )
                 s += "@"
             if self.host is not None:
                 if ":" in self.host:

@@ -14,7 +14,9 @@ class NormalizersConfiguration(BaseConfiguration):
 
     naming: Optional[str] = None
     json_normalizer: Optional[DictStrAny] = None
-    destination_capabilities: Optional[DestinationCapabilitiesContext] = None  # injectable
+    destination_capabilities: Optional[DestinationCapabilitiesContext] = (
+        None  # injectable
+    )
 
     def on_resolved(self) -> None:
         # get naming from capabilities if not present

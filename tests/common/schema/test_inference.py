@@ -44,7 +44,10 @@ def test_map_column_preferred_type(schema: Schema) -> None:
     # timestamp from coercable type
     assert schema._infer_column_type(18271, "timestamp") == "timestamp"
     assert schema._infer_column_type("18271.11", "timestamp") == "timestamp"
-    assert schema._infer_column_type("2022-05-10T00:54:38.237000+00:00", "timestamp") == "timestamp"
+    assert (
+        schema._infer_column_type("2022-05-10T00:54:38.237000+00:00", "timestamp")
+        == "timestamp"
+    )
 
     # value should be wei
     assert schema._infer_column_type(" 0xfe ", "value") == "wei"
@@ -118,7 +121,10 @@ def test_coerce_row(schema: Schema) -> None:
     row_2 = {"timestamp": timestamp_float, "confidence": 0.18721}
     new_row_2, new_table = schema.coerce_row("event_user", None, row_2)
     assert new_table is None
-    assert new_row_2 == {"timestamp": pendulum.parse(timestamp_str), "confidence": 0.18721}
+    assert new_row_2 == {
+        "timestamp": pendulum.parse(timestamp_str),
+        "confidence": 0.18721,
+    }
 
     # all coerced
     row_3 = {"timestamp": "78172.128", "confidence": 1}
@@ -134,13 +140,19 @@ def test_coerce_row(schema: Schema) -> None:
     assert new_columns[0]["data_type"] == "text"
     assert new_columns[0]["name"] == "confidence__v_text"
     assert new_columns[0]["variant"] is True
-    assert new_row_4 == {"timestamp": pendulum.parse(timestamp_str), "confidence__v_text": "STR"}
+    assert new_row_4 == {
+        "timestamp": pendulum.parse(timestamp_str),
+        "confidence__v_text": "STR",
+    }
     schema.update_table(new_table)
 
     # add against variant
     new_row_4, new_table = schema.coerce_row("event_user", None, row_4)
     assert new_table is None
-    assert new_row_4 == {"timestamp": pendulum.parse(timestamp_str), "confidence__v_text": "STR"}
+    assert new_row_4 == {
+        "timestamp": pendulum.parse(timestamp_str),
+        "confidence__v_text": "STR",
+    }
 
     # another variant
     new_row_5, new_table = schema.coerce_row("event_user", None, {"confidence": False})
@@ -153,7 +165,9 @@ def test_coerce_row(schema: Schema) -> None:
 
     # variant column clashes with existing column - create new_colbool_v_binary column that would be created for binary variant, but give it a type datetime
     _, new_table = schema.coerce_row(
-        "event_user", None, {"new_colbool": False, "new_colbool__v_timestamp": b"not fit"}
+        "event_user",
+        None,
+        {"new_colbool": False, "new_colbool__v_timestamp": b"not fit"},
     )
     schema.update_table(new_table)
     with pytest.raises(CannotCoerceColumnException) as exc_val:
@@ -275,7 +289,9 @@ def test_supports_variant_pua_decode(schema: Schema) -> None:
     # use actual encoding for wei
     from dlt.common.json import _WEI, _HEXBYTES
 
-    rows[0]["_tx_transactionHash"] = rows[0]["_tx_transactionHash"].replace("", _HEXBYTES)
+    rows[0]["_tx_transactionHash"] = rows[0]["_tx_transactionHash"].replace(
+        "", _HEXBYTES
+    )
     rows[0]["wad"] = rows[0]["wad"].replace("", _WEI)
 
     normalized_row = list(schema.normalize_data_item(rows[0], "0912uhj222", "event"))
@@ -395,7 +411,9 @@ def test_corece_null_value_over_not_null(schema: Schema) -> None:
     row = {"timestamp": 82178.1298812}
     _, new_table = schema.coerce_row("event_user", None, row)
     schema.update_table(new_table)
-    schema.get_table_columns("event_user", include_incomplete=True)["timestamp"]["nullable"] = False
+    schema.get_table_columns("event_user", include_incomplete=True)["timestamp"][
+        "nullable"
+    ] = False
     row = {"timestamp": None}
     with pytest.raises(CannotCoerceNullException):
         schema.coerce_row("event_user", None, row)

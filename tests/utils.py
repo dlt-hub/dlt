@@ -49,7 +49,14 @@ IMPLEMENTED_DESTINATIONS = {
     "synapse",
     "databricks",
 }
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "destination"}
+NON_SQL_DESTINATIONS = {
+    "filesystem",
+    "weaviate",
+    "dummy",
+    "motherduck",
+    "qdrant",
+    "destination",
+}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
@@ -59,7 +66,9 @@ EXCLUDED_DESTINATION_CONFIGURATIONS = set(
 
 
 # filter out active destinations for current tests
-ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
+ACTIVE_DESTINATIONS = set(
+    dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS
+)
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
@@ -68,13 +77,19 @@ ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATI
 assert len(ACTIVE_DESTINATIONS) >= 0, "No active destinations selected"
 
 for destination in NON_SQL_DESTINATIONS:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown non sql destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown non sql destination {destination}"
 
 for destination in SQL_DESTINATIONS:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown sql destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown sql destination {destination}"
 
 for destination in ACTIVE_DESTINATIONS:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown active destination {destination}"
 
 
 # possible TDataItem types
@@ -212,7 +227,10 @@ def data_item_length(data: TDataItem) -> int:
 
     if isinstance(data, list):
         # If data is a list, check if it's a list of supported data types
-        if all(isinstance(item, (list, pd.DataFrame, pa.Table, pa.RecordBatch)) for item in data):
+        if all(
+            isinstance(item, (list, pd.DataFrame, pa.Table, pa.RecordBatch))
+            for item in data
+        ):
             return sum(data_item_length(item) for item in data)
         # If it's a list but not a list of supported types, treat it as a single list object
         else:
@@ -265,15 +283,21 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
 
 
 def skip_if_not_active(destination: str) -> None:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown skipped destination {destination}"
     if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
+        pytest.skip(
+            f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True
+        )
 
 
 def is_running_in_github_fork() -> bool:
     """Check if executed by GitHub Actions, in a repo fork."""
     is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
-    is_fork = os.environ.get("IS_FORK") == "true"  # custom var set by us in the workflow's YAML
+    is_fork = (
+        os.environ.get("IS_FORK") == "true"
+    )  # custom var set by us in the workflow's YAML
     return is_github_actions and is_fork
 
 
@@ -285,12 +309,15 @@ skipifpypy = pytest.mark.skipif(
     platform.python_implementation() == "PyPy", reason="won't run in PyPy interpreter"
 )
 
-skipifnotwindows = pytest.mark.skipif(platform.system() != "Windows", reason="runs only on windows")
+skipifnotwindows = pytest.mark.skipif(
+    platform.system() != "Windows", reason="runs only on windows"
+)
 
 skipifwindows = pytest.mark.skipif(
     platform.system() == "Windows", reason="does not runs on windows"
 )
 
 skipifgithubfork = pytest.mark.skipif(
-    is_running_in_github_fork(), reason="Skipping test because it runs on a PR coming from fork"
+    is_running_in_github_fork(),
+    reason="Skipping test because it runs on a PR coming from fork",
 )

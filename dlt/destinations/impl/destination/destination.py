@@ -50,7 +50,9 @@ class DestinationLoadJob(LoadJob, ABC):
         # we create pre_resolved callable here
         self._callable = destination_callable
         self._state: TLoadJobState = "running"
-        self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
+        self._storage_id = (
+            f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
+        )
         self.skipped_columns = skipped_columns
         try:
             if self._config.batch_size == 0:
@@ -140,7 +142,9 @@ class DestinationClient(JobClientBase):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, schema: Schema, config: CustomDestinationClientConfiguration) -> None:
+    def __init__(
+        self, schema: Schema, config: CustomDestinationClientConfiguration
+    ) -> None:
         super().__init__(schema, config)
         self.config: CustomDestinationClientConfiguration = config
         # create pre-resolved callable to avoid multiple config resolutions during execution of the jobs
@@ -162,7 +166,9 @@ class DestinationClient(JobClientBase):
     ) -> Optional[TSchemaTables]:
         return super().update_stored_schema(only_tables, expected_update)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
@@ -207,6 +213,9 @@ class DestinationClient(JobClientBase):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         pass

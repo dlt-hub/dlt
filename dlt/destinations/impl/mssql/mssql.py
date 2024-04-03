@@ -105,7 +105,9 @@ class MsSqlStagingCopyJob(SqlStagingCopyJob):
                 f" {staging_table_name};"
             )
             # recreate staging table
-            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;")
+            sql.append(
+                f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;"
+            )
         return sql
 
 
@@ -144,14 +146,18 @@ class MsSqlClient(InsertValuesJobClient):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: MsSqlClientConfiguration) -> None:
-        sql_client = PyOdbcMsSqlClient(config.normalize_dataset_name(schema), config.credentials)
+        sql_client = PyOdbcMsSqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
         super().__init__(schema, config, sql_client)
         self.config: MsSqlClientConfiguration = config
         self.sql_client = sql_client
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
@@ -159,10 +165,13 @@ class MsSqlClient(InsertValuesJobClient):
     ) -> List[str]:
         # Override because mssql requires multiple columns in a single ADD COLUMN clause
         return [
-            "ADD \n" + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)
+            "ADD \n"
+            + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)
         ]
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+    def _get_column_def_sql(
+        self, c: TColumnSchema, table_format: TTableFormat = None
+    ) -> str:
         sc_type = c["data_type"]
         if sc_type == "text" and c.get("unique"):
             # MSSQL does not allow index on large TEXT columns
@@ -176,7 +185,9 @@ class MsSqlClient(InsertValuesJobClient):
             if c.get(h, False) is True
         )
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return (
+            f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
+        )
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]

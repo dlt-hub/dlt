@@ -85,9 +85,9 @@ def test_remove_defaults_stored_schema() -> None:
         "x-top-level": True,
     }
     # mock the case in table_copy where resource == table_name
-    stored_schema["tables"]["table_copy"]["resource"] = stored_schema["tables"]["table_copy"][
-        "name"
-    ] = "table_copy"
+    stored_schema["tables"]["table_copy"]["resource"] = stored_schema["tables"][
+        "table_copy"
+    ]["name"] = "table_copy"
 
     default_stored = utils.remove_defaults(stored_schema)
     # nullability always present
@@ -96,7 +96,9 @@ def test_remove_defaults_stored_schema() -> None:
     # not removed in complete column (as it was explicitly set to False)
     assert default_stored["tables"]["table"]["columns"]["test"]["cluster"] is False
     # not removed in incomplete one
-    assert default_stored["tables"]["table"]["columns"]["test_2"]["primary_key"] is False
+    assert (
+        default_stored["tables"]["table"]["columns"]["test_2"]["primary_key"] is False
+    )
     # resource present
     assert default_stored["tables"]["table"]["resource"] == "🦚Table"
     # resource removed because identical to table name
@@ -132,7 +134,9 @@ def test_new_incomplete_column() -> None:
 
 def test_merge_columns() -> None:
     # tab_b overrides non default
-    col_a = utils.merge_column(copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=False)
+    col_a = utils.merge_column(
+        copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=False
+    )
     # nullable is False - tab_b has it as default and those are not merged
     assert col_a == {
         "name": "test_2",
@@ -146,7 +150,9 @@ def test_merge_columns() -> None:
         "prop": None,
     }
 
-    col_a = utils.merge_column(copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=True)
+    col_a = utils.merge_column(
+        copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=True
+    )
     # nullable is True and primary_key is present - default values are merged
     assert col_a == {
         "name": "test_2",
@@ -186,7 +192,11 @@ def test_diff_tables() -> None:
     changed["name"] = "new name"
     partial = utils.diff_table(deepcopy(table), changed)
     print(partial)
-    assert partial == {"name": "new name", "description": "new description", "columns": {}}
+    assert partial == {
+        "name": "new name",
+        "description": "new description",
+        "columns": {},
+    }
 
     # ignore identical table props
     existing = deepcopy(table)
@@ -203,7 +213,11 @@ def test_diff_tables() -> None:
     existing["write_disposition"] = "append"
     existing["schema_contract"] = "freeze"
     partial = utils.diff_table(deepcopy(existing), changed)
-    assert partial == {"name": "new name", "description": "new description", "columns": {}}
+    assert partial == {
+        "name": "new name",
+        "description": "new description",
+        "columns": {},
+    }
 
     # detect changed column
     existing = deepcopy(table)
@@ -212,7 +226,11 @@ def test_diff_tables() -> None:
     partial = utils.diff_table(existing, changed)
     assert "test" in partial["columns"]
     assert "test_2" not in partial["columns"]
-    assert existing["columns"]["test"] == table["columns"]["test"] != partial["columns"]["test"]
+    assert (
+        existing["columns"]["test"]
+        == table["columns"]["test"]
+        != partial["columns"]["test"]
+    )
 
     # defaults are not ignored
     existing = deepcopy(table)

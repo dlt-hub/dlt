@@ -7,7 +7,10 @@ from dlt.common.runtime.collector import (
     EnlightenCollector as enlighten,
     AliveCollector as alive_progress,
 )
-from dlt.common.runtime.collector import Collector as _Collector, NULL_COLLECTOR as _NULL_COLLECTOR
+from dlt.common.runtime.collector import (
+    Collector as _Collector,
+    NULL_COLLECTOR as _NULL_COLLECTOR,
+)
 
 TSupportedCollectors = Literal["tqdm", "enlighten", "log", "alive_progress"]
 TCollectorArg = Union[_Collector, TSupportedCollectors]

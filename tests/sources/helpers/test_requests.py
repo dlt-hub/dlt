@@ -124,7 +124,11 @@ def test_hooks_with_raise_for_statue() -> None:
 
 @pytest.mark.parametrize(
     "exception_class",
-    [requests.ConnectionError, requests.ConnectTimeout, requests.exceptions.ChunkedEncodingError],
+    [
+        requests.ConnectionError,
+        requests.ConnectTimeout,
+        requests.exceptions.ChunkedEncodingError,
+    ],
 )
 def test_retry_on_exception_all_fails(
     exception_class: Type[Exception], mock_sleep: mock.MagicMock

@@ -2,7 +2,9 @@ import dataclasses
 from typing import Any, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.reference import (
+    DestinationClientDwhWithStagingConfiguration,
+)
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
@@ -36,10 +38,14 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         try:
             return super().borrow_conn(read_only)
         except (InvalidInputException, HTTPException) as ext_ex:
-            if "Failed to download extension" in str(ext_ex) and "motherduck" in str(ext_ex):
+            if "Failed to download extension" in str(ext_ex) and "motherduck" in str(
+                ext_ex
+            ):
                 from importlib.metadata import version as pkg_version
 
-                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from ext_ex
+                raise MotherduckLocalVersionNotSupported(
+                    pkg_version("duckdb")
+                ) from ext_ex
 
             raise
 
@@ -51,8 +57,9 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         self._token_to_password()
         if self.drivername == MOTHERDUCK_DRIVERNAME and not self.password:
             raise ConfigurationValueError(
-                "Motherduck schema 'md' was specified without corresponding token or password. The"
-                " required format of connection string is: md:///<database_name>?token=<token>"
+                "Motherduck schema 'md' was specified without corresponding token or"
+                " password. The required format of connection string is:"
+                " md:///<database_name>?token=<token>"
             )
 
 
@@ -76,6 +83,6 @@ class MotherduckLocalVersionNotSupported(DestinationTerminalException):
     def __init__(self, duckdb_version: str) -> None:
         self.duckdb_version = duckdb_version
         super().__init__(
-            f"Looks like your local duckdb version ({duckdb_version}) is not supported by"
-            " Motherduck"
+            f"Looks like your local duckdb version ({duckdb_version}) is not supported"
+            " by Motherduck"
         )

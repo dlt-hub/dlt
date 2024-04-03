@@ -2,7 +2,17 @@ import os
 import dataclasses
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Final, List, Optional, Tuple, TYPE_CHECKING, Type, Union
+from typing import (
+    Any,
+    ClassVar,
+    Final,
+    List,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+    Type,
+    Union,
+)
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
@@ -43,7 +53,9 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(database=self._conn_str(), read_only=read_only)
+                self._conn = duckdb.connect(
+                    database=self._conn_str(), read_only=read_only
+                )
                 self._conn_owner = True
                 self._conn_borrows = 0
 
@@ -81,7 +93,9 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         try:
             super().parse_native_representation(native_value)
         except InvalidConnectionString:
-            if native_value == ":pipeline:" or is_valid_filepath(native_value, platform="auto"):
+            if native_value == ":pipeline:" or is_valid_filepath(
+                native_value, platform="auto"
+            ):
                 self.database = native_value
             else:
                 raise
@@ -123,7 +137,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
             self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
         else:
             # maybe get database
-            maybe_database, maybe_is_default_path = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
+            maybe_database, maybe_is_default_path = self._path_from_pipeline(
+                DEFAULT_DUCK_DB_NAME
+            )
             # if pipeline context was not present or database was not set
             if not self.database or not maybe_is_default_path:
                 # create database locally
@@ -145,7 +161,8 @@ class DuckDbCredentials(DuckDbBaseCredentials):
             # pipeline is active, get the working directory
             return os.path.join(context.pipeline().working_dir, rel_path)
         raise RuntimeError(
-            "Attempting to use special duckdb database :pipeline: outside of pipeline context."
+            "Attempting to use special duckdb database :pipeline: outside of pipeline"
+            " context."
         )
 
     def _path_to_pipeline(self, abspath: str) -> None:
@@ -185,8 +202,8 @@ class DuckDbCredentials(DuckDbBaseCredentials):
                 if not os.path.exists(pipeline_path):
                     logger.warning(
                         f"Duckdb attached to pipeline {pipeline.pipeline_name} in path"
-                        f" {os.path.relpath(pipeline_path)} was deleted. Attaching to duckdb"
-                        f" database '{default_path}' in current folder."
+                        f" {os.path.relpath(pipeline_path)} was deleted. Attaching to"
+                        f" duckdb database '{default_path}' in current folder."
                     )
                 else:
                     return pipeline_path, False

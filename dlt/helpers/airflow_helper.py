@@ -30,9 +30,13 @@ from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.schema.typing import TWriteDisposition, TSchemaContract
 from dlt.common.utils import uniq_id
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeCaseNamingConvention,
+)
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.runtime.collector import NULL_COLLECTOR
 
 from dlt.extract import DltSource
@@ -44,7 +48,9 @@ from dlt.pipeline.typing import TPipelineStep
 
 DEFAULT_RETRY_NO_RETRY = Retrying(stop=stop_after_attempt(1), reraise=True)
 DEFAULT_RETRY_BACKOFF = Retrying(
-    stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), reraise=True
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1.5, min=4, max=10),
+    reraise=True,
 )
 
 
@@ -126,7 +132,9 @@ class PipelineTasksGroup(TaskGroup):
             data_dir = os.path.join("/home/airflow/gcs/data", f"dlt_{uniq_id(8)}")
         else:
             # create random path
-            data_dir = os.path.join(local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}")
+            data_dir = os.path.join(
+                local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}"
+            )
         os.environ["DLT_DATA_DIR"] = data_dir
 
         # delete existing config providers in container, they will get reloaded on next use
@@ -203,7 +211,9 @@ class PipelineTasksGroup(TaskGroup):
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
         )
-        return PythonOperator(task_id=self._task_name(pipeline, data), python_callable=f, **kwargs)
+        return PythonOperator(
+            task_id=self._task_name(pipeline, data), python_callable=f, **kwargs
+        )
 
     def _run(
         self,
@@ -246,7 +256,10 @@ class PipelineTasksGroup(TaskGroup):
             logger.LOGGER = ti.log
 
         # set global number of buffered items
-        if dlt.config.get("data_writer.buffer_max_items") is None and self.buffer_max_items > 0:
+        if (
+            dlt.config.get("data_writer.buffer_max_items") is None
+            and self.buffer_max_items > 0
+        ):
             dlt.config["data_writer.buffer_max_items"] = self.buffer_max_items
             logger.info(f"Set data_writer.buffer_max_items to {self.buffer_max_items}")
 
@@ -256,7 +269,9 @@ class PipelineTasksGroup(TaskGroup):
             logger.info("Set load.abort_task_if_any_job_failed to True")
 
         if self.log_progress_period > 0 and task_pipeline.collector == NULL_COLLECTOR:
-            task_pipeline.collector = log(log_period=self.log_progress_period, logger=logger.LOGGER)
+            task_pipeline.collector = log(
+                log_period=self.log_progress_period, logger=logger.LOGGER
+            )
             logger.info(f"Enabled log progress with period {self.log_progress_period}")
 
         logger.info(f"Pipeline data in {task_pipeline.working_dir}")
@@ -278,7 +293,8 @@ class PipelineTasksGroup(TaskGroup):
             ):
                 with attempt:
                     logger.info(
-                        "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
+                        "Running the pipeline, attempt=%s"
+                        % attempt.retry_state.attempt_number
                     )
                     load_info = task_pipeline.run(
                         data,
@@ -318,7 +334,9 @@ class PipelineTasksGroup(TaskGroup):
         pipeline: Pipeline,
         data: Any,
         *,
-        decompose: Literal["none", "serialize", "parallel", "parallel-isolated"] = "none",
+        decompose: Literal[
+            "none", "serialize", "parallel", "parallel-isolated"
+        ] = "none",
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -371,15 +389,17 @@ class PipelineTasksGroup(TaskGroup):
         # make sure that pipeline was created after dag was initialized
         if not pipeline.pipelines_dir.startswith(os.environ["DLT_DATA_DIR"]):
             raise ValueError(
-                "Please create your Pipeline instance after AirflowTasks are created. The dlt"
-                " pipelines directory is not set correctly."
+                "Please create your Pipeline instance after AirflowTasks are created."
+                " The dlt pipelines directory is not set correctly."
             )
 
         with self:
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
-            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> PythonOperator:
+            def make_task(
+                pipeline: Pipeline, data: Any, name: str = None
+            ) -> PythonOperator:
                 f = functools.partial(
                     self._run,
                     pipeline,
@@ -489,7 +509,9 @@ class PipelineTasksGroup(TaskGroup):
                 )
 
 
-def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.DateTime]]:
+def airflow_get_execution_dates() -> (
+    Tuple[pendulum.DateTime, Optional[pendulum.DateTime]]
+):
     # prefer logging to task logger
     try:
         from airflow.operators.python import get_current_context  # noqa

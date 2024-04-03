@@ -11,7 +11,11 @@ def init_logging(config: RunConfiguration) -> None:
 
     version = dlt_version_info(config.pipeline_name)
     logger.LOGGER = logger._init_logging(
-        logger.DLT_LOGGER_NAME, config.log_level, config.log_format, config.pipeline_name, version
+        logger.DLT_LOGGER_NAME,
+        config.log_level,
+        config.log_format,
+        config.pipeline_name,
+        version,
     )
 
 

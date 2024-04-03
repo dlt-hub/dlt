@@ -5,10 +5,15 @@ import pytest
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
-from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.normalizers.json.relational import (
+    DataItemNormalizer as RelationalNormalizer,
+)
 from dlt.common.normalizers.naming import snake_case
 from dlt.common.normalizers.naming import direct
-from dlt.common.normalizers.naming.exceptions import InvalidNamingModule, UnknownNamingModule
+from dlt.common.normalizers.naming.exceptions import (
+    InvalidNamingModule,
+    UnknownNamingModule,
+)
 
 from tests.common.normalizers.custom_normalizers import (
     DataItemNormalizer as CustomRelationalNormalizer,

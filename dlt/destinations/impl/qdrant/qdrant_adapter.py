@@ -41,7 +41,8 @@ def qdrant_adapter(
             embed = [embed]
         if not isinstance(embed, list):
             raise ValueError(
-                "embed must be a list of column names or a single column name as a string"
+                "embed must be a list of column names or a single column name as a"
+                " string"
             )
 
         for column_name in embed:

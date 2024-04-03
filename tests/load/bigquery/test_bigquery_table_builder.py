@@ -41,11 +41,15 @@ def test_configuration() -> None:
 
     # check names normalised
     with custom_environ({"MYBG__CREDENTIALS__PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        c = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
+        c = resolve_configuration(
+            GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",)
+        )
         assert c.private_key == "---NO NEWLINE---\n"
 
     with custom_environ({"MYBG__CREDENTIALS__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        c = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
+        c = resolve_configuration(
+            GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",)
+        )
         assert c.private_key == "---WITH NEWLINE---\n"
 
 
@@ -186,7 +190,11 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     mod_update[0]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+    assert (
+        "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000,"
+        " 86400))"
+        in sql
+    )
 
 
 @pytest.mark.parametrize(
@@ -194,18 +202,30 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_partition_by_date(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+def test_bigquery_partition_by_date(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}", full_refresh=True
+    )
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_date_column",
-        columns={"my_date_column": {"data_type": "date", "partition": True, "nullable": False}},
+        columns={
+            "my_date_column": {
+                "data_type": "date",
+                "partition": True,
+                "nullable": False,
+            }
+        },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.Date]]:
         for i in range(10):
             yield {
-                "my_date_column": pendulum.from_timestamp(1700784000 + i * 50_000).date(),
+                "my_date_column": pendulum.from_timestamp(
+                    1700784000 + i * 50_000
+                ).date(),
             }
 
     @dlt.source(max_table_nesting=0)
@@ -216,8 +236,8 @@ def test_bigquery_partition_by_date(destination_config: DestinationTestConfigura
 
     with pipeline.sql_client() as c:
         with c.execute_query(
-            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
-            " NULL);"
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE"
+            " partition_id IS NOT NULL);"
         ) as cur:
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
@@ -229,18 +249,30 @@ def test_bigquery_partition_by_date(destination_config: DestinationTestConfigura
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_no_partition_by_date(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+def test_bigquery_no_partition_by_date(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}", full_refresh=True
+    )
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_date_column",
-        columns={"my_date_column": {"data_type": "date", "partition": False, "nullable": False}},
+        columns={
+            "my_date_column": {
+                "data_type": "date",
+                "partition": False,
+                "nullable": False,
+            }
+        },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.Date]]:
         for i in range(10):
             yield {
-                "my_date_column": pendulum.from_timestamp(1700784000 + i * 50_000).date(),
+                "my_date_column": pendulum.from_timestamp(
+                    1700784000 + i * 50_000
+                ).date(),
             }
 
     @dlt.source(max_table_nesting=0)
@@ -251,8 +283,8 @@ def test_bigquery_no_partition_by_date(destination_config: DestinationTestConfig
 
     with pipeline.sql_client() as c:
         with c.execute_query(
-            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
-            " NULL);"
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE"
+            " partition_id IS NOT NULL);"
         ) as cur:
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
@@ -264,14 +296,22 @@ def test_bigquery_no_partition_by_date(destination_config: DestinationTestConfig
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_partition_by_timestamp(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+def test_bigquery_partition_by_timestamp(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}", full_refresh=True
+    )
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_timestamp_column",
         columns={
-            "my_timestamp_column": {"data_type": "timestamp", "partition": True, "nullable": False}
+            "my_timestamp_column": {
+                "data_type": "timestamp",
+                "partition": True,
+                "nullable": False,
+            }
         },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.DateTime]]:
@@ -288,8 +328,8 @@ def test_bigquery_partition_by_timestamp(destination_config: DestinationTestConf
 
     with pipeline.sql_client() as c:
         with c.execute_query(
-            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
-            " NULL);"
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE"
+            " partition_id IS NOT NULL);"
         ) as cur:
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
@@ -304,13 +344,19 @@ def test_bigquery_partition_by_timestamp(destination_config: DestinationTestConf
 def test_bigquery_no_partition_by_timestamp(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}", full_refresh=True
+    )
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_timestamp_column",
         columns={
-            "my_timestamp_column": {"data_type": "timestamp", "partition": False, "nullable": False}
+            "my_timestamp_column": {
+                "data_type": "timestamp",
+                "partition": False,
+                "nullable": False,
+            }
         },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.DateTime]]:
@@ -327,8 +373,8 @@ def test_bigquery_no_partition_by_timestamp(
 
     with pipeline.sql_client() as c:
         with c.execute_query(
-            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
-            " NULL);"
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE"
+            " partition_id IS NOT NULL);"
         ) as cur:
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
@@ -340,11 +386,17 @@ def test_bigquery_no_partition_by_timestamp(
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_partition_by_integer(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+def test_bigquery_partition_by_integer(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}", full_refresh=True
+    )
 
     @dlt.resource(
-        columns={"some_int": {"data_type": "bigint", "partition": True, "nullable": False}},
+        columns={
+            "some_int": {"data_type": "bigint", "partition": True, "nullable": False}
+        },
     )
     def demo_resource() -> Iterator[Dict[str, int]]:
         for i in range(10):
@@ -360,8 +412,8 @@ def test_bigquery_partition_by_integer(destination_config: DestinationTestConfig
 
     with pipeline.sql_client() as c:
         with c.execute_query(
-            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
-            " NULL);"
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE"
+            " partition_id IS NOT NULL);"
         ) as cur:
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
@@ -373,11 +425,17 @@ def test_bigquery_partition_by_integer(destination_config: DestinationTestConfig
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_no_partition_by_integer(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+def test_bigquery_no_partition_by_integer(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}", full_refresh=True
+    )
 
     @dlt.resource(
-        columns={"some_int": {"data_type": "bigint", "partition": False, "nullable": False}},
+        columns={
+            "some_int": {"data_type": "bigint", "partition": False, "nullable": False}
+        },
     )
     def demo_resource() -> Iterator[Dict[str, int]]:
         for i in range(10):
@@ -393,8 +451,8 @@ def test_bigquery_no_partition_by_integer(destination_config: DestinationTestCon
 
     with pipeline.sql_client() as c:
         with c.execute_query(
-            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
-            " NULL);"
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE"
+            " partition_id IS NOT NULL);"
         ) as cur:
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
@@ -419,7 +477,10 @@ def test_adapter_no_hints_parsing() -> None:
 
 def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
     @dlt.resource(
-        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "bigint"}]
+        columns=[
+            {"name": "col1", "data_type": "bigint"},
+            {"name": "col2", "data_type": "bigint"},
+        ]
     )
     def some_data() -> Iterator[Dict[str, Any]]:
         yield from [{"col1": str(i), "col2": i} for i in range(3)]
@@ -429,7 +490,9 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
         "col2": {"data_type": "bigint", "name": "col2"},
     }
 
-    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
+    with pytest.raises(
+        ValueError, match="^`partition` must be a single column name as a string.$"
+    ):
         bigquery_adapter(some_data, partition=["col1", "col2"])
 
 
@@ -440,7 +503,11 @@ def test_adapter_hints_parsing_partitioning() -> None:
 
     bigquery_adapter(some_data, partition="int_col")
     assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
+        "int_col": {
+            "name": "int_col",
+            "data_type": "bigint",
+            "x-bigquery-partition": True,
+        },
     }
 
 
@@ -449,7 +516,9 @@ def test_adapter_hints_parsing_partitioning() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_partitioning(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
     def no_hints() -> Iterator[Dict[str, int]]:
         yield from [{"col1": i} for i in range(10)]
@@ -476,7 +545,9 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
 
-        assert not no_hints_table.range_partitioning, "`no_hints` table IS clustered on a column."
+        assert (
+            not no_hints_table.range_partitioning
+        ), "`no_hints` table IS clustered on a column."
 
         if not hints_table.range_partitioning:
             raise ValueError("`hints` table IS NOT clustered on a column.")
@@ -514,7 +585,9 @@ def test_adapter_hints_round_half_away_from_zero(
     def no_hints() -> Iterator[Dict[str, float]]:
         yield from [{"col1": float(i)} for i in range(10)]
 
-    hints = bigquery_adapter(no_hints._clone(new_name="hints"), round_half_away_from_zero="col1")
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"), round_half_away_from_zero="col1"
+    )
 
     @dlt.source(max_table_nesting=0)
     def sources() -> List[DltResource]:
@@ -569,7 +642,9 @@ def test_adapter_hints_parsing_round_half_even() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_round_half_even(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_round_half_even(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
     def no_hints() -> Iterator[Dict[str, float]]:
         yield from [{"col1": float(i)} for i in range(10)]
@@ -604,7 +679,9 @@ def test_adapter_hints_round_half_even(destination_config: DestinationTestConfig
                 elif row["table_name"] == "hints":  # type: ignore
                     hints_rounding_mode = row["rounding_mode"]  # type: ignore
 
-            assert (no_hints_rounding_mode is None) and (hints_rounding_mode == "ROUND_HALF_EVEN")
+            assert (no_hints_rounding_mode is None) and (
+                hints_rounding_mode == "ROUND_HALF_EVEN"
+            )
 
 
 def test_adapter_hints_parsing_clustering() -> None:
@@ -614,13 +691,20 @@ def test_adapter_hints_parsing_clustering() -> None:
 
     bigquery_adapter(some_data, cluster="int_col")
     assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-cluster": True},
+        "int_col": {
+            "name": "int_col",
+            "data_type": "bigint",
+            "x-bigquery-cluster": True,
+        },
     }
 
 
 def test_adapter_hints_parsing_multiple_clustering() -> None:
     @dlt.resource(
-        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "text"}]
+        columns=[
+            {"name": "col1", "data_type": "bigint"},
+            {"name": "col2", "data_type": "text"},
+        ]
     )
     def some_data() -> Iterator[Dict[str, Any]]:
         yield from [{"col1": i, "col2": str(i)} for i in range(10)]
@@ -722,10 +806,14 @@ def test_adapter_hints_multiple_clustering(
         hints_table = nc.get_table(fqtn_hints)
 
         no_hints_cluster_fields = (
-            [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
+            []
+            if no_hints_table.clustering_fields is None
+            else no_hints_table.clustering_fields
         )
         hints_cluster_fields = (
-            [] if hints_table.clustering_fields is None else hints_table.clustering_fields
+            []
+            if hints_table.clustering_fields is None
+            else hints_table.clustering_fields
         )
 
         assert not no_hints_cluster_fields, "`no_hints` table IS clustered some column."
@@ -742,7 +830,9 @@ def test_adapter_hints_multiple_clustering(
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_clustering(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_clustering(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
     def no_hints() -> Iterator[Dict[str, str]]:
         yield from [{"col1": str(i)} for i in range(10)]
@@ -770,14 +860,20 @@ def test_adapter_hints_clustering(destination_config: DestinationTestConfigurati
         hints_table = nc.get_table(fqtn_hints)
 
         no_hints_cluster_fields = (
-            [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
+            []
+            if no_hints_table.clustering_fields is None
+            else no_hints_table.clustering_fields
         )
         hints_cluster_fields = (
-            [] if hints_table.clustering_fields is None else hints_table.clustering_fields
+            []
+            if hints_table.clustering_fields is None
+            else hints_table.clustering_fields
         )
 
         assert not no_hints_cluster_fields, "`no_hints` table IS clustered by `col1`."
-        assert ["col1"] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+        assert [
+            "col1"
+        ] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
 
 
 def test_adapter_hints_empty() -> None:
@@ -805,7 +901,9 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
         ),
     ):
         bigquery_adapter(
-            some_data, round_half_away_from_zero="double_col", round_half_even="double_col"
+            some_data,
+            round_half_away_from_zero="double_col",
+            round_half_even="double_col",
         )
 
 
@@ -931,7 +1029,9 @@ def test_adapter_merge_behaviour(
 
     bigquery_adapter(hints, table_expiration_datetime="2030-01-01", cluster=["col1"])
     bigquery_adapter(
-        hints, table_description="A small table somewhere in the cosmos...", partition="col2"
+        hints,
+        table_description="A small table somewhere in the cosmos...",
+        partition="col2",
     )
 
     pipeline = destination_config.setup_pipeline(
@@ -948,11 +1048,15 @@ def test_adapter_merge_behaviour(
 
         table: Table = nc.get_table(table_fqtn)
 
-        table_cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
+        table_cluster_fields = (
+            [] if table.clustering_fields is None else table.clustering_fields
+        )
 
         # Test merging behaviour.
         assert table.expires == pendulum.datetime(2030, 1, 1, 0)
-        assert ["col1"] == table_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+        assert [
+            "col1"
+        ] == table_cluster_fields, "`hints` table IS NOT clustered by `col1`."
         assert table.description == "A small table somewhere in the cosmos..."
 
         if not table.range_partitioning:

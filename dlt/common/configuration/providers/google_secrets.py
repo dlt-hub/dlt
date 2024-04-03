@@ -56,7 +56,9 @@ class GoogleSecretsProvider(VaultTomlProvider):
             4. Underscores.
         """
         key = normalize_key(key)
-        normalized_sections = [normalize_key(section) for section in sections if section]
+        normalized_sections = [
+            normalize_key(section) for section in sections if section
+        ]
         key_name = get_key_name(normalize_key(key), "-", *normalized_sections)
         return key_name
 
@@ -76,10 +78,20 @@ class GoogleSecretsProvider(VaultTomlProvider):
             )
         from dlt.common import logger
 
-        resource_name = f"projects/{self.credentials.project_id}/secrets/{full_key}/versions/latest"
-        client = build("secretmanager", "v1", credentials=self.credentials.to_native_credentials())
+        resource_name = (
+            f"projects/{self.credentials.project_id}/secrets/{full_key}/versions/latest"
+        )
+        client = build(
+            "secretmanager", "v1", credentials=self.credentials.to_native_credentials()
+        )
         try:
-            response = client.projects().secrets().versions().access(name=resource_name).execute()
+            response = (
+                client.projects()
+                .secrets()
+                .versions()
+                .access(name=resource_name)
+                .execute()
+            )
             secret_value = response["payload"]["data"]
             decoded_value = base64.b64decode(secret_value).decode("utf-8")
             return decoded_value
@@ -91,14 +103,15 @@ class GoogleSecretsProvider(VaultTomlProvider):
             elif error.resp.status == 403:
                 logger.warning(
                     f"{self.credentials.client_email} does not have"
-                    " roles/secretmanager.secretAccessor role. It also does not have read"
-                    f" permission to {full_key} or the key is not found in Google Secrets:"
-                    f" {error_doc['message']}[{error_doc['status']}]"
+                    " roles/secretmanager.secretAccessor role. It also does not have"
+                    f" read permission to {full_key} or the key is not found in Google"
+                    f" Secrets: {error_doc['message']}[{error_doc['status']}]"
                 )
                 return None
             elif error.resp.status == 400:
                 logger.warning(
-                    f"Unable to read {full_key} : {error_doc['message']}[{error_doc['status']}]"
+                    f"Unable to read {full_key} :"
+                    f" {error_doc['message']}[{error_doc['status']}]"
                 )
                 return None
             raise

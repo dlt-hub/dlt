@@ -25,6 +25,11 @@ class DBTRunnerConfiguration(BaseConfiguration):
         if not self.package_profiles_dir:
             # use "profile.yml" located in the same folder as current module
             self.package_profiles_dir = os.path.dirname(__file__)
-        if self.package_repository_ssh_key and self.package_repository_ssh_key[-1] != "\n":
+        if (
+            self.package_repository_ssh_key
+            and self.package_repository_ssh_key[-1] != "\n"
+        ):
             # must end with new line, otherwise won't be parsed by Crypto
-            self.package_repository_ssh_key = TSecretValue(self.package_repository_ssh_key + "\n")
+            self.package_repository_ssh_key = TSecretValue(
+                self.package_repository_ssh_key + "\n"
+            )

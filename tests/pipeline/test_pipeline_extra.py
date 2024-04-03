@@ -40,9 +40,13 @@ from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
 )
-def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
+def test_create_pipeline_all_destinations(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     # create pipelines, extract and normalize. that should be possible without installing any dependencies
     p = dlt.pipeline(
         pipeline_name=destination_config.destination + "_pipeline",
@@ -235,7 +239,9 @@ def test_mark_hints_pydantic_columns() -> None:
 
 @pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
 def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
-    @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])
+    @dlt.resource(
+        write_disposition="replace", columns=[{"name": "text", "data_type": "text"}]
+    )
     def generic(start=8):
         yield [{"id": idx, "text": "A" * idx} for idx in range(start, start + 10)]
 
@@ -342,7 +348,9 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
             # Check if complex fields preserved
             # their contents and were not flattened
             assert loaded_values == {
-                "child": '{"child_attribute":"any string","optional_child_attribute":null}',
+                "child": (
+                    '{"child_attribute":"any string","optional_child_attribute":null}'
+                ),
                 "optional_parent_attribute": None,
                 "data_dictionary": '{"child_attribute":"any string"}',
             }
@@ -422,7 +430,10 @@ def test_arrow_no_pandas() -> None:
         yield df
 
     info = dlt.run(
-        pandas_incremental(), write_disposition="append", table_name="data", destination="duckdb"
+        pandas_incremental(),
+        write_disposition="append",
+        table_name="data",
+        destination="duckdb",
     )
 
     with info.pipeline.sql_client() as client:  # type: ignore
@@ -447,14 +458,21 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
             # emit table schema with the item
             dlt.mark.make_hints(
                 columns=[
-                    {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
+                    {
+                        "name": "id",
+                        "data_type": "bigint",
+                        "precision": 4,
+                        "nullable": False,
+                    },
                     {"name": "name", "data_type": "text", "nullable": False},
                 ]
             ),
         )
 
     # write parquet file to storage
-    info = dlt.run(users, destination=local, loader_file_format="parquet", dataset_name="user_data")
+    info = dlt.run(
+        users, destination=local, loader_file_format="parquet", dataset_name="user_data"
+    )
     assert_load_info(info)
     assert set(info.pipeline.default_schema.tables["users"]["columns"].keys()) == {"id", "name", "_dlt_load_id", "_dlt_id"}  # type: ignore
     # find parquet file

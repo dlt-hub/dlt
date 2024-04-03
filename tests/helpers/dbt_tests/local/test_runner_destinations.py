@@ -24,10 +24,14 @@ ALL_DBT_DESTINATIONS = [
 ALL_DBT_DESTINATIONS_NAMES = ["bigquery"]  # "redshift",
 
 
-@pytest.fixture(scope="module", params=ALL_DBT_DESTINATIONS, ids=ALL_DBT_DESTINATIONS_NAMES)
+@pytest.fixture(
+    scope="module", params=ALL_DBT_DESTINATIONS, ids=ALL_DBT_DESTINATIONS_NAMES
+)
 def destination_info(request: Any) -> Iterator[DBTDestinationInfo]:
     # this resolves credentials and sets up env for dbt then deletes temp datasets
-    with setup_rasa_runner_client(request.param.destination_name, DESTINATION_DATASET_NAME):
+    with setup_rasa_runner_client(
+        request.param.destination_name, DESTINATION_DATASET_NAME
+    ):
         # yield DBTDestinationInfo
         yield request.param
 
@@ -88,7 +92,9 @@ def test_reinitialize_package() -> None:
 
 def test_dbt_test_no_raw_schema(destination_info: DBTDestinationInfo) -> None:
     # force non existing dataset
-    runner = setup_rasa_runner(destination_info.destination_name, "jm_dev_2" + uniq_id())
+    runner = setup_rasa_runner(
+        destination_info.destination_name, "jm_dev_2" + uniq_id()
+    )
     # source test should not pass
     with pytest.raises(PrerequisitesException) as prq_ex:
         runner.run_all(
@@ -109,13 +115,23 @@ def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
         additional_vars={"user_id": "metadata__user_id"},
         source_tests_selector="tag:prerequisites",
     )
-    assert all(r.message.startswith(destination_info.replace_strategy) for r in run_results) is True
+    assert (
+        all(
+            r.message.startswith(destination_info.replace_strategy) for r in run_results
+        )
+        is True
+    )
     assert find_run_result(run_results, "_loads") is not None
     # all models must be SELECT as we do full refresh
     assert find_run_result(run_results, "_loads").message.startswith(
         destination_info.replace_strategy
     )
-    assert all(m.message.startswith(destination_info.replace_strategy) for m in run_results) is True
+    assert (
+        all(
+            m.message.startswith(destination_info.replace_strategy) for m in run_results
+        )
+        is True
+    )
 
     # all tests should pass
     runner.test(
@@ -124,7 +140,9 @@ def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
     )
 
 
-def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo) -> None:
+def test_dbt_run_error_via_additional_vars(
+    destination_info: DBTDestinationInfo,
+) -> None:
     if destination_info.destination_name == "redshift":
         pytest.skip("redshift disabled due to missing fixtures")
     # generate with setting external user and session to non existing fields (metadata__sess_id not exists in JM schema)
@@ -143,7 +161,9 @@ def test_dbt_run_error_via_additional_vars(destination_info: DBTDestinationInfo)
     assert "metadata__sess_id" in stg_interactions.message
 
 
-def test_dbt_incremental_schema_out_of_sync_error(destination_info: DBTDestinationInfo) -> None:
+def test_dbt_incremental_schema_out_of_sync_error(
+    destination_info: DBTDestinationInfo,
+) -> None:
     if destination_info.destination_name == "redshift":
         pytest.skip("redshift disabled due to missing fixtures")
     runner = setup_rasa_runner(destination_info.destination_name)

@@ -11,7 +11,9 @@ import dlt
 
 from dlt.common import json
 from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
@@ -66,7 +68,9 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert isinstance(step.started_at, datetime.datetime)
     assert isinstance(step.finished_at, datetime.datetime)
     assert isinstance(step.step_info, ExtractInfo)
-    assert step.step_info.extract_data_info == [{"name": "inject_tomls", "data_type": "source"}]
+    assert step.step_info.extract_data_info == [
+        {"name": "inject_tomls", "data_type": "source"}
+    ]
     # check infos
     extract_info = p.last_trace.last_extract_info
     assert isinstance(extract_info, ExtractInfo)
@@ -84,7 +88,10 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert metrics["schema_name"] == "inject_tomls"
     # check dag and hints
     assert metrics["dag"] == [("data", "data")]
-    assert metrics["hints"]["data"] == {"write_disposition": "replace", "primary_key": "id"}
+    assert metrics["hints"]["data"] == {
+        "write_disposition": "replace",
+        "primary_key": "id",
+    }
 
     metrics = extract_info.metrics[load_id][1]
     # inject tomls and dlt state
@@ -118,7 +125,9 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert resolved.is_secret_hint is True
     assert resolved.value == "2137"
     assert resolved.default_value == "123"
-    resolved = _find_resolved_value(trace.resolved_config_values, "credentials", ["databricks"])
+    resolved = _find_resolved_value(
+        trace.resolved_config_values, "credentials", ["databricks"]
+    )
     assert resolved.is_secret_hint is True
     assert resolved.value == databricks_creds
     assert_trace_printable(trace)
@@ -151,7 +160,9 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert isinstance(step.step_exception, str)
     assert isinstance(step.step_info, ExtractInfo)
     assert len(step.exception_traces) > 0
-    assert step.step_info.extract_data_info == [{"name": "async_exception", "data_type": "source"}]
+    assert step.step_info.extract_data_info == [
+        {"name": "async_exception", "data_type": "source"}
+    ]
     assert_trace_printable(trace)
 
     extract_info = step.step_info
@@ -175,7 +186,10 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     assert step.step_info is norm_info
     assert_trace_printable(trace)
     assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
-    assert p.last_trace.last_normalize_info.row_counts == {"_dlt_pipeline_state": 1, "data": 3}
+    assert p.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "data": 3,
+    }
 
     assert len(norm_info.loads_ids) == 1
     load_id = norm_info.loads_ids[0]
@@ -305,7 +319,10 @@ def test_trace_on_restore_state(environment: DictStrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
 
     def _sync_destination_patch(
-        self: Pipeline, destination: str = None, staging: str = None, dataset_name: str = None
+        self: Pipeline,
+        destination: str = None,
+        staging: str = None,
+        dataset_name: str = None,
     ):
         # just wipe the pipeline simulating deleted dataset
         self._wipe_working_folder()
@@ -330,9 +347,9 @@ def test_load_none_trace() -> None:
 
 
 def test_trace_telemetry() -> None:
-    with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch(
-        "dlt.common.runtime.segment.before_send", _mock_segment_before_send
-    ):
+    with patch(
+        "dlt.common.runtime.sentry.before_send", _mock_sentry_before_send
+    ), patch("dlt.common.runtime.segment.before_send", _mock_segment_before_send):
         # os.environ["FAIL_PROB"] = "1.0"  # make it complete immediately
         start_test_telemetry()
 
@@ -363,7 +380,9 @@ def test_trace_telemetry() -> None:
             assert isinstance(event["properties"]["transaction_id"], str)
             # check extract info
             if step == "extract":
-                assert event["properties"]["extract_data"] == [{"name": "", "data_type": "int"}]
+                assert event["properties"]["extract_data"] == [
+                    {"name": "", "data_type": "int"}
+                ]
             if step == "load":
                 # dummy has empty fingerprint
                 assert event["properties"]["destination_fingerprint"] == ""
@@ -407,7 +426,9 @@ def test_trace_telemetry() -> None:
         assert event["properties"]["destination_type"] is None
         assert event["properties"]["pipeline_name_hash"] == digest128("fresh")
         assert event["properties"]["dataset_name_hash"] == digest128(p.dataset_name)
-        assert event["properties"]["default_schema_name_hash"] == digest128(p.default_schema_name)
+        assert event["properties"]["default_schema_name_hash"] == digest128(
+            p.default_schema_name
+        )
 
 
 def test_extract_data_describe() -> None:
@@ -426,7 +447,10 @@ def test_extract_data_describe() -> None:
     ]
     assert describe_extract_data(
         [DltResource(Pipe("rrr_extract"), None, False), DltSource(schema, "sect")]
-    ) == [{"name": "rrr_extract", "data_type": "resource"}, {"name": "test", "data_type": "source"}]
+    ) == [
+        {"name": "rrr_extract", "data_type": "resource"},
+        {"name": "test", "data_type": "source"},
+    ]
     assert describe_extract_data([{"a": "b"}]) == [{"name": "", "data_type": "dict"}]
     from pandas import DataFrame
 
@@ -436,8 +460,15 @@ def test_extract_data_describe() -> None:
     ]
     # first unnamed element in the list breaks checking info
     assert describe_extract_data(
-        [DltResource(Pipe("rrr_extract"), None, False), DataFrame(), DltSource(schema, "sect")]
-    ) == [{"name": "rrr_extract", "data_type": "resource"}, {"name": "", "data_type": "DataFrame"}]
+        [
+            DltResource(Pipe("rrr_extract"), None, False),
+            DataFrame(),
+            DltSource(schema, "sect"),
+        ]
+    ) == [
+        {"name": "rrr_extract", "data_type": "resource"},
+        {"name": "", "data_type": "DataFrame"},
+    ]
 
 
 def test_slack_hook(environment: DictStrStr) -> None:
@@ -449,7 +480,9 @@ def test_slack_hook(environment: DictStrStr) -> None:
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = hook_url
     with requests_mock.mock() as m:
         m.post(hook_url, json={})
-        load_info = dlt.pipeline().run([1, 2, 3], table_name="data", destination="dummy")
+        load_info = dlt.pipeline().run(
+            [1, 2, 3], table_name="data", destination="dummy"
+        )
         assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200  # type: ignore[attr-defined]
     assert m.called
     message = m.last_request.json()

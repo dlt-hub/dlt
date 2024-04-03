@@ -74,7 +74,9 @@ def bigquery_insert(
     )
     # since we have set the batch_size to 0, we get a filepath and can load the file directly
     with open(items, "rb") as f:
-        load_job = client.load_table_from_file(f, BIGQUERY_TABLE_ID, job_config=job_config)
+        load_job = client.load_table_from_file(
+            f, BIGQUERY_TABLE_ID, job_config=job_config
+        )
     load_job.result()  # Waits for the job to complete.
 
 

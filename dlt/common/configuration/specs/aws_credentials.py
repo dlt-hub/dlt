@@ -56,7 +56,11 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
 
     def to_session_credentials(self) -> Dict[str, str]:
         """Return configured or new aws session token"""
-        if self.aws_session_token and self.aws_access_key_id and self.aws_secret_access_key:
+        if (
+            self.aws_session_token
+            and self.aws_access_key_id
+            and self.aws_secret_access_key
+        ):
             return dict(
                 aws_access_key_id=self.aws_access_key_id,
                 aws_secret_access_key=self.aws_secret_access_key,
@@ -84,9 +88,15 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         if self.profile_name is not None:
             session.set_config_variable("profile", self.profile_name)
 
-        if self.aws_access_key_id or self.aws_secret_access_key or self.aws_session_token:
+        if (
+            self.aws_access_key_id
+            or self.aws_secret_access_key
+            or self.aws_session_token
+        ):
             session.set_credentials(
-                self.aws_access_key_id, self.aws_secret_access_key, self.aws_session_token
+                self.aws_access_key_id,
+                self.aws_secret_access_key,
+                self.aws_session_token,
             )
         if self.region_name is not None:
             session.set_config_variable("region", self.region_name)

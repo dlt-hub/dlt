@@ -55,7 +55,9 @@ def test_get_table_prefix_layout() -> None:
 
     # disallow other params before table_name
     with pytest.raises(CantExtractTablePrefix):
-        path_utils.get_table_prefix_layout("{file_id}some_random{table_name}/stuff_in_between/")
+        path_utils.get_table_prefix_layout(
+            "{file_id}some_random{table_name}/stuff_in_between/"
+        )
 
     # disallow any placeholders before table name (ie. Athena)
     with pytest.raises(CantExtractTablePrefix):
@@ -66,4 +68,6 @@ def test_get_table_prefix_layout() -> None:
 
     # disallow table_name without following separator
     with pytest.raises(CantExtractTablePrefix):
-        path_utils.get_table_prefix_layout("{schema_name}/{table_name}{load_id}.{file_id}.{ext}")
+        path_utils.get_table_prefix_layout(
+            "{schema_name}/{table_name}{load_id}.{file_id}.{ext}"
+        )

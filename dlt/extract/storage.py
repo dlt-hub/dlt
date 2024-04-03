@@ -27,7 +27,9 @@ class ExtractorItemStorage(DataItemStorage):
         super().__init__(self.load_file_type)
         self.package_storage = package_storage
 
-    def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
+    def _get_data_item_path_template(
+        self, load_id: str, _: str, table_name: str
+    ) -> str:
         file_name = PackageStorage.build_job_file_name(table_name, "%s")
         file_path = self.package_storage.get_job_file_path(
             load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
@@ -53,14 +55,19 @@ class ExtractStorage(NormalizeStorage):
         self.new_packages_folder = uniq_id(8)
         self.storage.create_folder(self.new_packages_folder, exists_ok=True)
         self.new_packages = PackageStorage(
-            FileStorage(os.path.join(self.storage.storage_path, self.new_packages_folder)), "new"
+            FileStorage(
+                os.path.join(self.storage.storage_path, self.new_packages_folder)
+            ),
+            "new",
         )
         self._item_storages: Dict[TLoaderFileFormat, ExtractorItemStorage] = {
             "puae-jsonl": JsonLExtractorStorage(self.new_packages),
             "arrow": ArrowExtractorStorage(self.new_packages),
         }
 
-    def create_load_package(self, schema: Schema, reuse_exiting_package: bool = True) -> str:
+    def create_load_package(
+        self, schema: Schema, reuse_exiting_package: bool = True
+    ) -> str:
         """Creates a new load package for given `schema` or returns if such package already exists.
 
         You can prevent reuse of the existing package by setting `reuse_exiting_package` to False
@@ -81,7 +88,9 @@ class ExtractStorage(NormalizeStorage):
         self.new_packages.save_schema(load_id, schema)
         return load_id
 
-    def get_storage(self, loader_file_format: TLoaderFileFormat) -> ExtractorItemStorage:
+    def get_storage(
+        self, loader_file_format: TLoaderFileFormat
+    ) -> ExtractorItemStorage:
         return self._item_storages[loader_file_format]
 
     def close_writers(self, load_id: str) -> None:
@@ -101,9 +110,12 @@ class ExtractStorage(NormalizeStorage):
     def commit_new_load_package(self, load_id: str, schema: Schema) -> None:
         self.new_packages.save_schema(load_id, schema)
         self.storage.rename_tree(
-            os.path.join(self.new_packages_folder, self.new_packages.get_package_path(load_id)),
             os.path.join(
-                NormalizeStorage.EXTRACTED_FOLDER, self.new_packages.get_package_path(load_id)
+                self.new_packages_folder, self.new_packages.get_package_path(load_id)
+            ),
+            os.path.join(
+                NormalizeStorage.EXTRACTED_FOLDER,
+                self.new_packages.get_package_path(load_id),
             ),
         )
 

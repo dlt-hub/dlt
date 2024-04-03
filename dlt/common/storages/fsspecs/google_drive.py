@@ -11,7 +11,9 @@ try:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
 except ModuleNotFoundError:
-    raise MissingDependencyException("GoogleDriveFileSystem", ["google-api-python-client"])
+    raise MissingDependencyException(
+        "GoogleDriveFileSystem", ["google-api-python-client"]
+    )
 
 try:
     from google.auth.credentials import AnonymousCredentials
@@ -170,10 +172,15 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             file_id (str): The ID of the file to trash.
         """
         file_metadata = {"trashed": True}
-        self.service.update(fileId=file_id, supportsAllDrives=True, body=file_metadata).execute()
+        self.service.update(
+            fileId=file_id, supportsAllDrives=True, body=file_metadata
+        ).execute()
 
     def rm(
-        self, path: str, recursive: Optional[bool] = True, maxdepth: Optional[int] = None
+        self,
+        path: str,
+        recursive: Optional[bool] = True,
+        maxdepth: Optional[int] = None,
     ) -> None:
         """Remove files or directories.
 
@@ -219,7 +226,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         file_id = self.path_to_file_id(path)
         return self._info_by_id(file_id, self._parent(path))
 
-    def _info_by_id(self, file_id: str, path_prefix: Optional[str] = None) -> Dict[str, Any]:
+    def _info_by_id(
+        self, file_id: str, path_prefix: Optional[str] = None
+    ) -> Dict[str, Any]:
         response = self.service.get(
             fileId=file_id,
             fields=FILE_INFO_FIELDS,
@@ -341,10 +350,14 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         else:
             sub_path = posixpath.join(*descendants)
             return self.path_to_file_id(
-                sub_path, parent_id=top_file_id, parent_path=posixpath.join(parent_path, file_name)
+                sub_path,
+                parent_id=top_file_id,
+                parent_path=posixpath.join(parent_path, file_name),
             )
 
-    def _find_file_id_in_dir(self, file_name: str, dir_file_id: str, dir_path: str) -> Any:
+    def _find_file_id_in_dir(
+        self, file_name: str, dir_file_id: str, dir_path: str
+    ) -> Any:
         """Get the file ID of a file with a given name in a directory.
 
         Args:
@@ -362,7 +375,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 possible_children.append(child["id"])
 
         if len(possible_children) == 0:
-            raise FileNotFoundError(f"Directory {dir_file_id} has no child named {file_name}")
+            raise FileNotFoundError(
+                f"Directory {dir_file_id} has no child named {file_name}"
+            )
         if len(possible_children) == 1:
             return possible_children[0]
         else:
@@ -372,7 +387,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 "to file_id."
             )
 
-    def _open(self, path: str, mode: Optional[str] = "rb", **kwargs: Any) -> "GoogleDriveFile":
+    def _open(
+        self, path: str, mode: Optional[str] = "rb", **kwargs: Any
+    ) -> "GoogleDriveFile":
         """Open a file.
 
         Args:
@@ -387,7 +404,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         return GoogleDriveFile(self, path, mode=mode, **kwargs)
 
     @staticmethod
-    def _file_info_from_response(file: Dict[str, Any], path_prefix: str = None) -> Dict[str, Any]:
+    def _file_info_from_response(
+        file: Dict[str, Any], path_prefix: str = None
+    ) -> Dict[str, Any]:
         """Create fsspec compatible file info"""
         ftype = "directory" if file.get("mimeType") == DIR_MIME_TYPE else "file"
         if path_prefix:
@@ -436,7 +455,9 @@ class GoogleDriveFile(AbstractBufferedFile):
         self.parent_id: str = None
         self.location = None
 
-    def _fetch_range(self, start: Optional[int] = None, end: Optional[int] = None) -> Any:
+    def _fetch_range(
+        self, start: Optional[int] = None, end: Optional[int] = None
+    ) -> Any:
         """Read data from Google Drive.
 
         Args:
@@ -488,8 +509,13 @@ class GoogleDriveFile(AbstractBufferedFile):
                 head["Content-Range"] = "bytes */%i" % self.offset
                 data = None
         else:
-            head["Content-Range"] = "bytes %i-%i/*" % (self.offset, self.offset + length - 1)
-        head.update({"Content-Type": "application/octet-stream", "Content-Length": str(length)})
+            head["Content-Range"] = "bytes %i-%i/*" % (
+                self.offset,
+                self.offset + length - 1,
+            )
+        head.update(
+            {"Content-Type": "application/octet-stream", "Content-Length": str(length)}
+        )
         req = self.fs.service._http.request
         head, body = req(self.location, method="PUT", body=data, headers=head)
         status = int(head["status"])

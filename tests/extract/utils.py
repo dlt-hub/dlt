@@ -29,7 +29,9 @@ def expect_extracted_file(
     file = next(gen, None)
     if file is None:
         raise FileNotFoundError(
-            PackageStorage.build_job_file_name(table_name, schema_name, validate_components=False)
+            PackageStorage.build_job_file_name(
+                table_name, schema_name, validate_components=False
+            )
         )
     assert file is not None
     # get remaining file names
@@ -46,7 +48,9 @@ def expect_extracted_file(
 
 
 class AssertItems(ItemTransform[TDataItem]):
-    def __init__(self, expected_items: Any, item_type: TDataItemFormat = "json") -> None:
+    def __init__(
+        self, expected_items: Any, item_type: TDataItemFormat = "json"
+    ) -> None:
         self.expected_items = expected_items
         self.item_type = item_type
 

@@ -14,7 +14,11 @@ from dlt.common.libs.pyarrow import NameNormalizationClash
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.cases import arrow_format_from_pandas, arrow_table_all_data_types, TArrowFormat
+from tests.cases import (
+    arrow_format_from_pandas,
+    arrow_table_all_data_types,
+    TArrowFormat,
+)
 from tests.utils import preserve_environ
 
 
@@ -44,7 +48,9 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
     pipeline.extract(some_data())
     norm_storage = pipeline._get_normalize_storage()
     extract_files = [
-        fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
+        fn
+        for fn in norm_storage.list_files_to_normalize_sorted()
+        if fn.endswith(".parquet")
     ]
 
     assert len(extract_files) == 1
@@ -183,8 +189,12 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
             yield item
 
     # get buffer written and file rotated with each yielded frame
-    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(len(rows))
-    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"] = str(len(rows))
+    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"] = (
+        str(len(rows))
+    )
+    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"] = str(
+        len(rows)
+    )
 
     pipeline.extract(data_frames())
     # ten parquet files
@@ -343,7 +353,9 @@ def test_empty_arrow(item_type: TArrowFormat) -> None:
     empty_df = pd.DataFrame(columns=item.columns)
 
     item_resource = dlt.resource(
-        arrow_format_from_pandas(empty_df, item_type), name="items", write_disposition="replace"
+        arrow_format_from_pandas(empty_df, item_type),
+        name="items",
+        write_disposition="replace",
     )
     info = pipeline.extract(item_resource)
     load_id = info.loads_ids[0]

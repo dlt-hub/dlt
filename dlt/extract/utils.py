@@ -21,8 +21,18 @@ from functools import wraps, partial
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
-from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems, TAnyFunOrGenerator
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TAnySchemaColumns,
+    TTableSchemaColumns,
+)
+from dlt.common.typing import (
+    AnyFun,
+    DictStrAny,
+    TDataItem,
+    TDataItems,
+    TAnyFunOrGenerator,
+)
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
@@ -70,7 +80,8 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
         # Assume list of columns
         return {col["name"]: col for col in columns}
     elif pydantic is not None and (
-        isinstance(columns, pydantic.BaseModel) or issubclass(columns, pydantic.BaseModel)
+        isinstance(columns, pydantic.BaseModel)
+        or issubclass(columns, pydantic.BaseModel)
     ):
         return pydantic.pydantic_to_table_schema_columns(columns)
 
@@ -95,7 +106,9 @@ def ensure_table_schema_columns_hint(
     return ensure_table_schema_columns(columns)
 
 
-def reset_pipe_state(pipe: SupportsPipe, source_state_: Optional[DictStrAny] = None) -> None:
+def reset_pipe_state(
+    pipe: SupportsPipe, source_state_: Optional[DictStrAny] = None
+) -> None:
     """Resets the resource state for a `pipe` and all its parent pipes"""
     if pipe.has_parent:
         reset_pipe_state(pipe.parent, source_state_)
@@ -124,11 +137,15 @@ def simulate_func_call(
     return sig, no_item_sig, bound_args
 
 
-def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> inspect.Parameter:
+def check_compat_transformer(
+    name: str, f: AnyFun, sig: inspect.Signature
+) -> inspect.Parameter:
     sig_arg_count = len(sig.parameters)
     callable_name = get_callable_name(f)
     if sig_arg_count == 0:
-        raise InvalidStepFunctionArguments(name, callable_name, sig, "Function takes no arguments")
+        raise InvalidStepFunctionArguments(
+            name, callable_name, sig, "Function takes no arguments"
+        )
 
     # see if meta is present in kwargs
     meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)

@@ -51,10 +51,17 @@ class SerializableResolvedValueTrace(NamedTuple):
 
     def asdict(self) -> StrAny:
         """A dictionary representation that is safe to load."""
-        return {k: v for k, v in self._asdict().items() if k not in ("value", "default_value")}
+        return {
+            k: v
+            for k, v in self._asdict().items()
+            if k not in ("value", "default_value")
+        }
 
     def asstr(self, verbosity: int = 0) -> str:
-        return f"{self.key}->{self.value} in {'.'.join(self.sections)} by {self.provider_name}"
+        return (
+            f"{self.key}->{self.value} in {'.'.join(self.sections)} by"
+            f" {self.provider_name}"
+        )
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
@@ -146,8 +153,8 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         else:
             elapsed_str = "---"
         msg = (
-            f"Run started at {self.started_at} and {completed_str} in {elapsed_str} with"
-            f" {len(self.steps)} steps."
+            f"Run started at {self.started_at} and {completed_str} in"
+            f" {elapsed_str} with {len(self.steps)} steps."
         )
         if verbosity > 0 and len(self.resolved_config_values) > 0:
             msg += "\nFollowing config and secret values were resolved:\n"
@@ -337,7 +344,9 @@ def load_trace(trace_path: str) -> PipelineTrace:
         return None
 
 
-def get_exception_traces(exc: BaseException, container: Container = None) -> List[ExceptionTrace]:
+def get_exception_traces(
+    exc: BaseException, container: Container = None
+) -> List[ExceptionTrace]:
     """Gets exception trace chain and extend it with data available in Container context"""
     traces = get_exception_trace_chain(exc)
     container = container or Container()

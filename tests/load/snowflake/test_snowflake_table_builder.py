@@ -28,7 +28,9 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
 
 
 def test_create_table(snowflake_client: SnowflakeClient) -> None:
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", TABLE_UPDATE, False
+    )
     assert len(statements) == 1
     sql = statements[0]
     sqlfluff.parse(sql, dialect="snowflake")
@@ -48,7 +50,9 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
 
 
 def test_alter_table(snowflake_client: SnowflakeClient) -> None:
-    statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", TABLE_UPDATE, True
+    )
     assert len(statements) == 1
     sql = statements[0]
 
@@ -78,13 +82,17 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL2" FLOAT NOT NULL' in sql
 
 
-def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClient) -> None:
+def test_create_table_with_partition_and_cluster(
+    snowflake_client: SnowflakeClient,
+) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    statements = snowflake_client._get_table_update_sql(
+        "event_test_table", mod_update, False
+    )
     assert len(statements) == 1
     sql = statements[0]
 

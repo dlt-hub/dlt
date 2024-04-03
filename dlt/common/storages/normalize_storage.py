@@ -17,11 +17,15 @@ from dlt.common.utils import set_working_dir
 
 class NormalizeStorage(VersionedStorage):
     STORAGE_VERSION: ClassVar[str] = "1.0.1"
-    EXTRACTED_FOLDER: ClassVar[str] = (
-        "extracted"  # folder within the volume where extracted files to be normalized are stored
+    EXTRACTED_FOLDER: ClassVar[
+        str
+    ] = (  # folder within the volume where extracted files to be normalized are stored
+        "extracted"
     )
 
-    @with_config(spec=NormalizeStorageConfiguration, sections=(known_sections.NORMALIZE,))
+    @with_config(
+        spec=NormalizeStorageConfiguration, sections=(known_sections.NORMALIZE,)
+    )
     def __init__(
         self, is_owner: bool, config: NormalizeStorageConfiguration = config.value
     ) -> None:
@@ -34,7 +38,11 @@ class NormalizeStorage(VersionedStorage):
         if is_owner:
             self.initialize_storage()
         self.extracted_packages = PackageStorage(
-            FileStorage(os.path.join(self.storage.storage_path, NormalizeStorage.EXTRACTED_FOLDER)),
+            FileStorage(
+                os.path.join(
+                    self.storage.storage_path, NormalizeStorage.EXTRACTED_FOLDER
+                )
+            ),
             "extracted",
         )
 
@@ -43,7 +51,9 @@ class NormalizeStorage(VersionedStorage):
 
     def list_files_to_normalize_sorted(self) -> Sequence[str]:
         """Gets all data files in extracted packages storage. This method is compatible with current and all past storages"""
-        root_dir = os.path.join(self.storage.storage_path, NormalizeStorage.EXTRACTED_FOLDER)
+        root_dir = os.path.join(
+            self.storage.storage_path, NormalizeStorage.EXTRACTED_FOLDER
+        )
         with set_working_dir(root_dir):
             files = glob.glob("**/*", recursive=True)
             # return all files that are not schema files
@@ -57,7 +67,9 @@ class NormalizeStorage(VersionedStorage):
                 ]
             )
 
-    def migrate_storage(self, from_version: VersionInfo, to_version: VersionInfo) -> None:
+    def migrate_storage(
+        self, from_version: VersionInfo, to_version: VersionInfo
+    ) -> None:
         if from_version == "1.0.0" and from_version < to_version:
             # get files in storage
             if len(self.list_files_to_normalize_sorted()) > 0:
@@ -65,8 +77,9 @@ class NormalizeStorage(VersionedStorage):
                     self.storage.storage_path,
                     from_version,
                     to_version,
-                    f"There are extract files in {NormalizeStorage.EXTRACTED_FOLDER} folder."
-                    " Storage will not migrate automatically duo to possible data loss. Delete the"
+                    "There are extract files in"
+                    f" {NormalizeStorage.EXTRACTED_FOLDER} folder. Storage will not"
+                    " migrate automatically duo to possible data loss. Delete the"
                     " files or normalize it with dlt 0.3.x",
                 )
             from_version = semver.VersionInfo.parse("1.0.1")

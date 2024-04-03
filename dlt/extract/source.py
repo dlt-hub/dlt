@@ -9,7 +9,9 @@ from typing_extensions import Self
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.normalizers.json.relational import (
+    DataItemNormalizer as RelationalNormalizer,
+)
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
 from dlt.common.typing import StrAny, TDataItem
@@ -21,7 +23,11 @@ from dlt.common.pipeline import (
     source_state,
     pipeline_state,
 )
-from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes
+from dlt.common.utils import (
+    graph_find_scc_nodes,
+    flatten_list_or_items,
+    graph_edges_to_nodes,
+)
 
 from dlt.extract.items import TDecompositionStrategy
 from dlt.extract.pipe_iterator import ManagedPipeIterator
@@ -69,7 +75,9 @@ class DltResourceDict(Dict[str, DltResource]):
                         mock_template = make_hints(
                             pipe.name, write_disposition=resource.write_disposition
                         )
-                        resource = DltResource(pipe, mock_template, False, section=resource.section)
+                        resource = DltResource(
+                            pipe, mock_template, False, section=resource.section
+                        )
                         resource.source_name = resource.source_name
                     extracted[resource.name] = resource
                 else:
@@ -132,7 +140,9 @@ class DltResourceDict(Dict[str, DltResource]):
 
     def _clone_new_pipes(self, resource_names: Sequence[str]) -> None:
         # clone all new pipes and keep
-        _, self._cloned_pairs = ManagedPipeIterator.clone_pipes(self._new_pipes, self._cloned_pairs)
+        _, self._cloned_pairs = ManagedPipeIterator.clone_pipes(
+            self._new_pipes, self._cloned_pairs
+        )
         # self._cloned_pairs.update(cloned_pairs)
         # replace pipes in resources, the cloned_pipes preserve parent connections
         for name in resource_names:
@@ -218,11 +228,15 @@ class DltSource(Iterable[TDataItem]):
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
-        return RelationalNormalizer.get_normalizer_config(self._schema).get("max_nesting")
+        return RelationalNormalizer.get_normalizer_config(self._schema).get(
+            "max_nesting"
+        )
 
     @max_table_nesting.setter
     def max_table_nesting(self, value: int) -> None:
-        RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
+        RelationalNormalizer.update_normalizer_config(
+            self._schema, {"max_nesting": value}
+        )
 
     @property
     def schema_contract(self) -> TSchemaContract:
@@ -245,7 +259,9 @@ class DltSource(Iterable[TDataItem]):
     @property
     def root_key(self) -> bool:
         """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
-        config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
+        config = RelationalNormalizer.get_normalizer_config(self._schema).get(
+            "propagation"
+        )
         return (
             config is not None
             and "root" in config
@@ -257,13 +273,14 @@ class DltSource(Iterable[TDataItem]):
     def root_key(self, value: bool) -> None:
         if value is True:
             RelationalNormalizer.update_normalizer_config(
-                self._schema, {"propagation": {"root": {"_dlt_id": TColumnName("_dlt_root_id")}}}
+                self._schema,
+                {"propagation": {"root": {"_dlt_id": TColumnName("_dlt_root_id")}}},
             )
         else:
             if self.root_key:
-                propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)[
-                    "propagation"
-                ]
+                propagation_config = RelationalNormalizer.get_normalizer_config(
+                    self._schema
+                )["propagation"]
                 propagation_config["root"].pop("_dlt_id")  # type: ignore
 
     @property
@@ -316,7 +333,10 @@ class DltSource(Iterable[TDataItem]):
             scc = graph_find_scc_nodes(graph_edges_to_nodes(dag, directed=False))
             # components contain elements that are not currently selected
             selected_set = set(self.resources.selected.keys())
-            return [self.with_resources(*component.intersection(selected_set)) for component in scc]
+            return [
+                self.with_resources(*component.intersection(selected_set))
+                for component in scc
+            ]
         else:
             raise ValueError(strategy)
 
@@ -368,7 +388,9 @@ class DltSource(Iterable[TDataItem]):
         """
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
         return DltSource(
-            self.schema.clone(with_name=with_name), self.section, list(self._resources.values())
+            self.schema.clone(with_name=with_name),
+            self.section,
+            list(self._resources.values()),
         )
 
     def __iter__(self) -> Iterator[TDataItem]:
@@ -384,7 +406,9 @@ class DltSource(Iterable[TDataItem]):
         section_context = self._get_config_section_context()
 
         # managed pipe iterator will set the context on each call to  __next__
-        with inject_section(section_context), Container().injectable_context(state_context):
+        with inject_section(section_context), Container().injectable_context(
+            state_context
+        ):
             pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
         pipe_iterator.set_context([section_context, state_context])
         _iter = map(lambda item: item.item, pipe_iterator)
@@ -392,7 +416,9 @@ class DltSource(Iterable[TDataItem]):
 
     def _get_config_section_context(self) -> ConfigSectionContext:
         proxy = Container()[PipelineContext]
-        pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+        pipeline_name = (
+            None if not proxy.is_active() else proxy.pipeline().pipeline_name
+        )
         return ConfigSectionContext(
             pipeline_name=pipeline_name,
             sections=(known_sections.SOURCES, self.section, self.name),
@@ -416,8 +442,8 @@ class DltSource(Iterable[TDataItem]):
     def __str__(self) -> str:
         info = (
             f"DltSource {self.name} section {self.section} contains"
-            f" {len(self.resources)} resource(s) of which {len(self.selected_resources)} are"
-            " selected"
+            f" {len(self.resources)} resource(s) of which"
+            f" {len(self.selected_resources)} are selected"
         )
         for r in self.resources.values():
             selected_info = "selected" if r.selected else "not selected"
@@ -430,12 +456,13 @@ class DltSource(Iterable[TDataItem]):
                 info += f"\nresource {r.name} is {selected_info}"
         if self.exhausted:
             info += (
-                "\nSource is already iterated and cannot be used again ie. to display or load data."
+                "\nSource is already iterated and cannot be used again ie. to display"
+                " or load data."
             )
         else:
             info += (
-                "\nIf you want to see the data items in this source you must iterate it or convert"
-                " to list ie. list(source)."
+                "\nIf you want to see the data items in this source you must iterate it"
+                " or convert to list ie. list(source)."
             )
         info += " Note that, like any iterator, you can iterate the source only once."
         info += f"\ninstance id: {id(self)}"

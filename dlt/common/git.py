@@ -42,7 +42,11 @@ def is_clean_and_synced(repo: Repo) -> bool:
     status_lines = status.splitlines()
     first_line = status_lines[0]
     # we expect first status line is not ## main...origin/main [ahead 1]
-    return len(status_lines) == 1 and first_line.startswith("##") and not first_line.endswith("]")
+    return (
+        len(status_lines) == 1
+        and first_line.startswith("##")
+        and not first_line.endswith("]")
+    )
 
 
 def is_dirty(repo: Repo) -> bool:
@@ -84,7 +88,9 @@ def clone_repo(
 ) -> Repo:
     from git import Repo
 
-    repo = Repo.clone_from(repository_url, clone_path, env=dict(GIT_SSH_COMMAND=with_git_command))
+    repo = Repo.clone_from(
+        repository_url, clone_path, env=dict(GIT_SSH_COMMAND=with_git_command)
+    )
     if branch:
         repo.git.checkout(branch)
     return repo
@@ -133,7 +139,9 @@ def get_fresh_repo_files(
         repo_name = url.name
         repo_path = os.path.join(working_dir, repo_name)
         try:
-            ensure_remote_head(repo_path, branch=branch, with_git_command=with_git_command)
+            ensure_remote_head(
+                repo_path, branch=branch, with_git_command=with_git_command
+            )
         except GitError:
             force_clone_repo(
                 repo_location,

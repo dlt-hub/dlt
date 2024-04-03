@@ -75,7 +75,9 @@ class DataWriter(abc.ABC):
     def write_footer(self) -> None:
         pass
 
-    def write_all(self, columns_schema: TTableSchemaColumns, rows: Sequence[Any]) -> None:
+    def write_all(
+        self, columns_schema: TTableSchemaColumns, rows: Sequence[Any]
+    ) -> None:
         self.write_header(columns_schema)
         self.write_data(rows)
         self.write_footer()
@@ -87,7 +89,10 @@ class DataWriter(abc.ABC):
 
     @classmethod
     def from_file_format(
-        cls, file_format: TLoaderFileFormat, f: IO[Any], caps: DestinationCapabilitiesContext = None
+        cls,
+        file_format: TLoaderFileFormat,
+        f: IO[Any],
+        caps: DestinationCapabilitiesContext = None,
     ) -> "DataWriter":
         return cls.class_factory(file_format)(f, caps)
 
@@ -98,7 +103,9 @@ class DataWriter(abc.ABC):
         return cls.class_factory(caps.preferred_loader_file_format)(f, caps)
 
     @classmethod
-    def data_format_from_file_format(cls, file_format: TLoaderFileFormat) -> TFileFormatSpec:
+    def data_format_from_file_format(
+        cls, file_format: TLoaderFileFormat
+    ) -> TFileFormatSpec:
         return cls.class_factory(file_format).data_format()
 
     @staticmethod
@@ -284,7 +291,9 @@ class ParquetDataWriter(DataWriter):
             [
                 pyarrow.field(
                     name,
-                    get_py_arrow_datatype(schema_item, self._caps, self.timestamp_timezone),
+                    get_py_arrow_datatype(
+                        schema_item, self._caps, self.timestamp_timezone
+                    ),
                     nullable=schema_item.get("nullable", True),
                 )
                 for name, schema_item in columns_schema.items()
@@ -351,7 +360,9 @@ class ArrowWriter(ParquetDataWriter):
 
     def write_footer(self) -> None:
         if not self.writer:
-            raise NotImplementedError("Arrow Writer does not support writing empty files")
+            raise NotImplementedError(
+                "Arrow Writer does not support writing empty files"
+            )
         return super().write_footer()
 
     @classmethod

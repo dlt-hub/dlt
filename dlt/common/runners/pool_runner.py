@@ -24,7 +24,9 @@ class NullExecutor(Executor):
     Provides a uniform interface for `None` pool type
     """
 
-    def submit(self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Future[T]:
+    def submit(
+        self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs
+    ) -> Future[T]:
         """Run the job and return a Future"""
         fut: Future[T] = Future()
         try:
@@ -53,7 +55,8 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
             )
     elif config.pool_type == "thread":
         return ThreadPoolExecutor(
-            max_workers=config.workers, thread_name_prefix=Container.thread_pool_prefix()
+            max_workers=config.workers,
+            thread_name_prefix=Container.thread_pool_prefix(),
         )
     # no pool - single threaded
     return NullExecutor()
@@ -66,12 +69,16 @@ def run_pool(
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
         raise ValueError(
-            run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable"
+            run_f,
+            "Pool runner entry point must be a function f(pool: TPool) or Runnable",
         )
 
     # start pool
     pool = create_pool(config)
-    logger.info(f"Created {config.pool_type} pool with {config.workers or 'default no.'} workers")
+    logger.info(
+        f"Created {config.pool_type} pool with"
+        f" {config.workers or 'default no.'} workers"
+    )
     runs_count = 1
 
     def _run_func() -> bool:

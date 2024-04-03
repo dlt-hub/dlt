@@ -36,7 +36,9 @@ def default_context(c: Context, precision: int) -> Context:
 
 
 @contextmanager
-def numeric_default_context(precision: int = DEFAULT_NUMERIC_PRECISION) -> Iterator[Context]:
+def numeric_default_context(
+    precision: int = DEFAULT_NUMERIC_PRECISION,
+) -> Iterator[Context]:
     with localcontext() as c:
         yield default_context(c, precision)
 

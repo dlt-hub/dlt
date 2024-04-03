@@ -60,8 +60,8 @@ def pytest_configure(config):
         storage_configuration.LoadStorageConfiguration, init=True, repr=False
     )
 
-    storage_configuration.NormalizeStorageConfiguration.normalize_volume_path = os.path.join(
-        test_storage_root, "normalize"
+    storage_configuration.NormalizeStorageConfiguration.normalize_volume_path = (
+        os.path.join(test_storage_root, "normalize")
     )
     # delete __init__, otherwise it will not be recreated by dataclass
     delattr(storage_configuration.NormalizeStorageConfiguration, "__init__")
@@ -80,8 +80,9 @@ def pytest_configure(config):
     assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(
         test_storage_root, "config/"
     )
-    assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(
-        test_storage_root, "config/"
+    assert (
+        run_configuration.RunConfiguration().config_files_storage_path
+        == os.path.join(test_storage_root, "config/")
     )
 
     # path pipeline instance id up to millisecond
@@ -96,7 +97,12 @@ def pytest_configure(config):
     # os.environ["RUNTIME__SENTRY_DSN"] = "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
 
     # disable sqlfluff logging
-    for log in ["sqlfluff.parser", "sqlfluff.linter", "sqlfluff.templater", "sqlfluff.lexer"]:
+    for log in [
+        "sqlfluff.parser",
+        "sqlfluff.linter",
+        "sqlfluff.templater",
+        "sqlfluff.lexer",
+    ]:
         logging.getLogger(log).setLevel("ERROR")
 
     # disable snowflake logging

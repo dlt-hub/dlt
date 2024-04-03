@@ -1,4 +1,7 @@
-from dlt.common.data_writers.escape import escape_redshift_identifier, escape_redshift_literal
+from dlt.common.data_writers.escape import (
+    escape_redshift_identifier,
+    escape_redshift_literal,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 

@@ -5,7 +5,12 @@ from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
+from dlt.common.destination.reference import (
+    TLoadJobState,
+    LoadJob,
+    JobClientBase,
+    WithStateSync,
+)
 from dlt.common.storages import FileStorage
 
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -33,7 +38,9 @@ class LoadQdrantJob(LoadJob):
         super().__init__(file_name)
         self.db_client = db_client
         self.collection_name = collection_name
-        self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
+        self.embedding_fields = get_columns_names_with_prop(
+            table_schema, VECTORIZE_HINT
+        )
         self.unique_identifiers = self._list_unique_identifiers(table_schema)
         self.config = client_config
 
@@ -43,7 +50,9 @@ class LoadQdrantJob(LoadJob):
             for line in f:
                 data = json.loads(line)
                 point_id = (
-                    self._generate_uuid(data, self.unique_identifiers, self.collection_name)
+                    self._generate_uuid(
+                        data, self.unique_identifiers, self.collection_name
+                    )
                     if self.unique_identifiers
                     else uuid.uuid4()
                 )
@@ -52,7 +61,9 @@ class LoadQdrantJob(LoadJob):
                 ids.append(point_id)
                 docs.append(embedding_doc)
 
-            embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
+            embedding_model = db_client._get_or_init_model(
+                db_client.embedding_model_name
+            )
             embeddings = list(
                 embedding_model.embed(
                     docs,
@@ -114,7 +125,10 @@ class LoadQdrantJob(LoadJob):
         )
 
     def _generate_uuid(
-        self, data: Dict[str, Any], unique_identifiers: Sequence[str], collection_name: str
+        self,
+        data: Dict[str, Any],
+        unique_identifiers: Sequence[str],
+        collection_name: str,
     ) -> str:
         """Generates deterministic UUID. Used for deduplication.
 
@@ -262,7 +276,9 @@ class QdrantClient(JobClientBase, WithStateSync):
             self._create_sentinel_collection()
         elif truncate_tables:
             for table_name in truncate_tables:
-                qualified_table_name = self._make_qualified_collection_name(table_name=table_name)
+                qualified_table_name = self._make_qualified_collection_name(
+                    table_name=table_name
+                )
                 if self._collection_exists(qualified_table_name):
                     continue
 
@@ -270,7 +286,9 @@ class QdrantClient(JobClientBase, WithStateSync):
                 self._create_collection(full_collection_name=qualified_table_name)
 
     def is_storage_initialized(self) -> bool:
-        return self._collection_exists(self.sentinel_collection, qualify_table_name=False)
+        return self._collection_exists(
+            self.sentinel_collection, qualify_table_name=False
+        )
 
     def _create_sentinel_collection(self) -> None:
         """Create an empty collection to indicate that the storage is initialized."""
@@ -317,7 +335,8 @@ class QdrantClient(JobClientBase, WithStateSync):
                     scroll_filter=models.Filter(
                         must=[
                             models.FieldCondition(
-                                key="pipeline_name", match=models.MatchValue(value=pipeline_name)
+                                key="pipeline_name",
+                                match=models.MatchValue(value=pipeline_name),
                             )
                         ]
                     ),
@@ -338,7 +357,8 @@ class QdrantClient(JobClientBase, WithStateSync):
                         count_filter=models.Filter(
                             must=[
                                 models.FieldCondition(
-                                    key="load_id", match=models.MatchValue(value=load_id)
+                                    key="load_id",
+                                    match=models.MatchValue(value=load_id),
                                 )
                             ]
                         ),
@@ -352,7 +372,9 @@ class QdrantClient(JobClientBase, WithStateSync):
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         try:
-            scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+            scroll_table_name = self._make_qualified_collection_name(
+                self.schema.version_table_name
+            )
             response = self.db_client.scroll(
                 scroll_table_name,
                 with_payload=True,
@@ -371,16 +393,21 @@ class QdrantClient(JobClientBase, WithStateSync):
         except Exception:
             return None
 
-    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema_by_hash(
+        self, schema_hash: str
+    ) -> Optional[StorageSchemaInfo]:
         try:
-            scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+            scroll_table_name = self._make_qualified_collection_name(
+                self.schema.version_table_name
+            )
             response = self.db_client.scroll(
                 scroll_table_name,
                 with_payload=True,
                 scroll_filter=models.Filter(
                     must=[
                         models.FieldCondition(
-                            key="version_hash", match=models.MatchValue(value=schema_hash)
+                            key="version_hash",
+                            match=models.MatchValue(value=schema_hash),
                         )
                     ]
                 ),
@@ -391,7 +418,9 @@ class QdrantClient(JobClientBase, WithStateSync):
         except Exception:
             return None
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         return LoadQdrantJob(
             table,
             file_path,
@@ -410,7 +439,9 @@ class QdrantClient(JobClientBase, WithStateSync):
             "status": 0,
             "inserted_at": str(pendulum.now()),
         }
-        loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
+        loads_table_name = self._make_qualified_collection_name(
+            self.schema.loads_table_name
+        )
         self._create_point(properties, loads_table_name)
 
     def __enter__(self) -> "QdrantClient":
@@ -434,7 +465,9 @@ class QdrantClient(JobClientBase, WithStateSync):
             "inserted_at": str(pendulum.now()),
             "schema": schema_str,
         }
-        version_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+        version_table_name = self._make_qualified_collection_name(
+            self.schema.version_table_name
+        )
         self._create_point(properties, version_table_name)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
@@ -443,11 +476,15 @@ class QdrantClient(JobClientBase, WithStateSync):
 
             if not exists:
                 self._create_collection(
-                    full_collection_name=self._make_qualified_collection_name(table_name)
+                    full_collection_name=self._make_qualified_collection_name(
+                        table_name
+                    )
                 )
         self._update_schema_in_storage(self.schema)
 
-    def _collection_exists(self, table_name: str, qualify_table_name: bool = True) -> bool:
+    def _collection_exists(
+        self, table_name: str, qualify_table_name: bool = True
+    ) -> bool:
         try:
             table_name = (
                 self._make_qualified_collection_name(table_name)

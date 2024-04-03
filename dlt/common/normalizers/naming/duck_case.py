@@ -1,7 +1,9 @@
 import re
 from functools import lru_cache
 
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.normalizers.naming.snake_case import (
+    NamingConvention as SnakeCaseNamingConvention,
+)
 
 
 class NamingConvention(SnakeCaseNamingConvention):
@@ -17,5 +19,7 @@ class NamingConvention(SnakeCaseNamingConvention):
 
         # shorten identifier
         return NamingConvention.shorten_identifier(
-            NamingConvention._RE_UNDERSCORES.sub("_", normalized_ident), identifier, max_length
+            NamingConvention._RE_UNDERSCORES.sub("_", normalized_ident),
+            identifier,
+            max_length,
         )

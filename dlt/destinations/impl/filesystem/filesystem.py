@@ -20,7 +20,9 @@ from dlt.common.destination.reference import (
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.impl.filesystem import capabilities
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+)
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
 
@@ -81,7 +83,9 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self.make_remote_path()
+                file_name=self.file_name(),
+                status="running",
+                remote_path=self.make_remote_path(),
             )
             jobs.append(ref_job)
         return jobs
@@ -94,7 +98,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
     fs_client: AbstractFileSystem
     fs_path: str
 
-    def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
+    def __init__(
+        self, schema: Schema, config: FilesystemDestinationClientConfiguration
+    ) -> None:
         super().__init__(schema, config)
         self.fs_client, self.fs_path = fsspec_from_config(config)
         self.config: FilesystemDestinationClientConfiguration = config
@@ -144,7 +150,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                 # NOTE: without refresh you get random results here
                 logger.info(f"Will truncate tables in {truncate_dir}")
                 try:
-                    all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
+                    all_files = self.fs_client.ls(
+                        truncate_dir, detail=False, refresh=True
+                    )
                     # logger.debug(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
                     # print(f"in truncate dir {truncate_dir}: {all_files}")
                     for item in all_files:
@@ -163,8 +171,8 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                                         raise FileExistsError(item)
                 except FileNotFoundError:
                     logger.info(
-                        f"Directory or path to truncate tables {truncate_dir} does not exist but it"
-                        " should be created previously!"
+                        f"Directory or path to truncate tables {truncate_dir} does not"
+                        " exist but it should be created previously!"
                     )
 
     def update_stored_schema(
@@ -191,7 +199,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
     def is_storage_initialized(self) -> bool:
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         return cls(
             file_path,
@@ -214,7 +224,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         pass
 

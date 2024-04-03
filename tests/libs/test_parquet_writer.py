@@ -13,7 +13,12 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime
 
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES
-from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage, preserve_environ
+from tests.utils import (
+    TEST_STORAGE_ROOT,
+    write_version,
+    autouse_test_storage,
+    preserve_environ,
+)
 
 
 def get_writer(
@@ -47,7 +52,15 @@ def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
             [{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3}
         )
         writer.write_data_item(
-            [{"col1": 1, "col2": 2, "col3": "3", "col4": "4", "col5": {"hello": "marcin"}}],
+            [
+                {
+                    "col1": 1,
+                    "col2": 2,
+                    "col3": "3",
+                    "col4": "4",
+                    "col5": {"hello": "marcin"},
+                }
+            ],
             {"col1": c1, "col2": c2, "col3": c3, "col4": c4},
         )
 
@@ -68,11 +81,20 @@ def test_parquet_writer_schema_evolution_with_small_buffer() -> None:
     with get_writer("parquet", buffer_max_items=4, file_max_items=50) as writer:
         for _ in range(0, 20):
             writer.write_data_item(
-                [{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3}
+                [{"col1": 1, "col2": 2, "col3": "3"}],
+                {"col1": c1, "col2": c2, "col3": c3},
             )
         for _ in range(0, 20):
             writer.write_data_item(
-                [{"col1": 1, "col2": 2, "col3": "3", "col4": "4", "col5": {"hello": "marcin"}}],
+                [
+                    {
+                        "col1": 1,
+                        "col2": 2,
+                        "col3": "3",
+                        "col4": "4",
+                        "col5": {"hello": "marcin"},
+                    }
+                ],
                 {"col1": c1, "col2": c2, "col3": c3, "col4": c4},
             )
 
@@ -193,12 +215,17 @@ def test_parquet_writer_config() -> None:
     os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] = str(1024 * 512)
     os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "America/New York"
 
-    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
+    with inject_section(
+        ConfigSectionContext(pipeline_name=None, sections=("normalize",))
+    ):
         with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
             for i in range(0, 5):
                 writer.write_data_item(
                     [{"col1": i, "col2": pendulum.now()}],
-                    {"col1": new_column("col1", "bigint"), "col2": new_column("col2", "timestamp")},
+                    {
+                        "col1": new_column("col1", "bigint"),
+                        "col2": new_column("col2", "timestamp"),
+                    },
                 )
             # force the parquet writer to be created
             writer._flush_items()
@@ -222,7 +249,13 @@ def test_parquet_writer_schema_from_caps() -> None:
     with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
         for _ in range(0, 5):
             writer.write_data_item(
-                [{"col1": Decimal("2617.27"), "col2": pendulum.now(), "col3": Decimal(2**250)}],
+                [
+                    {
+                        "col1": Decimal("2617.27"),
+                        "col2": pendulum.now(),
+                        "col3": Decimal(2**250),
+                    }
+                ],
                 {
                     "col1": new_column("col1", "decimal"),
                     "col2": new_column("col2", "timestamp"),
