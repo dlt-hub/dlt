@@ -1,7 +1,5 @@
 import typing as t
 
-import pendulum
-
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -29,9 +27,6 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
-        current_datetime: t.Optional[pendulum.DateTime] = None,
-        datetime_format: t.Optional[str] = None,
-        extra_params: t.Optional[t.Dict[str, t.Any]] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
@@ -57,21 +52,10 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
                 values can be primitive types or callables which also should return a primitive type.
             **kwargs: Additional arguments passed to the destination config
         """
-        destinatination_kwargs: t.Dict[str, t.Any] = {}
-        if current_datetime:
-            destinatination_kwargs["current_datetime"] = current_datetime
-
-        if datetime_format:
-            destinatination_kwargs["datetime_format"] = datetime_format
-
-        if extra_params:
-            destinatination_kwargs["extra_params"] = extra_params
-
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,
             destination_name=destination_name,
             environment=environment,
-            kwargs=destinatination_kwargs,
             **kwargs,
         )
