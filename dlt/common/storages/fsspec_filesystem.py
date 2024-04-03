@@ -31,10 +31,7 @@ from dlt.common.configuration.specs import (
     AzureCredentials,
 )
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.storages.configuration import (
-    FileSystemCredentials,
-    FilesystemConfiguration,
-)
+from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
 
