@@ -1,22 +1,19 @@
 import gzip
 import time
-from typing import ClassVar, List, IO, Any, Optional, Type, TypeVar, Generic
+from typing import ClassVar, List, IO, Any, Optional, Type, Generic
 
 from dlt.common.typing import TDataItem, TDataItems
-from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import (
     BufferedDataWriterClosed,
     DestinationCapabilitiesRequired,
     InvalidFileNameTemplateException,
 )
-from dlt.common.data_writers.writers import DataWriter, DataWriterMetrics
+from dlt.common.data_writers.writers import TWriter, DataWriter, DataWriterMetrics, FileWriterSpec
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import uniq_id
-
-TWriter = TypeVar("TWriter", bound=DataWriter)
 
 
 def new_file_id() -> str:
@@ -38,7 +35,7 @@ class BufferedDataWriter(Generic[TWriter]):
     @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
         self,
-        file_format: TLoaderFileFormat,
+        writer_spec: FileWriterSpec,
         file_name_template: str,
         *,
         buffer_max_items: int = 5000,
@@ -47,10 +44,13 @@ class BufferedDataWriter(Generic[TWriter]):
         disable_compression: bool = False,
         _caps: DestinationCapabilitiesContext = None
     ):
-        self.file_format = file_format
-        self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
-        if self._file_format_spec.requires_destination_capabilities and not _caps:
-            raise DestinationCapabilitiesRequired(file_format)
+        self.writer_spec = writer_spec
+        if self.writer_spec.requires_destination_capabilities and not _caps:
+            raise DestinationCapabilitiesRequired(self.writer_spec.file_format)
+        self.writer_cls = DataWriter.class_factory(
+            writer_spec.file_format, writer_spec.data_item_format
+        )
+        self._supports_schema_changes = self.writer_spec.supports_schema_changes
         self._caps = _caps
         # validate if template has correct placeholders
         self.file_name_template = file_name_template
@@ -61,9 +61,7 @@ class BufferedDataWriter(Generic[TWriter]):
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
         self.open = (
-            gzip.open
-            if self._file_format_spec.supports_compression and not disable_compression
-            else open
+            gzip.open if self.writer_spec.supports_compression and not disable_compression else open
         )
 
         self._current_columns: TTableSchemaColumns = None
@@ -87,8 +85,9 @@ class BufferedDataWriter(Generic[TWriter]):
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
         if (
-            self._writer
-            and not self._writer.data_format().supports_schema_changes
+            self._current_columns is not None
+            and (self._writer or self._supports_schema_changes == "False")
+            and self._supports_schema_changes != "True"
             and len(columns) != len(self._current_columns)
         ):
             assert len(columns) > len(self._current_columns)
@@ -183,7 +182,7 @@ class BufferedDataWriter(Generic[TWriter]):
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
         self._file_name = (
-            self.file_name_template % new_file_id() + "." + self._file_format_spec.file_extension
+            self.file_name_template % new_file_id() + "." + self.writer_spec.file_extension
         )
         self._created = time.time()
         return metrics
@@ -193,11 +192,11 @@ class BufferedDataWriter(Generic[TWriter]):
             # we only open a writer when there are any items in the buffer and first flush is requested
             if not self._writer:
                 # create new writer and write header
-                if self._file_format_spec.is_binary_format:
+                if self.writer_spec.is_binary_format:
                     self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
                     self._file = self.open(self._file_name, "wt", encoding="utf-8")  # type: ignore
-                self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)  # type: ignore[assignment]
+                self._writer = self.writer_cls(self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer
             if self._buffered_items:

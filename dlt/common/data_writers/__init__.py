@@ -1,4 +1,9 @@
-from dlt.common.data_writers.writers import DataWriter, DataWriterMetrics, TLoaderFileFormat
+from dlt.common.data_writers.writers import (
+    DataWriter,
+    DataWriterMetrics,
+    TDataItemFormat,
+    FileWriterSpec,
+)
 from dlt.common.data_writers.buffered import BufferedDataWriter, new_file_id
 from dlt.common.data_writers.escape import (
     escape_redshift_literal,
@@ -8,8 +13,9 @@ from dlt.common.data_writers.escape import (
 
 __all__ = [
     "DataWriter",
+    "FileWriterSpec",
     "DataWriterMetrics",
-    "TLoaderFileFormat",
+    "TDataItemFormat",
     "BufferedDataWriter",
     "new_file_id",
     "escape_redshift_literal",
