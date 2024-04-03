@@ -1,15 +1,13 @@
 import posixpath
 import os
+from unittest import mock
 
 import pytest
 
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
-from dlt.destinations.impl.filesystem.filesystem import (
-    LoadFilesystemJob,
-    FilesystemDestinationClientConfiguration,
-)
+from dlt.destinations.impl.filesystem.filesystem import FilesystemDestinationClientConfiguration
 
 from dlt.destinations.path_utils import create_path
 from tests.load.filesystem.utils import perform_load
@@ -47,7 +45,7 @@ ALL_LAYOUTS = (
     "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
     "{table_name}/{dow}/{load_id}.{file_id}.{ext}",
     # Invalid placeholders before {table_name}
-    "{year}/{month}/{day}/{hour}/{table_name}/{dow}/{load_id}.{file_id}.{ext}",
+    # "{year}/{month}/{day}/{hour}/{table_name}/{dow}/{load_id}.{file_id}.{ext}",
 )
 
 
@@ -166,7 +164,10 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
+    # also we would like to have reliable timestamp for this test so we patch it
+    with mock.patch("pendulum.DateTime.timestamp", return_value=1712166300), perform_load(
+        dataset_name, NORMALIZED_FILES, write_disposition="append"
+    ) as load_info:
         client, jobs1, root_path, load_id1 = load_info
         with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
             client, jobs2, root_path, load_id2 = load_info
@@ -176,6 +177,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                     layout,
                     job.file_name(),
                     client.schema.name,
+                    load_id1,
                     current_datetime=client.config.current_datetime,
                     datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,

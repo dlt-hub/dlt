@@ -19,7 +19,7 @@ TestLoad = Tuple[str, ParsedLoadJobFileName]
 
 @pytest.fixture
 def test_load(load_storage: LoadStorage) -> TestLoad:
-    load_id, filename = start_loading_file(load_storage, "test file")
+    load_id, filename = start_loading_file(load_storage, "test file")  # type: ignore[arg-type]
     info = ParsedLoadJobFileName.parse(filename)
     return load_id, info
 
@@ -37,16 +37,21 @@ def test_layout_validity() -> None:
 
 def test_create_path(test_load: TestLoad) -> None:
     load_id, job_info = test_load
-    path_vars = {
-        "schema_name": "schema_name",
-        "load_id": load_id,
-        "file_name": job_info.file_name(),
-    }
-    path = create_path("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", **path_vars)
+    path = create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        file_name=job_info.file_name(),
+    )
     assert path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{job_info.file_format}"
 
     # extension gets added automatically
-    path = create_path("{schema_name}/{table_name}/{load_id}.{ext}", **path_vars)
+    path = create_path(
+        "{schema_name}/{table_name}/{load_id}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        file_name=job_info.file_name(),
+    )
     assert path == f"schema_name/mock_table/{load_id}.{job_info.file_format}"
 
 
