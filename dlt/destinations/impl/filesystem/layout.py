@@ -166,19 +166,9 @@ class layout_helper:
         # Build out the list of placeholder names
         # which we will use to validate placeholders
         # in a given config.layout template
-        not_used_params = []
         if self.params:
             for placeholder, _ in self.params.items():
                 self.allowed_placeholders.add(placeholder)
-                if placeholder not in self.layout_placeholders:
-                    not_used_params.append(placeholder)
-        if not_used_params:
-            placeholders = ", ".join(not_used_params)
-            fmt.secho(
-                f"Placeholders specified in extra_params '{placeholders}' "
-                "are not used in layout template",
-                fg="blue",
-            )
 
         # now collect all unknown placeholders from config.layout template
         invalid_placeholders = [
