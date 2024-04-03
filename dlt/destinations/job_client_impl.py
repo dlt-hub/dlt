@@ -371,15 +371,6 @@ WHERE """
             return None
         return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
 
-    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
-    #     """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
-    #     query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s ORDER BY created_at DESC"
-    #     result: List[StateInfo] = []
-    #     with self.sql_client.execute_query(query) as cur:
-    #         for row in cur.fetchall():
-    #             result.append(StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4])))
-    #     return result
-
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s;"
