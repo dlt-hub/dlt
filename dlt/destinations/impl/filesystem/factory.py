@@ -1,5 +1,7 @@
 import typing as t
 
+import pendulum
+
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -55,3 +57,13 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             environment=environment,
             **kwargs,
         )
+
+    def configuration(
+        self, initial_config: FilesystemDestinationClientConfiguration
+    ) -> FilesystemDestinationClientConfiguration:
+        # If current_datetime is not provided then
+        # we need to make sure we have it one per
+        # filesystem destination instance
+        if not initial_config.current_datetime:
+            initial_config.current_datetime = pendulum.now()
+        return super().configuration(initial_config)
