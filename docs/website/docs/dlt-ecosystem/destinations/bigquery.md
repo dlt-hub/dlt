@@ -127,6 +127,15 @@ The Google BigQuery client implements an elaborate retry mechanism and timeouts 
 
 BigQuery destination also supports [streaming insert](https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery). The mode provides better performance with small (<500 records) batches, but it buffers the data, preventing any update/delete operations on it. Due to this, streaming inserts are only available with `write_disposition="append"`, and the inserted data is blocked for editing for up to 90 min (reading, however, is available immediately). [See more](https://cloud.google.com/bigquery/quotas#streaming_inserts).
 
+To switch the resource into streaming insert mode, use hints:
+```py
+@dlt.resource(write_disposition="append")
+def streamed_resource():
+    yield {"field1": 1, "field2": 2}
+
+streamed_resource.apply_hints(additional_table_hints={"x-insert-api": "streaming"})
+```
+
 ## Supported File Formats
 
 You can configure the following file formats to load data to BigQuery:
