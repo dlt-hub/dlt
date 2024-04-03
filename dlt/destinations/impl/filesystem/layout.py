@@ -105,8 +105,8 @@ class ExtraParams:
 
         # For each callable extra parameter
         # otherwise take it's value
-        if self.config.extra_params:
-            for key, value in self.config.extra_params.items():
+        if self.config.extra_placeholders:
+            for key, value in self.config.extra_placeholders.items():
                 if callable(value):
                     self._params[key] = value(
                         self.schema_name,
