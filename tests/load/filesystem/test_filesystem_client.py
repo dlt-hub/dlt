@@ -11,6 +11,7 @@ from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemDestinationClientConfiguration,
 )
 
+from dlt.destinations.path_utils import create_path
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 from tests.utils import preserve_environ, autouse_test_storage
@@ -96,6 +97,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
+
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
@@ -105,8 +107,14 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         # this path will be kept after replace
         job_2_load_1_path = posixpath.join(
             root_path,
-            LoadFilesystemJob.make_destination_filename(
-                layout, NORMALIZED_FILES[1], client.schema.name, load_id1
+            create_path(
+                layout,
+                NORMALIZED_FILES[1],
+                client.schema.name,
+                load_id1,
+                current_datetime=client.config.current_datetime,
+                datetime_format=client.config.datetime_format,
+                extra_placeholders=client.config.extra_placeholders,
             ),
         )
 
@@ -118,8 +126,14 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             # this one we expect to be replaced with
             job_1_load_2_path = posixpath.join(
                 root_path,
-                LoadFilesystemJob.make_destination_filename(
-                    layout, NORMALIZED_FILES[0], client.schema.name, load_id2
+                create_path(
+                    layout,
+                    NORMALIZED_FILES[0],
+                    client.schema.name,
+                    load_id2,
+                    current_datetime=client.config.current_datetime,
+                    datetime_format=client.config.datetime_format,
+                    extra_placeholders=client.config.extra_placeholders,
                 ),
             )
 
@@ -150,13 +164,24 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             client, jobs2, root_path, load_id2 = load_info
             layout = client.config.layout
             expected_files = [
-                LoadFilesystemJob.make_destination_filename(
-                    layout, job.file_name(), client.schema.name, load_id1
+                create_path(
+                    layout,
+                    job.file_name(),
+                    client.schema.name,
+                    current_datetime=client.config.current_datetime,
+                    datetime_format=client.config.datetime_format,
+                    extra_placeholders=client.config.extra_placeholders,
                 )
                 for job in jobs1
             ] + [
-                LoadFilesystemJob.make_destination_filename(
-                    layout, job.file_name(), client.schema.name, load_id2
+                create_path(
+                    layout,
+                    job.file_name(),
+                    client.schema.name,
+                    load_id2,
+                    current_datetime=client.config.current_datetime,
+                    datetime_format=client.config.datetime_format,
+                    extra_placeholders=client.config.extra_placeholders,
                 )
                 for job in jobs2
             ]

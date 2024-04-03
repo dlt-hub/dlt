@@ -1,16 +1,20 @@
-import pytest
 import csv
+import os
 import posixpath
 from pathlib import Path
 
-import dlt, os
+import dlt
+import pytest
+
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 from tests.cases import arrow_table_all_data_types
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
+from dlt.destinations.path_utils import create_path
+
 
 skip_if_not_active("filesystem")
 
@@ -21,9 +25,14 @@ def assert_file_matches(
     """Verify file contents of load job are identical to the corresponding file in destination"""
     local_path = Path(job.file_path)
     filename = local_path.name
-
-    destination_fn = LoadFilesystemJob.make_destination_filename(
-        layout, filename, client.schema.name, load_id
+    destination_fn = create_path(
+        layout,
+        filename,
+        client.schema.name,
+        load_id,
+        current_datetime=client.config.current_datetime,
+        datetime_format=client.config.datetime_format,
+        extra_placeholders=client.config.extra_placeholders,
     )
     destination_path = posixpath.join(client.dataset_path, destination_fn)
 
