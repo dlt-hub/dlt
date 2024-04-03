@@ -58,7 +58,6 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     info2 = pipeline.run(some_source(), write_disposition="merge")
 
     client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
-    layout = client.config.layout
 
     append_glob = list(client._get_table_dirs(["some_data"]))[0]
     replace_glob = list(client._get_table_dirs(["other_data"]))[0]
@@ -84,7 +83,7 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     for pkg in info2.load_packages:
         assert pkg.jobs["completed_jobs"]
         for job in pkg.jobs["completed_jobs"]:
-            assert_file_matches(layout, job, pkg.load_id, client)
+            assert_file_matches(client.config, job, pkg.load_id, client)
 
     complete_fn = f"{client.schema.name}.{LOADS_TABLE_NAME}.%s"
 
