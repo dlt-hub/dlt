@@ -81,12 +81,6 @@ def pipeline(
     """
 
 
-@overload
-def pipeline() -> Pipeline:  # type: ignore
-    """When called without any arguments, returns the recently created `Pipeline` instance.
-    If not found, it creates a new instance with all the pipeline options set to defaults."""
-
-
 @with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
 def pipeline(
     pipeline_name: str = None,
