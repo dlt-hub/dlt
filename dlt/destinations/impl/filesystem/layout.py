@@ -34,12 +34,16 @@ SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 class ExtraParams:
     def __init__(
         self,
-        config: FilesystemDestinationClientConfiguration,
+        current_datetime: Optional[pendulum.DateTime] = None,
+        datetime_format: Optional[str] = None,
+        extra_placeholders: Optional[Dict[str, Any]] = None,
         job_info: Optional[ParsedLoadJobFileName] = None,
         schema_name: Optional[str] = None,
         load_id: Optional[str] = None,
     ) -> None:
-        self.config = config
+        self.current_datetime = current_datetime
+        self.datetime_format = datetime_format
+        self.extra_placeholders = extra_placeholders
         self.job_info = job_info
         self.load_id = load_id
         self.schema_name = schema_name
@@ -81,8 +85,8 @@ class ExtraParams:
         # If the result id DateTime
         # Then take it
         # Else exit.
-        if callable(self.config.current_datetime):
-            result = self.config.current_datetime()
+        if callable(self.current_datetime):
+            result = self.current_datetime()
             if isinstance(result, pendulum.DateTime):
                 self.current_datetime = result
             else:
@@ -91,18 +95,18 @@ class ExtraParams:
                     "didn't return any instance of pendulum.DateTime"
                 )
 
-        now: pendulum.DateTime = self.config.current_datetime  # type: ignore[assignment]
+        now: pendulum.DateTime = self.current_datetime  # type: ignore[assignment]
 
         # Format curr_date datetime according to given format
-        if self.config.datetime_format:
-            self._params["curr_date"] = now.format(self.config.datetime_format)
+        if self.datetime_format:
+            self._params["curr_date"] = now.format(self.datetime_format)
         else:
             self._params["curr_date"] = str(now.date())
 
         # For each callable extra parameter
         # otherwise take it's value
-        if self.config.extra_placeholders:
-            for key, value in self.config.extra_placeholders.items():
+        if self.extra_placeholders:
+            for key, value in self.extra_placeholders.items():
                 if callable(value):
                     try:
                         self._params[key] = value(
@@ -116,8 +120,8 @@ class ExtraParams:
                     except TypeError:
                         fmt.secho(
                             f"Extra placeholder {key} is callableCallable placeholder should accept"
-                            f" parameters below`schema name`, `table name`, `load_id`, `file_id`,"
-                            f" `extension` and `current_datetime`",
+                            " parameters below`schema name`, `table name`, `load_id`, `file_id`,"
+                            " `extension` and `current_datetime`",
                             fg="red",
                         )
                         raise
@@ -192,6 +196,9 @@ def make_filename(
 ) -> str:
     job_info = ParsedLoadJobFileName.parse(file_name)
     extras = ExtraParams(
+        config.current_datetime,
+        config.datetime_format,
+        config.extra_placeholders,
         config,
         job_info,
         schema_name,
@@ -217,7 +224,11 @@ def get_table_prefix_layout(
 
     allowed `supported_prefix_placeholders` that may appear before table.
     """
-    extras = ExtraParams(config)
+    extras = ExtraParams(
+        current_datetime=config.current_datetime,
+        datetime_format=config.datetime_format,
+        extra_placeholders=config.extra_placeholders,
+    )
     with layout_helper(config.layout, extras.params) as layout:
         # fail if table name is not defined
         if "table_name" not in layout.placeholders:
