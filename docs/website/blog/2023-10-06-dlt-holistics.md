@@ -340,7 +340,7 @@ If you compare the ddl against the sample document in MongoDB you will notice th
 
 `dlt` normalises nested data by populating them in separate tables and creates relationships between the tables, so they can be combined together using normal SQL joins. All this is taken care of by `dlt` and we need not worry about how transformations are handled. In short, the transformation steps we discussed in [Why is dlt useful when you want to ingest data from a production database such as MongoDB?](#why-is-dlt-useful-when-you-want-to-ingest-data-from-a-production-database-such-as-mongodb) are taken care of by dlt, making the data analyst's life easier.
 
-To better understand how `dlt` does this transformation, refer to the [docs](/docs/website/docs/general-usage/destination-tables#child-and-parent-tables).
+To better understand how `dlt` does this transformation, refer to the [docs](/docs/general-usage/destination-tables#child-and-parent-tables).
 
 ### 3. Self-service analytics for MongoDB with Holistics.
 

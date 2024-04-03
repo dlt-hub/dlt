@@ -136,10 +136,10 @@ business-logic tests, you would still need to implement them in a custom way.
 ## The implementation recipe
 
 1. Use `dlt`. It will automatically infer and version schemas, so you can simply check if there are
-   changes. You can just use the [normaliser + loader](/docs/website/docs/general-usage/pipeline) or
-   [build extraction with dlt](/docs/website/docs/general-usage/resource). If you want to define additional
-   constraints, you can do so in the [schema](/docs/website/docs//general-usage/schema).
-1. [Define your slack hook](/docs/website/docs/running-in-production/running#using-slack-to-send-messages) or
+   changes. You can just use the [normaliser + loader](/docs/general-usage/pipeline) or
+   [build extraction with dlt](/docs/general-usage/resource). If you want to define additional
+   constraints, you can do so in the [schema](/docs/general-usage/schema).
+1. [Define your slack hook](/docs/running-in-production/running#using-slack-to-send-messages) or
    create your own notification function. Make sure the slack channel contains the data producer and
    any stakeholders.
-1. [Capture the load job info and send it to the hook](/docs/website/docs/running-in-production/running#inspect-save-and-alert-on-schema-changes).
+1. [Capture the load job info and send it to the hook](/docs/running-in-production/running#inspect-save-and-alert-on-schema-changes).
