@@ -49,22 +49,14 @@ class LoadFilesystemJob(LoadJob):
         fs_client, _ = fsspec_from_config(config)
         self.destination_file_name = make_filename(config, file_name, schema_name, load_id)
 
-        # Make sure directory exists before moving file
-        dir_path = self.make_remote_path(only_dir=True)
-        fs_client.makedirs(dir_path, exist_ok=True)
-
         # Once directory is created we can move things
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
 
-    def make_remote_path(self, only_dir: bool = False) -> str:
-        if only_dir:
-            dir_path = FileStorage.get_dir_name_from_file_path(self.destination_file_name)
-            return f"{self.config.protocol}://{posixpath.join(self.dataset_path, dir_path)}"
-        else:
-            return (
-                f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
-            )
+    def make_remote_path(self) -> str:
+        return (
+            f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
+        )
 
     def state(self) -> TLoadJobState:
         return "completed"
