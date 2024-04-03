@@ -508,6 +508,24 @@ def test_transform_function_pivot() -> None:
     ]
 
 
+def test_transform_function_pivot_str() -> None:
+    @dlt.resource
+    def test_resource():
+        for row in ([[1], [4]], [[7], [10]]):
+            yield row
+
+    res = test_resource()
+    res.add_map(pivot("string", "prefix_"))
+
+    result = list(res)
+    assert result == [
+        {"prefix_string": 1},
+        {"prefix_string": 4},
+        {"prefix_string": 7},
+        {"prefix_string": 10},
+    ]
+
+
 def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     # test generation of version hash on migration to v3
     state_v1 = load_json_case("state/state.v1")
