@@ -51,7 +51,7 @@ class ExtraParams:
         self.job_info = job_info
         self.load_id = load_id
         self.schema_name = schema_name
-        self._params: Dict[str, Any] = {}
+        self._params: Dict[str, Any] = {"schema_name": schema_name}
 
         self.table_name = None
         self.file_id = None
@@ -246,7 +246,7 @@ def get_table_prefix_layout(
     )
     with LayoutHelper(layout, extras.params) as layout_helper:
         # fail if table name is not defined
-        if "table_name" not in layout_helper.placeholders:
+        if "table_name" not in layout_helper.layout_placeholders:
             raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
 
     table_name_index = layout_helper.layout_placeholders.index("table_name")
