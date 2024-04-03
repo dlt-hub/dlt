@@ -18,8 +18,8 @@ TDatetimeFormat: TypeAlias = str
 """Datetime format or formatter callback"""
 
 TLayoutParamCallback: TypeAlias = Callable[[str, str, str, str, str, DateTime], str]
-"""A callback which should return prepared string value for layout parameter value
-schema name, table name, load_id, file_id, extension and current_datetime will be passed
+"""A callback which should return prepared string value the following arguments passed
+`schema name`, `table name`, `load_id`, `file_id`, `extension` and `current_datetime`.
 """
 
 
