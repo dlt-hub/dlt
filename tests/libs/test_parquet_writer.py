@@ -3,37 +3,17 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import datetime  # noqa: 251
 
-from dlt.common import pendulum, Decimal
+from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
-from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.writers import ParquetDataWriter
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime
 
-from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES
-from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage, preserve_environ
-
-
-def get_writer(
-    _format: TLoaderFileFormat = "insert_values",
-    buffer_max_items: int = 10,
-    file_max_items: int = 10,
-    file_max_bytes: int = None,
-    _caps: DestinationCapabilitiesContext = None,
-) -> BufferedDataWriter[ParquetDataWriter]:
-    caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
-    caps.preferred_loader_file_format = _format
-    file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
-    return BufferedDataWriter(
-        _format,
-        file_template,
-        buffer_max_items=buffer_max_items,
-        _caps=caps,
-        file_max_items=file_max_items,
-        file_max_bytes=file_max_bytes,
-    )
+from tests.common.data_writers.utils import get_writer
+from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+from tests.utils import write_version, autouse_test_storage, preserve_environ
 
 
 def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
@@ -42,7 +22,7 @@ def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    with get_writer("parquet") as writer:
+    with get_writer(ParquetDataWriter) as writer:
         writer.write_data_item(
             [{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3}
         )
@@ -65,7 +45,7 @@ def test_parquet_writer_schema_evolution_with_small_buffer() -> None:
     c3 = new_column("col3", "text")
     c4 = new_column("col4", "text")
 
-    with get_writer("parquet", buffer_max_items=4, file_max_items=50) as writer:
+    with get_writer(ParquetDataWriter, buffer_max_items=4, file_max_items=50) as writer:
         for _ in range(0, 20):
             writer.write_data_item(
                 [{"col1": 1, "col2": 2, "col3": "3"}], {"col1": c1, "col2": c2, "col3": c3}
@@ -92,7 +72,7 @@ def test_parquet_writer_json_serialization() -> None:
     c2 = new_column("col2", "bigint")
     c3 = new_column("col3", "complex")
 
-    with get_writer("parquet") as writer:
+    with get_writer(ParquetDataWriter) as writer:
         writer.write_data_item(
             [{"col1": 1, "col2": 2, "col3": {"hello": "dave"}}],
             {"col1": c1, "col2": c2, "col3": c3},
@@ -121,16 +101,11 @@ def test_parquet_writer_json_serialization() -> None:
 
 
 def test_parquet_writer_all_data_fields() -> None:
-    data = dict(TABLE_ROW_ALL_DATA_TYPES)
-    # fix dates to use pendulum
-    data["col4"] = ensure_pendulum_datetime(data["col4"])  # type: ignore[arg-type]
-    data["col10"] = ensure_pendulum_date(data["col10"])  # type: ignore[arg-type]
-    data["col11"] = pendulum.Time.fromisoformat(data["col11"])  # type: ignore[arg-type]
-    data["col4_precision"] = ensure_pendulum_datetime(data["col4_precision"])  # type: ignore[arg-type]
-    data["col11_precision"] = pendulum.Time.fromisoformat(data["col11_precision"])  # type: ignore[arg-type]
+    data = dict(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
 
-    with get_writer("parquet") as writer:
-        writer.write_data_item([data], TABLE_UPDATE_COLUMNS_SCHEMA)
+    # this modifies original `data`
+    with get_writer(ParquetDataWriter) as writer:
+        writer.write_data_item([dict(data)], TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # We want to test precision for these fields is trimmed to millisecond
     data["col4_precision"] = data["col4_precision"].replace(  # type: ignore[attr-defined]
@@ -142,20 +117,23 @@ def test_parquet_writer_all_data_fields() -> None:
 
     with open(writer.closed_files[0].file_path, "rb") as f:
         table = pq.read_table(f)
-        for key, value in data.items():
-            # what we have is pandas Timezone which is naive
-            actual = table.column(key).to_pylist()[0]
-            if isinstance(value, datetime.datetime):
-                actual = ensure_pendulum_datetime(actual)
-            assert actual == value
 
-        assert table.schema.field("col1_precision").type == pa.int16()
-        # flavor=spark only writes ns precision timestamp, so this is expected
-        assert table.schema.field("col4_precision").type == pa.timestamp("ns")
-        assert table.schema.field("col5_precision").type == pa.string()
-        assert table.schema.field("col6_precision").type == pa.decimal128(6, 2)
-        assert table.schema.field("col7_precision").type == pa.binary(19)
-        assert table.schema.field("col11_precision").type == pa.time32("ms")
+    for key, value in data.items():
+        # what we have is pandas Timezone which is naive
+        actual = table.column(key).to_pylist()[0]
+        if isinstance(value, datetime.datetime):
+            actual = ensure_pendulum_datetime(actual)
+        if isinstance(value, dict):
+            actual = json.loads(actual)
+        assert actual == value
+
+    assert table.schema.field("col1_precision").type == pa.int16()
+    # flavor=spark only writes ns precision timestamp, so this is expected
+    assert table.schema.field("col4_precision").type == pa.timestamp("ns")
+    assert table.schema.field("col5_precision").type == pa.string()
+    assert table.schema.field("col6_precision").type == pa.decimal128(6, 2)
+    assert table.schema.field("col7_precision").type == pa.binary(19)
+    assert table.schema.field("col11_precision").type == pa.time32("ms")
 
 
 def test_parquet_writer_items_file_rotation() -> None:
@@ -163,7 +141,7 @@ def test_parquet_writer_items_file_rotation() -> None:
         "col1": new_column("col1", "bigint"),
     }
 
-    with get_writer("parquet", file_max_items=10) as writer:
+    with get_writer(ParquetDataWriter, file_max_items=10) as writer:
         for i in range(0, 100):
             writer.write_data_item([{"col1": i}], columns)
 
@@ -178,7 +156,7 @@ def test_parquet_writer_size_file_rotation() -> None:
         "col1": new_column("col1", "bigint"),
     }
 
-    with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
+    with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
         for i in range(0, 100):
             writer.write_data_item([{"col1": i}], columns)
 
@@ -194,7 +172,7 @@ def test_parquet_writer_config() -> None:
     os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "America/New York"
 
     with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
-        with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
+        with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
             for i in range(0, 5):
                 writer.write_data_item(
                     [{"col1": i, "col2": pendulum.now()}],
@@ -219,7 +197,7 @@ def test_parquet_writer_schema_from_caps() -> None:
     caps.wei_precision = (156, 78)  # will be trimmed to dec256
     caps.timestamp_precision = 9  # nanoseconds
 
-    with get_writer("parquet", file_max_bytes=2**8, buffer_max_items=2) as writer:
+    with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
         for _ in range(0, 5):
             writer.write_data_item(
                 [{"col1": Decimal("2617.27"), "col2": pendulum.now(), "col3": Decimal(2**250)}],

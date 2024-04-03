@@ -1,6 +1,18 @@
 from datetime import datetime, date  # noqa: I251
 from pendulum.tz import UTC
-from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
+from typing import (
+    Any,
+    Dict,
+    Mapping,
+    Tuple,
+    Optional,
+    Union,
+    Callable,
+    Iterable,
+    Iterator,
+    Sequence,
+    Tuple,
+)
 
 from dlt import version
 from dlt.common import pendulum
@@ -22,7 +34,6 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[parquet]"],
         "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
     )
-
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
@@ -205,19 +216,12 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         raise TypeError(f"Unsupported data item type {type(item)}")
 
 
-def normalize_py_arrow_schema(
-    item: TAnyArrowItem,
+def should_normalize_arrow_schema(
+    schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
-    caps: DestinationCapabilitiesContext,
-) -> TAnyArrowItem:
-    """Normalize arrow `item` schema according to the `columns`.
-
-    1. arrow schema field names will be normalized according to `naming`
-    2. arrows columns will be reordered according to `columns`
-    3. empty columns will be inserted if they are missing, types will be generated using `caps`
-    """
-    rename_mapping = get_normalized_arrow_fields_mapping(item, naming)
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], TTableSchemaColumns]:
+    rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
     dlt_table_prefix = naming.normalize_table_identifier(DLT_NAME_PREFIX)
 
@@ -230,12 +234,31 @@ def normalize_py_arrow_schema(
     }
 
     # check if nothing to rename
-    if list(rename_mapping.keys()) == list(rename_mapping.values()):
-        # check if nothing to reorder
-        if list(rename_mapping.keys())[: len(columns)] == list(columns.keys()):
-            return item
+    skip_normalize = (
+        list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
+    )
+    return not skip_normalize, rename_mapping, rev_mapping, columns
 
+
+def normalize_py_arrow_item(
+    item: TAnyArrowItem,
+    columns: TTableSchemaColumns,
+    naming: NamingConvention,
+    caps: DestinationCapabilitiesContext,
+) -> TAnyArrowItem:
+    """Normalize arrow `item` schema according to the `columns`.
+
+    1. arrow schema field names will be normalized according to `naming`
+    2. arrows columns will be reordered according to `columns`
+    3. empty columns will be inserted if they are missing, types will be generated using `caps`
+    """
     schema = item.schema
+    should_normalize, rename_mapping, rev_mapping, columns = should_normalize_arrow_schema(
+        schema, columns, naming
+    )
+    if not should_normalize:
+        return item
+
     new_fields = []
     new_columns = []
 
@@ -268,10 +291,10 @@ def normalize_py_arrow_schema(
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
 
 
-def get_normalized_arrow_fields_mapping(item: TAnyArrowItem, naming: NamingConvention) -> StrStr:
+def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
     """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
     norm_f = naming.normalize_identifier
-    name_mapping = {n.name: norm_f(n.name) for n in item.schema}
+    name_mapping = {n.name: norm_f(n.name) for n in schema}
     # verify if names uniquely normalize
     normalized_names = set(name_mapping.values())
     if len(name_mapping) != len(normalized_names):
@@ -301,17 +324,17 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     return result
 
 
-def get_row_count(parquet_file: TFileOrPath) -> int:
-    """Get the number of rows in a parquet file.
+def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
+    """Gets parquet file metadata (including row count and schema)
 
     Args:
         parquet_file (str): path to parquet file
 
     Returns:
-        int: number of rows
+        FileMetaData: file metadata
     """
     with pyarrow.parquet.ParquetFile(parquet_file) as reader:
-        return reader.metadata.num_rows  # type: ignore[no-any-return]
+        return reader.metadata.num_rows, reader.schema_arrow
 
 
 def is_arrow_item(item: Any) -> bool:
