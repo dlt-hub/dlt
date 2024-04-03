@@ -1,5 +1,6 @@
-from datetime import datetime
 import typing as t
+
+import pendulum
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem import capabilities
@@ -28,7 +29,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
-        current_datetime: t.Optional[datetime] = None,
+        current_datetime: t.Optional[pendulum.DateTime] = None,
         datetime_format: t.Optional[str] = None,
         extra_params: t.Optional[t.Dict[str, t.Any]] = None,
         **kwargs: t.Any,
