@@ -3,13 +3,13 @@ from types import TracebackType
 from typing import Any, Dict, List, Optional, Sequence, Set, Type
 
 import pendulum
+
 from dlt.cli import echo as fmt
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout
-from dlt.destinations.impl.filesystem.configuration import (
-    FilesystemDestinationClientConfiguration,
-)
 from typing_extensions import Self
+
+from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
 SUPPORTED_PLACEHOLDERS = {
@@ -38,7 +38,7 @@ def get_placeholders(layout: str) -> List[str]:
 class ExtraParams:
     def __init__(
         self,
-        current_datetime: Optional[pendulum.DateTime] = None,
+        current_datetime: TCurrentDateTime = None,
         datetime_format: Optional[str] = None,
         extra_placeholders: Optional[Dict[str, Any]] = None,
         job_info: Optional[ParsedLoadJobFileName] = None,
@@ -201,7 +201,7 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    current_datetime: Optional[pendulum.DateTime] = None,
+    current_datetime: TCurrentDateTime = None,
     datetime_format: Optional[str] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
@@ -230,7 +230,7 @@ def create_path(
 def get_table_prefix_layout(
     layout: str,
     supported_prefix_placeholders: Sequence[str] = SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS,
-    current_datetime: Optional[pendulum.DateTime] = None,
+    current_datetime: TCurrentDateTime = None,
     datetime_format: Optional[str] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
@@ -242,35 +242,34 @@ def get_table_prefix_layout(
         datetime_format=datetime_format,
         extra_placeholders=extra_placeholders,
     )
-    with LayoutHelper(layout, extras.params) as layout:
+    with LayoutHelper(layout, extras.params) as layout_helper:
         # fail if table name is not defined
-        if "table_name" not in layout.placeholders:
+        if "table_name" not in layout_helper.placeholders:
             raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
 
-    table_name_index = layout.layout_placeholders.index("table_name")
+    table_name_index = layout_helper.layout_placeholders.index("table_name")
 
     # fail if any other prefix is defined before table_name
     if [
         p
-        for p in layout.layout_placeholders[:table_name_index]
+        for p in layout_helper.layout_placeholders[:table_name_index]
         if p not in supported_prefix_placeholders
     ]:
         if len(supported_prefix_placeholders) == 0:
             details = (
                 "No other placeholders are allowed before {table_name} but you have %s present. "
-                % layout.layout_placeholders[:table_name_index]
+                % layout_helper.layout_placeholders[:table_name_index]
             )
         else:
             details = "Only %s are allowed before {table_name} but you have %s present. " % (
                 supported_prefix_placeholders,
-                layout.layout_placeholders[:table_name_index],
+                layout_helper.layout_placeholders[:table_name_index],
             )
         raise CantExtractTablePrefix(layout, details)
 
     # we include the char after the table_name here, this should be a separator not a new placeholder
     # this is to prevent selecting tables that have the same starting name -> {table_name}/
     prefix = layout[: layout.index("{table_name}") + 13]
-
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
 

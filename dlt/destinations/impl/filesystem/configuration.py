@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Callable, Dict, Final, Optional, Type, Union
+from typing import Dict, Final, Optional, Type, Union
 
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.destination.reference import (
@@ -9,18 +9,12 @@ from dlt.common.destination.reference import (
 
 from dlt.common.storages import FilesystemConfiguration
 from pendulum.datetime import DateTime
-from typing_extensions import TypeAlias
 
-TCurrentDatetimeCallback: TypeAlias = Callable[[], DateTime]
-"""A callback which should return current datetime"""
-
-TDatetimeFormat: TypeAlias = str
-"""Datetime format or formatter callback"""
-
-TLayoutParamCallback: TypeAlias = Callable[[str, str, str, str, str, DateTime], str]
-"""A callback which should return prepared string value the following arguments passed
-`schema name`, `table name`, `load_id`, `file_id`, `extension` and `current_datetime`.
-"""
+from dlt.destinations.impl.filesystem.typing import (
+    TCurrentDatetimeCallback,
+    TDatetimeFormat,
+    TLayoutParamCallback,
+)
 
 
 @configspec
