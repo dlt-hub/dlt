@@ -68,4 +68,3 @@ jobs:
 
       - name: Run linter and tests
         run: make test-and-lint-snippets
-

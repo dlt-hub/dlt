@@ -81,4 +81,3 @@ jobs:
       - run: |
           poetry run pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
         name: Run dbt runner with venv - Linux/MAC
-
