@@ -1,3 +1,20 @@
+"""
+---
+title: Custom destination with BigQuery
+description: Learn how use the custom destination to load to bigquery and use credentials
+keywords: [destination, credentials, example, bigquery, custom destination]
+---
+
+In this example, you'll find a Python script that demonstrates how to load to bigquey with the custom destination.
+
+We'll learn how to:
+- use [built-in credentials](../general-usage/credentials/config_specs#gcp-credentials)
+- use the [custom destination](../dlt-ecosystem/destinations/destination.md)
+- Use pyarrow tables to create complex column types on bigquery
+- Use bigquery `autodetect=True` for schema inference from parquet files
+
+"""
+
 import dlt
 import pandas as pd
 import pyarrow as pa
@@ -72,3 +89,6 @@ if __name__ == "__main__":
     load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 
     print(load_info)
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

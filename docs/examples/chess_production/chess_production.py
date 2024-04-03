@@ -1,10 +1,38 @@
+"""
+---
+title: Run chess pipeline in production
+description: Learn how run chess pipeline in production
+keywords: [incremental loading, example]
+---
+
+In this example, you'll find a Python script that interacts with the Chess API to extract players and game data.
+
+We'll learn how to:
+
+- Inspecting packages after they have been loaded.
+- Loading back load information, schema updates, and traces.
+- Triggering notifications in case of schema evolution.
+- Using context managers to independently retry pipeline stages.
+- Run basic tests utilizing `sql_client` and `normalize_info`.
+
+"""
+
 import threading
 from typing import Any, Iterator
 
+from tenacity import (
+    Retrying,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 import dlt
-from dlt.common import sleep
+from dlt.common import sleep, logger
 from dlt.common.typing import StrAny, TDataItems
 from dlt.sources.helpers.requests import client
+from dlt.pipeline.helpers import retry_load
+from dlt.common.runtime.slack import send_slack_message
 
 
 @dlt.source
@@ -43,17 +71,6 @@ def chess(
 
     return players(), players_profiles, players_games
 
-
-from tenacity import (
-    Retrying,
-    retry_if_exception,
-    stop_after_attempt,
-    wait_exponential,
-)
-
-from dlt.common import logger
-from dlt.common.runtime.slack import send_slack_message
-from dlt.pipeline.helpers import retry_load
 
 MAX_PLAYERS = 5
 
@@ -107,6 +124,7 @@ def load_data_with_retry(pipeline, data):
                 logger.info("Warning: No data in players table")
             else:
                 logger.info(f"Players table contains {count} rows")
+    assert count == MAX_PLAYERS
 
     # To run simple tests with `normalize_info`, such as checking table counts and
     # warning if there is no data, you can use the `row_counts` attribute.
@@ -116,13 +134,16 @@ def load_data_with_retry(pipeline, data):
         logger.info("Warning: No data in players table")
     else:
         logger.info(f"Players table contains {count} rows")
+    assert count == MAX_PLAYERS
 
     # we reuse the pipeline instance below and load to the same dataset as data
     logger.info("Saving the load info in the destination")
     pipeline.run([load_info], table_name="_load_info")
+    assert "_load_info" in pipeline.last_trace.last_normalize_info.row_counts
     # save trace to destination, sensitive data will be removed
     logger.info("Saving the trace in the destination")
     pipeline.run([pipeline.last_trace], table_name="_trace")
+    assert "_trace" in pipeline.last_trace.last_normalize_info.row_counts
 
     # print all the new tables/columns in
     for package in load_info.load_packages:
@@ -134,6 +155,7 @@ def load_data_with_retry(pipeline, data):
     # save the new tables and column schemas to the destination:
     table_updates = [p.asdict()["tables"] for p in load_info.load_packages]
     pipeline.run(table_updates, table_name="_new_tables")
+    assert "_new_tables" in pipeline.last_trace.last_normalize_info.row_counts
 
     return load_info
 
@@ -146,5 +168,8 @@ if __name__ == "__main__":
         dataset_name="chess_data",
     )
     # get data for a few famous players
-    data = chess(chess_url="https://api.chess.com/pub/", max_players=MAX_PLAYERS)
-    load_data_with_retry(pipeline, data)
+    data = chess(max_players=MAX_PLAYERS)
+    load_info = load_data_with_retry(pipeline, data)
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
