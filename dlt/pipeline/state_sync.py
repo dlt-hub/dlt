@@ -115,11 +115,11 @@ def migrate_pipeline_state(
     return cast(TPipelineState, state)
 
 
-def state_resource(state: TPipelineState) -> DltResource:
-    state = copy(state)
-    state.pop("_local")
+def state_doc(state: TPipelineState) -> DictStrAny:
+    doc = copy(state)
+    doc.pop("_local")
     state_str = compress_state(state)
-    state_doc = {
+    doc = {
         "version": state["_state_version"],
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
@@ -127,8 +127,13 @@ def state_resource(state: TPipelineState) -> DltResource:
         "created_at": pendulum.now(),
         "version_hash": state["_version_hash"],
     }
+    return doc
+
+
+def state_resource(state: TPipelineState) -> DltResource:
+    doc = state_doc(state)
     return dlt.resource(
-        [state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
+        [doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
     )
 
 

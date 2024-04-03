@@ -427,6 +427,7 @@ class WithStateSync(ABC):
 
     @abstractmethod
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+        """retrieves the stored schema by hash"""
         pass
 
     @abstractmethod

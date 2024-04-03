@@ -713,7 +713,6 @@ class Pipeline(SupportsPipeline):
                             remote_state["schema_names"], always_download=True
                         )
                         # TODO: we should probably wipe out pipeline here
-
                 # if we didn't full refresh schemas, get only missing schemas
                 if restored_schemas is None:
                     restored_schemas = self._get_schemas_from_destination(
