@@ -14,7 +14,7 @@ from tests.load.pipeline.utils import (
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(all_staging_configs=True, subset=["clickhouse"]),
+    destinations_configs(default_sql_configs=True, all_staging_configs=True, subset=["clickhouse"]),
     ids=lambda x: x.name,
 )
 def test_clickhouse_destination_append(destination_config: DestinationTestConfiguration) -> None:
@@ -85,7 +85,7 @@ def test_clickhouse_destination_append(destination_config: DestinationTestConfig
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(all_staging_configs=True, subset=["clickhouse"]),
+    destinations_configs(default_sql_configs=True, all_staging_configs=True, subset=["clickhouse"]),
     ids=lambda x: x.name,
 )
 def test_clickhouse_destination_merge(destination_config: DestinationTestConfiguration) -> None:
