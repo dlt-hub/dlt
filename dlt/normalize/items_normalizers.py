@@ -3,6 +3,7 @@ from abc import abstractmethod
 
 from dlt.common import json, logger
 from dlt.common.data_writers import DataWriterMetrics
+from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
@@ -11,6 +12,7 @@ from dlt.common.storages import (
     NormalizeStorage,
     LoadStorage,
 )
+from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
@@ -30,13 +32,13 @@ except MissingDependencyException:
 class ItemsNormalizer:
     def __init__(
         self,
-        load_storage: LoadStorage,
+        item_storage: DataItemStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
-        self.load_storage = load_storage
+        self.item_storage = item_storage
         self.normalize_storage = normalize_storage
         self.schema = schema
         self.load_id = load_id
@@ -49,13 +51,13 @@ class ItemsNormalizer:
 class JsonLItemsNormalizer(ItemsNormalizer):
     def __init__(
         self,
-        load_storage: LoadStorage,
+        item_storage: DataItemStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
-        super().__init__(load_storage, normalize_storage, schema, load_id, config)
+        super().__init__(item_storage, normalize_storage, schema, load_id, config)
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -174,7 +176,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     #   will be useful if we implement bad data sending to a table
                     # we skip write when discovering schema for empty file
                     if not skip_write:
-                        self.load_storage.write_data_item(
+                        self.item_storage.write_data_item(
                             self.load_id, schema_name, table_name, row, columns
                         )
             except StopIteration:
@@ -211,7 +213,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         root_table_name, [{}], False, skip_write=True
                     )
                     schema_updates.append(partial_update)
-                self.load_storage.write_empty_items_file(
+                self.item_storage.write_empty_items_file(
                     self.load_id,
                     self.schema.name,
                     root_table_name,
@@ -224,7 +226,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         return schema_updates
 
 
-class ParquetItemsNormalizer(ItemsNormalizer):
+class ArrowItemsNormalizer(ItemsNormalizer):
     REWRITE_ROW_GROUPS = 1
 
     def _write_with_dlt_columns(
@@ -279,7 +281,10 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             )
 
         items_count = 0
-        as_py = self.load_storage.loader_file_format != "arrow"
+        columns_schema = schema.get_table_columns(root_table_name)
+        # if we use adapter to convert arrow to dicts, then normalization is not necessary
+        may_normalize = not issubclass(self.item_storage.writer_cls, ArrowToObjectAdapter)
+        should_normalize: bool = None
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
@@ -287,22 +292,35 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 f, new_columns, row_groups_per_read=self.REWRITE_ROW_GROUPS
             ):
                 items_count += batch.num_rows
-                if as_py:
-                    # Write python rows to jsonl, insert-values, etc... storage
-                    batch = batch.to_pylist()
-                self.load_storage.write_data_item(
+                # we may need to normalize
+                if may_normalize and should_normalize is None:
+                    should_normalize, _, _, _ = pyarrow.should_normalize_arrow_schema(
+                        batch.schema, columns_schema, schema.naming
+                    )
+                    if should_normalize:
+                        logger.info(
+                            f"When writing arrow table to {root_table_name} the schema requires"
+                            " normalization because its shape does not match the actual schema of"
+                            " destination table. Arrow table columns will be reordered and missing"
+                            " columns will be added if needed."
+                        )
+                if should_normalize:
+                    batch = pyarrow.normalize_py_arrow_item(
+                        batch, columns_schema, schema.naming, self.config.destination_capabilities
+                    )
+                self.item_storage.write_data_item(
                     load_id,
                     schema.name,
                     root_table_name,
                     batch,
-                    schema.get_table_columns(root_table_name),
+                    columns_schema,
                 )
         if items_count == 0:
-            self.load_storage.write_empty_items_file(
+            self.item_storage.write_empty_items_file(
                 load_id,
                 schema.name,
                 root_table_name,
-                self.schema.get_table_columns(root_table_name),
+                columns_schema,
             )
 
         return [schema_update]
@@ -328,24 +346,44 @@ class ParquetItemsNormalizer(ItemsNormalizer):
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         base_schema_update = self._fix_schema_precisions(root_table_name)
 
+        # read schema and counts from file metadata
+        from dlt.common.libs.pyarrow import get_parquet_metadata
+
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "rb"
+        ) as f:
+            num_rows, arrow_schema = get_parquet_metadata(f)
+            file_metrics = DataWriterMetrics(extracted_items_file, num_rows, f.tell(), 0, 0)
+
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id
-
-        if add_dlt_id or add_dlt_load_id or self.load_storage.loader_file_format != "arrow":
+        # if we need to add any columns or the file format is not parquet, we can't just import files
+        must_rewrite = (
+            add_dlt_id or add_dlt_load_id or self.item_storage.writer_spec.file_format != "parquet"
+        )
+        if not must_rewrite:
+            # in rare cases normalization may be needed
+            must_rewrite, _, _, _ = pyarrow.should_normalize_arrow_schema(
+                arrow_schema, self.schema.get_table_columns(root_table_name), self.schema.naming
+            )
+        if must_rewrite:
+            logger.info(
+                f"Table {root_table_name} parquet file {extracted_items_file} must be rewritten:"
+                f" add_dlt_id: {add_dlt_id} add_dlt_load_id: {add_dlt_load_id} destination file"
+                f" format: {self.item_storage.writer_spec.file_format} or due to required"
+                " normalization "
+            )
             schema_update = self._write_with_dlt_columns(
                 extracted_items_file, root_table_name, add_dlt_load_id, add_dlt_id
             )
             return base_schema_update + schema_update
 
-        from dlt.common.libs.pyarrow import get_row_count
-
-        with self.normalize_storage.extracted_packages.storage.open_file(
-            extracted_items_file, "rb"
-        ) as f:
-            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell(), 0, 0)
-
+        logger.info(
+            f"Table {root_table_name} parquet file {extracted_items_file} will be directly imported"
+            " without normalization"
+        )
         parts = ParsedLoadJobFileName.parse(extracted_items_file)
-        self.load_storage.import_items_file(
+        self.item_storage.import_items_file(
             self.load_id,
             self.schema.name,
             parts.table_name,
