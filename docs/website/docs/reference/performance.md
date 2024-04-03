@@ -245,6 +245,11 @@ from dlt.common import json
 **orjson** is fast and available on most platforms. It uses binary streams, not strings to load data natively.
 - open files as binary, not string to use `load` and `dump`
 - use `loadb` and `dumpb` methods to work with bytes without decoding strings
+
+You can switch to **simplejson** at any moment by (1) removing **orjson** dependency or (2) setting the following env variable:
+```
+DLT_USE_JSON=simplejson
+```
 :::
 
 ## Using the built in requests client

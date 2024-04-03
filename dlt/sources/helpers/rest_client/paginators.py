@@ -83,9 +83,7 @@ class OffsetPaginator(BasePaginator):
         total = values[0] if values else None
 
         if total is None:
-            raise ValueError(
-                f"Total count not found in response for {self.__class__.__name__}"
-            )
+            raise ValueError(f"Total count not found in response for {self.__class__.__name__}")
 
         self.offset += self.limit
 

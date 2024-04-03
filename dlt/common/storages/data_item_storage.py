@@ -3,15 +3,22 @@ from typing import Dict, Any, List, Sequence
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
-from dlt.common.destination import TLoaderFileFormat
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItems
-from dlt.common.data_writers import BufferedDataWriter, DataWriter, DataWriterMetrics
+from dlt.common.data_writers import (
+    BufferedDataWriter,
+    DataWriter,
+    DataWriterMetrics,
+    FileWriterSpec,
+)
 
 
 class DataItemStorage(ABC):
-    def __init__(self, load_file_type: TLoaderFileFormat, *args: Any) -> None:
-        self.loader_file_format = load_file_type
+    def __init__(self, writer_spec: FileWriterSpec, *args: Any) -> None:
+        self.writer_spec = writer_spec
+        self.writer_cls = DataWriter.class_factory(
+            writer_spec.file_format, writer_spec.data_item_format
+        )
         self.buffered_writers: Dict[str, BufferedDataWriter[DataWriter]] = {}
         super().__init__(*args)
 
@@ -24,7 +31,7 @@ class DataItemStorage(ABC):
         if not writer:
             # assign a writer for each table
             path = self._get_data_item_path_template(load_id, schema_name, table_name)
-            writer = BufferedDataWriter(self.loader_file_format, path)
+            writer = BufferedDataWriter(self.writer_spec, path)
             self.buffered_writers[writer_id] = writer
         return writer
 
@@ -89,27 +96,6 @@ class DataItemStorage(ABC):
         for name, writer in self.buffered_writers.items():
             if name.startswith(load_id):
                 writer.closed_files.clear()
-
-    def _write_temp_job_file(
-        self,
-        load_id: str,
-        table_name: str,
-        table: TTableSchemaColumns,
-        file_id: str,
-        rows: Sequence[StrAny],
-    ) -> str:
-        """Writes new file into new packages "new_jobs". Intended for testing"""
-        file_name = (
-            self._get_data_item_path_template(load_id, None, table_name) % file_id
-            + "."
-            + self.loader_file_format
-        )
-        format_spec = DataWriter.data_format_from_file_format(self.loader_file_format)
-        mode = "wb" if format_spec.is_binary_format else "w"
-        with self.storage.open_file(file_name, mode=mode) as f:  # type: ignore[attr-defined]
-            writer = DataWriter.from_file_format(self.loader_file_format, f)
-            writer.write_all(table, rows)
-        return Path(file_name).name
 
     @abstractmethod
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:

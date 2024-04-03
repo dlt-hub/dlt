@@ -28,9 +28,7 @@ class APIRouter:
         self.routes: List[Route] = []
         self.base_url = base_url
 
-    def _add_route(
-        self, method: str, pattern: str, func: RequestCallback
-    ) -> RequestCallback:
+    def _add_route(self, method: str, pattern: str, func: RequestCallback) -> RequestCallback:
         compiled_pattern = re.compile(f"{self.base_url}{pattern}")
         self.routes.append(Route(method, compiled_pattern, func))
         return func
@@ -98,9 +96,7 @@ def paginate_response(request, records, page_size=10, records_key="data"):
     start_index = (page_number - 1) * 10
     end_index = start_index + 10
     records_slice = records[start_index:end_index]
-    return serialize_page(
-        records_slice, page_number, total_pages, request.url, records_key
-    )
+    return serialize_page(records_slice, page_number, total_pages, request.url, records_key)
 
 
 @pytest.fixture(scope="module")
@@ -137,9 +133,7 @@ def mock_api_server():
 
         @router.get(r"/posts_under_a_different_key$")
         def posts_with_results_key(request, context):
-            return paginate_response(
-                request, generate_posts(), records_key="many-results"
-            )
+            return paginate_response(request, generate_posts(), records_key="many-results")
 
         @router.get("/protected/posts/basic-auth")
         def protected_basic_auth(request, context):
@@ -199,6 +193,4 @@ def mock_api_server():
 
 def assert_pagination(pages, expected_start=0, page_size=10):
     for i, page in enumerate(pages):
-        assert page == [
-            {"id": i, "title": f"Post {i}"} for i in range(i * 10, (i + 1) * 10)
-        ]
+        assert page == [{"id": i, "title": f"Post {i}"} for i in range(i * 10, (i + 1) * 10)]

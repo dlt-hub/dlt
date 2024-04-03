@@ -77,9 +77,9 @@ class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalExcept
                 )
         else:
             msg = (
-                f"Unsupported file format {file_format} destination {destination}. Supported"
-                f" formats: {supported_formats_str}. Check the staging option in the dlt.pipeline"
-                " for additional formats."
+                f"Unsupported file format {file_format} in destination {destination}. Supported"
+                f" formats: {supported_formats_str}. If {destination} supports loading data via"
+                " staging bucket, more formats may be available."
             )
         super().__init__(msg)
 

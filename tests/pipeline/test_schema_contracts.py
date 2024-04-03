@@ -12,10 +12,10 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.pipeline.utils import load_table_counts
 from tests.utils import (
-    TDataItemFormat,
+    TestDataItemFormat,
     skip_if_not_active,
     data_to_item_format,
-    ALL_DATA_ITEM_FORMATS,
+    ALL_TEST_DATA_ITEM_FORMATS,
 )
 
 skip_if_not_active("duckdb")
@@ -100,7 +100,7 @@ def run_resource(
     pipeline: Pipeline,
     resource_fun: Callable[..., DltResource],
     settings: Any,
-    item_format: TDataItemFormat = "json",
+    item_format: TestDataItemFormat = "json",
     duplicates: int = 1,
 ) -> None:
     for item in settings.keys():
@@ -149,9 +149,9 @@ def get_pipeline():
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_new_tables(
-    contract_setting: str, setting_location: str, item_format: TDataItemFormat
+    contract_setting: str, setting_location: str, item_format: TestDataItemFormat
 ) -> None:
     pipeline = get_pipeline()
 
@@ -203,9 +203,9 @@ def test_new_tables(
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_new_columns(
-    contract_setting: str, setting_location: str, item_format: TDataItemFormat
+    contract_setting: str, setting_location: str, item_format: TestDataItemFormat
 ) -> None:
     full_settings = {setting_location: {"columns": contract_setting}}
 

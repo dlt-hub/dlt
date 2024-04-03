@@ -24,7 +24,6 @@ from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import (
     DestinationConnectionError,
     LoadClientNotConnected,
-    DatabaseTerminalException,
 )
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
