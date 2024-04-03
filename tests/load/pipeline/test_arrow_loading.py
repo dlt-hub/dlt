@@ -17,6 +17,9 @@ from tests.load.pipeline.utils import assert_table, assert_query_data, select_da
 from tests.utils import preserve_environ
 from tests.cases import arrow_table_all_data_types, TArrowFormat
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",

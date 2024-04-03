@@ -8,6 +8,9 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",

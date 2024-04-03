@@ -5,6 +5,9 @@ from dlt.destinations.impl.weaviate.ci_naming import NamingConvention as CINamin
 
 from tests.common.utils import load_yml_case
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @dlt.source
 def small():

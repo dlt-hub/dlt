@@ -44,6 +44,9 @@ from tests.load.utils import (
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def file_storage() -> FileStorage:
