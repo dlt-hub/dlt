@@ -11,10 +11,8 @@ from dlt.destinations.path_utils import (
     LayoutHelper,
 )
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
-
 from tests.common.storages.utils import start_loading_file, load_storage
 
-extra_params = ExtraParams()
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
 
@@ -27,6 +25,7 @@ def test_load(load_storage: LoadStorage) -> TestLoad:
 
 
 def test_layout_validity() -> None:
+    extra_params = ExtraParams()
     LayoutHelper("{table_name}", extra_params.params).check_layout()
     LayoutHelper(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", extra_params.params
