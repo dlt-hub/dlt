@@ -1,8 +1,7 @@
 import os
 from typing import Dict, List
 
-from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.writers import DataWriterMetrics
+from dlt.common.data_writers import TDataItemFormat, DataWriterMetrics, DataWriter, FileWriterSpec
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages import (
@@ -20,11 +19,9 @@ from dlt.common.utils import uniq_id
 
 
 class ExtractorItemStorage(DataItemStorage):
-    load_file_type: TLoaderFileFormat
-
-    def __init__(self, package_storage: PackageStorage) -> None:
+    def __init__(self, package_storage: PackageStorage, writer_spec: FileWriterSpec) -> None:
         """Data item storage using `storage` to manage load packages"""
-        super().__init__(self.load_file_type)
+        super().__init__(writer_spec)
         self.package_storage = package_storage
 
     def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
@@ -33,14 +30,6 @@ class ExtractorItemStorage(DataItemStorage):
             load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
         )
         return self.package_storage.storage.make_full_path(file_path)
-
-
-class JsonLExtractorStorage(ExtractorItemStorage):
-    load_file_type: TLoaderFileFormat = "puae-jsonl"
-
-
-class ArrowExtractorStorage(ExtractorItemStorage):
-    load_file_type: TLoaderFileFormat = "arrow"
 
 
 class ExtractStorage(NormalizeStorage):
@@ -55,9 +44,13 @@ class ExtractStorage(NormalizeStorage):
         self.new_packages = PackageStorage(
             FileStorage(os.path.join(self.storage.storage_path, self.new_packages_folder)), "new"
         )
-        self._item_storages: Dict[TLoaderFileFormat, ExtractorItemStorage] = {
-            "puae-jsonl": JsonLExtractorStorage(self.new_packages),
-            "arrow": ArrowExtractorStorage(self.new_packages),
+        self.item_storages: Dict[TDataItemFormat, ExtractorItemStorage] = {
+            "object": ExtractorItemStorage(
+                self.new_packages, DataWriter.writer_spec_from_file_format("typed-jsonl", "object")
+            ),
+            "arrow": ExtractorItemStorage(
+                self.new_packages, DataWriter.writer_spec_from_file_format("parquet", "arrow")
+            ),
         }
 
     def create_load_package(self, schema: Schema, reuse_exiting_package: bool = True) -> str:
@@ -81,21 +74,18 @@ class ExtractStorage(NormalizeStorage):
         self.new_packages.save_schema(load_id, schema)
         return load_id
 
-    def get_storage(self, loader_file_format: TLoaderFileFormat) -> ExtractorItemStorage:
-        return self._item_storages[loader_file_format]
-
     def close_writers(self, load_id: str) -> None:
-        for storage in self._item_storages.values():
+        for storage in self.item_storages.values():
             storage.close_writers(load_id)
 
     def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
         files = []
-        for storage in self._item_storages.values():
+        for storage in self.item_storages.values():
             files.extend(storage.closed_files(load_id))
         return files
 
     def remove_closed_files(self, load_id: str) -> None:
-        for storage in self._item_storages.values():
+        for storage in self.item_storages.values():
             storage.remove_closed_files(load_id)
 
     def commit_new_load_package(self, load_id: str, schema: Schema) -> None:
@@ -117,16 +107,3 @@ class ExtractStorage(NormalizeStorage):
             return self.new_packages.get_load_package_info(load_id)
         except LoadPackageNotFound:
             return self.extracted_packages.get_load_package_info(load_id)
-
-    def write_data_item(
-        self,
-        file_format: TLoaderFileFormat,
-        load_id: str,
-        schema_name: str,
-        table_name: str,
-        item: TDataItems,
-        columns: TTableSchemaColumns,
-    ) -> None:
-        self.get_storage(file_format).write_data_item(
-            load_id, schema_name, table_name, item, columns
-        )
