@@ -245,6 +245,7 @@ Please note:
 You can choose the following file formats:
 * [jsonl](../file-formats/jsonl.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
+* [csv](../file-formats/csv.md) is supported
 
 
 ## Syncing of `dlt` state

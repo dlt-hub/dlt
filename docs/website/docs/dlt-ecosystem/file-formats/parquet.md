@@ -16,7 +16,7 @@ pip install dlt[parquet]
 
 ## Supported Destinations
 
-Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**, **Athena**
+Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**, **Athena**, **Databricks**, **Synapse**
 
 By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will store your data in the parquet format at the destination:
 
@@ -33,9 +33,9 @@ info = pipeline.run(some_source(), loader_file_format="parquet")
 
 Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to create the files. The following options can be used to change the behavior of the writer:
 
-- `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to "spark".
+- `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None which is **pyarrow** default.
 - `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.4".
-- `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to "1048576".
+- `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None which is **pyarrow** default.
 - `timestamp_timezone`: A string specifying timezone, default is UTC.
 
 Read the [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to learn more about these settings.

@@ -247,7 +247,7 @@ from dlt.common import json
 - use `loadb` and `dumpb` methods to work with bytes without decoding strings
 
 You can switch to **simplejson** at any moment by (1) removing **orjson** dependency or (2) setting the following env variable:
-```
+```sh
 DLT_USE_JSON=simplejson
 ```
 :::
