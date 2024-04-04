@@ -49,6 +49,9 @@ def pivot(
     def _list_to_dict(list_):
         return {prefix + str(i): value for i, value in enumerate(list_)}
 
+    def _is_list_of_lists(value):
+        return all(isinstance(item, list) for item in value)
+
     def _transformer(item: TDataItem) -> TDataItem:
         """Pivot columns into a dictionary.
 
@@ -64,7 +67,11 @@ def pivot(
             matches = expr.find(item)
 
             for match in matches:
-                trans_item[str(match.full_path)] = _list_to_dict(match.value)
+                if _is_list_of_lists(match.value):
+                    f_path = str(match.full_path)
+                    trans_item[f_path] = []
+                    for value in match.value:
+                        trans_item[f_path].append(_list_to_dict(value))
 
         return trans_item
 
