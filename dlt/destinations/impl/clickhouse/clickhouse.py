@@ -178,17 +178,15 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                 " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression.",
             )
 
-        if not bucket_path:
-            # Local filesystem.
-            raise NotImplementedError("Only object storage is supported.")
-
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
 
         file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
-        table_function: str
+        clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
 
+        table_function: str
         table_function = ""
+
         if bucket_scheme in ("s3", "gs", "gcs"):
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
 
@@ -225,15 +223,29 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             container_name = bucket_url.netloc
             blobpath = bucket_url.path
 
-            clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
-
             table_function = (
-                f"azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format}')"
+                f"SELECT * FROM azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format }')"
+            )
+        elif not bucket_path:
+            # Local filesystem.
+            if not file_path:
+                raise LoadJobTerminalException(
+                    file_path,
+                    "If `bucket_path` isn't provided, then you m ust specify a local file path.",
+                )
+            print(file_path)
+            table_function = (
+                f"FROM INFILE '{file_path}' FORMAT {clickhouse_format}"
+            )
+        else:
+            raise LoadJobTerminalException(
+                file_path,
+                f"Clickhouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
         with client.begin_transaction():
             client.execute_sql(
-                f"""INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"""
+                f"""INSERT INTO {qualified_table_name} {table_function}"""
             )
 
     def state(self) -> TLoadJobState:
@@ -446,19 +458,18 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
         )
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id) or ClickhouseLoadJob(
+        return super().start_file_load(
+            table, file_path, load_id
+        ) or ClickhouseLoadJob(
             file_path,
             table["name"],
             self.sql_client,
             staging_credentials=(
-                self.config.staging_config.credentials if self.config.staging_config else None
+                self.config.staging_config.credentials
+                if self.config.staging_config
+                else None
             ),
         )
-        if not job:
-            assert NewReferenceJob.is_reference_job(
-                file_path
-            ), "Clickhouse must use staging to load files."
-        return job
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool

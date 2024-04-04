@@ -56,7 +56,7 @@ def render_object_storage_table_function(
     clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_format]
 
     template = Template(
-        """s3('{{ url }}'{% if access_key_id and secret_access_key %},'{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')"""
+        """SELECT * FROM s3('{{ url }}'{% if access_key_id and secret_access_key %},'{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')"""
     )
 
     return template.render(
