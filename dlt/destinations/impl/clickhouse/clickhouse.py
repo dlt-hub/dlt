@@ -166,6 +166,10 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         if file_extension not in ["parquet", "jsonl"]:
             raise ValueError("Clickhouse staging only supports 'parquet' and 'jsonl' file formats.")
 
+        print("File Path:", file_path)
+        print("Table Name:", table_name)
+        print("Bucket Path:", bucket_path)
+
         if not bucket_path:
             # Local filesystem.
             raise NotImplementedError("Only object storage is supported.")
@@ -197,25 +201,26 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             )
 
         elif bucket_scheme in ("az", "abfs"):
-            if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
-                # Authenticated access.
-                account_name = staging_credentials.azure_storage_account_name
-                storage_account_url = f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
-                account_key = staging_credentials.azure_storage_account_key
-                container_name = bucket_url.netloc
-                blobpath = bucket_url.path
-
-                clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
-
-                table_function = (
-                    f"azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format}')"
-                )
-
-            else:
+            if not isinstance(
+                staging_credentials, AzureCredentialsWithoutDefaults
+            ):
                 # Unsigned access.
                 raise NotImplementedError(
                     "Unsigned Azure Blob Storage access from Clickhouse isn't supported as yet."
                 )
+
+            # Authenticated access.
+            account_name = staging_credentials.azure_storage_account_name
+            storage_account_url = f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            account_key = staging_credentials.azure_storage_account_key
+            container_name = bucket_url.netloc
+            blobpath = bucket_url.path
+
+            clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
+
+            table_function = (
+                f"azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format}')"
+            )
 
         with client.begin_transaction():
             client.execute_sql(
