@@ -283,11 +283,12 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
     def store_current_state(self) -> None:
         # get state doc from current pipeline
-        from dlt import current
+        from dlt.common.configuration.container import Container
+        from dlt.common.pipeline import PipelineContext
         from dlt.pipeline.state_sync import state_doc
 
-        pipeline = current.pipeline()  # type: ignore
-        state = pipeline._get_state()
+        pipeline = Container()[PipelineContext].pipeline()
+        state = pipeline.state
         doc = state_doc(state)
 
         # get paths
