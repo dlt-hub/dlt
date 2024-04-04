@@ -36,7 +36,9 @@ def get_placeholders(layout: str) -> List[str]:
 
 
 def prepare_datetime_params(
-    moment: pendulum.DateTime, datetime_format: Optional[str] = None
+    moment: pendulum.DateTime,
+    datetime_format: Optional[str] = None,
+    load_package_timestamp: Optional[str] = None,
 ) -> Dict[str, str]:
     # For formatting options please see
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
@@ -57,7 +59,14 @@ def prepare_datetime_params(
     params["minute"] = moment.format("mm")
     # Day of week
     params["dow"] = moment.format("ddd").lower()
-    params["timestamp"] = str(int(moment.timestamp()))
+
+    if load_package_timestamp:
+        timestamp = int(pendulum.parse(load_package_timestamp).timestamp())
+    else:
+        # FIXME: what do we do here?
+        timestamp = int(moment.timestamp())
+
+    params["timestamp"] = str(timestamp)
 
     return params
 
@@ -71,6 +80,7 @@ class ExtraParams:
         job_info: Optional[ParsedLoadJobFileName] = None,
         schema_name: Optional[str] = None,
         load_id: Optional[str] = None,
+        load_package_timestamp: Optional[str] = None,
     ) -> None:
         self.current_datetime = current_datetime
         self.datetime_format = datetime_format
@@ -78,6 +88,7 @@ class ExtraParams:
         self.job_info = job_info
         self.load_id = load_id
         self.schema_name = schema_name
+        self.load_package_timestamp = load_package_timestamp
         self._params: Dict[str, Any] = {"schema_name": schema_name}
 
         self.table_name = None
@@ -127,7 +138,11 @@ class ExtraParams:
                 )
 
         self._process_extra_placeholders()
-        date_placeholders = prepare_datetime_params(self.current_datetime, self.datetime_format)
+        date_placeholders = prepare_datetime_params(
+            self.current_datetime,
+            self.datetime_format,
+            self.load_package_timestamp,
+        )
         self._params.update(date_placeholders)
         return self._params
 
@@ -208,6 +223,7 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
+    load_package_timestamp: Optional[str] = None,
     current_datetime: TCurrentDateTime = None,
     datetime_format: Optional[str] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
@@ -221,6 +237,7 @@ def create_path(
         job_info=job_info,
         schema_name=schema_name,
         load_id=load_id,
+        load_package_timestamp=load_package_timestamp,
     )
 
     with LayoutHelper(layout, extras.params) as layout_helper:
