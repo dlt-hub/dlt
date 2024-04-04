@@ -25,7 +25,7 @@ from dlt.common.destination.reference import (
     StateInfo,
     DoNothingJob,
 )
-
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -179,10 +179,13 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> TSchemaTables:
         # create destination dirs for all tables
-        # TODO we should only create dirs for datatables
-        dirs_to_create = self._get_table_dirs(only_tables or self.schema.tables.keys())
-        for directory in dirs_to_create:
+        table_names = only_tables or self.schema.tables.keys()
+        dirs_to_create = self._get_table_dirs(table_names)
+        for tables_name, directory in zip(table_names, dirs_to_create):
             self.fs_client.makedirs(directory, exist_ok=True)
+            # we need to mark the folders of the data tables as initialized
+            if tables_name in self.schema.dlt_table_names():
+                self.fs_client.touch(f"{directory}/init")
 
         # write schema to destination
         self.store_current_schema()
@@ -205,8 +208,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        # skip the state table, we create a jsonl file in the complete_load
-        # step
+        # skip the state table, we create a jsonl file in the complete_load step
         if table["name"] == self.schema.state_table_name:
             return DoNothingJob(file_path)
 
@@ -238,8 +240,6 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     #
 
     def _write_to_json_file(self, filepath: str, data: DictStrAny) -> None:
-        dirname = os.path.dirname(filepath)
-        self.fs_client.makedirs(dirname, exist_ok=True)
         self.fs_client.write_text(filepath, json.dumps(data), "utf-8")
 
     def complete_load(self, load_id: str) -> None:
@@ -294,10 +294,15 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         self._write_to_json_file(hash_path, doc)
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
+        # raise if dir not initialized
+        filepath = self._get_state_file_name(pipeline_name, "current")
+        dirname = os.path.dirname(filepath)
+        if not self.fs_client.isdir(dirname):
+            raise DestinationUndefinedEntity({"dir": dirname})
+
         """Loads compressed state from destination storage"""
-        file_name = self._get_state_file_name(pipeline_name, "current")
-        if self.fs_client.exists(file_name):
-            state_json = json.loads(self.fs_client.read_text(file_name))
+        if self.fs_client.exists(filepath):
+            state_json = json.loads(self.fs_client.read_text(filepath))
             state_json.pop("version_hash")
             return StateInfo(**state_json)
 
@@ -319,6 +324,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         """retrieves the stored schema by hash"""
         filepath = self._get_schema_file_name(version_hash)
+        # raise if dir not initialized
+        dirname = os.path.dirname(filepath)
+        if not self.fs_client.isdir(dirname):
+            raise DestinationUndefinedEntity({"dir": dirname})
         if self.fs_client.exists(filepath):
             return StorageSchemaInfo(**json.loads(self.fs_client.read_text(filepath)))
 
