@@ -46,7 +46,7 @@ ALL_LAYOUTS = (
     "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
     "{table_name}/{dow}/{load_id}.{file_id}.{ext}",
     # Invalid placeholders before {table_name}
-    # "{year}/{month}/{day}/{hour}/{table_name}/{dow}/{load_id}.{file_id}.{ext}",
+    "{year}/{month}/{day}/{hour}/{table_name}/{dow}/{load_id}.{file_id}.{ext}",
 )
 
 
