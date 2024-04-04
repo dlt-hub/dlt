@@ -508,7 +508,7 @@ def test_transform_pivot_wrong_data() -> None:
     with pytest.raises(ResourceExtractionError):
         list(res)
 
-    res2 = pivot_test_wrong_resource()
+    res2 = pivot_test_wrong_resource2()
     res2.add_map(pivot("$.a"))
 
     with pytest.raises(ResourceExtractionError):
