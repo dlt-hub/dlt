@@ -116,8 +116,8 @@ def migrate_pipeline_state(
 
 
 def state_doc(state: TPipelineState) -> DictStrAny:
-    doc = copy(state)
-    doc.pop("_local")
+    state = copy(state)
+    state.pop("_local")
     state_str = compress_state(state)
     doc = {
         "version": state["_state_version"],
