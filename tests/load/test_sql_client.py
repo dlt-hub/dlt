@@ -36,7 +36,6 @@ def client(request) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "client",
     destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse"]),

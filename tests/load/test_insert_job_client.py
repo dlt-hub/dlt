@@ -18,8 +18,6 @@ from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
 
 DEFAULT_SUBSET = ["duckdb", "redshift", "postgres"]
 
@@ -33,7 +31,7 @@ def file_storage() -> FileStorage:
 def client(request) -> Iterator[InsertValuesJobClient]:
     yield from yield_client_with_storage(request.param.destination)  # type: ignore[misc]
 
-
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client",
     destinations_configs(default_sql_configs=True, subset=DEFAULT_SUBSET),

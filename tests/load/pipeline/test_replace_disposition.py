@@ -247,7 +247,6 @@ def test_replace_disposition(
     }
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(

@@ -44,9 +44,6 @@ from tests.load.utils import (
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-# mark all tests as essential, do not remove
-pytestmark = pytest.mark.essential
-
 
 @pytest.fixture
 def file_storage() -> FileStorage:
@@ -159,6 +156,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     assert this_schema == newest_schema
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
