@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import Any, Dict, List, Union
 
 from dlt.common.typing import TDataItem
 from dlt.extract.items import ItemTransformFunctionNoMeta
@@ -46,10 +46,28 @@ def pivot(
     if isinstance(paths, str):
         paths = [paths]
 
-    def _list_to_dict(list_):
+    def _list_to_dict(list_: List) -> Dict:
+        """
+        Transform the given list into a dict, generating
+        columns with the given prefix.
+
+        Args:
+            list_ (List): The list to transform.
+
+        Returns:
+            Dict: a dictionary with the list values.
+        """
         return {prefix + str(i): value for i, value in enumerate(list_)}
 
-    def _is_list_of_lists(value):
+    def _is_list_of_lists(value: Any) -> bool:
+        """Check if the given value is a list of lists.
+
+        Args:
+            value (Any): a value to check.
+
+        Returns:
+            bool: True if the value is a list of lists.
+        """
         return all(isinstance(item, list) for item in value)
 
     def _transformer(item: TDataItem) -> TDataItem:
