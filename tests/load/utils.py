@@ -201,8 +201,6 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination="clickhouse",
                 file_format="jsonl",
-                bucket_url=AWS_BUCKET,
-                extra_info="s3-authorization",
                 disable_compression=True,
             )
         ]

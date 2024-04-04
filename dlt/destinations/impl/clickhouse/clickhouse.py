@@ -5,6 +5,7 @@ from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
 from urllib.parse import urlparse
 
 import dlt
+from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
@@ -34,7 +35,7 @@ from dlt.common.schema.utils import (
     get_dedup_sort_tuple,
 )
 from dlt.common.storages import FileStorage
-from dlt.destinations.exceptions import MergeDispositionException
+from dlt.destinations.exceptions import MergeDispositionException, LoadJobTerminalException
 from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
@@ -163,12 +164,19 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         file_extension = os.path.splitext(file_name)[1][
             1:
         ].lower()  # Remove dot (.) from file extension.
-        if file_extension not in ["parquet", "jsonl"]:
-            raise ValueError("Clickhouse staging only supports 'parquet' and 'jsonl' file formats.")
 
-        print("File Path:", file_path)
-        print("Table Name:", table_name)
-        print("Bucket Path:", bucket_path)
+        if file_extension not in ["parquet", "jsonl"]:
+            raise LoadJobTerminalException(
+                file_path, "Clickhouse loader Only supports parquet and jsonl files."
+            )
+
+        if not config.get("data_writer.disable_compression"):
+            raise LoadJobTerminalException(
+                file_path,
+                "Clickhouse loader does not support gzip compressed files. Please disable"
+                " compression in the data writer configuration:"
+                " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression.",
+            )
 
         if not bucket_path:
             # Local filesystem.
@@ -180,6 +188,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
         table_function: str
 
+        table_function = ""
         if bucket_scheme in ("s3", "gs", "gcs"):
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
 
@@ -201,17 +210,17 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             )
 
         elif bucket_scheme in ("az", "abfs"):
-            if not isinstance(
-                staging_credentials, AzureCredentialsWithoutDefaults
-            ):
-                # Unsigned access.
-                raise NotImplementedError(
-                    "Unsigned Azure Blob Storage access from Clickhouse isn't supported as yet."
+            if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Unsigned Azure Blob Storage access from Clickhouse isn't supported as yet.",
                 )
 
             # Authenticated access.
             account_name = staging_credentials.azure_storage_account_name
-            storage_account_url = f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            storage_account_url = (
+                f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            )
             account_key = staging_credentials.azure_storage_account_key
             container_name = bucket_url.netloc
             blobpath = bucket_url.path
