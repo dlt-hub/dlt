@@ -185,6 +185,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
             self.fs_client.makedirs(directory, exist_ok=True)
             # we need to mark the folders of the data tables as initialized
             if tables_name in self.schema.dlt_table_names():
+                print(directory + " " + tables_name)
                 self.fs_client.touch(f"{directory}/init")
 
         # write schema to destination
@@ -192,9 +193,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
         return expected_update
 
-    def _get_table_dirs(self, table_names: Iterable[str]) -> Set[str]:
+    def _get_table_dirs(self, table_names: Iterable[str]) -> List[str]:
         """Gets unique directories where table data is stored."""
-        table_dirs: Set[str] = set()
+        table_dirs: List[str] = []
         for table_name in table_names:
             # dlt tables do not respect layout (for now)
             if table_name in self.schema.dlt_table_names():
@@ -205,7 +206,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                 )
             destination_dir = posixpath.join(self.dataset_path, table_prefix)
             # extract the path component
-            table_dirs.add(os.path.dirname(destination_dir))
+            table_dirs.append(os.path.dirname(destination_dir))
         return table_dirs
 
     def is_storage_initialized(self) -> bool:
