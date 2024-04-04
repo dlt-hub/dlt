@@ -35,13 +35,18 @@ def pivot(
 ) -> ItemTransformFunctionNoMeta[TDataItem]:
     """Pivot the given values into a dictionary.
 
+    Walks through the given JSON paths and turns lists
+    of lists into lists of dicts, generating
+    column names from the given prefix and indexes, e.g.:
+    {"field": [[1, 2]]} -> {"field": [{"prefix_0": 1, "prefix_1": 2}]}
+
     Args:
-        columns (Union[str, List[str]]): JSON paths to pivot.
+        paths (Union[str, List[str]]): JSON paths to pivot.
         prefix (Optional[str]): Prefix to add to the column names.
 
     Returns:
         ItemTransformFunctionNoMeta[TDataItem]:
-            A function to pivot columns into a dict.
+            A function to pivot inner lists into a dict.
     """
     if isinstance(paths, str):
         paths = [paths]
@@ -71,10 +76,10 @@ def pivot(
         return all(isinstance(item, list) for item in value)
 
     def _transformer(item: TDataItem) -> TDataItem:
-        """Pivot columns into a dictionary.
+        """Pivot the given item into a dictionary.
 
         Args:
-            item (TDataItem): a data item.
+            item (TDataItem): A data item.
 
         Returns:
             TDataItem: a data item with pivoted columns.
