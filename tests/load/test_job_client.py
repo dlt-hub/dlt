@@ -392,6 +392,13 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
             continue
+        # Clickhouse has no active data type for binary or time type.
+        # TODO: JSON type is available, but not nullable in Clickhouse.
+        if client.config.destination_type == "clickhouse":
+            if c["data_type"] in ("binary", "time"):
+                continue
+            elif c["data_type"] == "complex" and c["nullable"]:
+                continue
         assert c["data_type"] == expected_c["data_type"]
 
 

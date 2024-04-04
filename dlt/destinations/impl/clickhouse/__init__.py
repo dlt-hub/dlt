@@ -9,7 +9,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     # Clickhouse only supports loading from staged files on s3 for now.
     caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["parquet", "jsonl", "insert_values"]
+    caps.supported_loader_file_formats = ["parquet", "jsonl"]
     caps.preferred_staging_file_format = "jsonl"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
 

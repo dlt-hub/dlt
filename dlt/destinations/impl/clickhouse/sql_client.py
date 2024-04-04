@@ -56,11 +56,6 @@ class ClickhouseSqlClient(
         self._conn = clickhouse_driver.dbapi.connect(
             dsn=self.credentials.to_native_representation()
         )
-        with self._conn.cursor() as cur:
-            # Toggle experimental settings.
-            # These are necessary for nested datatypes and other operations to work.
-            cur.execute("set allow_experimental_object_type = 1")
-            cur.execute("set allow_experimental_lightweight_delete = 1")
         return self._conn
 
     @raise_open_connection_error
@@ -133,6 +128,13 @@ class ClickhouseSqlClient(
             query, db_args = _convert_to_old_pyformat(query, args, OperationalError)
             db_args.update(kwargs)
 
+        # Prefix each query transaction with experimental settings.
+        # These are necessary for nested datatypes to be available and other operations to work.
+        query = (
+            "set allow_experimental_lightweight_delete = 1;"
+            "set allow_experimental_object_type = 1;"
+            f"{query}"
+        )
         with self._conn.cursor() as cursor:
             for query_line in query.split(";"):
                 if query_line := query_line.strip():

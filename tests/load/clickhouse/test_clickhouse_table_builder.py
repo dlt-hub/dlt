@@ -48,7 +48,7 @@ def test_clickhouse_configuration() -> None:
     assert ClickhouseClientConfiguration(credentials=c).fingerprint() == digest128("host1")
 
 
-def test_create_table(clickhouse_client: ClickhouseClient) -> None:
+def test_clickhouse_create_table(clickhouse_client: ClickhouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
@@ -66,7 +66,7 @@ def test_create_table(clickhouse_client: ClickhouseClient) -> None:
     assert "`col6` Decimal(38,9)" in sql
     assert "`col7` String" in sql
     assert "`col8` Decimal(76,0)" in sql
-    assert "`col9` String" in sql
+    assert "`col9` JSON" in sql
     assert "`col10` Date" in sql
     assert "`col11` DateTime" in sql
     assert "`col1_null` Nullable(Int64)" in sql
@@ -77,18 +77,18 @@ def test_create_table(clickhouse_client: ClickhouseClient) -> None:
     assert "`col6_null` Nullable(Decimal(38,9))" in sql
     assert "`col7_null` Nullable(String)" in sql
     assert "`col8_null` Nullable(Decimal(76,0))" in sql
-    assert "`col9_null` Nullable(String)" in sql
+    assert "`col9_null` JSON" in sql  # JSON isn't nullable in clickhouse
     assert "`col10_null` Nullable(Date)" in sql
     assert "`col11_null` Nullable(DateTime)" in sql
     assert "`col1_precision` Int64" in sql
-    assert "`col4_precision` DateTime(3, 'UTC')" in sql
+    assert "`col4_precision` DateTime(3,'UTC')" in sql
     assert "`col5_precision` String" in sql
     assert "`col6_precision` Decimal(6,2)" in sql
     assert "`col7_precision` String" in sql
     assert "`col11_precision` DateTime" in sql
 
 
-def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
+def test_clickhouse_alter_table(clickhouse_client: ClickhouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     assert len(statements) == 1
     sql = statements[0]
@@ -108,7 +108,7 @@ def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
     assert "`col6` Decimal(38,9)" in sql
     assert "`col7` String" in sql
     assert "`col8` Decimal(76,0)" in sql
-    assert "`col9` String" in sql
+    assert "`col9` JSON" in sql
     assert "`col10` Date" in sql
     assert "`col11` DateTime" in sql
     assert "`col1_null` Nullable(Int64)" in sql
@@ -119,11 +119,11 @@ def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
     assert "`col6_null` Nullable(Decimal(38,9))" in sql
     assert "`col7_null` Nullable(String)" in sql
     assert "`col8_null` Nullable(Decimal(76,0))" in sql
-    assert "`col9_null` Nullable(String)" in sql
+    assert "`col9_null` JSON" in sql
     assert "`col10_null` Nullable(Date)" in sql
     assert "`col11_null` Nullable(DateTime)" in sql
     assert "`col1_precision` Int64" in sql
-    assert "`col4_precision` DateTime(3, 'UTC')" in sql
+    assert "`col4_precision` DateTime(3,'UTC')" in sql
     assert "`col5_precision` String" in sql
     assert "`col6_precision` Decimal(6,2)" in sql
     assert "`col7_precision` String" in sql
@@ -138,7 +138,7 @@ def test_alter_table(clickhouse_client: ClickhouseClient) -> None:
 
 
 @pytest.mark.usefixtures("empty_schema")
-def test_create_table_with_primary_keys(clickhouse_client: ClickhouseClient) -> None:
+def test_clickhouse_create_table_with_primary_keys(clickhouse_client: ClickhouseClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
 
     mod_update[1]["primary_key"] = True
@@ -154,7 +154,7 @@ def test_create_table_with_primary_keys(clickhouse_client: ClickhouseClient) -> 
     "Only `primary_key` hint has been implemented so far, which isn't specified inline with the"
     " column definition."
 )
-def test_create_table_with_hints(client: ClickhouseClient) -> None:
+def test_clickhouse_create_table_with_hints(client: ClickhouseClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
 
     mod_update[0]["primary_key"] = True

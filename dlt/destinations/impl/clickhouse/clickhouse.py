@@ -1,4 +1,5 @@
 import os
+import re
 from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
 from urllib.parse import urlparse
@@ -72,13 +73,12 @@ TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
 
 class ClickhouseTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
-        "complex": "String",
+        "complex": "JSON",
         "text": "String",
         "double": "Float64",
         "bool": "Boolean",
         "date": "Date",
         "timestamp": "DateTime('UTC')",
-        "time": "Time('UTC')",
         "bigint": "Int64",
         "binary": "String",
         "wei": "Decimal",
@@ -87,21 +87,19 @@ class ClickhouseTypeMapper(TypeMapper):
     sct_to_dbt = {
         "decimal": "Decimal(%i,%i)",
         "wei": "Decimal(%i,%i)",
-        "timestamp": "DateTime(%i, 'UTC')",
-        "time": "Time(%i ,'UTC')",
+        "timestamp": "DateTime(%i,'UTC')",
     }
 
     dbt_to_sct = {
         "String": "text",
         "Float64": "double",
-        "Boolean": "bool",
+        "Bool": "bool",
         "Date": "date",
         "DateTime": "timestamp",
-        "DateTime('UTC')": "timestamp",
+        "DateTime64": "timestamp",
         "Time": "timestamp",
-        "Time('UTC')": "timestamp",
         "Int64": "bigint",
-        "JSON": "complex",
+        "Object('json')": "complex",
         "Decimal": "decimal",
     }
 
@@ -111,8 +109,33 @@ class ClickhouseTypeMapper(TypeMapper):
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
+        # Remove "Nullable" wrapper.
+        db_type = re.sub(r"^Nullable\((?P<type>.+)\)$", r"\g<type>", db_type)
+
+        # Remove timezone details.
+        if db_type == "DateTime('UTC')":
+            db_type = "DateTime"
+        if datetime_match := re.match(
+            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?", db_type
+        ):
+            if datetime_match["precision"]:
+                precision = int(datetime_match["precision"])
+            else:
+                precision = None
+            db_type = "DateTime64"
+
+        # Extract precision and scale, parameters and remove from string.
+        if decimal_match := re.match(
+            r"Decimal\((?P<precision>\d+)\s*(?:,\s*(?P<scale>\d+))?\)", db_type
+        ):
+            precision, scale = decimal_match.groups()  # type: ignore[assignment]
+            precision = int(precision)
+            scale = int(scale) if scale else 0
+            db_type = "Decimal"
+
         if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
             return dict(data_type="wei")
+
         return super().from_db_type(db_type, precision, scale)
 
 
@@ -396,9 +419,10 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
         )
 
         # Alter table statements only accept `Nullable` modifiers.
+        # JSON type isn't nullable in Clickhouse.
         type_with_nullability_modifier = (
             f"Nullable({self.type_mapper.to_db_type(c)})"
-            if c.get("nullable", True)
+            if c.get("nullable", True) and c.get("data_type") != "complex"
             else self.type_mapper.to_db_type(c)
         )
 

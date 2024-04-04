@@ -17,7 +17,7 @@ from dlt.destinations.impl.snowflake.configuration import (
 from tests.common.configuration.utils import environment
 
 
-def test_connection_string_with_all_params() -> None:
+def test_clickhouse_connection_string_with_all_params() -> None:
     url = "clickhouse://user1:pass1@host1:9000/testdb?secure=0&connect_timeout=230&send_receive_timeout=1000"
 
     creds = ClickhouseCredentials()  # type: ignore
@@ -50,7 +50,7 @@ def test_clickhouse_configuration() -> None:
 
 
 @pytest.mark.usefixtures("environment")
-def test_gcp_hmac_getter_accessor(environment: Any) -> None:
+def test_clickhouse_gcp_hmac_getter_accessor(environment: Any) -> None:
     environment["DESTINATION__FILESYSTEM__CREDENTIALS__GCP_ACCESS_KEY_ID"] = "25g08jaDJacj42"
     environment["DESTINATION__FILESYSTEM__CREDENTIALS__GCP_SECRET_ACCESS_KEY"] = "ascvntp45uasdf"
 

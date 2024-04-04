@@ -172,7 +172,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks")
+            if destination not in ("athena", "mssql", "synapse", "databricks", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -200,7 +200,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="clickhouse",
-                file_format="parquet",
+                file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
             )
