@@ -526,6 +526,33 @@ def test_transform_function_pivot_str() -> None:
     ]
 
 
+def test_transform_function_pivot_path() -> None:
+    @dlt.resource
+    def test_resource():
+        for row in (
+            [
+                {"a": {"inner_1": 1, "inner_2": 3, "inner_3": 111}, "b": 2},
+                {"a": {"inner_1": 4, "inner_2": 6, "inner_3": 111}, "b": 5},
+            ],
+            [
+                {"a": {"inner_1": 7, "inner_2": 9, "inner_3": 111}, "b": 8},
+                {"a": {"inner_1": 10, "inner_2": 12, "inner_3": 111}, "b": 11},
+            ],
+        ):
+            yield row
+
+    res = test_resource()
+    res.add_map(pivot("$.a.inner_1|inner_2"))
+
+    result = list(res)
+    assert result == [
+        {"a.inner_1": 1, "a.inner_2": 3},
+        {"a.inner_1": 4, "a.inner_2": 6},
+        {"a.inner_1": 7, "a.inner_2": 9},
+        {"a.inner_1": 10, "a.inner_2": 12},
+    ]
+
+
 def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     # test generation of version hash on migration to v3
     state_v1 = load_json_case("state/state.v1")
