@@ -487,69 +487,81 @@ def test_transform_function_state_write() -> None:
     )
 
 
-def test_transform_function_pivot() -> None:
-    @dlt.resource
-    def test_resource():
-        for row in (
-            [[1, 2, 3], [4, 5, 6]],
-            [[7, 8, 9], [10, 11, 12]],
-        ):
-            yield row
-
-    res = test_resource()
-    res.add_map(pivot(["a", "b", "c"], "prefix_"))
-
-    result = list(res)
-    assert result == [
-        {"prefix_a": 1, "prefix_b": 2, "prefix_c": 3},
-        {"prefix_a": 4, "prefix_b": 5, "prefix_c": 6},
-        {"prefix_a": 7, "prefix_b": 8, "prefix_c": 9},
-        {"prefix_a": 10, "prefix_b": 11, "prefix_c": 12},
-    ]
-
-
-def test_transform_function_pivot_str() -> None:
-    @dlt.resource
-    def test_resource():
-        for row in ([[1], [4]], [[7], [10]]):
-            yield row
-
-    res = test_resource()
-    res.add_map(pivot("string", "prefix_"))
-
-    result = list(res)
-    assert result == [
-        {"prefix_string": 1},
-        {"prefix_string": 4},
-        {"prefix_string": 7},
-        {"prefix_string": 10},
-    ]
+@dlt.resource
+def pivot_test_resource():
+    for row in (
+        [
+            {
+                "a": {"inner_1": [1, 1, 1], "inner_2": [3, 3, 3], "inner_3": [111, 111, 111]},
+                "b": [2, 2, 2],
+            },
+            {
+                "a": {"inner_1": [4, 4, 4], "inner_2": [6, 6, 6], "inner_3": [111, 111, 111]},
+                "b": [5, 5, 5],
+            },
+        ],
+        [
+            {
+                "a": {"inner_1": [7, 7, 7], "inner_2": [9, 9, 9], "inner_3": [111, 111, 111]},
+                "b": [8, 8, 8],
+            },
+            {
+                "a": {"inner_1": [10, 10, 10], "inner_2": [12, 12, 12], "inner_3": [111, 111, 111]},
+                "b": [11, 11, 11],
+            },
+        ],
+    ):
+        yield row
 
 
-def test_transform_function_pivot_path() -> None:
-    @dlt.resource
-    def test_resource():
-        for row in (
-            [
-                {"a": {"inner_1": 1, "inner_2": 3, "inner_3": 111}, "b": 2},
-                {"a": {"inner_1": 4, "inner_2": 6, "inner_3": 111}, "b": 5},
-            ],
-            [
-                {"a": {"inner_1": 7, "inner_2": 9, "inner_3": 111}, "b": 8},
-                {"a": {"inner_1": 10, "inner_2": 12, "inner_3": 111}, "b": 11},
-            ],
-        ):
-            yield row
-
-    res = test_resource()
+def test_transform_pivot_single_path() -> None:
+    res = pivot_test_resource()
     res.add_map(pivot("$.a.inner_1|inner_2"))
 
     result = list(res)
     assert result == [
-        {"a.inner_1": 1, "a.inner_2": 3},
-        {"a.inner_1": 4, "a.inner_2": 6},
-        {"a.inner_1": 7, "a.inner_2": 9},
-        {"a.inner_1": 10, "a.inner_2": 12},
+        {"a.inner_1": {"0": 1, "1": 1, "2": 1}, "a.inner_2": {"0": 3, "1": 3, "2": 3}},
+        {"a.inner_1": {"0": 4, "1": 4, "2": 4}, "a.inner_2": {"0": 6, "1": 6, "2": 6}},
+        {"a.inner_1": {"0": 7, "1": 7, "2": 7}, "a.inner_2": {"0": 9, "1": 9, "2": 9}},
+        {"a.inner_1": {"0": 10, "1": 10, "2": 10}, "a.inner_2": {"0": 12, "1": 12, "2": 12}},
+    ]
+
+
+def test_transform_pivot_multiple_paths() -> None:
+    res = pivot_test_resource()
+    res.add_map(pivot(["$.a.inner_1", "$.a.inner_2"]))
+    result = list(res)
+    assert result == [
+        {"a.inner_1": {"0": 1, "1": 1, "2": 1}, "a.inner_2": {"0": 3, "1": 3, "2": 3}},
+        {"a.inner_1": {"0": 4, "1": 4, "2": 4}, "a.inner_2": {"0": 6, "1": 6, "2": 6}},
+        {"a.inner_1": {"0": 7, "1": 7, "2": 7}, "a.inner_2": {"0": 9, "1": 9, "2": 9}},
+        {"a.inner_1": {"0": 10, "1": 10, "2": 10}, "a.inner_2": {"0": 12, "1": 12, "2": 12}},
+    ]
+
+
+def test_transform_pivot_no_path() -> None:
+    res = pivot_test_resource()
+    res.add_map(pivot())
+
+    result = list(res)
+    assert result == [
+        {"$": {"0": "a", "1": "b"}},
+        {"$": {"0": "a", "1": "b"}},
+        {"$": {"0": "a", "1": "b"}},
+        {"$": {"0": "a", "1": "b"}},
+    ]
+
+
+def test_transform_pivot_prefix() -> None:
+    res = pivot_test_resource()
+    res.add_map(pivot("$.a.inner_1", "prefix_"))
+
+    result = list(res)
+    assert result == [
+        {"a.inner_1": {"prefix_0": 1, "prefix_1": 1, "prefix_2": 1}},
+        {"a.inner_1": {"prefix_0": 4, "prefix_1": 4, "prefix_2": 4}},
+        {"a.inner_1": {"prefix_0": 7, "prefix_1": 7, "prefix_2": 7}},
+        {"a.inner_1": {"prefix_0": 10, "prefix_1": 10, "prefix_2": 10}},
     ]
 
 
