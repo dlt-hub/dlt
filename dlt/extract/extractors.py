@@ -122,10 +122,11 @@ class Extractor:
             self.load_id, self.schema.name, table_name, items, columns
         )
         self.collector.update(table_name, inc=new_rows_count)
-        if new_rows_count > 0:
+        # if there were rows or item was empty arrow table
+        if new_rows_count > 0 or self.__class__ is ArrowExtractor:
             self.resources_with_items.add(resource_name)
         else:
-            if isinstance(items, MaterializedEmptyList) or self.__class__ is ArrowExtractor:
+            if isinstance(items, MaterializedEmptyList):
                 self.resources_with_empty.add(resource_name)
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:

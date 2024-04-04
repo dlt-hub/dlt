@@ -84,6 +84,9 @@ class DataWriter(abc.ABC):
     def write_footer(self) -> None:  # noqa
         pass
 
+    def close(self) -> None:  # noqa
+        pass
+
     def write_all(self, columns_schema: TTableSchemaColumns, rows: Sequence[Any]) -> None:
         self.write_header(columns_schema)
         self.write_data(rows)
@@ -321,9 +324,10 @@ class ParquetDataWriter(DataWriter):
         # Write
         self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
 
-    def write_footer(self) -> None:
-        self.writer.close()
-        self.writer = None
+    def close(self) -> None:  # noqa
+        if self.writer:
+            self.writer.close()
+            self.writer = None
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -362,10 +366,9 @@ class CsvWriter(DataWriter):
         # count rows that got written
         self.items_count += sum(len(row) for row in rows)
 
-    def write_footer(self) -> None:
-        if self.writer is None:
-            self.writer = None
-            self._first_schema = None
+    def close(self) -> None:
+        self.writer = None
+        self._first_schema = None
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -404,6 +407,9 @@ class ArrowToParquetWriter(ParquetDataWriter):
         if not self.writer:
             raise NotImplementedError("Arrow Writer does not support writing empty files")
         return super().write_footer()
+
+    def close(self) -> None:
+        return super().close()
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -488,10 +494,15 @@ class ArrowToCsvWriter(DataWriter):
             # write empty file
             self._f.write(
                 self.delimiter.join(
-                    [col["name"].encode("utf-8") for col in self._columns_schema.values()]
+                    [
+                        b'"' + col["name"].encode("utf-8") + b'"'
+                        for col in self._columns_schema.values()
+                    ]
                 )
             )
-        else:
+
+    def close(self) -> None:
+        if self.writer:
             self.writer.close()
             self.writer = None
             self._first_schema = None

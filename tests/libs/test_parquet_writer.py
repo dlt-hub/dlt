@@ -128,8 +128,7 @@ def test_parquet_writer_all_data_fields() -> None:
         assert actual == value
 
     assert table.schema.field("col1_precision").type == pa.int16()
-    # flavor=spark only writes ns precision timestamp, so this is expected
-    assert table.schema.field("col4_precision").type == pa.timestamp("ns")
+    assert table.schema.field("col4_precision").type == pa.timestamp("ms", tz="UTC")
     assert table.schema.field("col5_precision").type == pa.string()
     assert table.schema.field("col6_precision").type == pa.decimal128(6, 2)
     assert table.schema.field("col7_precision").type == pa.binary(19)

@@ -232,10 +232,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 if insert_api == "streaming":
                     if table["write_disposition"] != "append":
                         raise DestinationTerminalException(
-                            (
-                                "BigQuery streaming insert can only be used with `append` write_disposition, while "
-                                f'the given resource has `{table["write_disposition"]}`.'
-                            )
+                            "BigQuery streaming insert can only be used with `append`"
+                            " write_disposition, while the given resource has"
+                            f" `{table['write_disposition']}`."
                         )
                     if file_path.endswith(".jsonl"):
                         job_cls = DestinationJsonlLoadJob
@@ -364,7 +363,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(column["name"])
-        column_def_sql = f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
+        column_def_sql = (
+            f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
+        )
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):

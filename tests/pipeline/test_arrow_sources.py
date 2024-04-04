@@ -9,7 +9,7 @@ import pyarrow as pa
 import dlt
 from dlt.common import json, Decimal
 from dlt.common.utils import uniq_id
-from dlt.common.libs.pyarrow import NameNormalizationClash
+from dlt.common.libs.pyarrow import NameNormalizationClash, remove_columns, normalize_py_arrow_item
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -35,7 +35,7 @@ from tests.utils import preserve_environ
     ],
 )
 def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
-    item, records = arrow_table_all_data_types(item_type)
+    item, records, data = arrow_table_all_data_types(item_type)
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")
 
@@ -72,19 +72,25 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
         assert normalized_bytes == extracted_bytes
 
         f.seek(0)
-        pq = pa.parquet.ParquetFile(f)
-        tbl = pq.read()
+        with pa.parquet.ParquetFile(f) as pq:
+            tbl = pq.read()
 
-        # To make tables comparable exactly write the expected data to parquet and read it back
-        # The spark parquet writer loses timezone info
-        tbl_expected = pa.Table.from_pandas(pd.DataFrame(records))
-        with io.BytesIO() as f:
-            pa.parquet.write_table(tbl_expected, f, flavor="spark")
-            f.seek(0)
-            tbl_expected = pa.parquet.read_table(f)
-        df_tbl = tbl_expected.to_pandas(ignore_metadata=True)
+        # use original data to create data frame to preserve timestamp precision, timezones etc.
+        tbl_expected = pa.Table.from_pandas(pd.DataFrame(data))
+        # null is removed by dlt
+        tbl_expected = remove_columns(tbl_expected, ["null"])
+        # we want to normalize column names
+        tbl_expected = normalize_py_arrow_item(
+            tbl_expected,
+            pipeline.default_schema.get_table_columns("some_data"),
+            pipeline.default_schema.naming,
+            None,
+        )
+        assert tbl_expected.schema.equals(tbl.schema)
+
+        df_tbl = tbl_expected.to_pandas(ignore_metadata=False)
         # Data is identical to the original dataframe
-        df_result = tbl.to_pandas(ignore_metadata=True)
+        df_result = tbl.to_pandas(ignore_metadata=False)
         assert df_result.equals(df_tbl)
 
     schema = pipeline.default_schema
@@ -116,7 +122,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
 def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
     os.environ["DUMMY__LOADER_FILE_FORMAT"] = "jsonl"
 
-    item, records = arrow_table_all_data_types(item_type)
+    item, records, _ = arrow_table_all_data_types(item_type, tz="Europe/Berlin")
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="dummy")
 
@@ -136,21 +142,18 @@ def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
     job = [j for j in jobs if "some_data" in j][0]
     with storage.normalized_packages.storage.open_file(job, "r") as f:
         result = [json.loads(line) for line in f]
-        for row in result:
-            row["decimal"] = Decimal(row["decimal"])
-
-    for record in records:
-        record["datetime"] = record["datetime"].replace(tzinfo=None)
 
     expected = json.loads(json.dumps(records))
-    for record in expected:
-        record["decimal"] = Decimal(record["decimal"])
-    assert result == expected
+    assert len(result) == len(expected)
+    for res_item, exp_item in zip(result, expected):
+        res_item["decimal"] = Decimal(res_item["decimal"])
+        exp_item["decimal"] = Decimal(exp_item["decimal"])
+        assert res_item == exp_item
 
 
 @pytest.mark.parametrize("item_type", ["table", "record_batch"])
 def test_add_map(item_type: TArrowFormat):
-    item, records = arrow_table_all_data_types(item_type, num_rows=200)
+    item, _, _ = arrow_table_all_data_types(item_type, num_rows=200)
 
     @dlt.resource
     def some_data():
@@ -180,7 +183,7 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
-    item, rows = arrow_table_all_data_types(item_type)
+    item, rows, _ = arrow_table_all_data_types(item_type)
 
     @dlt.resource
     def data_frames():
@@ -209,7 +212,7 @@ def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
-    item, _ = arrow_table_all_data_types(item_type, include_name_clash=True)
+    item, _, _ = arrow_table_all_data_types(item_type, include_name_clash=True)
 
     @dlt.resource
     def data_frames():
@@ -226,10 +229,10 @@ def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
 
-    item, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
+    item, _, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
     pipeline.run(item, table_name="data").raise_on_failed_jobs()
 
-    item, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
+    item, _, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
     # remove int column
     try:
         item = item.drop("int")
@@ -245,7 +248,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
 
-    item, rows = arrow_table_all_data_types(item_type)
+    item, rows, _ = arrow_table_all_data_types(item_type)
 
     item_resource = dlt.resource(item, name="item")
     assert id(item) == id(list(item_resource)[0])
@@ -260,7 +263,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
 
 @pytest.mark.parametrize("item_type", ["table"])  # , "pandas", "record_batch"
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
-    item, records = arrow_table_all_data_types(item_type, num_rows=5432)
+    item, records, _ = arrow_table_all_data_types(item_type, num_rows=5432)
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
     # Test with buffer smaller than the number of batches to be written
@@ -316,7 +319,7 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
 
     # should be able to load arrow with a new column
-    item, records = arrow_table_all_data_types(item_type, num_rows=200)
+    item, records, _ = arrow_table_all_data_types(item_type, num_rows=200)
     item = item.append_column("static_int", [[0] * 200])
     pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
 
@@ -475,7 +478,7 @@ def test_empty_arrow(item_type: TArrowFormat) -> None:
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
 
     # always return pandas
-    item, _ = arrow_table_all_data_types("pandas", num_rows=1)
+    item, _, _ = arrow_table_all_data_types("pandas", num_rows=1)
     item_resource = dlt.resource(item, name="items", write_disposition="replace")
 
     pipeline_name = "arrow_" + uniq_id()

@@ -586,6 +586,7 @@ def write_dataset(
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
     writer.write_all(columns_schema, rows)
+    writer.close()
 
 
 def prepare_load_package(

@@ -294,7 +294,7 @@ def arrow_table_all_data_types(
     include_name_clash: bool = False,
     num_rows: int = 3,
     tz="UTC",
-) -> Tuple[Any, List[Dict[str, Any]]]:
+) -> Tuple[Any, List[Dict[str, Any]], Dict[str, List[Any]]]:
     """Create an arrow object or pandas dataframe with all supported data types.
 
     Returns the table and its records in python format
@@ -351,14 +351,14 @@ def arrow_table_all_data_types(
         .drop(columns=["null"])
         .to_dict("records")
     )
-    return arrow_format_from_pandas(df, object_format), rows
+    return arrow_format_from_pandas(df, object_format), rows, data
 
 
 def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:
     from dlt.common.libs.pyarrow import remove_columns
     from dlt.common.libs.pyarrow import pyarrow as pa
 
-    table, _ = arrow_table_all_data_types(
+    table, _, _ = arrow_table_all_data_types(
         "table",
         include_json=False,
         include_not_normalized_name=False,

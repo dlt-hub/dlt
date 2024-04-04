@@ -142,6 +142,19 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 )
                 return norm
 
+            def _gather_metrics_and_close(skip_flush: bool) -> List[DataWriterMetrics]:
+                for normalizer in item_normalizers.values():
+                    normalizer.item_storage.close_writers(load_id, skip_flush=skip_flush)
+
+                writer_metrics: List[DataWriterMetrics] = []
+                for normalizer in item_normalizers.values():
+                    norm_metrics = normalizer.item_storage.closed_files(load_id)
+                    writer_metrics.extend(norm_metrics)
+
+                for normalizer in item_normalizers.values():
+                    normalizer.item_storage.remove_closed_files(load_id)
+                return writer_metrics
+
             parsed_file_name: ParsedLoadJobFileName = None
             try:
                 root_tables: Set[str] = set()
@@ -165,15 +178,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     logger.debug(f"Processed file {extracted_items_file}")
             except Exception as exc:
                 job_id = parsed_file_name.job_id() if parsed_file_name else ""
-                raise NormalizeJobFailed(load_id, job_id, str(exc)) from exc
-            finally:
-                for normalizer in item_normalizers.values():
-                    normalizer.item_storage.close_writers(load_id)
+                writer_metrics = _gather_metrics_and_close(skip_flush=True)
+                raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics) from exc
+            else:
+                writer_metrics = _gather_metrics_and_close(skip_flush=False)
 
-            writer_metrics: List[DataWriterMetrics] = []
-            for normalizer in item_normalizers.values():
-                norm_metrics = normalizer.item_storage.closed_files(load_id)
-                writer_metrics.extend(norm_metrics)
             logger.info(f"Processed all items in {len(extracted_items_files)} files")
             return TWorkerRV(schema_updates, writer_metrics)
 
@@ -233,9 +242,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             for task in list(tasks):
                 pending, params = task
                 if pending.done():
-                    result: TWorkerRV = (
-                        pending.result()
-                    )  # Exception in task (if any) is raised here
+                    # collect metrics from the exception (if any)
+                    if isinstance(pending.exception(), NormalizeJobFailed):
+                        summary.file_metrics.extend(pending.exception().writer_metrics)  # type: ignore[attr-defined]
+                    # Exception in task (if any) is raised here
+                    result: TWorkerRV = pending.result()
                     try:
                         # gather schema from all manifests, validate consistency and combine
                         self.update_table(schema, result[0])

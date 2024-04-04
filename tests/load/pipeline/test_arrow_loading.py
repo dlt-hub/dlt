@@ -52,7 +52,7 @@ def test_load_arrow_item(
         destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
     )
 
-    item, records = arrow_table_all_data_types(
+    item, records, _ = arrow_table_all_data_types(
         item_type,
         include_json=False,
         include_time=include_time,

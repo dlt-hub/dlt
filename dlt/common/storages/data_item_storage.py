@@ -72,15 +72,17 @@ class DataItemStorage(ABC):
         writer = self._get_writer(load_id, schema_name, table_name)
         return writer.import_file(file_path, metrics)
 
-    def close_writers(self, load_id: str) -> None:
-        # flush and close all files
+    def close_writers(self, load_id: str, skip_flush: bool = False) -> None:
+        """Flush, write footers (skip_flush), write metrics and close files in all
+        writers belonging to `load_id` package
+        """
         for name, writer in self.buffered_writers.items():
             if name.startswith(load_id) and not writer.closed:
                 logger.debug(
                     f"Closing writer for {name} with file {writer._file} and actual name"
                     f" {writer._file_name}"
                 )
-                writer.close()
+                writer.close(skip_flush=skip_flush)
 
     def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
         """Return metrics for all fully processed (closed) files"""

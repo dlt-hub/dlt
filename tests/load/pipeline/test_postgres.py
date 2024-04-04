@@ -65,12 +65,13 @@ def test_postgres_empty_csv_from_arrow(destination_config: DestinationTestConfig
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
-    table, _ = arrow_table_all_data_types("table", include_json=False)
+    table, _, _ = arrow_table_all_data_types("table", include_json=False)
 
     load_info = pipeline.run(
         table.schema.empty_table(), table_name="table", loader_file_format="csv"
     )
     assert_load_info(load_info)
+    assert len(load_info.load_packages[0].jobs["completed_jobs"]) == 1
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     assert_data_table_counts(pipeline, {"table": 0})

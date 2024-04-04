@@ -164,9 +164,10 @@ class BufferedDataWriter(Generic[TWriter]):
         self._rotate_file()
         return metrics
 
-    def close(self) -> None:
+    def close(self, skip_flush: bool = False) -> None:
+        """Flushes the data, writes footer (skip_flush is True), collects metrics and closes the underlying file."""
         self._ensure_open()
-        self._flush_and_close_file()
+        self._flush_and_close_file(skip_flush=skip_flush)
         self._closed = True
 
     @property
@@ -177,7 +178,8 @@ class BufferedDataWriter(Generic[TWriter]):
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
-        self.close()
+        # skip flush if we had exception
+        self.close(skip_flush=exc_val is not None)
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
@@ -188,7 +190,7 @@ class BufferedDataWriter(Generic[TWriter]):
         return metrics
 
     def _flush_items(self, allow_empty_file: bool = False) -> None:
-        if self._buffered_items_count > 0 or allow_empty_file:
+        if self._buffered_items or allow_empty_file:
             # we only open a writer when there are any items in the buffer and first flush is requested
             if not self._writer:
                 # create new writer and write header
@@ -205,15 +207,22 @@ class BufferedDataWriter(Generic[TWriter]):
             self._buffered_items.clear()
             self._buffered_items_count = 0
 
-    def _flush_and_close_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
-        # if any buffered items exist, flush them
-        self._flush_items(allow_empty_file)
-        # if writer exists then close it
-        if not self._writer:
-            return None
-        # write the footer of a file
-        self._writer.write_footer()
-        self._file.flush()
+    def _flush_and_close_file(
+        self, allow_empty_file: bool = False, skip_flush: bool = False
+    ) -> DataWriterMetrics:
+        if not skip_flush:
+            # if any buffered items exist, flush them
+            self._flush_items(allow_empty_file)
+            # if writer exists then close it
+            if not self._writer:
+                return None
+            # write the footer of a file
+            self._writer.write_footer()
+            self._file.flush()
+        else:
+            if not self._writer:
+                return None
+        self._writer.close()
         # add file written to the list so we can commit all the files later
         metrics = DataWriterMetrics(
             self._file_name,

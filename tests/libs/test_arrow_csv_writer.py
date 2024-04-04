@@ -18,7 +18,7 @@ from tests.utils import write_version, autouse_test_storage, preserve_environ
 
 
 def test_csv_writer_all_data_fields() -> None:
-    data = TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+    data = copy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
 
     # write parquet and read it
     with get_writer(ParquetDataWriter) as pq_writer:
@@ -94,7 +94,7 @@ def test_csv_writer_all_data_fields() -> None:
 
 
 def test_non_utf8_binary() -> None:
-    data = TABLE_ROW_ALL_DATA_TYPES_DATETIMES
+    data = copy(TABLE_ROW_ALL_DATA_TYPES_DATETIMES)
     data["col7"] += b"\x8e"  # type: ignore[operator]
 
     # write parquet and read it
@@ -110,7 +110,7 @@ def test_non_utf8_binary() -> None:
 
 
 def test_arrow_struct() -> None:
-    item, _ = arrow_table_all_data_types("table", include_json=True, include_time=False)
+    item, _, _ = arrow_table_all_data_types("table", include_json=True, include_time=False)
     with pytest.raises(InvalidDataItem):
         with get_writer(ArrowToCsvWriter, disable_compression=True) as writer:
             writer.write_data_item(item, TABLE_UPDATE_COLUMNS_SCHEMA)

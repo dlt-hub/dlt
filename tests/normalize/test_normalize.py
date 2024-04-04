@@ -472,7 +472,7 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
     schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
     schema.set_schema_contract("freeze")
     raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
-    # will fail on contract violatiom
+    # will fail on contract violation
     with pytest.raises(NormalizeJobFailed):
         raw_normalize.run(None)
 
@@ -490,6 +490,20 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
         ["issues", "issues__labels", "issues__assignees"],
     )
     assert len(table_files["issues"]) == 1
+
+
+def test_collect_metrics_on_exception(raw_normalize: Normalize) -> None:
+    load_id = extract_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
+    schema.set_schema_contract("freeze")
+    raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
+    # will fail on contract violation
+    with pytest.raises(NormalizeJobFailed) as job_ex:
+        raw_normalize.run(None)
+    # we excepted on a first row so nothing was written
+    # TODO: improve this test to write some rows in buffered writer
+    assert len(job_ex.value.writer_metrics) == 0
+    raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
 
 
 def test_group_worker_files() -> None:

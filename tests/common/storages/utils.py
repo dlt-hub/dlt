@@ -123,6 +123,7 @@ def write_temp_job_file(
             item_storage.writer_spec.file_format, item_storage.writer_spec.data_item_format, f
         )
         writer.write_all(table, rows)
+        writer.close()
     return Path(file_name).name
 
 

@@ -74,9 +74,9 @@ class ExtractStorage(NormalizeStorage):
         self.new_packages.save_schema(load_id, schema)
         return load_id
 
-    def close_writers(self, load_id: str) -> None:
+    def close_writers(self, load_id: str, skip_flush: bool = False) -> None:
         for storage in self.item_storages.values():
-            storage.close_writers(load_id)
+            storage.close_writers(load_id, skip_flush=skip_flush)
 
     def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
         files = []

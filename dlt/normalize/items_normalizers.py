@@ -283,7 +283,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         items_count = 0
         columns_schema = schema.get_table_columns(root_table_name)
         # if we use adapter to convert arrow to dicts, then normalization is not necessary
-        may_normalize = not issubclass(self.item_storage.writer_cls, ArrowToObjectAdapter)
+        is_native_arrow_writer = not issubclass(self.item_storage.writer_cls, ArrowToObjectAdapter)
         should_normalize: bool = None
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
@@ -293,7 +293,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             ):
                 items_count += batch.num_rows
                 # we may need to normalize
-                if may_normalize and should_normalize is None:
+                if is_native_arrow_writer and should_normalize is None:
                     should_normalize, _, _, _ = pyarrow.should_normalize_arrow_schema(
                         batch.schema, columns_schema, schema.naming
                     )
@@ -315,7 +315,8 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                     batch,
                     columns_schema,
                 )
-        if items_count == 0:
+        # TODO: better to check if anything is in the buffer and skip writing file
+        if items_count == 0 and not is_native_arrow_writer:
             self.item_storage.write_empty_items_file(
                 load_id,
                 schema.name,

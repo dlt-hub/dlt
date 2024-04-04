@@ -436,11 +436,13 @@ class Pipeline(SupportsPipeline):
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
         except Exception as exc:
+            # emit step info
             step_info = self._get_step_info(extract_step)
+            current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
             raise PipelineStepFailed(
                 self,
                 "extract",
-                extract_step.current_load_id,
+                current_load_id,
                 exc,
                 step_info,
             ) from exc

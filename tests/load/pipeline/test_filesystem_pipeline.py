@@ -109,7 +109,7 @@ def test_pipeline_csv_filesystem_destination() -> None:
         dataset_name="parquet_test_" + uniq_id(),
     )
 
-    item, _ = arrow_table_all_data_types("table", include_json=False, include_time=True)
+    item, _, _ = arrow_table_all_data_types("table", include_json=False, include_time=True)
     info = pipeline.run(item, table_name="table", loader_file_format="csv")
     info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path

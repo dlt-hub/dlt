@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import List, Dict, Any
+from typing import Iterator, List, Dict, Any
 import yaml
 
 from dlt.common.configuration.container import Container
@@ -304,41 +304,58 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 load_id, self.extract_storage.item_storages["arrow"], schema, collector=collector
             ),
         }
-
+        # make sure we close storage on exception
         with collector(f"Extract {source.name}"):
-            self._step_info_start_load_id(load_id)
-            # yield from all selected pipes
-            with PipeIterator.from_pipes(
-                source.resources.selected_pipes,
-                max_parallel_items=max_parallel_items,
-                workers=workers,
-                futures_poll_interval=futures_poll_interval,
-            ) as pipes:
-                left_gens = total_gens = len(pipes._sources)
-                collector.update("Resources", 0, total_gens)
-                for pipe_item in pipes:
-                    curr_gens = len(pipes._sources)
-                    if left_gens > curr_gens:
-                        delta = left_gens - curr_gens
-                        left_gens -= delta
-                        collector.update("Resources", delta)
-                    signals.raise_if_signalled()
-                    resource = source.resources[pipe_item.pipe.name]
-                    item_format = get_data_item_format(pipe_item.item)
-                    extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
+            with self.manage_writers(load_id, source):
+                # yield from all selected pipes
+                with PipeIterator.from_pipes(
+                    source.resources.selected_pipes,
+                    max_parallel_items=max_parallel_items,
+                    workers=workers,
+                    futures_poll_interval=futures_poll_interval,
+                ) as pipes:
+                    left_gens = total_gens = len(pipes._sources)
+                    collector.update("Resources", 0, total_gens)
+                    for pipe_item in pipes:
+                        curr_gens = len(pipes._sources)
+                        if left_gens > curr_gens:
+                            delta = left_gens - curr_gens
+                            left_gens -= delta
+                            collector.update("Resources", delta)
+                        signals.raise_if_signalled()
+                        resource = source.resources[pipe_item.pipe.name]
+                        item_format = get_data_item_format(pipe_item.item)
+                        extractors[item_format].write_items(
+                            resource, pipe_item.item, pipe_item.meta
+                        )
 
-                self._write_empty_files(source, extractors)
-                if left_gens > 0:
-                    # go to 100%
-                    collector.update("Resources", left_gens)
+                    self._write_empty_files(source, extractors)
+                    if left_gens > 0:
+                        # go to 100%
+                        collector.update("Resources", left_gens)
 
-            # flush all buffered writers
+    @contextlib.contextmanager
+    def manage_writers(self, load_id: str, source: DltSource) -> Iterator[ExtractStorage]:
+        self._step_info_start_load_id(load_id)
+        # self.current_source = source
+        try:
+            yield self.extract_storage
+        except Exception:
+            # kill writers without flushing the content
+            self.extract_storage.close_writers(load_id, skip_flush=True)
+            raise
+        else:
             self.extract_storage.close_writers(load_id)
-            # gather metrics
-            self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
-            # remove the metrics of files processed in this extract run
-            # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
-            self.extract_storage.remove_closed_files(load_id)
+        finally:
+            # gather metrics when storage is closed
+            self.gather_metrics(load_id, source)
+
+    def gather_metrics(self, load_id: str, source: DltSource) -> None:
+        # gather metrics
+        self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+        # remove the metrics of files processed in this extract run
+        # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+        self.extract_storage.remove_closed_files(load_id)
 
     def extract(
         self,
