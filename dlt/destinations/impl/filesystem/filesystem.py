@@ -196,9 +196,13 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         """Gets unique directories where table data is stored."""
         table_dirs: Set[str] = set()
         for table_name in table_names:
-            table_prefix = self.table_prefix_layout.format(
-                schema_name=self.schema.name, table_name=table_name
-            )
+            # dlt tables do not respect layout (for now)
+            if table_name in self.schema.dlt_table_names():
+                table_prefix = posixpath.join(table_name, "")
+            else:
+                table_prefix = self.table_prefix_layout.format(
+                    schema_name=self.schema.name, table_name=table_name
+                )
             destination_dir = posixpath.join(self.dataset_path, table_prefix)
             # extract the path component
             table_dirs.add(os.path.dirname(destination_dir))
@@ -240,6 +244,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     #
 
     def _write_to_json_file(self, filepath: str, data: DictStrAny) -> None:
+        dirname = os.path.dirname(filepath)
+        if not self.fs_client.isdir(dirname):
+            return
         self.fs_client.write_text(filepath, json.dumps(data), "utf-8")
 
     def complete_load(self, load_id: str) -> None:
