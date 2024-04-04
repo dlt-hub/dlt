@@ -40,5 +40,3 @@ def convert_storage_to_http_scheme(
         return f"{protocol}://{bucket_name}.{domain}/{object_key}"
     except Exception as e:
         raise Exception(f"Error converting storage URL to HTTP protocol: '{url}'") from e
-
-
