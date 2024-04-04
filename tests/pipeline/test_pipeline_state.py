@@ -4,13 +4,17 @@ import pytest
 
 import dlt
 
-from dlt.common.exceptions import PipelineStateNotAvailable, ResourceNameNotAvailable
+from dlt.common.exceptions import (
+    PipelineStateNotAvailable,
+    ResourceNameNotAvailable,
+)
 from dlt.common.schema import Schema
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import Destination
+from dlt.extract.exceptions import ResourceExtractionError
 from dlt.sources.helpers.transform import pivot
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
@@ -485,6 +489,30 @@ def test_transform_function_state_write() -> None:
         ]["form"]
         == 3
     )
+
+
+@dlt.resource
+def pivot_test_wrong_resource():
+    yield [{"a": 1}]
+
+
+@dlt.resource
+def pivot_test_wrong_resource2():
+    yield [{"a": [1]}]
+
+
+def test_transform_pivot_wrong_data() -> None:
+    res = pivot_test_wrong_resource()
+    res.add_map(pivot("$.a"))
+
+    with pytest.raises(ResourceExtractionError):
+        list(res)
+
+    res2 = pivot_test_wrong_resource()
+    res2.add_map(pivot("$.a"))
+
+    with pytest.raises(ResourceExtractionError):
+        list(res)
 
 
 @dlt.resource

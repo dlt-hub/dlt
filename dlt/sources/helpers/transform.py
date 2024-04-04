@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Any, Dict, List, Union
 
 from dlt.common.typing import TDataItem
@@ -31,70 +32,82 @@ def skip_first(max_items: int) -> ItemTransformFunctionNoMeta[bool]:
 
 
 def pivot(
-    paths: Union[str, List[str]] = "$", prefix: str = ""
+    paths: Union[str, Sequence[str]] = "$", prefix: str = ""
 ) -> ItemTransformFunctionNoMeta[TDataItem]:
-    """Pivot the given values into a dictionary.
-
-    Walks through the given JSON paths and turns lists
-    of lists into lists of dicts, generating
-    column names from the given prefix and indexes, e.g.:
+    """
+    Pivot the given sequence of sequences into a sequence of dicts,
+    generating column names from the given prefix and indexes, e.g.:
     {"field": [[1, 2]]} -> {"field": [{"prefix_0": 1, "prefix_1": 2}]}
 
     Args:
-        paths (Union[str, List[str]]): JSON paths to pivot.
+        paths (Union[str, Sequence[str]]): JSON paths of the fields to pivot.
         prefix (Optional[str]): Prefix to add to the column names.
 
     Returns:
-        ItemTransformFunctionNoMeta[TDataItem]:
-            A function to pivot inner lists into a dict.
+        ItemTransformFunctionNoMeta[TDataItem]: The transformer function.
     """
     if isinstance(paths, str):
         paths = [paths]
 
-    def _list_to_dict(list_: List[Any]) -> Dict[str, Any]:
+    def _seq_to_dict(seq: Sequence[Any]) -> Dict[str, Any]:
         """
-        Transform the given list into a dict, generating
+        Transform the given sequence into a dict, generating
         columns with the given prefix.
 
         Args:
-            list_ (List): The list to transform.
+            seq (List): The sequence to transform.
 
         Returns:
-            Dict: a dictionary with the list values.
+            Dict: a dictionary with the sequence values.
         """
-        return {prefix + str(i): value for i, value in enumerate(list_)}
+        return {prefix + str(i): value for i, value in enumerate(seq)}
 
-    def _is_list_of_lists(value: Any) -> bool:
-        """Check if the given value is a list of lists.
+    def _raise_if_not_sequence(match: jsonpath_ng.jsonpath.DatumInContext) -> None:
+        """Check if the given field is a sequence of sequences.
 
         Args:
-            value (Any): a value to check.
-
-        Returns:
-            bool: True if the value is a list of lists.
+            match (jsonpath_ng.jsonpath.DatumInContext): The field to check.
         """
-        return all(isinstance(item, list) for item in value)
+        if not isinstance(match.value, Sequence):
+            raise ValueError(
+                (
+                    "Pivot transformer is only applicable to sequences "
+                    f"fields, however, the value of {str(match.full_path)}"
+                    " is not a sequence."
+                )
+            )
+
+        for item in match.value:
+            if not isinstance(item, Sequence):
+                raise ValueError(
+                    (
+                        "Pivot transformer is only applicable to sequences, "
+                        f"however, the value of {str(match.full_path)} "
+                        "includes a non-sequence element."
+                    )
+                )
 
     def _transformer(item: TDataItem) -> TDataItem:
-        """Pivot the given item into a dictionary.
+        """Pivot the given sequence item into a sequence of dicts.
 
         Args:
-            item (TDataItem): A data item.
+            item (TDataItem): The data item to transform.
 
         Returns:
-            TDataItem: a data item with pivoted columns.
+            TDataItem: the data item with pivoted columns.
         """
         trans_item: Dict[str, List[Any]] = {}
+
         for path in paths:
             expr = jsonpath_ng.parse(path)
-            matches = expr.find(item)
+            for match in expr.find(item):
+                _raise_if_not_sequence(match)
 
-            for match in matches:
-                if _is_list_of_lists(match.value):
-                    f_path = str(match.full_path)
-                    trans_item[f_path] = []
-                    for value in match.value:
-                        trans_item[f_path].append(_list_to_dict(value))
+                f_path = str(match.full_path)
+                trans_item[f_path] = []
+
+                for value in match.value:
+                    trans_item[f_path].append(_seq_to_dict(value))
 
         return trans_item
 
