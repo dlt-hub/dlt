@@ -4,6 +4,8 @@ from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
 from urllib.parse import urlparse
 
+from jinja2 import Template
+
 import dlt
 from dlt import config
 from dlt.common.configuration.specs import (
@@ -47,7 +49,6 @@ from dlt.destinations.impl.clickhouse.configuration import (
 from dlt.destinations.impl.clickhouse.sql_client import ClickhouseSqlClient
 from dlt.destinations.impl.clickhouse.utils import (
     convert_storage_to_http_scheme,
-    render_object_storage_table_function,
     FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING,
     SUPPORTED_FILE_FORMATS,
 )
@@ -104,8 +105,10 @@ class ClickhouseTypeMapper(TypeMapper):
         "Decimal": "decimal",
     }
 
+
     def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         return "DateTime"
+
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -162,27 +165,28 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
         file_extension = os.path.splitext(file_name)[1][
-            1:
-        ].lower()  # Remove dot (.) from file extension.
+                         1:
+                         ].lower()  # Remove dot (.) from file extension.
 
         if file_extension not in ["parquet", "jsonl"]:
             raise LoadJobTerminalException(
                 file_path, "Clickhouse loader Only supports parquet and jsonl files."
             )
 
-        if not config.get("data_writer.disable_compression"):
-            raise LoadJobTerminalException(
-                file_path,
-                "Clickhouse loader does not support gzip compressed files. Please disable"
-                " compression in the data writer configuration:"
-                " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression.",
-            )
+        # if not config.get("data_writer.disable_compression"):
+        #     raise LoadJobTerminalException(
+        #         file_path,
+        #         "Clickhouse loader does not support gzip compressed files. Please disable"
+        #         " compression in the data writer configuration:"
+        #         " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression.",
+        #     )
 
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
 
         file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
         clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
+        compression = 'none' if config.get("data_writer.disable_compression") else 'gz'
 
         table_function: str
         table_function = ""
@@ -203,9 +207,21 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                 access_key_id = None
                 secret_access_key = None
 
-            table_function = render_object_storage_table_function(
-                bucket_http_url, access_key_id, secret_access_key, file_format=file_extension
+            clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
+
+            template = Template(
+                """
+                SELECT * FROM s3('{{ url }}'{% if access_key_id and secret_access_key %},
+                '{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')
+                """
             )
+
+            table_function = template.render(
+                url=bucket_http_url,
+                access_key_id=access_key_id,
+                secret_access_key=secret_access_key,
+                clickhouse_format=clickhouse_format,
+            ).strip()
 
         elif bucket_scheme in ("az", "abfs"):
             if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
@@ -224,32 +240,32 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             blobpath = bucket_url.path
 
             table_function = (
-                f"SELECT * FROM azureBlobStorage('{storage_account_url}','{container_name}','{ blobpath }','{ account_name }','{ account_key }','{ clickhouse_format }')"
+                "SELECT * FROM"
+                f" azureBlobStorage('{storage_account_url}','{container_name}','{blobpath}','{account_name}','{account_key}','{clickhouse_format}')"
             )
         elif not bucket_path:
             # Local filesystem.
             if not file_path:
                 raise LoadJobTerminalException(
                     file_path,
-                    "If `bucket_path` isn't provided, then you m ust specify a local file path.",
+                    "If `bucket_path` isn't provided, then you must specify a local file path.",
                 )
             print(file_path)
-            table_function = (
-                f"FROM INFILE '{file_path}' FORMAT {clickhouse_format}"
-            )
+            table_function = f"FROM INFILE '{file_path}' FORMAT {clickhouse_format}"
         else:
             raise LoadJobTerminalException(
                 file_path,
                 f"Clickhouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
+        print(table_function)
         with client.begin_transaction():
-            client.execute_sql(
-                f"""INSERT INTO {qualified_table_name} {table_function}"""
-            )
+            client.execute_sql(f"""INSERT INTO {qualified_table_name} {table_function}""")
+
 
     def state(self) -> TLoadJobState:
         return "completed"
+
 
     def exception(self) -> str:
         raise NotImplementedError()
@@ -263,6 +279,7 @@ class ClickhouseMergeJob(SqlMergeJob):
         # Resorting to persisted in-memory table to fix.
         # return f"CREATE TABLE {temp_table_name} ENGINE = Memory AS {select_sql};"
         return f"CREATE TABLE {temp_table_name} ENGINE = Memory AS {select_sql};"
+
 
     @classmethod
     def gen_merge_sql(
@@ -417,6 +434,7 @@ class ClickhouseMergeJob(SqlMergeJob):
 class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
+
     def __init__(
         self,
         schema: Schema,
@@ -430,8 +448,10 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = ClickhouseTypeMapper(self.capabilities)
 
+
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [ClickhouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         # Build column definition.
@@ -457,19 +477,17 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
             .strip()
         )
 
+
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return super().start_file_load(
-            table, file_path, load_id
-        ) or ClickhouseLoadJob(
+        return super().start_file_load(table, file_path, load_id) or ClickhouseLoadJob(
             file_path,
             table["name"],
             self.sql_client,
             staging_credentials=(
-                self.config.staging_config.credentials
-                if self.config.staging_config
-                else None
+                self.config.staging_config.credentials if self.config.staging_config else None
             ),
         )
+
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -499,6 +517,7 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
 
         return sql
 
+
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         fields = self._get_storage_table_query_columns()
         db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
@@ -527,6 +546,7 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
+
     # Clickhouse fields are not nullable by default.
 
     @staticmethod
@@ -534,10 +554,12 @@ class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
         # We use the `Nullable` modifier instead of NULL / NOT NULL modifiers to cater for ALTER statement.
         pass
 
+
     def _from_db_type(
         self, ch_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(ch_t, precision, scale)
+
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")

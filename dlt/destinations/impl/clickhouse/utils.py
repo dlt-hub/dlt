@@ -1,7 +1,5 @@
-from typing import Union, Optional, Literal, Dict
+from typing import Union, Literal, Dict
 from urllib.parse import urlparse, ParseResult
-
-from jinja2 import Template
 
 
 SUPPORTED_FILE_FORMATS = Literal["jsonl", "parquet"]
@@ -44,24 +42,3 @@ def convert_storage_to_http_scheme(
         raise Exception(f"Error converting storage URL to HTTP protocol: '{url}'") from e
 
 
-def render_object_storage_table_function(
-    url: str,
-    access_key_id: Optional[str] = None,
-    secret_access_key: Optional[str] = None,
-    file_format: SUPPORTED_FILE_FORMATS = "jsonl",
-) -> str:
-    if file_format not in ["parquet", "jsonl"]:
-        raise ValueError("Clickhouse s3/gcs staging only supports 'parquet' and 'jsonl'.")
-
-    clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_format]
-
-    template = Template(
-        """SELECT * FROM s3('{{ url }}'{% if access_key_id and secret_access_key %},'{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')"""
-    )
-
-    return template.render(
-        url=url,
-        access_key_id=access_key_id,
-        secret_access_key=secret_access_key,
-        clickhouse_format=clickhouse_format,
-    ).strip()
