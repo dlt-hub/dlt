@@ -35,6 +35,33 @@ def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
 
+def prepare_datetime_params(
+    moment: pendulum.DateTime, datetime_format: Optional[str] = None
+) -> Dict[str, str]:
+    # For formatting options please see
+    # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
+    # Format curr_date datetime according to given format
+    params: Dict[str, str] = {}
+    if datetime_format:
+        params["curr_date"] = moment.format(datetime_format)
+    else:
+        params["curr_date"] = str(moment.date())
+
+    params["year"] = str(moment.year)
+    # month, day, hour and minute padded with 0
+    params["month"] = moment.format("MM")
+    # Days in format Mon, Tue, Wed
+    params["day"] = moment.format("DD")
+    # Hour in 24h format
+    params["hour"] = moment.format("HH")
+    params["minute"] = moment.format("mm")
+    # Day of week
+    params["dow"] = moment.format("ddd").lower()
+    params["timestamp"] = str(int(moment.timestamp()))
+
+    return params
+
+
 class ExtraParams:
     def __init__(
         self,
@@ -100,8 +127,8 @@ class ExtraParams:
                 )
 
         self._process_extra_placeholders()
-        self._add_date_placeholders()
-
+        date_placeholders = prepare_datetime_params(self.current_datetime, self.datetime_format)
+        self._params.update(date_placeholders)
         return self._params
 
     def _process_extra_placeholders(self) -> None:
@@ -131,28 +158,6 @@ class ExtraParams:
                     raise
             else:
                 self._params[key] = value
-
-    def _add_date_placeholders(self) -> None:
-        # For formatting options please see
-        # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
-        now: pendulum.DateTime = self.current_datetime  # type: ignore[assignment]
-        # Format curr_date datetime according to given format
-        if self.datetime_format:
-            self._params["curr_date"] = now.format(self.datetime_format)
-        else:
-            self._params["curr_date"] = str(now.date())
-
-        self._params["year"] = now.year
-        # month, day, hour and minute padded with 0
-        self._params["month"] = now.format("MM")
-        # Days in format Mon, Tue, Wed
-        self._params["day"] = now.format("DD")
-        # Hour in 24h format
-        self._params["hour"] = now.format("HH")
-        self._params["minute"] = now.format("mm")
-        # Day of week
-        self._params["dow"] = now.format("ddd").lower()
-        self._params["timestamp"] = int(now.timestamp())
 
 
 class LayoutHelper:

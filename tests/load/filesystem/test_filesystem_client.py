@@ -2,6 +2,7 @@ import posixpath
 import os
 from unittest import mock
 
+import pendulum
 import pytest
 
 from dlt.common.utils import digest128, uniq_id
@@ -9,7 +10,7 @@ from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.impl.filesystem.filesystem import FilesystemDestinationClientConfiguration
 
-from dlt.destinations.path_utils import create_path
+from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 from tests.utils import preserve_environ, autouse_test_storage
@@ -66,6 +67,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
+    now = pendulum.now()
 
     with perform_load(
         dataset_name, NORMALIZED_FILES, write_disposition=write_disposition
@@ -90,6 +92,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
                     load_id=load_id,
                     file_id=job_info.file_id,
                     ext=job_info.file_format,
+                    **prepare_datetime_params(now)
                 ),
             )
 
