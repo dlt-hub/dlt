@@ -46,7 +46,7 @@ def pivot(
     if isinstance(paths, str):
         paths = [paths]
 
-    def _list_to_dict(list_: List[Any]) -> Dict[str:Any]:
+    def _list_to_dict(list_: List[Any]) -> Dict[str, Any]:
         """
         Transform the given list into a dict, generating
         columns with the given prefix.
@@ -79,7 +79,7 @@ def pivot(
         Returns:
             TDataItem: a data item with pivoted columns.
         """
-        trans_item: Dict[str, List] = {}
+        trans_item: Dict[str, List[Any]] = {}
         for path in paths:
             expr = jsonpath_ng.parse(path)
             matches = expr.find(item)
