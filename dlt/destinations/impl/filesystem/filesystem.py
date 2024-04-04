@@ -1,7 +1,7 @@
 import posixpath
 import os
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set, Iterator, Optional, Tuple
+from typing import ClassVar, List, Type, Iterable, Set, Iterator, Optional
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 from dlt.common import json, pendulum
@@ -272,10 +272,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     # state read/write
     #
 
-    def _get_state_file_name(self, pipeline_name: str, hash: str) -> Tuple[str, str]:
-        """gets tuple of dir and fullpath for schema file for a given hash"""
+    def _get_state_file_name(self, pipeline_name: str, version_hash: str) -> str:
+        """gets full path for schema file for a given hash"""
         safe_hash = "".join(
-            [c for c in hash if re.match(r"\w", c)]
+            [c for c in version_hash if re.match(r"\w", c)]
         )  # remove all special chars from hash
         return (
             f"{self.dataset_path}/{self.schema.state_table_name}/{pipeline_name}__{safe_hash}.jsonl"
@@ -286,7 +286,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         from dlt import current
         from dlt.pipeline.state_sync import state_doc
 
-        pipeline = current.pipeline()
+        pipeline = current.pipeline()  # type: ignore
         state = pipeline._get_state()
         doc = state_doc(state)
 
@@ -313,14 +313,16 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
             state_json.pop("version_hash")
             return StateInfo(**state_json)
 
+        return None
+
     #
     # Schema read/write
     #
 
-    def _get_schema_file_name(self, hash: str) -> Tuple[str, str]:
-        """gets tuple of dir and fullpath for schema file for a given hash"""
+    def _get_schema_file_name(self, version_hash: str) -> str:
+        """gets full path for schema file for a given hash"""
         safe_hash = "".join(
-            [c for c in hash if re.match(r"\w", c)]
+            [c for c in version_hash if re.match(r"\w", c)]
         )  # remove all special chars from hash
         return f"{self.dataset_path}/{self.schema.version_table_name}/{self.schema.name}__{safe_hash}.jsonl"
 
@@ -337,6 +339,8 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
             raise DestinationUndefinedEntity({"dir": dirname})
         if self.fs_client.exists(filepath):
             return StorageSchemaInfo(**json.loads(self.fs_client.read_text(filepath)))
+
+        return None
 
     def store_current_schema(self) -> None:
         # get paths
