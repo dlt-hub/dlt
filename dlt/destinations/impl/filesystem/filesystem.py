@@ -1,13 +1,16 @@
-import posixpath
 import os
+import posixpath
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set, Iterator
+from typing import ClassVar, List, Tuple, Type, Iterable, Set, Iterator
+
+import dlt
+
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
+from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -38,11 +41,13 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
+
         self.destination_file_name = path_utils.create_path(
             config.layout,
             file_name,
             schema_name,
             load_id,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             current_datetime=config.current_datetime,
             datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
@@ -55,6 +60,7 @@ class LoadFilesystemJob(LoadJob):
             file_name,
             schema_name,
             load_id,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             current_datetime=config.current_datetime,
             datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
@@ -79,7 +85,9 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self.make_remote_path()
+                file_name=self.file_name(),
+                status="running",
+                remote_path=self.make_remote_path(),
             )
             jobs.append(ref_job)
         return jobs
@@ -133,42 +141,40 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
             # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
             truncated_dirs = self._get_table_dirs(truncate_tables)
             # print(f"TRUNCATE {truncated_dirs}")
-            truncate_prefixes: Set[str] = set()
-            for table in truncate_tables:
-                table_prefix = self.table_prefix_layout.format(
-                    schema_name=self.schema.name, table_name=table
-                )
-                truncate_prefixes.add(posixpath.join(self.dataset_path, table_prefix))
-            # print(f"TRUNCATE PREFIXES {truncate_prefixes} on {truncate_tables}")
+            truncate_prefixes = self._get_table_prefixes(truncate_tables=truncate_tables)
 
-            for truncate_dir in truncated_dirs:
-                # get files in truncate dirs
-                # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
-                # NOTE: without refresh you get random results here
-                logger.info(f"Will truncate tables in {truncate_dir}")
+            # print(f"TRUNCATE PREFIXES {truncate_prefixes} on {truncate_tables}")
+            directories, files = self._get_items_to_remove(
+                truncated_dirs=truncated_dirs,
+                prefixes=truncate_prefixes,
+            )
+
+            for file in files:
                 try:
-                    all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
-                    # logger.debug(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
-                    # print(f"in truncate dir {truncate_dir}: {all_files}")
-                    for item in all_files:
-                        # check every file against all the prefixes
-                        for search_prefix in truncate_prefixes:
-                            if item.startswith(search_prefix):
-                                # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                                # print(f"DEL {item}")
-                                try:
-                                    # NOTE: must use rm_file to get errors on delete
-                                    self.fs_client.rm_file(item)
-                                except NotImplementedError:
-                                    # not all filesystem implement the above
-                                    self.fs_client.rm(item)
-                                    if self.fs_client.exists(item):
-                                        raise FileExistsError(item)
+                    self.fs_client.rm_file(file)
+                except NotImplementedError:
+                    # not all filesystem implement the above
+                    self.fs_client.rm(file)
+                    if self.fs_client.exists(file):
+                        raise FileExistsError(file)
                 except FileNotFoundError:
                     logger.info(
-                        f"Directory or path to truncate tables {truncate_dir} does not exist but it"
-                        " should be created previously!"
+                        f"Directory or path to truncate tables {file} does not exist but it should"
+                        " be created previously!"
                     )
+
+            for dir in directories:
+                try:
+                    logger.info(f"Will truncate tables in {dir}")
+                    if self.fs_client.exists(dir):
+                        self.fs_client.rmdir(dir)
+                    else:
+                        logger.info(
+                            f"Directory or path to truncate tables {dir} does not exist but it"
+                            " should be created previously!"
+                        )
+                except OSError:
+                    logger.info(f"Directory or path to truncate {dir} is not empty")
 
     def update_stored_schema(
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
@@ -178,6 +184,42 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         for directory in dirs_to_create:
             self.fs_client.makedirs(directory, exist_ok=True)
         return expected_update
+
+    def _get_table_prefixes(self, truncate_tables: Iterable[str]) -> Set[str]:
+        truncate_prefixes: Set[str] = set()
+        for table in truncate_tables:
+            table_prefix = self.table_prefix_layout.format(
+                schema_name=self.schema.name, table_name=table
+            )
+            truncate_prefixes.add(posixpath.join(self.dataset_path, table_prefix))
+
+        return truncate_prefixes
+
+    def _get_items_to_remove(
+        self, truncated_dirs: List[str], prefixes: Set[str]
+    ) -> Tuple[List[str], List[str]]:
+        """Gets the list of directories and files starting with the given prefixes
+
+        Returns:
+            (directories, files): tuple with directories and files
+        """
+        directories: List[str] = []
+        files: List[str] = []
+        for truncate_dir in truncated_dirs:
+            all_files = self.fs_client.ls(truncate_dir, detail=True, refresh=True)
+            for item in all_files:
+                item_path = item["name"]
+                item_type = item["type"]
+
+                # check every file against all the prefixes
+                for search_prefix in prefixes:
+                    if item.startswith(search_prefix):
+                        if item_type == "file":
+                            files.append(item_path)
+                        if item_type == "directory":
+                            directories.append(item_path)
+
+        return directories, files
 
     def _get_table_dirs(self, table_names: Iterable[str]) -> Set[str]:
         """Gets unique directories where table data is stored."""
@@ -217,7 +259,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         return self
 
     def __exit__(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: TracebackType,
     ) -> None:
         pass
 
