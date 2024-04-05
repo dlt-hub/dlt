@@ -6,12 +6,14 @@ import streamlit as st
 import yaml
 
 
-def date_to_iso(dumper: yaml.Dumper, data: Union[pendulum.Date, pendulum.DateTime]) -> str:
-    return dumper.represent_datetime(data)
+def date_to_iso(
+    dumper: yaml.SafeDumper, data: Union[pendulum.Date, pendulum.DateTime]
+) -> yaml.ScalarNode:
+    return dumper.represent_datetime(data)  # type: ignore[arg-type]
 
 
-yaml.representer.SafeRepresenter.add_representer(pendulum.Date, date_to_iso)
-yaml.representer.SafeRepresenter.add_representer(pendulum.DateTime, date_to_iso)
+yaml.representer.SafeRepresenter.add_representer(pendulum.Date, date_to_iso)  # type: ignore[arg-type]
+yaml.representer.SafeRepresenter.add_representer(pendulum.DateTime, date_to_iso)  # type: ignore[arg-type]
 
 
 def resource_state_info(
