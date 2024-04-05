@@ -61,7 +61,7 @@ def prepare_datetime_params(
     params["dow"] = moment.format("ddd").lower()
 
     if load_package_timestamp:
-        timestamp = int(pendulum.parse(load_package_timestamp).timestamp())
+        timestamp = int(pendulum.parse(load_package_timestamp).timestamp()) # type: ignore[union-attr]
     else:
         # FIXME: what do we do here?
         timestamp = int(moment.timestamp())

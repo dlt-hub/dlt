@@ -204,10 +204,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
 
     def _get_items_to_remove(
         self,
-        truncated_dirs: List[str],
+        truncated_dirs: Iterable[str],
         prefixes: Set[str],
         top_level: bool = False,
-    ) -> Tuple[List[str], List[str]]:
+    ) -> Tuple[List[Tuple[str, bool]], List[str]]:
         """Gets the list of directories and files starting with the given prefixes
 
         Returns:
