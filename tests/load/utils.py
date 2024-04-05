@@ -504,11 +504,10 @@ def yield_client(
     # athena requires staging config to be present, so stick this in there here
     if destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
-            destination_type="fake-stage",  # type: ignore
-            dataset_name=dest_config.dataset_name,
-            default_schema_name=dest_config.default_schema_name,
             bucket_url=AWS_BUCKET,
-        )
+        )._bind_dataset_name(dataset_name=dest_config.dataset_name)
+        staging_config.destination_type = "filesystem"  # type: ignore[misc]
+        staging_config.resolve()
         dest_config.staging_config = staging_config  # type: ignore[attr-defined]
 
     # lookup for credentials in the section that is destination name
