@@ -35,10 +35,6 @@ from dlt.destinations.utils import _convert_to_old_pyformat
 TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
     "Clickhouse does not support transactions! Each statement is auto-committed separately."
 )
-DATASET_PREFIX = dlt.config["destination.clickhouse.credentials.dataset_prefix"] or "__"
-DATASET_TABLE_SEPARATOR = (
-    dlt.config["destination.clickhouse.credentials.dataset_table_separator"] or "___"
-)
 
 
 class ClickhouseDBApiCursorImpl(DBApiCursorImpl):
@@ -154,23 +150,26 @@ class ClickhouseSqlClient(
         if escape:
             database_name = self.capabilities.escape_identifier(self.database_name)
             dataset_name = self.capabilities.escape_identifier(
-                f"{DATASET_PREFIX}{self.dataset_name}"
+                f"{self.dataset_name}"
             )
         else:
             database_name = self.database_name
-            dataset_name = f"{DATASET_PREFIX}{self.dataset_name}"
+            dataset_name = f"{self.dataset_name}"
         return f"{database_name}.{dataset_name}"
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        dataset_table_separator = dlt.config[
+            "destination.clickhouse.credentials.dataset_table_separator"
+        ]
         if escape:
             database_name = self.capabilities.escape_identifier(self.database_name)
             dataset_and_table = self.capabilities.escape_identifier(
-                f"{DATASET_PREFIX}{self.dataset_name}{DATASET_TABLE_SEPARATOR}{table_name}"
+                f"{self.dataset_name}{dataset_table_separator}{table_name}"
             )
         else:
             database_name = self.database_name
             dataset_and_table = (
-                f"{DATASET_PREFIX}{self.dataset_name}{DATASET_TABLE_SEPARATOR}{table_name}"
+                f"{self.dataset_name}{dataset_table_separator}{table_name}"
             )
         return f"{database_name}.{dataset_and_table}"
 
