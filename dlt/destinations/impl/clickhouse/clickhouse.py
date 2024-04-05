@@ -258,6 +258,10 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                         qualified_table_name,
                         file_path,
                         fmt=clickhouse_format,
+                        settings={
+                            "allow_experimental_lightweight_delete": 1,
+                            "allow_experimental_object_type": 1,
+                        },
                     )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
