@@ -101,6 +101,7 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
 
 def test_pipeline_csv_filesystem_destination() -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # store locally
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
     pipeline = dlt.pipeline(

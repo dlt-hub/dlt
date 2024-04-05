@@ -2,14 +2,16 @@ import os
 import pyarrow as pa
 import pyarrow.parquet as pq
 import datetime  # noqa: 251
+import time
 
 from dlt.common import pendulum, Decimal, json
 from dlt.common.configuration import inject_section
 from dlt.common.data_writers.writers import ParquetDataWriter
-from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime
+from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.libs.pyarrow import from_arrow_scalar
 
 from tests.common.data_writers.utils import get_writer
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES_DATETIMES
@@ -128,7 +130,7 @@ def test_parquet_writer_all_data_fields() -> None:
         assert actual == value
 
     assert table.schema.field("col1_precision").type == pa.int16()
-    assert table.schema.field("col4_precision").type == pa.timestamp("ms", tz="UTC")
+    assert table.schema.field("col4_precision").type == pa.timestamp("ms")
     assert table.schema.field("col5_precision").type == pa.string()
     assert table.schema.field("col6_precision").type == pa.decimal128(6, 2)
     assert table.schema.field("col7_precision").type == pa.binary(19)
@@ -188,15 +190,49 @@ def test_parquet_writer_config() -> None:
             # tz can
             column_type = writer._writer.schema.field("col2").type
             assert column_type.tz == "America/New York"
+        # read parquet back and check
+        with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+            # parquet schema is utc adjusted
+            col2_info = json.loads(reader.metadata.schema.column(1).logical_type.to_json())
+            assert col2_info["isAdjustedToUTC"] is True
+            assert col2_info["timeUnit"] == "microseconds"
+            assert reader.schema_arrow.field(1).type.tz == "America/New York"
+
+
+def test_parquet_writer_config_spark() -> None:
+    os.environ["NORMALIZE__DATA_WRITER__FLAVOR"] = "spark"
+    os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "Europe/Berlin"
+
+    now = pendulum.now(tz="Europe/Berlin")
+    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
+        with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+            for i in range(0, 5):
+                writer.write_data_item(
+                    [{"col1": i, "col2": now}],
+                    {"col1": new_column("col1", "bigint"), "col2": new_column("col2", "timestamp")},
+                )
+            # force the parquet writer to be created
+            writer._flush_items()
+        with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+            # no logical type for timestamp
+            col2_info = json.loads(reader.metadata.schema.column(1).logical_type.to_json())
+            assert col2_info == {"Type": "None"}
+            table = reader.read()
+            # when compared as naive UTC adjusted timestamps it works
+            assert table.column(1)[0].as_py() == now.in_timezone(tz="UTC").replace(tzinfo=None)
 
 
 def test_parquet_writer_schema_from_caps() -> None:
+    # store nanoseconds
+    os.environ["DATA_WRITER__VERSION"] = "2.6"
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.decimal_precision = (18, 9)
     caps.wei_precision = (156, 78)  # will be trimmed to dec256
     caps.timestamp_precision = 9  # nanoseconds
 
-    with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+    with get_writer(
+        ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2, caps=caps
+    ) as writer:
         for _ in range(0, 5):
             writer.write_data_item(
                 [{"col1": Decimal("2617.27"), "col2": pendulum.now(), "col3": Decimal(2**250)}],
@@ -210,13 +246,44 @@ def test_parquet_writer_schema_from_caps() -> None:
         writer._flush_items()
 
         column_type = writer._writer.schema.field("col2").type
-        assert column_type.tz == "UTC"
+        assert column_type == pa.timestamp("ns")
+        assert column_type.tz is None
         column_type = writer._writer.schema.field("col1").type
         assert isinstance(column_type, pa.Decimal128Type)
-        assert column_type.precision == 38
+        assert column_type.precision == 18
         assert column_type.scale == 9
         column_type = writer._writer.schema.field("col3").type
         assert isinstance(column_type, pa.Decimal256Type)
         # got scaled down to maximum
         assert column_type.precision == 76
         assert column_type.scale == 0
+
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        col2_info = json.loads(reader.metadata.schema.column(1).logical_type.to_json())
+        assert col2_info["isAdjustedToUTC"] is False
+        assert col2_info["timeUnit"] == "nanoseconds"
+
+
+def test_parquet_writer_timestamp_precision() -> None:
+    now = pendulum.now()
+    now_ns = time.time_ns()
+
+    # store nanoseconds
+    os.environ["DATA_WRITER__VERSION"] = "2.6"
+
+    with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+        for _ in range(0, 5):
+            writer.write_data_item(
+                [{"col1": now, "col2": now, "col3": now, "col4": now_ns}],
+                {
+                    "col1": new_column("col1", "timestamp", precision=0),
+                    "col2": new_column("col2", "timestamp", precision=3),
+                    "col3": new_column("col2", "timestamp", precision=6),
+                    "col4": new_column("col2", "timestamp", precision=9),
+                },
+            )
+        # force the parquet writer to be created
+        writer._flush_items()
+        print(writer._writer.schema)
+    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+        print(reader.metadata.schema)

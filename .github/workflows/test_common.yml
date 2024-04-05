@@ -58,9 +58,7 @@ jobs:
           curl https://data.iana.org/time-zones/releases/tzdata2021e.tar.gz --output tzdata.tar.gz
           mkdir tzdata
           tar --extract --file tzdata.tar.gz --directory tzdata
-          dir %USERPROFILE%\Downloads\
           mkdir %USERPROFILE%\Downloads\tzdata
-          dir %USERPROFILE%\Downloads\
           copy tzdata %USERPROFILE%\Downloads\tzdata
           curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
         if: runner.os == 'Windows'

@@ -21,8 +21,9 @@ def get_writer(
     file_max_items: int = 10,
     file_max_bytes: int = None,
     disable_compression: bool = False,
+    caps: DestinationCapabilitiesContext = None,
 ) -> BufferedDataWriter[TWriter]:
-    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps = caps or DestinationCapabilitiesContext.generic_capabilities()
     writer_spec = writer.writer_spec()
     caps.preferred_loader_file_format = writer_spec.file_format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{writer_spec.file_format}.%s")

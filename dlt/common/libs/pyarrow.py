@@ -39,7 +39,10 @@ TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 
 def get_py_arrow_datatype(
-    column: TColumnType, caps: DestinationCapabilitiesContext, tz: str
+    column: TColumnType,
+    caps: DestinationCapabilitiesContext,
+    tz: str,
+    default_ts_precision: str = "us",
 ) -> Any:
     column_type = column["data_type"]
     if column_type == "text":
@@ -49,7 +52,9 @@ def get_py_arrow_datatype(
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        return get_py_arrow_timestamp(column.get("precision") or caps.timestamp_precision, tz)
+        return get_py_arrow_timestamp(
+            column.get("precision") or caps.timestamp_precision, tz, default_ts_precision
+        )
     elif column_type == "bigint":
         return get_pyarrow_int(column.get("precision"))
     elif column_type == "binary":
@@ -75,14 +80,14 @@ def get_py_arrow_datatype(
         raise ValueError(column_type)
 
 
-def get_py_arrow_timestamp(precision: int, tz: str) -> Any:
+def get_py_arrow_timestamp(precision: int, tz: str, default_ts_precision: str = "us") -> Any:
     if precision == 0:
-        return pyarrow.timestamp("s", tz=tz)
+        return pyarrow.timestamp("s", tz=tz if default_ts_precision == "s" else None)
     if precision <= 3:
-        return pyarrow.timestamp("ms", tz=tz)
+        return pyarrow.timestamp("ms", tz=tz if default_ts_precision == "ms" else None)
     if precision <= 6:
-        return pyarrow.timestamp("us", tz=tz)
-    return pyarrow.timestamp("ns", tz=tz)
+        return pyarrow.timestamp("us", tz=tz if default_ts_precision == "us" else None)
+    return pyarrow.timestamp("ns", tz=tz if default_ts_precision == "ns" else None)
 
 
 def get_py_arrow_time(precision: int) -> Any:

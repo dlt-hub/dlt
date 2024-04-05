@@ -29,14 +29,21 @@ info = pipeline.run(some_source(), loader_file_format="parquet")
 * It uses decimal and wei precision to pick the right **decimal type** and sets precision and scale.
 * It uses timestamp precision to pick the right **timestamp type** resolution (seconds, micro, or nano).
 
-## Options
+## Writer settings
 
 Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to create the files. The following options can be used to change the behavior of the writer:
 
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None which is **pyarrow** default.
-- `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.4".
+- `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. Defaults to "2.6".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None which is **pyarrow** default.
 - `timestamp_timezone`: A string specifying timezone, default is UTC.
+- `coerce_timestamps`: resolution to which coerce timestamps, choose from **s**, **ms**, **us**, **ns**
+- `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamp.
+
+:::tip
+Default parquet version used by `dlt` is 2.4. It coerces timestamps to microseconds and truncates nanoseconds silently. Such setting
+provides best interoperability with database systems, including loading panda frames which have nanosecond resolution by default
+:::
 
 Read the [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html) to learn more about these settings.
 
@@ -59,3 +66,6 @@ NORMALIZE__DATA_WRITER__VERSION
 NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE
 NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE
 ```
+
+### Timestamps and timezones
+`dlt` adds timezone (UTC adjustment) to timestamps with microseconds precision. All other timestamp (second, millisecond, nanosecond) are stored without the adjustment.

@@ -254,6 +254,8 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     timestamp_precision: str = "us"
     timestamp_timezone: str = "UTC"
     row_group_size: Optional[int] = None
+    coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
+    allow_truncated_timestamps: bool = False
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
 
@@ -270,6 +272,8 @@ class ParquetDataWriter(DataWriter):
         data_page_size: Optional[int] = None,
         timestamp_timezone: str = "UTC",
         row_group_size: Optional[int] = None,
+        coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
+        allow_truncated_timestamps: bool = False,
     ) -> None:
         super().__init__(f, caps)
         from dlt.common.libs.pyarrow import pyarrow
@@ -282,6 +286,8 @@ class ParquetDataWriter(DataWriter):
         self.parquet_data_page_size = data_page_size
         self.timestamp_timezone = timestamp_timezone
         self.parquet_row_group_size = row_group_size
+        self.coerce_timestamps = coerce_timestamps
+        self.allow_truncated_timestamps = allow_truncated_timestamps
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
         from dlt.common.libs.pyarrow import pyarrow
@@ -292,6 +298,8 @@ class ParquetDataWriter(DataWriter):
             flavor=self.parquet_flavor,
             version=self.parquet_version,
             data_page_size=self.parquet_data_page_size,
+            coerce_timestamps=self.coerce_timestamps,
+            allow_truncated_timestamps=self.allow_truncated_timestamps,
         )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
@@ -302,7 +310,12 @@ class ParquetDataWriter(DataWriter):
             [
                 pyarrow.field(
                     name,
-                    get_py_arrow_datatype(schema_item, self._caps, self.timestamp_timezone),
+                    get_py_arrow_datatype(
+                        schema_item,
+                        self._caps,
+                        self.timestamp_timezone,
+                        self.coerce_timestamps or "us",
+                    ),
                     nullable=schema_item.get("nullable", True),
                 )
                 for name, schema_item in columns_schema.items()
