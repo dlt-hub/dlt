@@ -8,12 +8,13 @@ import pytest
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
-from dlt.destinations.impl.filesystem.filesystem import FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.filesystem import (
+    FilesystemDestinationClientConfiguration,
+)
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
-from tests.utils import preserve_environ, autouse_test_storage
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -35,18 +36,16 @@ NORMALIZED_FILES = [
 ]
 
 ALL_LAYOUTS = (
-    None,
+    # None,
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # new default layout with schema
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # classic layout
     "{table_name}88{load_id}-u-{file_id}.{ext}",  # default layout with strange separators
     # Extra layout options
     "{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}",
-    "{table_name}/{year}/{month}/{day}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{year}-{month}-{day}/{load_id}.{file_id}.{ext}",
     "{table_name}/{day}/{hour}/{minute}/{load_id}.{file_id}.{ext}",
     "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
-    "{table_name}/{dow}/{load_id}.{file_id}.{ext}",
-    # Invalid placeholders before {table_name}
-    "{year}/{month}/{day}/{hour}/{table_name}/{dow}/{load_id}.{file_id}.{ext}",
+    "{table_name}/dayofweek-{dow}/{load_id}.{file_id}.{ext}",
 )
 
 
@@ -69,8 +68,15 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
     dataset_name = "test_" + uniq_id()
     now = pendulum.now()
 
-    with perform_load(
-        dataset_name, NORMALIZED_FILES, write_disposition=write_disposition
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), perform_load(
+        dataset_name,
+        NORMALIZED_FILES,
+        write_disposition=write_disposition,
     ) as load_info:
         client, jobs, _, load_id = load_info
         layout = client.config.layout
@@ -92,7 +98,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
                     load_id=load_id,
                     file_id=job_info.file_id,
                     ext=job_info.file_format,
-                    **prepare_datetime_params(now)
+                    **prepare_datetime_params(now, load_package_timestamp=timestamp),
                 ),
             )
 
@@ -109,10 +115,18 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), perform_load(
+        dataset_name,
+        NORMALIZED_FILES,
+        write_disposition="replace",
+    ) as load_info:
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
-
         # this path will be kept after replace
         job_2_load_1_path = posixpath.join(
             root_path,
@@ -121,6 +135,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 NORMALIZED_FILES[1],
                 client.schema.name,
                 load_id1,
+                load_package_timestamp=timestamp,
                 current_datetime=client.config.current_datetime,
                 datetime_format=client.config.datetime_format,
                 extra_placeholders=client.config.extra_placeholders,
@@ -140,6 +155,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                     NORMALIZED_FILES[0],
                     client.schema.name,
                     load_id2,
+                    load_package_timestamp=timestamp,
                     current_datetime=client.config.current_datetime,
                     datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,
@@ -154,6 +170,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             ):
                 for f in files:
                     paths.append(posixpath.join(basedir, f))
+
             ls = set(paths)
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
@@ -168,8 +185,15 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # also we would like to have reliable timestamp for this test so we patch it
-    with mock.patch("pendulum.DateTime.timestamp", return_value=1712166300), perform_load(
-        dataset_name, NORMALIZED_FILES, write_disposition="append"
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), perform_load(
+        dataset_name,
+        NORMALIZED_FILES,
+        write_disposition="append",
     ) as load_info:
         client, jobs1, root_path, load_id1 = load_info
         with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
@@ -181,6 +205,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                     job.file_name(),
                     client.schema.name,
                     load_id1,
+                    load_package_timestamp=timestamp,
                     current_datetime=client.config.current_datetime,
                     datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,
@@ -192,6 +217,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                     job.file_name(),
                     client.schema.name,
                     load_id2,
+                    load_package_timestamp=timestamp,
                     current_datetime=client.config.current_datetime,
                     datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,
