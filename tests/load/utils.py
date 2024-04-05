@@ -200,7 +200,6 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="clickhouse",
-                disable_compression=True,
             )
         ]
         destination_configs += [
