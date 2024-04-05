@@ -197,6 +197,10 @@ class InsertValuesWriter(DataWriter):
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
 
+        # do not write empty rows, such things may be produced by Arrow adapters
+        if len(rows) == 0:
+            return
+
         def write_row(row: StrAny, last_row: bool = False) -> None:
             output = ["NULL"] * len(self._headers_lookup)
             for n, v in row.items():

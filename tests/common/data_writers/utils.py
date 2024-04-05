@@ -10,6 +10,9 @@ from tests.utils import TEST_STORAGE_ROOT
 ALL_OBJECT_WRITERS = [
     writer for writer in ALL_WRITERS if writer.writer_spec().data_item_format == "object"
 ]
+ALL_ARROW_WRITERS = [
+    writer for writer in ALL_WRITERS if writer.writer_spec().data_item_format == "arrow"
+]
 
 
 def get_writer(
