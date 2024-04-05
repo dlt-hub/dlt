@@ -166,6 +166,11 @@ class InsertValuesWriter(DataWriter):
         super().__init__(f, caps)
         self._chunks_written = 0
         self._headers_lookup: Dict[str, int] = None
+        self.writer_type = caps.insert_values_writer_type
+        if self.writer_type == "default":
+            self.pre, self.post, self.sep = ("(", ")", ",\n")
+        elif self.writer_type == "select_union":
+            self.pre, self.post, self.sep = ("SELECT ", " ", "UNION ALL\n")
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         assert self._chunks_written == 0
@@ -176,10 +181,9 @@ class InsertValuesWriter(DataWriter):
         # do not write INSERT INTO command, this must be added together with table name by the loader
         self._f.write("INSERT INTO {}(")
         self._f.write(",".join(map(self._caps.escape_identifier, headers)))
-        if self._caps.insert_values_writer_type == "default":
-            self._f.write(")\nVALUES\n")
-        elif self._caps.insert_values_writer_type == "select_union":
-            self._f.write(")\n")
+        self._f.write(")\n")
+        if self.writer_type == "default":
+            self._f.write("VALUES\n")
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
@@ -188,24 +192,15 @@ class InsertValuesWriter(DataWriter):
             output = ["NULL"] * len(self._headers_lookup)
             for n, v in row.items():
                 output[self._headers_lookup[n]] = self._caps.escape_literal(v)
-            if self._caps.insert_values_writer_type == "default":
-                self._f.write("(")
-                self._f.write(",".join(output))
-                self._f.write(")")
-                if not last_row:
-                    self._f.write(",\n")
-            elif self._caps.insert_values_writer_type == "select_union":
-                self._f.write("SELECT ")
-                self._f.write(",".join(output))
-                if not last_row:
-                    self._f.write("\nUNION ALL\n")
+            self._f.write(self.pre)
+            self._f.write(",".join(output))
+            self._f.write(self.post)
+            if not last_row:
+                self._f.write(self.sep)
 
         # if next chunk add separator
         if self._chunks_written > 0:
-            if self._caps.insert_values_writer_type == "default":
-                self._f.write(",\n")
-            elif self._caps.insert_values_writer_type == "select_union":
-                self._f.write("\nUNION ALL\n")
+            self._f.write(self.sep)
 
         # write rows
         for row in rows[:-1]:
