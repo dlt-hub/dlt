@@ -104,9 +104,10 @@ def test_non_utf8_binary() -> None:
     with open(pq_writer.closed_files[0].file_path, "rb") as f:
         table = pq.read_table(f)
 
-    with pytest.raises(InvalidDataItem):
+    with pytest.raises(InvalidDataItem) as inv_ex:
         with get_writer(ArrowToCsvWriter, disable_compression=True) as writer:
             writer.write_data_item(table, TABLE_UPDATE_COLUMNS_SCHEMA)
+    assert "Arrow data contains string or binary columns" in str(inv_ex.value)
 
 
 def test_arrow_struct() -> None:

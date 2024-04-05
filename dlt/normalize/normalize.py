@@ -142,17 +142,35 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 )
                 return norm
 
-            def _gather_metrics_and_close(skip_flush: bool) -> List[DataWriterMetrics]:
-                for normalizer in item_normalizers.values():
-                    normalizer.item_storage.close_writers(load_id, skip_flush=skip_flush)
-
+            def _gather_metrics_and_close(
+                parsed_fn: ParsedLoadJobFileName, in_exception: bool
+            ) -> List[DataWriterMetrics]:
                 writer_metrics: List[DataWriterMetrics] = []
-                for normalizer in item_normalizers.values():
-                    norm_metrics = normalizer.item_storage.closed_files(load_id)
-                    writer_metrics.extend(norm_metrics)
-
-                for normalizer in item_normalizers.values():
-                    normalizer.item_storage.remove_closed_files(load_id)
+                try:
+                    try:
+                        for normalizer in item_normalizers.values():
+                            normalizer.item_storage.close_writers(load_id, skip_flush=in_exception)
+                    except Exception:
+                        # if we had exception during flushing the writers, close them without flushing
+                        if not in_exception:
+                            for normalizer in item_normalizers.values():
+                                normalizer.item_storage.close_writers(load_id, skip_flush=True)
+                        raise
+                    finally:
+                        # always gather metrics
+                        for normalizer in item_normalizers.values():
+                            norm_metrics = normalizer.item_storage.closed_files(load_id)
+                            writer_metrics.extend(norm_metrics)
+                        for normalizer in item_normalizers.values():
+                            normalizer.item_storage.remove_closed_files(load_id)
+                except Exception as exc:
+                    if in_exception:
+                        # swallow exception if we already handle exceptions
+                        return writer_metrics
+                    else:
+                        # enclose the exception during the closing in job failed exception
+                        job_id = parsed_fn.job_id() if parsed_fn else ""
+                        raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics)
                 return writer_metrics
 
             parsed_file_name: ParsedLoadJobFileName = None
@@ -178,10 +196,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     logger.debug(f"Processed file {extracted_items_file}")
             except Exception as exc:
                 job_id = parsed_file_name.job_id() if parsed_file_name else ""
-                writer_metrics = _gather_metrics_and_close(skip_flush=True)
+                writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=True)
                 raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics) from exc
             else:
-                writer_metrics = _gather_metrics_and_close(skip_flush=False)
+                writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=False)
 
             logger.info(f"Processed all items in {len(extracted_items_files)} files")
             return TWorkerRV(schema_updates, writer_metrics)

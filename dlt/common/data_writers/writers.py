@@ -487,6 +487,15 @@ class ArrowToCsvWriter(DataWriter):
                             " characters. Remove binary columns or replace their content with a hex"
                             " representation: \\x... while keeping data type as binary.",
                         )
+                    if "Timezone database not found" in str(inv_ex):
+                        raise InvalidDataItem(
+                            "csv",
+                            "arrow",
+                            str(inv_ex)
+                            + ". Arrow does not ship with tzdata on Windows. You need to install it"
+                            " yourself:"
+                            " https://arrow.apache.org/docs/cpp/build_system.html#runtime-dependencies",
+                        )
                     raise
             else:
                 raise ValueError(f"Unsupported type {type(row)}")

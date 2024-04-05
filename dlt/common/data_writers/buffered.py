@@ -166,9 +166,10 @@ class BufferedDataWriter(Generic[TWriter]):
 
     def close(self, skip_flush: bool = False) -> None:
         """Flushes the data, writes footer (skip_flush is True), collects metrics and closes the underlying file."""
-        self._ensure_open()
-        self._flush_and_close_file(skip_flush=skip_flush)
-        self._closed = True
+        # like regular files, we do not except on double close
+        if not self._closed:
+            self._flush_and_close_file(skip_flush=skip_flush)
+            self._closed = True
 
     @property
     def closed(self) -> bool:
@@ -179,7 +180,16 @@ class BufferedDataWriter(Generic[TWriter]):
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
         # skip flush if we had exception
-        self.close(skip_flush=exc_val is not None)
+        in_exception = exc_val is not None
+        try:
+            self.close(skip_flush=in_exception)
+        except Exception:
+            if not in_exception:
+                # close again but without flush
+                self.close(skip_flush=True)
+            # raise the on close exception if we are not handling another exception
+            if not in_exception:
+                raise
 
     def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         metrics = self._flush_and_close_file(allow_empty_file)
