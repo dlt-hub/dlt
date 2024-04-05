@@ -1,12 +1,17 @@
+from typing import Union
+
 import dlt
+import pendulum
 import streamlit as st
 import yaml
 
-from dlt.common import json
-from dlt.common.libs.pandas import pandas as pd
-from dlt.common.pipeline import resource_state, TSourceState
-from dlt.common.schema.utils import group_tables_by_resource
-from dlt.helpers.streamlit_app.widgets.tags import tag
+
+def date_to_iso(dumper: yaml.Dumper, data: Union[pendulum.Date, pendulum.DateTime]) -> str:
+    return dumper.represent_datetime(data)
+
+
+yaml.representer.SafeRepresenter.add_representer(pendulum.Date, date_to_iso)
+yaml.representer.SafeRepresenter.add_representer(pendulum.DateTime, date_to_iso)
 
 
 def resource_state_info(
@@ -21,6 +26,7 @@ def resource_state_info(
         return
 
     resource = schema["resources"].get(resource_name)
+
     with st.expander("Resource state", expanded=(resource is None)):
         if not resource:
             st.info(f"{resource_name} is missing resource state")
