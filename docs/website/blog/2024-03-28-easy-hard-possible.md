@@ -1,13 +1,13 @@
 ---
 slug: yes-code-elt
-title: "YES code ELT: dlt make simple things fast, and hard things accessible"
-image:  https://storage.googleapis.com/dlt-blog-images/reverse-etl.png
+title: "Yes code ELT: dlt make easy things easy, and hard things possible"
+image:  https://storage.googleapis.com/dlt-blog-images/easy-things-easy.png
 authors:
   name: Adrian Brudaru
   title: Open source Data Engineer
   url: https://github.com/adrianbr
   image_url: https://avatars.githubusercontent.com/u/5762770?v=4
-tags: [reverse etl, pythonic]
+tags: [full code etl, yes code etl, etl, pythonic]
 ---
 
 # There's code and then there's code
@@ -55,7 +55,7 @@ dlt focuses on making the extraction and loading of data as straightforward as p
 
 Starting from a simple abstraction like `pipeline.run(data, table_name="table")`,
 where data can be any iterable such as a generator or dataframe, dlt enables robust loading.
-Here is an enumeration of things that the above function does, so you don't have to.
+Here is what the above function does, so you don't have to.
 - It will (optionally) unpack nested lists into separate tables with generated join keys, and flatten nested dictionaries into a main row.
 - If given a generator, it will consume it via microbatching, buffering to disk or external drives, never running out of memory (customisable).
 - it will create "extract packages" of extracted data so if the downstream steps fail, it can resume/retry later.
@@ -103,33 +103,24 @@ So what are the efforts you spare when using dlt here?
 - Source schemas can be configured with various options such as pushing down top level columns into nested structures
 - dlt's requests replacement has built in retries for non-permanent error codes. This safeguards the progress of long extraction jobs that could otherwise break over and over (if retried as a whole) due to network or source api issues.
 
-### What else?
+It looks like you've established a solid foundation comparing the evolution from Perl to Python, emphasizing their contributions to making programming more accessible and emphasizing simplicity and readability. You then began to bridge into how dlt continues this tradition in the domain of data engineering, offering simplicity and power in handling data operations. Here's how you could conclude and enrich your draft:
 
-- async
-- destinations
--
+### What else does dlt bring to the table?
 
+Beyond the ease of data extraction and loading, dlt introduces several advanced features that further simplify data engineering tasks:
 
+Asynchronous operations: dlt harnesses the power of asynchronous programming to manage I/O-bound and network operations efficiently. This means faster data processing, better resource utilization, and more responsive applications, especially when dealing with high volumes of data or remote data sources.
 
+Flexible destinations and reverse ETL: dlt isn't just about pulling data in; it's about sending it where it needs to go. Whether it's a SQL database, a data lake, or a cloud-based storage solution or a custom reverse etl destination, dlt provides the flexibility to integrate with various destinations.
 
+Optional T in ETL: With dlt, transformations are not an afterthought but a core feature. You can define transformations as part of your data pipelines, ensuring that the data is not just moved but refined, enriched, and shaped to fit your analytical needs. This capability allows for more sophisticated data modeling and preparation tasks to be streamlined within your ELT processes.
 
+Data quality and observability: dlt places a strong emphasis on data quality and observability. It includes features for schema evolution tracking, data type validation, and error handling, and data contracts, which are critical for maintaining the integrity of your data ecosystem. Observability tools integrated within dlt help monitor the health and performance of your pipelines, providing insights into data flows, bottlenecks, and potential issues before they escalate.
 
+Community and ecosystem: One of the most significant advantages of dlt is its growing community and ecosystem. Similar to Python, dlt benefits from contributions that extend its capabilities, including connectors, plugins, and integrations. This collaborative environment ensures that dlt remains at the forefront of data engineering innovation, adapting to new challenges and opportunities.
 
+In essence, dlt is not just a tool but a comprehensive one stop shop that addresses the end-to-end needs of modern data ingestion. By combining the simplicity of Python with the robustness of enterprise-grade tools, dlt democratizes data engineering, making it accessible to a broader audience. Whether you're a data scientist, analyst, or engineer, dlt empowers you to focus on what matters most: deriving insights and value from your data.
 
+## Conclusion
 
-
-
-
-
-
-
-This approach allows data teams to quickly move data across systems and transform it in a way that's ready for analysis, without getting bogged down by the complexities traditionally associated with these tasks.
-
-The essence of DLT is to democratize data engineering, making it accessible to not only data engineers but also analysts and scientists. By abstracting the more complex aspects of data processing, DLT tools enable users to focus on deriving insights rather than managing infrastructure or writing extensive code. This accessibility is crucial in today's data-driven world, where the ability to quickly adapt and process information can significantly impact decision-making and innovation.
-
-In conclusion, just as Perl and Python have made programming more accessible, DLT is transforming data engineering by making easy things fast and hard things accessible. This evolution reflects a broader trend towards democratizing technology, ensuring that more people can contribute to and benefit from the digital landscape.
-
-
-
-
-
+As Perl and Python have made programming more accessible, dlt is set to transform data engineering by making sophisticated data operations accessible to all. This marks a significant shift towards the democratization of technology, enabling more individuals to contribute to and benefit from the digital landscape. dlt isn't just about making easy things fast and hard things accessible; it's about preparing a future where data engineering becomes an integral part of every data professional's toolkit.
