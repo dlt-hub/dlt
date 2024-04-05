@@ -190,7 +190,7 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
             start = f"'{idx}'"
             end = ");"
         elif writer_type == "select_union":
-            start = f"ELECT '{idx}'"
+            start = f"SELECT '{idx}'"
             end = ";"
         assert fragment[-1].startswith(start)
         assert fragment[-1].endswith(end)

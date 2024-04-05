@@ -41,6 +41,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_transactions = True
     caps.supports_ddl_transactions = False
 
+    # Synapse throws "Some part of your SQL statement is nested too deeply. Rewrite the query or break it up into smaller queries."
+    # if number of records exceeds a certain number. Which exact number that is seems not deterministic:
+    # in tests, I've seen a query with 12230 records run succesfully on one run, but fail on a subsequent run, while the query remained exactly the same.
+    # 10.000 records is a "safe" amount that always seems to work.
+    caps.max_rows_per_insert = 10000
+
     # datetimeoffset can store 7 digits for fractional seconds
     # https://learn.microsoft.com/en-us/sql/t-sql/data-types/datetimeoffset-transact-sql?view=sql-server-ver16
     caps.timestamp_precision = 7

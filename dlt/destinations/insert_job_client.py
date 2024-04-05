@@ -38,9 +38,12 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             header = f.readline()
             writer_type = self._sql_client.capabilities.insert_values_writer_type
             if writer_type == "default":
+                sep = ","
                 # properly formatted file has a values marker at the beginning
                 values_mark = f.readline()
                 assert values_mark == "VALUES\n"
+            elif writer_type == "select_union":
+                sep = " UNION ALL"
 
             max_rows = self._sql_client.capabilities.max_rows_per_insert
 
@@ -58,10 +61,6 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                 # if there was anything left, until_nl contains the last line
                 is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
                 if not is_eof:
-                    if writer_type == "default":
-                        sep = ","
-                    elif writer_type == "select_union":
-                        sep = " UNION ALL"
                     until_nl = until_nl[: -len(sep)] + ";"  # replace the separator with ";"
                 if max_rows is not None:
                     # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
@@ -79,7 +78,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                             insert_sql.append("".join(chunk) + until_nl)
                         else:
                             # Replace the , with ;
-                            insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
+                            insert_sql.append("".join(chunk).strip()[: -len(sep)] + ";\n")
                 else:
                     # otherwise write all content in a single INSERT INTO
                     if writer_type == "default":
