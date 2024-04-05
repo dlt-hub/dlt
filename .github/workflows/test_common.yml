@@ -52,6 +52,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install tzdata on windows
+        run: |
+          cd %USERPROFILE%
+          curl https://data.iana.org/time-zones/releases/tzdata2021e.tar.gz --output tzdata.tar.gz
+          mkdir tzdata
+          tar --extract --file tzdata.tar.gz --directory tzdata
+          dir %USERPROFILE%\Downloads\
+          mkdir %USERPROFILE%\Downloads\tzdata
+          dir %USERPROFILE%\Downloads\
+          copy tzdata %USERPROFILE%\Downloads\tzdata
+          curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
+        if: runner.os == 'Windows'
+        shell: cmd
+
       - name: Install Poetry
         # https://github.com/snok/install-poetry#running-on-windows
         uses: snok/install-poetry@v1.3.2
@@ -110,16 +124,6 @@ jobs:
 
       - name: Install pipeline dependencies
         run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline
-
-      - name: Install tzdata on windows
-        run: |
-          curl https://data.iana.org/time-zones/releases/tzdata2021e.tar.gz --output tzdata.tar.gz
-          mkdir tzdata
-          tar --extract --file tzdata.tar.gz --directory tzdata
-          move tzdata %USERPROFILE%\Downloads\tzdata
-          curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
-        if: runner.os == 'Windows'
-        shell: cmd
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations
