@@ -4,6 +4,8 @@ from copy import deepcopy
 from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
 from urllib.parse import urlparse
 
+import clickhouse_connect
+from clickhouse_connect.driver.tools import insert_file
 from jinja2 import Template
 
 import dlt
@@ -182,11 +184,11 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         bucket_scheme = bucket_url.scheme
 
         file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
-        clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
+        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
         # compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
-        table_function: str
-        table_function = ""
+        table_function: str = ""
+        statement: str = ""
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
@@ -217,6 +219,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                 secret_access_key=secret_access_key,
                 clickhouse_format=clickhouse_format,
             ).strip()
+            statement = f"INSERT INTO {qualified_table_name} {table_function}"
 
         elif bucket_scheme in ("az", "abfs"):
             if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
@@ -238,22 +241,33 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
                 "SELECT * FROM"
                 f" azureBlobStorage('{storage_account_url}','{container_name}','{blobpath}','{account_name}','{account_key}','{clickhouse_format}')"
             )
+            statement = f"INSERT INTO {qualified_table_name} {table_function}"
         elif not bucket_path:
             # Local filesystem.
-            raise LoadJobTerminalException(
-                file_path,
-                "Cannot load from local file. Clickhouse does not support loading from local files."
-                " Configure staging with an s3, gcs or azure storage bucket.",
-            )
+            with clickhouse_connect.get_client(
+                host=client.credentials.host,
+                port=client.credentials.port,
+                database=client.credentials.database,
+                user_name=client.credentials.username,
+                password=client.credentials.password,
+                secure=bool(client.credentials.secure),
+            ) as clickhouse_connect_client:
+                insert_file(
+                    clickhouse_connect_client,
+                    qualified_table_name,
+                    file_path,
+                    fmt=clickhouse_format,
+                    database=client.database_name,
+                )
+            statement = ""
         else:
             raise LoadJobTerminalException(
                 file_path,
                 f"Clickhouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
-        print(table_function)
         with client.begin_transaction():
-            client.execute_sql(f"""INSERT INTO {qualified_table_name} {table_function}""")
+            client.execute_sql(statement)
 
     def state(self) -> TLoadJobState:
         return "completed"

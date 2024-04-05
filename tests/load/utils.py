@@ -200,6 +200,8 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="clickhouse",
+                file_format="jsonl",
+                disable_compression=True,
             )
         ]
         destination_configs += [

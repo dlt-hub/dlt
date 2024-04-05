@@ -13,6 +13,7 @@ import clickhouse_driver.errors  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 
+import dlt
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -33,6 +34,10 @@ from dlt.destinations.utils import _convert_to_old_pyformat
 
 TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
     "Clickhouse does not support transactions! Each statement is auto-committed separately."
+)
+DATASET_PREFIX = dlt.config["destination.clickhouse.credentials.dataset_prefix"] or "__"
+DATASET_TABLE_SEPARATOR = (
+    dlt.config["destination.clickhouse.credentials.dataset_table_separator"] or "___"
 )
 
 
@@ -146,28 +151,28 @@ class ClickhouseSqlClient(
             yield ClickhouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        database_name = (
-            self.capabilities.escape_identifier(self.database_name)
-            if escape
-            else self.database_name
-        )
-        dataset_name = (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
+        if escape:
+            database_name = self.capabilities.escape_identifier(self.database_name)
+            dataset_name = self.capabilities.escape_identifier(
+                f"{DATASET_PREFIX}{self.dataset_name}"
+            )
+        else:
+            database_name = self.database_name
+            dataset_name = f"{DATASET_PREFIX}{self.dataset_name}"
         return f"{database_name}.{dataset_name}"
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        database_name = (
-            self.capabilities.escape_identifier(self.database_name)
-            if escape
-            else self.database_name
-        )
-        dataset_table_name = (
-            self.capabilities.escape_identifier(f"{self.dataset_name}_{table_name}")
-            if escape
-            else f"{self.dataset_name}_{table_name}"
-        )
-        return f"{database_name}.{dataset_table_name}"
+        if escape:
+            database_name = self.capabilities.escape_identifier(self.database_name)
+            dataset_and_table = self.capabilities.escape_identifier(
+                f"{DATASET_PREFIX}{self.dataset_name}{DATASET_TABLE_SEPARATOR}{table_name}"
+            )
+        else:
+            database_name = self.database_name
+            dataset_and_table = (
+                f"{DATASET_PREFIX}{self.dataset_name}{DATASET_TABLE_SEPARATOR}{table_name}"
+            )
+        return f"{database_name}.{dataset_and_table}"
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:  # type: ignore[return]
