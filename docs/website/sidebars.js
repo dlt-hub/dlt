@@ -11,6 +11,19 @@
 
 // @ts-check
 const fs = require('fs');
+const path = require('path');
+
+
+function *walkSync(dir) {
+  const files = fs.readdirSync(dir, { withFileTypes: true });
+  for (const file of files) {
+    if (file.isDirectory()) {
+      yield* walkSync(path.join(dir, file.name));
+    } else {
+      yield path.join(dir, file.name);
+    }
+  }
+}
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
@@ -273,15 +286,6 @@ const sidebars = {
         keywords: ['examples'],
       },
       items: [
-        'examples/transformers/index',
-        'examples/incremental_loading/index',
-        'examples/connector_x_arrow/index',
-        'examples/chess_production/index',
-        'examples/nested_data/index',
-        'examples/qdrant_zendesk/index',
-        'examples/google_sheets/index',
-        'examples/pdf_to_weaviate/index',
-        'examples/custom_destination_bigquery/index'
       ],
     },
     {
@@ -308,6 +312,19 @@ const sidebars = {
     // }
   ]
 };
+
+
+// insert examples
+for (const item of sidebars.tutorialSidebar) {
+  if (item.label === 'Code examples') {
+    for (let examplePath of walkSync("./docs_processed/examples")) {
+      examplePath = examplePath.replace("docs_processed/", "");
+      examplePath = examplePath.replace(".md", "");
+      item.items.push(examplePath);
+    }
+  }
+}
+
 
 // inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {
