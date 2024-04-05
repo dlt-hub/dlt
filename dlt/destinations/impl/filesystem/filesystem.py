@@ -41,7 +41,6 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-
         self.destination_file_name = path_utils.create_path(
             config.layout,
             file_name,
@@ -144,9 +143,14 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
             truncate_prefixes = self._get_table_prefixes(truncate_tables=truncate_tables)
 
             # print(f"TRUNCATE PREFIXES {truncate_prefixes} on {truncate_tables}")
+            # We would like to gather all files and folders
+            # first set of `truncated_dirs` will be top_level
+            # directories thus later we only iterate through them
+            # and delete them once all files have been deleted first
             directories, files = self._get_items_to_remove(
                 truncated_dirs=truncated_dirs,
                 prefixes=truncate_prefixes,
+                top_level=True,
             )
 
             for file in files:
@@ -163,7 +167,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                         " be created previously!"
                     )
 
-            for dir in directories:
+            for dir, is_top_level in directories:
+                if not is_top_level:
+                    continue
+
                 try:
                     logger.info(f"Will truncate tables in {dir}")
                     if self.fs_client.exists(dir):
@@ -196,14 +203,20 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         return truncate_prefixes
 
     def _get_items_to_remove(
-        self, truncated_dirs: List[str], prefixes: Set[str]
+        self,
+        truncated_dirs: List[str],
+        prefixes: Set[str],
+        top_level: bool = False,
     ) -> Tuple[List[str], List[str]]:
         """Gets the list of directories and files starting with the given prefixes
 
         Returns:
             (directories, files): tuple with directories and files
         """
-        directories: List[str] = []
+        # list of tuples of directories and a boolean flag
+        # indicating that the a directory is a top level directory
+        # so later we remove only top level directories once
+        directories: List[Tuple[str, bool]] = []
         files: List[str] = []
         for truncate_dir in truncated_dirs:
             all_files = self.fs_client.ls(truncate_dir, detail=True, refresh=True)
@@ -213,11 +226,24 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
 
                 # check every file against all the prefixes
                 for search_prefix in prefixes:
-                    if item.startswith(search_prefix):
+                    if item_path.startswith(search_prefix):
                         if item_type == "file":
                             files.append(item_path)
+
+                        # when we get the directory we need to descend
+                        # and collect all files in sub-directories
                         if item_type == "directory":
-                            directories.append(item_path)
+                            directories.append((item_path, top_level))
+                            nested_dirs, nested_files = self._get_items_to_remove(
+                                [item_path],
+                                prefixes,
+                                top_level=False,
+                            )
+                            if nested_dirs:
+                                directories.extend(nested_dirs)
+
+                            if nested_files:
+                                files.extend(nested_files)
 
         return directories, files
 
