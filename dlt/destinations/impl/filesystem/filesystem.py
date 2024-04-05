@@ -167,21 +167,21 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                         " be created previously!"
                     )
 
-            for dir, is_top_level in directories:
+            for directory, is_top_level in directories:
                 if not is_top_level:
                     continue
 
                 try:
-                    logger.info(f"Will truncate tables in {dir}")
-                    if self.fs_client.exists(dir):
-                        self.fs_client.rmdir(dir)
+                    logger.info(f"Will truncate tables in {directory}")
+                    if self.fs_client.exists(directory):
+                        self.fs_client.rmdir(directory)
                     else:
                         logger.info(
-                            f"Directory or path to truncate tables {dir} does not exist but it"
-                            " should be created previously!"
+                            f"Directory or path to truncate tables {directory} does not exist but"
+                            " it should have been created previously!"
                         )
                 except OSError:
-                    logger.info(f"Directory or path to truncate {dir} is not empty")
+                    logger.info(f"Directory or path to truncate {directory} is not empty")
 
     def update_stored_schema(
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
