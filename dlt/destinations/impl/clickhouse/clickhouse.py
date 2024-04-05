@@ -7,7 +7,6 @@ from urllib.parse import urlparse
 from jinja2 import Template
 
 import dlt
-from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
@@ -241,13 +240,11 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             )
         elif not bucket_path:
             # Local filesystem.
-            if not file_path:
-                raise LoadJobTerminalException(
-                    file_path,
-                    "If `bucket_path` isn't provided, then you must specify a local file path.",
-                )
-            print(file_path)
-            table_function = f"FROM INFILE '{file_path}' FORMAT {clickhouse_format}"
+            raise LoadJobTerminalException(
+                file_path,
+                "Cannot load from local file. Clickhouse does not support loading from local files."
+                " Configure staging with an s3, gcs or azure storage bucket.",
+            )
         else:
             raise LoadJobTerminalException(
                 file_path,
