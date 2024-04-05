@@ -244,30 +244,36 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             statement = f"INSERT INTO {qualified_table_name} {table_function}"
         elif not bucket_path:
             # Local filesystem.
-            with clickhouse_connect.get_client(
-                host=client.credentials.host,
-                port=client.credentials.port,
-                database=client.credentials.database,
-                user_name=client.credentials.username,
-                password=client.credentials.password,
-                secure=bool(client.credentials.secure),
-            ) as clickhouse_connect_client:
-                insert_file(
-                    clickhouse_connect_client,
-                    qualified_table_name,
+            try:
+                with clickhouse_connect.create_client(
+                    host=client.credentials.host,
+                    port=client.credentials.http_port,
+                    database=client.credentials.database,
+                    user_name=client.credentials.username,
+                    password=client.credentials.password,
+                    secure=bool(client.credentials.secure),
+                ) as clickhouse_connect_client:
+                    insert_file(
+                        clickhouse_connect_client,
+                        qualified_table_name,
+                        file_path,
+                        fmt=clickhouse_format,
+                    )
+            except clickhouse_connect.driver.exceptions.Error as e:
+                raise LoadJobTerminalException(
                     file_path,
-                    fmt=clickhouse_format,
-                    database=client.database_name,
-                )
-            statement = ""
+                    f"Clickhouse connection failed due to {e}.",
+                ) from e
         else:
             raise LoadJobTerminalException(
                 file_path,
                 f"Clickhouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
-        with client.begin_transaction():
-            client.execute_sql(statement)
+        # Don't use dbapi driver for local files.
+        if bucket_path:
+            with client.begin_transaction():
+                client.execute_sql(statement)
 
     def state(self) -> TLoadJobState:
         return "completed"

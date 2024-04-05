@@ -19,14 +19,18 @@ class ClickhouseCredentials(ConnectionStringCredentials):
     host: str  # type: ignore
     """Host with running ClickHouse server."""
     port: int = 9440
-    """Port ClickHouse server is bound to. Defaults to 9000."""
+    """Native port ClickHouse server is bound to. Defaults to 9440."""
+    http_port: int = 8443
+    """HTTP Port to connect to ClickHouse server's HTTP interface.
+    The HTTP port is needed for non-staging pipelines.
+     Defaults to 8123."""
     username: str = "default"
     """Database user. Defaults to 'default'."""
     database: str = "default"
     """database connect to. Defaults to 'default'."""
     secure: TSecureConnection = 1
     """Enables TLS encryption when connecting to ClickHouse Server. 0 means no encryption, 1 means encrypted."""
-    connect_timeout: int = 10
+    connect_timeout: int = 15
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
@@ -34,6 +38,7 @@ class ClickhouseCredentials(ConnectionStringCredentials):
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
         "port",
+        "http_port",
         "username",
         "database",
         "secure",

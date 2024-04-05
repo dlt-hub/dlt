@@ -149,9 +149,7 @@ class ClickhouseSqlClient(
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
             database_name = self.capabilities.escape_identifier(self.database_name)
-            dataset_name = self.capabilities.escape_identifier(
-                f"{self.dataset_name}"
-            )
+            dataset_name = self.capabilities.escape_identifier(f"{self.dataset_name}")
         else:
             database_name = self.database_name
             dataset_name = f"{self.dataset_name}"
@@ -168,9 +166,7 @@ class ClickhouseSqlClient(
             )
         else:
             database_name = self.database_name
-            dataset_and_table = (
-                f"{self.dataset_name}{dataset_table_separator}{table_name}"
-            )
+            dataset_and_table = f"{self.dataset_name}{dataset_table_separator}{table_name}"
         return f"{database_name}.{dataset_and_table}"
 
     @classmethod
