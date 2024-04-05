@@ -28,6 +28,8 @@ its place in system administration, web development, and network programming.
 
 ## History repeats, Python is a language for humans
 
+![human-building](https://storage.googleapis.com/dlt-blog-images/easy-things-easy.png)
+
 Python took the philosophy of making programming more accessible and human-friendly even further.
 Guido van Rossum created Python with the goal of removing the drudgery from coding, choosing to
 prioritize readability and simplicity. This design philosophy makes Python an intuitive language
