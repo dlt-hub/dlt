@@ -153,10 +153,8 @@ def bigquery_adapter(
     if insert_api is not None:
         if insert_api == "streaming" and data.write_disposition != "append":
             raise ValueError(
-                (
-                    "BigQuery streaming insert can only be used with `append` write_disposition, while "
-                    f"the given resource has `{data.write_disposition}`."
-                )
+                "BigQuery streaming insert can only be used with `append` write_disposition, while "
+                f"the given resource has `{data.write_disposition}`."
             )
         additional_table_hints |= {"x-insert-api": insert_api}  # type: ignore[operator]
 

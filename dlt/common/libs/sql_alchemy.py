@@ -117,18 +117,21 @@ except ImportError:
                 return None
             try:
                 return int(port)
-            except TypeError as e:
-                raise TypeError("Port argument must be an integer or None") from e
+            except TypeError:
+                raise TypeError("Port argument must be an integer or None")
 
         @classmethod
         def _assert_str(cls, v: str, paramname: str) -> str:
             if not isinstance(v, str):
-                raise TypeError(f"{paramname} must be a string")
+                raise TypeError("%s must be a string" % paramname)
             return v
 
         @classmethod
         def _assert_none_str(cls, v: Optional[str], paramname: str) -> Optional[str]:
-            return v if v is None else cls._assert_str(v, paramname)
+            if v is None:
+                return v
+
+            return cls._assert_str(v, paramname)
 
         @classmethod
         def _str_dict(
@@ -251,14 +254,14 @@ except ImportError:
 
             new_query: Mapping[str, Union[str, Sequence[str]]]
             if append:
-                new_query = {
-                    k: (
-                        tuple(to_list(existing_query[k]) + to_list(new_keys[k]))
-                        if k in existing_query
-                        else new_keys[k]
-                    )
-                    for k in new_keys
-                }
+                new_query = {}
+
+                for k in new_keys:
+                    if k in existing_query:
+                        new_query[k] = tuple(to_list(existing_query[k]) + to_list(new_keys[k]))
+                    else:
+                        new_query[k] = new_keys[k]
+
                 new_query.update(
                     {k: existing_query[k] for k in set(existing_query).difference(new_keys)}
                 )
@@ -280,7 +283,7 @@ except ImportError:
 
         def render_as_string(self, hide_password: bool = True) -> str:
             """Render this `URL` object as a string."""
-            s = f"{self.drivername}://"
+            s = self.drivername + "://"
             if self.username is not None:
                 s += quote(self.username, safe=" +")
                 if self.password is not None:

@@ -36,9 +36,10 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
         if sc_type == "complex":
             if issubclass(inner_hint, C_Sequence):
                 return ["a", "b", "c"]
-            table = tomlkit.table(False)
-            table["key"] = "value"
-            return table
+            else:
+                table = tomlkit.table(False)
+                table["key"] = "value"
+                return table
         if sc_type == "timestamp":
             return pendulum.now().to_iso8601_string()
         if sc_type == "date":
@@ -73,14 +74,15 @@ def write_value(
         write_spec(inner_table, hint(), overwrite_existing)
         if len(inner_table) > 0:
             toml_table[name] = inner_table
-    elif default_value is None:
-        example_value = generate_typed_example(name, hint)
-        toml_table[name] = example_value
-        # tomlkit not supporting comments on boolean
-        if not isinstance(example_value, bool):
-            toml_table[name].comment("please set me up!")
     else:
-        toml_table[name] = default_value
+        if default_value is None:
+            example_value = generate_typed_example(name, hint)
+            toml_table[name] = example_value
+            # tomlkit not supporting comments on boolean
+            if not isinstance(example_value, bool):
+                toml_table[name].comment("please set me up!")
+        else:
+            toml_table[name] = default_value
 
 
 def write_spec(toml_table: TOMLTable, config: BaseConfiguration, overwrite_existing: bool) -> None:

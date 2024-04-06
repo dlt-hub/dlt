@@ -53,9 +53,9 @@ from dlt.destinations.impl.clickhouse.utils import (
     FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING,
     SUPPORTED_FILE_FORMATS,
 )
-from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
+    SqlJobClientWithStaging,
 )
 from dlt.destinations.job_impl import NewReferenceJob, EmptyLoadJob
 from dlt.destinations.sql_jobs import SqlMergeJob
@@ -187,7 +187,6 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
         # compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
-        table_function: str = ""
         statement: str = ""
 
         if bucket_scheme in ("s3", "gs", "gcs"):
@@ -445,7 +444,7 @@ class ClickhouseMergeJob(SqlMergeJob):
         return sql
 
 
-class ClickhouseClient(InsertValuesJobClient, SupportsStagingDestination):
+class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(
