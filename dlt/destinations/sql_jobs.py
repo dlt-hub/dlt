@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Optional
+from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
 from dlt.common.logger import pretty_format_exception
@@ -17,8 +17,9 @@ from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 
 
-class SqlJobParams(TypedDict):
+class SqlJobParams(TypedDict, total=False):
     replace: Optional[bool]
+    table_chain_create_table_statements: Dict[str, Sequence[str]]
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
@@ -40,7 +41,7 @@ class SqlBaseJob(NewLoadJobImpl):
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
         """
-        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})  # type: ignore
+        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})
         top_table = table_chain[0]
         file_info = ParsedLoadJobFileName(
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
