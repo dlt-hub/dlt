@@ -1,4 +1,4 @@
-from typing import List, Set, Iterable, Callable
+from typing import List, Set, Iterable, Callable, Optional
 
 from dlt.common import logger
 from dlt.common.storages.load_package import LoadJobInfo, PackageStorage
@@ -15,6 +15,7 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStagingDataset,
 )
+from dlt.common.pipeline import TRefreshMode
 
 
 def get_completed_table_chain(
@@ -66,6 +67,7 @@ def init_client(
     expected_update: TSchemaTables,
     truncate_filter: Callable[[TTableSchema], bool],
     load_staging_filter: Callable[[TTableSchema], bool],
+    refresh: Optional[TRefreshMode] = None,
 ) -> TSchemaTables:
     """Initializes destination storage including staging dataset if supported
 
@@ -84,6 +86,8 @@ def init_client(
     """
     # get dlt/internal tables
     dlt_tables = set(schema.dlt_table_names())
+
+    all_tables = set(schema.tables.keys())
     # tables without data (TODO: normalizer removes such jobs, write tests and remove the line below)
     tables_no_data = set(
         table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
@@ -92,12 +96,23 @@ def init_client(
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their child tables
+    if refresh == "drop_data":
+        truncate_filter = lambda t: True
     truncate_tables = set(
         _extend_tables_with_table_chain(schema, tables_with_jobs, tables_with_jobs, truncate_filter)
     )
 
+    if refresh in ("drop_dataset", "drop_tables"):
+        drop_tables = all_tables - dlt_tables - tables_no_data
+    else:
+        drop_tables = set()
+
     applied_update = _init_dataset_and_update_schema(
-        job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables
+        job_client,
+        expected_update,
+        tables_with_jobs | dlt_tables,
+        truncate_tables,
+        drop_tables=drop_tables,
     )
 
     # update the staging dataset if client supports this
@@ -128,6 +143,7 @@ def _init_dataset_and_update_schema(
     update_tables: Iterable[str],
     truncate_tables: Iterable[str] = None,
     staging_info: bool = False,
+    drop_tables: Optional[Iterable[str]] = None,
 ) -> TSchemaTables:
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
@@ -146,6 +162,12 @@ def _init_dataset_and_update_schema(
         f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
     )
     job_client.initialize_storage(truncate_tables=truncate_tables)
+    if drop_tables:
+        if hasattr(job_client, "drop_tables"):
+            logger.info(
+                f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
+            )
+            job_client.drop_tables(*drop_tables)
     return applied_update
 
 

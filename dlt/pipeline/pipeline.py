@@ -557,6 +557,7 @@ class Pipeline(SupportsPipeline):
             config=load_config,
             initial_client_config=client.config,
             initial_staging_client_config=staging_client.config if staging_client else None,
+            refresh=self.refresh if not self.first_run else None,
         )
         try:
             with signals.delayed_signals():
@@ -566,6 +567,7 @@ class Pipeline(SupportsPipeline):
             self.first_run = False
             return info
         except Exception as l_ex:
+            raise
             step_info = self._get_step_info(load_step)
             raise PipelineStepFailed(
                 self, "load", load_step.current_load_id, l_ex, step_info

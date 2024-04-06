@@ -69,6 +69,22 @@ def drop_resources(
     drop_all: bool = False,
     state_only: bool = False,
 ) -> Tuple[Schema, TPipelineState, _DropInfo]:
+    """Generate a new schema and pipeline state with the requested resources removed.
+
+    Args:
+        schema: The schema to modify.
+        state: The pipeline state to modify.
+        resources: Resource name(s) or regex pattern(s) matching resource names to drop.
+            If empty, no resources will be dropped unless `drop_all` is True.
+        state_paths: JSON path(s) relative to the source state to drop.
+        drop_all: If True, all resources will be dropped (supeseeds `resources`).
+        state_only: If True, only modify the pipeline state, not schema
+
+    Returns:
+        A 3 part tuple containing the new schema, the new pipeline state, and a dictionary
+        containing information about the drop operation.
+    """
+
     if isinstance(resources, str):
         resources = [resources]
     resources = list(resources)
