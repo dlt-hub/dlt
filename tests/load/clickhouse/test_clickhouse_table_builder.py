@@ -17,7 +17,7 @@ from tests.load.utils import TABLE_UPDATE, empty_schema
 @pytest.fixture
 def clickhouse_client(empty_schema: Schema) -> ClickhouseClient:
     # Return a client without opening connection.
-    creds = ClickhouseCredentials()  # type: ignore
+    creds = ClickhouseCredentials()
     return ClickhouseClient(
         empty_schema,
         ClickhouseClientConfiguration(dataset_name=f"test_{uniq_id()}", credentials=creds),
@@ -34,7 +34,7 @@ def test_clickhouse_configuration() -> None:
             "DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD": "fuss_do_rah",
         }
     ):
-        C = resolve_configuration(ClickhouseCredentials(), sections=("destination", "clickhouse"))  # type: ignore
+        C = resolve_configuration(ClickhouseCredentials(), sections=("destination", "clickhouse"))
         assert C.database == "mydb"
         assert C.password == "fuss_do_rah"
 
@@ -42,7 +42,7 @@ def test_clickhouse_configuration() -> None:
     assert ClickhouseClientConfiguration().fingerprint() == ""
     # Based on host.
     c = resolve_configuration(
-        ClickhouseCredentials(),  # type: ignore
+        ClickhouseCredentials(),
         explicit_value="clickhouse://user1:pass@host1/db1",
     )
     assert ClickhouseClientConfiguration(credentials=c).fingerprint() == digest128("host1")
