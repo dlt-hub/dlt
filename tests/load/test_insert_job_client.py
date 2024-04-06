@@ -78,8 +78,6 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
 )
 def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     # test expected dbapi exceptions for supported destinations
-    import duckdb
-    import pyodbc
     from dlt.destinations.impl.postgres.sql_client import psycopg2
 
     TNotNullViolation = psycopg2.errors.NotNullViolation
@@ -90,10 +88,14 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         # redshift does not know or psycopg does not recognize those correctly
         TNotNullViolation = psycopg2.errors.InternalError_
     if client.config.destination_type == "duckdb":
+        import duckdb
+
         TUndefinedColumn = duckdb.BinderException
         TNotNullViolation = duckdb.ConstraintException
         TNumericValueOutOfRange = TDatatypeMismatch = duckdb.ConversionException
     if client.config.destination_type == "synapse":
+        import pyodbc
+
         TUndefinedColumn = pyodbc.ProgrammingError
         TNotNullViolation = pyodbc.IntegrityError
         TNumericValueOutOfRange = TDatatypeMismatch = pyodbc.DataError
