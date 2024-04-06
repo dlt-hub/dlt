@@ -13,7 +13,7 @@ from dlt.common.utils import digest128
 TSecureConnection = Literal[0, 1]
 
 
-@configspec
+@configspec(init=False)
 class ClickhouseCredentials(ConnectionStringCredentials):
     drivername: str = "clickhouse"
     host: str  # type: ignore
