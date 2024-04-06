@@ -68,4 +68,12 @@ NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE
 ```
 
 ### Timestamps and timezones
-`dlt` adds timezone (UTC adjustment) to timestamps with microseconds precision. All other timestamp (second, millisecond, nanosecond) are stored without the adjustment.
+`dlt` adds timezone (UTC adjustment) to all timestamps regardless of a precision (from seconds to nanoseconds). `dlt` will also create TZ aware timestamp columns in
+the destinations. If the latter is impossible, there are workaround
+
+### Disable timezones / utc adjustment flags
+You can generate parquet files without timezone adjustment information in two ways:
+1. Set the **flavor** to spark. All timestamps will be generated via deprecated `int96` physical data type, without the logical one
+2. Set the **timestamp_timezone** to empty string (ie. `DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate logical type without UTC adjustment.
+
+To our best knowledge, arrow will convert your timezone aware DateTime(s) to UTC and store them in parquet without timezone information.

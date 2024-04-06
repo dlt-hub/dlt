@@ -14,7 +14,6 @@ from tests.cases import (
     TABLE_ROW_ALL_DATA_TYPES,
     arrow_table_all_data_types,
 )
-from tests.utils import write_version, autouse_test_storage, preserve_environ
 
 
 def test_csv_writer_all_data_fields() -> None:

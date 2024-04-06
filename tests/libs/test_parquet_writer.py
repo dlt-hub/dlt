@@ -1,6 +1,7 @@
 import os
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 import datetime  # noqa: 251
 import time
 
@@ -14,8 +15,11 @@ from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.libs.pyarrow import from_arrow_scalar
 
 from tests.common.data_writers.utils import get_writer
-from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES_DATETIMES
-from tests.utils import write_version, autouse_test_storage, preserve_environ
+from tests.cases import (
+    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS,
+    TABLE_UPDATE_COLUMNS_SCHEMA,
+    TABLE_ROW_ALL_DATA_TYPES_DATETIMES,
+)
 
 
 def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
@@ -130,7 +134,7 @@ def test_parquet_writer_all_data_fields() -> None:
         assert actual == value
 
     assert table.schema.field("col1_precision").type == pa.int16()
-    assert table.schema.field("col4_precision").type == pa.timestamp("ms")
+    assert table.schema.field("col4_precision").type == pa.timestamp("ms", tz="UTC")
     assert table.schema.field("col5_precision").type == pa.string()
     assert table.schema.field("col6_precision").type == pa.decimal128(6, 2)
     assert table.schema.field("col7_precision").type == pa.binary(19)
@@ -246,8 +250,8 @@ def test_parquet_writer_schema_from_caps() -> None:
         writer._flush_items()
 
         column_type = writer._writer.schema.field("col2").type
-        assert column_type == pa.timestamp("ns")
-        assert column_type.tz is None
+        assert column_type == pa.timestamp("ns", tz="UTC")
+        assert column_type.tz == "UTC"
         column_type = writer._writer.schema.field("col1").type
         assert isinstance(column_type, pa.Decimal128Type)
         assert column_type.precision == 18
@@ -260,30 +264,52 @@ def test_parquet_writer_schema_from_caps() -> None:
 
     with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
         col2_info = json.loads(reader.metadata.schema.column(1).logical_type.to_json())
-        assert col2_info["isAdjustedToUTC"] is False
+        assert col2_info["isAdjustedToUTC"] is True
         assert col2_info["timeUnit"] == "nanoseconds"
 
 
-def test_parquet_writer_timestamp_precision() -> None:
+@pytest.mark.parametrize("tz", ["UTC", "Europe/Berlin", ""])
+def test_parquet_writer_timestamp_precision(tz: str) -> None:
     now = pendulum.now()
     now_ns = time.time_ns()
 
     # store nanoseconds
     os.environ["DATA_WRITER__VERSION"] = "2.6"
+    os.environ["DATA_WRITER__TIMESTAMP_TIMEZONE"] = tz
+
+    adjusted = tz != ""
 
     with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
         for _ in range(0, 5):
             writer.write_data_item(
                 [{"col1": now, "col2": now, "col3": now, "col4": now_ns}],
-                {
-                    "col1": new_column("col1", "timestamp", precision=0),
-                    "col2": new_column("col2", "timestamp", precision=3),
-                    "col3": new_column("col2", "timestamp", precision=6),
-                    "col4": new_column("col2", "timestamp", precision=9),
-                },
+                TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS,
             )
         # force the parquet writer to be created
         writer._flush_items()
-        print(writer._writer.schema)
+
+        def _assert_arrow_field(field: int, prec: str) -> None:
+            column_type = writer._writer.schema.field(field).type
+            assert column_type == pa.timestamp(prec, tz=tz)
+            if adjusted:
+                assert column_type.tz == tz
+            else:
+                assert column_type.tz is None
+
+        _assert_arrow_field(0, "us")
+        _assert_arrow_field(1, "ms")
+        _assert_arrow_field(2, "us")
+        _assert_arrow_field(3, "ns")
+
     with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
         print(reader.metadata.schema)
+
+        def _assert_pq_column(col: int, prec: str) -> None:
+            info = json.loads(reader.metadata.schema.column(col).logical_type.to_json())
+            assert info["isAdjustedToUTC"] is adjusted
+            assert info["timeUnit"] == prec
+
+        _assert_pq_column(0, "microseconds")
+        _assert_pq_column(1, "milliseconds")
+        _assert_pq_column(2, "microseconds")
+        _assert_pq_column(3, "nanoseconds")

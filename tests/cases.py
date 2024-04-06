@@ -8,6 +8,7 @@ import random
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
+from dlt.common.schema.utils import new_column
 from dlt.common.typing import StrAny, TDataItems
 from dlt.common.wei import Wei
 from dlt.common.time import (
@@ -148,6 +149,28 @@ TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col10"] = ensure_pendulum_date(TABLE_ROW_ALL
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"] = ensure_pendulum_datetime(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"])  # type: ignore[arg-type]
+
+
+TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS = [
+    new_column("col1_ts", "timestamp", precision=0),
+    new_column("col2_ts", "timestamp", precision=3),
+    new_column("col3_ts", "timestamp", precision=6),
+    new_column("col4_ts", "timestamp", precision=9),
+]
+TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS: TTableSchemaColumns = {
+    c["name"]: c for c in TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
+}
+
+TABLE_UPDATE_ALL_INT_PRECISIONS = [
+    new_column("col1_int", "bigint", precision=8),
+    new_column("col2_int", "bigint", precision=16),
+    new_column("col3_int", "bigint", precision=32),
+    new_column("col4_int", "bigint", precision=64),
+    new_column("col5_int", "bigint", precision=128),
+]
+TABLE_UPDATE_ALL_INT_PRECISIONS_COLUMNS: TTableSchemaColumns = {
+    c["name"]: c for c in TABLE_UPDATE_ALL_INT_PRECISIONS
+}
 
 
 def table_update_and_row(

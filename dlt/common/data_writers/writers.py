@@ -251,7 +251,6 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     flavor: Optional[str] = None  # could be ie. "spark"
     version: Optional[str] = "2.4"
     data_page_size: Optional[int] = None
-    timestamp_precision: str = "us"
     timestamp_timezone: str = "UTC"
     row_group_size: Optional[int] = None
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
@@ -314,7 +313,6 @@ class ParquetDataWriter(DataWriter):
                         schema_item,
                         self._caps,
                         self.timestamp_timezone,
-                        self.coerce_timestamps or "us",
                     ),
                     nullable=schema_item.get("nullable", True),
                 )

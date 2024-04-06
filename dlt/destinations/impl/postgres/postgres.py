@@ -2,6 +2,7 @@ from typing import ClassVar, Dict, Optional, Sequence, List, Any
 
 from dlt.common.destination.reference import FollowupJob, LoadJob, NewLoadJob, TLoadJobState
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
@@ -64,7 +65,11 @@ class PostgresTypeMapper(TypeMapper):
             return "smallint"
         elif precision <= 32:
             return "integer"
-        return "bigint"
+        elif precision <= 64:
+            return "bigint"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None

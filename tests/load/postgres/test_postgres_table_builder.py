@@ -2,6 +2,7 @@ import pytest
 from copy import deepcopy
 import sqlfluff
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -11,7 +12,12 @@ from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
 )
 
-from tests.load.utils import TABLE_UPDATE, empty_schema
+from tests.cases import (
+    TABLE_UPDATE,
+    TABLE_UPDATE_ALL_INT_PRECISIONS,
+    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS,
+)
+from tests.load.utils import empty_schema
 
 
 @pytest.fixture
@@ -47,6 +53,23 @@ def test_create_table(client: PostgresClient) -> None:
     assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
     assert '"col7_precision" bytea' in sql
     assert '"col11_precision" time (3) without time zone  NOT NULL' in sql
+
+
+def test_create_table_all_precisions(client: PostgresClient) -> None:
+    # 128 bit integer will fail
+    table_update = list(TABLE_UPDATE_ALL_INT_PRECISIONS)
+    with pytest.raises(TerminalValueError) as tv_ex:
+        sql = client._get_table_update_sql("event_test_table", table_update, False)[0]
+    assert "128" in str(tv_ex.value)
+
+    # remove col5 HUGEINT which is last
+    table_update.pop()
+    sql = client._get_table_update_sql("event_test_table", table_update, False)[0]
+    sqlfluff.parse(sql, dialect="duckdb")
+    assert '"col1_int" smallint ' in sql
+    assert '"col2_int" smallint ' in sql
+    assert '"col3_int" integer ' in sql
+    assert '"col4_int" bigint ' in sql
 
 
 def test_alter_table(client: PostgresClient) -> None:
