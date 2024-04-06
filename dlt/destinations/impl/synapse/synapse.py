@@ -10,19 +10,20 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
     NewLoadJob,
-    CredentialsConfiguration,
 )
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
-from dlt.common.schema.utils import table_schema_has_type, get_inherited_table_hint
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.utils import (
+    table_schema_has_type,
+    get_inherited_table_hint,
+    is_complete_column,
+)
 
 from dlt.common.configuration.specs import AzureCredentialsWithoutDefaults
 
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -127,7 +128,7 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:
         if self.config.replace_strategy == "staging-optimized":
-            return [SynapseStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+            return [SynapseStagingCopyJob.from_table_chain(table_chain, self)]  # type: ignore[arg-type]
         return super()._create_replace_followup_jobs(table_chain)
 
     def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
@@ -178,10 +179,11 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
     def generate_sql(
         cls,
         table_chain: Sequence[TTableSchema],
-        sql_client: SqlClientBase[Any],
+        job_client: SynapseClient,  # type: ignore[override]
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
         sql: List[str] = []
+        sql_client = job_client.sql_client
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
@@ -194,11 +196,8 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
                 f" {staging_table_name};"
             )
             # recreate staging table
-            job_client = current.pipeline().destination_client()  # type: ignore[operator]
             with job_client.with_staging_dataset():
-                # get table columns from schema
-                columns = [c for c in job_client.schema.get_table_columns(table["name"]).values()]
-                # generate CREATE TABLE statement
+                columns = list(filter(is_complete_column, table["columns"].values()))
                 create_table_stmt = job_client._get_table_update_sql(
                     table["name"], columns, generate_alter=False
                 )
