@@ -170,7 +170,7 @@ class InsertValuesWriter(DataWriter):
         if self.writer_type == "default":
             self.pre, self.post, self.sep = ("(", ")", ",\n")
         elif self.writer_type == "select_union":
-            self.pre, self.post, self.sep = ("SELECT ", " ", "UNION ALL\n")
+            self.pre, self.post, self.sep = ("SELECT ", "", " UNION ALL\n")
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         assert self._chunks_written == 0

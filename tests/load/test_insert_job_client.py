@@ -14,7 +14,7 @@ from tests.utils import TEST_STORAGE_ROOT, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 from tests.load.pipeline.utils import destinations_configs
 
-DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "synapse"]
+DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "mssql", "synapse"]
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
         insert_sql += "VALUES\n"
         pre, post, sep = ("(", ")", ",\n")
     elif writer_type == "select_union":
-        pre, post, sep = ("SELECT ", " ", "UNION ALL\n")
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
     insert_values = (
         pre
         + f"'{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
@@ -93,7 +93,7 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
         TUndefinedColumn = duckdb.BinderException
         TNotNullViolation = duckdb.ConstraintException
         TNumericValueOutOfRange = TDatatypeMismatch = duckdb.ConversionException
-    if client.config.destination_type == "synapse":
+    if client.config.destination_type in ("mssql", "synapse"):
         import pyodbc
 
         TUndefinedColumn = pyodbc.ProgrammingError
@@ -176,6 +176,11 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     writer_type = client.capabilities.insert_values_writer_type
     insert_sql = prepare_insert_statement(10, writer_type)
 
+    if writer_type == "default":
+        pre, post, sep = ("(", ")", ",\n")
+    elif writer_type == "select_union":
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
+
     # this guarantees that we execute inserts line by line
     with patch.object(mocked_caps, "max_query_length", 2), patch.object(
         client.sql_client, "execute_fragments"
@@ -188,22 +193,17 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     for idx, call in enumerate(mocked_fragments.call_args_list):
         fragment: List[str] = call.args[0]
         # last elem of fragment is a data list, first element is id, and must end with ;\n
-        if writer_type == "default":
-            start = f"'{idx}'"
-            end = ");"
-        elif writer_type == "select_union":
-            start = f"SELECT '{idx}'"
-            end = ";"
+        start = pre + "'" + str(idx) + "'"
+        end = post + ";"
         assert fragment[-1].startswith(start)
         assert fragment[-1].endswith(end)
     assert_load_with_max_query(client, file_storage, 10, 2)
 
     if writer_type == "default":
-        start_idx = insert_sql.find("S\n(")
-        idx = insert_sql.find("),\n", len(insert_sql) // 2)
+        start_idx = insert_sql.find("S\n" + pre)
     elif writer_type == "select_union":
-        start_idx = insert_sql.find("SELECT ")
-        idx = insert_sql.find(" UNION ALL\n", len(insert_sql) // 2)
+        start_idx = insert_sql.find(pre)
+    idx = insert_sql.find(post + sep, len(insert_sql) // 2)
 
     # set query length so it reads data until separator ("," or " UNION ALL") (followed by \n)
     query_length = (idx - start_idx - 1) * 2
@@ -272,7 +272,7 @@ def prepare_insert_statement(lines: int, writer_type: str = "default") -> str:
         insert_sql += "VALUES\n"
         pre, post, sep = ("(", ")", ",\n")
     elif writer_type == "select_union":
-        pre, post, sep = ("SELECT ", " ", "UNION ALL\n")
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
     insert_values = pre + "'{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'" + post
     for i in range(lines):
         insert_sql += insert_values.format(str(i), uniq_id(), str(pendulum.now().add(seconds=i)))
