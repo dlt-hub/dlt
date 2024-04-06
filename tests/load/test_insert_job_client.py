@@ -78,22 +78,24 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
 )
 def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     # test expected dbapi exceptions for supported destinations
-    from dlt.destinations.impl.postgres.sql_client import psycopg2
+    dtype = client.config.destination_type
+    if dtype in ("postgres", "redshift"):
+        from dlt.destinations.impl.postgres.sql_client import psycopg2
 
-    TNotNullViolation = psycopg2.errors.NotNullViolation
-    TNumericValueOutOfRange = psycopg2.errors.NumericValueOutOfRange
-    TUndefinedColumn = psycopg2.errors.UndefinedColumn
-    TDatatypeMismatch = psycopg2.errors.DatatypeMismatch
-    if client.config.destination_type == "redshift":
-        # redshift does not know or psycopg does not recognize those correctly
-        TNotNullViolation = psycopg2.errors.InternalError_
-    if client.config.destination_type == "duckdb":
+        TNotNullViolation = psycopg2.errors.NotNullViolation
+        TNumericValueOutOfRange = psycopg2.errors.NumericValueOutOfRange
+        TUndefinedColumn = psycopg2.errors.UndefinedColumn
+        TDatatypeMismatch = psycopg2.errors.DatatypeMismatch
+        if dtype == "redshift":
+            # redshift does not know or psycopg does not recognize those correctly
+            TNotNullViolation = psycopg2.errors.InternalError_
+    elif dtype == "duckdb":
         import duckdb
 
         TUndefinedColumn = duckdb.BinderException
         TNotNullViolation = duckdb.ConstraintException
         TNumericValueOutOfRange = TDatatypeMismatch = duckdb.ConversionException
-    if client.config.destination_type in ("mssql", "synapse"):
+    elif dtype in ("mssql", "synapse"):
         import pyodbc
 
         TUndefinedColumn = pyodbc.ProgrammingError
@@ -159,9 +161,10 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
     )
     with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) in (
-        TNumericValueOutOfRange,
-        psycopg2.errors.InternalError_,
+    assert (
+        type(exv.value.dbapi_exception) == psycopg2.errors.InternalError_
+        if dtype == "redshift"
+        else TNumericValueOutOfRange
     )
 
 
