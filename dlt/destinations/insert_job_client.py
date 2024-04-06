@@ -83,13 +83,10 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # otherwise write all content in a single INSERT INTO
                     if writer_type == "default":
                         insert_sql.extend(
-                            [header.format(qualified_table_name), values_mark, content]
+                            [header.format(qualified_table_name), values_mark, content + until_nl]
                         )
                     elif writer_type == "select_union":
-                        insert_sql.extend([header.format(qualified_table_name), content])
-
-                    if until_nl:
-                        insert_sql.append(until_nl)
+                        insert_sql.extend([header.format(qualified_table_name), content + until_nl])
 
                 # actually this may be empty if we were able to read a full file into content
                 if not is_eof:
