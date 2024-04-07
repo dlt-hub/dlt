@@ -1,3 +1,4 @@
+import csv
 import posixpath
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
+from tests.cases import arrow_table_all_data_types
 from tests.utils import skip_if_not_active
 
 skip_if_not_active("filesystem")
@@ -95,6 +97,28 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
     assert len(append_files) == 1
     assert len(replace_files) == 1
+
+
+def test_pipeline_csv_filesystem_destination() -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # store locally
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    pipeline = dlt.pipeline(
+        pipeline_name="parquet_test_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="parquet_test_" + uniq_id(),
+    )
+
+    item, _, _ = arrow_table_all_data_types("table", include_json=False, include_time=True)
+    info = pipeline.run(item, table_name="table", loader_file_format="csv")
+    info.raise_on_failed_jobs()
+    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
+    assert job.endswith("csv")
+    with open(job, "r", encoding="utf-8") as f:
+        rows = list(csv.reader(f, dialect=csv.unix_dialect))
+        # header + 3 data rows
+        assert len(rows) == 4
 
 
 def test_pipeline_parquet_filesystem_destination() -> None:

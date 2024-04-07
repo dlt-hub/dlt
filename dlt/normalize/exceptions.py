@@ -1,3 +1,4 @@
+from typing import Any, List
 from dlt.common.exceptions import DltException
 
 
@@ -7,10 +8,13 @@ class NormalizeException(DltException):
 
 
 class NormalizeJobFailed(NormalizeException):
-    def __init__(self, load_id: str, job_id: str, failed_message: str) -> None:
+    def __init__(
+        self, load_id: str, job_id: str, failed_message: str, writer_metrics: List[Any]
+    ) -> None:
         self.load_id = load_id
         self.job_id = job_id
         self.failed_message = failed_message
+        self.writer_metrics = writer_metrics
         super().__init__(
             f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}."
         )

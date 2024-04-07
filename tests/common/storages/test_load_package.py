@@ -185,7 +185,7 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
     file_id = ParsedLoadJobFileName.new_file_id()
     f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl")
     job_f_n = PackageStorage.build_job_file_name(
-        f_n_t.table_name, file_id, 0, loader_file_format=load_storage.loader_file_format
+        f_n_t.table_name, file_id, 0, loader_file_format="jsonl"
     )
     # test the exact representation but we should probably not test for that
     assert job_f_n == f"test_table.{file_id}.0.jsonl"
@@ -195,12 +195,8 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
 
     # parts cannot contain dots
     with pytest.raises(ValueError):
-        PackageStorage.build_job_file_name(
-            "test.table", file_id, 0, loader_file_format=load_storage.loader_file_format
-        )
-        PackageStorage.build_job_file_name(
-            "test_table", "f.id", 0, loader_file_format=load_storage.loader_file_format
-        )
+        PackageStorage.build_job_file_name("test.table", file_id, 0, loader_file_format="jsonl")
+        PackageStorage.build_job_file_name("test_table", "f.id", 0, loader_file_format="jsonl")
 
     # parsing requires 4 parts and retry count
     with pytest.raises(ValueError):

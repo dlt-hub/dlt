@@ -36,6 +36,8 @@ The resources that this verified source supports are:
 | Task                   | merge | used to track and manage various activities and tasks within the salesforce platform                                        |
 | Event                  | merge | used to track and manage calendar-based events, such as meetings, appointments calls, or any other time-specific activities |
 
+* Note that formula fields are included - these function like Views in salesforce and will not be back-updated when their definitions change in Salesforce! The recommended handling is to ignore these fields and reproduce yourself any calculations from the base data fields.
+
 ## Setup Guide
 
 ### Grab credentials

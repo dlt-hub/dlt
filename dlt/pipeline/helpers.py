@@ -1,5 +1,5 @@
 import contextlib
-from typing import Callable, Sequence, Iterable, Optional, Any, List, Dict, Tuple, Union, TypedDict
+from typing import Callable, Sequence, Iterable, Optional, Any, List, Dict, Union, TypedDict
 from itertools import chain
 
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths

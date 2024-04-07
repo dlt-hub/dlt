@@ -23,9 +23,6 @@ from dlt.common.data_writers.writers import (
     EMPTY_DATA_WRITER_METRICS,
     InsertValuesWriter,
     JsonlWriter,
-    JsonlListPUAEncodeWriter,
-    ParquetDataWriter,
-    ArrowWriter,
 )
 
 from tests.common.utils import load_json_case, row_to_column_schemas

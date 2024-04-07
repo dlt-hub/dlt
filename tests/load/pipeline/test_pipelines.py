@@ -43,6 +43,9 @@ from tests.load.pipeline.utils import (
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -798,6 +801,11 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     # duckdb 0.9.1 does not support TIME other than 6
     if destination_config.destination in ["duckdb", "motherduck"]:
         column_schemas["col11_precision"]["precision"] = 0
+        # also we do not want to test col4_precision (datetime) because
+        # those timestamps are not TZ aware in duckdb and we'd need to
+        # disable TZ when generating parquet
+        # this is tested in test_duckdb.py
+        column_schemas["col4_precision"]["precision"] = 6
 
     # drop TIME from databases not supporting it via parquet
     if destination_config.destination in ["redshift", "athena", "synapse", "databricks"]:

@@ -139,6 +139,7 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -186,6 +187,7 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
         assert len(rows) == 0
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -208,6 +210,7 @@ def test_execute_ddl(client: SqlJobClientBase) -> None:
     assert rows[0][0] == Decimal("1.0")
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -250,6 +253,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
             assert len(rows) == 0
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -301,6 +305,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     assert df_3 is None
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )

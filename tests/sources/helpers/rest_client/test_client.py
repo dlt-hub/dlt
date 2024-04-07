@@ -74,6 +74,23 @@ class TestRESTClient:
 
         assert_pagination(pages)
 
+    def test_excplicit_paginator(self, rest_client: RESTClient):
+        pages_iter = rest_client.paginate(
+            "/posts", paginator=JSONResponsePaginator(next_url_path="next_page")
+        )
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_excplicit_paginator_relative_next_url(self, rest_client: RESTClient):
+        pages_iter = rest_client.paginate(
+            "/posts_relative_next_url",
+            paginator=JSONResponsePaginator(next_url_path="next_page"),
+        )
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
     def test_paginate_with_hooks(self, rest_client: RESTClient):
         def response_hook(response: Response, *args: Any, **kwargs: Any) -> None:
             if response.status_code == 404:
@@ -137,9 +154,7 @@ class TestRESTClient:
     def test_api_key_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/api-key",
-            auth=APIKeyAuth(
-                name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")
-            ),
+            auth=APIKeyAuth(name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")),
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
