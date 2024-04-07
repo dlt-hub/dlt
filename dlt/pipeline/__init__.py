@@ -1,4 +1,5 @@
-from typing import Sequence, Type, TypeVar, cast, overload
+from typing import Sequence, Type, cast, overload
+from typing_extensions import TypeVar
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TSchemaContract
@@ -15,7 +16,7 @@ from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 from dlt.pipeline.warnings import credentials_argument_deprecated
 
-TPipeline = TypeVar("TPipeline", bound=Pipeline)
+TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 
 
 @overload
@@ -31,7 +32,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    _impl_cls: Type[TPipeline] = Pipeline,
+    _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
 ) -> TPipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -81,6 +82,12 @@ def pipeline(
     """
 
 
+@overload
+def pipeline() -> Pipeline:  # type: ignore
+    """When called without any arguments, returns the recently created `Pipeline` instance.
+    If not found, it creates a new instance with all the pipeline options set to defaults."""
+
+
 @with_config(spec=PipelineConfiguration, auto_pipeline_section=True)
 def pipeline(
     pipeline_name: str = None,
@@ -94,7 +101,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    _impl_cls: Type[TPipeline] = Pipeline,
+    _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
     **kwargs: Any,
 ) -> TPipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
