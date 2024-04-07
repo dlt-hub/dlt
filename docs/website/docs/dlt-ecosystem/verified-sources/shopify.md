@@ -1,10 +1,13 @@
+---
+title: Shopify
+description: dlt pipeline for Shopify API
+keywords: [shopify api, shopify pipeline, shopify]
+---
+import Header from './_source-info-header.md';
+
 # Shopify
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Shopify](https://www.shopify.com/) is a user-friendly e-commerce solution that enables anyone to easily create and manage their
 own online store. Whereas a [Shopify partner](https://partners.shopify.com/) is an individual or company that

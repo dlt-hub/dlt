@@ -210,7 +210,7 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
 
     @property
     def schema_hash(self) -> str:
-        return self.schema.stored_version_hash
+        return self.schema.version_hash
 
     def asdict(self) -> DictStrAny:
         d = self._asdict()
@@ -627,8 +627,8 @@ class PackageStorage:
 
 @configspec
 class LoadPackageStateInjectableContext(ContainerInjectableContext):
-    storage: PackageStorage
-    load_id: str
+    storage: PackageStorage = None
+    load_id: str = None
     can_create_default: ClassVar[bool] = False
     global_affinity: ClassVar[bool] = False
 
@@ -639,10 +639,6 @@ class LoadPackageStateInjectableContext(ContainerInjectableContext):
     def on_resolved(self) -> None:
         self.state_save_lock = threading.Lock()
         self.state = self.storage.get_load_package_state(self.load_id)
-
-    if TYPE_CHECKING:
-
-        def __init__(self, load_id: str, storage: PackageStorage) -> None: ...
 
 
 def load_package() -> TLoadPackage:

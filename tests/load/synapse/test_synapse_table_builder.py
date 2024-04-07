@@ -25,8 +25,8 @@ def client(empty_schema: Schema) -> SynapseClient:
     # return client without opening connection
     client = SynapseClient(
         empty_schema,
-        SynapseClientConfiguration(
-            dataset_name="test_" + uniq_id(), credentials=SynapseCredentials()
+        SynapseClientConfiguration(credentials=SynapseCredentials())._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
         ),
     )
     assert client.config.create_indexes is False
@@ -39,8 +39,8 @@ def client_with_indexes_enabled(empty_schema: Schema) -> SynapseClient:
     client = SynapseClient(
         empty_schema,
         SynapseClientConfiguration(
-            dataset_name="test_" + uniq_id(), credentials=SynapseCredentials(), create_indexes=True
-        ),
+            credentials=SynapseCredentials(), create_indexes=True
+        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
     assert client.config.create_indexes is True
     return client

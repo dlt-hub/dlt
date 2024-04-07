@@ -18,13 +18,13 @@ Here we achieved ~30x speedups when loading data from (local) postgres database 
 
 We’ll start with [ConnectorX library](https://github.com/sfu-db/connector-x) that creates Arrow tables from SQL queries on most of the popular database engines.
 
-```python
+```sh
 pip install connectorx
 ```
 
 Lib has Rust inside, zero copy extraction and is amazingly fast. We’ll extract and normalize 10 000 000 [test rows](https://github.com/dlt-hub/verified-sources/blob/master/tests/sql_database/sql_source.py#L88) from local postgresql. The table **chat_message** looks like Slack messages dump.  Messages have unique autoincrement **id** which we use to load in chunks:
 
-```python
+```py
 import connectorx as cx
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
@@ -49,7 +49,7 @@ chat_messages = dlt.resource(
 
 In this demo I just extract and normalize data and skip the loading step.
 
-```python
+```py
 pipeline = dlt.pipeline(destination="duckdb", full_refresh=True)
 # extract first
 pipeline.extract(chat_messages)
@@ -78,7 +78,7 @@ Step normalize COMPLETED in 0.08 seconds.
 
 Here’s corresponding code working with **SqlAlchemy**. We process 10 000 000 rows, yielding in 100k rows packs and normalize to parquet in 3 parallel processes.
 
-```python
+```py
 from itertools import islice
 import dlt
 from sqlalchemy import create_engine

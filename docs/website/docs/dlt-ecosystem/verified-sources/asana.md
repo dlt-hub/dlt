@@ -3,14 +3,11 @@ title: Asana
 description: dlt verified source for Asana API
 keywords: [asana api, verified source, asana]
 ---
+import Header from './_source-info-header.md';
 
 # Asana
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Asana](https://asana.com) is a widely used web-based project management and collaboration tool that helps teams stay
 organized, focused, and productive. With Asana, team members can easily create, assign, and track

@@ -78,7 +78,7 @@ In my scenario, the email data doesn't have nested structures, so there's no nee
 
 Here's how the pipeline is defined and subsequently run in the first task of the main flow in **`Kestra`**:
 
-```python
+```py
 # Run dlt pipeline to load email data from gmail to BigQuery
 pipeline = dlt.pipeline(
     pipeline_name="standard_inbox",

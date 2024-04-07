@@ -1,5 +1,6 @@
+import dataclasses
 import sys
-from typing import Any, Final, List, Tuple, Union, Dict
+from typing import Any, ClassVar, Final, List, Tuple, Union, Dict
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.specs.api_credentials import OAuth2Credentials
@@ -22,8 +23,12 @@ from dlt.common.utils import is_interactive
 
 @configspec
 class GcpCredentials(CredentialsConfiguration):
-    token_uri: Final[str] = "https://oauth2.googleapis.com/token"
-    auth_uri: Final[str] = "https://accounts.google.com/o/oauth2/auth"
+    token_uri: Final[str] = dataclasses.field(
+        default="https://oauth2.googleapis.com/token", init=False, repr=False, compare=False
+    )
+    auth_uri: Final[str] = dataclasses.field(
+        default="https://accounts.google.com/o/oauth2/auth", init=False, repr=False, compare=False
+    )
 
     project_id: str = None
 
@@ -69,7 +74,9 @@ class GcpCredentials(CredentialsConfiguration):
 class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
     private_key: TSecretValue = None
     client_email: str = None
-    type: Final[str] = "service_account"  # noqa: A003
+    type: Final[str] = dataclasses.field(  # noqa: A003
+        default="service_account", init=False, repr=False, compare=False
+    )
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Accepts ServiceAccountCredentials as native value. In other case reverts to serialized services.json"""
@@ -121,8 +128,10 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
 @configspec
 class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     # only desktop app supported
-    refresh_token: TSecretValue
-    client_type: Final[str] = "installed"
+    refresh_token: TSecretValue = None
+    client_type: Final[str] = dataclasses.field(
+        default="installed", init=False, repr=False, compare=False
+    )
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Accepts Google OAuth2 credentials as native value. In other case reverts to serialized oauth client secret json"""
@@ -237,7 +246,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
 
 @configspec
 class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials):
-    _LAST_FAILED_DEFAULT: float = 0.0
+    _LAST_FAILED_DEFAULT: ClassVar[float] = 0.0
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Accepts google credentials as native value"""

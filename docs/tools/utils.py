@@ -1,27 +1,35 @@
 from typing import List
 import os
+import glob
 
 import dlt.cli.echo as fmt
 
 
 DOCS_DIR = "../website/docs"
+BLOG_DIR = "../website/blog"
 
 
 def collect_markdown_files(verbose: bool) -> List[str]:
     """
     Discovers all docs markdown files
     """
+
+    # collect docs pages
     markdown_files: List[str] = []
-    for path, _, files in os.walk(DOCS_DIR):
-        if "api_reference" in path:
+    for filepath in glob.glob(f"{DOCS_DIR}/**/*.md", recursive=True):
+        if "api_reference" in filepath:
             continue
-        if "jaffle_shop" in path:
+        if "jaffle_shop" in filepath:
             continue
-        for file in files:
-            if file.endswith(".md"):
-                markdown_files.append(os.path.join(path, file))
-                if verbose:
-                    fmt.echo(f"Discovered {os.path.join(path, file)}")
+        markdown_files.append(filepath)
+        if verbose:
+            fmt.echo(f"Discovered {filepath}")
+
+    # collect blog pages
+    for filepath in glob.glob(f"{BLOG_DIR}/**/*.md", recursive=True):
+        markdown_files.append(filepath)
+        if verbose:
+            fmt.echo(f"Discovered {filepath}")
 
     if len(markdown_files) < 50:  # sanity check
         fmt.error("Found too few files. Something went wrong.")

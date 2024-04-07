@@ -3,14 +3,11 @@ title: Strapi
 description: dlt verified source for Strapi API
 keywords: [strapi api, strapi verified source, strapi]
 ---
+import Header from './_source-info-header.md';
 
 # Strapi
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Strapi](https://strapi.io/) is a headless CMS (Content Management System) that allows developers to create API-driven
 content management systems without having to write a lot of custom code.

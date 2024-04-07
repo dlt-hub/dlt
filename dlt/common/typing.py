@@ -243,7 +243,7 @@ def get_all_types_of_class_in_union(hint: Type[Any], cls: Type[TAny]) -> List[Ty
     return [
         t
         for t in get_args(hint)
-        if inspect.isclass(t) and (issubclass(t, cls) or issubclass(cls, t))
+        if not is_typeddict(t) and inspect.isclass(t) and (issubclass(t, cls) or issubclass(cls, t))
     ]
 
 

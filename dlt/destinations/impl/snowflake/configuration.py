@@ -1,11 +1,9 @@
+import dataclasses
 import base64
-import binascii
-
-from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING
-
-from dlt.common.libs.sql_alchemy import URL
+from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING, Union
 
 from dlt import version
+from dlt.common.libs.sql_alchemy import URL
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -51,9 +49,9 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     )
 
 
-@configspec
+@configspec(init=False)
 class SnowflakeCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "snowflake"  # type: ignore[misc]
+    drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     password: Optional[TSecretStrValue] = None
     host: str = None
     database: str = None
@@ -118,8 +116,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
 @configspec
 class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "snowflake"  # type: ignore[misc]
-    credentials: SnowflakeCredentials
+    destination_type: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
+    credentials: SnowflakeCredentials = None
 
     stage_name: Optional[str] = None
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
@@ -131,18 +129,3 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            destination_type: str = None,
-            credentials: SnowflakeCredentials = None,
-            dataset_name: str = None,
-            default_schema_name: str = None,
-            stage_name: str = None,
-            keep_staged_files: bool = True,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...

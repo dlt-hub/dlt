@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "node tools/update_version_env.js && node tools/preprocess_docs.js && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
+    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_version_env.js && node tools/preprocess_docs.js && concurrently --kill-others \"node tools/preprocess_docs.js --watch\" \"docusaurus start\"",
     "build": "node tools/preprocess_docs.js  && PYTHONPATH=. poetry run pydoc-markdown && node tools/update_version_env.js && docusaurus build",
     "build:netlify": "node tools/preprocess_docs.js && PYTHONPATH=. pydoc-markdown && node tools/update_version_env.js && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",

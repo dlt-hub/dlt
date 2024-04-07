@@ -1,10 +1,13 @@
+---
+title: 30+ SQL Databases
+description: dlt pipeline for SQL Database
+keywords: [sql connector, sql database pipeline, sql database]
+---
+import Header from './_source-info-header.md';
+
 # 30+ SQL Databases
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 SQL databases are management systems (DBMS) that store data in a structured format, commonly used
 for efficient and reliable data retrieval.
@@ -59,7 +62,7 @@ The database above doesn't require a password.
 The connection URL can be broken down into:
 
 ```py
-connection_url = connection_string = f"{drivername}://{username}:{password}@{host}:{port}{database}"
+connection_url = f"{drivername}://{username}:{password}@{host}:{port}/{database}"
 ```
 
 `drivername`: Indicates both the database system and driver used.

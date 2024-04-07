@@ -1,6 +1,5 @@
-import dlt
 from dlt import TSecretValue
-from dlt.common import logger
+from dlt.common.runtime.init import init_logging
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.configuration.providers import GoogleSecretsProvider
 from dlt.common.configuration.accessors import secrets
@@ -24,7 +23,7 @@ project_id="mock-credentials"
 
 
 def test_regular_keys() -> None:
-    logger.init_logging(RunConfiguration())
+    init_logging(RunConfiguration())
     # copy bigquery credentials into providers credentials
     c = resolve_configuration(
         GcpServiceAccountCredentials(), sections=(known_sections.DESTINATION, "bigquery")

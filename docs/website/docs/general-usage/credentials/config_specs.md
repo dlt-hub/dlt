@@ -94,7 +94,7 @@ credentials = ConnectionStringCredentials()
 credentials.drivername = "postgresql"
 credentials.database = "my_database"
 credentials.username = "my_user"
-credentials.password = "my_password"
+credentials.password = "my_password"  # type: ignore
 credentials.host = "localhost"
 credentials.port = 5432
 
@@ -120,8 +120,8 @@ Usage:
 ```py
 credentials = OAuth2Credentials(
     client_id="CLIENT_ID",
-    client_secret="CLIENT_SECRET",
-    refresh_token="REFRESH_TOKEN",
+    client_secret="CLIENT_SECRET",  # type: ignore
+    refresh_token="REFRESH_TOKEN",  # type: ignore
     scopes=["scope1", "scope2"]
 )
 

@@ -19,13 +19,15 @@ def test_motherduck_database() -> None:
     # os.environ.pop("HOME", None)
 
     cred = MotherDuckCredentials("md:///?token=TOKEN")
+    print(dict(cred))
     assert cred.password == "TOKEN"
     cred = MotherDuckCredentials()
     cred.parse_native_representation("md:///?token=TOKEN")
     assert cred.password == "TOKEN"
 
     config = resolve_configuration(
-        MotherDuckClientConfiguration(dataset_name="test"), sections=("destination", "motherduck")
+        MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
+        sections=("destination", "motherduck"),
     )
     # connect
     con = config.credentials.borrow_conn(read_only=False)

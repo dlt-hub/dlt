@@ -1,10 +1,13 @@
+---
+title: Notion
+description: dlt pipeline for Notion API
+keywords: [notion api, notion pipeline, notion]
+---
+import Header from './_source-info-header.md';
+
 # Notion
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Notion](https://www.notion.so/) is a flexible workspace tool for organizing personal and
 professional tasks, offering customizable notes, documents, databases, and more.

@@ -17,10 +17,10 @@ You can setup GCP cloud function webhook using `dlt` as follows:
     
     ```py
     import dlt
-    import json
     import time
     from google.cloud import bigquery
-    
+    from dlt.common import json
+
     def your_webhook(request):
         # Extract relevant data from the request payload
         data = request.get_json()
@@ -40,7 +40,7 @@ You can setup GCP cloud function webhook using `dlt` as follows:
 7. Set the function name as "your_webhook" in the Entry point field.
 8. In the requirements.txt file, specify the necessary packages:
     
-    ```py
+    ```text
     # Function dependencies, for example:
     # package>=version
     dlt

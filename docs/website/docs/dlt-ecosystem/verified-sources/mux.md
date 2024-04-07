@@ -1,10 +1,13 @@
+---
+title: Mux
+description: dlt verified source for Mux
+keywords: [mux api, mux verified source, mux]
+---
+import Header from './_source-info-header.md';
+
 # Mux
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 
 [Mux.com](http://mux.com/) is a video technology platform that provides infrastructure and tools for developers to build and stream high-quality video content.

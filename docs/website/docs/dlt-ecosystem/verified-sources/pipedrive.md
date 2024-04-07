@@ -3,14 +3,11 @@ title: Pipedrive
 description: dlt verified source for Pipedrive API
 keywords: [pipedrive api, pipedrive verified source, pipedrive]
 ---
+import Header from './_source-info-header.md';
 
 # Pipedrive
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
-:::
+<Header/>
 
 [Pipedrive](https://developers.pipedrive.com/docs/api/v1) is a cloud-based sales Customer
 Relationship Management (CRM) tool designed to help businesses manage leads and deals, track
@@ -213,10 +210,11 @@ create and store a mapping of custom fields for different entities in the source
 ```py
 @dlt.resource(selected=False)
 def create_state(pipedrive_api_key: str) -> Iterator[Dict[str, Any]]:
-    def _get_pages_for_rename(
-        entity: str, fields_entity: str, pipedrive_api_key: str
-    ) -> Dict[str, Any]:
+   def _get_pages_for_rename(
+      entity: str, fields_entity: str, pipedrive_api_key: str
+   ) -> Dict[str, Any]:
       ...
+   yield _get_pages_for_rename("", "", "")
 ```
 
 It processes each entity in ENTITY_MAPPINGS, updating the custom fields mapping if a related fields

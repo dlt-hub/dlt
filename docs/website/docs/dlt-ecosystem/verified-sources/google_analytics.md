@@ -1,10 +1,13 @@
+---
+title: Google Analytics
+description: dlt verified source for Google Analytics API
+keywords: [google analytics api, google analytics verified source, google analytics]
+---
+import Header from './_source-info-header.md';
+
 # Google Analytics
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Google Analytics](https://marketingplatform.google.com/about/analytics/#?modal_active=none) is a
 service for web analytics that tracks and provides data regarding user engagement with your website

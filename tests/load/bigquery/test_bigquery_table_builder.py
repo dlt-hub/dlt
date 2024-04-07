@@ -4,10 +4,6 @@ from typing import Iterator, Dict, Any, List
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     PARTITION_HINT,
     CLUSTER_HINT,
-    TABLE_DESCRIPTION_HINT,
-    ROUND_HALF_EVEN_HINT,
-    ROUND_HALF_AWAY_FROM_ZERO_HINT,
-    TABLE_EXPIRATION_HINT,
 )
 
 import google
@@ -17,9 +13,12 @@ from google.cloud.bigquery import Table
 
 import dlt
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.configuration.specs import (
+    GcpServiceAccountCredentialsWithoutDefaults,
+    GcpServiceAccountCredentials,
+)
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema, TColumnHint
+from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
@@ -53,13 +52,13 @@ def test_configuration() -> None:
 @pytest.fixture
 def gcp_client(empty_schema: Schema) -> BigQueryClient:
     # return a client without opening connection
-    creds = GcpServiceAccountCredentialsWithoutDefaults()
+    creds = GcpServiceAccountCredentials()
     creds.project_id = "test_project_id"
     # noinspection PydanticTypeChecker
     return BigQueryClient(
         empty_schema,
-        BigQueryClientConfiguration(
-            dataset_name=f"test_{uniq_id()}", credentials=creds  # type: ignore[arg-type]
+        BigQueryClientConfiguration(credentials=creds)._bind_dataset_name(
+            dataset_name=f"test_{uniq_id()}"
         ),
     )
 

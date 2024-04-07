@@ -67,7 +67,7 @@ Next, we focus on establishing the necessary permissions for our pipeline. A cru
 
 Please refer to the Google Cloud documentation [here](https://cloud.google.com/iam/docs/service-accounts-create#console) to set up a service account. Once created, it's important to assign the necessary permissions to the service account. The project [README](https://github.com/dlt-hub/dlt_pubsub_demo) lists the necessary permissions. Finally, generate a key for the created service account and download the JSON file. Pass the credentials as environment variables in the project root directory.
 
-```bash
+```sh
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/keyfile.json"
 ```
 
@@ -75,7 +75,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/keyfile.json"
 
 To set up our pipeline, start by cloning the [GitHub Repository](https://github.com/dlt-hub/dlt_pubsub_demo). The repository contains all the necessary components, structured as follows:
 
-```bash
+```sh
 .
 ├── README.md
 ├── cloud_functions
@@ -102,7 +102,7 @@ Meanwhile, the **cloud_functions** folder includes the code for the Cloud Functi
 To begin, integrate the service account credentials with Terraform to enable authorization and resource management on Google Cloud. Edit the `terraform/main.tf` file to include the path to your service account's credentials file as follows:
 
 
-```bash
+```sh
 provider "google" {
   credentials = file("./../credentials.json")
   project = var.project_id
@@ -114,7 +114,7 @@ provider "google" {
 
 Next, in the `terraform/variables.tf` define the required variables. These variables correspond to details within your `credentials.json` file and include your project's ID, the region for resource deployment, and any other parameters required by your Terraform configuration:
 
-```bash
+```sh
 variable "project_id" {
   type = string
   default = "Add Project ID"
@@ -128,7 +128,6 @@ variable "region" {
 variable "service_account_email" {
   type = string
   default = "Add Service Account Email"
-  
 }
 ```
 
@@ -138,7 +137,7 @@ We are now ready to set up some cloud resources. To get started, navigate into t
 
 With the initialization complete, you're ready to proceed with the creation of your cloud resources. To do this, run the following Terraform commands in sequence. These commands instruct Terraform to plan and apply the configurations defined in your `.tf` files, setting up the infrastructure on Google Cloud as specified.
 
-```bash
+```sh
 terraform plan
 terraform apply
 ```
@@ -161,7 +160,7 @@ The following resources are created on Google Cloud once `terraform apply` comma
 
 Now that our cloud infrastructure is in place, it's time to activate the event publisher. Look for the `publisher.py` file in the project root directory. You'll need to provide specific details to enable the publisher to send events to the correct Pub/Sub topic. Update the file with the following:
 
-```python
+```py
 # TODO(developer)
 project_id = "Add GCP Project ID"
 topic_id = "telemetry_data_tera"
@@ -169,7 +168,7 @@ topic_id = "telemetry_data_tera"
 
 The `publisher.py` script is designed to generate dummy events, simulating real-world data, and then sends these events to the specified Pub/Sub topic. This process is crucial for testing the end-to-end functionality of our event streaming pipeline, ensuring that data flows from the source (the publisher) to our intended destinations (BigQuery, via the Cloud Function and dlt). To run the publisher execute the following command:
 
-```python
+```sh
 python publisher.py
 ```
 
@@ -179,7 +178,7 @@ Once the publisher sends events to the Pub/Sub Topic, the pipeline is activated.
 
 The average completion time of the pipeline is approximately 12 minutes, accounting for the 10-minute time interval after which the subscriber pushes data to storage plus the Cloud Function execution time. The push interval of the subscriber can be adjusted by changing the **max_duration** in `pubsub.tf`
 
-```bash
+```sh
 cloud_storage_config {
     bucket = google_storage_bucket.tel_bucket_storage.name
 

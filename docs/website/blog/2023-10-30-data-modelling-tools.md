@@ -71,7 +71,7 @@ Our database is based on the data published by [LivWell](https://www.nature.com/
 
 Sample input structure:
 
-```jsx
+```py
 [{"survey_id": "AM2000DHS",
 "country": "Armenia",
 "marriage_related": [{...}, {...}, ...],
@@ -81,7 +81,7 @@ Sample input structure:
 "health_related": [{...}, {...}, ...],
 "age_related": [{...}, {...}, ...]
 },
-  {...}, {...}, {...}, ...}]
+  {...}, {...}, {...}, {...}]
 ```
 
 To break it up into proper tables representing the different sections of the surveys, we gave this data to **dlt** to unpack it into a flat relational structure into BigQuery. dlt automatically unpacked the original data into connected tables. The various child tables link to the parent table `wellness` using foreign keys. `Wellness` contains surveys identified by ID and country.  The final setup of indicators broken up into different categories can be found below, as displayed by Power BI. This structured database has been used to experiment with all three dashboarding tools in this article.

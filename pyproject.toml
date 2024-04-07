@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.7"
+version = "0.4.8a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -145,6 +145,7 @@ google-api-python-client = ">=1.7.11"
 pytest-asyncio = "^0.23.5"
 types-sqlalchemy = "^1.4.53.38"
 ruff = "^0.3.2"
+pyjwt = "^2.8.0"
 
 [tool.poetry.group.pipeline]
 optional=true

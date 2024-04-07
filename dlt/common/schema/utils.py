@@ -1,7 +1,7 @@
 import re
 import base64
 import hashlib
-
+import yaml
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
@@ -164,9 +164,11 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, st
     """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash, 10 last hashes) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
+    previous_version = stored_schema.get("version")
     if not previous_hash:
         # if hash was not set, set it without bumping the version, that's initial schema
-        pass
+        # previous_version may not be None for migrating schemas
+        stored_schema["version"] = previous_version or 1
     elif hash_ != previous_hash:
         stored_schema["version"] += 1
         store_prev_hash(stored_schema, previous_hash)
@@ -739,3 +741,11 @@ def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
 
 def standard_type_detections() -> List[TTypeDetections]:
     return ["iso_timestamp"]
+
+
+def to_pretty_json(stored_schema: TStoredSchema) -> str:
+    return json.dumps(stored_schema, pretty=True)
+
+
+def to_pretty_yaml(stored_schema: TStoredSchema) -> str:
+    return yaml.dump(stored_schema, allow_unicode=True, default_flow_style=False, sort_keys=False)

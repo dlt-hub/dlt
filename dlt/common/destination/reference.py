@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import dataclasses
 from importlib import import_module
 from types import TracebackType
 from typing import (
@@ -11,7 +12,6 @@ from typing import (
     Iterable,
     Type,
     Union,
-    TYPE_CHECKING,
     List,
     ContextManager,
     Dict,
@@ -25,11 +25,6 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
-from dlt.common.exceptions import (
-    IdentifierTooLongException,
-    InvalidDestinationReference,
-    UnknownDestinationModule,
-)
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
@@ -43,16 +38,21 @@ from dlt.common.configuration import configspec, resolve_configuration, known_se
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import (
+    IdentifierTooLongException,
+    InvalidDestinationReference,
+    UnknownDestinationModule,
+    DestinationSchemaTampered,
+)
 from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
-
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
+TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -75,8 +75,10 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_type: Final[str] = None  # which destination to load data to
-    credentials: Optional[CredentialsConfiguration]
+    destination_type: Final[str] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )  # which destination to load data to
+    credentials: Optional[CredentialsConfiguration] = None
     destination_name: Optional[str] = (
         None  # name of the destination, if not set, destination_type is used
     )
@@ -93,27 +95,32 @@ class DestinationClientConfiguration(BaseConfiguration):
     def on_resolved(self) -> None:
         self.destination_name = self.destination_name or self.destination_type
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Optional[CredentialsConfiguration] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
-
 
 @configspec
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
-    dataset_name: Final[str] = None  # dataset must be final so it is not configurable
+    dataset_name: Final[str] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )  # dataset must be final so it is not configurable
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
-    default_schema_name: Optional[str] = None
+    default_schema_name: Final[Optional[str]] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
     """name of default schema to be used to name effective dataset to load data to"""
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
     """How to handle replace disposition for this destination, can be classic or staging"""
+
+    def _bind_dataset_name(
+        self: TDestinationDwhClient, dataset_name: str, default_schema_name: str = None
+    ) -> TDestinationDwhClient:
+        """Binds the dataset and default schema name to the configuration
+
+        This method is intended to be used internally.
+        """
+        self.dataset_name = dataset_name  # type: ignore[misc]
+        self.default_schema_name = default_schema_name  # type: ignore[misc]
+        return self
 
     def normalize_dataset_name(self, schema: Schema) -> str:
         """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.
@@ -136,18 +143,6 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             else schema.naming.normalize_table_identifier(self.dataset_name)
         )
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Optional[CredentialsConfiguration] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
-
 
 @configspec
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
@@ -161,21 +156,6 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     # layout of the destination files
     layout: str = "{table_name}/{load_id}.{file_id}.{ext}"
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Union[AwsCredentialsWithoutDefaults, GcpCredentials] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            as_staging: bool = False,
-            bucket_url: str = None,
-            layout: str = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
-
 
 @configspec
 class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfiguration):
@@ -183,18 +163,6 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 
     staging_config: Optional[DestinationClientStagingConfiguration] = None
     """configuration of the staging, if present, injected at runtime"""
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: Optional[CredentialsConfiguration] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            staging_config: Optional[DestinationClientStagingConfiguration] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
 
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]
@@ -318,6 +286,12 @@ class JobClientBase(ABC):
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
         self._verify_schema()
+        # make sure that schema being saved was not modified from the moment it was loaded from storage
+        version_hash = self.schema.version_hash
+        if self.schema.is_modified:
+            raise DestinationSchemaTampered(
+                self.schema.name, version_hash, self.schema.stored_version_hash
+            )
         return expected_update
 
     @abstractmethod
