@@ -15,6 +15,9 @@ from tests.cases import (
 )
 from tests.load.utils import empty_schema
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def client(empty_schema: Schema) -> DuckDbClient:

@@ -10,19 +10,20 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
     NewLoadJob,
-    CredentialsConfiguration,
 )
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
-from dlt.common.schema.utils import table_schema_has_type, get_inherited_table_hint
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.utils import (
+    table_schema_has_type,
+    get_inherited_table_hint,
+    is_complete_column,
+)
 
 from dlt.common.configuration.specs import AzureCredentialsWithoutDefaults
 
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 

@@ -1,5 +1,5 @@
 
-name: test MS SQL
+name: dest | mssql
 
 on:
   pull_request:
@@ -7,6 +7,8 @@ on:
       - master
       - devel
   workflow_dispatch:
+  schedule:
+    - cron:  '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -24,21 +26,18 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
-    if: ${{ !github.event.pull_request.head.repo.fork }}
+    if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_loader:
-    name: Tests MS SQL loader
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ["ubuntu-latest"]
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
 
     steps:
 
@@ -74,23 +73,6 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
-      - run: |
-          poetry run pytest tests/load
-        if: runner.os != 'Windows'
-        name: Run tests Linux/MAC
-      - run: |
-          poetry run pytest tests/load
-        if: runner.os == 'Windows'
-        name: Run tests Windows
-        shell: cmd
-
-  matrix_job_required_check:
-    name: MS SQL loader tests
-    needs: run_loader
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
+      # always run full suite, also on branches
+      - run: poetry run pytest tests/load
+        name: Run tests Linux

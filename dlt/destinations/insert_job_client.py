@@ -36,10 +36,14 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         # the procedure below will split the inserts into max_query_length // 2 packs
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
-            if self._sql_client.capabilities.insert_values_writer_type == "default":
+            writer_type = self._sql_client.capabilities.insert_values_writer_type
+            if writer_type == "default":
+                sep = ","
                 # properly formatted file has a values marker at the beginning
                 values_mark = f.readline()
                 assert values_mark == "VALUES\n"
+            elif writer_type == "select_union":
+                sep = " UNION ALL"
 
             max_rows = self._sql_client.capabilities.max_rows_per_insert
 
@@ -57,9 +61,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                 # if there was anything left, until_nl contains the last line
                 is_eof = len(until_nl) == 0 or until_nl[-1] == ";"
                 if not is_eof:
-                    # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
-                    until_nl = until_nl[:-1] + ";"
-
+                    until_nl = until_nl[: -len(sep)] + ";"  # replace the separator with ";"
                 if max_rows is not None:
                     # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
                     values_rows = content.splitlines(keepends=True)
@@ -69,25 +71,22 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     for chunk in chunks(values_rows, max_rows - 1):
                         processed += len(chunk)
                         insert_sql.append(header.format(qualified_table_name))
-                        if self._sql_client.capabilities.insert_values_writer_type == "default":
+                        if writer_type == "default":
                             insert_sql.append(values_mark)
                         if processed == len_rows:
                             # On the last chunk we need to add the extra row read
                             insert_sql.append("".join(chunk) + until_nl)
                         else:
                             # Replace the , with ;
-                            insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
+                            insert_sql.append("".join(chunk).strip()[: -len(sep)] + ";\n")
                 else:
                     # otherwise write all content in a single INSERT INTO
-                    if self._sql_client.capabilities.insert_values_writer_type == "default":
+                    if writer_type == "default":
                         insert_sql.extend(
-                            [header.format(qualified_table_name), values_mark, content]
+                            [header.format(qualified_table_name), values_mark, content + until_nl]
                         )
-                    elif self._sql_client.capabilities.insert_values_writer_type == "select_union":
-                        insert_sql.extend([header.format(qualified_table_name), content])
-
-                    if until_nl:
-                        insert_sql.append(until_nl)
+                    elif writer_type == "select_union":
+                        insert_sql.extend([header.format(qualified_table_name), content + until_nl])
 
                 # actually this may be empty if we were able to read a full file into content
                 if not is_eof:

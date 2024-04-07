@@ -11,6 +11,9 @@ from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, 
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def client(empty_schema: Schema) -> MsSqlClient:

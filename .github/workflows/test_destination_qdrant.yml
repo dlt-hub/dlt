@@ -1,4 +1,4 @@
-name: test Qdrant
+name: dest | qdrant
 
 on:
   pull_request:
@@ -6,6 +6,8 @@ on:
       - master
       - devel
   workflow_dispatch:
+  schedule:
+    - cron:  '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,22 +24,18 @@ env:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
-    if: ${{ !github.event.pull_request.head.repo.fork }}
+    if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_loader:
-    name: Tests Qdrant loader
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    runs-on: "ubuntu-latest"
 
     steps:
       - name: Check out
@@ -67,17 +65,13 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline
-      - run: |
-          poetry run pytest tests/load/
-        name: Run tests Linux
 
-  matrix_job_required_check:
-    name: Qdrant loader tests
-    needs: run_loader
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check matrix job results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: |
-          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1
+      - run: |
+          poetry run pytest tests/load -m "essential"
+        name: Run essential tests Linux
+        if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
+
+      - run: |
+          poetry run pytest tests/load
+        name: Run all tests Linux
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}

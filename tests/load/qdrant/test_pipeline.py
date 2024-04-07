@@ -11,6 +11,9 @@ from tests.pipeline.utils import assert_load_info
 from tests.load.qdrant.utils import drop_active_pipeline_data, assert_collection
 from tests.load.utils import sequence_generator
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(autouse=True)
 def drop_qdrant_data() -> Iterator[None]:

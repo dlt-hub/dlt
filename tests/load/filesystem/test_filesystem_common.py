@@ -20,6 +20,10 @@ from .utils import self_signed_cert
 from tests.common.configuration.utils import environment
 
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
+
 @with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
 def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguration:
     return config
