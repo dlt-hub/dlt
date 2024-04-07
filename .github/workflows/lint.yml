@@ -67,7 +67,7 @@ jobs:
           make lint
 
   matrix_job_required_check:
-    name: Lint results
+    name: lint | code & tests
     needs: run_lint
     runs-on: ubuntu-latest
     if: always()

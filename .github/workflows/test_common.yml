@@ -148,7 +148,7 @@ jobs:
       #   shell: cmd
 
   matrix_job_required_check:
-    name: Common tests
+    name: common | common tests
     needs: run_common
     runs-on: ubuntu-latest
     if: always()

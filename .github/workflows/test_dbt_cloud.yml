@@ -27,7 +27,7 @@ jobs:
     if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_dbt_cloud:
-    name: test
+    name: tools | dbt cloud tests
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     defaults:

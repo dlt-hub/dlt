@@ -27,7 +27,7 @@ env:
 jobs:
 
   run_lint:
-    name: lint and test
+    name: docs | snippets & examples lint and test
     runs-on: ubuntu-latest
     # Do not run on forks, unless allowed, secrets are used here
     if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
