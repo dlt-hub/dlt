@@ -63,8 +63,6 @@ TColumnHint = Literal[
     "dedup_sort",
 ]
 """Known hints of a column used to declare hint regexes."""
-TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["scd2"]
 TTableFormat = Literal["iceberg", "parquet", "jsonl"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
@@ -86,7 +84,6 @@ COLUMN_HINTS: Set[TColumnHint] = set(
         "root_key",
     ]
 )
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
 class TColumnType(TypedDict, total=False):
@@ -155,13 +152,28 @@ class NormalizerInfo(TypedDict, total=True):
     new_table: bool
 
 
-class TMergeConfig(TypedDict, total=False):
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TLoaderMergeStrategy = Literal["scd2"]
+
+
+WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
+
+
+class TWriteDispositionDict(TypedDict):
+    mode: TWriteDisposition
+
+
+class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
 
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
 """Default values for validity column names used in `scd2` merge strategy."""
+
+
+TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
+
 
 # TypedDict that defines properties of a table
 

@@ -91,8 +91,11 @@ def test_core_functionality(
 
     @dlt.resource(
         table_name="dim_test",
-        write_disposition="merge",
-        merge_config={"strategy": "scd2", "validity_column_names": validity_column_names},
+        write_disposition={
+            "mode": "merge",
+            "strategy": "scd2",
+            "validity_column_names": validity_column_names,
+        },
     )
     def r(data):
         yield data
@@ -170,9 +173,7 @@ def test_core_functionality(
 def test_child_table(destination_config: DestinationTestConfiguration, simple: bool) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
-    @dlt.resource(
-        table_name="dim_test", write_disposition="merge", merge_config={"strategy": "scd2"}
-    )
+    @dlt.resource(table_name="dim_test", write_disposition={"mode": "merge", "strategy": "scd2"})
     def r(data):
         yield data
 
@@ -296,9 +297,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 def test_grandchild_table(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
-    @dlt.resource(
-        table_name="dim_test", write_disposition="merge", merge_config={"strategy": "scd2"}
-    )
+    @dlt.resource(table_name="dim_test", write_disposition={"mode": "merge", "strategy": "scd2"})
     def r(data):
         yield data
 
@@ -382,8 +381,11 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
 
     @dlt.resource(
         table_name="dim_test",
-        write_disposition="merge",
-        merge_config={"strategy": "scd2", "validity_column_names": ["from", "to"]},
+        write_disposition={
+            "mode": "merge",
+            "strategy": "scd2",
+            "validity_column_names": ["from", "to"],
+        },
     )
     def r(data):
         yield data

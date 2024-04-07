@@ -7,11 +7,11 @@ from dlt.common.schema.typing import (
     TPartialTableSchema,
     TTableSchema,
     TTableSchemaColumns,
-    TWriteDisposition,
+    TWriteDispositionConfig,
+    TMergeDispositionDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
-    TMergeConfig,
     DEFAULT_VALIDITY_COLUMN_NAMES,
 )
 from dlt.common import logger
@@ -32,13 +32,12 @@ from dlt.extract.validation import create_item_validator
 class TResourceHints(TypedDict, total=False):
     name: TTableHintTemplate[str]
     # description: TTableHintTemplate[str]
-    write_disposition: TTableHintTemplate[TWriteDisposition]
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig]
     # table_sealed: Optional[bool]
     parent: TTableHintTemplate[str]
     columns: TTableHintTemplate[TTableSchemaColumns]
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
-    merge_config: TMergeConfig
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
     table_format: TTableHintTemplate[TTableFormat]
@@ -60,11 +59,10 @@ NATURAL_CALLABLES = ["incremental", "validator", "original_columns"]
 def make_hints(
     table_name: TTableHintTemplate[str] = None,
     parent_table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    merge_config: TMergeConfig = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
 ) -> TResourceHints:
@@ -100,8 +98,6 @@ def make_hints(
         new_template["primary_key"] = primary_key
     if merge_key is not None:
         new_template["merge_key"] = merge_key
-    if merge_config is not None:
-        new_template["merge_config"] = merge_config
     if validator:
         new_template["validator"] = validator
     DltResourceHints.validate_dynamic_hints(new_template)
@@ -137,13 +133,13 @@ class DltResourceHints:
         self.apply_hints(table_name=value)
 
     @property
-    def write_disposition(self) -> TTableHintTemplate[TWriteDisposition]:
+    def write_disposition(self) -> TTableHintTemplate[TWriteDispositionConfig]:
         if self._hints is None or self._hints.get("write_disposition") is None:
             return DEFAULT_WRITE_DISPOSITION
         return self._hints.get("write_disposition")
 
     @write_disposition.setter
-    def write_disposition(self, value: TTableHintTemplate[TWriteDisposition]) -> None:
+    def write_disposition(self, value: TTableHintTemplate[TWriteDispositionConfig]) -> None:
         self.apply_hints(write_disposition=value)
 
     @property
@@ -177,15 +173,12 @@ class DltResourceHints:
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
-        merge_config = table_template.pop("merge_config", None)
         resolved_template: TResourceHints = {
             k: self._resolve_hint(item, v)
             for k, v in table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
-        table_schema = self._merge_keys(resolved_template)
-        table_schema["resource"] = self.name
-        self._resolve_merge_config(merge_config, table_schema)
+        table_schema = self._create_table_schema(resolved_template, self.name)
         validate_dict_ignoring_xkeys(
             spec=TTableSchema,
             doc=table_schema,
@@ -197,11 +190,10 @@ class DltResourceHints:
         self,
         table_name: TTableHintTemplate[str] = None,
         parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+        write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        merge_config: TMergeConfig = None,
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
@@ -251,7 +243,6 @@ class DltResourceHints:
                 columns,
                 primary_key,
                 merge_key,
-                merge_config,
                 schema_contract,
                 table_format,
             )
@@ -293,11 +284,6 @@ class DltResourceHints:
                     t["merge_key"] = merge_key
                 else:
                     t.pop("merge_key", None)
-            if merge_config is not None:
-                if merge_config:
-                    t["merge_config"] = merge_config
-                else:
-                    t.pop("merge_config", None)
             if schema_contract is not None:
                 if schema_contract:
                     t["schema_contract"] = schema_contract
@@ -406,34 +392,55 @@ class DltResourceHints:
                 partial["columns"][key][hint] = True
 
     @staticmethod
-    def _merge_keys(t_: TResourceHints) -> TPartialTableSchema:
-        """Merges resolved keys into columns"""
-        partial = cast(TPartialTableSchema, t_)
-        # assert not callable(t_["merge_key"])
-        # assert not callable(t_["primary_key"])
-        if "primary_key" in t_:
-            DltResourceHints._merge_key("primary_key", t_.pop("primary_key"), partial)  # type: ignore
-        if "merge_key" in t_:
-            DltResourceHints._merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
-        return partial
+    def _merge_keys(dict_: Dict[str, Any]) -> None:
+        """Merges primary and merge keys into columns in place."""
+
+        if "primary_key" in dict_:
+            DltResourceHints._merge_key("primary_key", dict_.pop("primary_key"), dict_)  # type: ignore
+        if "merge_key" in dict_:
+            DltResourceHints._merge_key("merge_key", dict_.pop("merge_key"), dict_)  # type: ignore
 
     @staticmethod
-    def _resolve_merge_config(
-        merge_config: Optional[TMergeConfig], partial: TPartialTableSchema
-    ) -> None:
-        """Resolves `merge_config` into x-hints on `partial` table schema in place."""
-        if merge_config is not None:
-            if "strategy" in merge_config:
-                partial["x-merge-strategy"] = merge_config["strategy"]  # type: ignore[typeddict-unknown-key]
+    def _merge_write_disposition_dict(dict_: Dict[str, Any]) -> None:
+        """Merges write disposition dictionary into write disposition shorthand and x-hints in place."""
+
+        if dict_["write_disposition"]["mode"] == "merge":
+            DltResourceHints._merge_merge_disposition_dict(dict_)
+        # reduce merge disposition from dict to shorthand
+        dict_["write_disposition"] = dict_["write_disposition"]["mode"]
+
+    @staticmethod
+    def _merge_merge_disposition_dict(dict_: Dict[str, Any]) -> None:
+        """Merges merge disposition dict into x-hints on in place."""
+
+        mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
+        if mddict is not None:
+            if "strategy" in mddict:
+                dict_["x-merge-strategy"] = mddict["strategy"]
 
             # add columns for `scd2` merge strategy
-            if partial.get("x-merge-strategy") == "scd2":
-                if merge_config.get("validity_column_names") is None:
+            if dict_.get("x-merge-strategy") == "scd2":
+                if mddict.get("validity_column_names") is None:
                     from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
                 else:
-                    from_, to = merge_config["validity_column_names"]
-                partial["columns"][from_] = {"name": from_, "data_type": "timestamp", "x-valid-from": True}  # type: ignore[typeddict-unknown-key]
-                partial["columns"][to] = {"name": to, "data_type": "timestamp", "x-valid-to": True}  # type: ignore[typeddict-unknown-key]
+                    from_, to = mddict["validity_column_names"]
+                dict_["columns"][from_] = {
+                    "name": from_,
+                    "data_type": "timestamp",
+                    "x-valid-from": True,
+                }
+                dict_["columns"][to] = {"name": to, "data_type": "timestamp", "x-valid-to": True}
+
+    @staticmethod
+    def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:
+        """Creates table schema from resource hints and resource name."""
+
+        dict_ = cast(Dict[str, Any], deepcopy(resource_hints))
+        DltResourceHints._merge_keys(dict_)
+        dict_["resource"] = resource_name
+        if isinstance(dict_.get("write_disposition"), dict):
+            DltResourceHints._merge_write_disposition_dict(dict_)
+        return cast(TTableSchema, dict_)
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:

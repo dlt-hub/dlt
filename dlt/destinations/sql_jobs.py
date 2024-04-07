@@ -7,7 +7,6 @@ from dlt.common import pendulum
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
-    TMergeConfig,
 )
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -30,7 +29,6 @@ HIGH_TS = pendulum.datetime(9999, 12, 31)
 
 class SqlJobParams(TypedDict, total=False):
     replace: Optional[bool]
-    merge_config: Optional[TMergeConfig]
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
