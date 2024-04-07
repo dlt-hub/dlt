@@ -26,6 +26,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -153,6 +154,7 @@ def github():
     return load_issues
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )

@@ -1,5 +1,5 @@
 
-name: lint
+name: lint | code & tests
 
 on:
   pull_request:
@@ -14,10 +14,11 @@ concurrency:
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_lint:
-    name: Lint
+    name: lint
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -64,12 +65,6 @@ jobs:
         run: |
           export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows
           make lint
-
-      # - name: print envs
-      #   run: |
-      #     echo "The GitHub Actor's username is: $GITHUB_ACTOR"
-      #     echo "The GitHub repo owner is: $GITHUB_REPOSITORY_OWNER"
-      #     echo "The GitHub repo is: $GITHUB_REPOSITORY"
 
   matrix_job_required_check:
     name: Lint results

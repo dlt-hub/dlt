@@ -32,6 +32,9 @@ from tests.load.utils import (
     cm_yield_client_with_storage,
 )
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[BigQueryClient]:

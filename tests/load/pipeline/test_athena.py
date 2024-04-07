@@ -11,6 +11,9 @@ from tests.pipeline.utils import assert_load_info
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",
