@@ -69,7 +69,7 @@ NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE
 
 ### Timestamps and timezones
 `dlt` adds timezone (UTC adjustment) to all timestamps regardless of a precision (from seconds to nanoseconds). `dlt` will also create TZ aware timestamp columns in
-the destinations. If the latter is impossible, there are workaround
+the destinations. [duckdb is an exception here](../destinations/duckdb.md#supported-file-formats)
 
 ### Disable timezones / utc adjustment flags
 You can generate parquet files without timezone adjustment information in two ways:
