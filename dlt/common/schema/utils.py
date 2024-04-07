@@ -34,6 +34,7 @@ from dlt.common.schema.typing import (
     TTypeDetectionFunc,
     TTypeDetections,
     TWriteDisposition,
+    TLoaderMergeStrategy,
     TSchemaContract,
     TSortOrder,
 )
@@ -47,6 +48,9 @@ from dlt.common.schema.exceptions import (
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
+DEFAULT_MERGE_STRATEGY: TLoaderMergeStrategy = "delete-insert"
+DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
+"""Default values for validity column names used in `scd2` merge strategy."""
 
 
 def is_valid_schema_name(name: str) -> bool:

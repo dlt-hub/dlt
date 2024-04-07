@@ -153,10 +153,11 @@ class NormalizerInfo(TypedDict, total=True):
 
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["scd2"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
 
 
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
+MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
 
 
 class TWriteDispositionDict(TypedDict):
@@ -166,10 +167,6 @@ class TWriteDispositionDict(TypedDict):
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
-
-
-DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
-"""Default values for validity column names used in `scd2` merge strategy."""
 
 
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]

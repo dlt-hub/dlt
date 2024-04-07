@@ -7,7 +7,7 @@ from datetime import datetime, timezone  # noqa: I251
 import dlt
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.exceptions import ColumnNameConflictException
-from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
+from dlt.common.schema.utils import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.destinations.sql_jobs import HIGH_TS

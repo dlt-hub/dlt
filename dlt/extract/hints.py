@@ -9,13 +9,20 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TWriteDispositionConfig,
     TMergeDispositionDict,
+    MERGE_STRATEGIES,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
-    DEFAULT_VALIDITY_COLUMN_NAMES,
 )
 from dlt.common import logger
-from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_column, new_column, new_table
+from dlt.common.schema.utils import (
+    DEFAULT_WRITE_DISPOSITION,
+    DEFAULT_MERGE_STRATEGY,
+    DEFAULT_VALIDITY_COLUMN_NAMES,
+    merge_column,
+    new_column,
+    new_table,
+)
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -415,9 +422,9 @@ class DltResourceHints:
 
         mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
         if mddict is not None:
-            if "strategy" in mddict:
-                dict_["x-merge-strategy"] = mddict["strategy"]
-
+            dict_["x-merge-strategy"] = (
+                mddict["strategy"] if "strategy" in mddict else DEFAULT_MERGE_STRATEGY
+            )
             # add columns for `scd2` merge strategy
             if dict_.get("x-merge-strategy") == "scd2":
                 if mddict.get("validity_column_names") is None:
@@ -438,8 +445,9 @@ class DltResourceHints:
         dict_ = cast(Dict[str, Any], deepcopy(resource_hints))
         DltResourceHints._merge_keys(dict_)
         dict_["resource"] = resource_name
-        if isinstance(dict_.get("write_disposition"), dict):
-            DltResourceHints._merge_write_disposition_dict(dict_)
+        if isinstance(dict_.get("write_disposition"), str):
+            dict_["write_disposition"] = {"mode": dict_["write_disposition"]}  # wrap in dict
+        DltResourceHints._merge_write_disposition_dict(dict_)
         return cast(TTableSchema, dict_)
 
     @staticmethod

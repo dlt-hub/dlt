@@ -148,15 +148,16 @@ class SqlMergeJob(SqlBaseJob):
     failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
     @classmethod
-    def generate_sql(
+    def generate_sql(  # type: ignore[return]
         cls,
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
-        if table_chain[0].get("x-merge-strategy") == "scd2":
+        if table_chain[0].get("x-merge-strategy") == "delete-insert":
+            return cls.gen_merge_sql(table_chain, sql_client)
+        elif table_chain[0].get("x-merge-strategy") == "scd2":
             return cls.gen_scd2_sql(table_chain, sql_client)
-        return cls.gen_merge_sql(table_chain, sql_client)
 
     @classmethod
     def _gen_key_table_clauses(
