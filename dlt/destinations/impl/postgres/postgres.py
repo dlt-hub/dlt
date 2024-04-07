@@ -113,9 +113,13 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
             # all headers in first line
             headers = f.readline().decode("utf-8").strip()
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
-            copy_sql = "COPY %s (%s) FROM STDIN WITH CSV DELIMITER ',' NULL ''" % (
-                qualified_table_name,
-                headers,
+            copy_sql = (
+                "COPY %s (%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', NULL '', FORCE_NULL(%s))"
+                % (
+                    qualified_table_name,
+                    headers,
+                    headers,
+                )
             )
             with sql_client.begin_transaction():
                 with sql_client.native_connection.cursor() as cursor:

@@ -371,6 +371,7 @@ class CsvWriter(DataWriter):
             extrasaction="ignore",
             dialect=csv.unix_dialect,
             delimiter=self.delimiter,
+            quoting=csv.QUOTE_NONNUMERIC,
         )
         self.writer.writeheader()
 
