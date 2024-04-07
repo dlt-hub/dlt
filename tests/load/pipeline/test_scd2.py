@@ -166,7 +166,7 @@ def test_core_functionality(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("simple", [True, False])
@@ -291,7 +291,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
 def test_grandchild_table(destination_config: DestinationTestConfiguration) -> None:
