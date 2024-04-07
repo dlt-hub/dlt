@@ -8,7 +8,7 @@ from dlt.common.typing import TDataItem, TDataItems
 from dlt.extract.extract import ExtractStorage
 from dlt.extract.items import ItemTransform
 
-from tests.utils import TDataItemFormat
+from tests.utils import TestDataItemFormat
 
 
 def expect_extracted_file(
@@ -46,7 +46,7 @@ def expect_extracted_file(
 
 
 class AssertItems(ItemTransform[TDataItem]):
-    def __init__(self, expected_items: Any, item_type: TDataItemFormat = "json") -> None:
+    def __init__(self, expected_items: Any, item_type: TestDataItemFormat = "json") -> None:
         self.expected_items = expected_items
         self.item_type = item_type
 
@@ -55,7 +55,7 @@ class AssertItems(ItemTransform[TDataItem]):
         return item
 
 
-def data_item_to_list(from_type: TDataItemFormat, values: List[TDataItem]):
+def data_item_to_list(from_type: TestDataItemFormat, values: List[TDataItem]):
     if from_type in ["arrow", "arrow-batch"]:
         return values[0].to_pylist()
     elif from_type == "pandas":

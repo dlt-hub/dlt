@@ -6,24 +6,15 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.utils import identity
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 # known loader file formats
 # jsonl - new line separated json documents
-# puae-jsonl - internal extract -> normalize format bases on jsonl
+# typed-jsonl - internal extract -> normalize format bases on jsonl
 # insert_values - insert SQL statements
 # sql - any sql statement
-TLoaderFileFormat = Literal[
-    "jsonl", "puae-jsonl", "insert_values", "sql", "parquet", "reference", "arrow"
-]
+TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
-# file formats used internally by dlt
-INTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = {"sql", "reference", "arrow"}
-# file formats that may be chosen by the user
-EXTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = (
-    set(get_args(TLoaderFileFormat)) - INTERNAL_LOADER_FILE_FORMATS
-)
 
 
 @configspec
@@ -67,7 +58,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     ) -> "DestinationCapabilitiesContext":
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
-        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet"]
+        caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.escape_identifier = identity

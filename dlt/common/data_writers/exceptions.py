@@ -27,3 +27,22 @@ class DestinationCapabilitiesRequired(DataWriterException, ValueError):
         super().__init__(
             f"Writer for {file_format} requires destination capabilities which were not provided."
         )
+
+
+class DataWriterNotFound(DataWriterException):
+    def __init__(self, file_format: TLoaderFileFormat, data_item_format: str):
+        self.file_format = file_format
+        self.data_item_format = data_item_format
+        super().__init__(
+            f"Can't find a file writer for file format {file_format} and item format"
+            f" {data_item_format}"
+        )
+
+
+class InvalidDataItem(DataWriterException):
+    def __init__(self, file_format: TLoaderFileFormat, data_item_format: str, details: str):
+        self.file_format = file_format
+        self.data_item_format = data_item_format
+        super().__init__(
+            f"A data item of type {data_item_format} cannot be written as {file_format}: {details}"
+        )

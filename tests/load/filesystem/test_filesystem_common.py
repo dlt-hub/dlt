@@ -56,7 +56,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     def check_file_changed():
         details = filesystem.info(file_url)
         assert details["size"] == 11
-        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 200
+        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 160
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()

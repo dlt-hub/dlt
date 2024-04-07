@@ -78,8 +78,8 @@ for destination in ACTIVE_DESTINATIONS:
 
 
 # possible TDataItem types
-TDataItemFormat = Literal["json", "pandas", "arrow", "arrow-batch"]
-ALL_DATA_ITEM_FORMATS = get_args(TDataItemFormat)
+TestDataItemFormat = Literal["json", "pandas", "arrow", "arrow-batch"]
+ALL_TEST_DATA_ITEM_FORMATS = get_args(TestDataItemFormat)
 """List with TDataItem formats: json, arrow table/batch / pandas"""
 
 
@@ -185,7 +185,7 @@ def wipe_pipeline() -> Iterator[None]:
 
 
 def data_to_item_format(
-    item_format: TDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]
+    item_format: TestDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]
 ) -> Any:
     """Return the given data in the form of pandas, arrow table/batch or json items"""
     if item_format == "json":
@@ -251,7 +251,7 @@ def clean_test_storage(
     if init_loader:
         from dlt.common.storages import LoadStorage
 
-        LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 
 

@@ -123,12 +123,3 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
             if file_path.endswith("insert_values"):
                 job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
         return job
-
-    # # TODO: implement indexes and primary keys for postgres
-    # def _get_in_table_constraints_sql(self, t: TTableSchema) -> str:
-    #     # get primary key
-    #     pass
-
-    # def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
-    #     # set non unique indexes
-    #     pass

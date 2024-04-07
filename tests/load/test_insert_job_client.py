@@ -26,6 +26,7 @@ def file_storage() -> FileStorage:
 def client(request) -> Iterator[InsertValuesJobClient]:
     yield from yield_client_with_storage(request.param.destination)  # type: ignore[misc]
 
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "client",

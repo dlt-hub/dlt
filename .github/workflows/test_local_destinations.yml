@@ -29,7 +29,7 @@ jobs:
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_loader:
-    name: test
+    name: dest | postgres, duckdb and fs local tests
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -87,7 +87,7 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E weaviate --with sentry-sdk --with pipeline
-      
+
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 

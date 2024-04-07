@@ -28,7 +28,7 @@ from tests.load.utils import (
     assert_all_data_types_row,
 )
 
-SUPPORTED_LOADER_FORMATS = ["parquet", "puae-jsonl"]
+SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
 
 
 def _run_through_sink(
@@ -539,7 +539,7 @@ def test_remove_internal_tables_and_columns(loader_file_format, remove_stuff) ->
                 found_dlt_column = True
 
         # check actual data items
-        if loader_file_format == "puae-jsonl":
+        if loader_file_format == "typed-jsonl":
             for item in items:
                 for key in item.keys():
                     if key.startswith("_dlt"):
@@ -570,7 +570,7 @@ def test_max_nesting_level(nesting: int) -> None:
 
     found_tables = set()
 
-    @dlt.destination(loader_file_format="puae-jsonl", max_table_nesting=nesting)
+    @dlt.destination(loader_file_format="typed-jsonl", max_table_nesting=nesting)
     def nesting_sink(items, table):
         nonlocal found_tables
         found_tables.add(table["name"])

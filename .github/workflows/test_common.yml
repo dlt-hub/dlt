@@ -53,6 +53,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install tzdata on windows
+        run: |
+          cd %USERPROFILE%
+          curl https://data.iana.org/time-zones/releases/tzdata2021e.tar.gz --output tzdata.tar.gz
+          mkdir tzdata
+          tar --extract --file tzdata.tar.gz --directory tzdata
+          mkdir %USERPROFILE%\Downloads\tzdata
+          copy tzdata %USERPROFILE%\Downloads\tzdata
+          curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
+        if: runner.os == 'Windows'
+        shell: cmd
+
       - name: Install Poetry
         # https://github.com/snok/install-poetry#running-on-windows
         uses: snok/install-poetry@v1.3.2
@@ -136,7 +148,7 @@ jobs:
       #   shell: cmd
 
   matrix_job_required_check:
-    name: Common tests
+    name: common | common tests
     needs: run_common
     runs-on: ubuntu-latest
     if: always()

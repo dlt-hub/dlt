@@ -128,7 +128,19 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:
         if self.config.replace_strategy == "staging-optimized":
-            return [SynapseStagingCopyJob.from_table_chain(table_chain, self)]  # type: ignore[arg-type]
+            # we must recreate staging table after SCHEMA TRANSFER
+            job_params: SqlJobParams = {"table_chain_create_table_statements": {}}
+            create_statements = job_params["table_chain_create_table_statements"]
+            with self.with_staging_dataset():
+                for table in table_chain:
+                    columns = [c for c in self.schema.get_table_columns(table["name"]).values()]
+                    # generate CREATE TABLE statement
+                    create_statements[table["name"]] = self._get_table_update_sql(
+                        table["name"], columns, generate_alter=False
+                    )
+            return [
+                SynapseStagingCopyJob.from_table_chain(table_chain, self.sql_client, job_params)
+            ]
         return super()._create_replace_followup_jobs(table_chain)
 
     def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
@@ -179,11 +191,10 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
     def generate_sql(
         cls,
         table_chain: Sequence[TTableSchema],
-        job_client: SynapseClient,  # type: ignore[override]
+        sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
         sql: List[str] = []
-        sql_client = job_client.sql_client
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
@@ -196,12 +207,7 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
                 f" {staging_table_name};"
             )
             # recreate staging table
-            with job_client.with_staging_dataset():
-                columns = list(filter(is_complete_column, table["columns"].values()))
-                create_table_stmt = job_client._get_table_update_sql(
-                    table["name"], columns, generate_alter=False
-                )
-            sql.extend(create_table_stmt)
+            sql.extend(params["table_chain_create_table_statements"][table["name"]])
 
         return sql
 

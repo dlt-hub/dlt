@@ -31,7 +31,7 @@ jobs:
     if: ${{ !github.event.pull_request.head.repo.fork || contains(github.event.pull_request.labels.*.name, 'ci from fork')}}
 
   run_loader:
-    name: test
+    name: dest | mssql tests
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     defaults:
