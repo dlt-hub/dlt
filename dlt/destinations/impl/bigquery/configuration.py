@@ -20,6 +20,7 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     retry_deadline: float = (
         60.0  # how long to retry the operation in case of error, the backoff 60 s.
     )
+    batch_size: int = 500
 
     __config_gen_annotations__: ClassVar[List[str]] = ["location"]
 
