@@ -567,7 +567,6 @@ class Pipeline(SupportsPipeline):
             self.first_run = False
             return info
         except Exception as l_ex:
-            raise
             step_info = self._get_step_info(load_step)
             raise PipelineStepFailed(
                 self, "load", load_step.current_load_id, l_ex, step_info

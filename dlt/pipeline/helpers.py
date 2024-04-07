@@ -40,6 +40,7 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
+from dlt.pipeline.drop import drop_resources
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 
 if TYPE_CHECKING:
@@ -78,16 +79,16 @@ def retry_load(
     return _retry_load
 
 
-class _DropInfo(TypedDict):
-    tables: List[str]
-    resource_states: List[str]
-    resource_names: List[str]
-    state_paths: List[str]
-    schema_name: str
-    dataset_name: str
-    drop_all: bool
-    resource_pattern: Optional[REPattern]
-    warnings: List[str]
+# class _DropInfo(TypedDict):
+#     tables: List[str]
+#     resource_states: List[str]
+#     resource_names: List[str]
+#     state_paths: List[str]
+#     schema_name: str
+#     dataset_name: str
+#     drop_all: bool
+#     resource_pattern: Optional[REPattern]
+#     warnings: List[str]
 
 
 class DropCommand:
@@ -99,8 +100,6 @@ class DropCommand:
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
         state_only: bool = False,
-        tables_only: bool = False,
-        extract_only: bool = False,
     ) -> None:
         """
         Args:
@@ -110,69 +109,77 @@ class DropCommand:
             state_paths: JSON path(s) relative to the source state to drop
             drop_all: Drop all resources and tables in the schema (supersedes `resources` list)
             state_only: Drop only state, not tables
-            extract_only: Only apply changes locally, but do not normalize and load to destination
-
         """
-        self.extract_only = extract_only
+        # self.extract_only = extract_only
+        # self.pipeline = pipeline
+        # if isinstance(resources, str):
+        #     resources = [resources]
+        # if isinstance(state_paths, str):
+        #     state_paths = [state_paths]
         self.pipeline = pipeline
-        if isinstance(resources, str):
-            resources = [resources]
-        if isinstance(state_paths, str):
-            state_paths = [state_paths]
 
         if not pipeline.default_schema_name:
             raise PipelineNeverRan(pipeline.pipeline_name, pipeline.pipelines_dir)
+        self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name]
 
-        self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
-        self.schema_tables = self.schema.tables
         self.drop_tables = not state_only
-        self.drop_state = not tables_only
-        self.state_paths_to_drop = compile_paths(state_paths)
+        # self.state_paths_to_drop = compile_paths(state_paths)
 
-        resources = set(resources)
-        resource_names = []
-        if drop_all:
-            self.resource_pattern = compile_simple_regex(TSimpleRegex("re:.*"))  # Match everything
-        elif resources:
-            self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
-        else:
-            self.resource_pattern = None
+        # resources = set(resources)
+        # resource_names = []
+        # if drop_all:
+        #     self.resource_pattern = compile_simple_regex(TSimpleRegex("re:.*"))  # Match everything
+        # elif resources:
+        #     self.resource_pattern = compile_simple_regexes(TSimpleRegex(r) for r in resources)
+        # else:
+        #     self.resource_pattern = None
 
-        if self.resource_pattern:
-            data_tables = {
-                t["name"]: t for t in self.schema.data_tables()
-            }  # Don't remove _dlt tables
-            resource_tables = group_tables_by_resource(data_tables, pattern=self.resource_pattern)
-            if self.drop_tables:
-                self.tables_to_drop = list(chain.from_iterable(resource_tables.values()))
-                self.tables_to_drop.reverse()
-            else:
-                self.tables_to_drop = []
-            resource_names = list(resource_tables.keys())
-        else:
-            self.tables_to_drop = []
-            self.drop_tables = False  # No tables to drop
-            self.drop_state = not not self.state_paths_to_drop  # obtain truth value
+        # if self.resource_pattern:
+        #     data_tables = {
+        #         t["name"]: t for t in self.schema.data_tables()
+        #     }  # Don't remove _dlt tables
+        #     resource_tables = group_tables_by_resource(data_tables, pattern=self.resource_pattern)
+        #     if self.drop_tables:
+        #         self.tables_to_drop = list(chain.from_iterable(resource_tables.values()))
+        #         self.tables_to_drop.reverse()
+        #     else:
+        #         self.tables_to_drop = []
+        #     resource_names = list(resource_tables.keys())
+        # else:
+        #     self.tables_to_drop = []
+        #     self.drop_tables = False  # No tables to drop
+        #     self.drop_state = not not self.state_paths_to_drop  # obtain truth value
 
-        self.drop_all = drop_all
-        self.info: _DropInfo = dict(
-            tables=[t["name"] for t in self.tables_to_drop],
-            resource_states=[],
-            state_paths=[],
-            resource_names=resource_names,
-            schema_name=self.schema.name,
-            dataset_name=self.pipeline.dataset_name,
-            drop_all=drop_all,
-            resource_pattern=self.resource_pattern,
-            warnings=[],
+        # self.drop_all = drop_all
+        # self.info: _DropInfo = dict(
+        #     tables=[t["name"] for t in self.tables_to_drop],
+        #     resource_states=[],
+        #     state_paths=[],
+        #     resource_names=resource_names,
+        #     schema_name=self.schema.name,
+        #     dataset_name=self.pipeline.dataset_name,
+        #     drop_all=drop_all,
+        #     resource_pattern=self.resource_pattern,
+        #     warnings=[],
+        # )
+        # if self.resource_pattern and not resource_tables:
+        #     self.info["warnings"].append(
+        #         f"Specified resource(s) {str(resources)} did not select any table(s) in schema"
+        #         f" {self.schema.name}. Possible resources are:"
+        #         f" {list(group_tables_by_resource(data_tables).keys())}"
+        #     )
+        # self._new_state = self._create_modified_state()
+
+        self._drop_schema, self._new_state, self.info = drop_resources(
+            self.schema,
+            pipeline.state,
+            resources,
+            state_paths,
+            drop_all,
+            state_only,
         )
-        if self.resource_pattern and not resource_tables:
-            self.info["warnings"].append(
-                f"Specified resource(s) {str(resources)} did not select any table(s) in schema"
-                f" {self.schema.name}. Possible resources are:"
-                f" {list(group_tables_by_resource(data_tables).keys())}"
-            )
-        self._new_state = self._create_modified_state()
+
+        self.drop_state = bool(drop_all or resources or state_paths)
 
     @property
     def is_empty(self) -> bool:
@@ -183,7 +190,7 @@ class DropCommand:
         )
 
     def _drop_destination_tables(self, allow_schema_tables: bool = False) -> None:
-        table_names = [tbl["name"] for tbl in self.tables_to_drop]
+        table_names = self.info["tables"]
         if not allow_schema_tables:
             for table_name in table_names:
                 assert table_name not in self.schema._schema_tables, (
@@ -199,38 +206,38 @@ class DropCommand:
                         client.drop_tables(*table_names, replace_schema=True)
 
     def _delete_schema_tables(self) -> None:
-        for tbl in self.tables_to_drop:
-            del self.schema_tables[tbl["name"]]
+        for tbl in self.info["tables"]:
+            del self.schema.tables[tbl]
         # bump schema, we'll save later
         self.schema._bump_version()
 
-    def _list_state_paths(self, source_state: Dict[str, Any]) -> List[str]:
-        return resolve_paths(self.state_paths_to_drop, source_state)
+    # def _list_state_paths(self, source_state: Dict[str, Any]) -> List[str]:
+    #     return resolve_paths(self.state_paths_to_drop, source_state)
 
-    def _create_modified_state(self) -> Dict[str, Any]:
-        state = self.pipeline.state
-        if not self.drop_state:
-            return state  # type: ignore[return-value]
-        source_states = _sources_state(state).items()
-        for source_name, source_state in source_states:
-            # drop table states
-            if self.drop_state and self.resource_pattern:
-                for key in _get_matching_resources(self.resource_pattern, source_state):
-                    self.info["resource_states"].append(key)
-                    reset_resource_state(key, source_state)
-            # drop additional state paths
-            # Don't drop 'resources' key if jsonpath is wildcard
-            resolved_paths = [
-                p for p in resolve_paths(self.state_paths_to_drop, source_state) if p != "resources"
-            ]
-            if self.state_paths_to_drop and not resolved_paths:
-                self.info["warnings"].append(
-                    f"State paths {self.state_paths_to_drop} did not select any paths in source"
-                    f" {source_name}"
-                )
-            _delete_source_state_keys(resolved_paths, source_state)
-            self.info["state_paths"].extend(f"{source_name}.{p}" for p in resolved_paths)
-        return state  # type: ignore[return-value]
+    # def _create_modified_state(self) -> Dict[str, Any]:
+    #     state = self.pipeline.state
+    #     if not self.drop_state:
+    #         return state  # type: ignore[return-value]
+    #     source_states = _sources_state(state).items()
+    #     for source_name, source_state in source_states:
+    #         # drop table states
+    #         if self.drop_state and self.resource_pattern:
+    #             for key in _get_matching_resources(self.resource_pattern, source_state):
+    #                 self.info["resource_states"].append(key)
+    #                 reset_resource_state(key, source_state)
+    #         # drop additional state paths
+    #         # Don't drop 'resources' key if jsonpath is wildcard
+    #         resolved_paths = [
+    #             p for p in resolve_paths(self.state_paths_to_drop, source_state) if p != "resources"
+    #         ]
+    #         if self.state_paths_to_drop and not resolved_paths:
+    #             self.info["warnings"].append(
+    #                 f"State paths {self.state_paths_to_drop} did not select any paths in source"
+    #                 f" {source_name}"
+    #             )
+    #         _delete_source_state_keys(resolved_paths, source_state)
+    #         self.info["state_paths"].extend(f"{source_name}.{p}" for p in resolved_paths)
+    #     return state  # type: ignore[return-value]
 
     def _extract_state(self) -> None:
         state: Dict[str, Any]
@@ -264,15 +271,12 @@ class DropCommand:
 
         if self.drop_tables:
             self._delete_schema_tables()
-            if not self.extract_only:
-                self._drop_destination_tables()
+            self._drop_destination_tables()
         if self.drop_tables:
             self._save_local_schema()
         if self.drop_state:
             self._extract_state()
         # Send updated state to destination
-        if self.extract_only:
-            return
         self.pipeline.normalize()
         try:
             self.pipeline.load(raise_on_failed_jobs=True)
