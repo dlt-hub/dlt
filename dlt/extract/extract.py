@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import List, Set, Dict, Optional, Set, Any
+from typing import List, Dict, Optional, Any
 import yaml
 
 from dlt.common.configuration.container import Container
@@ -25,7 +25,7 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TColumnNames,
     TSchemaContract,
-    TWriteDisposition,
+    TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
@@ -47,7 +47,7 @@ def data_to_sources(
     schema: Schema = None,
     table_name: str = None,
     parent_table_name: str = None,
-    write_disposition: TWriteDisposition = None,
+    write_disposition: TWriteDispositionConfig = None,
     columns: TAnySchemaColumns = None,
     primary_key: TColumnNames = None,
     schema_contract: TSchemaContract = None,
