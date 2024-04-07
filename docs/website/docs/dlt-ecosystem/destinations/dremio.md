@@ -54,6 +54,13 @@ port = 32010 # the Dremio Arrow Flight grpc port
 drivername="grpc" # either 'grpc' or 'grpc+tls'
 ```
 
+You can also pass SqlAlchemy-like connection like below
+```toml
+[destination.dremio]
+staging_data_source="s3_staging"
+credentials="grpc://<username>:<password>@<host>:<port>/<data_source>"
+```
+
 if you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** and **[destination.dremio.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]

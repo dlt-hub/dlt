@@ -1,18 +1,42 @@
 import pytest
 
-from dlt.common.schema import TColumnSchema
+from dlt.common.schema import TColumnSchema, Schema
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration, DremioCredentials
 from dlt.destinations.impl.dremio.dremio import DremioClient
 from tests.load.utils import empty_schema
 
 
 @pytest.fixture
-def dremio_client(empty_schema) -> DremioClient:
+def dremio_client(empty_schema: Schema) -> DremioClient:
     creds = DremioCredentials()
     creds.database = "test_database"
-    config = DremioClientConfiguration(credentials=creds)
-    config.dataset_name = "test_dataset"  # type: ignore
-    return DremioClient(empty_schema, config)
+    return DremioClient(
+        empty_schema,
+        DremioClientConfiguration(credentials=creds)._bind_dataset_name(
+            dataset_name="test_dataset"
+        ),
+    )
+
+
+def test_dremio_factory() -> None:
+    from dlt.destinations import dremio
+
+    dest = dremio(
+        "grpc://username:password@host:1111/data_source", staging_data_source="s3_dlt_stage"
+    )
+    config = dest.configuration(DremioClientConfiguration()._bind_dataset_name("test_dataset"))
+    assert config.staging_data_source == "s3_dlt_stage"
+    assert (
+        config.credentials.to_url().render_as_string(hide_password=False)
+        == "grpc://username:password@host:1111/data_source"
+    )
+    assert (
+        config.credentials.to_native_representation()
+        == "grpc://username:password@host:1111/data_source"
+    )
+    # simplified url ad needed by pydremio
+    assert config.credentials.to_native_credentials() == "grpc://host:1111"
+    assert config.credentials.db_kwargs() == {"password": "password", "username": "username"}
 
 
 @pytest.mark.parametrize(

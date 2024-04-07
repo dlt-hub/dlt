@@ -26,8 +26,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
     def __init__(
         self,
         credentials: t.Union[DremioCredentials, t.Dict[str, t.Any], str] = None,
-        stage_name: t.Optional[str] = None,
-        keep_staged_files: bool = True,
+        staging_data_source: str = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -39,13 +38,11 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         Args:
             credentials: Credentials to connect to the dremio database. Can be an instance of `DremioCredentials` or
                 a connection string in the format `dremio://user:password@host:port/database`
-            stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
-            keep_staged_files: Whether to delete or keep staged files after loading
+            staging_data_source: The name of the "Object Storage" data source in Dremio containing the s3 bucket
         """
         super().__init__(
             credentials=credentials,
-            stage_name=stage_name,
-            keep_staged_files=keep_staged_files,
+            staging_data_source=staging_data_source,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

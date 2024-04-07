@@ -41,7 +41,9 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
 
     def open_connection(self) -> pydremio.DremioConnection:
         db_kwargs = self.credentials.db_kwargs()
-        self._conn = pydremio.connect(uri=str(self.credentials.to_url()), db_kwargs=db_kwargs)
+        self._conn = pydremio.connect(
+            uri=self.credentials.to_native_credentials(), db_kwargs=db_kwargs
+        )
         return self._conn
 
     @raise_open_connection_error
