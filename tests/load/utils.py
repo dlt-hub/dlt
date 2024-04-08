@@ -65,14 +65,14 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 ]
 
 # Filter out buckets not in all filesystem drivers
-DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-DEFAULT_BUCKETS = [
-    bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    bucket for bucket in WITH_GDRIVE_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
-WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
+DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
