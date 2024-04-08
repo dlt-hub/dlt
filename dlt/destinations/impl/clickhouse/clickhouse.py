@@ -40,9 +40,9 @@ from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TABLE_ENGINE_TYPE_HINT,
 )
 from dlt.destinations.impl.clickhouse.configuration import (
-    ClickhouseClientConfiguration,
+    ClickHouseClientConfiguration,
 )
-from dlt.destinations.impl.clickhouse.sql_client import ClickhouseSqlClient
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.utils import (
     convert_storage_to_http_scheme,
     FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING,
@@ -59,8 +59,8 @@ from dlt.destinations.type_mapping import TypeMapper
 
 HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
     "primary_key": "PRIMARY KEY",
-    "unique": "",  # No unique constraints available in Clickhouse.
-    "foreign_key": "",  # No foreign key constraints support in Clickhouse.
+    "unique": "",  # No unique constraints available in ClickHouse.
+    "foreign_key": "",  # No foreign key constraints support in ClickHouse.
 }
 
 TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
@@ -69,7 +69,7 @@ TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
 }
 
 
-class ClickhouseTypeMapper(TypeMapper):
+class ClickHouseTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
         "complex": "JSON",
         "text": "String",
@@ -137,12 +137,12 @@ class ClickhouseTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class ClickhouseLoadJob(LoadJob, FollowupJob):
+class ClickHouseLoadJob(LoadJob, FollowupJob):
     def __init__(
         self,
         file_path: str,
         table_name: str,
-        client: ClickhouseSqlClient,
+        client: ClickHouseSqlClient,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -164,13 +164,13 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
 
         if file_extension not in ["parquet", "jsonl"]:
             raise LoadJobTerminalException(
-                file_path, "Clickhouse loader Only supports parquet and jsonl files."
+                file_path, "ClickHouse loader Only supports parquet and jsonl files."
             )
 
         # if not config.get("data_writer.disable_compression"):
         #     raise LoadJobTerminalException(
         #         file_path,
-        #         "Clickhouse loader does not support gzip compressed files. Please disable"
+        #         "ClickHouse loader does not support gzip compressed files. Please disable"
         #         " compression in the data writer configuration:"
         #         " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression.",
         #     )
@@ -219,7 +219,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Unsigned Azure Blob Storage access from Clickhouse isn't supported as yet.",
+                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
                 )
 
             # Authenticated access.
@@ -260,12 +260,12 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
                     file_path,
-                    f"Clickhouse connection failed due to {e}.",
+                    f"ClickHouse connection failed due to {e}.",
                 ) from e
         else:
             raise LoadJobTerminalException(
                 file_path,
-                f"Clickhouse loader does not support '{bucket_scheme}' filesystem.",
+                f"ClickHouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
         # Don't use dbapi driver for local files.
@@ -280,30 +280,30 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
         raise NotImplementedError()
 
 
-class ClickhouseMergeJob(SqlMergeJob):
+class ClickHouseMergeJob(SqlMergeJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql};"
 
 
-class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(
         self,
         schema: Schema,
-        config: ClickhouseClientConfiguration,
+        config: ClickHouseClientConfiguration,
     ) -> None:
-        self.sql_client: ClickhouseSqlClient = ClickhouseSqlClient(
+        self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
             config.normalize_dataset_name(schema), config.credentials
         )
         super().__init__(schema, config, self.sql_client)
-        self.config: ClickhouseClientConfiguration = config
+        self.config: ClickHouseClientConfiguration = config
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
-        self.type_mapper = ClickhouseTypeMapper(self.capabilities)
+        self.type_mapper = ClickHouseTypeMapper(self.capabilities)
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [ClickhouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+        return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         # Build column definition.
@@ -317,7 +317,7 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
         # Alter table statements only accept `Nullable` modifiers.
-        # JSON type isn't nullable in Clickhouse.
+        # JSON type isn't nullable in ClickHouse.
         type_with_nullability_modifier = (
             f"Nullable({self.type_mapper.to_db_type(c)})"
             if c.get("nullable", True) and c.get("data_type") != "complex"
@@ -330,7 +330,7 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return super().start_file_load(table, file_path, load_id) or ClickhouseLoadJob(
+        return super().start_file_load(table, file_path, load_id) or ClickHouseLoadJob(
             file_path,
             table["name"],
             self.sql_client,
@@ -395,7 +395,7 @@ class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
-    # Clickhouse fields are not nullable by default.
+    # ClickHouse fields are not nullable by default.
 
     @staticmethod
     def _gen_not_null(v: bool) -> str:

@@ -14,7 +14,7 @@ TSecureConnection = Literal[0, 1]
 
 
 @configspec(init=False)
-class ClickhouseCredentials(ConnectionStringCredentials):
+class ClickHouseCredentials(ConnectionStringCredentials):
     drivername: str = "clickhouse"
     host: str  # type: ignore
     """Host with running ClickHouse server."""
@@ -69,9 +69,9 @@ class ClickhouseCredentials(ConnectionStringCredentials):
 
 
 @configspec
-class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = "clickhouse"  # type: ignore[misc]
-    credentials: ClickhouseCredentials  # type: ignore
+    credentials: ClickHouseCredentials  # type: ignore
     dataset_name: Final[str] = ""  # type: ignore
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
 
@@ -91,7 +91,7 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         def __init__(
             self,
             *,
-            credentials: ClickhouseCredentials = None,
+            credentials: ClickHouseCredentials = None,
             dataset_name: str = None,
             destination_name: str = None,
             environment: str = None

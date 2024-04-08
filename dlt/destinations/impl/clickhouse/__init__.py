@@ -7,7 +7,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-    # Clickhouse only supports loading from staged files on s3 for now.
+    # ClickHouse only supports loading from staged files on s3 for now.
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["parquet", "jsonl"]
     caps.preferred_staging_file_format = "jsonl"
@@ -20,7 +20,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.max_identifier_length = 255
     caps.max_column_identifier_length = 255
 
-    # Clickhouse has no max `String` type length.
+    # ClickHouse has no max `String` type length.
     caps.max_text_data_type_length = sys.maxsize
 
     caps.schema_supports_numeric_precision = True
@@ -34,7 +34,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_query_length_in_bytes = True
     caps.max_query_length = 262144
 
-    # Clickhouse has limited support for transactional semantics, especially for `ReplicatedMergeTree`,
+    # ClickHouse has limited support for transactional semantics, especially for `ReplicatedMergeTree`,
     # the default ClickHouse Cloud engine. It does, however, provide atomicity for individual DDL operations like `ALTER TABLE`.
     # https://clickhouse-driver.readthedocs.io/en/latest/dbapi.html#clickhouse_driver.dbapi.connection.Connection.commit
     # https://clickhouse.com/docs/en/guides/developer/transactional#transactions-commit-and-rollback

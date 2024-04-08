@@ -6,21 +6,21 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ, digest128
 from dlt.common.utils import uniq_id
-from dlt.destinations.impl.clickhouse.clickhouse import ClickhouseClient
+from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
-    ClickhouseCredentials,
-    ClickhouseClientConfiguration,
+    ClickHouseCredentials,
+    ClickHouseClientConfiguration,
 )
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def clickhouse_client(empty_schema: Schema) -> ClickhouseClient:
+def clickhouse_client(empty_schema: Schema) -> ClickHouseClient:
     # Return a client without opening connection.
-    creds = ClickhouseCredentials()
-    return ClickhouseClient(
+    creds = ClickHouseCredentials()
+    return ClickHouseClient(
         empty_schema,
-        ClickhouseClientConfiguration(dataset_name=f"test_{uniq_id()}", credentials=creds),
+        ClickHouseClientConfiguration(dataset_name=f"test_{uniq_id()}", credentials=creds),
     )
 
 
@@ -34,21 +34,21 @@ def test_clickhouse_configuration() -> None:
             "DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD": "fuss_do_rah",
         }
     ):
-        C = resolve_configuration(ClickhouseCredentials(), sections=("destination", "clickhouse"))
+        C = resolve_configuration(ClickHouseCredentials(), sections=("destination", "clickhouse"))
         assert C.database == "mydb"
         assert C.password == "fuss_do_rah"
 
     # Check fingerprint.
-    assert ClickhouseClientConfiguration().fingerprint() == ""
+    assert ClickHouseClientConfiguration().fingerprint() == ""
     # Based on host.
     c = resolve_configuration(
-        ClickhouseCredentials(),
+        ClickHouseCredentials(),
         explicit_value="clickhouse://user1:pass@host1/db1",
     )
-    assert ClickhouseClientConfiguration(credentials=c).fingerprint() == digest128("host1")
+    assert ClickHouseClientConfiguration(credentials=c).fingerprint() == digest128("host1")
 
 
-def test_clickhouse_create_table(clickhouse_client: ClickhouseClient) -> None:
+def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
@@ -88,7 +88,7 @@ def test_clickhouse_create_table(clickhouse_client: ClickhouseClient) -> None:
     assert "`col11_precision` DateTime" in sql
 
 
-def test_clickhouse_alter_table(clickhouse_client: ClickhouseClient) -> None:
+def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     assert len(statements) == 1
     sql = statements[0]
@@ -138,7 +138,7 @@ def test_clickhouse_alter_table(clickhouse_client: ClickhouseClient) -> None:
 
 
 @pytest.mark.usefixtures("empty_schema")
-def test_clickhouse_create_table_with_primary_keys(clickhouse_client: ClickhouseClient) -> None:
+def test_clickhouse_create_table_with_primary_keys(clickhouse_client: ClickHouseClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
 
     mod_update[1]["primary_key"] = True
@@ -154,7 +154,7 @@ def test_clickhouse_create_table_with_primary_keys(clickhouse_client: Clickhouse
     "Only `primary_key` hint has been implemented so far, which isn't specified inline with the"
     " column definition."
 )
-def test_clickhouse_create_table_with_hints(client: ClickhouseClient) -> None:
+def test_clickhouse_create_table_with_hints(client: ClickHouseClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
 
     mod_update[0]["primary_key"] = True

@@ -7,8 +7,8 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.libs.sql_alchemy import make_url
 from dlt.common.utils import digest128
 from dlt.destinations.impl.clickhouse.configuration import (
-    ClickhouseCredentials,
-    ClickhouseClientConfiguration,
+    ClickHouseCredentials,
+    ClickHouseClientConfiguration,
 )
 from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
@@ -20,7 +20,7 @@ from tests.common.configuration.utils import environment
 def test_clickhouse_connection_string_with_all_params() -> None:
     url = "clickhouse://user1:pass1@host1:9000/testdb?secure=0&connect_timeout=230&send_receive_timeout=1000"
 
-    creds = ClickhouseCredentials()
+    creds = ClickHouseCredentials()
     creds.parse_native_representation(url)
 
     assert creds.database == "testdb"
@@ -40,7 +40,7 @@ def test_clickhouse_connection_string_with_all_params() -> None:
 
 def test_clickhouse_configuration() -> None:
     # def empty fingerprint
-    assert ClickhouseClientConfiguration().fingerprint() == ""
+    assert ClickHouseClientConfiguration().fingerprint() == ""
     # based on host
     c = resolve_configuration(
         SnowflakeCredentials(),

@@ -21,7 +21,7 @@ from dlt.destinations.exceptions import (
     DatabaseTerminalException,
 )
 from dlt.destinations.impl.clickhouse import capabilities
-from dlt.destinations.impl.clickhouse.configuration import ClickhouseCredentials
+from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
@@ -33,21 +33,21 @@ from dlt.destinations.utils import _convert_to_old_pyformat
 
 
 TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
-    "Clickhouse does not support transactions! Each statement is auto-committed separately."
+    "ClickHouse does not support transactions! Each statement is auto-committed separately."
 )
 
 
-class ClickhouseDBApiCursorImpl(DBApiCursorImpl):
+class ClickHouseDBApiCursorImpl(DBApiCursorImpl):
     native_cursor: DictCursor
 
 
-class ClickhouseSqlClient(
+class ClickHouseSqlClient(
     SqlClientBase[clickhouse_driver.dbapi.connection.Connection], DBTransaction
 ):
     dbapi: ClassVar[DBApi] = clickhouse_driver.dbapi.connection.Connection
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: ClickhouseCredentials) -> None:
+    def __init__(self, dataset_name: str, credentials: ClickHouseCredentials) -> None:
         super().__init__(credentials.database, dataset_name)
         self._conn: clickhouse_driver.dbapi.connection = None
         self.credentials = credentials
@@ -89,11 +89,11 @@ class ClickhouseSqlClient(
             return None if curr.description is None else curr.fetchall()
 
     def create_dataset(self) -> None:
-        # Clickhouse doesn't have schemas.
+        # ClickHouse doesn't have schemas.
         pass
 
     def drop_dataset(self) -> None:
-        # Since Clickhouse doesn't have schemas, we need to drop all tables in our virtual schema,
+        # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
         # or collection of tables, that has the `dataset_name` as a prefix.
         to_drop_results = self.execute_sql(
             """
@@ -120,7 +120,7 @@ class ClickhouseSqlClient(
     @raise_database_error
     def execute_query(
         self, query: AnyStr, *args: Any, **kwargs: Any
-    ) -> Iterator[ClickhouseDBApiCursorImpl]:
+    ) -> Iterator[ClickHouseDBApiCursorImpl]:
         assert isinstance(query, str), "Query must be a string"
 
         db_args = kwargs.copy()
@@ -144,7 +144,7 @@ class ClickhouseSqlClient(
                     except KeyError as e:
                         raise DatabaseTransientException(OperationalError()) from e
 
-            yield ClickhouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
+            yield ClickHouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
