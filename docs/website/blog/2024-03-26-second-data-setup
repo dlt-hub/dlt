@@ -1,7 +1,7 @@
 ---
 slug: second-data-setup
 title: The Second Data Warehouse, aka the "disaster recovery" project
-image:  https://storage.googleapis.com/dlt-blog-images/disaster_1.png
+image:  https://storage.googleapis.com/dlt-blog-images/second_house.png
 authors:
   name: Adrian Brudaru
   title: Open source Data Engineer
@@ -18,6 +18,9 @@ Before freelancing, I was working for "sexy but poor" startups where building fa
 In this time, I had the pleasure of doing many first time setups, and a few "rebuilds" or "second time setups"
 
 In fact, my first freelancing project was a "disaster recovery" one.
+
+a "second time build" or "disaster recovery project" refers to the process of re-designing, re-building, or significantly
+overhauling a data warehouse or data infrastructure after the initial setup has failed to meet the organization's needs.
 
 ![dipping your toes in disaster](https://storage.googleapis.com/dlt-blog-images/disaster-2.png)
 
@@ -51,7 +54,7 @@ Example 4: A first time data hire introduces a platform-like tool that's sql cen
     Solution: Reverse engineer existing reports, account for bugs and unfulfilled requirements, build them from scratch, occasionally searching the mass of sql. Outcome was under 2k lines.
 
 Example 5: A VC company wants to make a tool that reads metrics from business apps like google ads, Stripe.
-    - They end up at the largest local agency, who recommends them a single - tenant MDS for 90k and a pathway from there
+    - They end up at the largest local agency, who recommends them a single - tenant SaaS MDS for 90k to set up and a pathway from there
     - They agreed and then asked me to review. The agency person was aggressive and queried my knowledge on unrelated things, in an attempt to dismiss my assessment.
     - Turns out the agency was selling "installing 5tran and cleaning the data" for 5k+ per source, and some implementation partners time.
     - I think the VC later hired a non technical freelancer to do the work.
@@ -72,6 +75,7 @@ I believe the blame is quite shared. The common denominators seem to be
 
 As for what to do about it:
 If you were a hiring manager, ensure that your first data hire has all the skills at their disposal, and make sure they don't just talk the talk but walk the walk. Ask for references or test them.
+
 But you aren't a hiring manager - those folks don't read data blogs.
 
 So here's what you can do
@@ -103,5 +107,9 @@ How to manage the technical side?
 
 
 ### Want to discuss?
+
+Agencies and freelancers are often the heavy-lifters that are brought in to do such setups.
+Is this something you are currently doing?
+Tell us about your challenges so we may better support you.
 
 [Join our slack community](https://dlthub.com/community) to take part in the conversation.
