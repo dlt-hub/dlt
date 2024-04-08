@@ -61,7 +61,6 @@ def prepare_datetime_params(load_package_timestamp: str) -> Dict[str, str]:
 
 
 def prepare_params(
-    current_datetime: TCurrentDateTime = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
     job_info: Optional[ParsedLoadJobFileName] = None,
     schema_name: Optional[str] = None,
@@ -96,7 +95,6 @@ def prepare_params(
                     load_id,
                     file_id,
                     ext,
-                    current_datetime,
                 )
             except TypeError:
                 fmt.secho(
@@ -139,15 +137,11 @@ def create_path(
     schema_name: str,
     load_id: str,
     load_package_timestamp: str,
-    current_datetime: TCurrentDateTime = None,
-    datetime_format: Optional[str] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
     job_info = ParsedLoadJobFileName.parse(file_name)
     params = prepare_params(
-        current_datetime=current_datetime,
-        datetime_format=datetime_format,
         extra_placeholders=extra_placeholders,
         job_info=job_info,
         schema_name=schema_name,

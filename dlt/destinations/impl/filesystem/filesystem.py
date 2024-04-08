@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import dlt
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
+from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -45,8 +45,6 @@ class LoadFilesystemJob(LoadJob):
             schema_name,
             load_id,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
-            current_datetime=config.current_datetime,
-            datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
         )
 
@@ -58,8 +56,6 @@ class LoadFilesystemJob(LoadJob):
             schema_name,
             load_id,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
-            current_datetime=config.current_datetime,
-            datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
         )
         item = self.make_remote_path()
@@ -103,8 +99,6 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(
             config.layout,
-            current_datetime=config.current_datetime,
-            datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
         )
         self._dataset_path = self.config.normalize_dataset_name(self.schema)
