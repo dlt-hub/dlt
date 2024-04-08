@@ -1,6 +1,5 @@
 import typing as t
 
-
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
