@@ -5,10 +5,10 @@ import pytest
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.path_utils import (
+    check_layout,
     create_path,
     get_table_prefix_layout,
-    LayoutParams,
-    LayoutHelper,
+    prepare_params,
 )
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 from tests.common.storages.utils import start_loading_file, load_storage
@@ -25,14 +25,11 @@ def test_load(load_storage: LoadStorage) -> TestLoad:
 
 
 def test_layout_validity() -> None:
-    extra_params = LayoutParams()
-    LayoutHelper("{table_name}", extra_params.params).check_layout()
-    LayoutHelper(
-        "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", extra_params.params
-    ).check_layout()
+    check_layout("{table_name}")
+    check_layout("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}")
     with pytest.raises(InvalidFilesystemLayout) as exc:
-        LayoutHelper("{other_ph}.{table_name}", extra_params.params).check_layout()
-    assert exc.value.invalid_placeholders == ["other_ph"]
+        check_layout("{other_ph}.{table_name}")
+        assert exc.value.invalid_placeholders == ["other_ph"]
 
 
 def test_create_path(test_load: TestLoad) -> None:
