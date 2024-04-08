@@ -22,7 +22,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     FollowupJob,
     LoadJob,
-    NewLoadJob,
+    NewLoadJob, StorageSchemaInfo,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -247,9 +247,8 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                         settings={
                             "allow_experimental_lightweight_delete": 1,
                             "allow_experimental_object_type": 1,
-                            "enable_http_compression": 1,
                         },
-                        compression=None if compression == "none" else compression,
+                        # compression=None if compression == "none" else compression,
                     )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
@@ -387,10 +386,14 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
-    # ClickHouse fields are not nullable by default.
+
+    def get_stored_schema(self) -> StorageSchemaInfo:
+        return super().get_stored_schema()
+
 
     @staticmethod
     def _gen_not_null(v: bool) -> str:
+        # ClickHouse fields are not nullable by default.
         # We use the `Nullable` modifier instead of NULL / NOT NULL modifiers to cater for ALTER statement.
         pass
 
