@@ -7,7 +7,6 @@ from dlt.cli import echo as fmt
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout
 
-from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
 SUPPORTED_PLACEHOLDERS = {
@@ -33,12 +32,15 @@ def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
 
-def prepare_datetime_params(load_package_timestamp: str) -> Dict[str, str]:
+def prepare_datetime_params(load_package_timestamp: Optional[str] = None) -> Dict[str, str]:
     # For formatting options please see
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
     # Format curr_date datetime according to given format
-    moment = pendulum.parse(load_package_timestamp)
     params: Dict[str, str] = {}
+    if load_package_timestamp:
+        moment = pendulum.parse(load_package_timestamp)
+    else:
+        moment = pendulum.now()
 
     # Timestamp placeholder
     params["timestamp"] = str(int(moment.timestamp()))
@@ -82,30 +84,34 @@ def prepare_params(
             }
         )
 
+    if schema_name:
+        params["schema_name"] = schema_name
+
     if load_id:
         params["load_id"] = load_id
 
     # Resolve extra placeholders
-    for key, value in extra_placeholders.items():
-        if callable(value):
-            try:
-                params[key] = value(
-                    schema_name,
-                    table_name,
-                    load_id,
-                    file_id,
-                    ext,
-                )
-            except TypeError:
-                fmt.secho(
-                    f"Extra placeholder {key} is callableCallable placeholder should accept"
-                    " parameters below`schema name`, `table name`, `load_id`, `file_id`,"
-                    " `extension` and `current_datetime`",
-                    fg="red",
-                )
-                raise
-        else:
-            params[key] = value
+    if extra_placeholders:
+        for key, value in extra_placeholders.items():
+            if callable(value):
+                try:
+                    params[key] = value(
+                        schema_name,
+                        table_name,
+                        load_id,
+                        file_id,
+                        ext,
+                    )
+                except TypeError:
+                    fmt.secho(
+                        f"Extra placeholder {key} is callableCallable placeholder should accept"
+                        " parameters below`schema name`, `table name`, `load_id`, `file_id`,"
+                        " `extension` and `current_datetime`",
+                        fg="red",
+                    )
+                    raise
+            else:
+                params[key] = value
 
     return params
 
@@ -136,7 +142,7 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    load_package_timestamp: str,
+    load_package_timestamp: Optional[str] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
@@ -167,7 +173,7 @@ def get_table_prefix_layout(
     """get layout fragment that defines positions of the table, cutting other placeholders
     allowed `supported_prefix_placeholders` that may appear before table.
     """
-    placeholders = check_layout(layout)
+    placeholders = get_placeholders(layout)
     # fail if table name is not defined
     if "table_name" not in placeholders:
         raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
