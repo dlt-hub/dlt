@@ -8,12 +8,8 @@ from dlt.common.destination.reference import (
 )
 
 from dlt.common.storages import FilesystemConfiguration
-from pendulum.datetime import DateTime
 
-from dlt.destinations.impl.filesystem.typing import (
-    TCurrentDatetimeCallback,
-    TLayoutParamCallback,
-)
+from dlt.destinations.impl.filesystem.typing import TLayoutParamCallback
 
 
 @configspec
