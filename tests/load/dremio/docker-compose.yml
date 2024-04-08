@@ -1,0 +1,50 @@
+version: "3.7"
+services:
+  dremio:
+    image: dremio/dremio-oss
+    ports:
+      - "9047:9047"
+      - "31010:31010"
+      - "32010:32010"
+      - "45678:45678"
+    networks:
+      - dremio
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    #    volumes:
+    #      - minio_data:/data
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    networks:
+      - dremio
+  createbuckets:
+    image: minio/mc
+    networks:
+      - dremio
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/dlt-ci-test-bucket;
+      /usr/bin/mc anonymous set public myminio/dlt-ci-test-bucket;
+      exit 0;
+      "
+  bootstrapdremio:
+    depends_on:
+      - dremio
+      - createbuckets
+    build:
+      context: bootstrap
+    networks:
+      - dremio
+    command: ./bootstrap_dremio.sh
+networks:
+  dremio:
+    name: dremio

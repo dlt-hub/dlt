@@ -65,14 +65,14 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 ]
 
 # Filter out buckets not in all filesystem drivers
-DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-DEFAULT_BUCKETS = [
-    bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    bucket for bucket in WITH_GDRIVE_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
-WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
+DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -175,7 +175,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks")
+            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -206,6 +206,15 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             )
         ]
         destination_configs += [
@@ -301,6 +310,13 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             ),
         ]
 

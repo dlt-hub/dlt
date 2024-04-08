@@ -80,11 +80,11 @@ def test_default_pipeline_names(
     # this will create default schema
     p.extract(data_fun)
     # _pipeline suffix removed when creating default schema name
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):
@@ -816,7 +816,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col11_null")
         column_schemas.pop("col11_precision")
 
-    if destination_config.destination == "redshift":
+    if destination_config.destination in ("redshift", "dremio"):
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
 
@@ -865,7 +865,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=column_schemas,
             parse_complex_strings=destination_config.destination
             in ["snowflake", "bigquery", "redshift"],
-            timestamp_precision=3 if destination_config.destination == "athena" else 6,
+            timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
         )
 
 

@@ -393,6 +393,8 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
             continue
+        if client.config.destination_type == "dremio" and c["data_type"] == "complex":
+            continue
         assert c["data_type"] == expected_c["data_type"]
 
 
@@ -657,7 +659,9 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["dremio"]),
+    ids=lambda x: x.name,
 )
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(
