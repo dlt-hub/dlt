@@ -1,16 +1,19 @@
+import pytest
 from typing import Iterator, Any
 
 import dlt
 from tests.load.pipeline.utils import load_table_counts
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
 
-def test_dremio() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="dremio-test",
-        destination="dremio",
-        staging="filesystem",
-        dataset_name="bar",
-        full_refresh=True,
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["dremio"]),
+    ids=lambda x: x.name,
+)
+def test_dremio(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "dremio-test", dataset_name="bar", full_refresh=True
     )
 
     @dlt.resource(name="items", write_disposition="replace")
