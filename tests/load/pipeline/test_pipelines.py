@@ -907,7 +907,7 @@ def test_pipeline_upfront_tables_two_loads(
             write_disposition="merge",
         )
         def table_2():
-            yield data_to_item_format("arrow", [{"id": 2}])
+            yield data_to_item_format("arrow-table", [{"id": 2}])
 
         @dlt.resource(
             columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
@@ -1017,7 +1017,7 @@ def test_pipeline_upfront_tables_two_loads(
 #             }
 #             for hour in range(0, max_hours)
 #         ]
-#         data = data_to_item_format("arrow", data)
+#         data = data_to_item_format("arrow-table", data)
 #         # print(py_arrow_to_table_schema_columns(data[0].schema))
 #         # print(data)
 #         yield data
