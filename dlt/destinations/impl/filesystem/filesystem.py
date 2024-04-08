@@ -5,6 +5,7 @@ from typing import ClassVar, List, Type, Iterable, Set, Iterator
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
+import dlt
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
@@ -43,6 +44,7 @@ class LoadFilesystemJob(LoadJob):
             file_name,
             schema_name,
             load_id,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             current_datetime=config.current_datetime,
             datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
@@ -55,6 +57,7 @@ class LoadFilesystemJob(LoadJob):
             file_name,
             schema_name,
             load_id,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             current_datetime=config.current_datetime,
             datetime_format=config.datetime_format,
             extra_placeholders=config.extra_placeholders,
