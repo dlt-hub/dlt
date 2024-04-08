@@ -283,11 +283,7 @@ class ClickhouseLoadJob(LoadJob, FollowupJob):
 class ClickhouseMergeJob(SqlMergeJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-        # Different sessions are created during the load process, and temporary tables
-        # do not persist between sessions.
-        # Resorting to persisted in-memory table to fix.
-        # return f"CREATE TABLE {temp_table_name} ENGINE = Memory AS {select_sql};"
-        return f"CREATE TABLE {temp_table_name} ENGINE = Memory AS {select_sql};"
+        return f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_sql};"
 
 
 class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
