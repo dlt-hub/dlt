@@ -36,7 +36,7 @@ NORMALIZED_FILES = [
 ]
 
 ALL_LAYOUTS = (
-    # None,
+    None,
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # new default layout with schema
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # classic layout
     "{table_name}88{load_id}-u-{file_id}.{ext}",  # default layout with strange separators
