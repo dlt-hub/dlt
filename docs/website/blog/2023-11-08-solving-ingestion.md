@@ -1,7 +1,7 @@
 ---
 slug: solving-data-ingestion-python
 title: "Solving data ingestion for Python coders"
-image: /img/blog-ingestion-etl-tools-users.png
+image: https://storage.googleapis.com/dlt-blog-images/blog-ingestion-etl-tools-users.png
 authors:
   name: Adrian Brudaru
   title: Open source data engineer
@@ -30,7 +30,7 @@ When building a data pipeline, we can start from scratch, or we can look for exi
 
 Besides the persona-tool fit, in the current tooling, there is a major trade-off between complexity. For example, SaaS tools or SaaS SDKs offer “building blocks” and leave little room for customizations. On the other hand, custom pipelines enable one to do anything they could want but come with a high burden of code, complexity, and maintenance. And classic SDKs are simply too difficult for the majority of data people.
 
-![etl_by_others.png](/img/blog-ingestion-etl-tools-users.png)
+![etl_by_others.png](https://storage.googleapis.com/dlt-blog-images/blog-ingestion-etl-tools-users.png)
 
 # So how can we solve ingestion?
 
@@ -81,7 +81,7 @@ One-offs have their advantage: they are easy to create and can generally take a 
 
 Let’s let Drake recap for us:
 
-![what would drake do](/img/blog-what_would_drake_do.png)
+![what would drake do](https://storage.googleapis.com/dlt-blog-images/blog-what_would_drake_do.png)
 
 So what does our desired solution look like?
 
