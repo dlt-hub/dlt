@@ -76,14 +76,14 @@ This example assumes you have set up Google Sheets API access and obtained the n
 
 Install the required package for the Google API client:
 
-```bash
+```sh
 pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
 ```
 
 Here’s how to define a destination function to update a Google Sheet:
 
-```python
+```py
 import dlt
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -144,7 +144,7 @@ id = "your_google_sheet_id_here"
 
 Now, assuming you have a source function **`sql_database()`** from the verified sources, you can set up and run your pipeline as follows:
 
-```python
+```py
 
 import dlt
 from dlt.common.destination import Destination
