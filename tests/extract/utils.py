@@ -46,7 +46,7 @@ def expect_extracted_file(
 
 
 class AssertItems(ItemTransform[TDataItem]):
-    def __init__(self, expected_items: Any, item_type: TestDataItemFormat = "json") -> None:
+    def __init__(self, expected_items: Any, item_type: TestDataItemFormat = "object") -> None:
         self.expected_items = expected_items
         self.item_type = item_type
 
@@ -56,7 +56,7 @@ class AssertItems(ItemTransform[TDataItem]):
 
 
 def data_item_to_list(from_type: TestDataItemFormat, values: List[TDataItem]):
-    if from_type in ["arrow", "arrow-batch"]:
+    if from_type in ["arrow-table", "arrow-batch"]:
         return values[0].to_pylist()
     elif from_type == "pandas":
         return values[0].to_dict("records")

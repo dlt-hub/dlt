@@ -357,11 +357,16 @@ class ParquetDataWriter(DataWriter):
 
 class CsvWriter(DataWriter):
     def __init__(
-        self, f: IO[Any], caps: DestinationCapabilitiesContext = None, delimiter: str = ","
+        self,
+        f: IO[Any],
+        caps: DestinationCapabilitiesContext = None,
+        delimiter: str = ",",
+        bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
         self.delimiter = delimiter
         self.writer: csv.DictWriter[str] = None
+        self.bytes_encoding = bytes_encoding
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
@@ -374,8 +379,37 @@ class CsvWriter(DataWriter):
             quoting=csv.QUOTE_NONNUMERIC,
         )
         self.writer.writeheader()
+        # find row items that are of the complex type (could be abstracted out for use in other writers?)
+        self.complex_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "complex"
+        ]
+        # find row items that are of the complex type (could be abstracted out for use in other writers?)
+        self.bytes_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "binary"
+        ]
 
     def write_data(self, rows: Sequence[Any]) -> None:
+        # convert bytes and json
+        if self.complex_indices or self.bytes_indices:
+            for row in rows:
+                for key in self.complex_indices:
+                    if (value := row.get(key)) is not None:
+                        row[key] = json.dumps(value)
+                for key in self.bytes_indices:
+                    if (value := row.get(key)) is not None:
+                        # assumed bytes value
+                        try:
+                            row[key] = value.decode(self.bytes_encoding)
+                        except UnicodeError:
+                            raise InvalidDataItem(
+                                "csv",
+                                "object",
+                                f"'{key}' contains bytes that cannot be decoded with"
+                                f" {self.bytes_encoding}. Remove binary columns or replace their"
+                                " content with a hex representation: \\x... while keeping data"
+                                " type as binary.",
+                            )
+
         self.writer.writerows(rows)
         # count rows that got written
         self.items_count += sum(len(row) for row in rows)

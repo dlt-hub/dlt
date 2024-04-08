@@ -213,7 +213,7 @@ def test_nested_cursor_path() -> None:
     assert s["last_value"] == 2
 
 
-@pytest.mark.parametrize("item_type", ["arrow", "pandas"])
+@pytest.mark.parametrize("item_type", ["arrow-table", "pandas"])
 def test_nested_cursor_path_arrow_fails(item_type: TestDataItemFormat) -> None:
     data = [{"data": {"items": [{"created_at": 2}]}}]
     source_items = data_to_item_format(item_type, data)
@@ -708,7 +708,7 @@ def test_start_value_set_to_last_value() -> None:
         p.run(r, destination="duckdb")
 
 
-@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"json"})
+@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"object"})
 def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> None:
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
     now = pendulum.now()
@@ -1047,7 +1047,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
     resource.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=start_dt))
     # and the data is naive. so it will work as expected with naive datetimes in the result set
     data = list(resource)
-    if item_type == "json":
+    if item_type == "object":
         # we do not convert data in arrow tables
         assert data[0]["updated_at"].tzinfo is None
 
@@ -1059,7 +1059,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         )
     )
     data = list(resource)
-    if item_type == "json":
+    if item_type == "object":
         assert data[0]["updated_at"].tzinfo is None
 
     # now use naive initial value but data is UTC
@@ -1070,7 +1070,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         )
     )
     # will cause invalid comparison
-    if item_type == "json":
+    if item_type == "object":
         with pytest.raises(InvalidStepFunctionArguments):
             list(resource)
     else:
@@ -1392,7 +1392,7 @@ def test_transformer_row_order_out_of_range(item_type: TestDataItemFormat) -> No
         for chunk in chunks(count(start=48, step=-1), 10):
             data = [{"updated_at": i, "package": package} for i in chunk]
             # print(data)
-            yield data_to_item_format("json", data)
+            yield data_to_item_format("object", data)
             if updated_at.can_close():
                 out_of_range.append(package)
                 return

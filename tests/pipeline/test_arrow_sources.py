@@ -14,24 +14,26 @@ from dlt.common.libs.pyarrow import NameNormalizationClash, remove_columns, norm
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import (
-    arrow_format_from_pandas,
-    arrow_item_from_table,
     arrow_table_all_data_types,
     prepare_shuffled_tables,
-    TArrowFormat,
 )
-from tests.utils import preserve_environ
+from tests.utils import (
+    preserve_environ,
+    TArrowFormat,
+    arrow_item_from_pandas,
+    arrow_item_from_table,
+)
 
 
 @pytest.mark.parametrize(
     ("item_type", "is_list"),
     [
         ("pandas", False),
-        ("table", False),
-        ("record_batch", False),
+        ("arrow-table", False),
+        ("arrow-batch", False),
         ("pandas", True),
-        ("table", True),
-        ("record_batch", True),
+        ("arrow-table", True),
+        ("arrow-batch", True),
     ],
 )
 def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
@@ -112,11 +114,11 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
     ("item_type", "is_list"),
     [
         ("pandas", False),
-        ("table", False),
-        ("record_batch", False),
+        ("arrow-table", False),
+        ("arrow-batch", False),
         ("pandas", True),
-        ("table", True),
-        ("record_batch", True),
+        ("arrow-table", True),
+        ("arrow-batch", True),
     ],
 )
 def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
@@ -151,7 +153,7 @@ def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
         assert res_item == exp_item
 
 
-@pytest.mark.parametrize("item_type", ["table", "record_batch"])
+@pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
 def test_add_map(item_type: TArrowFormat):
     item, _, _ = arrow_table_all_data_types(item_type, num_rows=200)
 
@@ -173,7 +175,7 @@ def test_add_map(item_type: TArrowFormat):
     assert pa.compute.all(pa.compute.greater(result_tbl["int"], 80)).as_py()
 
 
-@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
 def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
     # do not extract state
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
@@ -205,7 +207,7 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
     assert len(pipeline.get_load_package_info(load_id).jobs["new_jobs"]) == 10
 
 
-@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
 def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
     # # use parquet for dummy
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
@@ -224,7 +226,7 @@ def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
     assert isinstance(py_ex.value.__context__, NameNormalizationClash)
 
 
-@pytest.mark.parametrize("item_type", ["table", "record_batch"])
+@pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
 def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
@@ -243,7 +245,7 @@ def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
     pipeline.run(item, table_name="data").raise_on_failed_jobs()
 
 
-@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
 def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
@@ -261,7 +263,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
     assert info.row_counts["items"] == len(rows)
 
 
-@pytest.mark.parametrize("item_type", ["table"])  # , "pandas", "record_batch"
+@pytest.mark.parametrize("item_type", ["arrow-table"])  # , "pandas", "arrow-batch"
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     item, records, _ = arrow_table_all_data_types(item_type, num_rows=5432)
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
@@ -327,7 +329,7 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     assert schema.tables["some_data"]["columns"]["static_int"]["data_type"] == "bigint"
 
 
-@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+@pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
 def test_normalize_reorder_columns_separate_packages(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
@@ -378,7 +380,7 @@ def test_normalize_reorder_columns_separate_packages(item_type: TArrowFormat) ->
     load_info.raise_on_failed_jobs()
 
 
-@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+@pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
 def test_normalize_reorder_columns_single_package(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # we do not want to rotate buffer
@@ -420,7 +422,7 @@ def test_normalize_reorder_columns_single_package(item_type: TArrowFormat) -> No
     pipeline.load().raise_on_failed_jobs()
 
 
-@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+@pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
 def test_normalize_reorder_columns_single_batch(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # we do not want to rotate buffer
@@ -472,7 +474,7 @@ def test_normalize_reorder_columns_single_batch(item_type: TArrowFormat) -> None
     pipeline.load().raise_on_failed_jobs()
 
 
-@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
 def test_empty_arrow(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
@@ -495,7 +497,7 @@ def test_empty_arrow(item_type: TArrowFormat) -> None:
     empty_df = pd.DataFrame(columns=item.columns)
 
     item_resource = dlt.resource(
-        arrow_format_from_pandas(empty_df, item_type), name="items", write_disposition="replace"
+        arrow_item_from_pandas(empty_df, item_type), name="items", write_disposition="replace"
     )
     info = pipeline.extract(item_resource)
     load_id = info.loads_ids[0]
