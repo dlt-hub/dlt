@@ -106,6 +106,7 @@ def escape_redshift_identifier(v: str) -> str:
 
 escape_postgres_identifier = escape_redshift_identifier
 escape_athena_identifier = escape_postgres_identifier
+escape_dremio_identifier = escape_postgres_identifier
 
 
 def escape_bigquery_identifier(v: str) -> str:

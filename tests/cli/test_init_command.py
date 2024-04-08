@@ -11,6 +11,9 @@ from unittest import mock
 import re
 from packaging.requirements import Requirement
 
+# import that because O3 modules cannot be unloaded
+import cryptography.hazmat.bindings._rust
+
 
 import dlt
 

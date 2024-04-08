@@ -64,15 +64,15 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "r2",
 ]
 
-# Filter out buckets not in all filesystem drivers.
-DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-DEFAULT_BUCKETS = [
-    bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+# Filter out buckets not in all filesystem drivers
+WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    bucket for bucket in WITH_GDRIVE_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
-WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
+DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -114,7 +114,10 @@ class DestinationTestConfiguration:
         name: str = self.destination
         if self.file_format:
             name += f"-{self.file_format}"
-        name += "-staging" if self.staging else "-no-staging"
+        if not self.staging:
+            name += "-no-staging"
+        else:
+            name += "-staging"
         if self.extra_info:
             name += f"-{self.extra_info}"
         return name
@@ -134,7 +137,7 @@ class DestinationTestConfiguration:
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
     ) -> dlt.Pipeline:
-        """Convenience method to set up a pipeline with this configuration."""
+        """Convenience method to setup pipeline with this configuration"""
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
@@ -173,6 +176,7 @@ def destinations_configs(
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
             if destination not in ("athena", "mssql", "synapse", "databricks", "clickhouse")
+            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -210,6 +214,15 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             )
         ]
         destination_configs += [
@@ -354,6 +367,13 @@ def destinations_configs(
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
                 disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             ),
         ]
 
@@ -515,7 +535,10 @@ def prepare_table(
     client.schema._bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
-    user_table_name = table_name + uniq_id() if make_uniq_table else table_name
+    if make_uniq_table:
+        user_table_name = table_name + uniq_id()
+    else:
+        user_table_name = table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
     client.schema._bump_version()
     client.update_stored_schema()
@@ -587,7 +610,7 @@ def yield_client_with_storage(
     destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
     # create dataset with random name
-    dataset_name = f"test_{uniq_id()}"
+    dataset_name = "test_" + uniq_id()
 
     with cm_yield_client(
         destination_type, dataset_name, default_config_values, schema_name

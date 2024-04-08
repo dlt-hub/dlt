@@ -140,8 +140,8 @@ class MsSqlMergeJob(SqlMergeJob):
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str) -> str:
-        name = SqlMergeJob._new_temp_table_name(name_prefix)
+    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+        name = SqlMergeJob._new_temp_table_name(name_prefix, sql_client)
         return "#" + name
 
 
