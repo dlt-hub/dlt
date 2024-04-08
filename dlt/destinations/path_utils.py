@@ -1,13 +1,11 @@
 import re
-from types import TracebackType
-from typing import Any, Dict, List, Optional, Sequence, Set, Type
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 import pendulum
 
 from dlt.cli import echo as fmt
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout
-from typing_extensions import Self
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
@@ -35,19 +33,18 @@ def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
 
-def prepare_datetime_params(
-    moment: pendulum.DateTime,
-    datetime_format: Optional[str] = None,
-    load_package_timestamp: Optional[str] = None,
-) -> Dict[str, str]:
+def prepare_datetime_params(load_package_timestamp: str) -> Dict[str, str]:
     # For formatting options please see
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
     # Format curr_date datetime according to given format
+    moment = pendulum.parse(load_package_timestamp)
     params: Dict[str, str] = {}
-    if datetime_format:
-        params["curr_date"] = moment.format(datetime_format)
-    else:
-        params["curr_date"] = str(moment.date())
+
+    # Timestamp placeholder
+    params["timestamp"] = str(int(moment.timestamp()))
+
+    # Take date from timestamp as curr_date
+    params["curr_date"] = str(moment.date())
 
     params["year"] = str(moment.year)
     # month, day, hour and minute padded with 0
@@ -60,115 +57,59 @@ def prepare_datetime_params(
     # Day of week
     params["dow"] = moment.format("ddd").lower()
 
-    if load_package_timestamp:
-        timestamp = int(pendulum.parse(load_package_timestamp).timestamp())  # type: ignore[union-attr]
-        params["timestamp"] = str(timestamp)
-
     return params
 
 
-class LayoutParams:
-    def __init__(
-        self,
-        current_datetime: TCurrentDateTime = None,
-        datetime_format: Optional[str] = None,
-        extra_placeholders: Optional[Dict[str, Any]] = None,
-        job_info: Optional[ParsedLoadJobFileName] = None,
-        schema_name: Optional[str] = None,
-        load_id: Optional[str] = None,
-        load_package_timestamp: Optional[str] = None,
-    ) -> None:
-        self.current_datetime = current_datetime
-        self.datetime_format = datetime_format
-        self.extra_placeholders = extra_placeholders
-        self.job_info = job_info
-        self.load_id = load_id
-        self.schema_name = schema_name
-        self.load_package_timestamp = load_package_timestamp
-        self._params: Dict[str, Any] = {"schema_name": schema_name}
-
-        self.table_name = None
-        self.file_id = None
-        self.ext = None
-        if job_info:
-            self.table_name = job_info.table_name
-            self.file_id = job_info.file_id
-            self.ext = job_info.file_format
-            self._params.update(
-                {
-                    "table_name": self.table_name,
-                    "file_id": self.file_id,
-                    "ext": self.ext,
-                }
-            )
-
-        if self.load_id:
-            self._params["load_id"] = self.load_id
-
-    @property
-    def params(self) -> Optional[Dict[str, Any]]:
-        """Process extra params for layout
-        If any value is a callable then we call it with the following arguments
-            * schema name,
-            * table name,
-            * load id,
-            * file id,
-            * current datetime
-        """
-        if not self.current_datetime:
-            self.current_datetime = pendulum.now()
-
-        # If current_datetime is callable
-        # Then call it and check it's instance
-        # If the result id DateTime
-        # Then take it
-        # Else exit.
-        if callable(self.current_datetime):
-            result = self.current_datetime()
-            if isinstance(result, pendulum.DateTime):
-                self.current_datetime = result
-            else:
-                raise RuntimeError(
-                    "current_datetime was passed as callable but "
-                    "didn't return any instance of pendulum.DateTime"
-                )
-
-        self._process_extra_placeholders()
-        date_placeholders = prepare_datetime_params(
-            self.current_datetime,
-            self.datetime_format,
-            self.load_package_timestamp,
+def prepare_params(
+    current_datetime: TCurrentDateTime = None,
+    extra_placeholders: Optional[Dict[str, Any]] = None,
+    job_info: Optional[ParsedLoadJobFileName] = None,
+    schema_name: Optional[str] = None,
+    load_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    params: Dict[str, Any] = {}
+    table_name = None
+    file_id = None
+    ext = None
+    if job_info:
+        table_name = job_info.table_name
+        file_id = job_info.file_id
+        ext = job_info.file_format
+        params.update(
+            {
+                "table_name": table_name,
+                "file_id": file_id,
+                "ext": ext,
+            }
         )
-        self._params.update(date_placeholders)
-        return self._params
 
-    def _process_extra_placeholders(self) -> None:
-        # For each callable extra parameter
-        # otherwise take it's value
-        if not self.extra_placeholders:
-            return
+    if load_id:
+        params["load_id"] = load_id
 
-        for key, value in self.extra_placeholders.items():
-            if callable(value):
-                try:
-                    self._params[key] = value(
-                        self.schema_name,
-                        self.table_name,
-                        self.load_id,
-                        self.file_id,
-                        self.ext,
-                        self.current_datetime,
-                    )
-                except TypeError:
-                    fmt.secho(
-                        f"Extra placeholder {key} is callableCallable placeholder should accept"
-                        " parameters below`schema name`, `table name`, `load_id`, `file_id`,"
-                        " `extension` and `current_datetime`",
-                        fg="red",
-                    )
-                    raise
-            else:
-                self._params[key] = value
+    # Resolve extra placeholders
+    for key, value in extra_placeholders.items():
+        if callable(value):
+            try:
+                params[key] = value(
+                    schema_name,
+                    table_name,
+                    load_id,
+                    file_id,
+                    ext,
+                    current_datetime,
+                )
+            except TypeError:
+                fmt.secho(
+                    f"Extra placeholder {key} is callableCallable placeholder should accept"
+                    " parameters below`schema name`, `table name`, `load_id`, `file_id`,"
+                    " `extension` and `current_datetime`",
+                    fg="red",
+                )
+                raise
+        else:
+            params[key] = value
+
+    return params
 
 
 def check_layout(
@@ -197,29 +138,30 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    load_package_timestamp: Optional[str] = None,
+    load_package_timestamp: str,
     current_datetime: TCurrentDateTime = None,
     datetime_format: Optional[str] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
     job_info = ParsedLoadJobFileName.parse(file_name)
-    extras = LayoutParams(
+    params = prepare_params(
         current_datetime=current_datetime,
         datetime_format=datetime_format,
         extra_placeholders=extra_placeholders,
         job_info=job_info,
         schema_name=schema_name,
         load_id=load_id,
-        load_package_timestamp=load_package_timestamp,
     )
 
-    placeholders = check_layout(layout, extras.params)
-    path = layout.format(**extras.params)
+    datetime_params = prepare_datetime_params(load_package_timestamp)
+    params.update(datetime_params)
+    placeholders = check_layout(layout, params)
+    path = layout.format(**params)
 
     # if extension is not defined, we append it at the end
     if "ext" not in placeholders:
-        path += f".{extras.ext}"
+        path += f".{job_info.file_format}"
 
     return path
 
@@ -227,20 +169,11 @@ def create_path(
 def get_table_prefix_layout(
     layout: str,
     supported_prefix_placeholders: Sequence[str] = SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS,
-    current_datetime: TCurrentDateTime = None,
-    datetime_format: Optional[str] = None,
-    extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """get layout fragment that defines positions of the table, cutting other placeholders
     allowed `supported_prefix_placeholders` that may appear before table.
     """
-    extras = LayoutParams(
-        current_datetime=current_datetime,
-        datetime_format=datetime_format,
-        extra_placeholders=extra_placeholders,
-    )
-
-    placeholders = check_layout(layout, extras.params)
+    placeholders = check_layout(layout)
     # fail if table name is not defined
     if "table_name" not in placeholders:
         raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
