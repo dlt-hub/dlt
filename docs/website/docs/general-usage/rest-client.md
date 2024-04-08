@@ -154,9 +154,118 @@ Note: normally, you don't need to specify this paginator explicitly, as it is us
 
 `OffsetPaginator` handles pagination based on an offset and limit in the query parameters. This works only if the API returns the total number of items in the response.
 
+##### Parameters:
+
+- `initial_limit`: The maximum number of items to retrieve in each request.
+- `initial_offset`: The starting point for the first request. Defaults to `0`.
+- `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
+- `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
+- `total_path`: A JSONPath expression pointing to the total number of items in the dataset, used to determine if more pages are available. Defaults to `"total"`.
+
+###### Example:
+
+Assuming an API endpoint `https://api.example.com/items` supports pagination with `offset` and `limit` parameters.
+E.g. `https://api.example.com/items?offset=0&limit=100`, `https://api.example.com/items?offset=100&limit=100`, etc. And includes the total count in its responses, e.g.:
+
+```json
+{
+  "items": [...],
+  "total": 1000
+}
+```
+
+You can paginate through responses from this API using `OffsetPaginator`:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        initial_limit=100,
+        total_path="total"
+    )
+)
+```
+
 #### JSONResponseCursorPaginator
 
 `JSONResponseCursorPaginator` handles pagination based on a cursor in the JSON response.
+
+##### Parameters:
+
+- `cursor_path`: A JSONPath expression pointing to the cursor in the JSON response. This cursor is used to fetch subsequent pages. Defaults to `"cursors.next"`.
+- `cursor_param`: The query parameter used to send the cursor value in the next request. Defaults to `"after"`.
+
+###### Example:
+
+Consider an API endpoint `https://api.example.com/data` returning a structure where a cursor to the next page is included in the response:
+
+```json
+{
+  "items": [...],
+  "cursors": {
+    "next": "cursor_string_for_next_page"
+  }
+}
+
+To paginate through responses from this API, use `JSONResponseCursorPaginator` with `cursor_path` set to "cursors.next":
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=JSONResponseCursorPaginator(cursor_path="cursors.next")
+)
+```
+
+#### Implementing Custom Paginators
+
+When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and `update_state` and `update_request` methods:
+
+- `update_state(response: Response) -> None`: This method updates the paginator's state based on the response of the API call. Typically, you extract pagination details (like the next page reference) from the response and store them in the paginator instance.
+
+- `update_request(request: Request) -> None`: Before making the next API call in `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request, or modify the URL.
+
+##### Example: Creating a Query Parameter Paginator
+
+Suppose an API uses query parameters for pagination, incrementing an page parameter for each subsequent page, without providing direct links to next pages in its responses. E.g. `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
+
+```py
+from dlt.sources.helpers.rest_client.paginators import BasePaginator
+from dlt.sources.helpers.requests import Response, Request
+
+class QueryParamPaginator(BasePaginator):
+    def __init__(self, page_param: str = "page", initial_page: int = 1):
+        super().__init__()
+        self.page_param = page_param
+        self.page = initial_page
+
+    def update_state(self, response: Response) -> None:
+        # Assuming the API returns an empty list when no more data is available
+        if not response.json():
+            self._has_next_page = False
+        else:
+            self.page += 1
+
+    def update_request(self, request: Request) -> None:
+        if request.params is None:
+            request.params = {}
+        request.params[self.page_param] = self.page
+```
+
+After defining your custom paginator, you can use it with the `RESTClient` by passing an instance of your paginator to the paginator parameter during the client's initialization. Here's how to use the `QueryParamPaginator`:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient
+
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=QueryParamPaginator(page_param="page", initial_page=1) # Or simply QueryParamPaginator()
+)
+
+@dlt.resource
+def get_data():
+    for page in client.paginate("/data"):
+        yield page
+```
 
 ## Authentication
 
