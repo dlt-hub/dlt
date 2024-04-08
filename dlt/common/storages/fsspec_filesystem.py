@@ -144,8 +144,6 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     fs_kwargs = prepare_fsspec_args(config)
 
     try:
-        if config.bucket_url.startswith("file://"):
-            fs_kwargs["auto_mkdir"] = True
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:
         raise MissingDependencyException(
