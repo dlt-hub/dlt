@@ -65,7 +65,7 @@ The default naming convention:
 > 💡 Use simple, short small caps identifiers for everything!
 
 To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention, in "config.toml" as follows:
-```
+```toml
 [schema]
 SCHEMA__NAMING = "direct"
 ```
