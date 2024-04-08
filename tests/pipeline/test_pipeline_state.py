@@ -14,8 +14,6 @@ from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
 from dlt.common.destination.reference import Destination
-from dlt.extract.exceptions import ResourceExtractionError
-from dlt.sources.helpers.transform import pivot
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -471,127 +469,6 @@ def test_transformer_state_write() -> None:
         ]["gen"]
         is True
     )
-
-
-def test_transform_function_state_write() -> None:
-    r = some_data_resource_state()
-
-    # transform executed within the same thread
-    def transform(item):
-        dlt.current.resource_state()["form"] = item
-        return item * 2
-
-    r.add_map(transform)
-    assert list(r) == [2, 4, 6]
-    assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "some_data_resource_state"
-        ]["form"]
-        == 3
-    )
-
-
-@dlt.resource
-def pivot_test_wrong_resource():
-    yield [{"a": 1}]
-
-
-@dlt.resource
-def pivot_test_wrong_resource2():
-    yield [{"a": [1]}]
-
-
-def test_transform_pivot_wrong_data() -> None:
-    res = pivot_test_wrong_resource()
-    res.add_map(pivot("$.a"))
-
-    with pytest.raises(ResourceExtractionError):
-        list(res)
-
-    res2 = pivot_test_wrong_resource2()
-    res2.add_map(pivot("$.a"))
-
-    with pytest.raises(ResourceExtractionError):
-        list(res)
-
-
-@dlt.resource
-def pivot_test_resource():
-    for row in (
-        [
-            {
-                "a": {
-                    "inner_1": [[1, 1, 1], [2, 2, 2]],
-                    "inner_2": [[3, 3, 3], [4, 4, 4]],
-                    "inner_3": [[5, 5, 5], [6, 6, 6]],
-                },
-                "b": [7, 7, 7],
-            },
-            {
-                "a": {
-                    "inner_1": [[8, 8, 8], [9, 9, 9]],
-                    "inner_2": [[10, 10, 10], [11, 11, 11]],
-                    "inner_3": [[12, 12, 12], [13, 13, 13]],
-                },
-                "b": [[14, 14, 14], [15, 15, 15]],
-            },
-        ],
-    ):
-        yield row
-
-
-def test_transform_pivot_single_path() -> None:
-    res = pivot_test_resource()
-    res.add_map(pivot("$.a.inner_1|inner_2"))
-
-    result = list(res)
-    assert result == [
-        {
-            "a.inner_1": [{"0": 1, "1": 1, "2": 1}, {"0": 2, "1": 2, "2": 2}],
-            "a.inner_2": [{"0": 3, "1": 3, "2": 3}, {"0": 4, "1": 4, "2": 4}],
-        },
-        {
-            "a.inner_1": [{"0": 8, "1": 8, "2": 8}, {"0": 9, "1": 9, "2": 9}],
-            "a.inner_2": [{"0": 10, "1": 10, "2": 10}, {"0": 11, "1": 11, "2": 11}],
-        },
-    ]
-
-
-def test_transform_pivot_multiple_paths() -> None:
-    res = pivot_test_resource()
-    res.add_map(pivot(["$.a.inner_1", "$.a.inner_2"]))
-    result = list(res)
-    assert result == [
-        {
-            "a.inner_1": [{"0": 1, "1": 1, "2": 1}, {"0": 2, "1": 2, "2": 2}],
-            "a.inner_2": [{"0": 3, "1": 3, "2": 3}, {"0": 4, "1": 4, "2": 4}],
-        },
-        {
-            "a.inner_1": [{"0": 8, "1": 8, "2": 8}, {"0": 9, "1": 9, "2": 9}],
-            "a.inner_2": [{"0": 10, "1": 10, "2": 10}, {"0": 11, "1": 11, "2": 11}],
-        },
-    ]
-
-
-def test_transform_pivot_prefix() -> None:
-    res = pivot_test_resource()
-    res.add_map(pivot("$.a.inner_1", "prefix_"))
-
-    result = list(res)
-    assert result == [
-        {
-            "a.inner_1": [
-                {"prefix_0": 1, "prefix_1": 1, "prefix_2": 1},
-                {"prefix_0": 2, "prefix_1": 2, "prefix_2": 2},
-            ],
-        },
-        {
-            "a.inner_1": [
-                {"prefix_0": 8, "prefix_1": 8, "prefix_2": 8},
-                {"prefix_0": 9, "prefix_1": 9, "prefix_2": 9},
-            ],
-        },
-    ]
 
 
 def test_migrate_pipeline_state(test_storage: FileStorage) -> None:

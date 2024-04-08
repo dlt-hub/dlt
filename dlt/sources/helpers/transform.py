@@ -32,7 +32,7 @@ def skip_first(max_items: int) -> ItemTransformFunctionNoMeta[bool]:
 
 
 def pivot(
-    paths: Union[str, Sequence[str]] = "$", prefix: str = ""
+    paths: Union[str, Sequence[str]] = "$", prefix: str = "col"
 ) -> ItemTransformFunctionNoMeta[TDataItem]:
     """
     Pivot the given sequence of sequences into a sequence of dicts,
@@ -100,7 +100,7 @@ def pivot(
 
         for path in paths:
             expr = jsonpath_ng.parse(path)
-            for match in expr.find(item):
+            for match in expr.find([item] if path == "$" else item):
                 _raise_if_not_sequence(match)
 
                 f_path = str(match.full_path)
