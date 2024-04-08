@@ -91,7 +91,7 @@ Examples of dynamic resources
 - Similarly, if we have a webhook that listens to multiple types of events, it can dispatch each event type to its own table based on the data.
 - Or, if we want to shard a data stream into day-shards, we could append a date suffix in the resource name dynamically.
 
-Once we group resources into a source, we can un them together (or, we could still run the resources independently)
+Once we group resources into a source, we can run them together (or, we could still run the resources independently)
 
 Examples of reasons to group resources into sources.
 - We want to run (load) them together on the same schedule
