@@ -175,8 +175,8 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks", "clickhouse")
-            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
+            if destination
+            not in ("athena", "mssql", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -205,7 +205,17 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination="clickhouse",
                 file_format="jsonl",
-                disable_compression=True,
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                file_format="parquet",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="clickhouse", file_format="parquet", disable_compression=True
             )
         ]
         destination_configs += [
@@ -326,7 +336,6 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=GCS_BUCKET,
                 extra_info="gcs-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
@@ -334,7 +343,6 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
@@ -342,7 +350,6 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
@@ -350,7 +357,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
@@ -358,7 +364,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=GCS_BUCKET,
                 extra_info="gcs-authorization",
-                disable_compression=True,
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
@@ -366,7 +371,14 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
                 disable_compression=True,
+                extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
                 destination="dremio",

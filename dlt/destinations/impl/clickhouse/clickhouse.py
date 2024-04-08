@@ -9,6 +9,7 @@ from clickhouse_connect.driver.tools import insert_file
 from jinja2 import Template
 
 import dlt
+from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
@@ -167,20 +168,12 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                 file_path, "ClickHouse loader Only supports parquet and jsonl files."
             )
 
-        # if not config.get("data_writer.disable_compression"):
-        #     raise LoadJobTerminalException(
-        #         file_path,
-        #         "ClickHouse loader does not support gzip compressed files. Please disable"
-        #         " compression in the data writer configuration:"
-        #         " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression.",
-        #     )
-
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
 
         file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
         clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
-        # compression = "none" if config.get("data_writer.disable_compression") else "gz"
+        compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         statement: str = ""
 
@@ -191,7 +184,6 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                 access_key_id = staging_credentials.aws_access_key_id
                 secret_access_key = staging_credentials.aws_secret_access_key
             elif isinstance(staging_credentials, GcpCredentials):
-                # TODO: HMAC keys aren't implemented in `GcpCredentials`.
                 access_key_id = dlt.config["destination.filesystem.credentials.gcp_access_key_id"]
                 secret_access_key = dlt.config[
                     "destination.filesystem.credentials.gcp_secret_access_key"
@@ -233,7 +225,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
 
             table_function = (
                 "SELECT * FROM"
-                f" azureBlobStorage('{storage_account_url}','{container_name}','{blobpath}','{account_name}','{account_key}','{clickhouse_format}')"
+                f" azureBlobStorage('{storage_account_url}','{container_name}','{blobpath}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
             )
             statement = f"INSERT INTO {qualified_table_name} {table_function}"
         elif not bucket_path:
@@ -255,7 +247,9 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                         settings={
                             "allow_experimental_lightweight_delete": 1,
                             "allow_experimental_object_type": 1,
+                            "enable_http_compression": 1,
                         },
+                        compression=None if compression == "none" else compression,
                     )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
@@ -362,8 +356,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
         else:
             sql[0] += "\nPRIMARY KEY tuple()"
-
-        # TODO: Apply sort order and cluster key hints.
 
         return sql
 

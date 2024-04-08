@@ -48,6 +48,7 @@ IMPLEMENTED_DESTINATIONS = {
     "destination",
     "synapse",
     "databricks",
+    "clickhouse",
     "dremio",
 }
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "destination"}
