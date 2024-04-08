@@ -8,7 +8,6 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout
 
 
-
 SUPPORTED_PLACEHOLDERS = {
     "schema_name",
     "table_name",
@@ -37,10 +36,9 @@ def prepare_datetime_params(load_package_timestamp: Optional[str] = None) -> Dic
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
     # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
+    moment: pendulum.DateTime = pendulum.now()
     if load_package_timestamp:
-        moment = pendulum.parse(load_package_timestamp)
-    else:
-        moment = pendulum.now()
+        moment = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
 
     # Timestamp placeholder
     params["timestamp"] = str(int(moment.timestamp()))
