@@ -142,5 +142,6 @@ def drop_resources(
 
     for tbl in tables_to_drop:
         del schema.tables[tbl["name"]]
+    schema._bump_version()  # TODO: needed?
 
     return schema, new_state, info

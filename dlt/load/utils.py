@@ -68,6 +68,7 @@ def init_client(
     truncate_filter: Callable[[TTableSchema], bool],
     load_staging_filter: Callable[[TTableSchema], bool],
     refresh: Optional[TRefreshMode] = None,
+    drop_tables: Optional[List[TTableSchema]] = None,
 ) -> TSchemaTables:
     """Initializes destination storage including staging dataset if supported
 
@@ -96,16 +97,18 @@ def init_client(
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their child tables
+
     if refresh == "drop_data":
         truncate_filter = lambda t: True
+
     truncate_tables = set(
         _extend_tables_with_table_chain(schema, tables_with_jobs, tables_with_jobs, truncate_filter)
     )
 
-    if refresh in ("drop_dataset", "drop_tables"):
-        drop_tables = all_tables - dlt_tables - tables_no_data
-    else:
-        drop_tables = set()
+    # if refresh in ("drop_dataset", "drop_tables"):
+    #     drop_tables = all_tables - dlt_tables - tables_no_data
+    # else:
+    #     drop_tables = set()
 
     applied_update = _init_dataset_and_update_schema(
         job_client,
@@ -143,13 +146,26 @@ def _init_dataset_and_update_schema(
     update_tables: Iterable[str],
     truncate_tables: Iterable[str] = None,
     staging_info: bool = False,
-    drop_tables: Optional[Iterable[str]] = None,
+    drop_tables: Optional[List[TTableSchema]] = None,
 ) -> TSchemaTables:
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
         f"Client for {job_client.config.destination_type} will start initialize storage"
         f" {staging_text}"
     )
+    if drop_tables:
+        old_schema = job_client.schema
+        new_schema = job_client.schema.clone()
+        job_client.schema = new_schema
+        for table in drop_tables:
+            new_schema.tables.pop(table["name"], None)
+        new_schema._bump_version()
+        if hasattr(job_client, "drop_tables"):
+            logger.info(
+                f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
+            )
+            job_client.drop_tables(*[table["name"] for table in drop_tables], replace_schema=True)
+        job_client.schema = old_schema
     job_client.initialize_storage()
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
@@ -161,13 +177,8 @@ def _init_dataset_and_update_schema(
     logger.info(
         f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
     )
+
     job_client.initialize_storage(truncate_tables=truncate_tables)
-    if drop_tables:
-        if hasattr(job_client, "drop_tables"):
-            logger.info(
-                f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
-            )
-            job_client.drop_tables(*drop_tables)
     return applied_update
 
 

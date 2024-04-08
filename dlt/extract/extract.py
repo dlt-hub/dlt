@@ -407,22 +407,15 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         state_paths="*" if self.refresh == "drop_dataset" else [],
                     )
                     _state.update(new_state)
-                    drop_schema = source.schema.clone()
                     if drop_info["tables"]:
-                        drop_tables = {
-                            key: table
-                            for key, table in source.schema.tables.items()
+                        drop_tables = [
+                            table
+                            for table in source.schema.tables.values()
                             if table["name"] in drop_info["tables"]
-                            or table["name"] in drop_schema.dlt_table_names()
-                        }
-
-                        drop_schema.tables.clear()
-                        drop_schema.tables.update(drop_tables)
-                        load_package.state["drop_schema"] = drop_schema.to_dict()
+                        ]
+                        load_package.state["dropped_tables"] = drop_tables
                     source.schema.tables.clear()
                     source.schema.tables.update(new_schema.tables)
-                    # dropped_tables = load_package.state.setdefault("dropped_tables", [])
-                    # dropped_tables.extend(drop_info["tables"])
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():

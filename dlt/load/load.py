@@ -362,75 +362,28 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    # def _refresh(self, dropped_tables: Sequence[str], schema: Schema) -> Tuple[Set[str], Set[str]]:
-    #     """When using refresh mode, drop tables if possible.
-    #     Returns a set of tables for main destination and staging destination
-    #     that could not be dropped and should be truncated instead
-    #     """
-    #     # Exclude tables already dropped in the same load
-    #     drop_tables = set(dropped_tables) - self._refreshed_tables
-    #     if not drop_tables:
-    #         return set(), set()
-    #     # Clone schema and remove tables from it
-    #     dropped_schema = deepcopy(schema)
-    #     for table_name in drop_tables:
-    #         # pop not del: The table may not actually be in the schema if it's not being loaded again
-    #         dropped_schema.tables.pop(table_name, None)
-    #     dropped_schema._bump_version()
-    #     trunc_dest: Set[str] = set()
-    #     trunc_staging: Set[str] = set()
-    #     # Drop from destination and replace stored schema so tables will be re-created before load
-    #     with self.get_destination_client(dropped_schema) as job_client:
-    #         # TODO: SupportsSql mixin
-    #         if hasattr(job_client, "drop_tables"):
-    #             job_client.drop_tables(*drop_tables, replace_schema=True)
-    #         else:
-    #             # Tables need to be truncated instead of dropped
-    #             trunc_dest = drop_tables
-
-    #     if self.staging_destination:
-    #         with self.get_staging_destination_client(dropped_schema) as staging_client:
-    #             if hasattr(staging_client, "drop_tables"):
-    #                 staging_client.drop_tables(*drop_tables, replace_schema=True)
-    #             else:
-    #                 trunc_staging = drop_tables
-    #     self._refreshed_tables.update(drop_tables)  # Don't drop table again in same load
-    #     return trunc_dest, trunc_staging
-
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         new_jobs = self.get_new_jobs_info(load_id)
 
-        # dropped_tables = current_load_package()["state"].get("dropped_tables", [])
-        # Drop tables before loading if refresh mode is set
-        # truncate_dest, truncate_staging = self._refresh(dropped_tables, schema)
-        drop_schema_dict = current_load_package()["state"].get("drop_schema")
-        drop_schema = Schema.from_dict(drop_schema_dict) if drop_schema_dict else None
-        init_schema = drop_schema if drop_schema else schema
+        dropped_tables = current_load_package()["state"].get("dropped_tables", [])
 
         # initialize analytical storage ie. create dataset required by passed schema
-        with self.get_destination_client(init_schema) as job_client:
+        with self.get_destination_client(schema) as job_client:
             if (expected_update := self.load_storage.begin_schema_update(load_id)) is not None:
                 # init job client
-                # def should_truncate(table: TTableSchema) -> bool:
-                #     # When destination doesn't support dropping refreshed tables (i.e. not SQL based) they should be truncated
-                #     return (
-                #         job_client.should_truncate_table_before_load(table)
-                #         or table["name"] in truncate_dest
-                #     )
-
                 applied_update = init_client(
                     job_client,
-                    init_schema,
+                    schema,
                     new_jobs,
                     expected_update,
                     job_client.should_truncate_table_before_load,
-                    # should_truncate,
                     (
                         job_client.should_load_data_to_staging_dataset
                         if isinstance(job_client, WithStagingDataset)
                         else None
                     ),
                     refresh=self.refresh,
+                    drop_tables=dropped_tables,
                 )
 
                 # init staging client
@@ -440,24 +393,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         " implement SupportsStagingDestination"
                     )
 
-                    # def should_truncate_staging(table: TTableSchema) -> bool:
-                    #     return (
-                    #         job_client.should_truncate_table_before_load_on_staging_destination(
-                    #             table
-                    #         )
-                    #         or table["name"] in truncate_staging
-                    #     )
-
-                    with self.get_staging_destination_client(init_schema) as staging_client:
+                    with self.get_staging_destination_client(schema) as staging_client:
                         init_client(
                             staging_client,
-                            init_schema,
+                            schema,
                             new_jobs,
                             expected_update,
                             job_client.should_truncate_table_before_load_on_staging_destination,
                             # should_truncate_staging,
                             job_client.should_load_data_to_staging_dataset_on_staging_destination,
                             refresh=self.refresh,
+                            drop_tables=dropped_tables,
                         )
 
                 self.load_storage.commit_schema_update(load_id, applied_update)
