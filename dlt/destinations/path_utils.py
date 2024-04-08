@@ -61,13 +61,13 @@ def prepare_datetime_params(
     params["dow"] = moment.format("ddd").lower()
 
     if load_package_timestamp:
-        timestamp = int(pendulum.parse(load_package_timestamp).timestamp()) # type: ignore[union-attr]
+        timestamp = int(pendulum.parse(load_package_timestamp).timestamp())  # type: ignore[union-attr]
         params["timestamp"] = str(timestamp)
 
     return params
 
 
-class ExtraParams:
+class LayoutParams:
     def __init__(
         self,
         current_datetime: TCurrentDateTime = None,
@@ -89,16 +89,16 @@ class ExtraParams:
 
         self.table_name = None
         self.file_id = None
-        self.file_format = None
+        self.ext = None
         if job_info:
             self.table_name = job_info.table_name
             self.file_id = job_info.file_id
-            self.file_format = job_info.file_format
+            self.ext = job_info.file_format
             self._params.update(
                 {
                     "table_name": self.table_name,
                     "file_id": self.file_id,
-                    "ext": self.file_format,
+                    "ext": self.ext,
                 }
             )
 
@@ -156,7 +156,7 @@ class ExtraParams:
                         self.table_name,
                         self.load_id,
                         self.file_id,
-                        self.file_format,
+                        self.ext,
                         self.current_datetime,
                     )
                 except TypeError:
@@ -171,47 +171,25 @@ class ExtraParams:
                 self._params[key] = value
 
 
-class LayoutHelper:
-    def __init__(
-        self,
-        layout: str,
-        params: Dict[str, str],
-        allowed_placeholders: Optional[Set[str]] = SUPPORTED_PLACEHOLDERS,
-    ) -> None:
-        self.params = params
-        self.allowed_placeholders = allowed_placeholders.copy()
-        self.layout_placeholders = get_placeholders(layout)
+def check_layout(
+    layout: str,
+    params: Optional[Dict[str, Any]] = None,
+    allowed_placeholders: Optional[Set[str]] = SUPPORTED_PLACEHOLDERS,
+) -> List[str]:
+    placeholders = get_placeholders(layout)
+    # Build out the list of placeholder names
+    # which we will use to validate placeholders
+    # in a given config.layout template
+    all_placeholders = allowed_placeholders.copy()
+    if params:
+        for placeholder, _ in params.items():
+            all_placeholders.add(placeholder)
 
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]] = None,
-        exc_value: Optional[BaseException] = None,
-        traceback: Optional[TracebackType] = None,
-    ) -> None:
-        pass
-
-    @property
-    def placeholders(self) -> List[str]:
-        self.check_layout()
-        return list(self.allowed_placeholders)
-
-    def check_layout(self) -> None:
-        # Build out the list of placeholder names
-        # which we will use to validate placeholders
-        # in a given config.layout template
-        if self.params:
-            for placeholder, _ in self.params.items():
-                self.allowed_placeholders.add(placeholder)
-
-        # now collect all unknown placeholders from config.layout template
-        invalid_placeholders = [
-            p for p in self.layout_placeholders if p not in self.allowed_placeholders
-        ]
-        if invalid_placeholders:
-            raise InvalidFilesystemLayout(invalid_placeholders)
+    # now collect all unknown placeholders from config.layout template
+    invalid_placeholders = [p for p in placeholders if p not in allowed_placeholders]
+    if invalid_placeholders:
+        raise InvalidFilesystemLayout(invalid_placeholders)
+    return list(all_placeholders)
 
 
 def create_path(
@@ -226,7 +204,7 @@ def create_path(
 ) -> str:
     """create a filepath from the layout and our default params"""
     job_info = ParsedLoadJobFileName.parse(file_name)
-    extras = ExtraParams(
+    extras = LayoutParams(
         current_datetime=current_datetime,
         datetime_format=datetime_format,
         extra_placeholders=extra_placeholders,
@@ -236,15 +214,14 @@ def create_path(
         load_package_timestamp=load_package_timestamp,
     )
 
-    with LayoutHelper(layout, extras.params) as layout_helper:
-        placeholders = layout_helper.placeholders
-        path = layout.format(**extras.params)
+    placeholders = check_layout(layout, extras.params)
+    path = layout.format(**extras.params)
 
-        # if extension is not defined, we append it at the end
-        if "ext" not in placeholders:
-            path += f".{job_info.file_format}"
+    # if extension is not defined, we append it at the end
+    if "ext" not in placeholders:
+        path += f".{extras.ext}"
 
-        return path
+    return path
 
 
 def get_table_prefix_layout(
@@ -257,33 +234,30 @@ def get_table_prefix_layout(
     """get layout fragment that defines positions of the table, cutting other placeholders
     allowed `supported_prefix_placeholders` that may appear before table.
     """
-    extras = ExtraParams(
+    extras = LayoutParams(
         current_datetime=current_datetime,
         datetime_format=datetime_format,
         extra_placeholders=extra_placeholders,
     )
-    with LayoutHelper(layout, extras.params) as layout_helper:
-        # fail if table name is not defined
-        if "table_name" not in layout_helper.layout_placeholders:
-            raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
 
-    table_name_index = layout_helper.layout_placeholders.index("table_name")
+    placeholders = check_layout(layout, extras.params)
+    # fail if table name is not defined
+    if "table_name" not in placeholders:
+        raise CantExtractTablePrefix(layout, "{table_name} placeholder not found. ")
+
+    table_name_index = placeholders.index("table_name")
 
     # fail if any other prefix is defined before table_name
-    if [
-        p
-        for p in layout_helper.layout_placeholders[:table_name_index]
-        if p not in supported_prefix_placeholders
-    ]:
+    if [p for p in placeholders[:table_name_index] if p not in supported_prefix_placeholders]:
         if len(supported_prefix_placeholders) == 0:
             details = (
                 "No other placeholders are allowed before {table_name} but you have %s present. "
-                % layout_helper.layout_placeholders[:table_name_index]
+                % placeholders[:table_name_index]
             )
         else:
             details = "Only %s are allowed before {table_name} but you have %s present. " % (
                 supported_prefix_placeholders,
-                layout_helper.layout_placeholders[:table_name_index],
+                placeholders[:table_name_index],
             )
         raise CantExtractTablePrefix(layout, details)
 
