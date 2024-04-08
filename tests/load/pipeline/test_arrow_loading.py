@@ -14,8 +14,12 @@ from dlt.common.time import reduce_pendulum_datetime_precision
 from dlt.common.utils import uniq_id
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.pipeline.utils import assert_table, assert_query_data, select_data
+from tests.pipeline.utils import assert_load_info
 from tests.utils import preserve_environ
 from tests.cases import arrow_table_all_data_types, TArrowFormat
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -26,19 +30,38 @@ from tests.cases import arrow_table_all_data_types, TArrowFormat
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
-def test_load_item(
+def test_load_arrow_item(
     item_type: Literal["pandas", "table", "record_batch"],
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    # compression must be on for redshift
+    # os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
     include_time = destination_config.destination not in (
         "athena",
         "redshift",
         "databricks",
-    )  # athena/redshift can't load TIME columns from parquet
-    item, records = arrow_table_all_data_types(
-        item_type, include_json=False, include_time=include_time
+        "synapse",
+    )  # athena/redshift can't load TIME columns
+    include_binary = not (
+        destination_config.destination in ("redshift", "databricks")
+        and destination_config.file_format == "jsonl"
+    )
+    include_decimal = not (
+        destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
+    )
+    include_date = not (
+        destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
+    )
+
+    item, records, _ = arrow_table_all_data_types(
+        item_type,
+        include_json=False,
+        include_time=include_time,
+        include_decimal=include_decimal,
+        include_binary=include_binary,
+        include_date=include_date,
     )
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
@@ -47,18 +70,28 @@ def test_load_item(
     def some_data():
         yield item
 
-    load_info = pipeline.run(some_data(), loader_file_format=destination_config.file_format)
+    # use csv for postgres to get native arrow processing
+    file_format = (
+        destination_config.file_format if destination_config.destination != "postgres" else "csv"
+    )
+
+    load_info = pipeline.run(some_data(), loader_file_format=file_format)
+    assert_load_info(load_info)
     # assert the table types
     some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
     assert some_table_columns["string"]["data_type"] == "text"
     assert some_table_columns["float"]["data_type"] == "double"
     assert some_table_columns["int"]["data_type"] == "bigint"
     assert some_table_columns["datetime"]["data_type"] == "timestamp"
-    assert some_table_columns["binary"]["data_type"] == "binary"
-    assert some_table_columns["decimal"]["data_type"] == "decimal"
     assert some_table_columns["bool"]["data_type"] == "bool"
     if include_time:
         assert some_table_columns["time"]["data_type"] == "time"
+    if include_binary:
+        assert some_table_columns["binary"]["data_type"] == "binary"
+    if include_decimal:
+        assert some_table_columns["decimal"]["data_type"] == "decimal"
+    if include_date:
+        assert some_table_columns["date"]["data_type"] == "date"
 
     qual_name = pipeline.sql_client().make_qualified_table_name("some_data")
     rows = [list(row) for row in select_data(pipeline, f"SELECT * FROM {qual_name}")]

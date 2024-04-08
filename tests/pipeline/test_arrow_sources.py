@@ -1,8 +1,7 @@
 import os
+from typing import Any
 import pytest
-
 import pandas as pd
-import numpy as np
 import os
 import io
 import pyarrow as pa
@@ -10,11 +9,17 @@ import pyarrow as pa
 import dlt
 from dlt.common import json, Decimal
 from dlt.common.utils import uniq_id
-from dlt.common.libs.pyarrow import NameNormalizationClash
+from dlt.common.libs.pyarrow import NameNormalizationClash, remove_columns, normalize_py_arrow_item
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.cases import arrow_format_from_pandas, arrow_table_all_data_types, TArrowFormat
+from tests.cases import (
+    arrow_format_from_pandas,
+    arrow_item_from_table,
+    arrow_table_all_data_types,
+    prepare_shuffled_tables,
+    TArrowFormat,
+)
 from tests.utils import preserve_environ
 
 
@@ -30,7 +35,7 @@ from tests.utils import preserve_environ
     ],
 )
 def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
-    item, records = arrow_table_all_data_types(item_type)
+    item, records, data = arrow_table_all_data_types(item_type)
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")
 
@@ -52,7 +57,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
     with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
         extracted_bytes = f.read()
 
-    info = pipeline.normalize()
+    info = pipeline.normalize(loader_file_format="parquet")
 
     assert info.row_counts["some_data"] == len(records)
 
@@ -67,19 +72,25 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
         assert normalized_bytes == extracted_bytes
 
         f.seek(0)
-        pq = pa.parquet.ParquetFile(f)
-        tbl = pq.read()
+        with pa.parquet.ParquetFile(f) as pq:
+            tbl = pq.read()
 
-        # To make tables comparable exactly write the expected data to parquet and read it back
-        # The spark parquet writer loses timezone info
-        tbl_expected = pa.Table.from_pandas(pd.DataFrame(records))
-        with io.BytesIO() as f:
-            pa.parquet.write_table(tbl_expected, f, flavor="spark")
-            f.seek(0)
-            tbl_expected = pa.parquet.read_table(f)
-        df_tbl = tbl_expected.to_pandas(ignore_metadata=True)
+        # use original data to create data frame to preserve timestamp precision, timezones etc.
+        tbl_expected = pa.Table.from_pandas(pd.DataFrame(data))
+        # null is removed by dlt
+        tbl_expected = remove_columns(tbl_expected, ["null"])
+        # we want to normalize column names
+        tbl_expected = normalize_py_arrow_item(
+            tbl_expected,
+            pipeline.default_schema.get_table_columns("some_data"),
+            pipeline.default_schema.naming,
+            None,
+        )
+        assert tbl_expected.schema.equals(tbl.schema)
+
+        df_tbl = tbl_expected.to_pandas(ignore_metadata=False)
         # Data is identical to the original dataframe
-        df_result = tbl.to_pandas(ignore_metadata=True)
+        df_result = tbl.to_pandas(ignore_metadata=False)
         assert df_result.equals(df_tbl)
 
     schema = pipeline.default_schema
@@ -111,7 +122,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
 def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
     os.environ["DUMMY__LOADER_FILE_FORMAT"] = "jsonl"
 
-    item, records = arrow_table_all_data_types(item_type)
+    item, records, _ = arrow_table_all_data_types(item_type, tz="Europe/Berlin")
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="dummy")
 
@@ -131,21 +142,18 @@ def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
     job = [j for j in jobs if "some_data" in j][0]
     with storage.normalized_packages.storage.open_file(job, "r") as f:
         result = [json.loads(line) for line in f]
-        for row in result:
-            row["decimal"] = Decimal(row["decimal"])
-
-    for record in records:
-        record["datetime"] = record["datetime"].replace(tzinfo=None)
 
     expected = json.loads(json.dumps(records))
-    for record in expected:
-        record["decimal"] = Decimal(record["decimal"])
-    assert result == expected
+    assert len(result) == len(expected)
+    for res_item, exp_item in zip(result, expected):
+        res_item["decimal"] = Decimal(res_item["decimal"])
+        exp_item["decimal"] = Decimal(exp_item["decimal"])
+        assert res_item == exp_item
 
 
 @pytest.mark.parametrize("item_type", ["table", "record_batch"])
 def test_add_map(item_type: TArrowFormat):
-    item, records = arrow_table_all_data_types(item_type, num_rows=200)
+    item, _, _ = arrow_table_all_data_types(item_type, num_rows=200)
 
     @dlt.resource
     def some_data():
@@ -175,7 +183,7 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
-    item, rows = arrow_table_all_data_types(item_type)
+    item, rows, _ = arrow_table_all_data_types(item_type)
 
     @dlt.resource
     def data_frames():
@@ -204,7 +212,7 @@ def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
-    item, _ = arrow_table_all_data_types(item_type, include_name_clash=True)
+    item, _, _ = arrow_table_all_data_types(item_type, include_name_clash=True)
 
     @dlt.resource
     def data_frames():
@@ -221,10 +229,10 @@ def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
 
-    item, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
+    item, _, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
     pipeline.run(item, table_name="data").raise_on_failed_jobs()
 
-    item, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
+    item, _, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
     # remove int column
     try:
         item = item.drop("int")
@@ -240,7 +248,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
 
-    item, rows = arrow_table_all_data_types(item_type)
+    item, rows, _ = arrow_table_all_data_types(item_type)
 
     item_resource = dlt.resource(item, name="item")
     assert id(item) == id(list(item_resource)[0])
@@ -255,7 +263,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
 
 @pytest.mark.parametrize("item_type", ["table"])  # , "pandas", "record_batch"
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
-    item, records = arrow_table_all_data_types(item_type, num_rows=5432)
+    item, records, _ = arrow_table_all_data_types(item_type, num_rows=5432)
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
     # Test with buffer smaller than the number of batches to be written
@@ -311,13 +319,157 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
 
     # should be able to load arrow with a new column
-    # TODO: uncomment when load_id fixed in normalizer
-    # item, records = arrow_table_all_data_types(item_type, num_rows=200)
-    # item = item.append_column("static_int", [[0] * 200])
-    # pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
+    item, records, _ = arrow_table_all_data_types(item_type, num_rows=200)
+    item = item.append_column("static_int", [[0] * 200])
+    pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
 
-    # schema = pipeline.default_schema
-    # assert schema.tables['some_data']['columns']['static_int']['data_type'] == 'bigint'
+    schema = pipeline.default_schema
+    assert schema.tables["some_data"]["columns"]["static_int"]["data_type"] == "bigint"
+
+
+@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+def test_normalize_reorder_columns_separate_packages(item_type: TArrowFormat) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
+
+    def _to_item(table: Any) -> Any:
+        return arrow_item_from_table(table, item_type)
+
+    pipeline_name = "arrow_" + uniq_id()
+    # all arrows will be written to the same table in the destination
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    storage = pipeline._get_normalize_storage()
+    extract_info = pipeline.extract(_to_item(shuffled_removed_column), table_name="table")
+    job_file = extract_info.load_packages[0].jobs["new_jobs"][0].file_path
+    with storage.extracted_packages.storage.open_file(job_file, "rb") as f:
+        actual_tbl_no_binary = pa.parquet.read_table(f)
+        # schema must be same
+        assert actual_tbl_no_binary.schema.names == shuffled_removed_column.schema.names
+        assert actual_tbl_no_binary.schema.equals(shuffled_removed_column.schema)
+    # print(pipeline.default_schema.to_pretty_yaml())
+
+    extract_info = pipeline.extract(_to_item(shuffled_table), table_name="table")
+    job_file = extract_info.load_packages[0].jobs["new_jobs"][0].file_path
+    with storage.extracted_packages.storage.open_file(job_file, "rb") as f:
+        actual_tbl_shuffled = pa.parquet.read_table(f)
+        # shuffled has additional "binary column" which must be added at the end
+        shuffled_names = list(shuffled_table.schema.names)
+        shuffled_names.remove("binary")
+        shuffled_names.append("binary")
+        assert actual_tbl_shuffled.schema.names == shuffled_names
+
+    extract_info = pipeline.extract(_to_item(table), table_name="table")
+    job_file = extract_info.load_packages[0].jobs["new_jobs"][0].file_path
+    with storage.extracted_packages.storage.open_file(job_file, "rb") as f:
+        actual_tbl = pa.parquet.read_table(f)
+        # orig table must be ordered exactly as shuffled table
+        assert actual_tbl.schema.names == shuffled_names
+        assert actual_tbl.schema.equals(actual_tbl_shuffled.schema)
+
+    # now normalize everything to parquet
+    normalize_info = pipeline.normalize(loader_file_format="parquet")
+    print(normalize_info.asstr(verbosity=2))
+    # we should have 3 load packages
+    assert len(normalize_info.load_packages) == 3
+    assert normalize_info.row_counts["table"] == 5432 * 3
+
+    # load to duckdb
+    load_info = pipeline.load()
+    load_info.raise_on_failed_jobs()
+
+
+@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+def test_normalize_reorder_columns_single_package(item_type: TArrowFormat) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # we do not want to rotate buffer
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "100000"
+    table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
+
+    def _to_item(table: Any) -> Any:
+        return arrow_item_from_table(table, item_type)
+
+    pipeline_name = "arrow_" + uniq_id()
+    # all arrows will be written to the same table in the destination
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    # extract arrows one by one
+    extract_info = pipeline.extract(
+        [_to_item(shuffled_removed_column), _to_item(shuffled_table), _to_item(table)],
+        table_name="table",
+    )
+    assert len(extract_info.load_packages) == 1
+    # there was a schema change (binary column was added)
+    assert len(extract_info.load_packages[0].jobs["new_jobs"]) == 2
+
+    normalize_info = pipeline.normalize(loader_file_format="parquet")
+    assert len(normalize_info.load_packages) == 1
+    assert normalize_info.row_counts["table"] == 5432 * 3
+    # we have 2 jobs: one was imported and second one had to be normalized
+    assert len(normalize_info.load_packages[0].jobs["new_jobs"]) == 2
+    load_storage = pipeline._get_load_storage()
+    for new_job in normalize_info.load_packages[0].jobs["new_jobs"]:
+        # all jobs must have the destination schemas
+        with load_storage.normalized_packages.storage.open_file(new_job.file_path, "rb") as f:
+            actual_tbl = pa.parquet.read_table(f)
+            shuffled_names = list(shuffled_table.schema.names)
+            # binary must be at the end
+            shuffled_names.remove("binary")
+            shuffled_names.append("binary")
+            assert actual_tbl.schema.names == shuffled_names
+
+    pipeline.load().raise_on_failed_jobs()
+
+
+@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+def test_normalize_reorder_columns_single_batch(item_type: TArrowFormat) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # we do not want to rotate buffer
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "100000"
+    table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
+
+    def _to_item(table: Any) -> Any:
+        return arrow_item_from_table(table, item_type)
+
+    pipeline_name = "arrow_" + uniq_id()
+    # all arrows will be written to the same table in the destination
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    # extract arrows in a single batch. this should unify the schema and generate just a single file
+    # that can be directly imported
+    extract_info = pipeline.extract(
+        [[_to_item(shuffled_removed_column), _to_item(shuffled_table), _to_item(table)]],
+        table_name="table",
+    )
+    assert len(extract_info.load_packages) == 1
+    # all arrow tables got normalized to the same schema so no rotation
+    assert len(extract_info.load_packages[0].jobs["new_jobs"]) == 1
+
+    shuffled_names = list(shuffled_table.schema.names)
+    # binary must be at the end
+    shuffled_names.remove("binary")
+    shuffled_names.append("binary")
+
+    storage = pipeline._get_normalize_storage()
+    job_file = extract_info.load_packages[0].jobs["new_jobs"][0].file_path
+    with storage.extracted_packages.storage.open_file(job_file, "rb") as f:
+        actual_tbl = pa.parquet.read_table(f)
+        # must be exactly shuffled_schema like in all other cases
+        assert actual_tbl.schema.names == shuffled_names
+
+    normalize_info = pipeline.normalize(loader_file_format="parquet")
+    assert len(normalize_info.load_packages) == 1
+    assert normalize_info.row_counts["table"] == 5432 * 3
+    # one job below that was imported without normalization
+    assert len(normalize_info.load_packages[0].jobs["new_jobs"]) == 1
+    load_storage = pipeline._get_load_storage()
+    for new_job in normalize_info.load_packages[0].jobs["new_jobs"]:
+        # all jobs must have the destination schemas
+        with load_storage.normalized_packages.storage.open_file(new_job.file_path, "rb") as f:
+            actual_tbl = pa.parquet.read_table(f)
+            assert len(actual_tbl) == 5432 * 3
+            assert actual_tbl.schema.names == shuffled_names
+
+    pipeline.load().raise_on_failed_jobs()
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
@@ -326,7 +478,7 @@ def test_empty_arrow(item_type: TArrowFormat) -> None:
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
 
     # always return pandas
-    item, _ = arrow_table_all_data_types("pandas", num_rows=1)
+    item, _, _ = arrow_table_all_data_types("pandas", num_rows=1)
     item_resource = dlt.resource(item, name="items", write_disposition="replace")
 
     pipeline_name = "arrow_" + uniq_id()

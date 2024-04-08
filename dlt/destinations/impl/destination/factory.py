@@ -5,19 +5,18 @@ from importlib import import_module
 from types import ModuleType
 from dlt.common.typing import AnyFun
 
-from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.destinations.exceptions import DestinationTransientException
+from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common import logger
+from dlt.common.utils import get_callable_name, is_inner_callable
 
+from dlt.destinations.exceptions import DestinationTransientException
 from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
     TDestinationCallable,
 )
 from dlt.destinations.impl.destination import capabilities
-from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.utils import get_callable_name, is_inner_callable
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.destination.destination import DestinationClient
@@ -38,7 +37,9 @@ _DESTINATIONS: t.Dict[str, DestinationInfo] = {}
 class destination(Destination[CustomDestinationClientConfiguration, "DestinationClient"]):
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities(
-            preferred_loader_file_format=self.config_params.get("loader_file_format", "puae-jsonl"),
+            preferred_loader_file_format=self.config_params.get(
+                "loader_file_format", "typed-jsonl"
+            ),
             naming_convention=self.config_params.get("naming_convention", "direct"),
             max_table_nesting=self.config_params.get("max_table_nesting", None),
         )

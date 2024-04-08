@@ -15,6 +15,9 @@ from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 from tests.utils import preserve_environ, autouse_test_storage
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(autouse=True)
 def storage() -> FileStorage:

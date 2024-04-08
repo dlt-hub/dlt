@@ -2,7 +2,6 @@ import semver
 from typing import Iterable
 
 from dlt.common.exceptions import DltException, TerminalValueError
-from dlt.common.destination import TLoaderFileFormat
 
 
 class StorageException(DltException):
@@ -63,16 +62,14 @@ class LoadStorageException(StorageException):
     pass
 
 
-class JobWithUnsupportedWriterException(LoadStorageException, TerminalValueError):
-    def __init__(
-        self, load_id: str, expected_file_formats: Iterable[TLoaderFileFormat], wrong_job: str
-    ) -> None:
+class JobFileFormatUnsupported(LoadStorageException, TerminalValueError):
+    def __init__(self, load_id: str, supported_formats: Iterable[str], wrong_job: str) -> None:
         self.load_id = load_id
-        self.expected_file_formats = expected_file_formats
+        self.expected_file_formats = supported_formats
         self.wrong_job = wrong_job
         super().__init__(
-            f"Job {wrong_job} for load id {load_id} requires loader file format that is not one of"
-            f" {expected_file_formats}"
+            f"Job {wrong_job} for load id {load_id} requires job file format that is not one of"
+            f" {supported_formats}"
         )
 
 

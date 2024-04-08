@@ -26,6 +26,9 @@ from tests.utils import TEST_STORAGE_ROOT
 
 from .utils import drop_active_pipeline_data
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(autouse=True)
 def drop_weaviate_schema() -> Iterator[None]:

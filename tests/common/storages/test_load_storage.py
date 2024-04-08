@@ -160,19 +160,19 @@ def test_get_unknown_package_info(load_storage: LoadStorage) -> None:
 
 def test_full_migration_path() -> None:
     # create directory structure
-    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "1.0.0")
     # must be able to migrate to current version
-    s = LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(False, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     assert s.version == LoadStorage.STORAGE_VERSION
 
 
 def test_unknown_migration_path() -> None:
     # create directory structure
-    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "10.0.0")
     # must be able to migrate to current version
     with pytest.raises(NoMigrationPathException):
-        LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        LoadStorage(False, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)

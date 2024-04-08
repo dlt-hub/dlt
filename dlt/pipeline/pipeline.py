@@ -48,7 +48,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrAny, TFun, TSecretValue, is_optional_type
+from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -63,7 +63,12 @@ from dlt.common.storages import (
     LoadJobInfo,
     LoadPackageInfo,
 )
-from dlt.common.destination import DestinationCapabilitiesContext, TDestination
+from dlt.common.destination import (
+    DestinationCapabilitiesContext,
+    TDestination,
+    ALL_SUPPORTED_FILE_FORMATS,
+    TLoaderFileFormat,
+)
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     WithStateSync,
@@ -75,7 +80,6 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
 )
-from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import (
     ExtractInfo,
     LoadInfo,
@@ -92,7 +96,6 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
-from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 
 from dlt.extract import DltSource
@@ -433,11 +436,13 @@ class Pipeline(SupportsPipeline):
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
         except Exception as exc:
+            # emit step info
             step_info = self._get_step_info(extract_step)
+            current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
             raise PipelineStepFailed(
                 self,
                 "extract",
-                extract_step.current_load_id,
+                current_load_id,
                 exc,
                 step_info,
             ) from exc
@@ -452,8 +457,8 @@ class Pipeline(SupportsPipeline):
         if is_interactive():
             workers = 1
 
-        if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
-            raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
+        if loader_file_format and loader_file_format not in ALL_SUPPORTED_FILE_FORMATS:
+            raise ValueError(f"{loader_file_format} is unknown.")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
@@ -976,7 +981,6 @@ class Pipeline(SupportsPipeline):
         caps = self._get_destination_capabilities()
         return LoadStorage(
             True,
-            caps.preferred_loader_file_format,
             caps.supported_loader_file_formats,
             self._load_storage_config(),
         )
@@ -1320,7 +1324,7 @@ class Pipeline(SupportsPipeline):
                 destination,
                 staging,
                 file_format,
-                set(possible_file_formats) - INTERNAL_LOADER_FILE_FORMATS,
+                set(possible_file_formats),
             )
         return file_format
 

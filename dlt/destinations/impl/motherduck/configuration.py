@@ -17,6 +17,8 @@ MOTHERDUCK_DRIVERNAME = "md"
 class MotherDuckCredentials(DuckDbBaseCredentials):
     drivername: Final[str] = dataclasses.field(default="md", init=False, repr=False, compare=False)  # type: ignore
     username: str = "motherduck"
+    password: TSecretValue = None
+    database: str = "my_db"
 
     read_only: bool = False  # open database read/write
 
@@ -47,13 +49,11 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         super().parse_native_representation(native_value)
         self._token_to_password()
 
-    def on_resolved(self) -> None:
+    def on_partial(self) -> None:
+        """Takes a token from query string and reuses it as a password"""
         self._token_to_password()
-        if self.drivername == MOTHERDUCK_DRIVERNAME and not self.password:
-            raise ConfigurationValueError(
-                "Motherduck schema 'md' was specified without corresponding token or password. The"
-                " required format of connection string is: md:///<database_name>?token=<token>"
-            )
+        if not self.is_partial():
+            self.resolve()
 
 
 @configspec

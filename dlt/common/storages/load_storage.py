@@ -1,13 +1,12 @@
 from os.path import join
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
 
-from dlt.common.typing import DictStrAny
+from dlt.common.data_writers.exceptions import DataWriterNotFound
 from dlt.common import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
 from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
 from dlt.common.configuration.accessors import config
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TSchemaTables
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.configuration import LoadStorageConfiguration
@@ -20,11 +19,28 @@ from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     TJobState,
     TLoadPackageState,
+    TJobFileFormat,
 )
-from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
+from dlt.common.data_writers import DataWriter, FileWriterSpec, TDataItemFormat
+from dlt.common.storages.exceptions import JobFileFormatUnsupported, LoadPackageNotFound
 
 
-class LoadStorage(DataItemStorage, VersionedStorage):
+class LoadItemStorage(DataItemStorage):
+    def __init__(self, package_storage: PackageStorage, writer_spec: FileWriterSpec) -> None:
+        """Data item storage using `storage` to manage load packages"""
+        super().__init__(writer_spec)
+        self.package_storage = package_storage
+
+    def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
+        # implements DataItemStorage._get_data_item_path_template
+        file_name = PackageStorage.build_job_file_name(table_name, "%s")
+        file_path = self.package_storage.get_job_file_path(
+            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
+        )
+        return self.package_storage.storage.make_full_path(file_path)
+
+
+class LoadStorage(VersionedStorage):
     STORAGE_VERSION = "1.0.0"
     NORMALIZED_FOLDER = "normalized"  # folder within the volume where load packages are stored
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
@@ -36,23 +52,14 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def __init__(
         self,
         is_owner: bool,
-        preferred_file_format: TLoaderFileFormat,
         supported_file_formats: Iterable[TLoaderFileFormat],
         config: LoadStorageConfiguration = config.value,
     ) -> None:
-        # puae-jsonl jobs have the extension .jsonl, so cater for this here
-        if supported_file_formats and "puae-jsonl" in supported_file_formats:
-            supported_file_formats = list(supported_file_formats)
-            supported_file_formats.append("jsonl")
-
-        if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
-            raise TerminalValueError(supported_file_formats)
-        if preferred_file_format and preferred_file_format not in supported_file_formats:
-            raise TerminalValueError(preferred_file_format)
-        self.supported_file_formats = supported_file_formats
+        self.supported_loader_file_formats = supported_file_formats
+        # store job file formats to add internal job formats as needed
+        self.supported_job_file_formats: List[TJobFileFormat] = list(supported_file_formats)
         self.config = config
         super().__init__(
-            preferred_file_format,
             LoadStorage.STORAGE_VERSION,
             is_owner,
             FileStorage(config.load_volume_path, "t", makedirs=is_owner),
@@ -75,13 +82,28 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         self.storage.create_folder(LoadStorage.NORMALIZED_FOLDER, exists_ok=True)
         self.storage.create_folder(LoadStorage.LOADED_FOLDER, exists_ok=True)
 
-    def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
-        # implements DataItemStorage._get_data_item_path_template
-        file_name = PackageStorage.build_job_file_name(table_name, "%s")
-        file_path = self.new_packages.get_job_file_path(
-            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
-        )
-        return self.new_packages.storage.make_full_path(file_path)
+    def create_item_storage(
+        self, preferred_format: TLoaderFileFormat, item_format: TDataItemFormat
+    ) -> DataItemStorage:
+        """Creates item storage for preferred_format + item_format combination. If not found, it
+        tries the remaining file formats in supported formats.
+        """
+        try:
+            return LoadItemStorage(
+                self.new_packages,
+                DataWriter.writer_spec_from_file_format(preferred_format, item_format),
+            )
+        except DataWriterNotFound:
+            for supported_format in self.supported_loader_file_formats:
+                if supported_format != preferred_format:
+                    try:
+                        return LoadItemStorage(
+                            self.new_packages,
+                            DataWriter.writer_spec_from_file_format(supported_format, item_format),
+                        )
+                    except DataWriterNotFound:
+                        pass
+            raise
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""
@@ -91,12 +113,12 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             (
                 j
                 for j in new_jobs
-                if ParsedLoadJobFileName.parse(j).file_format not in self.supported_file_formats
+                if ParsedLoadJobFileName.parse(j).file_format not in self.supported_job_file_formats
             ),
             None,
         )
         if wrong_job is not None:
-            raise JobWithUnsupportedWriterException(load_id, self.supported_file_formats, wrong_job)
+            raise JobFileFormatUnsupported(load_id, self.supported_job_file_formats, wrong_job)
         return new_jobs
 
     def commit_new_load_package(self, load_id: str) -> None:
