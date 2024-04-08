@@ -97,10 +97,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
-        self.table_prefix_layout = path_utils.get_table_prefix_layout(
-            config.layout,
-            extra_placeholders=config.extra_placeholders,
-        )
+        self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
         self._dataset_path = self.config.normalize_dataset_name(self.schema)
 
     def drop_storage(self) -> None:

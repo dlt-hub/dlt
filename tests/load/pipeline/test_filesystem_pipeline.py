@@ -30,8 +30,6 @@ def assert_file_matches(
         filename,
         client.schema.name,
         load_id,
-        current_datetime=client.config.current_datetime,
-        datetime_format=client.config.datetime_format,
         extra_placeholders=client.config.extra_placeholders,
     )
     destination_path = posixpath.join(client.dataset_path, destination_fn)

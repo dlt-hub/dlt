@@ -98,7 +98,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
                     load_id=load_id,
                     file_id=job_info.file_id,
                     ext=job_info.file_format,
-                    **prepare_datetime_params(now, load_package_timestamp=timestamp),
+                    **prepare_datetime_params(load_package_timestamp=timestamp),
                 ),
             )
 
@@ -136,8 +136,6 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 client.schema.name,
                 load_id1,
                 load_package_timestamp=timestamp,
-                current_datetime=client.config.current_datetime,
-                datetime_format=client.config.datetime_format,
                 extra_placeholders=client.config.extra_placeholders,
             ),
         )
@@ -156,8 +154,6 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                     client.schema.name,
                     load_id2,
                     load_package_timestamp=timestamp,
-                    current_datetime=client.config.current_datetime,
-                    datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,
                 ),
             )
@@ -206,8 +202,6 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                     client.schema.name,
                     load_id1,
                     load_package_timestamp=timestamp,
-                    current_datetime=client.config.current_datetime,
-                    datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,
                 )
                 for job in jobs1
@@ -218,8 +212,6 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                     client.schema.name,
                     load_id2,
                     load_package_timestamp=timestamp,
-                    current_datetime=client.config.current_datetime,
-                    datetime_format=client.config.datetime_format,
                     extra_placeholders=client.config.extra_placeholders,
                 )
                 for job in jobs2
