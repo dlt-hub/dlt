@@ -12,7 +12,6 @@ from pendulum.datetime import DateTime
 
 from dlt.destinations.impl.filesystem.typing import (
     TCurrentDatetimeCallback,
-    TDatetimeFormat,
     TLayoutParamCallback,
 )
 
@@ -21,7 +20,6 @@ from dlt.destinations.impl.filesystem.typing import (
 class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration):  # type: ignore[misc]
     destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore
     current_datetime: Optional[Union[DateTime, TCurrentDatetimeCallback]] = None
-    datetime_format: Optional[TDatetimeFormat] = None
     extra_placeholders: Optional[Dict[str, Union[str, TLayoutParamCallback]]] = None
 
     @resolve_type("credentials")
