@@ -66,8 +66,6 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-    now = pendulum.now()
-
     timestamp = "2024-04-05T09:16:59.942779Z"
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
