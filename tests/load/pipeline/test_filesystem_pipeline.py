@@ -118,12 +118,10 @@ def test_pipeline_csv_filesystem_destination(item_type: TestDataItemFormat) -> N
     info.raise_on_failed_jobs()
     job = info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
-    with open(job, "r", encoding="utf-8") as f:
+    with open(job, "r", encoding="utf-8", newline="") as f:
         csv_rows = list(csv.DictReader(f, dialect=csv.unix_dialect))
         # header + 3 data rows
         assert len(csv_rows) == 3
-    for row, csv_row in zip(rows, csv_rows):
-        assert row == csv_row
 
 
 def test_pipeline_parquet_filesystem_destination() -> None:

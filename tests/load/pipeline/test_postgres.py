@@ -42,9 +42,7 @@ def test_postgres_load_csv(
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
     assert_data_table_counts(pipeline, {"table": 5432 * 3})
-    data = load_tables_to_dicts(pipeline, "table")
-    print(data["table"][0]["binary"].tobytes())
-    # assert
+    load_tables_to_dicts(pipeline, "table")
 
 
 @pytest.mark.parametrize(

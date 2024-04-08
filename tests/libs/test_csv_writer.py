@@ -59,7 +59,7 @@ def test_csv_arrow_writer_all_data_fields() -> None:
         writer.write_data_item([table, table], TABLE_UPDATE_COLUMNS_SCHEMA)
         writer.write_data_item(table.to_batches(), TABLE_UPDATE_COLUMNS_SCHEMA)
 
-    with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[0].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # header + 3 data
         assert len(rows) == 4
@@ -88,13 +88,13 @@ def test_csv_arrow_writer_all_data_fields() -> None:
     assert len(writer.closed_files) == 2
 
     # first file
-    with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[0].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # header + 1 data
         assert len(rows) == 2
     assert rows[0] == list(base_column_schema.keys())
     # second file
-    with open(writer.closed_files[1].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[1].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # header + 2 data
         assert len(rows) == 3
@@ -126,7 +126,7 @@ def test_csv_object_writer_all_data_fields() -> None:
         writer.write_data_item([copy(data), copy(data)], TABLE_UPDATE_COLUMNS_SCHEMA)
         writer.write_data_item(copy(data), TABLE_UPDATE_COLUMNS_SCHEMA)
 
-    with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[0].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # header + 3 data
         assert len(rows) == 4
@@ -146,13 +146,13 @@ def test_csv_object_writer_all_data_fields() -> None:
     assert len(writer.closed_files) == 2
 
     # first file
-    with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[0].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # header + 1 data
         assert len(rows) == 2
     assert rows[0] == list(base_column_schema.keys())
     # second file
-    with open(writer.closed_files[1].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[1].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # header + 2 data
         assert len(rows) == 3
@@ -199,7 +199,7 @@ def test_csv_writer_empty(item_type: TestDataItemFormat) -> None:
     with get_writer(writer_type, disable_compression=True) as writer:
         writer.write_empty_file(TABLE_UPDATE_COLUMNS_SCHEMA)
 
-    with open(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
+    with open(writer.closed_files[0].file_path, "r", encoding="utf-8", newline="") as f:
         rows = list(csv.reader(f, dialect=csv.unix_dialect))
         # only header
         assert len(rows) == 1
