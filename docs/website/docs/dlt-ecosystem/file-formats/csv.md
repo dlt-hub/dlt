@@ -33,6 +33,12 @@ info = pipeline.run(some_source(), loader_file_format="csv")
 * dates are represented as ISO 8601
 
 ## Limitations
+**arrow writer**
 
 * binary columns are supported only if they contain valid UTF-8 characters
 * complex (nested, struct) types are not supported
+
+**csv writer**
+* binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)
+* complex columns dumped with json.dumps
+* **None** values are always quoted

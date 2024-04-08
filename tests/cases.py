@@ -19,9 +19,7 @@ from dlt.common.time import (
 )
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
-
-TArrowFormat = Literal["pandas", "table", "record_batch"]
-
+from tests.utils import TArrowFormat, TestDataItemFormat, arrow_item_from_pandas
 
 # _UUID = "c8209ee7-ee95-4b90-8c9f-f7a0f8b51014"
 JSON_TYPED_DICT: StrAny = {
@@ -276,38 +274,8 @@ def assert_all_data_types_row(
     assert db_mapping == expected_rows
 
 
-def arrow_format_from_pandas(
-    df: Any,
-    object_format: TArrowFormat,
-) -> Any:
-    from dlt.common.libs.pyarrow import pyarrow as pa
-
-    if object_format == "pandas":
-        return df
-    elif object_format == "table":
-        return pa.Table.from_pandas(df)
-    elif object_format == "record_batch":
-        return pa.RecordBatch.from_pandas(df)
-    raise ValueError("Unknown item type: " + object_format)
-
-
-def arrow_item_from_table(
-    table: Any,
-    object_format: TArrowFormat,
-) -> Any:
-    from dlt.common.libs.pyarrow import pyarrow as pa
-
-    if object_format == "pandas":
-        return table.to_pandas()
-    elif object_format == "table":
-        return table
-    elif object_format == "record_batch":
-        return table.to_batches()[0]
-    raise ValueError("Unknown item type: " + object_format)
-
-
 def arrow_table_all_data_types(
-    object_format: TArrowFormat,
+    object_format: TestDataItemFormat,
     include_json: bool = True,
     include_time: bool = True,
     include_binary: bool = True,
@@ -374,7 +342,10 @@ def arrow_table_all_data_types(
         .drop(columns=["null"])
         .to_dict("records")
     )
-    return arrow_format_from_pandas(df, object_format), rows, data
+    if object_format == "object":
+        return rows, rows, data
+    else:
+        return arrow_item_from_pandas(df, object_format), rows, data
 
 
 def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:
@@ -382,7 +353,7 @@ def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:
     from dlt.common.libs.pyarrow import pyarrow as pa
 
     table, _, _ = arrow_table_all_data_types(
-        "table",
+        "arrow-table",
         include_json=False,
         include_not_normalized_name=False,
         tz="Europe/Berlin",
