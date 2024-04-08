@@ -1,7 +1,7 @@
 ---
 slug: MongoDB-dlt-Holistics
 title: "Modeling Unstructured Data for Self-Service Analytics with dlt and Holistics"
-image: /img/dlt_holistics_overview.jpg
+image: https://storage.googleapis.com/dlt-blog-images/dlt_holistics_overview.jpg
 authors:
   name: Zaeem Athar
   title: Junior Data Engineer
@@ -19,7 +19,7 @@ In this blog, we will show you how you can combine `dlt` and **Holistics** and c
 
 ## An Overview of the MongoDB Modern Analytics Stack
 
-![Diagram illustrating the inner workings of our Modern Analytics Stack](/img/dlt_holistics_overview.jpg)
+![Diagram illustrating the inner workings of our Modern Analytics Stack](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_overview.jpg)
 
 
 | Tool  | Layer | Why it’s awesome |
@@ -77,7 +77,7 @@ In addition to the transformation layer, Holistics provides advanced features su
 
 The overall Holistics workflow looks something like this:
 
-![Holistics Overview](/img/holistics_overview.png)
+![Holistics Overview](https://storage.googleapis.com/dlt-blog-images/holistics_overview.png)
 
 - Connect Holistics to an existing SQL data warehouse.
 - Data teams use Holistics Data Modeling to model and transform analytics data. This model layer is reusable across reports & datasets.
@@ -286,7 +286,7 @@ To get a sense of what we accomplished let's examine what the unstructured data 
 
 This is a typical way data is structured in a NoSQL database. The data is in a JSON-like format and contains nested data. Now, let's look at what is loaded in BigQuery. Below you can see the same data in BigQuery.
 
-![BigQuery Data Overview](/img/dlt_holistics_bigquery_data.png)
+![BigQuery Data Overview](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_bigquery_data.png)
 
 The ddl (data definition language) for the movies table in BigQuery can be seen below:
 
@@ -336,7 +336,7 @@ CREATE TABLE `dlthub-analytics.mongo_database.movies`
 
 If you compare the ddl against the sample document in MongoDB you will notice that the nested arrays such as **CAST** are missing from the ddl in BigQuery. This is because of how dlt handles nested arrays. If we look at our database in BigQuery you can see the **CAST** is loaded as a separate table.
 
-![BigQuery Table Overview](/img/dlt_holistics_bigquery_table.png)
+![BigQuery Table Overview](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_bigquery_table.png)
 
 `dlt` normalises nested data by populating them in separate tables and creates relationships between the tables, so they can be combined together using normal SQL joins. All this is taken care of by `dlt` and we need not worry about how transformations are handled. In short, the transformation steps we discussed in [Why is dlt useful when you want to ingest data from a production database such as MongoDB?](#why-is-dlt-useful-when-you-want-to-ingest-data-from-a-production-database-such-as-mongodb) are taken care of by dlt, making the data analyst's life easier.
 
@@ -375,7 +375,7 @@ In Holistics, go to the **Modelling 4.0** section from the top bar. We will be g
 
 Under the Models folder, let's add the MongoDB data from BigQuery as Table Models. Hover over the Models folder and click on the (+) sign then select **Add Table Model.** In the **Data Sources** select the BigQuery Source we created before and then select the relevant table models to import into Holistics. In this case, we are importing the `movies`, `movies_cast` and `movies_directors` tables.
 
-![Holistics Add Model](/img/holistics_add_model.png)
+![Holistics Add Model](https://storage.googleapis.com/dlt-blog-images/holistics_add_model.png)
 
 #### **Adding Holistics Dataset(s) and Relationships:**
 
@@ -389,11 +389,11 @@ Datasets works like a data marts, except that it exists only on the semantic lay
 
 Hover over the Datasets folder, click on the (+) sign, and then select **Add Datasets.** Select the previously created Table Models under this dataset, and **Create Dataset**.
 
-![Holistics Create Dataset](/img/holistics_add_dataset.png)
+![Holistics Create Dataset](https://storage.googleapis.com/dlt-blog-images/holistics_add_dataset.png)
 
 We will then be asked to create relationships between the models. We create a **Many-to-one (n - 1)** relationship between the `cast` and the `movies` models.   
 
-![Add Relationship between Models](/img/holistics_add_relationship.png)
+![Add Relationship between Models](https://storage.googleapis.com/dlt-blog-images/holistics_add_relationship.png)
 
 The resulting relationship can seen As Code using the Holistics 4.0 Analytics as Code feature. To activate this feature click on the newly created dataset and select the **View as Code** option from the top right. For more detailed instructions on setting up relationships between models refer to the model relationship [guide](https://docs.holistics.io/docs/relationships#automatic-relationship-creation).
 
@@ -435,7 +435,7 @@ Dataset movies {
 
 The corresponding view for the `dataset.aml` file in the GUI looks like this:
 
-![Add Relationship GUI](/img/holistics_relationship_gui.png)
+![Add Relationship GUI](https://storage.googleapis.com/dlt-blog-images/holistics_relationship_gui.png)
 
 Once the relationships between the tables have been defined we are all set to create some visualizations. We can select the **Preview** option from next to the View as Code toggle to create some visualization in the development mode. This comes in handy if we have connected an external git repository to track our changes, this way we could test out the dataset in preview mode before committing and pushing changes, and deploying the dataset to production. 
 
@@ -447,11 +447,11 @@ The Movies dataset should now be available in the Reporting section. We will cre
 
 The visualization part is pretty self-explanatory and is mostly drag and drop as we took the time to define the relationships between the tables. Below we create a simple table in Holistics that shows the actors that have appeared in most movies since the year 2000.
 
-![Holistics Create Visualization](/img/Holistics_new.gif)
+![Holistics Create Visualization](https://storage.googleapis.com/dlt-blog-images/Holistics_new.gif)
 
 Similarly, we can add other reports and combine them into a dashboard. The resulting dashboard can be seen below:
 
-![Holistics Dashboard](/img/holistics_dashboard.png)
+![Holistics Dashboard](https://storage.googleapis.com/dlt-blog-images/holistics_dashboard.png)
 
 ## Conclusion
 
