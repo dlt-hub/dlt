@@ -81,15 +81,21 @@ pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-
 
 ```
 
-Here’s how to define a destination function to update a Google Sheet:
+Here’s how to define a destination function to update a Google Sheet.
+In our case we wrote a slightly complex function that checks the headers and aligns the columns with the existing ones before inserting:
 
 ```py
 import dlt
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
-@dlt.destination(name="update_google_sheet", batch_size=10)
-def append_to_google_sheets(items, table_schema, sheets_id: str = dlt.config.value, credentials_json: dict = dlt.secrets.value, range_name: str = 'Sheet1!A1'):
+
+@dlt.destination(batch_size=100)
+def google_sheets(items,
+                            table_schema,
+                            sheets_id: str = dlt.config.value,
+                            credentials_json: dict = dlt.secrets.value,
+                            range_name: str = 'Sheet1'):
     """
     Send data to a Google Sheet.
     :param items: Batch of items to send.
@@ -101,15 +107,43 @@ def append_to_google_sheets(items, table_schema, sheets_id: str = dlt.config.val
     credentials = Credentials.from_service_account_info(credentials_json)
     service = build('sheets', 'v4', credentials=credentials)
 
-    values = [
-        [item['id'], item['name'], item['status']] for item in items  # Adjust based on your data structure
-    ]
-    body = {'values': values}
-    result = service.spreadsheets().values().append(
-        spreadsheetId=sheets_id, range=range_name,
-        valueInputOption='RAW', insertDataOption='INSERT_ROWS', body=body
+    # Fetch existing headers from the sheet
+    existing_headers_result = service.spreadsheets().values().get(
+        spreadsheetId=sheets_id, range="Sheet1!A1:1"
     ).execute()
-    print(f"{result.get('updates').get('updatedRows')} rows have been added to the sheet.")
+    existing_headers = existing_headers_result.get('values', [[]])[0] if existing_headers_result.get('values') else []
+
+    # Determine new headers from items
+    new_keys = set().union(*(d.keys() for d in items))
+    # Identify headers that need to be added (not already existing)
+    headers_to_add = [key for key in new_keys if key not in existing_headers]
+    # New comprehensive headers list, preserving the order of existing headers and adding new ones at the end
+    comprehensive_headers = existing_headers + headers_to_add
+
+    # If there are headers to add, update the first row with comprehensive headers
+    if headers_to_add:
+        update_body = {'values': [comprehensive_headers]}
+        service.spreadsheets().values().update(
+            spreadsheetId=sheets_id, range="Sheet1!A1",
+            valueInputOption='RAW', body=update_body
+        ).execute()
+
+    # Prepare the data rows according to the comprehensive headers list
+    values = []
+    for item in items:
+        row = [item.get(header, "") for header in comprehensive_headers]  # Fill missing keys with empty string
+        values.append(row)
+
+    body = {'values': values}
+
+    # Append the data rows
+    if values:
+        append_body = {'values': values}
+        append_result = service.spreadsheets().values().append(
+            spreadsheetId=sheets_id, range=range_name,
+            valueInputOption='RAW', insertDataOption='INSERT_ROWS', body=append_body
+        ).execute()
+        print(f"{append_result.get('updates').get('updatedRows')} rows have been added to the sheet.")
 
 
 ```
@@ -121,7 +155,7 @@ For the custom destination, you can follow this example. Configure the source as
  **`secrets.toml`**
 
 ```toml
-[destination.update_google_sheet]
+[destination.google_sheets]
 credentials_json = '''
 {
   "type": "service_account",
@@ -135,9 +169,7 @@ credentials_json = '''
 **`config.toml`**
 
 ```toml
-[destination.update_google_sheet]
-id = "your_google_sheet_id_here"
-
+sheets_id = "1xj6APSKhepp8-sJIucbD9DDx7eyBt4UI2KlAYaQ9EKs"
 ```
 
 ### Step 4: Running the pipeline in `my_pipeline.py`(10min)
@@ -145,28 +177,24 @@ id = "your_google_sheet_id_here"
 Now, assuming you have a source function **`sql_database()`** from the verified sources, you can set up and run your pipeline as follows:
 
 ```py
+# ... destination code from above
 
-import dlt
-from sheets_destination import append_to_google_sheets
-from your_source_module import sql_database  # Adjust the import based on your actual source module
-
-# Assuming your source and destination setup as previously defined
+# pass some destination arguments explicitly (`range_name`)
+pipeline = dlt.pipeline("my_google_sheets_pipeline", destination=google_sheets(range_name="named_range"))
 
 # Use the source function and specify the resource "people_report"
-peoples_table = sql_database().with_resources("people_report")
-# Create the destination, pass additional parameters like to dlt source
-sheets_destination = append_to_google_sheets(sheets_id="your_google_sheet_id_here", range_name="named_range_1")
+def dict_row_generator():
+    yield {"row": 1, 'a': "a"}
+    yield {"row": 2, 'b': "b"}
+    yield {"row": 3, 'c': "c"}
+    yield {"row": 1, 'a': 1}
+    yield {"row": 2, 'b': 2}
+    yield {"row": 3, 'c': 3}
 
 
-# Initialize the dlt pipeline with a unique name
-pipeline = dlt.pipeline(
-    pipeline_name="my_google_sheets_pipeline",
-    destination=sheets_destination
-)
 
 # Now, run the pipeline with the specified source
-# The write_disposition parameter might be unused depending on your destination function's implementation
-info = pipeline.run(source)
+info = pipeline.run(dict_row_generator)
 
 ```
 
