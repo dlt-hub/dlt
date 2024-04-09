@@ -898,8 +898,7 @@ class Pipeline(SupportsPipeline):
             )
 
         schema = self.schemas[schema_name] if schema_name else self.default_schema
-        client_config = self._get_destination_client_initial_config(credentials)
-        with self._get_destination_clients(schema, client_config)[0] as client:
+        with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
             return client.update_stored_schema()
 
@@ -955,8 +954,7 @@ class Pipeline(SupportsPipeline):
         If no schema name is provided and no default schema is present in the pipeline, and ad hoc schema will be created and discarded after use.
         """
         schema = self._get_schema_or_create(schema_name)
-        client_config = self._get_destination_client_initial_config(credentials)
-        return self._get_destination_clients(schema, client_config)[0]
+        return self._get_destination_clients(schema)[0]
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:

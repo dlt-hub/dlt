@@ -167,6 +167,9 @@ def destinations_configs(
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
+    # import filesystem destination to use named version for minio
+    from dlt.destinations import filesystem
+
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
@@ -208,8 +211,6 @@ def destinations_configs(
                 extra_info="az-authorization",
             )
         ]
-        # import filesystem destination to use named version for minio
-        from dlt.destinations import filesystem
 
         destination_configs += [
             DestinationTestConfiguration(
@@ -316,7 +317,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination="dremio",
-                staging="filesystem",
+                staging=filesystem(destination_name="minio"),
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 supports_dbt=False,
