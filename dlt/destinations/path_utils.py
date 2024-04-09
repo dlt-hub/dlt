@@ -38,7 +38,8 @@ def get_placeholders(layout: str) -> List[str]:
 
 
 def prepare_datetime_params(
-    current_datetime: Optional[pendulum.DateTime], load_package_timestamp: Optional[str] = None
+    current_datetime: Optional[pendulum.DateTime] = None,
+    load_package_timestamp: Optional[str] = None,
 ) -> Dict[str, str]:
     # For formatting options please see
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
@@ -167,6 +168,7 @@ def create_path(
     schema_name: str,
     load_id: str,
     load_package_timestamp: Optional[str] = None,
+    current_datetime: Optional[pendulum.DateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
@@ -178,7 +180,7 @@ def create_path(
         load_id=load_id,
     )
 
-    datetime_params = prepare_datetime_params(load_package_timestamp)
+    datetime_params = prepare_datetime_params(current_datetime, load_package_timestamp)
     params.update(datetime_params)
     placeholders = check_layout(layout, params)
     path = layout.format(**params)
