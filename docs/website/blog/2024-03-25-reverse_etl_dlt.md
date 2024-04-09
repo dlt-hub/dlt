@@ -89,7 +89,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 @dlt.destination(name="update_google_sheet", batch_size=10)
-def append_to_google_sheets(items, table_schema, sheets_id: str = dlt.config.value("SHEETS_ID"), credentials_json: dict = dlt.secrets.value("GOOGLE_SHEETS_CREDENTIALS"), range_name: str = 'Sheet1!A1'):
+def append_to_google_sheets(items, table_schema, sheets_id: str = dlt.config.value, credentials_json: dict = dlt.secrets.value, range_name: str = 'Sheet1!A1'):
     """
     Send data to a Google Sheet.
     :param items: Batch of items to send.
@@ -121,7 +121,7 @@ For the custom destination, you can follow this example. Configure the source as
  **`secrets.toml`**
 
 ```toml
-[google_sheets]
+[destination.update_google_sheet]
 credentials_json = '''
 {
   "type": "service_account",
@@ -135,7 +135,7 @@ credentials_json = '''
 **`config.toml`**
 
 ```toml
-[SHEETS]
+[destination.update_google_sheet]
 id = "your_google_sheet_id_here"
 
 ```
@@ -147,25 +147,26 @@ Now, assuming you have a source function **`sql_database()`** from the verified 
 ```py
 
 import dlt
-from dlt.common.destination import Destination
+from sheets_destination import append_to_google_sheets
 from your_source_module import sql_database  # Adjust the import based on your actual source module
 
 # Assuming your source and destination setup as previously defined
 
+# Use the source function and specify the resource "people_report"
+peoples_table = sql_database().with_resources("people_report")
+# Create the destination, pass additional parameters like to dlt source
+sheets_destination = append_to_google_sheets(sheets_id="your_google_sheet_id_here", range_name="named_range_1")
+
+
 # Initialize the dlt pipeline with a unique name
 pipeline = dlt.pipeline(
-    name="my_google_sheets_pipeline",
-    destination=Destination.from_reference(
-        destination_callable="sheets_destination.append_to_google_sheets"
-    )
+    pipeline_name="my_google_sheets_pipeline",
+    destination=sheets_destination
 )
-
-# Use the source function and specify the resource "people_report"
-source = sql_database().with_resources("people_report")
 
 # Now, run the pipeline with the specified source
 # The write_disposition parameter might be unused depending on your destination function's implementation
-info = pipeline.run(source=source)
+info = pipeline.run(source)
 
 ```
 
