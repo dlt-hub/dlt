@@ -38,6 +38,7 @@ ALL_LAYOUTS = (  # type: ignore
     ),
     ("{table_name}/dayofweek-{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{Q}/{MM}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
     # invalid layouts
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
     (
