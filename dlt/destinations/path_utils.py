@@ -50,12 +50,12 @@ def prepare_datetime_params(
     # we need to preserve load package timestamp if it is given
     # ideally it should always be given if not we take current datetime
     if load_package_timestamp:
-        timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
+        timestamp = pendulum.parse(load_package_timestamp)
     else:
         timestamp = now
 
     # Timestamp placeholder
-    params["timestamp"] = str(int(timestamp.timestamp()))
+    params["timestamp"] = str(int(timestamp.timestamp()))   # type: ignore[union-attr]
 
     # Take date from timestamp as curr_date
     params["curr_date"] = str(now.date())
