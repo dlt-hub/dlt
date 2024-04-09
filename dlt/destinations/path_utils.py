@@ -17,6 +17,7 @@ SUPPORTED_PLACEHOLDERS = {
     "ext",
     "curr_date",
     "YYYY",
+    "Y",
     "MMMM",  # January, February, March
     "MMM",  # Jan, Feb, Mar
     "MM",  # 01, 02, 03
@@ -31,6 +32,7 @@ SUPPORTED_PLACEHOLDERS = {
     "ddd",  # Mon, Tue, Wed
     "dd",  # Mo, Tu, We
     "d",  # 0-6
+    "Q",  # quarter 1, 2, 3, 4
     "timestamp",
 }
 
@@ -64,7 +66,8 @@ def prepare_datetime_params(
     params["curr_date"] = str(now.date())
 
     params["YYYY"] = now.format("Y")
-    params["Q"] = "Q" + now.format("Y")
+    params["Y"] = now.format("Y")
+    params["Q"] = "Q" + now.format("Q")
 
     # month, day, hour and minute padded with 0
     params["MMMM"] = now.format("MMMM")
