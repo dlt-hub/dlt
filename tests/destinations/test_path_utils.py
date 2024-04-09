@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+import pendulum
 import pytest
 
 from dlt.common.storages import LoadStorage
@@ -109,3 +110,49 @@ def test_get_table_prefix_layout() -> None:
     # disallow table_name without following separator
     with pytest.raises(CantExtractTablePrefix):
         get_table_prefix_layout("{schema_name}/{table_name}{load_id}.{file_id}.{ext}")
+
+
+def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -> None:
+    load_id, job_info = test_load
+    now = pendulum.now()
+    timestamp = str(int(now.timestamp()))
+    path = create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        load_package_timestamp=now.to_iso8601_string(),
+        file_name=job_info.file_name(),
+    )
+
+    assert timestamp in path
+    assert path.endswith(f"{timestamp}.{job_info.file_format}")
+
+
+def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
+    load_id, job_info = test_load
+    now = pendulum.now()
+    calls = 0
+
+    def current_datetime_callback():
+        nonlocal calls
+        calls += 1
+        return now
+
+    create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        current_datetime=current_datetime_callback,
+        file_name=job_info.file_name(),
+    )
+
+    create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        current_datetime=now,
+        file_name=job_info.file_name(),
+    )
+
+    # expect only one call
+    assert calls == 1
