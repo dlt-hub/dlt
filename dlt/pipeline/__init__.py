@@ -1,4 +1,4 @@
-from typing import Sequence, Type, cast, overload
+from typing import Sequence, Type, cast, overload, Optional
 from typing_extensions import TypeVar
 
 from dlt.common.schema import Schema
@@ -15,6 +15,7 @@ from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pip
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 from dlt.pipeline.warnings import credentials_argument_deprecated, full_refresh_argument_deprecated
+from dlt.pipeline.typing import TRefreshMode
 
 TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 
@@ -31,6 +32,7 @@ def pipeline(
     export_schema_path: str = None,
     full_refresh: bool = False,
     dev_mode: bool = False,
+    refresh: Optional[TRefreshMode] = None,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
@@ -101,6 +103,7 @@ def pipeline(
     export_schema_path: str = None,
     full_refresh: bool = False,
     dev_mode: bool = False,
+    refresh: Optional[TRefreshMode] = None,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
@@ -152,6 +155,7 @@ def pipeline(
         False,
         last_config(**kwargs),
         kwargs["runtime"],
+        refresh=refresh,
     )
     # set it as current pipeline
     p.activate()

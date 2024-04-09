@@ -133,7 +133,7 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
-from dlt.pipeline.typing import TPipelineStep
+from dlt.pipeline.typing import TPipelineStep, TRefreshMode
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
     bump_pipeline_state_version_if_modified,
@@ -145,6 +145,7 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
 from dlt.common.storages.load_package import TLoadPackageState
+from dlt.pipeline.helpers import drop as drop_command
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -310,6 +311,7 @@ class Pipeline(SupportsPipeline):
     collector: _Collector
     config: PipelineConfiguration
     runtime_config: RunConfiguration
+    refresh: Optional[TRefreshMode] = None
 
     def __init__(
         self,
@@ -327,6 +329,7 @@ class Pipeline(SupportsPipeline):
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
         runtime: RunConfiguration,
+        refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
         self.pipeline_salt = pipeline_salt
@@ -336,6 +339,7 @@ class Pipeline(SupportsPipeline):
         self.collector = progress or _NULL_COLLECTOR
         self.destination = None
         self.staging = None
+        self.refresh = refresh
 
         self._container = Container()
         self._pipeline_instance_id = self._create_pipeline_instance_id()
@@ -405,6 +409,9 @@ class Pipeline(SupportsPipeline):
         schema_contract: TSchemaContract = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
+        if self.refresh == "full":
+            drop_command(self, drop_all=True, state_paths="*")
+
         # create extract storage to which all the sources will be extracted
         extract_step = Extract(
             self._schema_storage,
@@ -1147,7 +1154,7 @@ class Pipeline(SupportsPipeline):
         if issubclass(client_spec, DestinationClientDwhConfiguration):
             if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "Full refresh may not work if dataset name is not set. Please set the"
+                    "Dev mode may not work if dataset name is not set. Please set the"
                     " dataset_name argument in dlt.pipeline or run method"
                 )
             # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
