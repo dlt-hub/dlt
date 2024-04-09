@@ -46,42 +46,46 @@ def prepare_datetime_params(
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
     # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
-    moment: pendulum.DateTime = current_datetime or pendulum.now()
+    now: pendulum.DateTime = current_datetime or pendulum.now()
+    # we need to preserve load package timestamp if it is given
+    # ideally it should always be given if not we take current datetime
     if load_package_timestamp:
-        moment = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
+        timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
+    else:
+        timestamp = now
 
     # Timestamp placeholder
-    params["timestamp"] = str(int(moment.timestamp()))
+    params["timestamp"] = str(int(timestamp.timestamp()))
 
     # Take date from timestamp as curr_date
-    params["curr_date"] = str(moment.date())
+    params["curr_date"] = str(now.date())
 
-    year = str(moment.year)
+    year = str(now.year)
     params["year"] = year
     params["YYYY"] = year
 
     # month, day, hour and minute padded with 0
-    month = moment.format("MM")
+    month = now.format("MM")
     params["month"] = month
     params["MM"] = month
 
     # Days in format Mon, Tue, Wed
-    day = moment.format("DD")
+    day = now.format("DD")
     params["day"] = day
     params["DD"] = day
 
     # Hour in 24h format
-    hour = moment.format("HH")
+    hour = now.format("HH")
     params["hour"] = hour
     params["HH"] = hour
 
     # Minutes
-    minute = moment.format("mm")
+    minute = now.format("mm")
     params["minute"] = minute
     params["mm"] = minute
 
     # Day of week
-    dow = moment.format("ddd").lower()
+    dow = now.format("ddd").lower()
     params["dow"] = dow
     params["ddd"] = dow
 
