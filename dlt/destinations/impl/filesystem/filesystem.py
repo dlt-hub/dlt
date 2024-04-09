@@ -44,6 +44,7 @@ class LoadFilesystemJob(LoadJob):
             file_name,
             schema_name,
             load_id,
+            current_datetime=config.current_datetime,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             extra_placeholders=config.extra_placeholders,
         )
@@ -55,6 +56,7 @@ class LoadFilesystemJob(LoadJob):
             file_name,
             schema_name,
             load_id,
+            current_datetime=config.current_datetime,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             extra_placeholders=config.extra_placeholders,
         )
