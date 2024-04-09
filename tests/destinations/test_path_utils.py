@@ -26,17 +26,17 @@ ALL_LAYOUTS = (  # type: ignore
     ("{table_name}88{load_id}-u-{file_id}.{ext}", True, []),
     # Extra layouts
     ("{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}", True, []),
-    ("{table_name}/{year}-{month}-{day}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{day}/{hour}/{minute}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{day}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{timestamp}/{load_id}.{file_id}.{ext}", True, []),
     (
         "{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}",
         True,
         [],
     ),
-    ("{table_name}/dayofweek-{dow}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/dayofweek-{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
     # invalid layouts
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),

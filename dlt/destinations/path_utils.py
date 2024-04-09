@@ -16,18 +16,21 @@ SUPPORTED_PLACEHOLDERS = {
     "file_id",
     "ext",
     "curr_date",
-    "year",
     "YYYY",
-    "month",
-    "MM",
-    "day",
-    "DD",
-    "hour",
-    "HH",
-    "minute",
+    "MMMM",  # January, February, March
+    "MMM",  # Jan, Feb, Mar
+    "MM",  # 01, 02, 03
+    "M",  # 1, 2, 3
+    "DD",  # 01, 02
+    "D",  # 1, 2
+    "HH",  # 00, 01, 02
+    "H",  # 0, 1, 2
     "mm",
-    "dow",
-    "ddd",
+    "m",
+    "dddd",  # Monday, Tuesday, Wednesday
+    "ddd",  # Mon, Tue, Wed
+    "dd",  # Mo, Tu, We
+    "d",  # 0-6
     "timestamp",
 }
 
@@ -55,39 +58,37 @@ def prepare_datetime_params(
         timestamp = now
 
     # Timestamp placeholder
-    params["timestamp"] = str(int(timestamp.timestamp()))   # type: ignore[union-attr]
+    params["timestamp"] = str(int(timestamp.timestamp()))  # type: ignore[union-attr]
 
     # Take date from timestamp as curr_date
     params["curr_date"] = str(now.date())
 
-    year = str(now.year)
-    params["year"] = year
-    params["YYYY"] = year
+    params["YYYY"] = now.format("Y")
+    params["Q"] = "Q" + now.format("Y")
 
     # month, day, hour and minute padded with 0
-    month = now.format("MM")
-    params["month"] = month
-    params["MM"] = month
+    params["MMMM"] = now.format("MMMM")
+    params["MMM"] = now.format("MMM")
+    params["MM"] = now.format("MM")
+    params["M"] = now.format("M")
 
-    # Days in format Mon, Tue, Wed
-    day = now.format("DD")
-    params["day"] = day
-    params["DD"] = day
+    # Day of Month
+    params["DD"] = now.format("DD")  # 01, 02, 03
+    params["D"] = now.format("D")  # 1, 2, 3
 
     # Hour in 24h format
-    hour = now.format("HH")
-    params["hour"] = hour
-    params["HH"] = hour
+    params["HH"] = now.format("HH")
+    params["H"] = now.format("H")
 
     # Minutes
-    minute = now.format("mm")
-    params["minute"] = minute
-    params["mm"] = minute
+    params["mm"] = now.format("mm")
+    params["m"] = now.format("m")
 
     # Day of week
-    dow = now.format("ddd").lower()
-    params["dow"] = dow
-    params["ddd"] = dow
+    params["dddd"] = now.format("dddd").lower()
+    params["ddd"] = now.format("ddd").lower()
+    params["dd"] = now.format("dd").lower()
+    params["d"] = now.format("d").lower()
 
     return params
 
