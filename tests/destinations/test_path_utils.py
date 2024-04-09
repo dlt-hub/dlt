@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 
 import pytest
 
@@ -8,13 +8,33 @@ from dlt.destinations.path_utils import (
     check_layout,
     create_path,
     get_table_prefix_layout,
-    prepare_params,
 )
+
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 from tests.common.storages.utils import start_loading_file, load_storage
 
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
+EXTRA_PLACEHOLDERS = {"type": "one-for-all", "vm": "beam", "module": "__MODULE__"}
+ALL_LAYOUTS = (
+    # Usual layouts
+    ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", True, []),
+    ("{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}88{load_id}-u-{file_id}.{ext}", True, []),
+    # Extra layouts
+    ("{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}", True, []),
+    ("{table_name}/{year}-{month}-{day}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{day}/{hour}/{minute}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{day}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{timestamp}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/dayofweek-{dow}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
+    # invalid layouts
+    ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
+    ("{table_name}/{abc}/{load_id}.{ext}{timestamp}-{random}", False, ["abc", "random"]),
+)
 
 
 @pytest.fixture
@@ -24,12 +44,14 @@ def test_load(load_storage: LoadStorage) -> TestLoad:
     return load_id, info
 
 
-def test_layout_validity() -> None:
-    check_layout("{table_name}")
-    check_layout("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}")
-    with pytest.raises(InvalidFilesystemLayout) as exc:
-        check_layout("{other_ph}.{table_name}")
-        assert exc.value.invalid_placeholders == ["other_ph"]
+@pytest.mark.parametrize("layout,is_valid,invalid_placeholders", ALL_LAYOUTS)
+def test_layout_validity(layout: str, is_valid: bool, invalid_placeholders: List[str]) -> None:
+    if is_valid:
+        check_layout(layout, EXTRA_PLACEHOLDERS)
+    else:
+        with pytest.raises(InvalidFilesystemLayout) as exc:
+            check_layout("{other_ph}.{table_name}", EXTRA_PLACEHOLDERS)
+            assert set(exc.value.invalid_placeholders) == set(invalid_placeholders)
 
 
 def test_create_path(test_load: TestLoad) -> None:
