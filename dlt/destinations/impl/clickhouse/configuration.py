@@ -34,6 +34,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
+    dataset_table_separator: str = "___"
+    """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -44,6 +46,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "secure",
         "connect_timeout",
         "send_receive_timeout",
+        "dataset_table_separator",
     ]
 
     def parse_native_representation(self, native_value: Any) -> None:
@@ -72,7 +75,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
 class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = "clickhouse"  # type: ignore[misc]
     credentials: ClickHouseCredentials  # type: ignore
-    dataset_name: Final[str] = ""  # type: ignore
+    dataset_name: Final[str] = "dlt"  # type: ignore
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
 
     # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,

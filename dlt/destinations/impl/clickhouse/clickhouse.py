@@ -22,7 +22,8 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     FollowupJob,
     LoadJob,
-    NewLoadJob, StorageSchemaInfo,
+    NewLoadJob,
+    StorageSchemaInfo,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -386,10 +387,8 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
-
     def get_stored_schema(self) -> StorageSchemaInfo:
         return super().get_stored_schema()
-
 
     @staticmethod
     def _gen_not_null(v: bool) -> str:

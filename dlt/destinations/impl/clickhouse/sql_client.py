@@ -53,6 +53,9 @@ class ClickHouseSqlClient(
         self.credentials = credentials
         self.database_name = credentials.database
 
+    def has_dataset(self) -> bool:
+        return super().has_dataset()
+
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         self._conn = clickhouse_driver.dbapi.connect(
             dsn=self.credentials.to_native_representation()
@@ -157,9 +160,7 @@ class ClickHouseSqlClient(
         return f"{database_name}.{dataset_name}"
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        dataset_table_separator = dlt.config[
-            "destination.clickhouse.credentials.dataset_table_separator"
-        ]
+        dataset_table_separator = self.credentials.dataset_table_separator
         if escape:
             database_name = self.capabilities.escape_identifier(self.database_name)
             dataset_and_table = self.capabilities.escape_identifier(
