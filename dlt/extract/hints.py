@@ -442,7 +442,7 @@ class DltResourceHints:
     def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:
         """Creates table schema from resource hints and resource name."""
 
-        dict_ = cast(Dict[str, Any], deepcopy(resource_hints))
+        dict_ = cast(Dict[str, Any], resource_hints)
         DltResourceHints._merge_keys(dict_)
         dict_["resource"] = resource_name
         if isinstance(dict_.get("write_disposition"), str):
