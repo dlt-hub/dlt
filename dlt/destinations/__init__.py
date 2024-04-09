@@ -13,6 +13,7 @@ from dlt.destinations.impl.weaviate.factory import weaviate
 from dlt.destinations.impl.destination.factory import destination
 from dlt.destinations.impl.synapse.factory import synapse
 from dlt.destinations.impl.databricks.factory import databricks
+from dlt.destinations.impl.dremio.factory import dremio
 
 
 __all__ = [
@@ -30,5 +31,6 @@ __all__ = [
     "weaviate",
     "synapse",
     "databricks",
+    "dremio",
     "destination",
 ]

@@ -40,10 +40,10 @@ With the database uploaded to BigQuery, we were now ready to build a dashboard. 
 
 The DVD store database contains data on the products (film DVDs), product categories, existing inventory, customers, orders, order histories etc. For the purpose of the dashboard, we decided to explore the question: *How many orders are being placed each month and which films and film categories are the highest selling?*  
 
-![orders_chart.png](/img/experiment3_dashboard_orders_chart.png)   ![top_selling_tables.png](/img/experiment3_dashboard_top_selling_tables.png)
+![orders_chart.png](https://storage.googleapis.com/dlt-blog-images/experiment3_dashboard_orders_chart.png)   ![top_selling_tables.png](https://storage.googleapis.com/dlt-blog-images/experiment3_dashboard_top_selling_tables.png)
 In addition to this, we were also able to set up email alerts to get notified whenever the stock of a DVD was either empty or close to emptying.
 
-![low_stock_email_alert.png](/img/experiment3_low_stock_email_alert.png) 
+![low_stock_email_alert.png](https://storage.googleapis.com/dlt-blog-images/experiment3_low_stock_email_alert.png) 
 
 ### 3. Deploying the pipeline
 

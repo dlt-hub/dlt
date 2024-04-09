@@ -27,8 +27,10 @@ import dlt
 from dlt.common import pendulum
 from dlt.common import logger
 from dlt.common.runtime.telemetry import with_telemetry
-from dlt.common.data_writers import TLoaderFileFormat
+
+from dlt.common.destination import TLoaderFileFormat
 from dlt.common.schema.typing import TWriteDispositionConfig, TSchemaContract
+
 from dlt.common.utils import uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.configuration.container import Container

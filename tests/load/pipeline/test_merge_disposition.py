@@ -27,6 +27,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -154,6 +155,7 @@ def github():
     return load_issues
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -862,7 +864,8 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # compare observed records with expected records, now for child table
     qual_name = p.sql_client().make_qualified_table_name(table_name + "__val")
-    observed = [row[0] for row in select_data(p, f"SELECT value FROM {qual_name}")]
+    value_quoted = p.sql_client().escape_column_name("value")
+    observed = [row[0] for row in select_data(p, f"SELECT {value_quoted} FROM {qual_name}")]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
     table_name = "test_dedup_sort_hint_with_hard_delete"

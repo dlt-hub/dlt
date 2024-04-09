@@ -19,6 +19,9 @@ from tests.common.utils import COMMON_TEST_CASES_PATH
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def file_storage() -> FileStorage:

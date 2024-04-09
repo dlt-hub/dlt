@@ -17,6 +17,7 @@ from dlt.common.destination.reference import (
     JobClientBase,
     LoadJob,
     DestinationClientStagingConfiguration,
+    TDestinationReferenceArg,
     WithStagingDataset,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination
@@ -28,7 +29,6 @@ from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStora
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -65,14 +65,14 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 ]
 
 # Filter out buckets not in all filesystem drivers
-DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-DEFAULT_BUCKETS = [
-    bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    bucket for bucket in WITH_GDRIVE_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
-WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
+DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -97,7 +97,7 @@ class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
     destination: str
-    staging: Optional[str] = None
+    staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
@@ -167,6 +167,9 @@ def destinations_configs(
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
+    # import filesystem destination to use named version for minio
+    from dlt.destinations import filesystem
+
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
@@ -175,7 +178,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks")
+            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -206,6 +209,16 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            )
+        ]
+
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging=filesystem(destination_name="minio"),
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             )
         ]
         destination_configs += [
@@ -301,6 +314,13 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging=filesystem(destination_name="minio"),
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             ),
         ]
 
@@ -504,11 +524,10 @@ def yield_client(
     # athena requires staging config to be present, so stick this in there here
     if destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
-            destination_type="fake-stage",  # type: ignore
-            dataset_name=dest_config.dataset_name,
-            default_schema_name=dest_config.default_schema_name,
             bucket_url=AWS_BUCKET,
-        )
+        )._bind_dataset_name(dataset_name=dest_config.dataset_name)
+        staging_config.destination_type = "filesystem"  # type: ignore[misc]
+        staging_config.resolve()
         dest_config.staging_config = staging_config  # type: ignore[attr-defined]
 
     # lookup for credentials in the section that is destination name
@@ -573,17 +592,20 @@ def write_dataset(
     rows: Union[List[Dict[str, Any]], List[StrAny]],
     columns_schema: TTableSchemaColumns,
 ) -> None:
-    data_format = DataWriter.data_format_from_file_format(
-        client.capabilities.preferred_loader_file_format
+    spec = DataWriter.writer_spec_from_file_format(
+        client.capabilities.preferred_loader_file_format, "object"
     )
     # adapt bytes stream to text file format
-    if not data_format.is_binary_format and isinstance(f.read(0), bytes):
+    if not spec.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
-    writer = DataWriter.from_destination_capabilities(client.capabilities, f)
+    writer = DataWriter.from_file_format(
+        client.capabilities.preferred_loader_file_format, "object", f, client.capabilities
+    )
     # remove None values
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
     writer.write_all(columns_schema, rows)
+    writer.close()
 
 
 def prepare_load_package(

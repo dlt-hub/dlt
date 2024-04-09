@@ -174,6 +174,7 @@ def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[D
             query_columns = ",".join(map(p.sql_client().capabilities.escape_identifier, columns))
 
             with p.sql_client() as c:
+                query_columns = ",".join(map(c.escape_column_name, columns))
                 f_q_table_name = c.make_qualified_table_name(table_name)
                 query = f"SELECT {query_columns} FROM {f_q_table_name}"
                 with c.execute_query(query) as cur:

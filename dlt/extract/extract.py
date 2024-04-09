@@ -2,14 +2,13 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import List, Dict, Optional, Any
+from typing import Iterator, List, Dict, Any
 import yaml
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
-from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
+from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -38,7 +37,8 @@ from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
-from dlt.extract.extractors import JsonLExtractor, ArrowExtractor, Extractor
+from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
+from dlt.extract.utils import get_data_item_format
 
 
 def data_to_sources(
@@ -244,10 +244,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         }
 
     def _write_empty_files(
-        self, source: DltSource, extractors: Dict[TLoaderFileFormat, Extractor]
+        self, source: DltSource, extractors: Dict[TDataItemFormat, Extractor]
     ) -> None:
         schema = source.schema
-        json_extractor = extractors["puae-jsonl"]
+        json_extractor = extractors["object"]
         resources_with_items = set().union(*[e.resources_with_items for e in extractors.values()])
         # find REPLACE resources that did not yield any pipe items and create empty jobs for them
         # NOTE: do not include tables that have never seen data
@@ -296,54 +296,66 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> None:
         schema = source.schema
         collector = self.collector
-        extractors: Dict[TLoaderFileFormat, Extractor] = {
-            "puae-jsonl": JsonLExtractor(
-                load_id, self.extract_storage, schema, collector=collector
+        extractors: Dict[TDataItemFormat, Extractor] = {
+            "object": ObjectExtractor(
+                load_id, self.extract_storage.item_storages["object"], schema, collector=collector
             ),
-            "arrow": ArrowExtractor(load_id, self.extract_storage, schema, collector=collector),
+            "arrow": ArrowExtractor(
+                load_id, self.extract_storage.item_storages["arrow"], schema, collector=collector
+            ),
         }
-        last_item_format: Optional[TLoaderFileFormat] = None
-
+        # make sure we close storage on exception
         with collector(f"Extract {source.name}"):
-            self._step_info_start_load_id(load_id)
-            # yield from all selected pipes
-            with PipeIterator.from_pipes(
-                source.resources.selected_pipes,
-                max_parallel_items=max_parallel_items,
-                workers=workers,
-                futures_poll_interval=futures_poll_interval,
-            ) as pipes:
-                left_gens = total_gens = len(pipes._sources)
-                collector.update("Resources", 0, total_gens)
-                for pipe_item in pipes:
-                    curr_gens = len(pipes._sources)
-                    if left_gens > curr_gens:
-                        delta = left_gens - curr_gens
-                        left_gens -= delta
-                        collector.update("Resources", delta)
+            with self.manage_writers(load_id, source):
+                # yield from all selected pipes
+                with PipeIterator.from_pipes(
+                    source.resources.selected_pipes,
+                    max_parallel_items=max_parallel_items,
+                    workers=workers,
+                    futures_poll_interval=futures_poll_interval,
+                ) as pipes:
+                    left_gens = total_gens = len(pipes._sources)
+                    collector.update("Resources", 0, total_gens)
+                    for pipe_item in pipes:
+                        curr_gens = len(pipes._sources)
+                        if left_gens > curr_gens:
+                            delta = left_gens - curr_gens
+                            left_gens -= delta
+                            collector.update("Resources", delta)
+                        signals.raise_if_signalled()
+                        resource = source.resources[pipe_item.pipe.name]
+                        item_format = get_data_item_format(pipe_item.item)
+                        extractors[item_format].write_items(
+                            resource, pipe_item.item, pipe_item.meta
+                        )
 
-                    signals.raise_if_signalled()
+                    self._write_empty_files(source, extractors)
+                    if left_gens > 0:
+                        # go to 100%
+                        collector.update("Resources", left_gens)
 
-                    resource = source.resources[pipe_item.pipe.name]
-                    # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
-                    item_format = (
-                        Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
-                    )
-                    extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
-                    last_item_format = item_format
-
-                self._write_empty_files(source, extractors)
-                if left_gens > 0:
-                    # go to 100%
-                    collector.update("Resources", left_gens)
-
-            # flush all buffered writers
+    @contextlib.contextmanager
+    def manage_writers(self, load_id: str, source: DltSource) -> Iterator[ExtractStorage]:
+        self._step_info_start_load_id(load_id)
+        # self.current_source = source
+        try:
+            yield self.extract_storage
+        except Exception:
+            # kill writers without flushing the content
+            self.extract_storage.close_writers(load_id, skip_flush=True)
+            raise
+        else:
             self.extract_storage.close_writers(load_id)
-            # gather metrics
-            self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
-            # remove the metrics of files processed in this extract run
-            # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
-            self.extract_storage.remove_closed_files(load_id)
+        finally:
+            # gather metrics when storage is closed
+            self.gather_metrics(load_id, source)
+
+    def gather_metrics(self, load_id: str, source: DltSource) -> None:
+        # gather metrics
+        self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+        # remove the metrics of files processed in this extract run
+        # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+        self.extract_storage.remove_closed_files(load_id)
 
     def extract(
         self,

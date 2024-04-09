@@ -724,11 +724,17 @@ def new_column(
     column_name: str,
     data_type: TDataType = None,
     nullable: bool = True,
+    precision: int = None,
+    scale: int = None,
     validate_schema: bool = False,
 ) -> TColumnSchema:
     column: TColumnSchema = {"name": column_name, "nullable": nullable}
     if data_type:
         column["data_type"] = data_type
+    if precision is not None:
+        column["precision"] = precision
+    if scale is not None:
+        column["scale"] = scale
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,
