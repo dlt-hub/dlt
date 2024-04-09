@@ -1,7 +1,5 @@
 import typing as t
 
-from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
-
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -12,9 +10,9 @@ from dlt.destinations.impl.clickhouse.configuration import (
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
+    from clickhouse_driver.dbapi import Connection  # type: ignore[import-untyped]
 
 
-# noinspection PyPep8Naming
 class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"]):
     spec = ClickHouseClientConfiguration
 
