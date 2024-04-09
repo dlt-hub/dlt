@@ -27,7 +27,9 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
     def __init__(
         self,
-        credentials: t.Union[ClickHouseCredentials, str, t.Dict[str, t.Any], Connection] = None,
+        credentials: t.Union[
+            ClickHouseCredentials, str, t.Dict[str, t.Any], t.Type["Connection"]
+        ] = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: t.Any,
