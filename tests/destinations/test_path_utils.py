@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 import pendulum
 import pytest
-
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.path_utils import (
@@ -220,3 +219,31 @@ def test_create_path_uses_current_moment_if_load_package_timestamp_is_not_given(
         assert len(mock.mock_calls) == 1
         assert timestamp in path
         assert path.endswith(f"{timestamp}.{job_info.file_format}")
+
+
+def test_create_path_resolves_extra_placeholders(test_load: TestLoad):
+    load_id, job_info = test_load
+
+    class Counter:
+        def __init__(self) -> None:
+            self.count = 0
+
+        def inc(self, *args, **kwargs):
+            self.count += 1
+
+    counter = Counter()
+    extra_placeholders = {
+        "value": 1,
+        "callable_1": counter.inc,
+        "otter": counter.inc,
+    }
+
+    create_path(
+        "{schema_name}/{table_name}/{callable_1}-{otter}/{load_id}.{file_id}.{timestamp}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        extra_placeholders=extra_placeholders,
+        file_name=job_info.file_name(),
+    )
+
+    assert counter.count == 2
