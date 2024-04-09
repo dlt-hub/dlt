@@ -212,7 +212,7 @@ for example:
 
 
 ## Examples
-[we have some here](/docs/examples/)
+[we have some here](/examples/)
 
 ## command line interface
 

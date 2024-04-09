@@ -1,4 +1,3 @@
-import os
 import threading
 from typing import Any, Iterator
 
@@ -49,12 +48,14 @@ def chess(
 
 if __name__ == "__main__":
     print("You must run this from the docs/examples/chess folder")
-    assert os.getcwd().endswith("chess")
     # chess_url in config.toml, credentials for postgres in secrets.toml, credentials always under credentials key
     # look for parallel run configuration in `config.toml`!
     # mind the full_refresh: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state
-    info = dlt.pipeline(
+    load_info = dlt.pipeline(
         pipeline_name="chess_games", destination="postgres", dataset_name="chess", full_refresh=True
     ).run(chess(max_players=5, month=9))
     # display where the data went
-    print(info)
+    print(load_info)
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

@@ -1,7 +1,7 @@
 ---
 slug: dlt-ops-startups
 title: "PDF invoices → Real-time financial insights: How I stopped relying on an engineer to automate my workflow and learnt to do it myself"
-image: /img/invoice_flowchart.png
+image: https://storage.googleapis.com/dlt-blog-images/invoice_flowchart.png
 authors:
   name: Anna Hoffmann
   title: COO
@@ -20,7 +20,7 @@ So, I often end up doing manual tasks such as budgeting, cost estimation, updati
 
 For example, I need to analyze expenses in order to prepare a budget estimation. I get numerous PDFs daily in a dedicated Gmail group inbox. I was wondering to which extent [dlt](https://github.com/dlt-hub/dlt) can help fulfill my automation dream. I decided to work with Alena from our data team on an internal project.
 
-![invoice flow chart](/img/invoice_flowchart.png)
+![invoice flow chart](https://storage.googleapis.com/dlt-blog-images/invoice_flowchart.png)
 
 ## Use Case
 
@@ -130,16 +130,16 @@ Now you can [deploy this script with GitHub Actions](https://dlthub.com/docs/wal
 
 Here’s how the result looks like in BigQuery:
 
-![screenshot 1](/img/pdf_parse_outcome_1.png)
+![screenshot 1](https://storage.googleapis.com/dlt-blog-images/pdf_parse_outcome_1.png)
 
 …and as a Google Sheet. You can easily export this table from BigQuery to Google Sheets using the Export button in the top right corner.
 
-![screenshot 2](/img/pdf_parse_outcome_2.png)
+![screenshot 2](https://storage.googleapis.com/dlt-blog-images/pdf_parse_outcome_2.png)
 
 Bonus: In order to have a Google Sheet with live updates, you can go to the Data tab in your
 Spreadsheet → Data Connectors → BigQuery → choose your database and voila, your data will be updated automatically.
 
-![screenshot 3](/img/pdf_parse_outcome_3.png)
+![screenshot 3](https://storage.googleapis.com/dlt-blog-images/pdf_parse_outcome_3.png)
 
 # **Conclusion:**
 

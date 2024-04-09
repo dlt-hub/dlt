@@ -1,7 +1,7 @@
 ---
 slug: deepnote-women-wellness-violence-tends
 title: "DLT & Deepnote in women's wellness and violence trends: A Visual Analysis"
-image: /img/blog_deepnote_improved_flow.png
+image: https://storage.googleapis.com/dlt-blog-images/blog_deepnote_improved_flow.png
 authors:
   name: Hiba Jamal
   title: Data Science intern at dlthub
@@ -49,7 +49,7 @@ like, let’s list down the steps we usually undergo.
 
 ### <a id="ds-project-usual-flow"></a>The usual flow of data for data science projects
 
-![usual flow](/img/blog_deepnote_usual_flow.png)
+![usual flow](https://storage.googleapis.com/dlt-blog-images/blog_deepnote_usual_flow.png)
 
 We sign up for our jobs because we enjoy the last two activities the most. These parts have
 all the pretty charts, the flashy animations, and, if the stars align, include watching your
@@ -109,7 +109,7 @@ Our next step could be using a visualization package like `matplotlib`, and othe
 
 We can reimagine the flow of data with dlt and Deepnote in the following way:
 
-![revised flow](/img/blog_deepnote_improved_flow.png)
+![revised flow](https://storage.googleapis.com/dlt-blog-images/blog_deepnote_improved_flow.png)
 
 We leave the loading of the raw data to dlt, while we leave the data exploration and visualization to the Deepnote interface.
 
@@ -170,7 +170,7 @@ Take your average Notebook experience, and combine it with the powers of a colla
 
 At this point, we would probably move towards a `plt.plot` or `plt.bar` function. However, with Deepnote, the little Visualize button on top of any data frame will help us jump straight to an easy figure. Clicking on the Visualize button takes you to a new cell block, where you can choose your parameters, types of charts, and customization settings in the sidebar. The following chart is built from the `joined` data frame we defined above.
 
-![chart](/img/blog_deepnote_chart.png)
+![chart](https://storage.googleapis.com/dlt-blog-images/blog_deepnote_chart.png)
 
 And a stacked bar chart came into existence! A little note about the query results; the **value** column corresponds to how much (in %) a person justifies violence against women. An interesting yet disturbing insight from the above plot: in many countries, women condone violence against women as often if not more often than men do!
 
@@ -206,7 +206,7 @@ Lastly, based on these indicators of wellness and violence about women, let’s 
 
  Within these countries, the KMEANs algorithm converges to 4 clusters.
 
-![clustering](/img/blog_deepnote_animation.gif)
+![clustering](https://storage.googleapis.com/dlt-blog-images/blog_deepnote_animation.gif)
 
 The color bar shows us which color is associated to which cluster. Namely; 1: purple, 2: blue, 3: green, and 4: yellow.
 

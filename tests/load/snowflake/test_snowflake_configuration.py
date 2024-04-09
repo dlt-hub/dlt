@@ -16,6 +16,9 @@ from dlt.destinations.impl.snowflake.configuration import (
 
 from tests.common.configuration.utils import environment
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_connection_string_with_all_params() -> None:
     url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=cGs%3D&private_key_passphrase=paphr"

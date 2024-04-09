@@ -37,8 +37,8 @@ when you implement new source/resource
 - yielding custom data (ie. panda frames) (yes but last lambda must convert it to )
 
 ## extraction
-- [retry with the decorator](/docs/examples/chess/chess.py)
-- [run resources and transformers in parallel threads](/docs/examples/chess/chess.py) and test named `test_evolve_schema`
+- [retry with the decorator](/examples/chess/chess.py)
+- [run resources and transformers in parallel threads](/examples/chess/chess.py) and test named `test_evolve_schema`
 - run async resources and transformers
 
 # source and resource modifications

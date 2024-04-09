@@ -93,11 +93,24 @@ sections and key names are separated by "." into the provider-specific formats.
 1. For Environment Variables, all names are capitalized and sections are separated with double
    underscore "__".
 
-Example: When `dlt` evaluates the request `dlt.secrets["my_section.gcp_credentials"]` it must find
-the `private_key` for Google credentials. It will look
+   Example: To override a token in "secrets.toml":
 
-1. first in env variable `MY_SECTION__GCP_CREDENTIALS__PRIVATE_KEY` and if not found,
-1. in `secrets.toml` with key `my_section.gcp_credentials.private_key`.
+   ```toml
+   [sources.github]
+   access_token = "GITHUB_API_TOKEN"
+   ```
+   Use the following environment variable:
+   ```sh
+   export SOURCES__GITHUB__ACCESS_TOKEN="your_token_here"
+   ```
+
+
+1. When `dlt` evaluates the request `dlt.secrets["my_section.gcp_credentials"]` it must find the `private_key` for Google credentials. It looks for it as follows:
+   1. It first searches for environment variable `MY_SECTION__GCP_CREDENTIALS__PRIVATE_KEY`  and if not found,
+   1. in `secrets.toml` file under `my_section.gcp_credentials.private_key`.
+
+   This way, `dlt` prioritizes security by using environment variables before looking into configuration files.
+
 
 
 :::info
