@@ -16,11 +16,17 @@ SUPPORTED_PLACEHOLDERS = {
     "ext",
     "curr_date",
     "year",
+    "YYYY",
     "month",
+    "MM",
     "day",
+    "DD",
     "hour",
+    "HH",
     "minute",
+    "mm",
     "dow",
+    "ddd",
     "timestamp",
 }
 
@@ -31,12 +37,14 @@ def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
 
-def prepare_datetime_params(load_package_timestamp: Optional[str] = None) -> Dict[str, str]:
+def prepare_datetime_params(
+    current_datetime: Optional[pendulum.DateTime], load_package_timestamp: Optional[str] = None
+) -> Dict[str, str]:
     # For formatting options please see
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
     # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
-    moment: pendulum.DateTime = pendulum.now()
+    moment: pendulum.DateTime = current_datetime or pendulum.now()
     if load_package_timestamp:
         moment = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
 
@@ -46,16 +54,34 @@ def prepare_datetime_params(load_package_timestamp: Optional[str] = None) -> Dic
     # Take date from timestamp as curr_date
     params["curr_date"] = str(moment.date())
 
-    params["year"] = str(moment.year)
+    year = str(moment.year)
+    params["year"] = year
+    params["YYYY"] = year
+
     # month, day, hour and minute padded with 0
-    params["month"] = moment.format("MM")
+    month = moment.format("MM")
+    params["month"] = month
+    params["MM"] = month
+
     # Days in format Mon, Tue, Wed
-    params["day"] = moment.format("DD")
+    day = moment.format("DD")
+    params["day"] = day
+    params["DD"] = day
+
     # Hour in 24h format
-    params["hour"] = moment.format("HH")
-    params["minute"] = moment.format("mm")
+    hour = moment.format("HH")
+    params["hour"] = hour
+    params["HH"] = hour
+
+    # Minutes
+    minute = moment.format("mm")
+    params["minute"] = minute
+    params["minute"] = minute
+
     # Day of week
-    params["dow"] = moment.format("ddd").lower()
+    dow = moment.format("ddd").lower()
+    params["dow"] = dow
+    params["ddd"] = dow
 
     return params
 
