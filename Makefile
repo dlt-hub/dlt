@@ -62,7 +62,7 @@ format:
 
 lint-and-test-snippets:
 	cd docs/tools && poetry run python check_embedded_snippets.py full
-	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup
+	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
 	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
 

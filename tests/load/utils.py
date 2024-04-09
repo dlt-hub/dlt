@@ -17,6 +17,7 @@ from dlt.common.destination.reference import (
     JobClientBase,
     LoadJob,
     DestinationClientStagingConfiguration,
+    TDestinationReferenceArg,
     WithStagingDataset,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination
@@ -28,7 +29,6 @@ from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStora
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -97,7 +97,7 @@ class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
     destination: str
-    staging: Optional[str] = None
+    staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
@@ -167,6 +167,9 @@ def destinations_configs(
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
+    # import filesystem destination to use named version for minio
+    from dlt.destinations import filesystem
+
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
@@ -215,10 +218,11 @@ def destinations_configs(
                 extra_info="az-authorization",
             )
         ]
+
         destination_configs += [
             DestinationTestConfiguration(
                 destination="dremio",
-                staging="filesystem",
+                staging=filesystem(destination_name="minio"),
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 supports_dbt=False,
@@ -395,7 +399,7 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(
                 destination="dremio",
-                staging="filesystem",
+                staging=filesystem(destination_name="minio"),
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 supports_dbt=False,

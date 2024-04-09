@@ -73,10 +73,10 @@ jobs:
         env:
           DESTINATION__DREMIO__CREDENTIALS: grpc://dremio:dremio123@localhost:32010/nas
           DESTINATION__DREMIO__STAGING_DATA_SOURCE: minio
-          DESTINATION__FILESYSTEM__BUCKET_URL: s3://dlt-ci-test-bucket
-          DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: minioadmin
-          DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: minioadmin
-          DESTINATION__FILESYSTEM__CREDENTIALS__ENDPOINT_URL: http://127.0.0.1:9010
+          DESTINATION__MINIO__BUCKET_URL: s3://dlt-ci-test-bucket
+          DESTINATION__MINIO__CREDENTIALS__AWS_ACCESS_KEY_ID: minioadmin
+          DESTINATION__MINIO__CREDENTIALS__AWS_SECRET_ACCESS_KEY: minioadmin
+          DESTINATION__MINIO__CREDENTIALS__ENDPOINT_URL: http://127.0.0.1:9010
 
       - run: |
           poetry run pytest tests/load
