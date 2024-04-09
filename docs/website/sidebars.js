@@ -304,6 +304,7 @@ const sidebars = {
         'reference/installation',
         'reference/command-line-interface',
         'reference/telemetry',
+        'reference/frequently-asked-questions',
         'general-usage/glossary',
       ],
     },
