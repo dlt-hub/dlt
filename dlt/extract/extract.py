@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
 from dlt.common.configuration.container import Container
