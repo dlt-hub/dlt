@@ -10,7 +10,7 @@ TCurrentDateTimeCallback: TypeAlias = Callable[[], DateTime]
 TCurrentDateTime: TypeAlias = Union[DateTime, TCurrentDateTimeCallback]
 """pendulum.DateTime instance or a callable which should return pendulum.DateTime"""
 
-TLayoutPlaceholderCallback: TypeAlias = Callable[[str, str, str, str, str, DateTime], str]
+TLayoutPlaceholderCallback: TypeAlias = Callable[[str, str, str, str, str], str]
 """A callback which should return prepared string value the following arguments passed
 `schema name`, `table name`, `load_id`, `file_id` and an `extension`
 """
