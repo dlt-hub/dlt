@@ -16,6 +16,8 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
     reset_resource_state,
+    TRefreshMode,
+    pipeline_state,
 )
 from dlt.common.typing import DictStrAny
 from dlt.common.runtime import signals
@@ -46,6 +48,8 @@ from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
 from dlt.extract.utils import get_data_item_format
+from dlt.pipeline.drop import drop_resources
+from dlt.common.pipeline import TRefreshMode
 
 
 def data_to_sources(
@@ -176,12 +180,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         normalize_storage_config: NormalizeStorageConfiguration,
         collector: Collector = NULL_COLLECTOR,
         original_data: Any = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """optionally saves originally extracted `original_data` to generate extract info"""
         self.collector = collector
         self.schema_storage = schema_storage
         self.extract_storage = ExtractStorage(normalize_storage_config)
         self.original_data: Any = original_data
+        self.refresh = refresh
         super().__init__()
 
     def _compute_metrics(self, load_id: str, source: DltSource) -> ExtractMetrics:
@@ -388,6 +394,23 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source_state_key=source.name,
                 )
             ):
+                if self.refresh is not None:
+                    _resources_to_drop = (
+                        list(source.resources.extracted) if self.refresh != "drop_dataset" else None
+                    )
+                    _state, _ = pipeline_state(Container())
+                    new_schema, new_state, drop_info = drop_resources(
+                        source.schema,
+                        _state,
+                        resources=_resources_to_drop,
+                        drop_all=self.refresh == "drop_dataset",
+                        state_only=self.refresh == "drop_data",
+                        state_paths="*" if self.refresh == "drop_data" else [],
+                    )
+                    _state.update(new_state)
+                    source.schema.tables.clear()
+                    source.schema.tables.update(new_schema.tables)
+
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():
                     with contextlib.suppress(DataItemRequiredForDynamicTableHints):

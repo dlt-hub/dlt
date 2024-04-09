@@ -418,6 +418,7 @@ class Pipeline(SupportsPipeline):
             self._normalize_storage_config(),
             self.collector,
             original_data=data,
+            refresh=self.refresh if not self.first_run else None,
         )
         try:
             with self._maybe_destination_capabilities():
@@ -435,36 +436,36 @@ class Pipeline(SupportsPipeline):
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
-                    dropped_tables = []
-                    if not self.first_run:
-                        if self.refresh == "full":
-                            # Drop all tables from all resources and all source state paths
-                            d = DropCommand(
-                                self,
-                                drop_all=True,
-                                extract_only=True,  # Only modify local state/schema, destination drop tables is done in load step
-                                state_paths="*",
-                                schema_name=source.schema.name,
-                            )
-                            dropped_tables = d.info["tables"]
-                            d()
-                        elif self.refresh == "replace":
-                            # Drop tables from resources being currently extracted
-                            d = DropCommand(
-                                self,
-                                resources=source.resources.extracted,
-                                extract_only=True,
-                                schema_name=source.schema.name,
-                            )
-                            dropped_tables = d.info["tables"]
-                            d()
+                    # dropped_tables = []
+                    # if not self.first_run:
+                    #     if self.refresh == "full":
+                    #         # Drop all tables from all resources and all source state paths
+                    #         d = DropCommand(
+                    #             self,
+                    #             drop_all=True,
+                    #             extract_only=True,  # Only modify local state/schema, destination drop tables is done in load step
+                    #             state_paths="*",
+                    #             schema_name=source.schema.name,
+                    #         )
+                    #         dropped_tables = d.info["tables"]
+                    #         d()
+                    #     elif self.refresh == "replace":
+                    #         # Drop tables from resources being currently extracted
+                    #         d = DropCommand(
+                    #             self,
+                    #             resources=source.resources.extracted,
+                    #             extract_only=True,
+                    #             schema_name=source.schema.name,
+                    #         )
+                    #         dropped_tables = d.info["tables"]
+                    #         d()
                     load_id = self._extract_source(
                         extract_step, source, max_parallel_items, workers
                     )
                     # Save the tables that were dropped locally (to be dropped from destination in load step)
-                    extract_step.extract_storage.new_packages.save_dropped_tables(
-                        load_id, dropped_tables
-                    )
+                    # extract_step.extract_storage.new_packages.save_dropped_tables(
+                    #     load_id, dropped_tables
+                    # )
                 # extract state
                 state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:

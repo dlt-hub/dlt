@@ -53,7 +53,8 @@ from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
 
 
-TRefreshMode = Literal["full", "replace"]
+# TRefreshMode = Literal["full", "replace"]
+TRefreshMode = Literal["drop_dataset", "drop_tables", "drop_data"]
 
 
 class _StepInfo(NamedTuple):
