@@ -249,7 +249,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                             "allow_experimental_lightweight_delete": 1,
                             "allow_experimental_object_type": 1,
                         },
-                        # compression=None if compression == "none" else compression,
+                        compression=None if compression == "none" else compression,
                     )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(

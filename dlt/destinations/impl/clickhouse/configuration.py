@@ -75,7 +75,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
 class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = "clickhouse"  # type: ignore[misc]
     credentials: ClickHouseCredentials  # type: ignore
-    dataset_name: Final[str] = "dlt"  # type: ignore
+    dataset_name: Final[str] = ""  # type: ignore
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
 
     # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
