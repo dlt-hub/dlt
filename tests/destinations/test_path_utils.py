@@ -1,3 +1,5 @@
+import contextlib
+import io
 from typing import List, Tuple
 from unittest.mock import patch
 
@@ -29,12 +31,20 @@ ALL_LAYOUTS = (  # type: ignore
     ("{table_name}/{day}/{hour}/{minute}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{day}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{timestamp}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}", True, []),
+    (
+        "{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}",
+        True,
+        [],
+    ),
     ("{table_name}/dayofweek-{dow}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
     # invalid layouts
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
-    ("{table_name}/{abc}/{load_id}.{ext}{timestamp}-{random}", False, ["abc", "random"]),
+    (
+        "{table_name}/{abc}/{load_id}.{ext}{timestamp}-{random}",
+        False,
+        ["abc", "random"],
+    ),
 )
 
 
@@ -221,7 +231,7 @@ def test_create_path_uses_current_moment_if_load_package_timestamp_is_not_given(
         assert path.endswith(f"{timestamp}.{job_info.file_format}")
 
 
-def test_create_path_resolves_extra_placeholders(test_load: TestLoad):
+def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
     load_id, job_info = test_load
 
     class Counter:
@@ -236,6 +246,10 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad):
         "value": 1,
         "callable_1": counter.inc,
         "otter": counter.inc,
+        "otters": "lab",
+        "dlt": "labs",
+        "dlthub": "platform",
+        "x": "files",
     }
 
     create_path(
@@ -247,3 +261,26 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad):
     )
 
     assert counter.count == 2
+
+
+def test_create_path_reports_unused_placeholders(test_load: TestLoad) -> None:
+    load_id, job_info = test_load
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        extra_placeholders = {
+            "value": 1,
+            "otters": "lab",
+            "dlt": "labs",
+            "dlthub": "platform",
+            "x": "files",
+        }
+
+        create_path(
+            "{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
+            schema_name="schema_name",
+            load_id=load_id,
+            extra_placeholders=extra_placeholders,
+            file_name=job_info.file_name(),
+        )
+
+        output = buf.getvalue()
+        assert "Found unused layout placeholders: value, dlt, dlthub" in output

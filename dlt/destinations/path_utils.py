@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import pendulum
 
@@ -144,24 +144,30 @@ def prepare_params(
 
 def check_layout(
     layout: str,
-    params: Optional[Dict[str, Any]] = None,
+    extra_placeholders: Optional[Dict[str, Any]] = None,
     allowed_placeholders: Optional[Set[str]] = SUPPORTED_PLACEHOLDERS,
-) -> List[str]:
+) -> Tuple[List[str], List[str]]:
+    """Returns a tuple with all valid placeholders and the list of layout placeholders
+
+    Raises: InvalidFilesystemLayout
+
+    Returns: a pair of lists of valid placeholders and layout placeholders
+    """
     placeholders = get_placeholders(layout)
     # Build out the list of placeholder names
     # which we will use to validate placeholders
     # in a given config.layout template
     all_placeholders = allowed_placeholders.copy()
-    if params:
-        for placeholder, _ in params.items():
+    if extra_placeholders:
+        for placeholder, _ in extra_placeholders.items():
             all_placeholders.add(placeholder)
 
-    # TODO: log unused placeholders
     # now collect all unknown placeholders from config.layout template
     invalid_placeholders = [p for p in placeholders if p not in all_placeholders]
     if invalid_placeholders:
         raise InvalidFilesystemLayout(invalid_placeholders)
-    return list(all_placeholders)
+
+    return list(all_placeholders), placeholders
 
 
 def create_path(
@@ -190,7 +196,16 @@ def create_path(
 
     datetime_params = prepare_datetime_params(current_datetime, load_package_timestamp)
     params.update(datetime_params)
-    placeholders = check_layout(layout, params)
+
+    placeholders, layout_placeholders = check_layout(layout, params)
+
+    # Find and show unused placeholders
+    unused_placeholders: List[str] = []
+    if extra_placeholders:
+        unused_placeholders = [p for p in extra_placeholders.keys() if p not in layout_placeholders]
+        if unused_placeholders:
+            fmt.secho(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
+
     path = layout.format(**params)
 
     # if extension is not defined, we append it at the end
