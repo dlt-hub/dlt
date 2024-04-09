@@ -78,7 +78,7 @@ def prepare_datetime_params(
     # Minutes
     minute = moment.format("mm")
     params["minute"] = minute
-    params["minute"] = minute
+    params["mm"] = minute
 
     # Day of week
     dow = moment.format("ddd").lower()

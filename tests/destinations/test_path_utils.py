@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import pytest
 
@@ -16,7 +16,7 @@ from tests.common.storages.utils import start_loading_file, load_storage
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
 EXTRA_PLACEHOLDERS = {"type": "one-for-all", "vm": "beam", "module": "__MODULE__"}
-ALL_LAYOUTS = (
+ALL_LAYOUTS = (  # type: ignore
     # Usual layouts
     ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", True, []),
     ("{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", True, []),
