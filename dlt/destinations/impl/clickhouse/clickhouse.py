@@ -194,10 +194,11 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                 secret_access_key = None
 
             clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
+            structure = "auto"
 
             template = Template("""
                 SELECT * FROM s3('{{ url }}'{% if access_key_id and secret_access_key %},
-                '{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}')
+                '{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}','{{ structure }}','{{ compression }}')
                 """)
 
             table_function = template.render(
@@ -205,6 +206,8 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                 access_key_id=access_key_id,
                 secret_access_key=secret_access_key,
                 clickhouse_format=clickhouse_format,
+                structure=structure,
+                compression=compression,
             ).strip()
             statement = f"INSERT INTO {qualified_table_name} {table_function}"
 
