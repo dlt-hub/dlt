@@ -1,4 +1,5 @@
 from typing import List, Tuple
+from unittest.mock import patch
 
 import pendulum
 import pytest
@@ -173,7 +174,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
             load_id=load_id,
-            current_datetime="now",
+            current_datetime="now",  # type: ignore
             file_name=job_info.file_name(),
         )
     with pytest.raises(RuntimeError):
@@ -181,6 +182,41 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
             load_id=load_id,
-            current_datetime=lambda: 1234,
+            current_datetime=lambda: 1234,  # type: ignore
             file_name=job_info.file_name(),
         )
+
+
+def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
+    test_load: TestLoad,
+) -> None:
+    load_id, job_info = test_load
+    now = pendulum.now()
+    with patch("pendulum.now", wraps=pendulum.DateTime, return_value=now) as mock:
+        create_path(
+            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+            schema_name="schema_name",
+            load_id=load_id,
+            file_name=job_info.file_name(),
+        )
+
+        assert len(mock.mock_calls) == 1
+
+
+def test_create_path_uses_current_moment_if_load_package_timestamp_is_not_given(
+    test_load: TestLoad,
+) -> None:
+    load_id, job_info = test_load
+    now = pendulum.now()
+    timestamp = str(int(now.timestamp()))
+    with patch("pendulum.now", wraps=pendulum.DateTime, return_value=now) as mock:
+        path = create_path(
+            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+            schema_name="schema_name",
+            load_id=load_id,
+            file_name=job_info.file_name(),
+        )
+
+        assert len(mock.mock_calls) == 1
+        assert timestamp in path
+        assert path.endswith(f"{timestamp}.{job_info.file_format}")
