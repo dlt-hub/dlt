@@ -445,9 +445,10 @@ class DltResourceHints:
         dict_ = cast(Dict[str, Any], resource_hints)
         DltResourceHints._merge_keys(dict_)
         dict_["resource"] = resource_name
-        if isinstance(dict_.get("write_disposition"), str):
-            dict_["write_disposition"] = {"mode": dict_["write_disposition"]}  # wrap in dict
-        DltResourceHints._merge_write_disposition_dict(dict_)
+        if "write_disposition" in dict_:
+            if isinstance(dict_["write_disposition"], str):
+                dict_["write_disposition"] = {"mode": dict_["write_disposition"]}  # wrap in dict
+            DltResourceHints._merge_write_disposition_dict(dict_)
         return cast(TTableSchema, dict_)
 
     @staticmethod
