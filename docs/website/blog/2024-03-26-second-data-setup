@@ -34,14 +34,14 @@ A second time build usually happens only if
 Let's take some examples from my experiences.
 Example 1: A serial talker takes a lead role at a large, growing startup. They speak like management, so management trusts. A few years later
    - half the pipelines are running on Pentaho + windows, the other are python 2, 3 and written by agencies.
-   - The data engneering team quit. They had enough.
+   - The data engineering team quit. They had enough.
    - The remaining data engineers do what they want - a custom framework - or they threaten to quit, taking the only knowledge of the pipelines with them.
-   Solution: Re-write all pipelines in python3, replace custom framework with airflow, add tests, github, and other best pratices.
+   - Solution: Re-write all pipelines in python3, replace custom framework with airflow, add tests, github, and other best pratices.
 
-Example 2: A large manufacturing company needed a data warehouse.
+Example 2: A large international manufacturing company needed a data warehouse.
     - Microsoft sold them their tech+ consultants.
     - 2 years later, it's done but doesn't work (query time impossible)
-    Solution: Teach the home DE team to use redshift
+    - Solution: Teach the home DE team to use redshift and migrate.
 
 Example 3: A non technical professional takes a lead data role and uses a tool to do everything.
     - same as above but the person also hired a team of juniors
@@ -49,9 +49,9 @@ Example 3: A non technical professional takes a lead data role and uses a tool t
     - after they left, the remaining team removed the tool and re-built.
 
 Example 4: A first time data hire introduces a platform-like tool that's sql centric and has no versioning, api, or programmatic control.
-    - after writing 30k+ lines of sql and scheduling and making them dependent on each other in this UI tool (without lineage), the person can no longer maintain the reports
-    - Ragequits after arguing with management.
-    Solution: Reverse engineer existing reports, account for bugs and unfulfilled requirements, build them from scratch, occasionally searching the mass of sql. Outcome was under 2k lines.
+    - after writing 30k+ lines of wet sql, scheduling and making them dependent on each other in this UI tool (without lineage), the person can no longer maintain the reports
+    - Quits after arguing with management.
+    - Solution: Reverse engineer existing reports, account for bugs and unfulfilled requirements, build them from scratch, occasionally searching the mass of sql. Outcome was under 2k lines.
 
 Example 5: A VC company wants to make a tool that reads metrics from business apps like google ads, Stripe.
     - They end up at the largest local agency, who recommends them a single - tenant SaaS MDS for 90k to set up and a pathway from there
