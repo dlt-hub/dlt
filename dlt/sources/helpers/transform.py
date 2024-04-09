@@ -1,5 +1,5 @@
-from collections.abc import Sequence
-from typing import Any, Dict, List, Union
+from collections.abc import Sequence as C_Sequence
+from typing import Any, Dict, Sequence, Union
 
 from dlt.common.typing import TDataItem
 from dlt.extract.items import ItemTransformFunctionNoMeta
@@ -68,7 +68,7 @@ def pivot(
         Args:
             match (jsonpath_ng.jsonpath.DatumInContext): The field to check.
         """
-        if not isinstance(match.value, Sequence):
+        if not isinstance(match.value, C_Sequence):
             raise ValueError(
                 (
                     "Pivot transformer is only applicable to sequences "
@@ -78,7 +78,7 @@ def pivot(
             )
 
         for item in match.value:
-            if not isinstance(item, Sequence):
+            if not isinstance(item, C_Sequence):
                 raise ValueError(
                     (
                         "Pivot transformer is only applicable to sequences, "
