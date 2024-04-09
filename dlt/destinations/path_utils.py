@@ -172,6 +172,16 @@ def create_path(
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
+    if callable(current_datetime):
+        result = current_datetime()
+        if isinstance(result, pendulum.DateTime):
+            current_datetime = result
+        else:
+            raise RuntimeError(
+                "current_datetime was passed as callable but "
+                "didn't return any instance of pendulum.DateTime"
+            )
+
     job_info = ParsedLoadJobFileName.parse(file_name)
     params = prepare_params(
         extra_placeholders=extra_placeholders,
