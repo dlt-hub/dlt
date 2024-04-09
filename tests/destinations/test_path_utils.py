@@ -129,6 +129,15 @@ def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -
 
 
 def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
+    """Check the flow when the current_datetime is passed
+
+    Happy path checks
+
+    1. Callback,
+    2. pendulum.DateTime
+
+    Failures when neither callback nor the value is not of pendulum.DateTime
+    """
     load_id, job_info = test_load
     now = pendulum.now()
     calls = 0

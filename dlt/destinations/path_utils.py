@@ -156,6 +156,7 @@ def check_layout(
         for placeholder, _ in params.items():
             all_placeholders.add(placeholder)
 
+    # TODO: log unused placeholders
     # now collect all unknown placeholders from config.layout template
     invalid_placeholders = [p for p in placeholders if p not in all_placeholders]
     if invalid_placeholders:
