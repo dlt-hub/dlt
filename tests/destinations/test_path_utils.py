@@ -156,3 +156,22 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
 
     # expect only one call
     assert calls == 1
+
+    # If the value for current_datetime is not pendulum.DateTime
+    # it should fail with RuntimeError exception
+    with pytest.raises(RuntimeError):
+        create_path(
+            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+            schema_name="schema_name",
+            load_id=load_id,
+            current_datetime="now",
+            file_name=job_info.file_name(),
+        )
+    with pytest.raises(RuntimeError):
+        create_path(
+            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+            schema_name="schema_name",
+            load_id=load_id,
+            current_datetime=lambda: 1234,
+            file_name=job_info.file_name(),
+        )
