@@ -88,7 +88,6 @@ def init_client(
     # get dlt/internal tables
     dlt_tables = set(schema.dlt_table_names())
 
-    all_tables = set(schema.tables.keys())
     # tables without data (TODO: normalizer removes such jobs, write tests and remove the line below)
     tables_no_data = set(
         table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
@@ -99,16 +98,11 @@ def init_client(
     # get tables to truncate by extending tables with jobs with all their child tables
 
     if refresh == "drop_data":
-        truncate_filter = lambda t: True
+        truncate_filter = lambda t: t["name"] in tables_with_jobs - dlt_tables
 
     truncate_tables = set(
         _extend_tables_with_table_chain(schema, tables_with_jobs, tables_with_jobs, truncate_filter)
     )
-
-    # if refresh in ("drop_dataset", "drop_tables"):
-    #     drop_tables = all_tables - dlt_tables - tables_no_data
-    # else:
-    #     drop_tables = set()
 
     applied_update = _init_dataset_and_update_schema(
         job_client,
