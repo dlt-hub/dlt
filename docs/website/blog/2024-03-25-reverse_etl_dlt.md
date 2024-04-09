@@ -171,9 +171,9 @@ credentials_json = '''
 sheets_id = "1xj6APSKhepp8-sJIucbD9DDx7eyBt4UI2KlAYaQ9EKs"
 ```
 
-### Step 4: Running the pipeline in `my_pipeline.py`(10min)
+### Step 4: Running the pipeline in `sheets_destination.py`(10min)
 
-Now, assuming you have a source function **`sql_database()`** from the verified sources, you can set up and run your pipeline as follows:
+Now, assuming you have a source function **`dict_row_generator()`**, you can set up and run your pipeline as follows:
 
 ```python
 
