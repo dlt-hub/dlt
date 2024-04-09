@@ -96,19 +96,21 @@ def pivot(
         Returns:
             TDataItem: the data item with pivoted columns.
         """
-        trans_item: Dict[str, List[Any]] = {}
-
         for path in paths:
             expr = jsonpath_ng.parse(path)
-            for match in expr.find([item] if path == "$" else item):
+
+            for match in expr.find([item] if path in "$" else item):
+                trans_value = []
                 _raise_if_not_sequence(match)
 
-                f_path = str(match.full_path)
-                trans_item[f_path] = []
-
                 for value in match.value:
-                    trans_item[f_path].append(_seq_to_dict(value))
+                    trans_value.append(_seq_to_dict(value))
 
-        return trans_item
+                if path == "$":
+                    item = trans_value
+                else:
+                    match.full_path.update(item, trans_value)
+
+        return item
 
     return _transformer
