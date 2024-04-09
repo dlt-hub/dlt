@@ -434,9 +434,17 @@ class DltResourceHints:
                 dict_["columns"][from_] = {
                     "name": from_,
                     "data_type": "timestamp",
+                    "nullable": (
+                        True
+                    ),  # validity columns are empty when first loaded into staging table
                     "x-valid-from": True,
                 }
-                dict_["columns"][to] = {"name": to, "data_type": "timestamp", "x-valid-to": True}
+                dict_["columns"][to] = {
+                    "name": to,
+                    "data_type": "timestamp",
+                    "nullable": True,
+                    "x-valid-to": True,
+                }
 
     @staticmethod
     def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:
