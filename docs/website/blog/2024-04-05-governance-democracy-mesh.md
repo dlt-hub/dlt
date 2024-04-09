@@ -17,11 +17,14 @@ tags: [data mesh, shift left, data democracy, pythonic]
 Definitions of how I use the terms:
 
 Data Governance: A system of oversight and guidance over the data, much like a government is a system of oversight and guidance for a country. The opposite of governance is anarchy, chaos, and entropy.
+
 Data Democracy: A type of governance that ensures stakeholders are part of the governance.
+
 Shift left: Assuming data flows from left to right, shift left represents a focus towards the origin.
+
 Data Mesh: A decentralized data management strategy that treats data as a product, with domain-specific teams managing its quality, governance, and lifecycle.
 
-# Shift Left Data Democracy: From Access to Involvement
+## Shift Left Data Democracy: From Access to Involvement
 
 In the traditional view, data democracy was largely about democratizing access—ensuring that everyone across the organization could easily retrieve and analyze data. This was a crucial step forward, breaking down silos and making information more available than ever before. However, as we've evolved, so too has our understanding of what true data democracy entails.
 
@@ -102,7 +105,7 @@ Simplifying complexity by democratizing tooling
 The democratization of data doesn't stop with access or participation; it extends into the tools and
 technologies used for data management. This segment would explore the necessity for tools that are accessible and easy to use by everyone in the organization but robust enough to perform complex data engineering tasks. The focus would be on balancing user-friendliness with the sophistication needed to support advanced data operations.
 
-### Simplifying Complexity: Democratizing Tooling
+### Simplifying complexity: Democratizing tooling
 
 Creating data management tools that strike the right balance between accessibility for all organizational members and the complexity
 required for sophisticated data engineering tasks is essential in democratizing data handling.
@@ -127,7 +130,7 @@ underlines a transition from centralized control to distributed empowerment, whe
 the broader goal of making data accessible, manageable, and governable across the entire spectrum of the organization,
 embodying the very essence of shift left data democracy.
 
-## The Future of Data Management
+## The future of Data Management
 
 The trends indicate a move towards more distributed, democratized, and participatory models of data governance and management.
 
