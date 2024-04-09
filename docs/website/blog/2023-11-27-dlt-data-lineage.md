@@ -42,7 +42,7 @@ The **load_info** produced by `dlt` for both pipelines is also populated into Bi
 
 To get started install `dlt` and dbt:
 
-```jsx
+```sh
 pip install dlt
 pip install dbt-bigquery
 ```
@@ -59,13 +59,13 @@ We use the following CSV files as our data sources for this demo:
 
 To get started we initialize a dlt pipeline and selecting BigQuery as our destination by running the following command:
 
-```python
+```sh
 dlt init data_lineage bigquery
 ```
 
 This will create default scaffolding to build our pipeline. Install the dependencies by running the following command:
 
-```python
+```sh
 pip install -r requirements.txt
 ```
 
@@ -76,7 +76,7 @@ As a first step, we will load the sales data from the online and physical store 
 
 In the `data_lineage.py` file remove the default code and add the following:
 
-```python
+```py
 FILEPATH = "data/supermarket_sales.csv"
 FILEPATH_SHOPIFY = "data/orders_export_1.csv"
 
@@ -109,7 +109,7 @@ Any changes in the underlying data are captured by the dlt **load_info**. To sho
 
 We will add the **load_info** back to BigQuery to use in our Dashboard. The Dashboard will provide an overview data lineage for our ingested data.
 
-```python
+```py
 if __name__ == "__main__":
 
     data_store = pd.read_csv(FILEPATH)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         dataset_name='sales_shopify'
     )
 
-	load_a = pipeline_store.run_pipeline(
+    load_a = pipeline_store.run_pipeline(
         data=select_c_data_store,
         table_name='sales_info',
         write_disposition='replace'
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
 To run the pipeline, execute the following command:
 
-```python
+```sh
 python data_lineage.py
 ```
 
@@ -175,7 +175,7 @@ Now that both the Shopify and Store data are available in BigQuery, we will use 
 
 To get started initialize a dbt project in the root directory:
 
-```python
+```sh
 dbt init sales_dbt
 ```
 
@@ -244,7 +244,7 @@ In the query, we combine the **load_info** for both sources by doing a union ove
 
 In the `data_lineage.py` add the code to run the dbt package using `dlt`.
 
-```python
+```py
 pipeline_transform = dlt.pipeline(
     pipeline_name='pipeline_transform',
     destination='bigquery',
@@ -271,7 +271,7 @@ for m in models:
 
 Next, run the pipeline using the following command:
 
-```python
+```sh
 python data_lineage.py
 ```
 

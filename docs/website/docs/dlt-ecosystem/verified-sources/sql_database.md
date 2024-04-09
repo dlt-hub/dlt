@@ -1,10 +1,13 @@
+---
+title: 30+ SQL Databases
+description: dlt pipeline for SQL Database
+keywords: [sql connector, sql database pipeline, sql database]
+---
+import Header from './_source-info-header.md';
+
 # 30+ SQL Databases
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 SQL databases are management systems (DBMS) that store data in a structured format, commonly used
 for efficient and reliable data retrieval.
@@ -59,7 +62,7 @@ The database above doesn't require a password.
 The connection URL can be broken down into:
 
 ```py
-connection_url = connection_string = f"{drivername}://{username}:{password}@{host}:{port}{database}"
+connection_url = f"{drivername}://{username}:{password}@{host}:{port}/{database}"
 ```
 
 `drivername`: Indicates both the database system and driver used.
@@ -442,5 +445,4 @@ To create your own pipeline, use source and resource methods from this verified 
 
 1. Remember to keep the pipeline name and destination dataset name consistent. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) from the last run, which is essential for incremental loading. Altering these names could initiate a "[full_refresh](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh)", interfering with the metadata tracking necessary for [incremental loads](https://dlthub.com/docs/general-usage/incremental-loading).
 
-<!--@@@DLT_SNIPPET_START tuba::sql_database-->
-<!--@@@DLT_SNIPPET_END tuba::sql_database-->
+<!--@@@DLT_TUBA sql_database-->

@@ -3,14 +3,11 @@ title: MongoDB
 description: dlt verified source for MongoDB
 keywords: [mongodb, verified source, mongo database]
 ---
+import Header from './_source-info-header.md';
 
 # MongoDB
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [MongoDB](https://www.mongodb.com/what-is-mongodb) is a NoSQL database that stores JSON-like
 documents.
@@ -332,5 +329,4 @@ verified source.
    ```
 
 
-<!--@@@DLT_SNIPPET_START tuba::mongodb-->
-<!--@@@DLT_SNIPPET_END tuba::mongodb-->
+<!--@@@DLT_TUBA mongodb-->

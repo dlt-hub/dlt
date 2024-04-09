@@ -126,18 +126,14 @@ class MockProdConfiguration(RunConfiguration):
 
 @configspec
 class FieldWithNoDefaultConfiguration(RunConfiguration):
-    no_default: str
-
-    if TYPE_CHECKING:
-
-        def __init__(self, no_default: str = None, sentry_dsn: str = None) -> None: ...
+    no_default: str = None
 
 
 @configspec
 class InstrumentedConfiguration(BaseConfiguration):
-    head: str
-    tube: List[str]
-    heels: str
+    head: str = None
+    tube: List[str] = None
+    heels: str = None
 
     def to_native_representation(self) -> Any:
         return self.head + ">" + ">".join(self.tube) + ">" + self.heels
@@ -156,63 +152,50 @@ class InstrumentedConfiguration(BaseConfiguration):
         if self.head > self.heels:
             raise RuntimeError("Head over heels")
 
-    if TYPE_CHECKING:
-
-        def __init__(self, head: str = None, tube: List[str] = None, heels: str = None) -> None: ...
-
 
 @configspec
 class EmbeddedConfiguration(BaseConfiguration):
-    default: str
-    instrumented: InstrumentedConfiguration
-    sectioned: SectionedConfiguration
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            default: str = None,
-            instrumented: InstrumentedConfiguration = None,
-            sectioned: SectionedConfiguration = None,
-        ) -> None: ...
+    default: str = None
+    instrumented: InstrumentedConfiguration = None
+    sectioned: SectionedConfiguration = None
 
 
 @configspec
 class EmbeddedOptionalConfiguration(BaseConfiguration):
-    instrumented: Optional[InstrumentedConfiguration]
+    instrumented: Optional[InstrumentedConfiguration] = None
 
 
 @configspec
 class EmbeddedSecretConfiguration(BaseConfiguration):
-    secret: SecretConfiguration
+    secret: SecretConfiguration = None
 
 
 @configspec
 class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
-    list_val: list  # type: ignore[type-arg]
-    tuple_val: tuple  # type: ignore[type-arg]
-    dict_val: dict  # type: ignore[type-arg]
+    list_val: list = None  # type: ignore[type-arg]
+    tuple_val: tuple = None  # type: ignore[type-arg]
+    dict_val: dict = None  # type: ignore[type-arg]
 
 
 @configspec
 class DynamicConfigA(BaseConfiguration):
-    field_for_a: str
+    field_for_a: str = None
 
 
 @configspec
 class DynamicConfigB(BaseConfiguration):
-    field_for_b: str
+    field_for_b: str = None
 
 
 @configspec
 class DynamicConfigC(BaseConfiguration):
-    field_for_c: str
+    field_for_c: str = None
 
 
 @configspec
 class ConfigWithDynamicType(BaseConfiguration):
-    discriminator: str
-    embedded_config: BaseConfiguration
+    discriminator: str = None
+    embedded_config: BaseConfiguration = None
 
     @resolve_type("embedded_config")
     def resolve_embedded_type(self) -> Type[BaseConfiguration]:
@@ -240,8 +223,8 @@ class ConfigWithInvalidDynamicType(BaseConfiguration):
 
 @configspec
 class SubclassConfigWithDynamicType(ConfigWithDynamicType):
-    is_number: bool
-    dynamic_type_field: Any
+    is_number: bool = None
+    dynamic_type_field: Any = None
 
     @resolve_type("embedded_config")
     def resolve_embedded_type(self) -> Type[BaseConfiguration]:
@@ -937,11 +920,7 @@ def test_is_valid_hint() -> None:
 def test_configspec_auto_base_config_derivation() -> None:
     @configspec
     class AutoBaseDerivationConfiguration:
-        auto: str
-
-        if TYPE_CHECKING:
-
-            def __init__(self, auto: str = None) -> None: ...
+        auto: str = None
 
     assert issubclass(AutoBaseDerivationConfiguration, BaseConfiguration)
     assert hasattr(AutoBaseDerivationConfiguration, "auto")

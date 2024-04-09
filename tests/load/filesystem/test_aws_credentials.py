@@ -10,6 +10,9 @@ from tests.common.configuration.utils import environment
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.utils import preserve_environ, autouse_test_storage
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 if "s3" not in ALL_FILESYSTEM_DRIVERS:
     pytest.skip("s3 filesystem driver not configured", allow_module_level=True)
 
@@ -45,7 +48,7 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
     session = botocore.session.get_session()
     region_name = "eu-central-1"  # session.get_config_variable('region')
 
-    c = AwsCredentials(session)
+    c = AwsCredentials.from_session(session)
     assert c.profile_name is None
     assert c.aws_access_key_id == "fake_access_key"
     assert c.region_name == region_name
@@ -83,7 +86,7 @@ def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
 
     session = boto3.Session()
 
-    c = AwsCredentials(session)
+    c = AwsCredentials.from_session(session)
     assert c.profile_name is None
     assert c.aws_access_key_id == "fake_access_key"
     assert c.region_name == session.region_name

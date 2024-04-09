@@ -1,10 +1,13 @@
+---
+title: Workable
+description: dlt pipeline for Workable API
+keywords: [workable api, workable pipeline, workable]
+---
+import Header from './_source-info-header.md';
+
 # Workable
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Workable](https://www.workable.com/) is an online platform for posting jobs and managing the hiring process. With Workable,
 employers can create job listings, receive applications, track candidates, collaborate with team
@@ -273,5 +276,4 @@ To create your data pipeline using single loading and
    disrupting metadata tracking for
    [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
-<!--@@@DLT_SNIPPET_START tuba::workable-->
-<!--@@@DLT_SNIPPET_END tuba::workable-->
+<!--@@@DLT_TUBA workable-->

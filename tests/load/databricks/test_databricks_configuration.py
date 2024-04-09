@@ -8,6 +8,9 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.common.configuration import resolve_configuration
 from tests.utils import preserve_environ
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_databricks_credentials_to_connector_params():
     os.environ["CREDENTIALS__SERVER_HOSTNAME"] = "my-databricks.example.com"
@@ -17,7 +20,9 @@ def test_databricks_credentials_to_connector_params():
     # JSON encoded dict of extra args
     os.environ["CREDENTIALS__CONNECTION_PARAMETERS"] = '{"extra_a": "a", "extra_b": "b"}'
 
-    config = resolve_configuration(DatabricksClientConfiguration(dataset_name="my-dataset"))
+    config = resolve_configuration(
+        DatabricksClientConfiguration()._bind_dataset_name(dataset_name="my-dataset")
+    )
 
     credentials = config.credentials
 

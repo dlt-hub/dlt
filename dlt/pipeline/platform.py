@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 from dlt.common import json
-from dlt.common.runtime import logger
+from dlt.common import logger
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.typing import TStoredSchema
 

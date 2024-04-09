@@ -18,7 +18,7 @@ ALLOWED_LANGUAGES = ["py", "toml", "json", "yaml", "text", "sh", "bat", "sql"]
 LINT_TEMPLATE = "./lint_setup/template.py"
 LINT_FILE = "./lint_setup/lint_me.py"
 
-ENABLE_MYPY = False
+ENABLE_MYPY = True
 
 
 @dataclass
@@ -225,6 +225,7 @@ def typecheck_snippets(snippets: List[Snippet], verbose: bool) -> None:
             failed_count += 1
             fmt.warning(f"Failed to type check {str(snippet)}")
             fmt.echo(result.stdout.strip())
+            fmt.echo(result.stderr.strip())
 
     if failed_count:
         fmt.error(f"Failed to type check {failed_count} snippets")

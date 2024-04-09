@@ -1,10 +1,13 @@
+import functools
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
 from google.cloud import exceptions as gcp_exceptions
+from google.api_core import retry
+from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
 from dlt.common import json, logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -22,8 +25,11 @@ from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.typing import DictStrAny
+from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.exceptions import (
     DestinationSchemaWillNotUpdate,
+    DestinationTerminalException,
     DestinationTransientException,
     LoadJobNotExistsException,
     LoadJobTerminalException,
@@ -43,6 +49,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.pipeline.current import destination_state
 
 
 class BigQueryTypeMapper(TypeMapper):
@@ -220,13 +227,40 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         job = super().start_file_load(table, file_path, load_id)
 
         if not job:
+            insert_api = table.get("x-insert-api", "default")
             try:
-                job = BigQueryLoadJob(
-                    FileStorage.get_file_name_from_file_path(file_path),
-                    self._create_load_job(table, file_path),
-                    self.config.http_timeout,
-                    self.config.retry_deadline,
-                )
+                if insert_api == "streaming":
+                    if table["write_disposition"] != "append":
+                        raise DestinationTerminalException(
+                            "BigQuery streaming insert can only be used with `append`"
+                            " write_disposition, while the given resource has"
+                            f" `{table['write_disposition']}`."
+                        )
+                    if file_path.endswith(".jsonl"):
+                        job_cls = DestinationJsonlLoadJob
+                    elif file_path.endswith(".parquet"):
+                        job_cls = DestinationParquetLoadJob  # type: ignore
+                    else:
+                        raise ValueError(
+                            f"Unsupported file type for BigQuery streaming inserts: {file_path}"
+                        )
+
+                    job = job_cls(
+                        table,
+                        file_path,
+                        self.config,  # type: ignore
+                        self.schema,
+                        destination_state(),
+                        functools.partial(_streaming_load, self.sql_client),
+                        [],
+                    )
+                else:
+                    job = BigQueryLoadJob(
+                        FileStorage.get_file_name_from_file_path(file_path),
+                        self._create_load_job(table, file_path),
+                        self.config.http_timeout,
+                        self.config.retry_deadline,
+                    )
             except api_core_exceptions.GoogleAPICallError as gace:
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
@@ -243,6 +277,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     ) from gace
                 else:
                     raise DestinationTransientException(gace) from gace
+
         return job
 
     def _get_table_update_sql(
@@ -425,3 +460,41 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
+
+
+def _streaming_load(
+    sql_client: SqlClientBase[BigQueryClient], items: List[Dict[Any, Any]], table: Dict[str, Any]
+) -> None:
+    """
+    Upload the given items into BigQuery table, using streaming API.
+    Streaming API is used for small amounts of data, with optimal
+    batch size equal to 500 rows.
+
+    Args:
+        sql_client (dlt.destinations.impl.bigquery.bigquery.BigQueryClient):
+            BigQuery client.
+        items (List[Dict[Any, Any]]): List of rows to upload.
+        table (Dict[Any, Any]): Table schema.
+    """
+
+    def _should_retry(exc: api_core_exceptions.GoogleAPICallError) -> bool:
+        """Predicate to decide if we need to retry the exception.
+
+        Args:
+            exc (google.api_core.exceptions.GoogleAPICallError):
+                Exception raised by the client.
+
+        Returns:
+            bool: True if the exception is retryable, False otherwise.
+        """
+        reason = exc.errors[0]["reason"]
+        return reason in _RETRYABLE_REASONS
+
+    full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
+
+    bq_client = sql_client._client
+    bq_client.insert_rows_json(
+        full_name,
+        items,
+        retry=retry.Retry(predicate=_should_retry, deadline=600),  # with 10 mins deadline
+    )

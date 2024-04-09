@@ -201,14 +201,5 @@ Integration with [dbt](../transformations/dbt/dbt.md) is currently not supported
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-<!--@@@DLT_SNIPPET_START tuba::synapse-->
-## Additional Setup guides
+<!--@@@DLT_TUBA synapse-->
 
-- [Load data from Notion to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-synapse)
-- [Load data from Google Analytics to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-synapse)
-- [Load data from Google Sheets to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-synapse)
-- [Load data from HubSpot to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-synapse)
-- [Load data from GitHub to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-synapse)
-- [Load data from Stripe to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-synapse)
-- [Load data from Chess.com to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-synapse)
-<!--@@@DLT_SNIPPET_END tuba::synapse-->

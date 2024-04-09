@@ -3,14 +3,11 @@ title: Google Sheets
 description: dlt verified source for Google Sheets API
 keywords: [google sheets api, google sheets verified source, google sheets]
 ---
+import Header from './_source-info-header.md';
 
 # Google Sheets
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Google Sheets](https://www.google.com/sheets/about/) is a cloud-based spreadsheet application
 offered by Google as part of its Google Workspace suite.
@@ -609,16 +606,4 @@ def get_named_ranges():
 
 Enjoy the DLT Google Sheets pipeline experience!
 
-<!--@@@DLT_SNIPPET_START tuba::google_sheets-->
-## Additional Setup guides
-
-- [Load data from Google Sheets to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-mssql)
-- [Load data from Google Sheets to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-synapse)
-- [Load data from Google Sheets to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-duckdb)
-- [Load data from Google Sheets to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
-- [Load data from Google Sheets to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-databricks)
-- [Load data from Google Sheets to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-bigquery)
-- [Load data from Google Sheets to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-athena)
-- [Load data from Google Sheets to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-redshift)
-- [Load data from Google Sheets to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-snowflake)
-<!--@@@DLT_SNIPPET_END tuba::google_sheets-->
+<!--@@@DLT_TUBA google_sheets-->

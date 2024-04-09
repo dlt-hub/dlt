@@ -2,7 +2,7 @@ import pytest
 
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
+from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 
 from tests.utils import ACTIVE_DESTINATIONS
@@ -78,7 +78,7 @@ def test_import_destination_config() -> None:
     dest = Destination.from_reference(ref="dlt.destinations.duckdb", environment="stage")
     assert dest.destination_type == "dlt.destinations.duckdb"
     assert dest.config_params["environment"] == "stage"
-    config = dest.configuration(dest.spec(dataset_name="dataset"))  # type: ignore
+    config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
     assert config.destination_type == "duckdb"
     assert config.destination_name == "duckdb"
     assert config.environment == "stage"
@@ -87,7 +87,7 @@ def test_import_destination_config() -> None:
     dest = Destination.from_reference(ref=None, destination_name="duckdb", environment="production")
     assert dest.destination_type == "dlt.destinations.duckdb"
     assert dest.config_params["environment"] == "production"
-    config = dest.configuration(dest.spec(dataset_name="dataset"))  # type: ignore
+    config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
     assert config.destination_type == "duckdb"
     assert config.destination_name == "duckdb"
     assert config.environment == "production"
@@ -98,7 +98,7 @@ def test_import_destination_config() -> None:
     )
     assert dest.destination_type == "dlt.destinations.duckdb"
     assert dest.config_params["environment"] == "devel"
-    config = dest.configuration(dest.spec(dataset_name="dataset"))  # type: ignore
+    config = dest.configuration(dest.spec()._bind_dataset_name(dataset_name="dataset"))  # type: ignore
     assert config.destination_type == "duckdb"
     assert config.destination_name == "my_destination"
     assert config.environment == "devel"
@@ -112,63 +112,63 @@ def test_normalize_dataset_name() -> None:
     # with schema name appended
 
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="ban_ana_dataset", default_schema_name="default"
-        ).normalize_dataset_name(Schema("banana"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="ban_ana_dataset", default_schema_name="default")
+        .normalize_dataset_name(Schema("banana"))
         == "ban_ana_dataset_banana"
     )
     # without schema name appended
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="ban_ana_dataset", default_schema_name="default"
-        ).normalize_dataset_name(Schema("default"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="ban_ana_dataset", default_schema_name="default")
+        .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )
 
     # dataset name will be normalized (now it is up to destination to normalize this)
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="BaNaNa", default_schema_name="default"
-        ).normalize_dataset_name(Schema("banana"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="BaNaNa", default_schema_name="default")
+        .normalize_dataset_name(Schema("banana"))
         == "ba_na_na_banana"
     )
 
     # empty schemas are invalid
     with pytest.raises(ValueError):
-        DestinationClientDwhConfiguration(
-            dataset_name="banana_dataset", default_schema_name=None
+        DestinationClientDwhConfiguration()._bind_dataset_name(
+            dataset_name="banana_dataset"
         ).normalize_dataset_name(Schema(None))
     with pytest.raises(ValueError):
-        DestinationClientDwhConfiguration(
+        DestinationClientDwhConfiguration()._bind_dataset_name(
             dataset_name="banana_dataset", default_schema_name=""
         ).normalize_dataset_name(Schema(""))
 
     # empty dataset name is valid!
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="", default_schema_name="ban_schema"
-        ).normalize_dataset_name(Schema("schema_ana"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="", default_schema_name="ban_schema")
+        .normalize_dataset_name(Schema("schema_ana"))
         == "_schema_ana"
     )
     # empty dataset name is valid!
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="", default_schema_name="schema_ana"
-        ).normalize_dataset_name(Schema("schema_ana"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="", default_schema_name="schema_ana")
+        .normalize_dataset_name(Schema("schema_ana"))
         == ""
     )
     # None dataset name is valid!
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name=None, default_schema_name="ban_schema"
-        ).normalize_dataset_name(Schema("schema_ana"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name=None, default_schema_name="ban_schema")
+        .normalize_dataset_name(Schema("schema_ana"))
         == "_schema_ana"
     )
     # None dataset name is valid!
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name=None, default_schema_name="schema_ana"
-        ).normalize_dataset_name(Schema("schema_ana"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name=None, default_schema_name="schema_ana")
+        .normalize_dataset_name(Schema("schema_ana"))
         is None
     )
 
@@ -176,9 +176,9 @@ def test_normalize_dataset_name() -> None:
     schema = Schema("barbapapa")
     schema._schema_name = "BarbaPapa"
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="set", default_schema_name="default"
-        ).normalize_dataset_name(schema)
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="set", default_schema_name="default")
+        .normalize_dataset_name(schema)
         == "set_barba_papa"
     )
 
@@ -186,8 +186,8 @@ def test_normalize_dataset_name() -> None:
 def test_normalize_dataset_name_none_default_schema() -> None:
     # if default schema is None, suffix is not added
     assert (
-        DestinationClientDwhConfiguration(
-            dataset_name="ban_ana_dataset", default_schema_name=None
-        ).normalize_dataset_name(Schema("default"))
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="ban_ana_dataset", default_schema_name=None)
+        .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )

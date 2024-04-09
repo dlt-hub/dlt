@@ -54,7 +54,7 @@ The full signature of the destination decorator plus its function is the followi
     loader_file_format="jsonl",
     name="my_custom_destination",
     naming_convention="direct",
-    max_nesting_level=0,
+    max_table_nesting=0,
     skip_dlt_columns_and_tables=True
 )
 def my_destination(items: TDataItems, table: TTableSchema) -> None:

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import dataclasses
 import os
 import datetime  # noqa: 251
 import humanize
@@ -32,24 +33,18 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
-from dlt.common.exceptions import (
-    DestinationHasFailedJobs,
-    PipelineStateNotAvailable,
-    SourceSectionNotAvailable,
-)
+from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.storages.load_package import PackageStorage
-
 from dlt.common.time import ensure_pendulum_datetime, precise_time
 from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
-from dlt.common.storages.load_package import TLoadPackageState
 
 
 class _StepInfo(NamedTuple):
@@ -559,8 +554,12 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _deferred_pipeline: Callable[[], SupportsPipeline]
-    _pipeline: SupportsPipeline
+    _deferred_pipeline: Callable[[], SupportsPipeline] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _pipeline: SupportsPipeline = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     can_create_default: ClassVar[bool] = True
 
@@ -598,13 +597,9 @@ class PipelineContext(ContainerInjectableContext):
 
 @configspec
 class StateInjectableContext(ContainerInjectableContext):
-    state: TPipelineState
+    state: TPipelineState = None
 
     can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-
-        def __init__(self, state: TPipelineState = None) -> None: ...
 
 
 def pipeline_state(

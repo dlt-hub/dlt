@@ -86,7 +86,7 @@ We recommend setting up and testing dbt-core locally before using it in cloud fu
 
 1. Next, modify the `main.py` as follows:
 
-   ```python
+   ```py
    import os
    import subprocess
    import logging
@@ -191,11 +191,12 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
 1. Next, configure the `main.py` as follows:
 
-   ```python
+   ```py
    import dlt
-   import logging, json
+   import logging
    from flask import jsonify
    from dlt.common.runtime.slack import send_slack_message
+   from dlt.common import json
 
    def run_pipeline(request):
        """
@@ -306,7 +307,7 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
 1. Next, list runtime-installable modules in `requirements.txt`:
 
-   ```
+   ```sh
    dbt-core
    dbt-bigquery
    ```

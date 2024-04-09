@@ -29,7 +29,7 @@ Now that the comments were loaded, we were ready to use GPT-4 to create a one se
 
 Since these comments were posted in response to stories or other comments, we fed in the story title and any parent comments as context in the prompt. To avoid hitting rate-limit error and losing all progress, we ran this for 100 comments at a time, saving the results in the CSV file each time. We then built a streamlit app to load and display them in a dashboard. Here is what the dashboard looks like:
 
-![dashboard.png](/img/hn_gpt_dashboard.png)
+![dashboard.png](https://storage.googleapis.com/dlt-blog-images/hn_gpt_dashboard.png)
 
 ## Deploying the pipeline, Google Bigquery, and Streamlit app
 

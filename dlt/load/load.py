@@ -15,21 +15,15 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
 )
-from dlt.common.schema.utils import get_child_tables, get_top_level_table
+from dlt.common.schema.utils import get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.runtime.logger import pretty_format_exception
-from dlt.common.exceptions import (
-    TerminalValueError,
-    DestinationTerminalException,
-    DestinationTransientException,
-)
+from dlt.common.logger import pretty_format_exception
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.configuration.container import Container
-
-from dlt.common.schema import Schema, TSchemaTables
-
+from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
@@ -44,7 +38,10 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TDestination,
 )
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -89,16 +86,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if self.staging_destination:
             supported_file_formats = (
                 self.staging_destination.capabilities().supported_loader_file_formats
-                + ["reference"]
             )
-        if isinstance(self.get_destination_client(Schema("test")), WithStagingDataset):
-            supported_file_formats += ["sql"]
         load_storage = LoadStorage(
             is_storage_owner,
-            self.capabilities.preferred_loader_file_format,
             supported_file_formats,
             config=self.config._load_storage_config,
         )
+        # add internal job formats
+        if issubclass(self.destination.client_class, WithStagingDataset):
+            load_storage.supported_job_file_formats += ["sql"]
+        if self.staging_destination:
+            load_storage.supported_job_file_formats += ["reference"]
+
         return load_storage
 
     def get_destination_client(self, schema: Schema) -> JobClientBase:
@@ -142,7 +141,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 else job_client
             ) as client:
                 job_info = ParsedLoadJobFileName.parse(file_path)
-                if job_info.file_format not in self.load_storage.supported_file_formats:
+                if job_info.file_format not in self.load_storage.supported_job_file_formats:
                     raise LoadClientUnsupportedFileFormats(
                         job_info.file_format,
                         self.capabilities.supported_loader_file_formats,
@@ -180,6 +179,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             # return no job so file stays in new jobs (root) folder
             logger.exception(f"Temporary problem when adding job {file_path}")
             job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
+        if job is None:
+            raise DestinationTerminalException(
+                f"Destination could not create a job for file {file_path}. Typically the file"
+                " extension could not be associated with job type and that indicates an error in"
+                " the code."
+            )
         self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 

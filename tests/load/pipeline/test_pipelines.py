@@ -6,13 +6,16 @@ import pytest
 
 import dlt
 
-from dlt.common.pipeline import SupportsPipeline
 from dlt.common import json, sleep
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
+from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract import DltSource
@@ -21,8 +24,6 @@ from dlt.pipeline.exceptions import (
     PipelineConfigMissing,
     PipelineStepFailed,
 )
-from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.exceptions import DestinationHasFailedJobs
 
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
 from tests.pipeline.utils import assert_data_table_counts, assert_load_info
@@ -41,6 +42,9 @@ from tests.load.pipeline.utils import (
     REPLACE_STRATEGIES,
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -76,11 +80,11 @@ def test_default_pipeline_names(
     # this will create default schema
     p.extract(data_fun)
     # _pipeline suffix removed when creating default schema name
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):
@@ -797,6 +801,11 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     # duckdb 0.9.1 does not support TIME other than 6
     if destination_config.destination in ["duckdb", "motherduck"]:
         column_schemas["col11_precision"]["precision"] = 0
+        # also we do not want to test col4_precision (datetime) because
+        # those timestamps are not TZ aware in duckdb and we'd need to
+        # disable TZ when generating parquet
+        # this is tested in test_duckdb.py
+        column_schemas["col4_precision"]["precision"] = 6
 
     # drop TIME from databases not supporting it via parquet
     if destination_config.destination in ["redshift", "athena", "synapse", "databricks"]:
@@ -807,7 +816,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col11_null")
         column_schemas.pop("col11_precision")
 
-    if destination_config.destination == "redshift":
+    if destination_config.destination in ("redshift", "dremio"):
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
 
@@ -856,7 +865,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=column_schemas,
             parse_complex_strings=destination_config.destination
             in ["snowflake", "bigquery", "redshift"],
-            timestamp_precision=3 if destination_config.destination == "athena" else 6,
+            timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
         )
 
 
@@ -898,7 +907,7 @@ def test_pipeline_upfront_tables_two_loads(
             write_disposition="merge",
         )
         def table_2():
-            yield data_to_item_format("arrow", [{"id": 2}])
+            yield data_to_item_format("arrow-table", [{"id": 2}])
 
         @dlt.resource(
             columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
@@ -1008,7 +1017,7 @@ def test_pipeline_upfront_tables_two_loads(
 #             }
 #             for hour in range(0, max_hours)
 #         ]
-#         data = data_to_item_format("arrow", data)
+#         data = data_to_item_format("arrow-table", data)
 #         # print(py_arrow_to_table_schema_columns(data[0].schema))
 #         # print(data)
 #         yield data

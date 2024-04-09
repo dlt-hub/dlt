@@ -1,3 +1,4 @@
+import dataclasses
 from typing import ClassVar, Final, Optional, Any, Dict, List
 
 from dlt.common.typing import TSecretStrValue
@@ -40,8 +41,8 @@ class DatabricksCredentials(CredentialsConfiguration):
 
 @configspec
 class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "databricks"  # type: ignore[misc]
-    credentials: DatabricksCredentials
+    destination_type: Final[str] = dataclasses.field(default="databricks", init=False, repr=False, compare=False)  # type: ignore[misc]
+    credentials: DatabricksCredentials = None
 
     def __str__(self) -> str:
         """Return displayable destination location"""

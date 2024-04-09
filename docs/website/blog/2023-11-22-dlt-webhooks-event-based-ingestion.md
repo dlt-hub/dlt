@@ -79,11 +79,11 @@ in-depth guide, please refer to the detailed documentation.
 1. Click 'Create Function' in Cloud Functions, and select your region and environment setup.
 1. Choose HTTP as the trigger, enable 'Allow unauthenticated invocations', save, and click 'Next'.
 1. Set the environment to Python 3.10 and prepare to insert code into main.py:
-   ```python
+   ```py
    import dlt
-   import json
    import time
    from google.cloud import bigquery
+   from dlt.common import json
 
    def github_webhook(request):
        # Extract relevant data from the request payload
@@ -106,7 +106,7 @@ in-depth guide, please refer to the detailed documentation.
    dlt[bigquery]
    ```
 1. Post-deployment, a webhook URL is generated, typically following a specific format.
-   ```bash
+   ```sh
    https://{region]-{project-id}.cloudfunctions.net/{cloud-function-name}
    ```
 
@@ -140,7 +140,7 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
 
 1. Here’s what `main.py` looks like:
-   ```python
+   ```py
    import dlt
    from flask import jsonify
 
@@ -215,7 +215,7 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
 
 1. Here’s what `main.py`looks like:
-   ```python
+   ```py
    import dlt
    from flask import jsonify
 
@@ -227,7 +227,8 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
            # Initialize and configure the DLT pipeline
            pipeline = dlt.pipeline(
-               pipeline_name=ßigquery',               # Destination service for the data
+               pipeline_name="hubspot",
+               destination='bigquery',               # Destination service for the data
                dataset_name='hubspot_webhooks_dataset',  # BigQuery dataset name
            )
 

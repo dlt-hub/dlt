@@ -2,9 +2,8 @@ import base64
 import hashlib
 from copy import copy
 
-import datetime  # noqa: 251
 from dlt.common import json
-from typing import TypedDict, Dict, Any, List, Tuple, cast
+from typing import TypedDict, List, Tuple
 
 
 class TVersionedState(TypedDict, total=False):

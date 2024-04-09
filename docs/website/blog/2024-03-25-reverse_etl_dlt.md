@@ -89,6 +89,7 @@ import dlt
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
+
 @dlt.destination(batch_size=100)
 def google_sheets(items,
                             table_schema,
@@ -175,11 +176,11 @@ sheets_id = "1xj6APSKhepp8-sJIucbD9DDx7eyBt4UI2KlAYaQ9EKs"
 
 Now, assuming you have a source function **`dict_row_generator()`**, you can set up and run your pipeline as follows:
 
-```python
-
+```py
 # ... destination code from above
 
-pipeline = dlt.pipeline("my_google_sheets_pipeline", destination=google_sheets())
+# pass some destination arguments explicitly (`range_name`)
+pipeline = dlt.pipeline("my_google_sheets_pipeline", destination=google_sheets(range_name="named_range"))
 
 # Use the source function and specify the resource "people_report"
 def dict_row_generator():
@@ -194,7 +195,6 @@ def dict_row_generator():
 
 # Now, run the pipeline with the specified source
 info = pipeline.run(dict_row_generator)
-
 
 ```
 

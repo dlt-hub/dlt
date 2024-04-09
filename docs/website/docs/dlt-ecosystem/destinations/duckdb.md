@@ -65,6 +65,17 @@ You can configure the following file formats to load data to duckdb:
 :::
 * [jsonl](../file-formats/jsonl.md) **is supported but does not work if JSON fields are optional. The missing keys fail the COPY instead of being interpreted as NULL.**
 
+:::tip
+`duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However
+only microseconds resolution (the most common used) is time zone aware. `dlt` generates timestamps with timezones by default so loading parquet files
+with default settings will fail (`duckdb` does not coerce tz-aware timestamps to naive timestamps).
+Disable the timezones by changing `dlt` [parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
+```sh
+DATA_WRITER__TIMESTAMP_TIMEZONE=""
+```
+to disable tz adjustments.
+:::
+
 ## Supported column hints
 `duckdb` may create unique indexes for all columns with `unique` hints, but this behavior **is disabled by default** because it slows the loading down significantly.
 
@@ -114,14 +125,5 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-<!--@@@DLT_SNIPPET_START tuba::duckdb-->
-## Additional Setup guides
+<!--@@@DLT_TUBA duckdb-->
 
-- [Load data from Google Analytics to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-duckdb)
-- [Load data from Google Sheets to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-duckdb)
-- [Load data from Stripe to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-duckdb)
-- [Load data from Notion to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-duckdb)
-- [Load data from Chess.com to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-duckdb)
-- [Load data from HubSpot to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-duckdb)
-- [Load data from GitHub to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-duckdb)
-<!--@@@DLT_SNIPPET_END tuba::duckdb-->

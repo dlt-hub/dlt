@@ -5,17 +5,17 @@ from threading import Thread, Event
 from time import sleep
 
 from dlt.common import pendulum, Decimal
-from dlt.common.exceptions import IdentifierTooLongException
+from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
-from dlt.common.utils import derives_from_class_of_name, uniq_id
+from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import (
     DatabaseException,
     DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.typing import TNativeConn
@@ -38,7 +38,7 @@ def client(request) -> Iterator[SqlJobClientBase]:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse"]),
+    destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse", "dremio"]),
     indirect=True,
     ids=lambda x: x.name,
 )
@@ -139,6 +139,7 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -186,6 +187,7 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
         assert len(rows) == 0
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -197,13 +199,18 @@ def test_execute_ddl(client: SqlJobClientBase) -> None:
     client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (1.0)")
     rows = client.sql_client.execute_sql(f"SELECT * FROM {f_q_table_name}")
     assert rows[0][0] == Decimal("1.0")
-    # create view, note that bigquery will not let you execute a view that does not have fully qualified table names.
-    view_name = client.sql_client.make_qualified_table_name(f"view_tmp_{uniq_suffix}")
+    if client.config.destination_type == "dremio":
+        username = client.config.credentials["username"]
+        view_name = f'"@{username}"."view_tmp_{uniq_suffix}"'
+    else:
+        # create view, note that bigquery will not let you execute a view that does not have fully qualified table names.
+        view_name = client.sql_client.make_qualified_table_name(f"view_tmp_{uniq_suffix}")
     client.sql_client.execute_sql(f"CREATE VIEW {view_name} AS (SELECT * FROM {f_q_table_name});")
     rows = client.sql_client.execute_sql(f"SELECT * FROM {view_name}")
     assert rows[0][0] == Decimal("1.0")
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -246,6 +253,7 @@ def test_execute_query(client: SqlJobClientBase) -> None:
             assert len(rows) == 0
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -297,6 +305,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     assert df_3 is None
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -360,10 +369,11 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
             with client.sql_client.execute_query(f"DELETE FROM {qualified_name} WHERE 1=1"):
                 pass
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
-        with pytest.raises(DatabaseUndefinedRelation) as term_ex:
-            with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
-                pass
-        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        if client.config.destination_type != "dremio":
+            with pytest.raises(DatabaseUndefinedRelation) as term_ex:
+                with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
+                    pass
+            assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
 
 
 @pytest.mark.parametrize(
@@ -570,7 +580,7 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error

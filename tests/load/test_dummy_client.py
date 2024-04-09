@@ -6,10 +6,9 @@ from unittest.mock import patch
 from typing import List
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
-from dlt.common.schema.typing import TWriteDisposition
-from dlt.common.storages import FileStorage, LoadStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo
-from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
+from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import LoadJob, TDestination
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
@@ -456,7 +455,7 @@ def test_wrong_writer_type() -> None:
         ],
     )
     with ThreadPoolExecutor() as pool:
-        with pytest.raises(JobWithUnsupportedWriterException) as exv:
+        with pytest.raises(JobFileFormatUnsupported) as exv:
             load.run(pool)
     assert exv.value.load_id == load_id
 
@@ -813,8 +812,10 @@ def setup_loader(
     staging = None
     if filesystem_staging:
         # do not accept jsonl to not conflict with filesystem destination
-        client_config = client_config or DummyClientConfiguration(loader_file_format="reference")
-        staging_system_config = FilesystemDestinationClientConfiguration(dataset_name="dummy")
+        client_config = client_config or DummyClientConfiguration(loader_file_format="reference")  # type: ignore[arg-type]
+        staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy"
+        )
         staging_system_config.as_staging = True
         os.makedirs(REMOTE_FILESYSTEM)
         staging = filesystem(bucket_url=REMOTE_FILESYSTEM)

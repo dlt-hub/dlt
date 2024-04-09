@@ -20,28 +20,8 @@ Need help with this tutorial? Join our [Slack community](https://dlthub.com/comm
 
 First, we need to create a [pipeline](../general-usage/pipeline). Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
-<!--@@@DLT_SNIPPET_START basic_api-->
-```py
-import dlt
-from dlt.sources.helpers import requests
+<!--@@@DLT_SNIPPET basic_api-->
 
-# Specify the URL of the API endpoint
-url = "https://api.github.com/repos/dlt-hub/dlt/issues"
-# Make a request and check if it was successful
-response = requests.get(url)
-response.raise_for_status()
-
-pipeline = dlt.pipeline(
-    pipeline_name="github_issues",
-    destination="duckdb",
-    dataset_name="github_data",
-)
-# The response contains a list of issues
-load_info = pipeline.run(response.json(), table_name="issues")
-
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END basic_api-->
 
 Here's what the code above does:
 1. It makes a request to the GitHub API endpoint and checks if the response is successful.
@@ -118,53 +98,8 @@ You can pass a generator to the `run` method directly or use the `@dlt.resource`
 Let's improve our GitHub API example and get only issues that were created since last load.
 Instead of using `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
-<!--@@@DLT_SNIPPET_START incremental-->
-```py
-import dlt
-from dlt.sources.helpers import requests
+<!--@@@DLT_SNIPPET incremental-->
 
-@dlt.resource(table_name="issues", write_disposition="append")
-def get_issues(
-    created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
-):
-    # NOTE: we read only open issues to minimize number of calls to the API.
-    # There's a limit of ~50 calls for not authenticated Github users.
-    url = (
-        "https://api.github.com/repos/dlt-hub/dlt/issues"
-        "?per_page=100&sort=created&directions=desc&state=open"
-    )
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # Stop requesting pages if the last element was already
-        # older than initial value
-        # Note: incremental will skip those items anyway, we just
-        # do not want to use the api limits
-        if created_at.start_out_of_range:
-            break
-
-        # get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
-
-pipeline = dlt.pipeline(
-    pipeline_name="github_issues_incremental",
-    destination="duckdb",
-    dataset_name="github_data_append",
-)
-
-load_info = pipeline.run(get_issues)
-row_counts = pipeline.last_trace.last_normalize_info
-
-print(row_counts)
-print("------")
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END incremental-->
 
 Let's take a closer look at the code above.
 
@@ -201,51 +136,8 @@ It will ignore any updates to **existing** issue text, emoji reactions etc.
 To get always fresh content of all the issues you combine incremental load with `merge` write disposition,
 like in the script below.
 
-<!--@@@DLT_SNIPPET_START incremental_merge-->
-```py
-import dlt
-from dlt.sources.helpers import requests
+<!--@@@DLT_SNIPPET incremental_merge-->
 
-@dlt.resource(
-    table_name="issues",
-    write_disposition="merge",
-    primary_key="id",
-)
-def get_issues(
-    updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
-):
-    # NOTE: we read only open issues to minimize number of calls to
-    # the API. There's a limit of ~50 calls for not authenticated
-    # Github users
-    url = (
-        "https://api.github.com/repos/dlt-hub/dlt/issues"
-        f"?since={updated_at.last_value}&per_page=100&sort=updated"
-        "&directions=desc&state=open"
-    )
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
-
-pipeline = dlt.pipeline(
-    pipeline_name="github_issues_merge",
-    destination="duckdb",
-    dataset_name="github_data_merge",
-)
-load_info = pipeline.run(get_issues)
-row_counts = pipeline.last_trace.last_normalize_info
-
-print(row_counts)
-print("------")
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END incremental_merge-->
 
 Above we add `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
 

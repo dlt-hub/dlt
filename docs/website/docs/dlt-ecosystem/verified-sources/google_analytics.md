@@ -1,10 +1,13 @@
+---
+title: Google Analytics
+description: dlt verified source for Google Analytics API
+keywords: [google analytics api, google analytics verified source, google analytics]
+---
+import Header from './_source-info-header.md';
+
 # Google Analytics
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Google Analytics](https://marketingplatform.google.com/about/analytics/#?modal_active=none) is a
 service for web analytics that tracks and provides data regarding user engagement with your website
@@ -339,16 +342,5 @@ verified source.
    > Loads data starting from the specified date during the first run, and then
    > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
 
-<!--@@@DLT_SNIPPET_START tuba::google_analytics-->
-## Additional Setup guides
+<!--@@@DLT_TUBA google_analytics-->
 
-- [Load data from Google Analytics to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-redshift)
-- [Load data from Google Analytics to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-mssql)
-- [Load data from Google Analytics to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-bigquery)
-- [Load data from Google Analytics to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-duckdb)
-- [Load data from Google Analytics to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-snowflake)
-- [Load data from Google Analytics to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-synapse)
-- [Load data from Google Analytics to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-databricks)
-- [Load data from Google Analytics to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-postgres)
-- [Load data from Google Analytics to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-athena)
-<!--@@@DLT_SNIPPET_END tuba::google_analytics-->

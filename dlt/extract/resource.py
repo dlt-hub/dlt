@@ -63,13 +63,17 @@ def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
     return DataItemWithMeta(TableNameMeta(table_name), item)
 
 
-def with_hints(item: TDataItems, hints: TResourceHints) -> DataItemWithMeta:
+def with_hints(
+    item: TDataItems, hints: TResourceHints, create_table_variant: bool = False
+) -> DataItemWithMeta:
     """Marks `item` to update the resource with specified `hints`.
+
+    Will create a separate variant of hints for a table if `name` is provided in `hints` and `create_table_variant` is set.
 
     Create `TResourceHints` with `make_hints`.
     Setting `table_name` will dispatch the `item` to a specified table, like `with_table_name`
     """
-    return DataItemWithMeta(HintsMeta(hints), item)
+    return DataItemWithMeta(HintsMeta(hints, create_table_variant), item)
 
 
 class DltResource(Iterable[TDataItem], DltResourceHints):
@@ -388,25 +392,29 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
-    def set_hints(self, table_schema_template: TResourceHints) -> None:
-        super().set_hints(table_schema_template)
-        incremental = self.incremental
-        # try to late assign incremental
-        if table_schema_template.get("incremental") is not None:
+    def _set_hints(
+        self, table_schema_template: TResourceHints, create_table_variant: bool = False
+    ) -> None:
+        super()._set_hints(table_schema_template, create_table_variant)
+        # validators and incremental apply only to resource hints
+        if not create_table_variant:
+            incremental = self.incremental
+            # try to late assign incremental
+            if table_schema_template.get("incremental") is not None:
+                if incremental:
+                    incremental._incremental = table_schema_template["incremental"]
+                else:
+                    # if there's no wrapper add incremental as a transform
+                    incremental = table_schema_template["incremental"]  # type: ignore
+                    self.add_step(incremental)
+
             if incremental:
-                incremental._incremental = table_schema_template["incremental"]
-            else:
-                # if there's no wrapper add incremental as a transform
-                incremental = table_schema_template["incremental"]  # type: ignore
-                self.add_step(incremental)
+                primary_key = table_schema_template.get("primary_key", incremental.primary_key)
+                if primary_key is not None:
+                    incremental.primary_key = primary_key
 
-        if incremental:
-            primary_key = table_schema_template.get("primary_key", incremental.primary_key)
-            if primary_key is not None:
-                incremental.primary_key = primary_key
-
-        if table_schema_template.get("validator") is not None:
-            self.validator = table_schema_template["validator"]
+            if table_schema_template.get("validator") is not None:
+                self.validator = table_schema_template["validator"]
 
     def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""

@@ -1,7 +1,7 @@
 ---
 slug: MongoDB-dlt-Holistics
 title: "Modeling Unstructured Data for Self-Service Analytics with dlt and Holistics"
-image: /img/dlt_holistics_overview.jpg
+image: https://storage.googleapis.com/dlt-blog-images/dlt_holistics_overview.jpg
 authors:
   name: Zaeem Athar
   title: Junior Data Engineer
@@ -13,13 +13,13 @@ tags: [MongoDB, dlt, Holistics, Unstructured Data, Transformation]
 TL;DR: A modern analytics stack with dlt and Holistics to transform and ingest unstructured production data from MongoDB to flat tables in BigQuery for self-service analytics.
 :::
 
-If you’re a CTO, then you probably love MongoDB: it’s scalable, production-ready, and a great dump for unstructured, and semi-structured data. If you’re however a data scientist or data analyst and you need to run analytics on top of MongoDB data dumps, then you’re probably not a fan. The data in MongoDB needs to be transformed and stored in a data warehouse before it is ready for analytics. The process of transforming and storing the data can become quite tedious due to the unstructured nature of the data. 
+If you’re a CTO, then you probably love MongoDB: it’s scalable, production-ready, and a great dump for unstructured, and semi-structured data. If you’re however a data scientist or data analyst and you need to run analytics on top of MongoDB data dumps, then you’re probably not a fan. The data in MongoDB needs to be transformed and stored in a data warehouse before it is ready for analytics. The process of transforming and storing the data can become quite tedious due to the unstructured nature of the data.
 
 In this blog, we will show you how you can combine `dlt` and **Holistics** and create a modern data stack that makes the process of extracting unstructured data from MongoDB, and running self-service analytics on the data simple and straightforward. We will use `dlt` to ingest the [Movie Flix Dataset](https://www.mongodb.com/docs/atlas/sample-data/sample-mflix/) into BigQuery from MongoDB and use **Holistics** to transform the data and run self-service analytics.
 
 ## An Overview of the MongoDB Modern Analytics Stack
 
-![Diagram illustrating the inner workings of our Modern Analytics Stack](/img/dlt_holistics_overview.jpg)
+![Diagram illustrating the inner workings of our Modern Analytics Stack](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_overview.jpg)
 
 
 | Tool  | Layer | Why it’s awesome |
@@ -29,7 +29,7 @@ In this blog, we will show you how you can combine `dlt` and **Holistics** and c
 | [BigQuery](https://cloud.google.com/bigquery?hl=en) | Data Warehouse | Because of its pricing model, it’s a good data warehouse choice to store structured MongoDB data so it can be used by BI tools like Holistics for self-service analytics. |
 | [Holistics](https://www.holistics.io/) | Data Modeling for Self-Service Analytics  | Holistics makes it easy for data teams to setup and govern an end-user self-service analytics platform using DevOps best practices |
 
-In our stack, `dlt` resides in the data ingestion layer. It takes in unstructured data from MongoDB normalizes the data and populates it into BigQuery. 
+In our stack, `dlt` resides in the data ingestion layer. It takes in unstructured data from MongoDB normalizes the data and populates it into BigQuery.
 
 In the data modeling layer, Holistics accesses the data from BigQuery builds relationships, transforms the data, and creates datasets to access the transformations.  In the reporting layer, Holistics allows stakeholders to self-service their data by utilizing the created datasets to build reports and create visualizations.
 
@@ -37,9 +37,9 @@ In the data modeling layer, Holistics accesses the data from BigQuery builds rel
 
 NoSQL databases such as MongoDB have gained widespread popularity due to their capacity to store data in formats that align more seamlessly with application usage, necessitating fewer data transformations during storage and retrieval.
 
-MongoDB is optimized for performance and uses BSON (Binary Javascript Object Notation) under the hood as compared to JSON. This allows MongoDB to support custom and more complex data types, such as geospatial data, dates, and regex. Additionally, BSON supports character encodings. 
+MongoDB is optimized for performance and uses BSON (Binary Javascript Object Notation) under the hood as compared to JSON. This allows MongoDB to support custom and more complex data types, such as geospatial data, dates, and regex. Additionally, BSON supports character encodings.
 
-All these benefits enable MongoDB to be a faster and better database, but the advantages of the flexibility offered by MongoDB are sometimes abused by developers and CTOs who use it as a dump for all types of unstructured and semi-structured data. This makes this data inaccessible to stakeholders and unfit for analytics purposes. 
+All these benefits enable MongoDB to be a faster and better database, but the advantages of the flexibility offered by MongoDB are sometimes abused by developers and CTOs who use it as a dump for all types of unstructured and semi-structured data. This makes this data inaccessible to stakeholders and unfit for analytics purposes.
 
 Moreover, the unique nature of MongoDB with its BSON types and its usage as a data dump in current times mean that additional hurdles must be crossed before data from MongoDB can be moved elsewhere.
 
@@ -59,7 +59,7 @@ Writing a Python-based data ingestion pipeline for sources such as MongoDB is qu
 - Insert the transformed data into the corresponding SQL tables.
 - Define relationships between tables by setting up primary and foreign keys.
 
-Using the `dlt` MongoDB verified source we can forgo the above-mentioned steps. dlt takes care of all the steps from transforming the JSON data into relational data, to creating the schema in the SQL database. 
+Using the `dlt` MongoDB verified source we can forgo the above-mentioned steps. dlt takes care of all the steps from transforming the JSON data into relational data, to creating the schema in the SQL database.
 
 To get started with `dlt` we would need to set some basic configurations, while everything else would be automated. `dlt` takes care of all the steps from creating schema to transforming the JSON data into relational data. The workflow for creating such a data pipeline in `dlt` would look something like this:
 
@@ -69,15 +69,15 @@ To get started with `dlt` we would need to set some basic configurations, while 
 - Optionally configure incremental loading based on source logic.
 
 ## What is useful about Holistics in this project?
-Holistics is a Business Intelligence platform with the goal of enabling self-service analytics for entire organizations. Holistics works by connecting to an SQL data warehouse. This allows it to build SQL queries and execute them against the data warehouse. In essence, Holistics utilizes the storage and processing capabilities of the data warehouse and the data never leaves the data warehouse. 
+Holistics is a Business Intelligence platform with the goal of enabling self-service analytics for entire organizations. Holistics works by connecting to an SQL data warehouse. This allows it to build SQL queries and execute them against the data warehouse. In essence, Holistics utilizes the storage and processing capabilities of the data warehouse and the data never leaves the data warehouse.
 
 To enable self-service Holistics introduces a modeling layer. The data teams use this layer to define table relationships, data transformations, metrics, and data logic. The entire organization can utilize these metrics and data logic defined in this layer to self-service their data needs.
 
-In addition to the transformation layer, Holistics provides advanced features such as defining models using code through Holistics’ **analytics-as-code languages** (AMQL) and utilizing **Git version control** systems to manage code changes. Moreover, data teams can **integrate with dbt** to streamline the data transformations. 
+In addition to the transformation layer, Holistics provides advanced features such as defining models using code through Holistics’ **analytics-as-code languages** (AMQL) and utilizing **Git version control** systems to manage code changes. Moreover, data teams can **integrate with dbt** to streamline the data transformations.
 
 The overall Holistics workflow looks something like this:
 
-![Holistics Overview](/img/holistics_overview.png)
+![Holistics Overview](https://storage.googleapis.com/dlt-blog-images/holistics_overview.png)
 
 - Connect Holistics to an existing SQL data warehouse.
 - Data teams use Holistics Data Modeling to model and transform analytics data. This model layer is reusable across reports & datasets.
@@ -86,13 +86,13 @@ The overall Holistics workflow looks something like this:
 
 ## Code Walkthrough
 
-In this section, we walk through how to set up a MongoDB data pipeline using `dlt`. We will be using the MongoDB verified source you can find [here](https://dlthub.com/docs/dlt-ecosystem/verified-sources/mongodb).  
+In this section, we walk through how to set up a MongoDB data pipeline using `dlt`. We will be using the MongoDB verified source you can find [here](https://dlthub.com/docs/dlt-ecosystem/verified-sources/mongodb).
 
 ### 1. Setting up the dlt pipeline
 
 Use the command below to install `dlt`.
 
-```bash
+```sh
 pip3 install -U dlt
 ```
 
@@ -100,13 +100,13 @@ Consider setting up a virtual environment for your projects and installing the p
 
 Once we have `dlt` installed, we can go ahead and initialize a verified MongoDB pipeline with the destination set to Google BigQuery. First, create a project directory and then execute the command below:
 
-```python
+```sh
 dlt init mongodb bigquery
 ```
 
 The above command will create a local ready-made pipeline that we can customize to our needs. After executing the command your project directory will look as follows:
 
-```bash
+```text
 .
 ├── .dlt
 │   ├── config.toml
@@ -127,7 +127,7 @@ We also need to set up the GCP service account credentials to get permissions to
 
 Once all the credentials are set add them to the `secrets.toml` file. Your file should look something like this:
 
-```bash
+```toml
 # put your secret values and credentials here. do not share this file and do not push it to github
 [sources.mongodb]
 connection_url = "mongodb+srv://<user>:<password>@<cluster_name>.cvanypn.mongodb.net" # please set me up!
@@ -141,9 +141,9 @@ private_key = "very secret can't show"
 client_email = "<org_name>@analytics.iam.gserviceaccount.com" # please set me up!
 ```
 
-The `mongodb_pipeline.py` at the root of your project directory is the script that runs the pipeline. It contains many functions that provide different ways of loading the data. The selection of the function depends on your specific use case, but for this demo, we try to keep it simple and use the `load_entire_database` function. 
+The `mongodb_pipeline.py` at the root of your project directory is the script that runs the pipeline. It contains many functions that provide different ways of loading the data. The selection of the function depends on your specific use case, but for this demo, we try to keep it simple and use the `load_entire_database` function.
 
-```python
+```py
 def load_entire_database(pipeline: Pipeline = None) -> LoadInfo:
     """Use the mongo source to completely load all collection in a database"""
     if pipeline is None:
@@ -165,13 +165,13 @@ def load_entire_database(pipeline: Pipeline = None) -> LoadInfo:
 
 Before we execute the pipeline script let's install the dependencies for the pipeline by executing the `requirements.txt` file.
 
-```bash
+```sh
 pip install -r requirements.txt
 ```
 
 Finally, we are ready to execute the script. In the main function uncomment the `load_entire_database` function call and run the script.
 
-```bash
+```sh
 python mongodb_pipeline.py
 ```
 
@@ -286,11 +286,11 @@ To get a sense of what we accomplished let's examine what the unstructured data 
 
 This is a typical way data is structured in a NoSQL database. The data is in a JSON-like format and contains nested data. Now, let's look at what is loaded in BigQuery. Below you can see the same data in BigQuery.
 
-![BigQuery Data Overview](/img/dlt_holistics_bigquery_data.png)
+![BigQuery Data Overview](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_bigquery_data.png)
 
 The ddl (data definition language) for the movies table in BigQuery can be seen below:
 
-```json
+```sql
 CREATE TABLE `dlthub-analytics.mongo_database.movies`
 (
   _id STRING NOT NULL,
@@ -336,11 +336,11 @@ CREATE TABLE `dlthub-analytics.mongo_database.movies`
 
 If you compare the ddl against the sample document in MongoDB you will notice that the nested arrays such as **CAST** are missing from the ddl in BigQuery. This is because of how dlt handles nested arrays. If we look at our database in BigQuery you can see the **CAST** is loaded as a separate table.
 
-![BigQuery Table Overview](/img/dlt_holistics_bigquery_table.png)
+![BigQuery Table Overview](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_bigquery_table.png)
 
 `dlt` normalises nested data by populating them in separate tables and creates relationships between the tables, so they can be combined together using normal SQL joins. All this is taken care of by `dlt` and we need not worry about how transformations are handled. In short, the transformation steps we discussed in [Why is dlt useful when you want to ingest data from a production database such as MongoDB?](#why-is-dlt-useful-when-you-want-to-ingest-data-from-a-production-database-such-as-mongodb) are taken care of by dlt, making the data analyst's life easier.
 
-To better understand how `dlt` does this transformation, refer to the [docs](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#child-and-parent-tables).
+To better understand how `dlt` does this transformation, refer to the [docs](/general-usage/destination-tables#child-and-parent-tables).
 
 ### 3. Self-service analytics for MongoDB with Holistics.
 
@@ -352,9 +352,9 @@ We took care of the data ingestion step in the previous section. We can now conn
 
 In Holistics, add a new data source click on the plus sign (+) on the top menu, and then select **Connect Data Sources.** Select **New Data Sources** and in the database type select Google BigQuery. We need to provide the service account credentials that were generated above when we connected `dlt` to BigQuery. For more detailed instructions on connecting BigQuery to Hollistics refer to this [guide](https://docs.holistics.io/docs/connect/databases/bigquery).
 
-Once the BigQuery source is added we are ready to import the schemas from BigQuery into Holistics. The schema(`dataset_name`)  name under which dlt loaded the MongoDB data is defined in the `load_entire_database` function when we create the MongoDB pipeline. 
+Once the BigQuery source is added we are ready to import the schemas from BigQuery into Holistics. The schema(`dataset_name`)  name under which dlt loaded the MongoDB data is defined in the `load_entire_database` function when we create the MongoDB pipeline.
 
-```bash
+```sh
 # Create a pipeline
 pipeline = dlt.pipeline(
     pipeline_name="local_mongo",
@@ -365,7 +365,7 @@ pipeline = dlt.pipeline(
 
 ### 4. Modeling the Data and Relationships with Holistics.
 
-To use the data, we will define a data model and the join paths that Holistics can use to build the semantic datasets. 
+To use the data, we will define a data model and the join paths that Holistics can use to build the semantic datasets.
 
 **[A data model is an abstract view on top of a physical database table](https://www.holistics.io/books/setup-analytics/data-modeling-layer-and-concepts/)** that you may manipulate without directly affecting the underlying data. It allows you to store additional metadata that may enrich the underlying data in the data table.
 
@@ -375,11 +375,11 @@ In Holistics, go to the **Modelling 4.0** section from the top bar. We will be g
 
 Under the Models folder, let's add the MongoDB data from BigQuery as Table Models. Hover over the Models folder and click on the (+) sign then select **Add Table Model.** In the **Data Sources** select the BigQuery Source we created before and then select the relevant table models to import into Holistics. In this case, we are importing the `movies`, `movies_cast` and `movies_directors` tables.
 
-![Holistics Add Model](/img/holistics_add_model.png)
+![Holistics Add Model](https://storage.googleapis.com/dlt-blog-images/holistics_add_model.png)
 
 #### **Adding Holistics Dataset(s) and Relationships:**
 
-After the Data Models have been added, we can create a Dataset with these models and use them for reporting. 
+After the Data Models have been added, we can create a Dataset with these models and use them for reporting.
 
 :::info
 A [Dataset](https://docs.holistics.io/docs/datasets) is a "container" holding several [Data Models](https://docs.holistics.io/docs/data-model) together so they can be explored together, and dictating which join path to be used in a particular analytics use case.
@@ -389,23 +389,23 @@ Datasets works like a data marts, except that it exists only on the semantic lay
 
 Hover over the Datasets folder, click on the (+) sign, and then select **Add Datasets.** Select the previously created Table Models under this dataset, and **Create Dataset**.
 
-![Holistics Create Dataset](/img/holistics_add_dataset.png)
+![Holistics Create Dataset](https://storage.googleapis.com/dlt-blog-images/holistics_add_dataset.png)
 
-We will then be asked to create relationships between the models. We create a **Many-to-one (n - 1)** relationship between the `cast` and the `movies` models.   
+We will then be asked to create relationships between the models. We create a **Many-to-one (n - 1)** relationship between the `cast` and the `movies` models.
 
-![Add Relationship between Models](/img/holistics_add_relationship.png)
+![Add Relationship between Models](https://storage.googleapis.com/dlt-blog-images/holistics_add_relationship.png)
 
 The resulting relationship can seen As Code using the Holistics 4.0 Analytics as Code feature. To activate this feature click on the newly created dataset and select the **View as Code** option from the top right. For more detailed instructions on setting up relationships between models refer to the model relationship [guide](https://docs.holistics.io/docs/relationships#automatic-relationship-creation).
 
 Previously, we created the relationship between the `cast` and the `movies` tables using GUI, now let’s add the relationship between the `directors` and `movies` tables using the Analytics as Code feature. In the `dataset.aml` file append the relationships block with the following line of code:
 
-```python
+```py
 relationship(model__mongo_database_movies_directors.dlt_parent_id > model__mongo_database_movies.dlt_id, true)
 ```
 
 After the change, the `dataset.aml` file should look like this:
 
-```python
+```sh
 import '../Models/mongo_database_movies.model.aml' {
   mongo_database_movies as model__mongo_database_movies
 }
@@ -426,7 +426,7 @@ Dataset movies {
     model__mongo_database_movies_directors
   ]
   relationships: [
-    relationship(model__mongo_database_movies_cast.dlt_parent_id > model__mongo_database_movies.dlt_id, true), 
+    relationship(model__mongo_database_movies_cast.dlt_parent_id > model__mongo_database_movies.dlt_id, true),
     relationship(model__mongo_database_movies_directors.dlt_parent_id > model__mongo_database_movies.dlt_id, true)
     ]
   owner: 'zaeem@dlthub.com'
@@ -435,27 +435,27 @@ Dataset movies {
 
 The corresponding view for the `dataset.aml` file in the GUI looks like this:
 
-![Add Relationship GUI](/img/holistics_relationship_gui.png)
+![Add Relationship GUI](https://storage.googleapis.com/dlt-blog-images/holistics_relationship_gui.png)
 
-Once the relationships between the tables have been defined we are all set to create some visualizations. We can select the **Preview** option from next to the View as Code toggle to create some visualization in the development mode. This comes in handy if we have connected an external git repository to track our changes, this way we could test out the dataset in preview mode before committing and pushing changes, and deploying the dataset to production. 
+Once the relationships between the tables have been defined we are all set to create some visualizations. We can select the **Preview** option from next to the View as Code toggle to create some visualization in the development mode. This comes in handy if we have connected an external git repository to track our changes, this way we could test out the dataset in preview mode before committing and pushing changes, and deploying the dataset to production.
 
 In the current scenario, we will just directly deploy the dataset to production as we have not integrated a Git Repository. For more information on connecting a Git Repository refer to the Holistics [docs](https://docs.holistics.io/as-code/git-version-control/external-git).
 
-The Movies dataset should now be available in the Reporting section. We will create a simple visualization that shows the workload of the cast and directors. In simple words, **How many movies did an actor or director work on in a single year?** 
+The Movies dataset should now be available in the Reporting section. We will create a simple visualization that shows the workload of the cast and directors. In simple words, **How many movies did an actor or director work on in a single year?**
 
 #### **Visualization and Self-Service Analytics with Holistics:**
 
 The visualization part is pretty self-explanatory and is mostly drag and drop as we took the time to define the relationships between the tables. Below we create a simple table in Holistics that shows the actors that have appeared in most movies since the year 2000.
 
-![Holistics Create Visualization](/img/Holistics_new.gif)
+![Holistics Create Visualization](https://storage.googleapis.com/dlt-blog-images/Holistics_new.gif)
 
 Similarly, we can add other reports and combine them into a dashboard. The resulting dashboard can be seen below:
 
-![Holistics Dashboard](/img/holistics_dashboard.png)
+![Holistics Dashboard](https://storage.googleapis.com/dlt-blog-images/holistics_dashboard.png)
 
 ## Conclusion
 
-In this blog, we have introduced a modern data stack that uses `dlt` and **Holistics** to address the MongoDB data accessibility issue. 
+In this blog, we have introduced a modern data stack that uses `dlt` and **Holistics** to address the MongoDB data accessibility issue.
 
 We leverage **`dlt`**, to extract, normalize, create schemas, and load data into BigQuery, making it more structured and accessible. Additionally, **Holistics** provides the means to transform and model this data, adding relationships between various datasets, and ultimately enabling self-service analytics for the broader range of stakeholders in the organization.
 
@@ -464,7 +464,7 @@ This modern data stack offers an efficient and effective way to bridge the gap b
 ## Additional Resources:
 
 - Want to discuss `dlt`? Join the `dlt` [Slack Community](https://dlthub.com/community)
-- Check out our friends over at [Holistics](https://www.holistics.io/). 
+- Check out our friends over at [Holistics](https://www.holistics.io/).
 - [`dlt` MongoDB Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/mongodb).
 - Holistics 4.0: [Analytics as Code](https://docs.holistics.io/as-code/get-started).
 - Holistics: [Data Modelling.](https://docs.holistics.io/docs/modeling/)

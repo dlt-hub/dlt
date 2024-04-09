@@ -16,6 +16,7 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.data_types import TDataType
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
@@ -81,7 +82,11 @@ class DatabricksTypeMapper(TypeMapper):
             return "SMALLINT"
         if precision <= 32:
             return "INT"
-        return "BIGINT"
+        if precision <= 64:
+            return "BIGINT"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into databricks integer type"
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None

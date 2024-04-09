@@ -21,7 +21,7 @@ def _configure(config: DummyClientConfiguration = config.value) -> DummyClientCo
 def capabilities() -> DestinationCapabilitiesContext:
     config = _configure()
     additional_formats: List[TLoaderFileFormat] = (
-        ["reference"] if config.create_followup_jobs else []
+        ["reference"] if config.create_followup_jobs else []  # type:ignore[list-item]
     )
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = config.loader_file_format

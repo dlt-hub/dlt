@@ -4,7 +4,7 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
-from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat
 
 
 @configspec
@@ -27,7 +27,7 @@ class PipelineConfiguration(BaseConfiguration):
     full_refresh: bool = False
     """When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
     progress: Optional[str] = None
-    runtime: RunConfiguration
+    runtime: RunConfiguration = None
 
     def on_resolved(self) -> None:
         if not self.pipeline_name:

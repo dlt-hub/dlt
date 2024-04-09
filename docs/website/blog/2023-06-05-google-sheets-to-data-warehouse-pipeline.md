@@ -1,7 +1,7 @@
 ---
 slug: google-sheets-to-data-warehouse-pipeline
 title: Using the Google Sheets `dlt` pipeline in analytics and ML workflows
-image: /img/experiment4-blog-image.png
+image: https://storage.googleapis.com/dlt-blog-images/experiment4-blog-image.png
 authors:
   name: Rahul Joshi
   title: Data Science Intern at dltHub
@@ -23,13 +23,13 @@ As an example of such a use-case, consider this very common scenario: You're the
 
 To demonstrate this process,  we created some sample data where we stored costs related to some campaigns in a Google Sheet and and the rest of the related data in BigQuery.  
 
-![campaign-roi-google-sheets](/img/experiment4-campaign-roi-google-sheets.png) ![campaign-roi-data-warehouse](/img/experiment4-campaign-roi-datawarehouse.png) 
+![campaign-roi-google-sheets](https://storage.googleapis.com/dlt-blog-images/experiment4-campaign-roi-google-sheets.png) ![campaign-roi-data-warehouse](https://storage.googleapis.com/dlt-blog-images/experiment4-campaign-roi-datawarehouse.png) 
 
 We then used the `dlt` google sheets pipeline by following [these](https://github.com/dlt-hub/google-sheets-bigquery-pipeline) simple steps to load the Google Sheets data into BigQuery.
 
 With the data loaded, we finally connected Metabase to the data warehouse and created a dashboard to understand the ROIs across each platform:
-![campaign-roi-dashboard-1](/img/experiment4-campaign-roi-dashboard-1.png)  
-![campaign-roi-dashboard-2](/img/experiment4-campaign-roi-dashboard-2.png)  
+![campaign-roi-dashboard-1](https://storage.googleapis.com/dlt-blog-images/experiment4-campaign-roi-dashboard-1.png)  
+![campaign-roi-dashboard-2](https://storage.googleapis.com/dlt-blog-images/experiment4-campaign-roi-dashboard-2.png)  
 
 ## Use-case #2: Evaluating the performance of your ML product using google sheets pipeline
 
@@ -37,13 +37,13 @@ Another use-case for Google Sheets that we've come across frequently is to store
 
 A very common example for such a workflow is with customer support platforms that use text classfication models to categorize incoming customer support tickets into different issue categories for an efficient routing and resolution of the tickets. To illustrate this example, we created a Google Sheet with issues manually annotated with a category. We also included other manually annotated features that might help measure the effectiveness of the platform, such as priority level for the tickets and customer feedback.
 
-![customer-support-platform-google-sheets](/img/experiment4-customer-support-platform-google-sheets.png)
+![customer-support-platform-google-sheets](https://storage.googleapis.com/dlt-blog-images/experiment4-customer-support-platform-google-sheets.png)
 
 We then populated a BigQuery dataset with potential product usage data, such as: the status of the ticket (open or closed), response and resolution times, whether the ticket was escalated etc.
-![customer-support-platform-data-warehouse](/img/experiment4-customer-support-platform-data-warehouse.png)  
+![customer-support-platform-data-warehouse](https://storage.googleapis.com/dlt-blog-images/experiment4-customer-support-platform-data-warehouse.png)  
 
 Then, as before, we loaded the google sheets data to the data warehouse using the `dlt` google sheets pipeline and following [these](https://github.com/dlt-hub/google-sheets-bigquery-pipeline) steps.  
   
 Finally we connected Metabase to it and built a dashboard measuring the performance of the model over the period of a month:
 
-![customer-support-platform-dashboard](/img/experiment4-customer-support-platform-dashboard.png) 
+![customer-support-platform-dashboard](https://storage.googleapis.com/dlt-blog-images/experiment4-customer-support-platform-dashboard.png) 

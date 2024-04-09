@@ -124,7 +124,7 @@ As with any other exception coming from pipeline run, it will be re-raised via `
 ```py
 try:
   pipeline.run()
-except Exception as pip_ex:
+except PipelineStepFailed as pip_ex:
   if pip_ex.step == "normalize":
     if isinstance(pip_ex.__context__.__context__, DataValidationError):
       ...

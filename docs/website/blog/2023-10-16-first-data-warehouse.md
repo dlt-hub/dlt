@@ -1,7 +1,7 @@
 ---
 slug: first-data-warehouse
 title: "Your first data warehouse: A practical approach"
-image: /img/oil-painted-dashboard.png
+image: https://storage.googleapis.com/dlt-blog-images/oil-painted-dashboard.png
 authors:
   name: Adrian Brudaru
   title: Open source data engineer
@@ -15,7 +15,7 @@ tags: [first data warehouse]
 
 Building a data warehouse is a complex endeavor, often too intricate to navigate flawlessly in the initial attempt. In this article, we'll provide insights and pointers to guide you in choosing the right stack for your data warehouse.
 
-![hard coded dashboard](/img/oil-painted-dashboard.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/oil-painted-dashboard.png)
 
 
 
@@ -75,7 +75,7 @@ For those new to pushing data via an API, it may seem intimidating.
 Let's simplify - sending data to an API endpoint for loading or updating an object is similar to making a `GET` request.
 Here's a straightforward example in Python:
 
-```python
+```py
 # Assuming data is in this format
 import requests
 # assume we have a table of contacts we want to push to Pipedrive.

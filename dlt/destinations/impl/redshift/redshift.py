@@ -1,6 +1,7 @@
 import platform
 import os
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 
 from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
@@ -92,7 +93,11 @@ class RedshiftTypeMapper(TypeMapper):
             return "smallint"
         elif precision <= 32:
             return "integer"
-        return "bigint"
+        elif precision <= 64:
+            return "bigint"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into postgres integer type"
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]

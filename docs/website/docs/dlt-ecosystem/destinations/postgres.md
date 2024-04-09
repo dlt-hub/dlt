@@ -78,8 +78,18 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default).
 
+### Fast loading with arrow tables and csv
+You can use [arrow tables](../verified-sources/arrow-pandas.md) and [csv](../file-formats/csv.md) to quickly load tabular data. Pick the `csv` loader file format
+like below
+```py
+info = pipeline.run(arrow_table, loader_file_format="csv")
+```
+In the example above `arrow_table` will be converted to csv with **pyarrow** and then streamed into **postgres** with COPY command. This method skips the regular
+`dlt` normalizer used for Python objects and is several times faster.
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
+* [csv](../file-formats/csv.md) is supported
 
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
@@ -97,14 +107,5 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-po
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
-<!--@@@DLT_SNIPPET_START tuba::postgres-->
-## Additional Setup Guides
+<!--@@@DLT_TUBA postgres-->
 
-- [Load data from HubSpot to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-postgres)
-- [Load data from GitHub to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
-- [Load data from Chess.com to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
-- [Load data from Notion to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
-- [Load data from Google Analytics to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-postgres)
-- [Load data from Google Sheets to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
-- [Load data from Stripe to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
-<!--@@@DLT_SNIPPET_END tuba::postgres-->

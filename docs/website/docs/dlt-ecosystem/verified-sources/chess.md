@@ -3,14 +3,11 @@ title: Chess.com
 description: dlt verified source for Chess.com API
 keywords: [chess.com api, chess.com verified source, verified source, chess.com, chess]
 ---
+import Header from './_source-info-header.md';
 
 # Chess.com
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Chess.com](https://www.chess.com/) is an online platform that offers services for chess
 enthusiasts. It includes online chess games, tournaments, lessons, and more.
@@ -127,7 +124,9 @@ def players_profiles(players: List[str]) -> Iterator[TDataItem]:
     @dlt.defer
     def _get_profile(username: str) -> TDataItem:
         return get_path_with_retry(f"player/{username}")
-    ...
+    
+    for username in players:
+        yield _get_profile(username)
 ```
 
 `players`: Is a list of player usernames for which you want to fetch profile data.
@@ -158,10 +157,10 @@ specified otherwise.
 @dlt.resource(write_disposition="append")
 def players_games(
     players: List[str], start_month: str = None, end_month: str = None
-) -> Iterator[Callable[[], List[TDataItem]]]:
+) -> Iterator[TDataItems]:
     # gets a list of already checked(loaded) archives.
     checked_archives = dlt.current.resource_state().setdefault("archives", [])
-    ...
+    yield {}  # return your retrieved data here
 ```
 
 `players`: Is a list of player usernames for which you want to fetch games.
@@ -225,16 +224,5 @@ To create your data loading pipeline for players and load data, follow these ste
    print(info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::chess-->
-## Additional Setup guides
+<!--@@@DLT_TUBA chess-->
 
-- [Load data from Chess.com to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-athena)
-- [Load data from Chess.com to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
-- [Load data from Chess.com to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-mssql)
-- [Load data from Chess.com to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-bigquery)
-- [Load data from Chess.com to Redshift in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-redshift)
-- [Load data from Chess.com to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-duckdb)
-- [Load data from Chess.com to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-synapse)
-- [Load data from Chess.com to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-snowflake)
-- [Load data from Chess.com to Databricks in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-databricks)
-<!--@@@DLT_SNIPPET_END tuba::chess-->

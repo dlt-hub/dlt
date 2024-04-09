@@ -49,6 +49,9 @@ from dlt.common.versioned_state import (
 )
 from typing_extensions import NotRequired
 
+TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
+"""Loader file formats with internal job types"""
+
 
 class TLoadPackageState(TVersionedState, total=False):
     created_at: str
@@ -67,7 +70,7 @@ class TLoadPackage(TypedDict, total=False):
 
 
 # allows to upgrade state when restored with a new version of state logic/schema
-LOADPACKAGE_STATE_ENGINE_VERSION = 1
+LOAD_PACKAGE_STATE_ENGINE_VERSION = 1
 
 
 def generate_loadpackage_state_version_hash(state: TLoadPackageState) -> str:
@@ -97,7 +100,7 @@ def migrate_load_package_state(
 def default_load_package_state() -> TLoadPackageState:
     return {
         **default_versioned_state(),
-        "_state_engine_version": LOADPACKAGE_STATE_ENGINE_VERSION,
+        "_state_engine_version": LOAD_PACKAGE_STATE_ENGINE_VERSION,
     }
 
 
@@ -116,7 +119,7 @@ class ParsedLoadJobFileName(NamedTuple):
     table_name: str
     file_id: str
     retry_count: int
-    file_format: TLoaderFileFormat
+    file_format: TJobFileFormat
 
     def job_id(self) -> str:
         """Unique identifier of the job"""
@@ -138,7 +141,7 @@ class ParsedLoadJobFileName(NamedTuple):
             raise TerminalValueError(parts)
 
         return ParsedLoadJobFileName(
-            parts[0], parts[1], int(parts[2]), cast(TLoaderFileFormat, parts[3])
+            parts[0], parts[1], int(parts[2]), cast(TJobFileFormat, parts[3])
         )
 
     @staticmethod
@@ -210,7 +213,7 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
 
     @property
     def schema_hash(self) -> str:
-        return self.schema.stored_version_hash
+        return self.schema.version_hash
 
     def asdict(self) -> DictStrAny:
         d = self._asdict()
@@ -471,7 +474,7 @@ class PackageStorage:
             state_dump = self.storage.load(self.get_load_package_state_path(load_id))
             state = json.loads(state_dump)
             return migrate_load_package_state(
-                state, state["_state_engine_version"], LOADPACKAGE_STATE_ENGINE_VERSION
+                state, state["_state_engine_version"], LOAD_PACKAGE_STATE_ENGINE_VERSION
             )
         except FileNotFoundError:
             return default_load_package_state()
@@ -594,7 +597,7 @@ class PackageStorage:
             FileStorage.validate_file_name_component(table_name)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if loader_file_format:
-            format_spec = DataWriter.data_format_from_file_format(loader_file_format)
+            format_spec = DataWriter.writer_spec_from_file_format(loader_file_format, "object")
             return fn + f".{format_spec.file_extension}"
         return fn
 
@@ -627,8 +630,8 @@ class PackageStorage:
 
 @configspec
 class LoadPackageStateInjectableContext(ContainerInjectableContext):
-    storage: PackageStorage
-    load_id: str
+    storage: PackageStorage = None
+    load_id: str = None
     can_create_default: ClassVar[bool] = False
     global_affinity: ClassVar[bool] = False
 
@@ -639,10 +642,6 @@ class LoadPackageStateInjectableContext(ContainerInjectableContext):
     def on_resolved(self) -> None:
         self.state_save_lock = threading.Lock()
         self.state = self.storage.get_load_package_state(self.load_id)
-
-    if TYPE_CHECKING:
-
-        def __init__(self, load_id: str, storage: PackageStorage) -> None: ...
 
 
 def load_package() -> TLoadPackage:

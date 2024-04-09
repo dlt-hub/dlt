@@ -1,3 +1,4 @@
+from pathlib import Path
 from urllib.parse import urlparse
 import pytest
 import gzip
@@ -6,7 +7,9 @@ from fsspec import AbstractFileSystem
 
 from dlt.common import pendulum, json
 from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.data_writers import DataWriter
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages import (
     LoadStorageConfiguration,
     FilesystemConfiguration,
@@ -14,15 +17,16 @@ from dlt.common.storages import (
     TJobState,
     LoadStorage,
 )
+from dlt.common.storages import DataItemStorage, FileStorage
 from dlt.common.storages.fsspec_filesystem import FileItem, FileItemDict
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
 
 
 @pytest.fixture
 def load_storage() -> LoadStorage:
     C = resolve_configuration(LoadStorageConfiguration())
-    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS, C)
+    s = LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, C)
     return s
 
 
@@ -98,13 +102,41 @@ def assert_sample_files(
             assert item["encoding"] == "gzip"
 
 
+def write_temp_job_file(
+    item_storage: DataItemStorage,
+    file_storage: FileStorage,
+    load_id: str,
+    table_name: str,
+    table: TTableSchemaColumns,
+    file_id: str,
+    rows: TDataItems,
+) -> str:
+    """Writes new file into new packages "new_jobs". Intended for testing"""
+    file_name = (
+        item_storage._get_data_item_path_template(load_id, None, table_name) % file_id
+        + "."
+        + item_storage.writer_spec.file_extension
+    )
+    mode = "wb" if item_storage.writer_spec.is_binary_format else "w"
+    with file_storage.open_file(file_name, mode=mode) as f:
+        writer = DataWriter.from_file_format(
+            item_storage.writer_spec.file_format, item_storage.writer_spec.data_item_format, f
+        )
+        writer.write_all(table, rows)
+        writer.close()
+    return Path(file_name).name
+
+
 def start_loading_file(
     s: LoadStorage, content: Sequence[StrAny], start_job: bool = True
 ) -> Tuple[str, str]:
     load_id = uniq_id()
     s.new_packages.create_package(load_id)
     # write test file
-    file_name = s._write_temp_job_file(load_id, "mock_table", None, uniq_id(), content)
+    item_storage = s.create_item_storage("jsonl", "object")
+    file_name = write_temp_job_file(
+        item_storage, s.storage, load_id, "mock_table", None, uniq_id(), content
+    )
     # write schema and schema update
     s.new_packages.save_schema(load_id, Schema("mock"))
     s.new_packages.save_schema_updates(load_id, {})
