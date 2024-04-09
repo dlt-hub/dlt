@@ -14,9 +14,7 @@ from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlac
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(
-    FilesystemConfiguration, DestinationClientStagingConfiguration
-):  # type: ignore[misc]
+class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration):  # type: ignore[misc]
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="filesystem", init=False, repr=False, compare=False
     )
@@ -27,5 +25,5 @@ class FilesystemDestinationClientConfiguration(
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         # use known credentials or empty credentials for unknown protocol
         return (
-            self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]
-        )  # type: ignore[return-value]
+            self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
+        )

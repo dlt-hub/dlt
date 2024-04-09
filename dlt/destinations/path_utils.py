@@ -6,6 +6,7 @@ import pendulum
 from dlt.cli import echo as fmt
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout
+from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
 SUPPORTED_PLACEHOLDERS = {
@@ -168,7 +169,7 @@ def create_path(
     schema_name: str,
     load_id: str,
     load_package_timestamp: Optional[str] = None,
-    current_datetime: Optional[pendulum.DateTime] = None,
+    current_datetime: Optional[TCurrentDateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
     """create a filepath from the layout and our default params"""
