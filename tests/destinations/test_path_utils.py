@@ -5,6 +5,7 @@ import pendulum
 import pytest
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
+
 from dlt.destinations.path_utils import (
     check_layout,
     create_path,
@@ -12,7 +13,7 @@ from dlt.destinations.path_utils import (
 )
 
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
-from tests.common.storages.utils import start_loading_file
+from tests.common.storages.utils import start_loading_file, load_storage
 
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
