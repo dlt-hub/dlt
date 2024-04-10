@@ -1,4 +1,5 @@
-from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+from functools import lru_cache
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 from dlt.common import json
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
@@ -321,11 +322,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row["_dlt_load_id"] = load_id
         # determine if row hash should be used as dlt id
         row_hash = False
-        if table_name in self.schema.data_table_names():
-            table = self.schema.get_table(table_name)
-            if table.get("x-merge-strategy") == "scd2":
-                self._validate_validity_column_names(table, item)
-                row_hash = True
+        if self._is_scd2_table(self.schema, table_name):
+            row_hash = True
+            self._validate_validity_column_names(
+                self._get_validity_column_names(self.schema, table_name), item
+            )
         yield from self._normalize_row(
             cast(TDataItemRowChild, row),
             {},
@@ -366,9 +367,24 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         )
 
     @staticmethod
-    def _validate_validity_column_names(table: TTableSchema, item: TDataItem) -> None:
+    @lru_cache(maxsize=None)
+    def _is_scd2_table(schema: Schema, table_name: str) -> bool:
+        if table_name in schema.data_table_names():
+            if schema.get_table(table_name).get("x-merge-strategy") == "scd2":
+                return True
+        return False
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_validity_column_names(schema: Schema, table_name: str) -> List[Optional[str]]:
+        return get_validity_column_names(schema.get_table(table_name))
+
+    @staticmethod
+    def _validate_validity_column_names(
+        validity_column_names: List[Optional[str]], item: TDataItem
+    ) -> None:
         """Raises exception if configured validity column name appears in data item."""
-        for validity_column_name in get_validity_column_names(table):
+        for validity_column_name in validity_column_names:
             if validity_column_name in item.keys():
                 raise ColumnNameConflictException(
                     "Found column in data item with same name as validity column"
