@@ -174,7 +174,12 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
 
         file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
         clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
-        compression = "none" if config.get("data_writer.disable_compression") else "gz"
+        if file_extension == "parquet":
+            # Auto works for parquet
+            compression = "auto"
+        else:
+            # It does not work for json
+            compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         statement: str = ""
 
@@ -193,7 +198,6 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                 access_key_id = None
                 secret_access_key = None
 
-            clickhouse_format = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
             structure = "auto"
 
             template = Template("""
@@ -234,6 +238,10 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             statement = f"INSERT INTO {qualified_table_name} {table_function}"
         elif not bucket_path:
             # Local filesystem.
+            if file_extension == "parquet":
+                compression = "auto"
+            else:
+                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
                 with clickhouse_connect.create_client(
                     host=client.credentials.host,
@@ -252,7 +260,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                             "allow_experimental_lightweight_delete": 1,
                             "allow_experimental_object_type": 1,
                         },
-                        compression=None if compression == "none" else compression,
+                        compression=compression,
                     )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
