@@ -206,6 +206,21 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
         https://docs.github.com/en/rest/guides/traversing-with-pagination
 
     Example:
+        Consider an API response that includes 'Link' header:
+
+        ...
+        Content-Type: application/json
+        Link: <https://api.example.com/items?page=2>; rel="next", <https://api.example.com/items?page=1>; rel="prev"
+
+        {
+            "items": [...]
+        }
+
+        In this scenario, the URL for the next page (`https://api.example.com/items?page=2`)
+        is identified by its relation type `rel="next"`.
+        `HeaderLinkPaginator` extracts this URL from the 'Link' header and uses it to
+        fetch the next page of results:
+
         >>> from dlt.sources.helpers.rest_client import RESTClient
         >>> client = RESTClient(
         ...     base_url="https://api.github.com",
