@@ -48,6 +48,9 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
                 p for p in self.extra_placeholders.keys() if p not in layout_placeholders
             ]
             if unused_placeholders:
-                fmt.secho(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
+                fmt.secho(
+                    f"Found unused layout placeholders: {', '.join(unused_placeholders)}",
+                    fg="yellow",
+                )
 
         return super().on_resolved()
