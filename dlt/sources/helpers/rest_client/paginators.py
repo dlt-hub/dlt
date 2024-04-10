@@ -71,24 +71,35 @@ class OffsetPaginator(BasePaginator):
     through offset and limit query parameters and the total count of items
     is returned in the response.
 
-    Example:
-        Assuming an API at `https://api.example.com/items` supports offset
-        and limit for pagination, and includes the total count in its responses
-        e.g. (`{"items": [...], "total": 1000}`), we can create a client
-        with an `OffsetPaginator` like this:
+    For example, consider an API located at `https://api.example.com/items`
+    that supports pagination through offset and limit, and provides the total
+    item count in its responses, as shown below:
 
-        >>> from dlt.sources.helpers.rest_client import RESTClient
-        >>> client = RESTClient(
-        ...     base_url="https://api.example.com",
-        ...     paginator=OffsetPaginator(
-        ...         initial_limit=100,
-        ...         total_path="total"
-        ...     )
-        ... )
-        >>> @dlt.resource
-        ... def get_items():
-        ...     for page in client.paginate("/items", params={"limit": 100}):
-        ...         yield page
+        {
+            "items": [...],
+            "total": 1000
+        }
+
+    To use `OffsetPaginator` with such an API, you can instantiate `RESTClient`
+    as follows:
+
+        from dlt.sources.helpers.rest_client import RESTClient
+
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=OffsetPaginator(
+                initial_limit=100,
+                total_path="total"
+            )
+        )
+        @dlt.resource
+        def get_items():
+            for page in client.paginate("/items", params={"limit": 100}):
+                yield page
+
+    Note that we pass the `limit` parameter in the initial request to the API.
+    The `OffsetPaginator` will automatically increment the offset for each
+    subsequent request until all items are fetched.
     """
 
     def __init__(
@@ -205,31 +216,32 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
     A good example of this is the GitHub API:
         https://docs.github.com/en/rest/guides/traversing-with-pagination
 
-    Example:
-        Consider an API response that includes 'Link' header:
+    For example, consider an API response that includes 'Link' header:
 
         ...
         Content-Type: application/json
         Link: <https://api.example.com/items?page=2>; rel="next", <https://api.example.com/items?page=1>; rel="prev"
 
-        {
-            "items": [...]
-        }
+        [
+            {"id": 1, "name": "item1"},
+            {"id": 2, "name": "item2"},
+            ...
+        ]
 
-        In this scenario, the URL for the next page (`https://api.example.com/items?page=2`)
-        is identified by its relation type `rel="next"`.
-        `HeaderLinkPaginator` extracts this URL from the 'Link' header and uses it to
-        fetch the next page of results:
+    In this scenario, the URL for the next page (`https://api.example.com/items?page=2`)
+    is identified by its relation type `rel="next"`. `HeaderLinkPaginator` extracts
+    this URL from the 'Link' header and uses it to fetch the next page of results:
 
-        >>> from dlt.sources.helpers.rest_client import RESTClient
-        >>> client = RESTClient(
-        ...     base_url="https://api.github.com",
-        ...     paginator=HeaderLinkPaginator()
-        ... )
-        >>> @dlt.resource
-        ... def get_issues():
-        ...     for page in client.paginate("/repos/dlt-hub/dlt/issues"):
-        ...         yield page
+        from dlt.sources.helpers.rest_client import RESTClient
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=HeaderLinkPaginator()
+        )
+
+        @dlt.resource
+        def get_issues():
+            for page in client.paginate("/items"):
+                yield page
     """
 
     def __init__(self, links_next_key: str = "next") -> None:
@@ -250,22 +262,34 @@ class JSONResponsePaginator(BaseNextUrlPaginator):
     """Locates the next page URL within the JSON response body. The key
     containing the URL can be specified using a JSON path.
 
-    Example:
-        Suppose the JSON response from an API contains a 'pagination' object
-        with a 'next' key like this:
-        `{"items": [...], "pagination": {"next": "https://api.example.com/items?page=2"}}`.
+    For example, suppose the JSON response from an API contains data items
+    along with a 'pagination' object:
 
-        We can create a client with a `JSONResponsePaginator` this way:
+        {
+            "items": [
+                {"id": 1, "name": "item1"},
+                {"id": 2, "name": "item2"},
+                ...
+            ],
+            "pagination": {
+                "next": "https://api.example.com/items?page=2"
+            }
+        }
 
-        >>> from dlt.sources.helpers.rest_client import RESTClient
-        >>> client = RESTClient(
-        ...     base_url="https://api.example.com",
-        ...     paginator=JSONResponsePaginator(next_url_path="pagination.next")
-        ... )
-        >>> @dlt.resource
-        ... def get_data():
-        ...     for page in client.paginate("/posts"):
-        ...         yield page
+    The link to the next page (`https://api.example.com/items?page=2`) is
+    located in the 'next' key of the 'pagination' object. You can use
+    `JSONResponsePaginator` to paginate through the API endpoint:
+
+        from dlt.sources.helpers.rest_client import RESTClient
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=JSONResponsePaginator(next_url_path="pagination.next")
+        )
+
+        @dlt.resource
+        def get_data():
+            for page in client.paginate("/posts"):
+                yield page
     """
 
     def __init__(
@@ -291,26 +315,40 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
     """Uses a cursor parameter for pagination, with the cursor value found in
     the JSON response body.
 
-    Example:
-        Suppose the JSON response from an API contains a 'cursors' object with
-        a 'next' key like this:
-        `{"items": [...], "cursors": {"next": "eyJpZCI6MjM0fQ"}}` and the API
-        expects a 'cursor' query parameter to fetch the next page.
+    For example, suppose the JSON response from an API contains
+    a 'cursors' object:
 
-        We can create a client with a `JSONResponseCursorPaginator` this way:
+        {
+            "items": [
+                {"id": 1, "name": "item1"},
+                {"id": 2, "name": "item2"},
+                ...
+            ],
+            "cursors": {
+                "next": "aW1wb3J0IGFudGlncmF2aXR5"
+            }
+        }
 
-        >>> from dlt.sources.helpers.rest_client import RESTClient
-        >>> client = RESTClient(
-        ...     base_url="https://api.example.com",
-        ...     paginator=JSONResponseCursorPaginator(
-        ...         cursor_path="cursors.next",
-        ...         cursor_param="cursor"
-        ...     )
-        ... )
-        >>> @dlt.resource
-        ... def get_data():
-        ...     for page in client.paginate("/posts"):
-        ...         yield page
+    And the API endpoint expects a 'cursor' query parameter to fetch
+    the next page. So the URL for the next page would look
+    like `https://api.example.com/items?cursor=aW1wb3J0IGFudGlncmF2aXR5`.
+
+    You can paginate through this API endpoint using
+    `JSONResponseCursorPaginator`:
+
+        from dlt.sources.helpers.rest_client import RESTClient
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=JSONResponseCursorPaginator(
+                cursor_path="cursors.next",
+                cursor_param="cursor"
+            )
+        )
+
+        @dlt.resource
+        def get_data():
+            for page in client.paginate("/posts"):
+                yield page
     """
 
     def __init__(
