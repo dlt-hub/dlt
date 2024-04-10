@@ -13,6 +13,7 @@ class BasePaginator(ABC):
 
     See `RESTClient.paginate()` for example usage.
     """
+
     def __init__(self) -> None:
         self._has_next_page = True
 
@@ -89,6 +90,7 @@ class OffsetPaginator(BasePaginator):
         ...     for page in client.paginate("/items", params={"limit": 100}):
         ...         yield page
     """
+
     def __init__(
         self,
         initial_limit: int,
@@ -176,6 +178,16 @@ class BaseReferencePaginator(BasePaginator):
 
 
 class BaseNextUrlPaginator(BaseReferencePaginator):
+    """
+    A base paginator class for paginators that use a URL provided in the API
+    response to fetch the next page. For example, the URL can be found in HTTP
+    headers or in the JSON response.
+
+    Subclasses should implement the `update_state` method to extract the next
+    page URL and set the `next_reference` attribute accordingly.
+
+    See `HeaderLinkPaginator` and `JSONResponsePaginator` for examples.
+    """
     def update_request(self, request: Request) -> None:
         # Handle relative URLs
         if self._next_reference:
@@ -240,6 +252,7 @@ class JSONResponsePaginator(BaseNextUrlPaginator):
         ...     for page in client.paginate("/posts"):
         ...         yield page
     """
+
     def __init__(
         self,
         next_url_path: jsonpath.TJsonPath = "next",
@@ -284,6 +297,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
         ...     for page in client.paginate("/posts"):
         ...         yield page
     """
+
     def __init__(
         self,
         cursor_path: jsonpath.TJsonPath = "cursors.next",
