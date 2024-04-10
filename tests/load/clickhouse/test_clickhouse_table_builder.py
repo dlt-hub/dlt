@@ -20,7 +20,7 @@ def clickhouse_client(empty_schema: Schema) -> ClickHouseClient:
     creds = ClickHouseCredentials()
     return ClickHouseClient(
         empty_schema,
-        ClickHouseClientConfiguration(dataset_name=f"test_{uniq_id()}", credentials=creds),
+        ClickHouseClientConfiguration(credentials=creds)._bind_dataset_name(f"test_{uniq_id()}"),
     )
 
 
