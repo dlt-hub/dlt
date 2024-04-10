@@ -17,10 +17,8 @@ from dlt.destinations.path_utils import check_layout
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(
-    FilesystemConfiguration, DestinationClientStagingConfiguration
-):  # type: ignore[misc]
-    destination_type: Final[str] = dataclasses.field(  # type: ignore
+class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration):  # type: ignore[misc]
+    destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
         default="filesystem", init=False, repr=False, compare=False
     )
     current_datetime: Optional[TCurrentDateTime] = None
