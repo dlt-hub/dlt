@@ -9,13 +9,7 @@ from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesyste
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
-SUPPORTED_PLACEHOLDERS = {
-    "schema_name",
-    "table_name",
-    "load_id",
-    "file_id",
-    "ext",
-    "curr_date",
+DATETIME_PLACEHOLDERS = {
     "YYYY",
     "Y",
     "MMMM",  # January, February, March
@@ -33,8 +27,20 @@ SUPPORTED_PLACEHOLDERS = {
     "dd",  # Mo, Tu, We
     "d",  # 0-6
     "Q",  # quarter 1, 2, 3, 4
-    "timestamp",
 }
+
+SUPPORTED_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
+    {
+        "schema_name",
+        "table_name",
+        "load_id",
+        "file_id",
+        "ext",
+        "curr_date",
+        "timestamp",
+    }
+)
+
 
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
@@ -52,46 +58,17 @@ def prepare_datetime_params(
     # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
     now: pendulum.DateTime = current_datetime or pendulum.now()
-    # we need to preserve load package timestamp if it is given
-    # ideally it should always be given if not we take current datetime
     if load_package_timestamp:
-        timestamp = pendulum.parse(load_package_timestamp)
-    else:
-        timestamp = now
+        package_datetime = pendulum.parse(load_package_timestamp)
+        params["timestamp"] = str(int(package_datetime.timestamp()))  # type: ignore[union-attr]
 
     # Timestamp placeholder
-    params["timestamp"] = str(int(timestamp.timestamp()))  # type: ignore[union-attr]
 
     # Take date from timestamp as curr_date
     params["curr_date"] = str(now.date())
 
-    params["YYYY"] = now.format("Y")
-    params["Y"] = now.format("Y")
-    params["Q"] = "Q" + now.format("Q")
-
-    # month, day, hour and minute padded with 0
-    params["MMMM"] = now.format("MMMM")
-    params["MMM"] = now.format("MMM")
-    params["MM"] = now.format("MM")
-    params["M"] = now.format("M")
-
-    # Day of Month
-    params["DD"] = now.format("DD")  # 01, 02, 03
-    params["D"] = now.format("D")  # 1, 2, 3
-
-    # Hour in 24h format
-    params["HH"] = now.format("HH")
-    params["H"] = now.format("H")
-
-    # Minutes
-    params["mm"] = now.format("mm")
-    params["m"] = now.format("m")
-
-    # Day of week
-    params["dddd"] = now.format("dddd").lower()
-    params["ddd"] = now.format("ddd").lower()
-    params["dd"] = now.format("dd").lower()
-    params["d"] = now.format("d").lower()
+    for format_string in DATETIME_PLACEHOLDERS:
+        params[format_string] = now.format(format_string)
 
     return params
 
