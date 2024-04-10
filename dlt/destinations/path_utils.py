@@ -115,9 +115,9 @@ def prepare_params(
                     )
                 except TypeError:
                     fmt.secho(
-                        f"Extra placeholder {key} is callableCallable placeholder should accept"
-                        " parameters below`schema name`, `table name`, `load_id`, `file_id`,"
-                        " `extension` and `current_datetime`",
+                        f"Extra placeholder {key} is callableCallable placeholder should"
+                        " accept parameters below`schema name`, `table name`, `load_id`,"
+                        " `file_id` and an `extension`",
                         fg="red",
                     )
                     raise
