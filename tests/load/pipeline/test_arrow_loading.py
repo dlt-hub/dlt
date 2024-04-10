@@ -1,11 +1,11 @@
 from datetime import datetime  # noqa: I251
-from typing import Any, Union, List, Dict, Tuple, Literal
 import os
 
 import pytest
 import numpy as np
 import pyarrow as pa
 import pandas as pd
+import base64
 
 import dlt
 from dlt.common import pendulum
@@ -42,6 +42,7 @@ def test_load_arrow_item(
         "redshift",
         "databricks",
         "synapse",
+        "clickhouse",
     )  # athena/redshift can't load TIME columns
     include_binary = not (
         destination_config.destination in ("redshift", "databricks")
@@ -102,10 +103,16 @@ def test_load_arrow_item(
                 row[i] = row[i].tobytes()
 
     if destination_config.destination == "redshift":
-        # Binary columns are hex formatted in results
+        # Redshift needs hex string
         for record in records:
             if "binary" in record:
                 record["binary"] = record["binary"].hex()
+
+    if destination_config.destination == "clickhouse":
+        # Clickhouse needs base64 string
+        for record in records:
+            if "binary" in record:
+                record["binary"] = base64.b64encode(record["binary"]).decode("ascii")
 
     for row in rows:
         for i in range(len(row)):
