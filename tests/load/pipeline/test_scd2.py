@@ -41,7 +41,9 @@ def strip_timezone(ts: datetime) -> datetime:
         return ts.astimezone(tz=timezone.utc).replace(tzinfo=None)
 
 
-def get_table(pipeline: dlt.Pipeline, table_name: str, sort_column: str) -> List[Dict[str, Any]]:
+def get_table(
+    pipeline: dlt.Pipeline, table_name: str, sort_column: str, include_root_id: bool = True
+) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
     return sorted(
         [
@@ -50,7 +52,7 @@ def get_table(pipeline: dlt.Pipeline, table_name: str, sort_column: str) -> List
                 for k, v in r.items()
                 if not k.startswith("_dlt")
                 or k in DEFAULT_VALIDITY_COLUMN_NAMES
-                or k == "_dlt_root_id"
+                or (k == "_dlt_root_id" if include_root_id else False)
             }
             for r in load_tables_to_dicts(pipeline, table_name)[table_name]
         ],
@@ -113,6 +115,15 @@ def test_core_functionality(
         {"nk": 2, "c1": "bar", "c2": "bar" if simple else {"nc1": "bar"}},
     ]
     info = p.run(r(dim_snap))
+
+    # assert x-hints
+    table = p.default_schema.get_table("dim_test")
+    assert table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
+    assert table["columns"]["_dlt_valid_from"]["x-valid-from"]  # type: ignore[typeddict-item]
+    assert table["columns"]["_dlt_valid_to"]["x-valid-to"]  # type: ignore[typeddict-item]
+    assert table["columns"]["_dlt_id"]["x-row-hash"]  # type: ignore[typeddict-item]
+
+    # assert load results
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
     cname = "c2" if simple else "c2__nc1"
@@ -399,3 +410,56 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     with pytest.raises(PipelineStepFailed):
         p.run(r(dim_snap))
     assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_user_provided_row_hash(destination_config: DestinationTestConfiguration) -> None:
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+
+    @dlt.resource(
+        table_name="dim_test",
+        write_disposition={
+            "mode": "merge",
+            "strategy": "scd2",
+            "row_hash_column_name": "row_hash",
+        },
+    )
+    def r(data):
+        yield data
+
+    # load 1 — initial load
+    dim_snap: List[Dict[str, Any]] = [
+        {"nk": 1, "c1": "foo", "c2": [1], "row_hash": "mocked_hash_1"},
+        {"nk": 2, "c1": "bar", "c2": [2, 3], "row_hash": "mocked_hash_2"},
+    ]
+    info = p.run(r(dim_snap))
+    ts_1 = get_load_package_created_at(p, info)
+    table = p.default_schema.get_table("dim_test")
+    assert table["columns"]["row_hash"]["x-row-hash"]  # type: ignore[typeddict-item]
+    assert "x-row-hash" not in table["columns"]["_dlt_id"]
+
+    # load 2 — update and delete a record
+    dim_snap = [
+        {"nk": 1, "c1": "foo_upd", "c2": [1], "row_hash": "mocked_hash_1_upd"},
+    ]
+    info = p.run(r(dim_snap))
+    ts_2 = get_load_package_created_at(p, info)
+
+    # assert load results
+    from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
+    assert get_table(p, "dim_test", "c1") == [
+        {from_: ts_1, to: ts_2, "nk": 2, "c1": "bar", "row_hash": "mocked_hash_2"},
+        {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", "row_hash": "mocked_hash_1"},
+        {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo_upd", "row_hash": "mocked_hash_1_upd"},
+    ]
+    # root id is not deterministic when a user provided row hash is used
+    assert get_table(p, "dim_test__c2", "value", include_root_id=False) == [
+        {"value": 1},
+        {"value": 1},
+        {"value": 2},
+        {"value": 3},
+    ]

@@ -300,13 +300,28 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 | 2024-04-09 22:13:07.943703 | 9999-12-31 00:00:00.000000 | 1 | foo_updated | 1 |
 
 #### Example: customize validity column names
-`_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configures as follows:
+`_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
 ```py
 @dlt.resource(
     write_disposition={
         "mode": "merge",
         "strategy": "scd2",
         "validity_column_names": ["from", "to"],  # will use "from" and "to" instead of default values
+    }
+)
+def dim_customer():
+    ...
+...
+```
+
+#### Example: use your own row hash
+By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_hash_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
+```py
+@dlt.resource(
+    write_disposition={
+        "mode": "merge",
+        "strategy": "scd2",
+        "row_hash_column_name": "row_hash",  # the column "row_hash" should be provided by the resource
     }
 )
 def dim_customer():

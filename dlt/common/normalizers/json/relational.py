@@ -323,7 +323,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # determine if row hash should be used as dlt id
         row_hash = False
         if self._is_scd2_table(self.schema, table_name):
-            row_hash = True
+            row_hash = self._dlt_id_is_row_hash(self.schema, table_name)
             self._validate_validity_column_names(
                 self._get_validity_column_names(self.schema, table_name), item
             )
@@ -378,6 +378,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @lru_cache(maxsize=None)
     def _get_validity_column_names(schema: Schema, table_name: str) -> List[Optional[str]]:
         return get_validity_column_names(schema.get_table(table_name))
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
+        return schema.get_table(table_name)["columns"].get("_dlt_id", dict()).get("x-row-hash", False)  # type: ignore[return-value]
 
     @staticmethod
     def _validate_validity_column_names(

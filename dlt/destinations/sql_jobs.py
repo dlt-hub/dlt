@@ -517,9 +517,12 @@ class SqlMergeJob(SqlBaseJob):
         with sql_client.with_staging_dataset(staging=True):
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
 
-        # get validity column names
+        # get column names
         escape_id = sql_client.capabilities.escape_identifier
-        from_, to = list(map(escape_id, get_validity_column_names(root_table)))
+        from_, to = list(map(escape_id, get_validity_column_names(root_table)))  # validity columns
+        hash_ = escape_id(
+            get_first_column_name_with_prop(root_table, "x-row-hash")
+        )  # row hash column
 
         # define values for validity columns
         boundary_ts = current_load_package()["state"]["created_at"]
@@ -529,8 +532,8 @@ class SqlMergeJob(SqlBaseJob):
         sql.append(f"""
             UPDATE {root_table_name} SET {to} = '{boundary_ts}'
             WHERE NOT EXISTS (
-                SELECT s._dlt_id FROM {staging_root_table_name} AS s
-                WHERE {root_table_name}._dlt_id = s._dlt_id
+                SELECT s.{hash_} FROM {staging_root_table_name} AS s
+                WHERE {root_table_name}.{hash_} = s.{hash_}
             ) AND {to} = '{active_record_ts}';
         """)
 
@@ -541,7 +544,7 @@ class SqlMergeJob(SqlBaseJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, '{boundary_ts}' AS {from_}, '{active_record_ts}' AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE NOT EXISTS (SELECT s._dlt_id FROM {root_table_name} AS f WHERE f._dlt_id = s._dlt_id);
+            WHERE NOT EXISTS (SELECT s.{hash_} FROM {root_table_name} AS f WHERE f.{hash_} = s.{hash_});
         """)
 
         # insert list elements for new active records in child tables

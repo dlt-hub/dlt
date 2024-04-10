@@ -445,6 +445,15 @@ class DltResourceHints:
                     "nullable": True,
                     "x-valid-to": True,
                 }
+                if mddict.get("row_hash_column_name") is None:
+                    hash_ = "_dlt_id"
+                else:
+                    hash_ = mddict["row_hash_column_name"]
+                dict_["columns"][hash_] = {
+                    "name": hash_,
+                    "nullable": False,
+                    "x-row-hash": True,
+                }
 
     @staticmethod
     def _create_table_schema(resource_hints: TResourceHints, resource_name: str) -> TTableSchema:

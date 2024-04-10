@@ -167,6 +167,7 @@ class TWriteDispositionDict(TypedDict):
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
+    row_hash_column_name: Optional[str]
 
 
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
