@@ -151,6 +151,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     """
     load_id, job_info = test_load
     now = pendulum.now()
+    now_timestamp = now.to_iso8601_string()
     calls = 0
 
     def current_datetime_callback():
@@ -163,6 +164,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
         schema_name="schema_name",
         load_id=load_id,
         current_datetime=current_datetime_callback,
+        load_package_timestamp=now_timestamp,
         file_name=job_info.file_name(),
     )
 
@@ -171,6 +173,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
         schema_name="schema_name",
         load_id=load_id,
         current_datetime=now,
+        load_package_timestamp=now_timestamp,
         file_name=job_info.file_name(),
     )
 
@@ -185,6 +188,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
             schema_name="schema_name",
             load_id=load_id,
             current_datetime="now",  # type: ignore
+            load_package_timestamp=now_timestamp,
             file_name=job_info.file_name(),
         )
     with pytest.raises(RuntimeError):
@@ -193,6 +197,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
             schema_name="schema_name",
             load_id=load_id,
             current_datetime=lambda: 1234,  # type: ignore
+            load_package_timestamp=now_timestamp,
             file_name=job_info.file_name(),
         )
 
@@ -202,11 +207,13 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
 ) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
+    now_timestamp = now.to_iso8601_string()
     with patch("pendulum.now", wraps=pendulum.DateTime, return_value=now) as mock:
         create_path(
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
             load_id=load_id,
+            load_package_timestamp=now_timestamp,
             file_name=job_info.file_name(),
         )
 
@@ -218,6 +225,7 @@ def test_create_path_uses_current_moment_if_load_package_timestamp_is_not_given(
 ) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
+    now_timestamp = now.to_iso8601_string()
     timestamp = str(int(now.timestamp()))
     with patch("pendulum.now", wraps=pendulum.DateTime, return_value=now) as mock:
         path = create_path(
@@ -225,6 +233,7 @@ def test_create_path_uses_current_moment_if_load_package_timestamp_is_not_given(
             schema_name="schema_name",
             load_id=load_id,
             file_name=job_info.file_name(),
+            load_package_timestamp=now_timestamp,
         )
 
         assert len(mock.mock_calls) == 1
@@ -252,13 +261,14 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
         "dlthub": "platform",
         "x": "files",
     }
-
+    now_timestamp = pendulum.now().to_iso8601_string()
     create_path(
         "{schema_name}/{table_name}/{callable_1}-{otter}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
         extra_placeholders=extra_placeholders,
         file_name=job_info.file_name(),
+        load_package_timestamp=now_timestamp,
     )
 
     assert counter.count == 2
@@ -281,6 +291,7 @@ def test_create_path_reports_unused_placeholders(test_load: TestLoad) -> None:
             load_id=load_id,
             extra_placeholders=extra_placeholders,
             file_name=job_info.file_name(),
+            load_package_timestamp=pendulum.now().to_iso8601_string(),
         )
 
         output = buf.getvalue()
