@@ -197,7 +197,7 @@ def test_filesystem_destination_config_reports_unused_placeholders() -> None:
             FilesystemDestinationClientConfiguration(
                 bucket_url="file:///tmp/dirbobo",
                 layout="{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
-                extra_placeholders=extra_placeholders,
+                extra_placeholders=extra_placeholders,  # type: ignore
             )
         )
         output = buf.getvalue()
