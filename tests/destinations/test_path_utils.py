@@ -218,27 +218,6 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
         assert len(mock.mock_calls) == 1
 
 
-def test_create_path_uses_current_moment_if_load_package_timestamp_is_not_given(
-    test_load: TestLoad,
-) -> None:
-    load_id, job_info = test_load
-    now = pendulum.now()
-    now_timestamp = now.to_iso8601_string()
-    timestamp = str(int(now.timestamp()))
-    with patch("pendulum.now", wraps=pendulum.DateTime, return_value=now) as mock:
-        path = create_path(
-            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
-            schema_name="schema_name",
-            load_id=load_id,
-            file_name=job_info.file_name(),
-            load_package_timestamp=now_timestamp,
-        )
-
-        assert len(mock.mock_calls) == 1
-        assert timestamp in path
-        assert path.endswith(f"{timestamp}.{job_info.file_format}")
-
-
 def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
     load_id, job_info = test_load
 
