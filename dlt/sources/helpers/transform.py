@@ -70,21 +70,17 @@ def pivot(
         """
         if not isinstance(match.value, C_Sequence):
             raise ValueError(
-                (
-                    "Pivot transformer is only applicable to sequences "
-                    f"fields, however, the value of {str(match.full_path)}"
-                    " is not a sequence."
-                )
+                "Pivot transformer is only applicable to sequences "
+                f"fields, however, the value of {str(match.full_path)}"
+                " is not a sequence."
             )
 
         for item in match.value:
             if not isinstance(item, C_Sequence):
                 raise ValueError(
-                    (
-                        "Pivot transformer is only applicable to sequences, "
-                        f"however, the value of {str(match.full_path)} "
-                        "includes a non-sequence element."
-                    )
+                    "Pivot transformer is only applicable to sequences, "
+                    f"however, the value of {str(match.full_path)} "
+                    "includes a non-sequence element."
                 )
 
     def _transformer(item: TDataItem) -> TDataItem:
