@@ -16,24 +16,24 @@ DATETIME_PLACEHOLDERS = {
     # Months
     "MMMM",  # January, February, March
     "MMM",  # Jan, Feb, Mar
-    "MM",  # 01, 02, 03
-    "M",  # 1, 2, 3
+    "MM",  # 01-12
+    "M",  # 1-12
     # Days
-    "DD",  # 01, 02
-    "D",  # 1, 2
+    "DD",  # 01-31
+    "D",  # 1-31
     # Hours
-    "HH",  # 00, 01, 02
-    "H",  # 0, 1, 2
+    "HH",  # 00-23
+    "H",  # 0-23
     # Minutes
-    "mm",  # 00, 01, 02
-    "m",
+    "mm",  # 00-59
+    "m",  # 0-59
     # Days of week
     "dddd",  # Monday, Tuesday, Wednesday
     "ddd",  # Mon, Tue, Wed
     "dd",  # Mo, Tu, We
     "d",  # 0-6
     # Quarters of the year
-    "Q",  # quarter 1, 2, 3, 4
+    "Q",  # 1, 2, 3, 4
 }
 
 SUPPORTED_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
