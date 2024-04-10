@@ -10,22 +10,29 @@ from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
 DATETIME_PLACEHOLDERS = {
+    # Years
     "YYYY",
     "Y",
+    # Months
     "MMMM",  # January, February, March
     "MMM",  # Jan, Feb, Mar
     "MM",  # 01, 02, 03
     "M",  # 1, 2, 3
+    # Days
     "DD",  # 01, 02
     "D",  # 1, 2
+    # Hours
     "HH",  # 00, 01, 02
     "H",  # 0, 1, 2
-    "mm",
+    # Minutes
+    "mm",  # 00, 01, 02
     "m",
+    # Days of week
     "dddd",  # Monday, Tuesday, Wednesday
     "ddd",  # Mon, Tue, Wed
     "dd",  # Mo, Tu, We
     "d",  # 0-6
+    # Quarters of the year
     "Q",  # quarter 1, 2, 3, 4
 }
 
@@ -68,7 +75,7 @@ def prepare_datetime_params(
     params["curr_date"] = str(now.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
-        params[format_string] = now.format(format_string)
+        params[format_string] = now.format(format_string).lower()
 
     return params
 
