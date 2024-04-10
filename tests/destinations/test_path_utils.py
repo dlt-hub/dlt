@@ -1,5 +1,3 @@
-import contextlib
-import io
 from typing import List, Tuple
 from unittest.mock import patch
 
@@ -14,7 +12,7 @@ from dlt.destinations.path_utils import (
 )
 
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
-from tests.common.storages.utils import start_loading_file, load_storage
+from tests.common.storages.utils import start_loading_file
 
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
@@ -181,8 +179,8 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     assert calls == 1
 
     # If the value for current_datetime is not pendulum.DateTime
-    # it should fail with RuntimeError exception
-    with pytest.raises(RuntimeError):
+    # it should fail with AttributeError exception
+    with pytest.raises(AttributeError):
         create_path(
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
@@ -191,7 +189,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
             load_package_timestamp=now_timestamp,
             file_name=job_info.file_name(),
         )
-    with pytest.raises(RuntimeError):
+    with pytest.raises(AttributeError):
         create_path(
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
@@ -272,27 +270,3 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
     )
 
     assert counter.count == 2
-
-
-def test_create_path_reports_unused_placeholders(test_load: TestLoad) -> None:
-    load_id, job_info = test_load
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-        extra_placeholders = {
-            "value": 1,
-            "otters": "lab",
-            "dlt": "labs",
-            "dlthub": "platform",
-            "x": "files",
-        }
-
-        create_path(
-            "{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
-            schema_name="schema_name",
-            load_id=load_id,
-            extra_placeholders=extra_placeholders,
-            file_name=job_info.file_name(),
-            load_package_timestamp=pendulum.now().to_iso8601_string(),
-        )
-
-        output = buf.getvalue()
-        assert "Found unused layout placeholders: value, dlt, dlthub" in output

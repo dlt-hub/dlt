@@ -168,9 +168,6 @@ def create_path(
     if callable(current_datetime):
         current_datetime = current_datetime()
 
-    if current_datetime and not isinstance(current_datetime, pendulum.DateTime):
-        raise RuntimeError("current_datetime is not an instance instance of pendulum.DateTime")
-
     job_info = ParsedLoadJobFileName.parse(file_name)
     params = prepare_params(
         extra_placeholders=extra_placeholders,
@@ -182,15 +179,7 @@ def create_path(
     datetime_params = prepare_datetime_params(current_datetime, load_package_timestamp)
     params.update(datetime_params)
 
-    placeholders, layout_placeholders = check_layout(layout, params)
-
-    # Find and show unused placeholders
-    unused_placeholders: List[str] = []
-    if extra_placeholders:
-        unused_placeholders = [p for p in extra_placeholders.keys() if p not in layout_placeholders]
-        if unused_placeholders:
-            fmt.secho(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
-
+    placeholders, _ = check_layout(layout, params)
     path = layout.format(**params)
 
     # if extension is not defined, we append it at the end

@@ -1,3 +1,5 @@
+import contextlib
+import io
 import os
 import posixpath
 from typing import Union, Dict
@@ -8,11 +10,13 @@ import pytest
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from dlt.common import pendulum
+from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
@@ -176,3 +180,25 @@ def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert:
 
     with pytest.raises(SSLError, match="SSL: CERTIFICATE_VERIFY_FAILED"):
         print(filesystem.ls("", detail=False))
+
+
+def test_filesystem_destination_config_reports_unused_placeholders() -> None:
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf), custom_environ(
+        {"DATASET_NAME": "BOBO"}
+    ):
+        extra_placeholders = {
+            "value": 1,
+            "otters": "lab",
+            "dlt": "labs",
+            "dlthub": "platform",
+            "x": "files",
+        }
+        resolve.resolve_configuration(
+            FilesystemDestinationClientConfiguration(
+                bucket_url="file:///tmp/dirbobo",
+                layout="{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
+                extra_placeholders=extra_placeholders,
+            )
+        )
+        output = buf.getvalue()
+        assert "Found unused layout placeholders: value, dlt, dlthub" in output
