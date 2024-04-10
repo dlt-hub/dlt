@@ -210,8 +210,10 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError("""The argument `compression` must have one of the following values:
-                "auto", "enable", "disable".""")
+            raise ValueError(
+                """The argument `compression` must have one of the following values:
+                "auto", "enable", "disable"."""
+            )
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
@@ -282,11 +284,15 @@ def glob_files(
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
+
     bucket_url_no_schema = bucket_url_parsed._replace(scheme="", query="").geturl()
     bucket_url_no_schema = (
         bucket_url_no_schema[2:] if bucket_url_no_schema.startswith("//") else bucket_url_no_schema
     )
     filter_url = posixpath.join(bucket_url_no_schema, file_glob)
+
+    if filter_url.startswith(r"/\\"):
+        filter_url = filter_url[1:]
 
     glob_result = fs_client.glob(filter_url, detail=True)
     if isinstance(glob_result, list):
@@ -302,10 +308,16 @@ def glob_files(
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = f"/{file}"
-        file_name = posixpath.relpath(file, bucket_url_no_schema)
-        file_url = bucket_url_parsed._replace(
-            path=posixpath.join(bucket_url_parsed.path, file_name)
-        ).geturl()
+
+        if file.startswith("//"):
+            file_name = file.replace("//", "\\\\")
+            file_url = "file:///" + file_name
+        else:
+            file_name = posixpath.relpath(file, bucket_url_no_schema)
+
+            file_url = bucket_url_parsed._replace(
+                path=posixpath.join(bucket_url_parsed.path, file_name)
+            ).geturl()
 
         mime_type, encoding = guess_mime_type(file_name)
         yield FileItem(
