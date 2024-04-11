@@ -318,4 +318,6 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
             write_disposition="append",
         )
 
+        # 6 is because simple_row contains two rows
+        # and in this test scenario we have 3 callbacks
         assert call_count == 6
