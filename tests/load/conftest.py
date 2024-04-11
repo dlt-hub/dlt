@@ -10,8 +10,6 @@ from tests.utils import preserve_environ
 def default_buckets_env(request) -> Iterator[str]:
     """Parametrized fixture to configure filesystem destination bucket in env for each test bucket"""
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = request.param
-    if request.param.startswith("file://"):
-        os.environ["DESTINATION__FILESYSTEM__KWARGS"] = '{"auto_mkdir": true}'
     yield request.param
 
 
