@@ -105,7 +105,6 @@ So what are the efforts you spare when using dlt here?
 - Source schemas can be configured with various options such as pushing down top level columns into nested structures
 - dlt's requests replacement has built in retries for non-permanent error codes. This safeguards the progress of long extraction jobs that could otherwise break over and over (if retried as a whole) due to network or source api issues.
 
-It looks like you've established a solid foundation comparing the evolution from Perl to Python, emphasizing their contributions to making programming more accessible and emphasizing simplicity and readability. You then began to bridge into how dlt continues this tradition in the domain of data engineering, offering simplicity and power in handling data operations. Here's how you could conclude and enrich your draft:
 
 ### What else does dlt bring to the table?
 
