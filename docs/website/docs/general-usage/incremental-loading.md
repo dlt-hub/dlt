@@ -248,7 +248,7 @@ def dim_customer():
     # initial load
     yield [
         {"customer_key": 1, "c1": "foo", "c2": 1},
-        {"customer_key": 2, "c2": "bar", "c2": 2}
+        {"customer_key": 2, "c1": "bar", "c2": 2}
     ]
 
 pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
@@ -262,13 +262,14 @@ pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 | 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 1 | foo | 1 |
 | 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 2 | bar | 2 |
 
-```python
+```py
 ...
-    # record for customer_key 1 got updated
+def dim_customer():
+    # second load — record for customer_key 1 got updated
     yield [
         {"customer_key": 1, "c1": "foo_updated", "c2": 1},
-        {"customer_key": 2, "c2": "bar", "c2": 2}
-    ]
+        {"customer_key": 2, "c1": "bar", "c2": 2}
+]
 
 pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703    
 ```
@@ -281,9 +282,10 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 | 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 2 | bar | 2 |
 | **2024-04-09 22:13:07.943703** | **9999-12-31 00:00:00.000000** | **1** | **foo_updated** | **1** |
 
-```python
+```py
 ...
-    # record for customer_key 2 got deleted
+def dim_customer():
+    # third load — record for customer_key 2 got deleted
     yield [
         {"customer_key": 1, "c1": "foo_updated", "c2": 1},
     ]
