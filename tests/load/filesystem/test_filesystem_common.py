@@ -1,7 +1,9 @@
 import contextlib
 import io
+import json
 import os
 import posixpath
+
 from typing import Union, Dict
 from urllib.parse import urlparse
 
@@ -12,11 +14,17 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from dlt.common import pendulum
 from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
+from dlt.common.configuration.specs import (
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+)
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.destinations import filesystem
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+)
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
@@ -132,7 +140,9 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
 
 def test_filesystem_configuration_with_additional_arguments() -> None:
     config = FilesystemConfiguration(
-        bucket_url="az://root", kwargs={"use_ssl": True}, client_kwargs={"verify": "public.crt"}
+        bucket_url="az://root",
+        kwargs={"use_ssl": True},
+        client_kwargs={"verify": "public.crt"},
     )
     assert dict(config) == {
         "read_only": False,
@@ -202,3 +212,51 @@ def test_filesystem_destination_config_reports_unused_placeholders() -> None:
         )
         output = buf.getvalue()
         assert "Found unused layout placeholders: value, dlt, dlthub" in output
+
+
+def test_filesystem_destination_passed_parameters_override_config_values() -> None:
+    config_current_datetime = "2024-04-11T00:00:00Z"
+    config_extra_placeholders = {"placeholder_x": "x", "placeholder_y": "y"}
+    with custom_environ(
+        {
+            "DESTINATION__FILESYSTEM__BUCKET_URL": "file:///tmp/dirbobo",
+            "DESTINATION__FILESYSTEM__CURRENT_DATETIME": config_current_datetime,
+            "DESTINATION__FILESYSTEM__EXTRA_PLACEHOLDERS": json.dumps(config_extra_placeholders),
+        }
+    ):
+        extra_placeholders = {
+            "new_value": 1,
+            "dlt": "labs",
+            "dlthub": "platform",
+        }
+        now = pendulum.now()
+        config_now = pendulum.parse(config_current_datetime)
+
+        # Check with custom datetime and extra placeholders
+        # both should override config values
+        filesystem_destination = filesystem(
+            extra_placeholders=extra_placeholders, current_datetime=now
+        )
+        filesystem_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy_dataset"
+        )
+        bound_config = filesystem_destination.configuration(filesystem_config)
+        assert bound_config.current_datetime == now
+        assert bound_config.extra_placeholders == extra_placeholders
+
+        # Check only passing one parameter
+        filesystem_destination = filesystem(extra_placeholders=extra_placeholders)
+        filesystem_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy_dataset"
+        )
+        bound_config = filesystem_destination.configuration(filesystem_config)
+        assert bound_config.current_datetime == config_now
+        assert bound_config.extra_placeholders == extra_placeholders
+
+        filesystem_destination = filesystem()
+        filesystem_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy_dataset"
+        )
+        bound_config = filesystem_destination.configuration(filesystem_config)
+        assert bound_config.current_datetime == config_now
+        assert bound_config.extra_placeholders == config_extra_placeholders
