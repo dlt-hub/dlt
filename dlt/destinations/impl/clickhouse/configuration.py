@@ -73,9 +73,9 @@ class ClickHouseCredentials(ConnectionStringCredentials):
 
 @configspec
 class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "clickhouse"  # type: ignore[misc]
-    credentials: ClickHouseCredentials  # type: ignore
-    dataset_name: Final[str] = ""  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="clickhouse", init=False, repr=False, compare=False)  # type: ignore[misc]
+    credentials: ClickHouseCredentials = None
+    dataset_name: Final[str] = dataclasses.field(default="", init=False, repr=False, compare=False)  # type: ignore[misc]
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
 
     # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
@@ -88,20 +88,3 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            credentials: ClickHouseCredentials = None,
-            dataset_name: str = None,
-            destination_name: str = None,
-            environment: str = None
-        ) -> None:
-            super().__init__(
-                credentials=credentials,
-                destination_name=destination_name,
-                environment=environment,
-            )
-            ...
