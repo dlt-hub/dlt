@@ -6,7 +6,7 @@ from typing import (
     Callable,
     Any,
 )
-from dlt.sources.helpers.requests import Response
+from requests import Response
 
 
 HTTPMethodBasic = Literal["GET", "POST"]
