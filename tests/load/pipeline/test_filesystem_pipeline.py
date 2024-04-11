@@ -2,16 +2,22 @@ import csv
 import os
 import posixpath
 from pathlib import Path
+from typing import Any, Callable
+
+import pendulum
 
 import dlt
 import pytest
 
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.libs.pydantic import snake_case_naming_convention
 from dlt.common.storages.load_storage import LoadJobInfo
+from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 from tests.cases import arrow_table_all_data_types
+from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
 
@@ -179,3 +185,63 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     with open(other_data_files[0], "rb") as f:
         table = pq.read_table(f)
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
+
+
+TEST_LAYOUTS = (
+    "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+    "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",
+    "{table_name}88{load_id}-u-{file_id}.{ext}",
+    "{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}",
+    "{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
+    (
+        "{table_name}/{YYYY}/{YY}/{Y}/{MMMM}/{MMM}/{MM}/{M}/{DD}/{D}/"
+        "{HH}/{H}/{ddd}/{dd}/{d}/{Q}/{timestamp}/{curr_date}/{load_id}.{file_id}.{ext}"
+    ),
+)
+
+
+@pytest.mark.parametrize("layout", TEST_LAYOUTS)
+def test_filesystem_destination_extended_layout_placeholders(layout: str) -> None:
+    data = load_json_case("simple_row")
+    call_count = 0
+
+    def counter(value: Any) -> Callable[..., Any]:
+        def count(*args, **kwargs) -> Any:
+            nonlocal call_count
+            call_count += 1
+            print("call\n", value)
+            return value
+
+        return count
+
+    extra_placeholders = {
+        "who": "marcin",
+        "action": "says",
+        "what": "no potato",
+        "func": counter("lifting"),
+        "woot": "woot-woot",
+        "hiphip": counter("Hurraaaa"),
+    }
+    layout_normalized = snake_case_naming_convention.normalize_path(layout)
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    pipeline = dlt.pipeline(
+        pipeline_name=f"test_{layout_normalized[2:8]}_pipeline",
+        destination=filesystem(
+            layout=layout,
+            extra_placeholders=extra_placeholders,
+            kwargs={"auto_mkdir": True},
+            current_datetime=counter(pendulum.now()),
+        ),
+    )
+    pipeline.run(
+        dlt.resource(data, name="simple_rows"),
+        write_disposition="append",
+    )
+
+    # 6 is because simple_row contains two rows
+    # and in this test scenario we have 3 callbacks
+    assert call_count >= 6
