@@ -64,18 +64,22 @@ def prepare_datetime_params(
     # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
     # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
-    now: pendulum.DateTime = current_datetime or pendulum.now()
     if load_package_timestamp:
-        package_datetime = pendulum.parse(load_package_timestamp)
-        params["timestamp"] = str(int(package_datetime.timestamp()))  # type: ignore[union-attr]
+        current_datetime = pendulum.parse(load_package_timestamp)
+
+    if not current_datetime:
+        fmt.secho("current_datetime is not set, using pendulum.now()")
+        current_datetime = pendulum.now()
+
+    params["timestamp"] = str(int(current_datetime.timestamp()))  # type: ignore[union-attr]
 
     # Timestamp placeholder
 
     # Take date from timestamp as curr_date
-    params["curr_date"] = str(now.date())
+    params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
-        params[format_string] = now.format(format_string).lower()
+        params[format_string] = current_datetime.format(format_string).lower()
 
     return params
 
