@@ -116,6 +116,6 @@ What I wish I knew is that building a data infrastructure is as much about build
 
 Agencies and freelancers are often the heavy-lifters that are brought in to do such setups.
 Is this something you are currently doing?
-Tell us about your challenges so we may better support you.
+Tell us about your challenges, so we may better support you.
 
 [Join our slack community](https://dlthub.com/community) to take part in the conversation.
