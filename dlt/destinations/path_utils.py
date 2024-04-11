@@ -134,12 +134,6 @@ def prepare_params(
                         ext,
                     )
                 except TypeError as exc:
-                    fmt.secho(
-                        f"Extra placeholder {key} is callable and placeholder should"
-                        " accept parameters the following `schema name`, `table name`,"
-                        " `load_id`, `file_id` and an `extension`",
-                        fg="red",
-                    )
                     raise InvalidPlaceholderCallback(key) from exc
             else:
                 params[key] = value
