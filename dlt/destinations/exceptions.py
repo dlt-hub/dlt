@@ -117,7 +117,7 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
 
 
-class InvalidPlaceholderCallback(DestinationTerminalException):
+class InvalidPlaceholderCallback(DestinationTransientException):
     def __init__(self, callback_name: str) -> None:
         self.callback_name = callback_name
         super().__init__(
