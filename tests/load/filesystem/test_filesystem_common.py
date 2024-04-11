@@ -297,7 +297,7 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
     extra_placeholders = {
         "who": "marcin",
         "action": "says",
-        "what": "potato",
+        "what": "no potato",
         "func": counter("lifting"),
         "woot": "woot-woot",
         "hiphip": counter("Hurraaaa"),
