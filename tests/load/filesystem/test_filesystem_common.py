@@ -3,9 +3,10 @@ import io
 import os
 import posixpath
 
-from typing import Union, Dict
+from typing import Any, Callable, Union, Dict
 from urllib.parse import urlparse
 
+import dlt
 import pytest
 
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -17,6 +18,7 @@ from dlt.common.configuration.specs import (
     AzureCredentials,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.libs.pydantic import snake_case_naming_convention
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
@@ -25,6 +27,7 @@ from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )
 from tests.common.storages.utils import assert_sample_files
+from tests.common.utils import load_json_case
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
 from .utils import self_signed_cert
@@ -259,3 +262,60 @@ def test_filesystem_destination_passed_parameters_override_config_values() -> No
         bound_config = filesystem_destination.configuration(filesystem_config)
         assert bound_config.current_datetime == config_now
         assert bound_config.extra_placeholders == config_extra_placeholders
+
+
+ALL_LAYOUTS = (
+    "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+    "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",
+    "{table_name}88{load_id}-u-{file_id}.{ext}",
+    "{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}",
+    "{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
+    (
+        "{table_name}/{YYYY}/{YY}/{Y}/{MMMM}/{MMM}/{MM}/{M}/{DD}/{D}/"
+        "{HH}/{H}/{ddd}/{dd}/{d}/{Q}/{timestamp}/{curr_date}/{load_id}.{file_id}.{ext}"
+    ),
+)
+
+
+@pytest.mark.parametrize("layout", ALL_LAYOUTS)
+def test_filesystem_destination_extended_layout_placeholders(layout: str) -> None:
+    data = load_json_case("simple_row")
+    call_count = 0
+
+    def counter(value: Any) -> Callable[..., Any]:
+        def count(*args, **kwargs) -> Any:
+            nonlocal call_count
+            call_count += 1
+            return value
+
+        return count
+
+    extra_placeholders = {
+        "who": "marcin",
+        "action": "says",
+        "what": "potato",
+        "func": counter("lifting"),
+        "woot": "woot-woot",
+        "hiphip": counter("Hurraaaa"),
+    }
+    layout_normalized = snake_case_naming_convention.normalize_path(layout)
+    with custom_environ({"DESTINATION__FILESYSTEM__BUCKET_URL": "file://_storage"}):
+        pipeline = dlt.pipeline(
+            pipeline_name=f"test_{layout_normalized[2:8]}_pipeline",
+            destination=filesystem(
+                layout=layout,
+                extra_placeholders=extra_placeholders,
+                kwargs={"auto_mkdir": True},
+                current_datetime=counter(pendulum.now()),
+            ),
+        )
+        pipeline.run(
+            dlt.resource(data, name="simple_rows"),
+            write_disposition="append",
+        )
+
+        assert call_count == 6
