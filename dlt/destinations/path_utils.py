@@ -65,13 +65,13 @@ def prepare_datetime_params(
     # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
     if load_package_timestamp:
-        current_datetime = pendulum.parse(load_package_timestamp)
+        current_datetime = pendulum.parse(load_package_timestamp)   # type: ignore[assignment]
 
     if not current_datetime:
         fmt.secho("current_datetime is not set, using pendulum.now()")
         current_datetime = pendulum.now()
 
-    params["timestamp"] = str(int(current_datetime.timestamp()))  # type: ignore[union-attr]
+    params["timestamp"] = str(int(current_datetime.timestamp()))
 
     # Timestamp placeholder
 
