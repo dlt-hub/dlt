@@ -1,3 +1,5 @@
+import contextlib
+import io
 from typing import List, Tuple
 from unittest.mock import patch
 
@@ -206,8 +208,30 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
 ) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf), patch(
+        "pendulum.now", wraps=pendulum.DateTime, return_value=now
+    ) as mock:
+        create_path(
+            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+            schema_name="schema_name",
+            load_id=load_id,
+            file_name=job_info.file_name(),
+        )
+
+        output = buf.getvalue()
+        assert "current_datetime is not set, using pendulum.now()" in output
+        assert len(mock.mock_calls) == 1
+
+
+def test_create_path_uses_load_package_timestamp_as_current_datetime(
+    test_load: TestLoad,
+) -> None:
+    load_id, job_info = test_load
+    now = pendulum.now()
     now_timestamp = now.to_iso8601_string()
-    with patch("pendulum.now", wraps=pendulum.DateTime, return_value=now) as mock:
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf), patch(
+        "pendulum.parse", wraps=pendulum.DateTime, return_value=now
+    ) as mock:
         create_path(
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
@@ -216,6 +240,8 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
             file_name=job_info.file_name(),
         )
 
+        output = buf.getvalue()
+        assert "current_datetime is not set, using timestamp from load package" in output
         assert len(mock.mock_calls) == 1
 
 
