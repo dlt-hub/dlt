@@ -13,6 +13,7 @@ from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
     get_validity_column_names,
+    DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
@@ -155,9 +156,10 @@ class SqlMergeJob(SqlBaseJob):
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
-        if table_chain[0].get("x-merge-strategy") == "delete-insert":
+        merge_strategy = table_chain[0].get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
+        if merge_strategy == "delete-insert":
             return cls.gen_merge_sql(table_chain, sql_client)
-        elif table_chain[0].get("x-merge-strategy") == "scd2":
+        elif merge_strategy == "scd2":
             return cls.gen_scd2_sql(table_chain, sql_client)
 
     @classmethod
