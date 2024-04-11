@@ -2,7 +2,7 @@ import dataclasses
 
 from typing import Final, List, Optional, Type
 
-from dlt.cli import echo as fmt
+from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.destination.reference import (
     CredentialsConfiguration,
@@ -11,7 +11,6 @@ from dlt.common.destination.reference import (
 
 from dlt.common.storages import FilesystemConfiguration
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
-from pendulum import DateTime
 
 from dlt.destinations.path_utils import check_layout
 
@@ -41,9 +40,6 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
                 p for p in self.extra_placeholders.keys() if p not in layout_placeholders
             ]
             if unused_placeholders:
-                fmt.secho(
-                    f"Found unused layout placeholders: {', '.join(unused_placeholders)}",
-                    fg="yellow",
-                )
+                logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
 
         return super().on_resolved()

@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import pendulum
 
-from dlt.cli import echo as fmt
+from dlt.common import logger
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
@@ -73,15 +73,15 @@ def prepare_datetime_params(
     if load_package_timestamp:
         current_timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
     else:
-        fmt.secho("load package timestamp is not set, using pendulum.now()", fg="yellow")
+        logger.info("load package timestamp is not set, using pendulum.now()")
         current_timestamp = now
 
     if not current_datetime:
         if load_package_timestamp:
-            fmt.secho("current_datetime is not set, using timestamp from load package", fg="blue")
+            logger.info("current_datetime is not set, using timestamp from load package")
             current_datetime = current_timestamp
         else:
-            fmt.secho("current_datetime is not set, using pendulum.now()", fg="blue")
+            logger.info("current_datetime is not set, using pendulum.now()")
             current_datetime = now
 
     params["timestamp"] = str(int(current_timestamp.timestamp()))
