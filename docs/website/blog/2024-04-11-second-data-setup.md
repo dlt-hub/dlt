@@ -28,63 +28,63 @@ overhauling a data warehouse or data infrastructure after the initial setup has 
 
 There's usually no need for a second time build, if the first time build works. Rather, a migration might cut it.
 A second time build usually happens only if
-- the first time build does not work, either now or for the next requirements.
-- the first time build cannot be "migrated" or "fixed" due to fundamental flaws.
+* the first time build does not work, either now or for the next requirements.
+* the first time build cannot be "migrated" or "fixed" due to fundamental flaws.
 
 Let's take some examples from my experiences.
 Example 1: A serial talker takes a lead role at a large, growing startup. They speak like management, so management trusts. A few years later
-   - half the pipelines are running on Pentaho + windows, the other are python 2, 3 and written by agencies.
-   - The data engineering team quit. They had enough.
-   - The remaining data engineers do what they want - a custom framework - or they threaten to quit, taking the only knowledge of the pipelines with them.
-   - Solution: Re-write all pipelines in python3, replace custom framework with airflow, add tests, github, and other best pratices.
+* half the pipelines are running on Pentaho + windows, the other are python 2, 3 and written by agencies.
+* The data engineering team quit. They had enough.
+* The remaining data engineers do what they want - a custom framework - or they threaten to quit, taking the only knowledge of the pipelines with them.
+* Solution: Re-write all pipelines in python3, replace custom framework with airflow, add tests, github, and other best pratices.
 
 Example 2: A large international manufacturing company needed a data warehouse.
-    - Microsoft sold them their tech+ consultants.
-    - 2 years later, it's done but doesn't work (query time impossible)
-    - Solution: Teach the home DE team to use redshift and migrate.
+* Microsoft sold them their tech+ consultants.
+* 2 years later, it's done but doesn't work (query time impossible)
+* Solution: Teach the home DE team to use redshift and migrate.
 
 Example 3: A non technical professional takes a lead data role and uses a tool to do everything.
-    - same as above but the person also hired a team of juniors
-    - since there was no sudden ragequit, the situation persisted for a few years
-    - after they left, the remaining team removed the tool and re-built.
+* same as above but the person also hired a team of juniors
+* since there was no sudden ragequit, the situation persisted for a few years
+* after they left, the remaining team removed the tool and re-built.
 
 Example 4: A first time data hire introduces a platform-like tool that's sql centric and has no versioning, api, or programmatic control.
-    - after writing 30k+ lines of wet sql, scheduling and making them dependent on each other in this UI tool (without lineage), the person can no longer maintain the reports
-    - Quits after arguing with management.
-    - Solution: Reverse engineer existing reports, account for bugs and unfulfilled requirements, build them from scratch, occasionally searching the mass of sql. Outcome was under 2k lines.
+* after writing 30k+ lines of wet sql, scheduling and making them dependent on each other in this UI tool (without lineage), the person can no longer maintain the reports
+* Quits after arguing with management.
+* Solution: Reverse engineer existing reports, account for bugs and unfulfilled requirements, build them from scratch, occasionally searching the mass of sql. Outcome was under 2k lines.
 
 Example 5: A VC company wants to make a tool that reads metrics from business apps like google ads, Stripe.
-    - They end up at the largest local agency, who recommends them a single - tenant SaaS MDS for 90k to set up and a pathway from there
-    - They agreed and then asked me to review. The agency person was aggressive and queried my knowledge on unrelated things, in an attempt to dismiss my assessment.
-    - Turns out the agency was selling "installing 5tran and cleaning the data" for 5k+ per source, and some implementation partners time.
-    - I think the VC later hired a non technical freelancer to do the work.
+* They end up at the largest local agency, who recommends them a single - tenant SaaS MDS for 90k to set up and a pathway from there
+* They agreed and then asked me to review. The agency person was aggressive and queried my knowledge on unrelated things, in an attempt to dismiss my assessment.
+* Turns out the agency was selling "installing 5tran and cleaning the data" for 5k+ per source, and some implementation partners time.
+* The VC later hired a non technical freelancer to do the work.
 
 # Who can build a first time setup that scales into the future?
 
 The non-negotiable skills needed are
-- Programming. You can use ETL tools for ingestion, but they rarely solve the problem fully (under 20% in my respondent network - these are generally <30 people companies)
-- Modelling. Architecture first, sql second, tools third.
-- Requirement collection. You should consult your stakeholders on the data available to represent their process, and reach a good result. Usually the stakeholders are not experts and will not be able to give good requirements.
+* Programming. You can use ETL tools for ingestion, but they rarely solve the problem fully (under 20% in my respondent network - these are generally <30 people companies)
+* Modelling. Architecture first, sql second, tools third.
+* Requirement collection. You should consult your stakeholders on the data available to represent their process, and reach a good result. Usually the stakeholders are not experts and will not be able to give good requirements.
 
 ## Who's to blame and what can we do about it?
 
 I believe the blame is quite shared. The common denominators seem to be
-- A lack of technical knowledge,
-- tools to fill the gap.
-- and a warped or dishonest self representation (by vendor or professional)
+* A lack of technical knowledge,
+* tools to fill the gap.
+* and a warped or dishonest self representation (by vendor or professional)
 
 As for what to do about it:
 If you were a hiring manager, ensure that your first data hire has all the skills at their disposal, and make sure they don't just talk the talk but walk the walk. Ask for references or test them.
 
-But you aren't a hiring manager - those folks don't read data blogs.
+But you aren't a hiring manager (those folks don't read this blog).
 
 So here's what you can do
-- Ensure all 3 skills are available - they do not need to all be in one person. You could hire a freelance DE to build first, and a technical analyst to fulfil requests and extend the stack.
-- Let vendors write about first data hire, and "follow the money" - Check if the advice aligns with their financial incentive. If it does, get a second opinion.
-- Choose tooling that scales across different stages of a data stack lifecycle, so the problem doesn't occur.
-- Use vendor agnostic components where possible (for example, dlt + sqlmesh + sql glot can create a db-agnostic stack that enables you to switch between dbs)
-- Behave better - the temptation to oversell yourself is there, but you could check yourself and look for a position where you can learn. Your professional network could be your biggest help in your career, don't screw them over.
-- Use independent freelancers for consulting. They live off reputation, so look for the recommended ones.
+* Ensure all 3 skills are available - they do not need to all be in one person. You could hire a freelance DE to build first, and a technical analyst to fulfil requests and extend the stack.
+* Let vendors write about first data hire, and "follow the money" - Check if the advice aligns with their financial incentive. If it does, get a second opinion.
+* Choose tooling that scales across different stages of a data stack lifecycle, so the problem doesn't occur.
+* Use vendor agnostic components where possible (for example, dlt + sqlmesh + sql glot can create a db-agnostic stack that enables you to switch between dbs)
+* Behave better - the temptation to oversell yourself is there, but you could check yourself and look for a position where you can learn. Your professional network could be your biggest help in your career, don't screw them over.
+* Use independent freelancers for consulting. They live off reputation, so look for the recommended ones.
 
 ## How to do a disaster recovery?
 
@@ -96,14 +96,14 @@ But workarounds are maintained by roles, so the original implementer will usuall
 This can easily escalate to a people conflict which often leads with the workaround maker quitting (or getting fired).
 
 How to manage the emotions?
-- Be considerate of people's feelings - you are brought in to replace their work, so make it a cooperative experience where they can be the hero.
-- Ask for help when you are not sure about who has the decision over an area.
+* Be considerate of people's feelings - you are brought in to replace their work, so make it a cooperative experience where they can be the hero.
+* Ask for help when you are not sure about who has the decision over an area.
 
 How to manage the technical side?
-- Ensure you have all the skills needed to deliver a data stack on the team.
-- If the existing solution produces correct results, use it as requirements for the next - for example, you could write tests that check that business rules are correctly implemented.
-- Clarify with stakeholders how much the old solution should be maintained - it will likely free up people to work on the new one.
-- Identify team skills that can help towards the new solution and consider them when choosing the technology stack.
+* Ensure you have all the skills needed to deliver a data stack on the team.
+* If the existing solution produces correct results, use it as requirements for the next - for example, you could write tests that check that business rules are correctly implemented.
+* Clarify with stakeholders how much the old solution should be maintained - it will likely free up people to work on the new one.
+* Identify team skills that can help towards the new solution and consider them when choosing the technology stack.
 
 
 ## What I wish I knew
