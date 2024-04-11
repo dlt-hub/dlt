@@ -5,14 +5,21 @@ import pendulum
 
 from dlt.cli import echo as fmt
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout, InvalidPlaceholderCallback
+from dlt.destinations.exceptions import (
+    CantExtractTablePrefix,
+    InvalidFilesystemLayout,
+    InvalidPlaceholderCallback,
+)
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
+# For formatting options please see
+# https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
 DATETIME_PLACEHOLDERS = {
     # Years
-    "YYYY",
-    "Y",
+    "YYYY",  # 2024, 2025, 2026
+    "YY",  # 00, 01, 02 ... 12, 13
+    "Y",  # 2024, 2025, 2026
     # Months
     "MMMM",  # January, February, March
     "MMM",  # Jan, Feb, Mar
@@ -60,9 +67,6 @@ def prepare_datetime_params(
     current_datetime: Optional[pendulum.DateTime] = None,
     load_package_timestamp: Optional[str] = None,
 ) -> Dict[str, str]:
-    # For formatting options please see
-    # https://github.com/sdispater/pendulum/blob/master/docs/docs/string_formatting.md
-    # Format curr_date datetime according to given format
     params: Dict[str, str] = {}
     now = pendulum.now()
     current_timestamp: pendulum.DateTime = None

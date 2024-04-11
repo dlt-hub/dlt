@@ -11,6 +11,7 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.path_utils import (
     check_layout,
     create_path,
+    get_placeholders,
     get_table_prefix_layout,
 )
 
@@ -40,6 +41,14 @@ ALL_LAYOUTS = (  # type: ignore
     ("{table_name}/dayofweek-{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{Q}/{MM}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{YY}-{MM}-{D}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{Y}-{M}-{D}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{H}/{m}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{M}/{dddd}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{M}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{M}/{dd}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{M}/{d}/{load_id}.{file_id}.{ext}", True, []),
     # invalid layouts
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
     (
