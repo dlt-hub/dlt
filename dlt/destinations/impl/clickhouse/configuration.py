@@ -41,9 +41,10 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "host",
         "port",
         "http_port",
-        "username",
-        "database",
         "secure",
+        "database",
+        "username",
+        "password",
         "connect_timeout",
         "send_receive_timeout",
         "dataset_table_separator",
@@ -75,8 +76,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
 class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="clickhouse", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: ClickHouseCredentials = None
-    dataset_name: Final[str] = dataclasses.field(default="", init=False, repr=False, compare=False)  # type: ignore[misc]
-    """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
 
     # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
     # but they do not enforce uniqueness constraints. It permits duplicate values even for the primary key

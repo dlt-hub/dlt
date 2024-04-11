@@ -43,10 +43,13 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
 2. To create a new database, connect to your ClickHouse server using the `clickhouse-client` command line tool or a SQL client of your choice.
 
-3. Run the following SQL command to create a new database:
+3. Run the following SQL commands to create a new database, user and grant the necessary permissions:
 
    ```sql
-   CREATE DATABASE IF NOT EXISTS dlt_data;
+   CREATE DATABASE IF NOT EXISTS dlt;
+   CREATE USER dlt IDENTIFIED WITH sha256_password BY 'my_password'
+   GRANT ALL ON dlt.* TO dlt;
+   GRANT CREATE TEMPORARY TABLE, S3 ON *.* TO dlt;
    ```
 
 ### 3. Add credentials
@@ -55,17 +58,20 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
    ```toml
    [destination.clickhouse.credentials]
-   database = "dlt_data"  # the database name you created
-   username = "default"   # ClickHouse username, default is usually "default"
-   password = ""          # ClickHouse password if any
-   host = "localhost"     # ClickHouse server host
-   port = 9000            # ClickHouse HTTP port, default is 9000
-   secure = false         # set to true if using HTTPS
+   database = "dlt_data"                    # the database name you created
+   username = "default"                     # ClickHouse username, default is usually "default"
+   password = ""                            # ClickHouse password if any
+   host = "localhost"                       # ClickHouse server host
+   port = 9000                              # ClickHouse HTTP port, default is 9000
+   http_port = 8443                         # HTTP Port to connect to ClickHouse server's HTTP interface.
+   secure = 1                               # Set to 1 if using HTTPS, else 0.
+   dataset_table_separator = "___"          # Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'.
    ```
 
 2. You can pass a database connection string similar to the one used by the `clickhouse-driver` library. The credentials above will look like this:
 
    ```toml
+   # keep it at the top of your toml file, before any section starts.
    destination.clickhouse.credentials="clickhouse://default:password@localhost/dlt_data?secure=false"
    ```
 
