@@ -1,6 +1,5 @@
 import contextlib
 import io
-import json
 import os
 import posixpath
 
@@ -11,7 +10,7 @@ import pytest
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from dlt.common import pendulum
+from dlt.common import json, pendulum
 from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import (
