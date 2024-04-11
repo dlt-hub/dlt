@@ -5,7 +5,7 @@ import pendulum
 
 from dlt.cli import echo as fmt
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout
+from dlt.destinations.exceptions import CantExtractTablePrefix, InvalidFilesystemLayout, InvalidPlaceholderCallback
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
 
 
@@ -133,14 +133,14 @@ def prepare_params(
                         file_id,
                         ext,
                     )
-                except TypeError:
+                except TypeError as exc:
                     fmt.secho(
-                        f"Extra placeholder {key} is callableCallable placeholder should"
-                        " accept parameters below`schema name`, `table name`, `load_id`,"
-                        " `file_id` and an `extension`",
+                        f"Extra placeholder {key} is callable and placeholder should"
+                        " accept parameters the following `schema name`, `table name`,"
+                        " `load_id`, `file_id` and an `extension`",
                         fg="red",
                     )
-                    raise
+                    raise InvalidPlaceholderCallback(key) from exc
             else:
                 params[key] = value
 
