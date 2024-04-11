@@ -119,8 +119,8 @@ def test_core_functionality(
     # assert x-hints
     table = p.default_schema.get_table("dim_test")
     assert table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
-    assert table["columns"]["_dlt_valid_from"]["x-valid-from"]  # type: ignore[typeddict-item]
-    assert table["columns"]["_dlt_valid_to"]["x-valid-to"]  # type: ignore[typeddict-item]
+    assert table["columns"][from_]["x-valid-from"]  # type: ignore[typeddict-item]
+    assert table["columns"][to]["x-valid-to"]  # type: ignore[typeddict-item]
     assert table["columns"]["_dlt_id"]["x-row-hash"]  # type: ignore[typeddict-item]
 
     # assert load results
