@@ -85,10 +85,6 @@ def prepare_datetime_params(
             current_datetime = now
 
     params["timestamp"] = str(int(current_timestamp.timestamp()))
-
-    # Timestamp placeholder
-
-    # Take date from timestamp as curr_date
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
