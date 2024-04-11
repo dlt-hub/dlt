@@ -11,7 +11,6 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.path_utils import (
     check_layout,
     create_path,
-    get_placeholders,
     get_table_prefix_layout,
 )
 
@@ -67,9 +66,22 @@ def test_load(load_storage: LoadStorage) -> TestLoad:
 
 
 @pytest.mark.parametrize("layout,is_valid,invalid_placeholders", ALL_LAYOUTS)
-def test_layout_validity(layout: str, is_valid: bool, invalid_placeholders: List[str]) -> None:
+def test_layout_validity(
+    layout: str, is_valid: bool, invalid_placeholders: List[str], test_load: TestLoad
+) -> None:
+    load_id, job_info = test_load
     if is_valid:
+        now_timestamp = pendulum.now().to_iso8601_string()
         check_layout(layout, EXTRA_PLACEHOLDERS)
+        path = create_path(
+            layout,
+            schema_name="schema_name",
+            load_id=load_id,
+            load_package_timestamp=now_timestamp,
+            file_name=job_info.file_name(),
+            extra_placeholders=EXTRA_PLACEHOLDERS,
+        )
+        assert len(path.split("/")) == len(layout.split("/"))
     else:
         with pytest.raises(InvalidFilesystemLayout) as exc:
             check_layout("{other_ph}.{table_name}", EXTRA_PLACEHOLDERS)
