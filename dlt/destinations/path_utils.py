@@ -73,7 +73,7 @@ def prepare_datetime_params(
     if load_package_timestamp:
         current_timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
     else:
-        fmt.secho("load package timestamp is not set, using pendulum.now()", fg="blue")
+        fmt.secho("load package timestamp is not set, using pendulum.now()", fg="yellow")
         current_timestamp = now
 
     if not current_datetime:
