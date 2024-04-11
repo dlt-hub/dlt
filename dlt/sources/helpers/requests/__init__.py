@@ -15,6 +15,7 @@ from requests import (
 from requests.exceptions import ChunkedEncodingError
 from dlt.sources.helpers.requests.retry import Client
 from dlt.sources.helpers.requests.session import Session
+from dlt.sources.helpers.rest_client import paginate # noqa: F401
 from dlt.common.configuration.specs import RunConfiguration
 
 client = Client()

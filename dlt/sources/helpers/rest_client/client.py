@@ -16,7 +16,6 @@ from requests import Response, Request
 
 from dlt.common import logger
 from dlt.common import jsonpath
-from dlt.sources.helpers.requests.retry import Client
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
@@ -84,6 +83,7 @@ class RESTClient:
             self._validate_session_raise_for_status(session)
             self.session = session
         else:
+            from dlt.sources.helpers.requests.retry import Client
             self.session = Client(raise_for_status=False).session
 
         self.paginator = paginator

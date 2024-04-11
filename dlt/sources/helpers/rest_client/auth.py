@@ -12,7 +12,7 @@ from typing import (
     Iterable,
     TYPE_CHECKING,
 )
-from dlt.sources.helpers import requests
+
 from requests.auth import AuthBase
 from requests import PreparedRequest  # noqa: I251
 import pendulum
@@ -160,6 +160,8 @@ class OAuthJWTAuth(BearerTokenAuth):
         return not self.token_expiry or pendulum.now() >= self.token_expiry
 
     def obtain_token(self) -> None:
+        from dlt.sources.helpers import requests
+
         try:
             import jwt
         except ModuleNotFoundError:
