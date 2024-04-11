@@ -117,6 +117,16 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
 
 
+class InvalidPlaceholderCallback(DestinationTerminalException):
+    def __init__(self, callback_name: str) -> None:
+        self.callback_name = callback_name
+        super().__init__(
+            f"Invalid placeholder callback: {callback_name}, please make sure it can"
+            " accept parameters the following `schema name`, `table name`,"
+            " `load_id`, `file_id` and an `extension`",
+        )
+
+
 class CantExtractTablePrefix(DestinationTerminalException):
     def __init__(self, layout: str, details: str) -> None:
         msg = f"Cannot extract unique table prefix in layout '{layout}'. "
