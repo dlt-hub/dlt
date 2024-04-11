@@ -33,13 +33,6 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
         )
 
     def on_resolved(self) -> None:
-        if callable(self.current_datetime):
-            current_datetime = self.current_datetime()
-            if not isinstance(current_datetime, DateTime):
-                raise RuntimeError(
-                    "current_datetime is not an instance instance of pendulum.DateTime"
-                )
-
         # Validate layout and show unused placeholders
         _, layout_placeholders = check_layout(self.layout, self.extra_placeholders)
         unused_placeholders: List[str] = []

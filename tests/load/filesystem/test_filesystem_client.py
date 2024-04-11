@@ -2,7 +2,6 @@ import posixpath
 import os
 from unittest import mock
 
-import pendulum
 import pytest
 
 from dlt.common.utils import digest128, uniq_id
