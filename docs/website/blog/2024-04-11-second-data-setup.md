@@ -108,10 +108,8 @@ How to manage the technical side?
 
 ## What I wish I knew
 
-Each "disaster recovery" project was more than just a technical reboot; it was a testament to the team's adaptability,
-the foresight in planning for scalability, and, importantly, the humility to recognize and rectify mistakes.
-"What I Wish I Knew Then" is about the understanding that building a data infrastructure is as much about
-building a culture of continuous learning and improvement as it is about the code and systems themselves.
+Each "disaster recovery" project was more than just a technical reboot; it was a test to the team's adaptability and to their the humility to recognize and rectify mistakes.
+What I wish I knew is that building a data infrastructure is as much about building a culture of continuous learning and improvement as it is about the code and systems themselves, and that they need to be fixed together - otherwise, one will break the other.
 
 
 ### Want to discuss?
