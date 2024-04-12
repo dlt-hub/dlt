@@ -47,6 +47,7 @@ ALL_LAYOUTS = (  # type: ignore
     ("{table_name}/{M}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{M}/{dd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{M}/{d}/{load_id}.{file_id}.{ext}", True, []),
+    ("{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}", True, []),
     # invalid layouts
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
     (
