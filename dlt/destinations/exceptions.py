@@ -112,9 +112,21 @@ class MergeDispositionException(DestinationTerminalException):
 
 
 class InvalidFilesystemLayout(DestinationTerminalException):
-    def __init__(self, invalid_placeholders: Sequence[str]) -> None:
+    def __init__(
+        self,
+        layout: str,
+        standard_placeholders: Sequence[str],
+        extra_placeholders: Sequence[str],
+        invalid_placeholders: Sequence[str],
+    ) -> None:
         self.invalid_placeholders = invalid_placeholders
-        super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
+        self.extra_placeholders = extra_placeholders
+        super().__init__(
+            f"Invalid placeholders were found in filesystem layout: {invalid_placeholders}"
+            f"given the layout={layout}, standard placeholders:"
+            f" {', '.join(standard_placeholders)} and"
+            f" extra placeholders {', '.join(extra_placeholders)}"
+        )
 
 
 class InvalidPlaceholderCallback(DestinationTransientException):

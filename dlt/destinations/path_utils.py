@@ -162,7 +162,12 @@ def check_layout(
     # now collect all unknown placeholders from config.layout template
     invalid_placeholders = [p for p in placeholders if p not in all_placeholders]
     if invalid_placeholders:
-        raise InvalidFilesystemLayout(invalid_placeholders)
+        raise InvalidFilesystemLayout(
+            layout,
+            standard_placeholders,
+            extra_placeholders,
+            invalid_placeholders,
+        )
 
     return list(all_placeholders), placeholders
 
