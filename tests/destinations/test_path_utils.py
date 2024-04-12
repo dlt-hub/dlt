@@ -20,11 +20,11 @@ from tests.common.storages.utils import start_loading_file, load_storage
 TestLoad = Tuple[str, ParsedLoadJobFileName]
 EXTRA_PLACEHOLDERS = {"type": "one-for-all", "vm": "beam", "module": "__MODULE__"}
 ALL_LAYOUTS = (  # type: ignore
-    # Usual layouts
+    # Usual placeholders
     ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", True, []),
     ("{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}88{load_id}-u-{file_id}.{ext}", True, []),
-    # Extra layouts
+    # Extra placeholders
     ("{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}", True, []),
     ("{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}", True, []),
@@ -48,7 +48,7 @@ ALL_LAYOUTS = (  # type: ignore
     ("{table_name}/{M}/{dd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{M}/{d}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}", True, []),
-    # invalid layouts
+    # invalid placeholders
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
     (
         "{table_name}/{abc}/{load_id}.{ext}{timestamp}-{random}",
@@ -173,6 +173,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     """
     load_id, job_info = test_load
     now = pendulum.now()
+    timestamp = int(now.timestamp())
     now_timestamp = now.to_iso8601_string()
     calls = 0
 
@@ -181,7 +182,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
         calls += 1
         return now
 
-    create_path(
+    created_path_1 = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
@@ -190,13 +191,21 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
         file_name=job_info.file_name(),
     )
 
-    create_path(
+    created_path_2 = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
         current_datetime=now,
         load_package_timestamp=now_timestamp,
         file_name=job_info.file_name(),
+    )
+
+    assert created_path_1 == created_path_2
+    assert (
+        created_path_1 == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
+    )
+    assert (
+        created_path_2 == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
     )
 
     # expect only one call
