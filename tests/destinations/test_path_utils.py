@@ -18,24 +18,24 @@ from tests.common.storages.utils import start_loading_file, load_storage
 
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
-EXTRA_PLACEHOLDERS = {"type": "one-for-all", "vm": "beam", "module": "__MODULE__"}
+EXTRA_PLACEHOLDERS = {
+    "type": "one-for-all",
+    "vm": "beam",
+    "module": "__MODULE__",
+    "bobo": "is-name",
+}
 ALL_LAYOUTS = (  # type: ignore
     # Usual placeholders
     ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", True, []),
     ("{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}88{load_id}-u-{file_id}.{ext}", True, []),
-    # Extra placeholders
+    # Additional placeholders
     ("{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}", True, []),
     ("{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{timestamp}/{load_id}.{file_id}.{ext}", True, []),
-    (
-        "{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}",
-        True,
-        [],
-    ),
     ("{table_name}/dayofweek-{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{Q}/{MM}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
@@ -48,6 +48,22 @@ ALL_LAYOUTS = (  # type: ignore
     ("{table_name}/{M}/{dd}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{M}/{d}/{load_id}.{file_id}.{ext}", True, []),
     ("{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}", True, []),
+    # Extra placehodlers
+    (
+        "{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{timestamp}/{type}-{bobo}-{module}/{load_id}.{file_id}.{ext}",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{type}/{bobo}/{module}/{load_id}.{file_id}.{ext}",
+        True,
+        [],
+    ),
     # invalid placeholders
     ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
     (
