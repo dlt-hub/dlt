@@ -138,12 +138,7 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         if unused_placeholders:
             message += f"Unused placeholders: {', '.join(unused_placeholders)}."
 
-        super().__init__(
-            f"Invalid placeholders detected in filesystem layout: {invalid_placeholders}. "
-            f"Using layout: '{layout}', the expected placeholders include: "
-            f"{', '.join(standard_placeholders)}. "
-            f"Additional placeholders specified: {', '.join(extra_placeholders)}."
-        )
+        super().__init__(message)
 
 
 class InvalidPlaceholderCallback(DestinationTransientException):

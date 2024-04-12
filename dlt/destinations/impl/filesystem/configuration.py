@@ -35,7 +35,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
         # Validate layout and show unused placeholders
         _, layout_placeholders = check_layout(self.layout, self.extra_placeholders)
         unused_placeholders = get_unused_placeholders(
-            layout_placeholders, self.extra_placeholders or {}
+            layout_placeholders, list((self.extra_placeholders or {}).keys())
         )
         if unused_placeholders:
             logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")

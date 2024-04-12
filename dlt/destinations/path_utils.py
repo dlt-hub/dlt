@@ -68,7 +68,7 @@ def get_unused_placeholders(
     layout_placeholders: Sequence[str],
     extra_placeholders: Sequence[str],
 ) -> Sequence[str]:
-    unused_placeholders = [p for p in extra_placeholders.keys() if p not in layout_placeholders]
+    unused_placeholders = [p for p in extra_placeholders if p not in layout_placeholders]
     return unused_placeholders
 
 
@@ -169,12 +169,15 @@ def check_layout(
 
     # now collect all unknown placeholders from config.layout template
     invalid_placeholders = [p for p in placeholders if p not in all_placeholders]
+    extra_placeholder_keys = list((extra_placeholders or {}).keys())
+    unused_placeholders = get_unused_placeholders(placeholders, extra_placeholder_keys)
     if invalid_placeholders:
         raise InvalidFilesystemLayout(
             layout,
-            standard_placeholders,
-            extra_placeholders,
+            standard_placeholders,  # type: ignore[arg-type]
+            extra_placeholder_keys,
             invalid_placeholders,
+            unused_placeholders,
         )
 
     return list(all_placeholders), placeholders
