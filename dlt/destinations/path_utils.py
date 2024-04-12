@@ -70,8 +70,8 @@ def prepare_datetime_params(
 ) -> Dict[str, str]:
     params: Dict[str, str] = {}
     if load_package_timestamp:
-        current_timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
-        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
+        current_timestamp = pendulum.parse(load_package_timestamp)
+        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))  # type: ignore[union-attr]
 
     if not current_datetime:
         logger.info("current_datetime is not set, using pendulum.now()")
