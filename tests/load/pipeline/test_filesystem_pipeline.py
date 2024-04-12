@@ -242,6 +242,13 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         write_disposition="append",
     )
     client = pipeline.destination_client()
+    expected_files = set()
+    known_files = set()
+    for basedir, _dirs, files in client.fs_client.walk(client.dataset_path):  # type: ignore[attr-defined]
+        for file in files:
+            if file.endswith("jsonl"):
+                expected_files.add(os.path.join(basedir, file))
+
     for load_package in load_info.load_packages:
         for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
             job_info = ParsedLoadJobFileName.parse(load_info.file_path)  # type: ignore[attr-defined]
@@ -256,7 +263,10 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
             )
             full_path = os.path.join(client.dataset_path, path)  # type: ignore[attr-defined]
             assert os.path.exists(full_path)
+            if full_path.endswith("jsonl"):
+                known_files.add(full_path)
 
+    assert expected_files == known_files
     # 6 is because simple_row contains two rows
     # and in this test scenario we have 3 callbacks
     assert call_count >= 6
