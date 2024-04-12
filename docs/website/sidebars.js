@@ -105,6 +105,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/mssql',
             'dlt-ecosystem/destinations/synapse',
+            'dlt-ecosystem/destinations/clickhouse',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',

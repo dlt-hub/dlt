@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, List, Any, Final, TYPE_CHECKING, Literal, cast
+from typing import ClassVar, List, Any, Final, Literal, cast
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
