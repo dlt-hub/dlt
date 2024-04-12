@@ -118,14 +118,31 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         standard_placeholders: Sequence[str],
         extra_placeholders: Sequence[str],
         invalid_placeholders: Sequence[str],
+        unused_placeholders: Sequence[str],
     ) -> None:
         self.invalid_placeholders = invalid_placeholders
         self.extra_placeholders = extra_placeholders
+        self.standard_placeholders = standard_placeholders
+        self.unused_placeholders = unused_placeholders
+        self.layout = layout
+
+        message = (
+            f"Invalid placeholders detected in filesystem layout: {invalid_placeholders}. "
+            f"Using layout: '{layout}', the expected placeholders include: "
+            f"{', '.join(standard_placeholders)}. "
+        )
+
+        if extra_placeholders:
+            message += f"Additional placeholders specified: {', '.join(extra_placeholders)}."
+
+        if unused_placeholders:
+            message += f"Unused placeholders: {', '.join(unused_placeholders)}."
+
         super().__init__(
-            f"Invalid placeholders were found in filesystem layout: {invalid_placeholders}"
-            f"given the layout={layout}, standard placeholders:"
-            f" {', '.join(standard_placeholders)} and"
-            f" extra placeholders {', '.join(extra_placeholders)}"
+            f"Invalid placeholders detected in filesystem layout: {invalid_placeholders}. "
+            f"Using layout: '{layout}', the expected placeholders include: "
+            f"{', '.join(standard_placeholders)}. "
+            f"Additional placeholders specified: {', '.join(extra_placeholders)}."
         )
 
 

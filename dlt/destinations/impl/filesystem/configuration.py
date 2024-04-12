@@ -12,7 +12,7 @@ from dlt.common.destination.reference import (
 from dlt.common.storages import FilesystemConfiguration
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 
-from dlt.destinations.path_utils import check_layout
+from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 
 @configspec
@@ -34,10 +34,8 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders
         _, layout_placeholders = check_layout(self.layout, self.extra_placeholders)
-        unused_placeholders: List[str] = []
-        if self.extra_placeholders:
-            unused_placeholders = [
-                p for p in self.extra_placeholders.keys() if p not in layout_placeholders
-            ]
-            if unused_placeholders:
-                logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
+        unused_placeholders = get_unused_placeholders(
+            layout_placeholders, self.extra_placeholders or {}
+        )
+        if unused_placeholders:
+            logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")

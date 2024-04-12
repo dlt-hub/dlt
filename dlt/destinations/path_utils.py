@@ -64,6 +64,14 @@ def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
 
+def get_unused_placeholders(
+    layout_placeholders: Sequence[str],
+    extra_placeholders: Sequence[str],
+) -> Sequence[str]:
+    unused_placeholders = [p for p in extra_placeholders.keys() if p not in layout_placeholders]
+    return unused_placeholders
+
+
 def prepare_datetime_params(
     current_datetime: Optional[pendulum.DateTime] = None,
     load_package_timestamp: Optional[str] = None,
