@@ -1,10 +1,9 @@
-import contextlib
-import io
 from typing import List, Tuple
-from unittest.mock import patch
 
 import pendulum
 import pytest
+
+from dlt.common import logger
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
@@ -203,7 +202,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     assert calls == 1
 
     # If the value for current_datetime is not pendulum.DateTime
-    # it should fail with AttributeError exception
+    # it should fail with RuntimeError exception
     with pytest.raises(AttributeError):
         create_path(
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
@@ -213,7 +212,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
             load_package_timestamp=now_timestamp,
             file_name=job_info.file_name(),
         )
-    with pytest.raises(AttributeError):
+    with pytest.raises(RuntimeError):
         create_path(
             "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
             schema_name="schema_name",
@@ -225,45 +224,40 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
 
 
 def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
-    test_load: TestLoad,
+    test_load: TestLoad, mocker
 ) -> None:
     load_id, job_info = test_load
-    now = pendulum.now()
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf), patch(
-        "pendulum.now", wraps=pendulum.DateTime, return_value=now
-    ) as mock:
-        create_path(
-            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
-            schema_name="schema_name",
-            load_id=load_id,
-            file_name=job_info.file_name(),
-        )
-
-        output = buf.getvalue()
-        assert "current_datetime is not set, using pendulum.now()" in output
-        assert len(mock.mock_calls) == 1
+    logger_spy = mocker.spy(logger, "info")
+    pendulum_spy = mocker.spy(pendulum, "now")
+    create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        file_name=job_info.file_name(),
+    )
+    logger_spy.assert_called_once_with("current_datetime is not set, using pendulum.now()")
+    pendulum_spy.assert_called()
 
 
 def test_create_path_uses_load_package_timestamp_as_current_datetime(
-    test_load: TestLoad,
+    test_load: TestLoad, mocker
 ) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
     now_timestamp = now.to_iso8601_string()
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf), patch(
-        "pendulum.parse", wraps=pendulum.DateTime, return_value=now
-    ) as mock:
-        create_path(
-            "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
-            schema_name="schema_name",
-            load_id=load_id,
-            load_package_timestamp=now_timestamp,
-            file_name=job_info.file_name(),
-        )
-
-        output = buf.getvalue()
-        assert "current_datetime is not set, using timestamp from load package" in output
-        assert len(mock.mock_calls) == 1
+    logger_spy = mocker.spy(logger, "info")
+    pendulum_spy = mocker.spy(pendulum, "parse")
+    create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
+        schema_name="schema_name",
+        load_id=load_id,
+        load_package_timestamp=now_timestamp,
+        file_name=job_info.file_name(),
+    )
+    logger_spy.assert_called_once_with(
+        "current_datetime is not set, using timestamp from load package"
+    )
+    pendulum_spy.assert_called_once_with(now_timestamp)
 
 
 def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
