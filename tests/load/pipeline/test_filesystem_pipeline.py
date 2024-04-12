@@ -9,8 +9,8 @@ import pendulum
 import dlt
 import pytest
 
-from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.libs.pydantic import snake_case_naming_convention
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -214,7 +214,6 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         def count(*args, **kwargs) -> Any:
             nonlocal call_count
             call_count += 1
-            print("call\n", value)
             return value
 
         return count
@@ -227,21 +226,37 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         "woot": "woot-woot",
         "hiphip": counter("Hurraaaa"),
     }
-    layout_normalized = snake_case_naming_convention.normalize_path(layout)
+    now = pendulum.now()
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
     pipeline = dlt.pipeline(
-        pipeline_name=f"test_{layout_normalized[2:8]}_pipeline",
+        pipeline_name="test_extended_layouts",
         destination=filesystem(
             layout=layout,
             extra_placeholders=extra_placeholders,
             kwargs={"auto_mkdir": True},
-            current_datetime=counter(pendulum.now()),
+            current_datetime=counter(now),
         ),
     )
-    pipeline.run(
+    load_info = pipeline.run(
         dlt.resource(data, name="simple_rows"),
         write_disposition="append",
     )
+    load_id = load_info.loads_ids[0]
+    load_package = load_info.load_packages[0]
+    client = pipeline.destination_client()
+    for load_info in load_package.jobs["completed_jobs"]:
+        job_info = ParsedLoadJobFileName.parse(load_info.file_path)
+        path = create_path(
+            layout,
+            file_name=job_info.file_name(),
+            schema_name="test_extended_layouts",
+            load_id=load_id,
+            current_datetime=now,
+            load_package_timestamp=load_info.created_at.to_iso8601_string(),
+            extra_placeholders=extra_placeholders,
+        )
+        full_path = os.path.join(client.dataset_path, path)
+        assert os.path.exists(full_path)
 
     # 6 is because simple_row contains two rows
     # and in this test scenario we have 3 callbacks
