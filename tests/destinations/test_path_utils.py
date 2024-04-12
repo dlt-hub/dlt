@@ -278,7 +278,15 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
             self.count = 0
 
         def inc(self, *args, **kwargs):
+            schema_name, table_name, passed_load_id, file_id, ext = args
+            assert len(args) == 5
+            assert schema_name == "schema_name"
+            assert table_name == "mock_table"
+            assert passed_load_id == load_id
+            assert file_id == job_info.file_id
+            assert ext == job_info.file_format
             self.count += 1
+            return "boo"
 
     counter = Counter()
     extra_placeholders = {
@@ -290,8 +298,10 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
         "dlthub": "platform",
         "x": "files",
     }
-    now_timestamp = pendulum.now().to_iso8601_string()
-    create_path(
+    now = pendulum.now()
+    timestamp = int(now.timestamp())
+    now_timestamp = now.to_iso8601_string()
+    created_path = create_path(
         "{schema_name}/{table_name}/{callable_1}-{otter}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
@@ -299,5 +309,8 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
         file_name=job_info.file_name(),
         load_package_timestamp=now_timestamp,
     )
-
+    assert (
+        created_path
+        == f"schema_name/mock_table/boo-boo/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
+    )
     assert counter.count == 2
