@@ -256,16 +256,18 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
 ) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
+    timestamp = int(now.timestamp())
     now_timestamp = now.to_iso8601_string()
     logger_spy = mocker.spy(logger, "info")
     pendulum_spy = mocker.spy(pendulum, "parse")
-    create_path(
+    path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
         load_package_timestamp=now_timestamp,
         file_name=job_info.file_name(),
     )
+    assert path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
     logger_spy.assert_called_once_with(
         "current_datetime is not set, using timestamp from load package"
     )
