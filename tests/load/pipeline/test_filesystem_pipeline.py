@@ -197,6 +197,7 @@ TEST_LAYOUTS = (
     "{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}",
     "{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}",
     "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
+    "{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}",
     (
         "{table_name}/{YYYY}/{YY}/{Y}/{MMMM}/{MMM}/{MM}/{M}/{DD}/{D}/"
         "{HH}/{H}/{ddd}/{dd}/{d}/{Q}/{timestamp}/{curr_date}/{load_id}.{file_id}.{ext}"
