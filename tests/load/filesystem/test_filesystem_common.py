@@ -1,5 +1,3 @@
-import contextlib
-import io
 import os
 import posixpath
 
@@ -10,6 +8,7 @@ import pytest
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from dlt.common import logger
 from dlt.common import json, pendulum
 from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
@@ -191,10 +190,8 @@ def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert:
         print(filesystem.ls("", detail=False))
 
 
-def test_filesystem_destination_config_reports_unused_placeholders() -> None:
-    with io.StringIO() as buf, contextlib.redirect_stdout(buf), custom_environ(
-        {"DATASET_NAME": "BOBO"}
-    ):
+def test_filesystem_destination_config_reports_unused_placeholders(mocker) -> None:
+    with custom_environ({"DATASET_NAME": "BOBO"}):
         extra_placeholders = {
             "value": 1,
             "otters": "lab",
@@ -202,6 +199,7 @@ def test_filesystem_destination_config_reports_unused_placeholders() -> None:
             "dlthub": "platform",
             "x": "files",
         }
+        logger_spy = mocker.spy(logger, "info")
         resolve.resolve_configuration(
             FilesystemDestinationClientConfiguration(
                 bucket_url="file:///tmp/dirbobo",
@@ -209,8 +207,7 @@ def test_filesystem_destination_config_reports_unused_placeholders() -> None:
                 extra_placeholders=extra_placeholders,  # type: ignore
             )
         )
-        output = buf.getvalue()
-        assert "Found unused layout placeholders: value, dlt, dlthub" in output
+        logger_spy.assert_called_once_with("Found unused layout placeholders: value, dlt, dlthub")
 
 
 def test_filesystem_destination_passed_parameters_override_config_values() -> None:
