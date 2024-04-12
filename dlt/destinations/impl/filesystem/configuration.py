@@ -41,5 +41,3 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
             ]
             if unused_placeholders:
                 logger.info(f"Found unused layout placeholders: {', '.join(unused_placeholders)}")
-
-        return super().on_resolved()
