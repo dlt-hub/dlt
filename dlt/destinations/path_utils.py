@@ -71,8 +71,8 @@ def prepare_datetime_params(
     params: Dict[str, str] = {}
     current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
-        current_timestamp = pendulum.parse(load_package_timestamp)
-        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))  # type: ignore[union-attr]
+        current_timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
+        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
 
     if not current_datetime:
         if current_timestamp:
