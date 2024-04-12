@@ -241,22 +241,21 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         dlt.resource(data, name="simple_rows"),
         write_disposition="append",
     )
-    load_id = load_info.loads_ids[0]
-    load_package = load_info.load_packages[0]
     client = pipeline.destination_client()
-    for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
-        job_info = ParsedLoadJobFileName.parse(load_info.file_path)  # type: ignore[attr-defined]
-        path = create_path(
-            layout,
-            file_name=job_info.file_name(),
-            schema_name="test_extended_layouts",
-            load_id=load_id,
-            current_datetime=now,
-            load_package_timestamp=load_info.created_at.to_iso8601_string(),  # type: ignore[attr-defined]
-            extra_placeholders=extra_placeholders,
-        )
-        full_path = os.path.join(client.dataset_path, path)  # type: ignore[attr-defined]
-        assert os.path.exists(full_path)
+    for load_package in load_info.load_packages:
+        for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
+            job_info = ParsedLoadJobFileName.parse(load_info.file_path)  # type: ignore[attr-defined]
+            path = create_path(
+                layout,
+                file_name=job_info.file_name(),
+                schema_name="test_extended_layouts",
+                load_id=load_package.load_id,
+                current_datetime=now,
+                load_package_timestamp=load_info.created_at.to_iso8601_string(),  # type: ignore[attr-defined]
+                extra_placeholders=extra_placeholders,
+            )
+            full_path = os.path.join(client.dataset_path, path)  # type: ignore[attr-defined]
+            assert os.path.exists(full_path)
 
     # 6 is because simple_row contains two rows
     # and in this test scenario we have 3 callbacks
