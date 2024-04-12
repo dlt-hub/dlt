@@ -239,12 +239,14 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
     load_id, job_info = test_load
     logger_spy = mocker.spy(logger, "info")
     pendulum_spy = mocker.spy(pendulum, "now")
-    create_path(
+    path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
         file_name=job_info.file_name(),
     )
+    timestamp = int(pendulum_spy.spy_return.timestamp())
+    assert path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
     logger_spy.assert_called_once_with("current_datetime is not set, using pendulum.now()")
     pendulum_spy.assert_called()
 
