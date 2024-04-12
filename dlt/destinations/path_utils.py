@@ -43,7 +43,7 @@ DATETIME_PLACEHOLDERS = {
     "Q",  # 1, 2, 3, 4
 }
 
-SUPPORTED_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
+STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
     {
         "schema_name",
         "table_name",
@@ -142,7 +142,7 @@ def prepare_params(
 def check_layout(
     layout: str,
     extra_placeholders: Optional[Dict[str, Any]] = None,
-    allowed_placeholders: Optional[Set[str]] = SUPPORTED_PLACEHOLDERS,
+    standard_placeholders: Optional[Set[str]] = STANDARD_PLACEHOLDERS,
 ) -> Tuple[List[str], List[str]]:
     """Returns a tuple with all valid placeholders and the list of layout placeholders
 
@@ -154,7 +154,7 @@ def check_layout(
     # Build out the list of placeholder names
     # which we will use to validate placeholders
     # in a given config.layout template
-    all_placeholders = allowed_placeholders.copy()
+    all_placeholders = standard_placeholders.copy()
     if extra_placeholders:
         for placeholder, _ in extra_placeholders.items():
             all_placeholders.add(placeholder)
