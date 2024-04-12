@@ -52,6 +52,7 @@ SUPPORTED_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
         "ext",
         "curr_date",
         "timestamp",
+        "load_package_timestamp",
     }
 )
 
@@ -68,23 +69,15 @@ def prepare_datetime_params(
     load_package_timestamp: Optional[str] = None,
 ) -> Dict[str, str]:
     params: Dict[str, str] = {}
-    now = pendulum.now()
-    current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
         current_timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
-    else:
-        logger.info("load package timestamp is not set, using pendulum.now()")
-        current_timestamp = now
+        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
 
     if not current_datetime:
-        if load_package_timestamp:
-            logger.info("current_datetime is not set, using timestamp from load package")
-            current_datetime = current_timestamp
-        else:
-            logger.info("current_datetime is not set, using pendulum.now()")
-            current_datetime = now
+        logger.info("current_datetime is not set, using pendulum.now()")
+        current_datetime = pendulum.now()
 
-    params["timestamp"] = str(int(current_timestamp.timestamp()))
+    params["timestamp"] = str(int(current_datetime.timestamp()))
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
