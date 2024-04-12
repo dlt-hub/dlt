@@ -25,12 +25,18 @@ def dummy_callback(*args, **kwargs):
     return "-".join(args)
 
 
+def dummy_callback2(*args, **kwargs):
+    assert len(args) == 5
+    return "random-value"
+
+
 EXTRA_PLACEHOLDERS = {
     "type": "one-for-all",
     "vm": "beam",
     "module": "__MODULE__",
     "bobo": "is-name",
     "callback": dummy_callback,
+    "random_value": dummy_callback2,
 }
 
 ALL_LAYOUTS = (  # type: ignore
@@ -75,6 +81,11 @@ ALL_LAYOUTS = (  # type: ignore
     ),
     (
         "{table_name}/{callback}/{callback}/{type}/{load_id}.{file_id}.{ext}",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{random_value}/{callback}/{load_id}.{file_id}.{ext}",
         True,
         [],
     ),
