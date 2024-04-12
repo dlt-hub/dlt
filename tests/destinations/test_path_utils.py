@@ -18,12 +18,21 @@ from tests.common.storages.utils import start_loading_file, load_storage
 
 
 TestLoad = Tuple[str, ParsedLoadJobFileName]
+
+
+def dummy_callback(*args, **kwargs):
+    assert len(args) == 5
+    return "-".join(args)
+
+
 EXTRA_PLACEHOLDERS = {
     "type": "one-for-all",
     "vm": "beam",
     "module": "__MODULE__",
     "bobo": "is-name",
+    "callback": dummy_callback,
 }
+
 ALL_LAYOUTS = (  # type: ignore
     # Usual placeholders
     ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", True, []),
@@ -61,6 +70,11 @@ ALL_LAYOUTS = (  # type: ignore
     ),
     (
         "{table_name}/{type}/{bobo}/{module}/{load_id}.{file_id}.{ext}",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{callback}/{callback}/{type}/{load_id}.{file_id}.{ext}",
         True,
         [],
     ),
