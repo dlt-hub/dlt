@@ -10,6 +10,7 @@ from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.schema.utils import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
 from dlt.destinations.sql_jobs import HIGH_TS
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -20,21 +21,30 @@ from tests.load.pipeline.utils import (
     load_tables_to_dicts,
 )
 
-
-ACTIVE_TS = datetime.fromisoformat(HIGH_TS.isoformat()).replace(tzinfo=None)
 get_row_hash = DataItemNormalizer.get_row_hash
+
+
+def get_active_ts(pipeline: dlt.Pipeline) -> datetime:
+    caps = pipeline._get_destination_capabilities()
+    active_ts = HIGH_TS.in_timezone(tz="UTC").replace(tzinfo=None)
+    return reduce_pendulum_datetime_precision(active_ts, caps.timestamp_precision)
 
 
 def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> datetime:
     """Returns `created_at` property of load package state."""
     load_id = load_info.asdict()["loads_ids"][0]
-    return datetime.strptime(
-        pipeline.get_load_package_state(load_id)["created_at"], "%Y-%m-%dT%H:%M:%S.%f%z"
-    ).replace(tzinfo=None)
+    created_at = (
+        pipeline.get_load_package_state(load_id)["created_at"]
+        .in_timezone(tz="UTC")
+        .replace(tzinfo=None)
+    )
+    caps = pipeline._get_destination_capabilities()
+    return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
 
 
 def strip_timezone(ts: datetime) -> datetime:
     """Converts timezone of datetime object to UTC and removes timezone awareness."""
+    ts = ensure_pendulum_datetime(ts)
     if ts.replace(tzinfo=None) == HIGH_TS:
         return ts.replace(tzinfo=None)
     else:
@@ -60,6 +70,13 @@ def get_table(
     )
 
 
+def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
+    """Compares two lists of dicts regardless of order"""
+    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
+    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
+    assert actual_set == expected_set
+
+
 @pytest.mark.parametrize(
     "destination_config,simple,validity_column_names",
     [  # test basic case for alle SQL destinations supporting merge
@@ -72,11 +89,11 @@ def get_table(
             False,
             ["from", "to"],
         )  # "from" is a SQL keyword, so this also tests if columns are escaped
-        for dconf in destinations_configs(default_sql_configs=True, subset=["postgres"])
+        for dconf in destinations_configs(default_sql_configs=True, subset=["postgres", "duckdb"])
     ]
     + [
         (dconf, False, ["ValidFrom", "ValidTo"])
-        for dconf in destinations_configs(default_sql_configs=True, subset=["postgres"])
+        for dconf in destinations_configs(default_sql_configs=True, subset=["postgres", "duckdb"])
     ],
     ids=lambda x: (
         x.name
@@ -114,22 +131,24 @@ def test_core_functionality(
         {"nk": 1, "c1": "foo", "c2": "foo" if simple else {"nc1": "foo"}},
         {"nk": 2, "c1": "bar", "c2": "bar" if simple else {"nc1": "bar"}},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
 
     # assert x-hints
     table = p.default_schema.get_table("dim_test")
     assert table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
     assert table["columns"][from_]["x-valid-from"]  # type: ignore[typeddict-item]
     assert table["columns"][to]["x-valid-to"]  # type: ignore[typeddict-item]
-    assert table["columns"]["_dlt_id"]["x-row-hash"]  # type: ignore[typeddict-item]
+    assert table["columns"]["_dlt_id"]["x-row-version"]  # type: ignore[typeddict-item]
+    # _dlt_id is still unique
+    assert table["columns"]["_dlt_id"]["unique"]
 
     # assert load results
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
     cname = "c2" if simple else "c2__nc1"
     assert get_table(p, "dim_test", cname) == [
-        {from_: ts_1, to: ACTIVE_TS, "nk": 2, "c1": "bar", cname: "bar"},
-        {from_: ts_1, to: ACTIVE_TS, "nk": 1, "c1": "foo", cname: "foo"},
+        {from_: ts_1, to: get_active_ts(p), "nk": 2, "c1": "bar", cname: "bar"},
+        {from_: ts_1, to: get_active_ts(p), "nk": 1, "c1": "foo", cname: "foo"},
     ]
 
     # load 2 — update a record
@@ -137,26 +156,26 @@ def test_core_functionality(
         {"nk": 1, "c1": "foo", "c2": "foo_updated" if simple else {"nc1": "foo_updated"}},
         {"nk": 2, "c1": "bar", "c2": "bar" if simple else {"nc1": "bar"}},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", cname) == [
-        {from_: ts_1, to: ACTIVE_TS, "nk": 2, "c1": "bar", cname: "bar"},
+        {from_: ts_1, to: get_active_ts(p), "nk": 2, "c1": "bar", cname: "bar"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", cname: "foo"},
-        {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo", cname: "foo_updated"},
+        {from_: ts_2, to: get_active_ts(p), "nk": 1, "c1": "foo", cname: "foo_updated"},
     ]
 
     # load 3 — delete a record
     dim_snap = [
         {"nk": 1, "c1": "foo", "c2": "foo_updated" if simple else {"nc1": "foo_updated"}},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", cname) == [
         {from_: ts_1, to: ts_3, "nk": 2, "c1": "bar", cname: "bar"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", cname: "foo"},
-        {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo", cname: "foo_updated"},
+        {from_: ts_2, to: get_active_ts(p), "nk": 1, "c1": "foo", cname: "foo_updated"},
     ]
 
     # load 4 — insert a record
@@ -164,14 +183,14 @@ def test_core_functionality(
         {"nk": 1, "c1": "foo", "c2": "foo_updated" if simple else {"nc1": "foo_updated"}},
         {"nk": 3, "c1": "baz", "c2": "baz" if simple else {"nc1": "baz"}},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", cname) == [
         {from_: ts_1, to: ts_3, "nk": 2, "c1": "bar", cname: "bar"},
-        {from_: ts_4, to: ACTIVE_TS, "nk": 3, "c1": "baz", cname: "baz"},
+        {from_: ts_4, to: get_active_ts(p), "nk": 3, "c1": "baz", cname: "baz"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", cname: "foo"},
-        {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo", cname: "foo_updated"},
+        {from_: ts_2, to: get_active_ts(p), "nk": 1, "c1": "foo", cname: "foo_updated"},
     ]
 
 
@@ -196,12 +215,12 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         l1_1 := {"nk": 1, "c1": "foo", "c2": [1] if simple else [{"cc1": 1}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: ACTIVE_TS, "nk": 2, "c1": "bar"},
-        {from_: ts_1, to: ACTIVE_TS, "nk": 1, "c1": "foo"},
+        {from_: ts_1, to: get_active_ts(p), "nk": 2, "c1": "bar"},
+        {from_: ts_1, to: get_active_ts(p), "nk": 1, "c1": "foo"},
     ]
     cname = "value" if simple else "cc1"
     assert get_table(p, "dim_test__c2", cname) == [
@@ -215,20 +234,23 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [1] if simple else [{"cc1": 1}]},
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: ACTIVE_TS, "nk": 2, "c1": "bar"},
+        {from_: ts_1, to: get_active_ts(p), "nk": 2, "c1": "bar"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},  # updated
-        {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},  # new
+        {from_: ts_2, to: get_active_ts(p), "nk": 1, "c1": "foo_updated"},  # new
     ]
-    assert get_table(p, "dim_test__c2", cname) == [
-        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
-    ]
+    assert_records_as_set(
+        get_table(p, "dim_test__c2", cname),
+        [
+            {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
+            {"_dlt_root_id": get_row_hash(l2_1), cname: 1},  # new
+            {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
+            {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+        ],
+    )
 
     # load 3 — update a record — change in complex column
     dim_snap = [
@@ -239,15 +261,18 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         },
         {"nk": 2, "c1": "bar", "c2": [2, 3] if simple else [{"cc1": 2}, {"cc1": 3}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_3 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: ACTIVE_TS, "nk": 2, "c1": "bar"},
-        {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
-        {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},  # updated
-        {from_: ts_3, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},  # new
-    ]
+    assert_records_as_set(
+        get_table(p, "dim_test", "c1"),
+        [
+            {from_: ts_1, to: get_active_ts(p), "nk": 2, "c1": "bar"},
+            {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
+            {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},  # updated
+            {from_: ts_3, to: get_active_ts(p), "nk": 1, "c1": "foo_updated"},  # new
+        ],
+    )
     exp_3 = [
         {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
         {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
@@ -256,48 +281,59 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         {"_dlt_root_id": get_row_hash(l3_1), cname: 2},  # new
         {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
     ]
-    assert get_table(p, "dim_test__c2", cname) == exp_3
+    assert_records_as_set(get_table(p, "dim_test__c2", cname), exp_3)
 
     # load 4 — delete a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_4 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},  # updated
-        {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
-        {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},
-        {from_: ts_3, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},
-    ]
-    assert get_table(p, "dim_test__c2", cname) == exp_3  # deletes should not alter child tables
+    assert_records_as_set(
+        get_table(p, "dim_test", "c1"),
+        [
+            {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},  # updated
+            {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
+            {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},
+            {from_: ts_3, to: get_active_ts(p), "nk": 1, "c1": "foo_updated"},
+        ],
+    )
+    assert_records_as_set(
+        get_table(p, "dim_test__c2", cname), exp_3
+    )  # deletes should not alter child tables
 
     # load 5 — insert a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
         l5_3 := {"nk": 3, "c1": "baz", "c2": [1, 2] if simple else [{"cc1": 1}, {"cc1": 2}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_5 = get_load_package_created_at(p, info)
     assert_load_info(info)
-    assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},
-        {from_: ts_5, to: ACTIVE_TS, "nk": 3, "c1": "baz"},  # new
-        {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
-        {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},
-        {from_: ts_3, to: ACTIVE_TS, "nk": 1, "c1": "foo_updated"},
-    ]
-    assert get_table(p, "dim_test__c2", cname) == [
-        {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l3_1), cname: 1},
-        {"_dlt_root_id": get_row_hash(l5_3), cname: 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
-        {"_dlt_root_id": get_row_hash(l3_1), cname: 2},
-        {"_dlt_root_id": get_row_hash(l5_3), cname: 2},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
-    ]
+    assert_records_as_set(
+        get_table(p, "dim_test", "c1"),
+        [
+            {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},
+            {from_: ts_5, to: get_active_ts(p), "nk": 3, "c1": "baz"},  # new
+            {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
+            {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},
+            {from_: ts_3, to: get_active_ts(p), "nk": 1, "c1": "foo_updated"},
+        ],
+    )
+    assert_records_as_set(
+        get_table(p, "dim_test__c2", cname),
+        [
+            {"_dlt_root_id": get_row_hash(l1_1), cname: 1},
+            {"_dlt_root_id": get_row_hash(l2_1), cname: 1},
+            {"_dlt_root_id": get_row_hash(l3_1), cname: 1},
+            {"_dlt_root_id": get_row_hash(l5_3), cname: 1},  # new
+            {"_dlt_root_id": get_row_hash(l1_2), cname: 2},
+            {"_dlt_root_id": get_row_hash(l3_1), cname: 2},
+            {"_dlt_root_id": get_row_hash(l5_3), cname: 2},  # new
+            {"_dlt_root_id": get_row_hash(l1_2), cname: 3},
+        ],
+    )
 
 
 @pytest.mark.parametrize(
@@ -317,34 +353,40 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         l1_1 := {"nk": 1, "c1": "foo", "c2": [{"cc1": [1]}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert get_table(p, "dim_test__c2__cc1", "value") == [
-        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-    ]
+    assert_records_as_set(
+        get_table(p, "dim_test__c2__cc1", "value"),
+        [
+            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+        ],
+    )
 
     # load 2 — update a record — change not in complex column
     dim_snap = [
         l2_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1]}]},
         l1_2 := {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert get_table(p, "dim_test__c2__cc1", "value") == [
-        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-    ]
+    assert_records_as_set(
+        (get_table(p, "dim_test__c2__cc1", "value")),
+        [
+            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+            {"_dlt_root_id": get_row_hash(l2_1), "value": 1},  # new
+            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+        ],
+    )
 
     # load 3 — update a record — change in complex column
     dim_snap = [
         l3_1 := {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         {"nk": 2, "c1": "bar", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     exp_3 = [
         {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
@@ -354,32 +396,35 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
         {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
         {"_dlt_root_id": get_row_hash(l3_1), "value": 2},  # new
     ]
-    assert get_table(p, "dim_test__c2__cc1", "value") == exp_3
+    assert_records_as_set(get_table(p, "dim_test__c2__cc1", "value"), exp_3)
 
     # load 4 — delete a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert get_table(p, "dim_test__c2__cc1", "value") == exp_3
+    assert_records_as_set(get_table(p, "dim_test__c2__cc1", "value"), exp_3)
 
     # load 5 — insert a record
     dim_snap = [
         {"nk": 1, "c1": "foo_updated", "c2": [{"cc1": [1, 2]}]},
         l5_3 := {"nk": 3, "c1": "baz", "c2": [{"cc1": [1]}]},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert get_table(p, "dim_test__c2__cc1", "value") == [
-        {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
-        {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l3_1), "value": 1},
-        {"_dlt_root_id": get_row_hash(l5_3), "value": 1},  # new
-        {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
-        {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
-    ]
+    assert_records_as_set(
+        get_table(p, "dim_test__c2__cc1", "value"),
+        [
+            {"_dlt_root_id": get_row_hash(l1_1), "value": 1},
+            {"_dlt_root_id": get_row_hash(l1_2), "value": 1},
+            {"_dlt_root_id": get_row_hash(l2_1), "value": 1},
+            {"_dlt_root_id": get_row_hash(l3_1), "value": 1},
+            {"_dlt_root_id": get_row_hash(l5_3), "value": 1},  # new
+            {"_dlt_root_id": get_row_hash(l1_2), "value": 2},
+            {"_dlt_root_id": get_row_hash(l3_1), "value": 2},
+        ],
+    )
 
 
 @pytest.mark.parametrize(
@@ -404,11 +449,11 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     # configuring a validity column name that appears in the data should cause an exception
     dim_snap = {"nk": 1, "foo": 1, "from": 1}  # conflict on "from" column
     with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(r(dim_snap))
+        p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
     dim_snap = {"nk": 1, "foo": 1, "to": 1}  # conflict on "to" column
     with pytest.raises(PipelineStepFailed):
-        p.run(r(dim_snap))
+        p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
 
 
@@ -436,17 +481,17 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {"nk": 1, "c1": "foo", "c2": [1], "row_hash": "mocked_hash_1"},
         {"nk": 2, "c1": "bar", "c2": [2, 3], "row_hash": "mocked_hash_2"},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_1 = get_load_package_created_at(p, info)
     table = p.default_schema.get_table("dim_test")
-    assert table["columns"]["row_hash"]["x-row-hash"]  # type: ignore[typeddict-item]
-    assert "x-row-hash" not in table["columns"]["_dlt_id"]
+    assert table["columns"]["row_hash"]["x-row-version"]  # type: ignore[typeddict-item]
+    assert "x-row-version" not in table["columns"]["_dlt_id"]
 
     # load 2 — update and delete a record
     dim_snap = [
         {"nk": 1, "c1": "foo_upd", "c2": [1], "row_hash": "mocked_hash_1_upd"},
     ]
-    info = p.run(r(dim_snap))
+    info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     ts_2 = get_load_package_created_at(p, info)
 
     # assert load results
@@ -454,7 +499,13 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
     assert get_table(p, "dim_test", "c1") == [
         {from_: ts_1, to: ts_2, "nk": 2, "c1": "bar", "row_hash": "mocked_hash_2"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", "row_hash": "mocked_hash_1"},
-        {from_: ts_2, to: ACTIVE_TS, "nk": 1, "c1": "foo_upd", "row_hash": "mocked_hash_1_upd"},
+        {
+            from_: ts_2,
+            to: get_active_ts(p),
+            "nk": 1,
+            "c1": "foo_upd",
+            "row_hash": "mocked_hash_1_upd",
+        },
     ]
     # root id is not deterministic when a user provided row hash is used
     assert get_table(p, "dim_test__c2", "value", include_root_id=False) == [
