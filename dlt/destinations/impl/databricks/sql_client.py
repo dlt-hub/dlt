@@ -8,8 +8,6 @@ from databricks.sql.client import (
 )
 from databricks.sql.exc import Error as DatabricksSqlError
 
-from dlt.common import pendulum
-from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,

@@ -14,7 +14,7 @@ from typing import (
     List,
 )
 
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext

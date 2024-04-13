@@ -19,7 +19,9 @@ from typing import (
 )
 
 from dlt import version
-from dlt.common import json, logger, pendulum
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RunConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
@@ -97,6 +99,7 @@ from dlt.common.pipeline import (
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
@@ -136,8 +139,6 @@ from dlt.pipeline.state_sync import (
     mark_state_extracted,
     migrate_pipeline_state,
     state_resource,
-    json_encode_state,
-    json_decode_state,
     default_pipeline_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated

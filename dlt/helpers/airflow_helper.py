@@ -24,8 +24,8 @@ except ModuleNotFoundError:
 
 
 import dlt
-from dlt.common import pendulum
 from dlt.common import logger
+from dlt.common.pendulum import pendulum
 from dlt.common.runtime.telemetry import with_telemetry
 
 from dlt.common.destination import TLoaderFileFormat

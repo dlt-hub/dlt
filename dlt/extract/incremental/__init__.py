@@ -8,8 +8,9 @@ from functools import wraps
 
 
 import dlt
+from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common import pendulum, logger
+from dlt.common.pendulum import pendulum
 from dlt.common.jsonpath import compile_path
 from dlt.common.typing import (
     TDataItem,

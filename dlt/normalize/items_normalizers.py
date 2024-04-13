@@ -1,7 +1,8 @@
 from typing import List, Dict, Set, Any
 from abc import abstractmethod
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua

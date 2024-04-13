@@ -17,7 +17,7 @@ from typing import (
     TypeVar,
 )
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.configuration import configspec, known_sections, with_config
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_writers.exceptions import DataWriterNotFound, InvalidDataItem

@@ -5,7 +5,7 @@ import yaml
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import NamingConvention

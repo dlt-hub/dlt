@@ -2,7 +2,8 @@ import requests
 
 
 def send_slack_message(incoming_hook: str, message: str, is_markdown: bool = True) -> None:
-    from dlt.common import json, logger
+    from dlt.common import logger
+    from dlt.common.json import json
 
     """Sends a `message` to  Slack `incoming_hook`, by default formatted as markdown."""
     r = requests.post(

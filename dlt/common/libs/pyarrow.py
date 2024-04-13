@@ -15,7 +15,7 @@ from typing import (
 )
 
 from dlt import version
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
 
