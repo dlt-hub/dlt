@@ -110,3 +110,37 @@ def pivot(
         return item
 
     return _transformer
+
+
+def add_row_hash_to_table(row_hash_column_name: str) -> TDataItem:
+    """Computes content hash for each row of panda frame, arrow table or batch and adds it as `row_hash_column_name` column.
+
+    Internally arrow tables and batches are converted to pandas DataFrame and then `hash_pandas_object` is used to
+    generate a series with row hashes. Hashes are converted to signed int64 and added to original table. Data may be modified.
+    For SCD2 use with a resource configuration that assigns custom row version column to `row_hash_column_name`
+    """
+    from dlt.common.libs import pyarrow
+    from dlt.common.libs.pyarrow import pyarrow as pa
+    from dlt.common.libs.pandas import pandas as pd
+
+    def _unwrap(table: TDataItem) -> TDataItem:
+        if is_arrow := pyarrow.is_arrow_item(table):
+            df = table.to_pandas(deduplicate_objects=False)
+        else:
+            df = table
+
+        hash_ = pd.util.hash_pandas_object(df)
+
+        if is_arrow:
+            table = pyarrow.append_column(
+                table,
+                row_hash_column_name,
+                pa.Array.from_pandas(hash_, type=pa.int64(), safe=False),
+            )
+        else:
+            hash_np = hash_.values.astype("int64", copy=False, casting="unsafe")
+            table[row_hash_column_name] = hash_np
+
+        return table
+
+    return _unwrap
