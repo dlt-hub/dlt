@@ -242,7 +242,7 @@ executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`
 #### Example: `scd2` merge strategy
 ```py
 @dlt.resource(
-    write_disposition={"mode": "merge", "strategy": "scd2"}
+    write_disposition={"disposition": "merge", "strategy": "scd2"}
 )
 def dim_customer():
     # initial load
@@ -271,7 +271,7 @@ def dim_customer():
         {"customer_key": 2, "c1": "bar", "c2": 2}
 ]
 
-pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703    
+pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 ```
 
 *`dim_customer` destination table after second run—inserted new record for `customer_key` 1 and retired old record by updating `_dlt_valid_to`:*
@@ -290,7 +290,7 @@ def dim_customer():
         {"customer_key": 1, "c1": "foo_updated", "c2": 1},
     ]
 
-pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403    
+pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 ```
 
 *`dim_customer` destination table after third run—retired deleted record by updating `_dlt_valid_to`:*
@@ -306,7 +306,7 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 ```py
 @dlt.resource(
     write_disposition={
-        "mode": "merge",
+        "disposition": "merge",
         "strategy": "scd2",
         "validity_column_names": ["from", "to"],  # will use "from" and "to" instead of default values
     }
@@ -317,13 +317,13 @@ def dim_customer():
 ```
 
 #### Example: use your own row hash
-By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_hash_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
+By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_version_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
 ```py
 @dlt.resource(
     write_disposition={
-        "mode": "merge",
+        "disposition": "merge",
         "strategy": "scd2",
-        "row_hash_column_name": "row_hash",  # the column "row_hash" should be provided by the resource
+        "row_version_column_name": "row_hash",  # the column "row_hash" should be provided by the resource
     }
 )
 def dim_customer():
@@ -333,6 +333,16 @@ def dim_customer():
 
 #### Child tables
 Child tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in child tables can be obtained by joining the root table using `_dlt_root_id`.
+
+#### Limitations
+
+* You cannot use columns like `updated_at` or integer `version` of a record that are unique within a `primary_key` (even if it is defined). Hash column
+must be unique for a root table. We are working to allow `updated_at` style tracking
+* We do not detect changes in child tables (except new records) if row hash of the corresponding parent row does not change. Use `updated_at` or similar
+column in the root table to stamp changes in nested data.
+* `merge_key(s)` are (for now) ignored.
+
+
 
 ## Incremental loading with a cursor field
 
