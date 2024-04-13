@@ -4,6 +4,8 @@ from typing import Any, Dict
 from datetime import date, datetime, time  # noqa: I251
 
 from dlt.common.json import json
+from dlt.common.pendulum import pendulum
+from dlt.common.time import reduce_pendulum_datetime_precision
 
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
@@ -152,3 +154,17 @@ def escape_databricks_literal(v: Any) -> Any:
         return "NULL"
 
     return str(v)
+
+
+def format_datetime_literal(v: pendulum.DateTime, precision: int = 6, no_tz: bool = False) -> str:
+    """Converts `v` to ISO string, optionally without timezone spec (in UTC) and with given `precision`"""
+    if no_tz:
+        v = v.in_timezone(tz="UTC").replace(tzinfo=None)
+    v = reduce_pendulum_datetime_precision(v, precision)
+    # yet another precision translation
+    timespec: str = "microseconds"
+    if precision < 6:
+        timespec = "milliseconds"
+    elif precision < 3:
+        timespec = "seconds"
+    return v.isoformat(sep=" ", timespec=timespec)
