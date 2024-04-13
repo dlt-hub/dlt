@@ -47,8 +47,9 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
    ```sql
    CREATE DATABASE IF NOT EXISTS dlt;
-   CREATE USER dlt IDENTIFIED WITH sha256_password BY 'my_password'
-   GRANT ALL ON dlt.* TO dlt;
+   CREATE USER dlt IDENTIFIED WITH sha256_password BY 'Dlt*12345789234567';
+   GRANT CREATE, ALTER, SELECT, DELETE, DROP, TRUNCATE, OPTIMIZE, SHOW, INSERT, dictGet ON dlt.* TO dlt;
+   GRANT SELECT ON INFORMATION_SCHEMA.COLUMNS TO dlt;
    GRANT CREATE TEMPORARY TABLE, S3 ON *.* TO dlt;
    ```
 
@@ -58,21 +59,21 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
    ```toml
    [destination.clickhouse.credentials]
-   database = "dlt_data"                    # the database name you created
-   username = "default"                     # ClickHouse username, default is usually "default"
-   password = ""                            # ClickHouse password if any
+   database = "dlt"                         # The database name you created
+   username = "dlt"                         # ClickHouse username, default is usually "default"
+   password = "Dlt*12345789234567"          # ClickHouse password if any
    host = "localhost"                       # ClickHouse server host
    port = 9000                              # ClickHouse HTTP port, default is 9000
    http_port = 8443                         # HTTP Port to connect to ClickHouse server's HTTP interface.
    secure = 1                               # Set to 1 if using HTTPS, else 0.
-   dataset_table_separator = "___"          # Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'.
+   dataset_table_separator = "___"          # Separator for dataset table names from dataset.
    ```
 
 2. You can pass a database connection string similar to the one used by the `clickhouse-driver` library. The credentials above will look like this:
 
    ```toml
    # keep it at the top of your toml file, before any section starts.
-   destination.clickhouse.credentials="clickhouse://default:password@localhost/dlt_data?secure=false"
+   destination.clickhouse.credentials="clickhouse://dlt:Dlt*12345789234567@localhost:9000/dlt?secure=1"
    ```
 
 ## Write disposition
@@ -84,14 +85,13 @@ All [write dispositions](../../general-usage/incremental-loading#choosing-a-writ
 Data is loaded into ClickHouse using the most efficient method depending on the data source:
 
 - For local files, the `clickhouse-connect` library is used to directly load files into ClickHouse tables using the `INSERT` command.
-
 - For files in remote storage like S3, Google Cloud Storage, or Azure Blob Storage, ClickHouse table functions like `s3`, `gcs` and `azureBlobStorage` are used to read the files and insert the data
   into tables.
 
 ## Supported file formats
 
 - [jsonl](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.
-- [parquet](../file-formats/parquet.md) is also supported for both direct loading and staging.
+- [parquet](../file-formats/parquet.md) is supported for both direct loading and staging.
 
 ## Supported column hints
 
@@ -139,7 +139,7 @@ pipeline = dlt.pipeline(
 
 ### dbt support
 
-Integration with [dbt](../transformations/dbt/dbt.md) is currently not supported.
+Integration with [dbt](../transformations/dbt/dbt.md) is supported.
 
 ### Syncing of `dlt` state
 
