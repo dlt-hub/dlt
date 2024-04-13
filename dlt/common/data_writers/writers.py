@@ -287,7 +287,14 @@ class ParquetDataWriter(DataWriter):
         self.allow_truncated_timestamps = allow_truncated_timestamps
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
-        from dlt.common.libs.pyarrow import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_timestamp
+
+        # if timestamps are not explicitly coerced, use destination resolution
+        if not self.coerce_timestamps:
+            self.coerce_timestamps = get_py_arrow_timestamp(
+                self._caps.timestamp_precision, "UTC"
+            ).unit
+            self.allow_truncated_timestamps = True
 
         return pyarrow.parquet.ParquetWriter(
             self._f,
@@ -331,7 +338,9 @@ class ParquetDataWriter(DataWriter):
         for key in self.complex_indices:
             for row in rows:
                 if (value := row.get(key)) is not None:
-                    row[key] = json.dumps(value)
+                    # TODO: make this configurable
+                    if value is not None and not isinstance(value, str):
+                        row[key] = json.dumps(value)
 
         table = pyarrow.Table.from_pylist(rows, schema=self.schema)
         # Write
