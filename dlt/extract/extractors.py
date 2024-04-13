@@ -284,7 +284,7 @@ class ArrowExtractor(Extractor):
         items: TDataItems,
         columns: TTableSchemaColumns = None,
     ) -> None:
-        columns = columns or self.schema.tables[table_name]["columns"]
+        columns = columns or self.schema.get_table_columns(table_name)
         # Note: `items` is always a list here due to the conversion in `write_table`
         items = [
             pyarrow.normalize_py_arrow_item(item, columns, self.naming, self._caps)
