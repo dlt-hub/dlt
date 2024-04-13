@@ -1,5 +1,10 @@
+from collections.abc import Sequence as C_Sequence
+from typing import Any, Dict, Sequence, Union
+
 from dlt.common.typing import TDataItem
 from dlt.extract.items import ItemTransformFunctionNoMeta
+
+import jsonpath_ng
 
 
 def take_first(max_items: int) -> ItemTransformFunctionNoMeta[bool]:
@@ -24,3 +29,84 @@ def skip_first(max_items: int) -> ItemTransformFunctionNoMeta[bool]:
         return count > max_items
 
     return _filter
+
+
+def pivot(
+    paths: Union[str, Sequence[str]] = "$", prefix: str = "col"
+) -> ItemTransformFunctionNoMeta[TDataItem]:
+    """
+    Pivot the given sequence of sequences into a sequence of dicts,
+    generating column names from the given prefix and indexes, e.g.:
+    {"field": [[1, 2]]} -> {"field": [{"prefix_0": 1, "prefix_1": 2}]}
+
+    Args:
+        paths (Union[str, Sequence[str]]): JSON paths of the fields to pivot.
+        prefix (Optional[str]): Prefix to add to the column names.
+
+    Returns:
+        ItemTransformFunctionNoMeta[TDataItem]: The transformer function.
+    """
+    if isinstance(paths, str):
+        paths = [paths]
+
+    def _seq_to_dict(seq: Sequence[Any]) -> Dict[str, Any]:
+        """
+        Transform the given sequence into a dict, generating
+        columns with the given prefix.
+
+        Args:
+            seq (List): The sequence to transform.
+
+        Returns:
+            Dict: a dictionary with the sequence values.
+        """
+        return {prefix + str(i): value for i, value in enumerate(seq)}
+
+    def _raise_if_not_sequence(match: jsonpath_ng.jsonpath.DatumInContext) -> None:
+        """Check if the given field is a sequence of sequences.
+
+        Args:
+            match (jsonpath_ng.jsonpath.DatumInContext): The field to check.
+        """
+        if not isinstance(match.value, C_Sequence):
+            raise ValueError(
+                "Pivot transformer is only applicable to sequences "
+                f"fields, however, the value of {str(match.full_path)}"
+                " is not a sequence."
+            )
+
+        for item in match.value:
+            if not isinstance(item, C_Sequence):
+                raise ValueError(
+                    "Pivot transformer is only applicable to sequences, "
+                    f"however, the value of {str(match.full_path)} "
+                    "includes a non-sequence element."
+                )
+
+    def _transformer(item: TDataItem) -> TDataItem:
+        """Pivot the given sequence item into a sequence of dicts.
+
+        Args:
+            item (TDataItem): The data item to transform.
+
+        Returns:
+            TDataItem: the data item with pivoted columns.
+        """
+        for path in paths:
+            expr = jsonpath_ng.parse(path)
+
+            for match in expr.find([item] if path in "$" else item):
+                trans_value = []
+                _raise_if_not_sequence(match)
+
+                for value in match.value:
+                    trans_value.append(_seq_to_dict(value))
+
+                if path == "$":
+                    item = trans_value
+                else:
+                    match.full_path.update(item, trans_value)
+
+        return item
+
+    return _transformer

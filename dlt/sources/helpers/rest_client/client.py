@@ -11,12 +11,12 @@ from typing import (
 import copy
 from urllib.parse import urlparse
 from requests import Session as BaseSession  # noqa: I251
+from requests import Response, Request
 
 from dlt.common import jsonpath
 from dlt.common import logger
 
 from dlt.sources.helpers.requests.retry import Client
-from dlt.sources.helpers.requests import Response, Request
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
