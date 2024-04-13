@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
+from dlt.common.data_writers.escape import format_datetime_literal
 from dlt.common.logger import pretty_format_exception
 
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
@@ -523,12 +524,17 @@ class SqlMergeJob(SqlBaseJob):
         escape_id = sql_client.capabilities.escape_identifier
         from_, to = list(map(escape_id, get_validity_column_names(root_table)))  # validity columns
         hash_ = escape_id(
-            get_first_column_name_with_prop(root_table, "x-row-hash")
+            get_first_column_name_with_prop(root_table, "x-row-version")
         )  # row hash column
 
         # define values for validity columns
-        boundary_ts = current_load_package()["state"]["created_at"]
-        active_record_ts = HIGH_TS.isoformat()
+        boundary_ts = format_datetime_literal(
+            current_load_package()["state"]["created_at"],
+            sql_client.capabilities.timestamp_precision,
+        )
+        active_record_ts = format_datetime_literal(
+            HIGH_TS, sql_client.capabilities.timestamp_precision
+        )
 
         # retire updated and deleted records
         sql.append(f"""
@@ -558,6 +564,6 @@ class SqlMergeJob(SqlBaseJob):
                 INSERT INTO {table_name}
                 SELECT *
                 FROM {staging_table_name} AS s
-                WHERE NOT EXISTS (SELECT s._dlt_id FROM {table_name} AS f WHERE f._dlt_id = s._dlt_id);
+                WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{hash_} = s.{hash_});
             """)
         return sql
