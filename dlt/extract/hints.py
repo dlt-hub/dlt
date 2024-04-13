@@ -1,6 +1,7 @@
 from copy import copy, deepcopy
 from typing import TypedDict, cast, Any, Optional, Dict
 
+from dlt.common import logger
 from dlt.common.schema.typing import (
     TColumnNames,
     TColumnProp,
@@ -14,7 +15,6 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TSchemaContract,
 )
-from dlt.common import logger
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     DEFAULT_MERGE_STRATEGY,
@@ -452,7 +452,7 @@ class DltResourceHints:
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
-                    "x-row-hash": True,
+                    "x-row-version": True,
                 }
 
     @staticmethod

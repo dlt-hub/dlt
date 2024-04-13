@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
@@ -382,7 +382,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @staticmethod
     @lru_cache(maxsize=None)
     def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
-        return schema.get_table(table_name)["columns"].get("_dlt_id", dict()).get("x-row-hash", False)  # type: ignore[return-value]
+        return schema.get_table(table_name)["columns"].get("_dlt_id", dict()).get("x-row-version", False)  # type: ignore[return-value]
 
     @staticmethod
     def _validate_validity_column_names(
