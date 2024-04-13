@@ -331,6 +331,30 @@ def dim_customer():
 ...
 ```
 
+#### 🧪 Use scd2 with Arrow Tables and Panda frames
+`dlt` will not add **row hash** column to the tabular data automatically (we are working on it).
+You need to do that yourself by adding a transform function to `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
+```py
+import dlt
+from dlt.sources.helpers.transform import add_row_hash_to_table
+
+scd2_r = dlt.resource(
+          arrow_table,
+          name="tabular",
+          write_disposition={
+              "disposition": "merge",
+              "strategy": "scd2",
+              "row_version_column_name": "row_hash",
+          },
+      ).add_map(add_row_hash_to_table("row_hash"))
+```
+`add_row_hash_to_table` is the name of the transform function that will compute and create `row_hash` column that is declared as holding the hash by `row_version_column_name`.
+
+:::tip
+You can modify existing resources that yield data in tabular form by calling `apply_hints` and passing `scd2` config in `write_disposition` and then by
+adding the transform with `add_map`.
+:::
+
 #### Child tables
 Child tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in child tables can be obtained by joining the root table using `_dlt_root_id`.
 
@@ -341,8 +365,6 @@ must be unique for a root table. We are working to allow `updated_at` style trac
 * We do not detect changes in child tables (except new records) if row hash of the corresponding parent row does not change. Use `updated_at` or similar
 column in the root table to stamp changes in nested data.
 * `merge_key(s)` are (for now) ignored.
-
-
 
 ## Incremental loading with a cursor field
 

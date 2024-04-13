@@ -7,16 +7,17 @@ from datetime import datetime, timezone  # noqa: I251
 import dlt
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.exceptions import ColumnNameConflictException
-from dlt.common.schema.utils import DEFAULT_VALIDITY_COLUMN_NAMES
+from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
 from dlt.common.typing import TDataItem
 from dlt.destinations.sql_jobs import HIGH_TS
+from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import arrow_table_all_data_types
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -464,36 +465,6 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
 
 
-def add_row_hash(row_hash_column_name: str) -> TDataItem:
-    """Creates a transform function to be added with `add_map` that will unwrap JSON columns
-    ingested via connectorx. Such columns are additionally quoted and translate SQL NULL to json "null"
-    """
-    from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa
-    from dlt.common.libs.pandas import pandas as pd
-
-    # from dlt.common.libs.pyarrow.pyarrow import compute as pc
-    # import pyarrow.compute as pc
-    # import pyarrow as pa
-
-    def _unwrap(table: TDataItem) -> TDataItem:
-        if is_arrow := pyarrow.is_arrow_item(table):
-            df = table.to_pandas(deduplicate_objects=False)
-        else:
-            df = table
-
-        hash_ = pd.util.hash_pandas_object(df)
-
-        if is_arrow:
-            table = pyarrow.append_column(table, row_hash_column_name, pa.Array.from_pandas(hash_))
-        else:
-            table[row_hash_column_name] = hash_
-
-        return table
-
-    return _unwrap
-
-
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["duckdb"]),
@@ -503,26 +474,52 @@ def add_row_hash(row_hash_column_name: str) -> TDataItem:
 def test_arrow_custom_hash(
     destination_config: DestinationTestConfiguration, item_type: TPythonTableFormat
 ) -> None:
-    table, _, _ = arrow_table_all_data_types(item_type, include_json=False)
+    table, _, _ = arrow_table_all_data_types(item_type, num_rows=100, include_json=False)
+    orig_table: Any = None
+    if item_type == "pandas":
+        orig_table = table.copy(deep=True)
 
-    scd2_r = dlt.resource(
-        table,
-        name="tabular",
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "scd2",
-            "row_version_column_name": "row_hash",
-        },
-    ).add_map(add_row_hash("row_hash"))
+    from dlt.sources.helpers.transform import add_row_hash_to_table
 
-    print(scd2_r.compute_table_schema())
+    def _make_scd2_r(table_: Any) -> DltResource:
+        return dlt.resource(
+            table_,
+            name="tabular",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "row_version_column_name": "row_hash",
+            },
+        ).add_map(add_row_hash_to_table("row_hash"))
 
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
-    info = p.run(scd2_r, loader_file_format=destination_config.file_format)
+    info = p.run(_make_scd2_r(table), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    print(info)
-    print(p.last_trace.last_normalize_info)
-    print(p.default_schema.to_pretty_yaml())
+    # make sure we have scd2 columns in schema
+    table_schema = p.default_schema.get_table("tabular")
+    assert table_schema["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
+    from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
+    assert table_schema["columns"][from_]["x-valid-from"]  # type: ignore[typeddict-item]
+    assert table_schema["columns"][to]["x-valid-to"]  # type: ignore[typeddict-item]
+    assert table_schema["columns"]["row_hash"]["x-row-version"]  # type: ignore[typeddict-item]
+    # 100 items in destination
+    assert load_table_counts(p, "tabular")["tabular"] == 100
+
+    # modify in place (pandas only)
+    if item_type == "pandas":
+        table = orig_table
+        orig_table = table.copy(deep=True)
+        info = p.run(_make_scd2_r(table), loader_file_format=destination_config.file_format)
+        assert_load_info(info)
+        # no changes (hopefully hash is deterministic)
+        assert load_table_counts(p, "tabular")["tabular"] == 100
+
+        # change single row
+        orig_table.iloc[0, 0] = "Duck 🦆!"
+        info = p.run(_make_scd2_r(orig_table), loader_file_format=destination_config.file_format)
+        assert_load_info(info)
+        # on row changed
+        assert load_table_counts(p, "tabular")["tabular"] == 101
 
 
 @pytest.mark.parametrize(
