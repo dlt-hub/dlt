@@ -556,14 +556,33 @@ class SqlMergeJob(SqlBaseJob):
         """)
 
         # insert list elements for new active records in child tables
-        for table in table_chain[1:]:
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            with sql_client.with_staging_dataset(staging=True):
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            sql.append(f"""
-                INSERT INTO {table_name}
-                SELECT *
-                FROM {staging_table_name} AS s
-                WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{hash_} = s.{hash_});
-            """)
+        child_tables = table_chain[1:]
+        if child_tables:
+            unique_column: str = None
+            # use unique hint to create temp table with all identifiers to delete
+            unique_columns = get_columns_names_with_prop(root_table, "unique")
+            if not unique_columns:
+                raise MergeDispositionException(
+                    sql_client.fully_qualified_dataset_name(),
+                    staging_root_table_name,
+                    [t["name"] for t in table_chain],
+                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
+                    " it is not possible to link child tables to it.",
+                )
+            # get first unique column
+            unique_column = escape_id(unique_columns[0])
+            # TODO: - based on deterministic child hashes (OK)
+            # - if row hash changes all is right
+            # - if it does not we only capture new records, while we should replace existing with those in stage
+            # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
+            for table in child_tables:
+                table_name = sql_client.make_qualified_table_name(table["name"])
+                with sql_client.with_staging_dataset(staging=True):
+                    staging_table_name = sql_client.make_qualified_table_name(table["name"])
+                sql.append(f"""
+                    INSERT INTO {table_name}
+                    SELECT *
+                    FROM {staging_table_name} AS s
+                    WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{unique_column} = s.{unique_column});
+                """)
         return sql
