@@ -161,13 +161,13 @@ MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy)
 
 
 class TWriteDispositionDict(TypedDict):
-    mode: TWriteDisposition
+    disposition: TWriteDisposition
 
 
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
-    row_hash_column_name: Optional[str]
+    row_version_column_name: Optional[str]
 
 
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]

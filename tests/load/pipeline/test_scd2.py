@@ -11,15 +11,18 @@ from dlt.common.schema.utils import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
+from dlt.common.typing import TDataItem
 from dlt.destinations.sql_jobs import HIGH_TS
 from dlt.pipeline.exceptions import PipelineStepFailed
 
+from tests.cases import arrow_table_all_data_types
 from tests.pipeline.utils import assert_load_info
 from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     load_tables_to_dicts,
 )
+from tests.utils import TPythonTableFormat
 
 get_row_hash = DataItemNormalizer.get_row_hash
 
@@ -111,7 +114,7 @@ def test_core_functionality(
     @dlt.resource(
         table_name="dim_test",
         write_disposition={
-            "mode": "merge",
+            "disposition": "merge",
             "strategy": "scd2",
             "validity_column_names": validity_column_names,
         },
@@ -132,7 +135,7 @@ def test_core_functionality(
         {"nk": 2, "c1": "bar", "c2": "bar" if simple else {"nc1": "bar"}},
     ]
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
-
+    assert_load_info(info)
     # assert x-hints
     table = p.default_schema.get_table("dim_test")
     assert table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
@@ -203,7 +206,9 @@ def test_core_functionality(
 def test_child_table(destination_config: DestinationTestConfiguration, simple: bool) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
-    @dlt.resource(table_name="dim_test", write_disposition={"mode": "merge", "strategy": "scd2"})
+    @dlt.resource(
+        table_name="dim_test", write_disposition={"disposition": "merge", "strategy": "scd2"}
+    )
     def r(data):
         yield data
 
@@ -344,7 +349,9 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
 def test_grandchild_table(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
-    @dlt.resource(table_name="dim_test", write_disposition={"mode": "merge", "strategy": "scd2"})
+    @dlt.resource(
+        table_name="dim_test", write_disposition={"disposition": "merge", "strategy": "scd2"}
+    )
     def r(data):
         yield data
 
@@ -438,7 +445,7 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     @dlt.resource(
         table_name="dim_test",
         write_disposition={
-            "mode": "merge",
+            "disposition": "merge",
             "strategy": "scd2",
             "validity_column_names": ["from", "to"],
         },
@@ -457,6 +464,67 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
 
 
+def add_row_hash(row_hash_column_name: str) -> TDataItem:
+    """Creates a transform function to be added with `add_map` that will unwrap JSON columns
+    ingested via connectorx. Such columns are additionally quoted and translate SQL NULL to json "null"
+    """
+    from dlt.common.libs import pyarrow
+    from dlt.common.libs.pyarrow import pyarrow as pa
+    from dlt.common.libs.pandas import pandas as pd
+
+    # from dlt.common.libs.pyarrow.pyarrow import compute as pc
+    # import pyarrow.compute as pc
+    # import pyarrow as pa
+
+    def _unwrap(table: TDataItem) -> TDataItem:
+        if is_arrow := pyarrow.is_arrow_item(table):
+            df = table.to_pandas(deduplicate_objects=False)
+        else:
+            df = table
+
+        hash_ = pd.util.hash_pandas_object(df)
+
+        if is_arrow:
+            table = pyarrow.append_column(table, row_hash_column_name, pa.Array.from_pandas(hash_))
+        else:
+            table[row_hash_column_name] = hash_
+
+        return table
+
+    return _unwrap
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+def test_arrow_custom_hash(
+    destination_config: DestinationTestConfiguration, item_type: TPythonTableFormat
+) -> None:
+    table, _, _ = arrow_table_all_data_types(item_type, include_json=False)
+
+    scd2_r = dlt.resource(
+        table,
+        name="tabular",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "row_version_column_name": "row_hash",
+        },
+    ).add_map(add_row_hash("row_hash"))
+
+    print(scd2_r.compute_table_schema())
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    info = p.run(scd2_r, loader_file_format=destination_config.file_format)
+    assert_load_info(info)
+    print(info)
+    print(p.last_trace.last_normalize_info)
+    print(p.default_schema.to_pretty_yaml())
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["duckdb"]),
@@ -468,9 +536,9 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
     @dlt.resource(
         table_name="dim_test",
         write_disposition={
-            "mode": "merge",
+            "disposition": "merge",
             "strategy": "scd2",
-            "row_hash_column_name": "row_hash",
+            "row_version_column_name": "row_hash",
         },
     )
     def r(data):
@@ -482,6 +550,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {"nk": 2, "c1": "bar", "c2": [2, 3], "row_hash": "mocked_hash_2"},
     ]
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    assert_load_info(info)
     ts_1 = get_load_package_created_at(p, info)
     table = p.default_schema.get_table("dim_test")
     assert table["columns"]["row_hash"]["x-row-version"]  # type: ignore[typeddict-item]
@@ -492,6 +561,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {"nk": 1, "c1": "foo_upd", "c2": [1], "row_hash": "mocked_hash_1_upd"},
     ]
     info = p.run(r(dim_snap), loader_file_format=destination_config.file_format)
+    assert_load_info(info)
     ts_2 = get_load_package_created_at(p, info)
 
     # assert load results

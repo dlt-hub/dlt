@@ -1320,13 +1320,13 @@ def test_apply_hints() -> None:
     # test SCD2 write disposition hint
     empty_r.apply_hints(
         write_disposition={
-            "mode": "merge",
+            "disposition": "merge",
             "strategy": "scd2",
             "validity_column_names": ["from", "to"],
         }
     )
     assert empty_r._hints["write_disposition"] == {
-        "mode": "merge",
+        "disposition": "merge",
         "strategy": "scd2",
         "validity_column_names": ["from", "to"],
     }

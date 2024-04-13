@@ -411,10 +411,10 @@ class DltResourceHints:
     def _merge_write_disposition_dict(dict_: Dict[str, Any]) -> None:
         """Merges write disposition dictionary into write disposition shorthand and x-hints in place."""
 
-        if dict_["write_disposition"]["mode"] == "merge":
+        if dict_["write_disposition"]["disposition"] == "merge":
             DltResourceHints._merge_merge_disposition_dict(dict_)
         # reduce merge disposition from dict to shorthand
-        dict_["write_disposition"] = dict_["write_disposition"]["mode"]
+        dict_["write_disposition"] = dict_["write_disposition"]["disposition"]
 
     @staticmethod
     def _merge_merge_disposition_dict(dict_: Dict[str, Any]) -> None:
@@ -445,10 +445,10 @@ class DltResourceHints:
                     "nullable": True,
                     "x-valid-to": True,
                 }
-                if mddict.get("row_hash_column_name") is None:
+                if mddict.get("row_version_column_name") is None:
                     hash_ = "_dlt_id"
                 else:
-                    hash_ = mddict["row_hash_column_name"]
+                    hash_ = mddict["row_version_column_name"]
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
@@ -464,7 +464,9 @@ class DltResourceHints:
         dict_["resource"] = resource_name
         if "write_disposition" in dict_:
             if isinstance(dict_["write_disposition"], str):
-                dict_["write_disposition"] = {"mode": dict_["write_disposition"]}  # wrap in dict
+                dict_["write_disposition"] = {
+                    "disposition": dict_["write_disposition"]
+                }  # wrap in dict
             DltResourceHints._merge_write_disposition_dict(dict_)
         return cast(TTableSchema, dict_)
 

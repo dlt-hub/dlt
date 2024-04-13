@@ -955,7 +955,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     ids=lambda x: x.name,
 )
 def test_invalid_merge_strategy(destination_config: DestinationTestConfiguration) -> None:
-    @dlt.resource(write_disposition={"mode": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
     def r():
         yield {"foo": "bar"}
 
