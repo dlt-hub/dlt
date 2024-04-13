@@ -49,8 +49,6 @@ from dlt.common.schema.exceptions import (
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
 DEFAULT_MERGE_STRATEGY: TLoaderMergeStrategy = "delete-insert"
-DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
-"""Default values for validity column names used in `scd2` merge strategy."""
 
 
 def is_valid_schema_name(name: str) -> bool:
@@ -657,7 +655,7 @@ def version_table() -> TTableSchema:
         ],
     )
     table["write_disposition"] = "skip"
-    table["description"] = "Created by DLT. Tracks schema updates"
+    table["description"] = "Created by dlt. Tracks schema updates"
     return table
 
 
@@ -679,7 +677,7 @@ def load_table() -> TTableSchema:
         ],
     )
     table["write_disposition"] = "skip"
-    table["description"] = "Created by DLT. Tracks completed loads"
+    table["description"] = "Created by dlt. Tracks completed loads"
     return table
 
 

@@ -7,7 +7,7 @@ keywords: [dremio, iceberg, aws, glue catalog]
 # Dremio
 
 ## Install dlt with Dremio
-**To install the DLT library with Dremio and s3 dependencies:**
+**To install the dlt library with Dremio and s3 dependencies:**
 ```sh
 pip install dlt[dremio,s3]
 ```
@@ -86,7 +86,7 @@ Data loading happens by copying a staged parquet files from an object storage bu
 
 Dremio does not support `CREATE SCHEMA` DDL statements.
 
-Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the DLT pipeline. `full_refresh=True` is unsupported for these data sources.
+Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the dlt pipeline. `full_refresh=True` is unsupported for these data sources.
 
 "Object Storage" data sources do not have this limitation.
 

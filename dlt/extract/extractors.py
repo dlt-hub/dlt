@@ -213,7 +213,14 @@ class ObjectExtractor(Extractor):
 
 
 class ArrowExtractor(Extractor):
-    """Extracts arrow data items into parquet"""
+    """Extracts arrow data items into parquet. Normalizes arrow items column names.
+    Compares the arrow schema to actual dlt table schema to reorder the columns and to
+    insert missing columns (without data).
+
+    We do things that normalizer should do here so we do not need to load and save parquet
+    files again later.
+
+    """
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
@@ -312,23 +319,28 @@ class ArrowExtractor(Extractor):
             # normalize arrow table before merging
             arrow_table = self.schema.normalize_table_identifiers(arrow_table)
             # issue warnings when overriding computed with arrow
+            override_warn: bool = False
             for col_name, column in arrow_table["columns"].items():
                 if src_column := computed_table["columns"].get(col_name):
                     for hint_name, hint in column.items():
                         if (src_hint := src_column.get(hint_name)) is not None:
                             if src_hint != hint:
-                                logger.warning(
+                                override_warn = True
+                                logger.info(
                                     f"In resource: {resource.name}, when merging arrow schema on"
                                     f" column {col_name}. The hint {hint_name} value"
-                                    f" {src_hint} defined in resource is overwritten from arrow"
+                                    f" {src_hint} defined in resource will overwrite arrow hint"
                                     f" with value {hint}."
                                 )
+            if override_warn:
+                logger.warning(
+                    f"In resource: {resource.name}, when merging arrow schema with dlt schema,"
+                    " several column hints were different. dlt schema hints were kept and arrow"
+                    " schema and data were unmodified. It is up to destination to coerce the"
+                    " differences when loading. Change log level to INFO for more details."
+                )
 
-            # we must override the columns to preserve the order in arrow table
-            arrow_table["columns"] = update_dict_nested(
-                arrow_table["columns"], computed_table["columns"], keep_dst_values=True
-            )
-
+            update_dict_nested(arrow_table["columns"], computed_table["columns"])
         return arrow_table
 
     def _compute_and_update_table(

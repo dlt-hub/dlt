@@ -35,9 +35,9 @@ def maybe_run_query(
                                 import altair as alt
                             except ModuleNotFoundError:
                                 raise MissingDependencyException(
-                                    "DLT Streamlit Helpers",
+                                    "dlt Streamlit Helpers",
                                     ["altair"],
-                                    "DLT Helpers for Streamlit should be run within a streamlit"
+                                    "dlt Helpers for Streamlit should be run within a streamlit"
                                     " app.",
                                 )
 

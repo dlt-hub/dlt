@@ -33,6 +33,8 @@ VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 STATE_TABLE_NAME = "_dlt_pipeline_state"
 DLT_NAME_PREFIX = "_dlt"
+DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
+"""Default values for validity column names used in `scd2` merge strategy."""
 
 TColumnProp = Literal[
     "name",

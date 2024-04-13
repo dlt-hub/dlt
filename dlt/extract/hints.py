@@ -10,15 +10,14 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TWriteDispositionConfig,
     TMergeDispositionDict,
-    MERGE_STRATEGIES,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
+    DEFAULT_VALIDITY_COLUMN_NAMES,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     DEFAULT_MERGE_STRATEGY,
-    DEFAULT_VALIDITY_COLUMN_NAMES,
     merge_column,
     new_column,
     new_table,
