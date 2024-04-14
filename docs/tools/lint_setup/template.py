@@ -7,7 +7,6 @@ from typing import Optional, Dict, List, Any, Iterable, Iterator, Tuple, Sequenc
 
 import os
 
-import pendulum
 from datetime import datetime  # noqa: I251
 from pendulum import DateTime  # noqa: I251
 

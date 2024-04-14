@@ -293,11 +293,12 @@ class ParquetDataWriter(DataWriter):
         from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_timestamp
 
         # if timestamps are not explicitly coerced, use destination resolution
-        if not self.coerce_timestamps:
-            self.coerce_timestamps = get_py_arrow_timestamp(
-                self._caps.timestamp_precision, "UTC"
-            ).unit
-            self.allow_truncated_timestamps = True
+        # TODO: introduce maximum timestamp resolution, using timestamp_precision too aggressive
+        # if not self.coerce_timestamps:
+        #     self.coerce_timestamps = get_py_arrow_timestamp(
+        #         self._caps.timestamp_precision, "UTC"
+        #     ).unit
+        #     self.allow_truncated_timestamps = True
 
         return pyarrow.parquet.ParquetWriter(
             self._f,

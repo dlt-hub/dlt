@@ -655,7 +655,7 @@ def version_table() -> TTableSchema:
         ],
     )
     table["write_disposition"] = "skip"
-    table["description"] = "Created by dlt. Tracks schema updates"
+    table["description"] = "Created by DLT. Tracks schema updates"
     return table
 
 
@@ -677,7 +677,7 @@ def load_table() -> TTableSchema:
         ],
     )
     table["write_disposition"] = "skip"
-    table["description"] = "Created by dlt. Tracks completed loads"
+    table["description"] = "Created by DLT. Tracks completed loads"
     return table
 
 
