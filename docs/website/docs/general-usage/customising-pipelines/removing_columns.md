@@ -78,7 +78,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 1. At last, create a pipeline:
 
    ```py
-   # Integrating with a DLT pipeline
+   # Integrating with a dlt pipeline
    pipeline = dlt.pipeline(
        pipeline_name='example',
        destination='bigquery',

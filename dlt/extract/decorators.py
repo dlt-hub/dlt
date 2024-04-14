@@ -33,8 +33,8 @@ from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TColumnNames,
-    TTableSchemaColumns,
     TWriteDisposition,
+    TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
@@ -286,7 +286,7 @@ def resource(
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -304,7 +304,7 @@ def resource(
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -322,7 +322,7 @@ def resource(
     /,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -341,7 +341,7 @@ def resource(
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -358,7 +358,7 @@ def resource(
     /,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -400,7 +400,9 @@ def resource(
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
+        Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.

@@ -1,7 +1,8 @@
 from typing import List, Dict, Set, Any
 from abc import abstractmethod
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
@@ -326,8 +327,12 @@ class ArrowItemsNormalizer(ItemsNormalizer):
 
         return [schema_update]
 
-    def _fix_schema_precisions(self, root_table_name: str) -> List[TSchemaUpdate]:
-        """Reduce precision of timestamp columns if needed, according to destination caps"""
+    def _fix_schema_precisions(
+        self, root_table_name: str, arrow_schema: Any
+    ) -> List[TSchemaUpdate]:
+        """Update precision of timestamp columns to the precision of parquet being normalized.
+        Reduce the precision if it is out of range of destination timestamp precision.
+        """
         schema = self.schema
         table = schema.tables[root_table_name]
         max_precision = self.config.destination_capabilities.timestamp_precision
@@ -335,9 +340,15 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         new_cols: TTableSchemaColumns = {}
         for key, column in table["columns"].items():
             if column.get("data_type") in ("timestamp", "time"):
-                if (prec := column.get("precision")) and prec > max_precision:
-                    new_cols[key] = dict(column, precision=max_precision)  # type: ignore[assignment]
-
+                if prec := column.get("precision"):
+                    # apply the arrow schema precision to dlt column schema
+                    data_type = pyarrow.get_column_type_from_py_arrow(arrow_schema.field(key).type)
+                    if data_type["data_type"] in ("timestamp", "time"):
+                        prec = data_type["precision"]
+                    # limit with destination precision
+                    if prec > max_precision:
+                        prec = max_precision
+                    new_cols[key] = dict(column, precision=prec)  # type: ignore[assignment]
         if not new_cols:
             return []
         return [
@@ -345,8 +356,6 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         ]
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
-        base_schema_update = self._fix_schema_precisions(root_table_name)
-
         # read schema and counts from file metadata
         from dlt.common.libs.pyarrow import get_parquet_metadata
 
@@ -355,6 +364,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         ) as f:
             num_rows, arrow_schema = get_parquet_metadata(f)
             file_metrics = DataWriterMetrics(extracted_items_file, num_rows, f.tell(), 0, 0)
+        # when parquet files is saved, timestamps will be truncated and coerced. take the updated values
+        # and apply them to dlt schema
+        base_schema_update = self._fix_schema_precisions(root_table_name, arrow_schema)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id

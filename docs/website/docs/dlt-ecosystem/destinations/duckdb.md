@@ -7,7 +7,7 @@ keywords: [duckdb, destination, data warehouse]
 # DuckDB
 
 ## Install dlt with DuckDB
-**To install the DLT library with DuckDB dependencies, run:**
+**To install the dlt library with DuckDB dependencies, run:**
 ```sh
 pip install dlt[duckdb]
 ```

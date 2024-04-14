@@ -1,6 +1,5 @@
 from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast, Literal
-from dlt.common import json
 from dlt.common.schema.migrations import migrate_schema
 
 from dlt.common.utils import extend_list_deduplicated

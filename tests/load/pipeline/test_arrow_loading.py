@@ -14,7 +14,12 @@ from dlt.common.utils import uniq_id
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.pipeline.utils import select_data
 from tests.pipeline.utils import assert_load_info
-from tests.utils import TestDataItemFormat, arrow_item_from_pandas, preserve_environ, TArrowFormat
+from tests.utils import (
+    TestDataItemFormat,
+    arrow_item_from_pandas,
+    preserve_environ,
+    TPythonTableFormat,
+)
 from tests.cases import arrow_table_all_data_types
 
 # mark all tests as essential, do not remove
@@ -155,7 +160,7 @@ def test_load_arrow_item(
 )
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
 def test_parquet_column_names_are_normalized(
-    item_type: TArrowFormat, destination_config: DestinationTestConfiguration
+    item_type: TPythonTableFormat, destination_config: DestinationTestConfiguration
 ) -> None:
     """Test normalizing of parquet columns in all destinations"""
     # Create df with column names with inconsistent naming conventions

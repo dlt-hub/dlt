@@ -1,9 +1,9 @@
 from typing import Union
-
-import dlt
-import pendulum
 import streamlit as st
 import yaml
+
+import dlt
+from dlt.common.pendulum import pendulum
 
 
 def date_to_iso(

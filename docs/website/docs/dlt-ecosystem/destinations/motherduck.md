@@ -8,7 +8,7 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 > 🧪 MotherDuck is still invitation-only and is being intensively tested. Please see the limitations/problems at the end.
 
 ## Install dlt with MotherDuck
-**To install the DLT library with MotherDuck dependencies:**
+**To install the dlt library with MotherDuck dependencies:**
 ```sh
 pip install dlt[motherduck]
 ```

@@ -1,7 +1,7 @@
 import posixpath
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.configuration.specs import GcpCredentials, GcpOAuthCredentials
 from dlt.common.exceptions import MissingDependencyException
 

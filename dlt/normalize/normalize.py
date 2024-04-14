@@ -3,7 +3,8 @@ import itertools
 from typing import Callable, List, Dict, NamedTuple, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, Executor
 
-from dlt.common import logger, sleep
+from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
@@ -377,7 +378,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # delete existing folder for the case that this is a retry
         self.load_storage.new_packages.delete_package(load_id, not_exists_ok=True)
         # normalized files will go here before being atomically renamed
-        self.load_storage.new_packages.create_package(load_id)
+        self.load_storage.import_extracted_package(
+            load_id, self.normalize_storage.extracted_packages
+        )
         logger.info(f"Created new load package {load_id} on loading volume")
         try:
             # process parallel
@@ -391,7 +394,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             )
             # start from scratch
             self.load_storage.new_packages.delete_package(load_id)
-            self.load_storage.new_packages.create_package(load_id)
+            self.load_storage.import_extracted_package(
+                load_id, self.normalize_storage.extracted_packages
+            )
             self.spool_files(load_id, schema.clone(update_normalizers=True), self.map_single, files)
 
         return load_id

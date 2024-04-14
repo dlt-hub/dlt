@@ -6,7 +6,7 @@ from tomlkit.items import Item as TOMLItem
 from tomlkit.container import Container as TOMLContainer
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration.paths import get_dlt_settings_dir, get_dlt_data_dir
 from dlt.common.configuration.utils import auto_cast
 from dlt.common.configuration.specs import known_sections

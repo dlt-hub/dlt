@@ -2,7 +2,7 @@ import dlt
 import humanize
 import streamlit as st
 
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.helpers.streamlit_app.utils import query_data_live
 from dlt.helpers.streamlit_app.widgets import stat
 

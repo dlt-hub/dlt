@@ -7,7 +7,7 @@ keywords: [synapse, destination, data warehouse]
 # Synapse
 
 ## Install dlt with Synapse
-**To install the DLT library with Synapse dependencies:**
+**To install the dlt library with Synapse dependencies:**
 ```sh
 pip install dlt[synapse]
 ```
