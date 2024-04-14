@@ -7,7 +7,7 @@ keywords: [Snowflake, destination, data warehouse]
 # Snowflake
 
 ## Install dlt with Snowflake
-**To install the DLT library with Snowflake dependencies, run:**
+**To install the dlt library with Snowflake dependencies, run:**
 ```sh
 pip install dlt[snowflake]
 ```

@@ -4,7 +4,7 @@ from tomlkit.items import Table as TOMLTable
 from tomlkit.container import Container as TOMLContainer
 from collections.abc import Sequence as C_Sequence
 
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     is_base_configuration_inner_hint,

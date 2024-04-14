@@ -36,7 +36,7 @@ Sources and resources that can be loaded using this verified source are:
 1. Fill in Name, Description, and Duration.
 1. Choose a token type: Read Only, Full Access, or custom (with find and findOne selected).
 1. Save to view your API token.
-1. Copy it for DLT secrets setup.
+1. Copy it for dlt secrets setup.
 
 > Note: The Strapi UI, which is described here, might change.
 > The full guide is available at [this link.](https://docs.strapi.io/user-docs/settings/API-tokens)

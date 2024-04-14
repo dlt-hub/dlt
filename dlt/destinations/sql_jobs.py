@@ -1,13 +1,20 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
+from dlt.common.data_writers.escape import format_datetime_literal
 from dlt.common.logger import pretty_format_exception
 
-from dlt.common.schema.typing import TTableSchema, TSortOrder
+from dlt.common.pendulum import pendulum
+from dlt.common.schema.typing import (
+    TTableSchema,
+    TSortOrder,
+)
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
+    get_validity_column_names,
+    DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
@@ -15,6 +22,11 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.pipeline.current import load_package as current_load_package
+
+
+HIGH_TS = pendulum.datetime(9999, 12, 31)
+"""High timestamp used to indicate active records in `scd2` merge strategy."""
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -139,25 +151,17 @@ class SqlMergeJob(SqlBaseJob):
     failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
     @classmethod
-    def generate_sql(
+    def generate_sql(  # type: ignore[return]
         cls,
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
     ) -> List[str]:
-        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
-
-        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
-        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
-        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
-
-        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
-        At the end we copy the data from the staging dataset into destination dataset.
-
-        If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
-        If a dedup_sort column is specified in conjunction with a primary key, records will be sorted before deduplication, so the "latest" record remains.
-        """
-        return cls.gen_merge_sql(table_chain, sql_client)
+        merge_strategy = table_chain[0].get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
+        if merge_strategy == "delete-insert":
+            return cls.gen_merge_sql(table_chain, sql_client)
+        elif merge_strategy == "scd2":
+            return cls.gen_scd2_sql(table_chain, sql_client)
 
     @classmethod
     def _gen_key_table_clauses(
@@ -339,6 +343,18 @@ class SqlMergeJob(SqlBaseJob):
     def gen_merge_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
+        """Generates a list of sql statements that merge the data in staging dataset with the data in destination dataset.
+
+        The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
+        The root table is merged using primary_key and merge_key hints which can be compound and be both specified. In that case the OR clause is generated.
+        The child tables are merged based on propagated `root_key` which is a type of foreign key but always leading to a root table.
+
+        First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
+        At the end we copy the data from the staging dataset into destination dataset.
+
+        If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
+        If a dedup_sort column is specified in conjunction with a primary key, records will be sorted before deduplication, so the "latest" record remains.
+        """
         sql: List[str] = []
         root_table = table_chain[0]
 
@@ -485,4 +501,88 @@ class SqlMergeJob(SqlBaseJob):
                 )
 
             sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql};")
+        return sql
+
+    @classmethod
+    def gen_scd2_sql(
+        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        """Generates SQL statements for the `scd2` merge strategy.
+
+        The root table can be inserted into and updated.
+        Updates only take place when a record retires (because there is a new version
+        or it is deleted) and only affect the "valid to" column.
+        Child tables are insert-only.
+        """
+        sql: List[str] = []
+        root_table = table_chain[0]
+        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+        with sql_client.with_staging_dataset(staging=True):
+            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+
+        # get column names
+        escape_id = sql_client.capabilities.escape_identifier
+        from_, to = list(map(escape_id, get_validity_column_names(root_table)))  # validity columns
+        hash_ = escape_id(
+            get_first_column_name_with_prop(root_table, "x-row-version")
+        )  # row hash column
+
+        # define values for validity columns
+        boundary_ts = format_datetime_literal(
+            current_load_package()["state"]["created_at"],
+            sql_client.capabilities.timestamp_precision,
+        )
+        active_record_ts = format_datetime_literal(
+            HIGH_TS, sql_client.capabilities.timestamp_precision
+        )
+
+        # retire updated and deleted records
+        sql.append(f"""
+            UPDATE {root_table_name} SET {to} = '{boundary_ts}'
+            WHERE NOT EXISTS (
+                SELECT s.{hash_} FROM {staging_root_table_name} AS s
+                WHERE {root_table_name}.{hash_} = s.{hash_}
+            ) AND {to} = '{active_record_ts}';
+        """)
+
+        # insert new active records in root table
+        columns = map(escape_id, list(root_table["columns"].keys()))
+        col_str = ", ".join([c for c in columns if c not in (from_, to)])
+        sql.append(f"""
+            INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
+            SELECT {col_str}, '{boundary_ts}' AS {from_}, '{active_record_ts}' AS {to}
+            FROM {staging_root_table_name} AS s
+            WHERE NOT EXISTS (SELECT s.{hash_} FROM {root_table_name} AS f WHERE f.{hash_} = s.{hash_});
+        """)
+
+        # insert list elements for new active records in child tables
+        child_tables = table_chain[1:]
+        if child_tables:
+            unique_column: str = None
+            # use unique hint to create temp table with all identifiers to delete
+            unique_columns = get_columns_names_with_prop(root_table, "unique")
+            if not unique_columns:
+                raise MergeDispositionException(
+                    sql_client.fully_qualified_dataset_name(),
+                    staging_root_table_name,
+                    [t["name"] for t in table_chain],
+                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
+                    " it is not possible to link child tables to it.",
+                )
+            # get first unique column
+            unique_column = escape_id(unique_columns[0])
+            # TODO: - based on deterministic child hashes (OK)
+            # - if row hash changes all is right
+            # - if it does not we only capture new records, while we should replace existing with those in stage
+            # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
+            for table in child_tables:
+                table_name = sql_client.make_qualified_table_name(table["name"])
+                with sql_client.with_staging_dataset(staging=True):
+                    staging_table_name = sql_client.make_qualified_table_name(table["name"])
+                sql.append(f"""
+                    INSERT INTO {table_name}
+                    SELECT *
+                    FROM {staging_table_name} AS s
+                    WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{unique_column} = s.{unique_column});
+                """)
         return sql

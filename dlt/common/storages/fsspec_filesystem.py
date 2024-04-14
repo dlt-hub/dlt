@@ -24,7 +24,7 @@ from fsspec import AbstractFileSystem, register_implementation
 from fsspec.core import url_to_fs
 
 from dlt import version
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,

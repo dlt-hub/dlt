@@ -19,7 +19,7 @@ from tests.cases import (
 )
 from tests.utils import (
     preserve_environ,
-    TArrowFormat,
+    TPythonTableFormat,
     arrow_item_from_pandas,
     arrow_item_from_table,
 )
@@ -36,7 +36,7 @@ from tests.utils import (
         ("arrow-batch", True),
     ],
 )
-def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
+def test_extract_and_normalize(item_type: TPythonTableFormat, is_list: bool):
     item, records, data = arrow_table_all_data_types(item_type)
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")
@@ -121,7 +121,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
         ("arrow-batch", True),
     ],
 )
-def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
+def test_normalize_jsonl(item_type: TPythonTableFormat, is_list: bool):
     os.environ["DUMMY__LOADER_FILE_FORMAT"] = "jsonl"
 
     item, records, _ = arrow_table_all_data_types(item_type, tz="Europe/Berlin")
@@ -154,7 +154,7 @@ def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
-def test_add_map(item_type: TArrowFormat):
+def test_add_map(item_type: TPythonTableFormat):
     item, _, _ = arrow_table_all_data_types(item_type, num_rows=200)
 
     @dlt.resource
@@ -176,7 +176,7 @@ def test_add_map(item_type: TArrowFormat):
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
-def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
+def test_extract_normalize_file_rotation(item_type: TPythonTableFormat) -> None:
     # do not extract state
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # use parquet for dummy
@@ -208,7 +208,7 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
-def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
+def test_arrow_clashing_names(item_type: TPythonTableFormat) -> None:
     # # use parquet for dummy
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
     pipeline_name = "arrow_" + uniq_id()
@@ -227,7 +227,7 @@ def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
-def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
+def test_load_arrow_vary_schema(item_type: TPythonTableFormat) -> None:
     pipeline_name = "arrow_" + uniq_id()
     pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
 
@@ -246,7 +246,7 @@ def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
-def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
+def test_arrow_as_data_loading(item_type: TPythonTableFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
 
@@ -264,7 +264,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table"])  # , "pandas", "arrow-batch"
-def test_normalize_with_dlt_columns(item_type: TArrowFormat):
+def test_normalize_with_dlt_columns(item_type: TPythonTableFormat):
     item, records, _ = arrow_table_all_data_types(item_type, num_rows=5432)
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
     os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
@@ -330,7 +330,7 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
-def test_normalize_reorder_columns_separate_packages(item_type: TArrowFormat) -> None:
+def test_normalize_reorder_columns_separate_packages(item_type: TPythonTableFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
 
@@ -381,7 +381,7 @@ def test_normalize_reorder_columns_separate_packages(item_type: TArrowFormat) ->
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
-def test_normalize_reorder_columns_single_package(item_type: TArrowFormat) -> None:
+def test_normalize_reorder_columns_single_package(item_type: TPythonTableFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # we do not want to rotate buffer
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "100000"
@@ -423,7 +423,7 @@ def test_normalize_reorder_columns_single_package(item_type: TArrowFormat) -> No
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
-def test_normalize_reorder_columns_single_batch(item_type: TArrowFormat) -> None:
+def test_normalize_reorder_columns_single_batch(item_type: TPythonTableFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # we do not want to rotate buffer
     os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "100000"
@@ -475,7 +475,7 @@ def test_normalize_reorder_columns_single_batch(item_type: TArrowFormat) -> None
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
-def test_empty_arrow(item_type: TArrowFormat) -> None:
+def test_empty_arrow(item_type: TPythonTableFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
 

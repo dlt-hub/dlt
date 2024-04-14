@@ -62,7 +62,7 @@ Building a destination: [docs](https://dlthub.com/devel/dlt-ecosystem/destinatio
 SQL source: [docs](https://dlthub.com/devel/dlt-ecosystem/verified-sources/sql_database)
 In this example, you will see why it’s faster to build a custom destination than set up a separate tool.
 
-DLT allows you to define custom destination functions. You'll write a function that extracts the relevant data from your dataframe and formats it for the Notion API.
+dlt allows you to define custom destination functions. You'll write a function that extracts the relevant data from your dataframe and formats it for the Notion API.
 
 This example assumes you have set up Google Sheets API access and obtained the necessary credentials to authenticate.
 

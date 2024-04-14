@@ -1,14 +1,13 @@
 import typing as t
 import inspect
 from importlib import import_module
-
 from types import ModuleType
-from dlt.common.typing import AnyFun
 
+from dlt.common import logger
+from dlt.common.typing import AnyFun
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common import logger
 from dlt.common.utils import get_callable_name, is_inner_callable
 
 from dlt.destinations.exceptions import DestinationTransientException

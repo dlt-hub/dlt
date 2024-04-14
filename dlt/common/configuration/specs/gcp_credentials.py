@@ -2,7 +2,8 @@ import dataclasses
 import sys
 from typing import Any, ClassVar, Final, List, Tuple, Union, Dict
 
-from dlt.common import json, pendulum
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs.api_credentials import OAuth2Credentials
 from dlt.common.configuration.specs.exceptions import (
     InvalidGoogleNativeCredentialsType,

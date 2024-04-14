@@ -3,7 +3,6 @@ from typing import Dict, List
 
 from dlt.common.data_writers import TDataItemFormat, DataWriterMetrics, DataWriter, FileWriterSpec
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages import (
     NormalizeStorageConfiguration,
     NormalizeStorage,
@@ -11,10 +10,9 @@ from dlt.common.storages import (
     FileStorage,
     PackageStorage,
     LoadPackageInfo,
+    create_load_id,
 )
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import TDataItems
-from dlt.common.time import precise_time
 from dlt.common.utils import uniq_id
 
 
@@ -68,7 +66,7 @@ class ExtractStorage(NormalizeStorage):
                     break
                 load_id = None
         if not load_id:
-            load_id = str(precise_time())
+            load_id = create_load_id()
             self.new_packages.create_package(load_id)
         # always save schema
         self.new_packages.save_schema(load_id, schema)

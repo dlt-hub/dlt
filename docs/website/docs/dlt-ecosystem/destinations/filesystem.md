@@ -6,7 +6,7 @@ Its primary role is to be used as a staging for other destinations, but you can 
 > 💡 Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
 
 ## Install dlt with filesystem
-**To install the DLT library with filesystem dependencies:**
+**To install the dlt library with filesystem dependencies:**
 ```sh
 pip install dlt[filesystem]
 ```

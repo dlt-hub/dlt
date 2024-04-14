@@ -11,6 +11,7 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.schema.exceptions import SchemaException
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.extract import DltResource
@@ -946,3 +947,19 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r(), loader_file_format=destination_config.file_format)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_invalid_merge_strategy(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+    def r():
+        yield {"foo": "bar"}
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaException)
