@@ -9,10 +9,10 @@ import os
 
 import pendulum
 from datetime import datetime  # noqa: I251
-from pendulum import DateTime
+from pendulum import DateTime  # noqa: I251
 
 import dlt
-from dlt.common import json
+from dlt.common import json, pendulum
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime, TDataItem, TDataItems
 from dlt.common.schema.typing import TTableSchema, TTableSchemaColumns
 

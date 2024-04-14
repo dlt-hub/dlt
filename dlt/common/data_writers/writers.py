@@ -176,6 +176,9 @@ class TypedJsonlListWriter(JsonlWriter):
 
 class InsertValuesWriter(DataWriter):
     def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
+        assert (
+            caps is not None
+        ), "InsertValuesWriter requires destination capabilities to be present"
         super().__init__(f, caps)
         self._chunks_written = 0
         self._headers_lookup: Dict[str, int] = None
@@ -272,7 +275,7 @@ class ParquetDataWriter(DataWriter):
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
     ) -> None:
-        super().__init__(f, caps)
+        super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("parquet"))
         from dlt.common.libs.pyarrow import pyarrow
 
         self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
