@@ -194,12 +194,12 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                 self.fs_client.touch(posixpath.join(directory, INIT_FILE_NAME))
 
         # write schema to destination
-        self.store_current_schema(load_id or "1")
+        self._store_current_schema(load_id or "1")
 
         return expected_update
 
     def _get_table_dirs(self, table_names: Iterable[str]) -> List[str]:
-        """Gets unique directories where table data is stored."""
+        """Gets directories where table data is stored."""
         table_dirs: List[str] = []
         for table_name in table_names:
             # dlt tables do not respect layout (for now)
@@ -268,10 +268,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                 continue
             yield filepath, fileparts
 
-    def complete_load(self, load_id: str) -> None:
-        # store current state
-        self.store_current_state(load_id)
-
+    def _store_load(self, load_id: str) -> None:
         # write entry to load "table"
         # TODO: this is also duplicate across all destinations. DRY this.
         load_data = {
@@ -282,8 +279,12 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
             "schema_version_hash": self.schema.version_hash,
         }
         filepath = f"{self.dataset_path}/{self.schema.loads_table_name}/{self.schema.name}__{load_id}.jsonl"
-
         self._write_to_json_file(filepath, load_data)
+
+    def complete_load(self, load_id: str) -> None:
+        # store current state
+        self._store_current_state(load_id)
+        self._store_load(load_id)
 
     #
     # state read/write
@@ -293,19 +294,20 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         """gets full path for schema file for a given hash"""
         return f"{self.dataset_path}/{self.schema.state_table_name}/{pipeline_name}__{load_id}__{self._to_path_safe_string(version_hash)}.jsonl"
 
-    def store_current_state(self, load_id: str) -> None:
+    def _store_current_state(self, load_id: str) -> None:
         # get state doc from current pipeline
-        from dlt.common.configuration.container import Container
-        from dlt.common.pipeline import PipelineContext
-        from dlt.pipeline.state_sync import state_doc
+        from dlt.pipeline.current import load_package_source_state
+        from dlt.pipeline.state_sync import LOAD_PACKAGE_STATE_KEY
 
-        pipeline = Container()[PipelineContext].pipeline()
-        state = pipeline.state
-        doc = state_doc(state)
+        doc = load_package_source_state().get(LOAD_PACKAGE_STATE_KEY, {})
+
+        if not doc:
+            return
 
         # get paths
+        pipeline_name = doc["pipeline_name"]
         hash_path = self._get_state_file_name(
-            pipeline.pipeline_name, self.schema.stored_version_hash, load_id
+            pipeline_name, self.schema.stored_version_hash, load_id
         )
 
         # write
@@ -323,7 +325,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                 newest_load_id = fileparts[1]
                 selected_path = filepath
 
-        """Loads compressed state from destination storage"""
+        # Load compressed state from destination
         if selected_path:
             state_json = json.loads(self.fs_client.read_text(selected_path))
             state_json.pop("version_hash")
@@ -338,13 +340,6 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     def _get_schema_file_name(self, version_hash: str, load_id: str) -> str:
         """gets full path for schema file for a given hash"""
         return f"{self.dataset_path}/{self.schema.version_table_name}/{self.schema.name}__{load_id}__{self._to_path_safe_string(version_hash)}.jsonl"
-
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
-        """Retrieves newest schema from destination storage"""
-        return self._get_stored_schema_by_hash_or_newest()
-
-    def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
-        return self._get_stored_schema_by_hash_or_newest(version_hash)
 
     def _get_stored_schema_by_hash_or_newest(
         self, version_hash: str = None
@@ -372,7 +367,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
         return None
 
-    def store_current_schema(self, load_id: str) -> None:
+    def _store_current_schema(self, load_id: str) -> None:
         # get paths
         hash_path = self._get_schema_file_name(self.schema.stored_version_hash, load_id)
 
@@ -388,3 +383,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
         # we always keep tabs on what the current schema is
         self._write_to_json_file(hash_path, version_info)
+
+    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+        """Retrieves newest schema from destination storage"""
+        return self._get_stored_schema_by_hash_or_newest()
+
+    def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
+        return self._get_stored_schema_by_hash_or_newest(version_hash)

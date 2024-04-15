@@ -76,6 +76,22 @@ def with_hints(
     return DataItemWithMeta(HintsMeta(hints, create_table_variant), item)
 
 
+class LoadPackageStateMeta:
+    __slots__ = "state_key_name"
+
+    def __init__(self, state_key_name: str) -> None:
+        self.state_key_name = state_key_name
+
+
+def with_package_state(item: TDataItems, state_key_name: str) -> DataItemWithMeta:
+    """Marks `item` to also be inserted into the package state.
+
+    Will create a separate variant of hints for a table if `name` is provided in `hints` and `create_table_variant` is set.
+
+    """
+    return DataItemWithMeta(LoadPackageStateMeta(state_key_name), item)
+
+
 class DltResource(Iterable[TDataItem], DltResourceHints):
     """Implements dlt resource. Contains a data pipe that wraps a generating item and table schema that can be adjusted"""
 

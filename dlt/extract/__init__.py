@@ -1,4 +1,4 @@
-from dlt.extract.resource import DltResource, with_table_name, with_hints
+from dlt.extract.resource import DltResource, with_table_name, with_hints, with_package_state
 from dlt.extract.hints import make_hints
 from dlt.extract.source import DltSource
 from dlt.extract.decorators import source, resource, transformer, defer

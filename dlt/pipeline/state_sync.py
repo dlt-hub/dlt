@@ -22,6 +22,7 @@ from dlt.pipeline.exceptions import (
 )
 
 PIPELINE_STATE_ENGINE_VERSION = 4
+LOAD_PACKAGE_STATE_KEY = "pipeline_state"
 
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
@@ -109,7 +110,7 @@ def state_doc(state: TPipelineState) -> DictStrAny:
 
 
 def state_resource(state: TPipelineState) -> DltResource:
-    doc = state_doc(state)
+    doc = dlt.mark.with_package_state(state_doc(state), LOAD_PACKAGE_STATE_KEY)
     return dlt.resource(
         [doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
     )

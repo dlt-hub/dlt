@@ -61,6 +61,8 @@ class TLoadPackageState(TVersionedState, total=False):
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+    source_state: NotRequired[Dict[str, Any]]
+    """private space for source to store state relevant only to the load package, currently used for storing pipeline state"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -687,6 +689,12 @@ def destination_state() -> DictStrAny:
     """Get segment of load package state that is specific to the current destination."""
     lp = load_package()
     return lp["state"].setdefault("destination_state", {})
+
+
+def load_package_source_state() -> DictStrAny:
+    """Get segment of load package state that is specific to the current destination."""
+    lp = load_package()
+    return lp["state"].setdefault("source_state", {})
 
 
 def clear_destination_state(commit: bool = True) -> None:

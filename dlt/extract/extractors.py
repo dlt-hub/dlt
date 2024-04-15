@@ -19,7 +19,7 @@ from dlt.common.schema.typing import (
     TPartialTableSchema,
 )
 from dlt.extract.hints import HintsMeta
-from dlt.extract.resource import DltResource
+from dlt.extract.resource import DltResource, LoadPackageStateMeta
 from dlt.extract.items import TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
 
@@ -87,6 +87,13 @@ class Extractor:
                 # name in hints meta must be a string, otherwise merge_hints would fail
                 meta = TableNameMeta(meta.hints["name"])  # type: ignore[arg-type]
             self._reset_contracts_cache()
+
+        # if we have a load package state meta, store to load package
+        if isinstance(meta, LoadPackageStateMeta):
+            from dlt.pipeline.current import load_package_source_state, commit_load_package_state
+
+            load_package_source_state()[meta.state_key_name] = items
+            commit_load_package_state()
 
         if table_name := self._get_static_table_name(resource, meta):
             # write item belonging to table with static name

@@ -64,6 +64,8 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "r2",
 ]
 
+ALL_FILESYSTEM_DRIVERS = ["memory", "file"]
+
 # Filter out buckets not in all filesystem drivers
 WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
 WITH_GDRIVE_BUCKETS = [

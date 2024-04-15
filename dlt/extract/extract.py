@@ -27,7 +27,12 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.storages.load_package import (
+    ParsedLoadJobFileName,
+    LoadPackageStateInjectableContext,
+)
+
+
 from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
@@ -367,7 +372,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         load_id = self.extract_storage.create_load_package(source.discover_schema())
         with Container().injectable_context(
             SourceSchemaInjectableContext(source.schema)
-        ), Container().injectable_context(SourceInjectableContext(source)):
+        ), Container().injectable_context(
+            SourceInjectableContext(source)
+        ), Container().injectable_context(
+            LoadPackageStateInjectableContext(
+                storage=self.extract_storage.new_packages, load_id=load_id
+            )
+        ):
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(
