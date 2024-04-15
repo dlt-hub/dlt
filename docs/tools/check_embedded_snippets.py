@@ -3,7 +3,6 @@ Walks through all markdown files, finds all code snippets, and checks wether the
 """
 import os
 import ast
-import json
 import subprocess
 import argparse
 
@@ -13,8 +12,9 @@ from typing import List
 
 import tomlkit
 import yaml
-
 import dlt.cli.echo as fmt
+
+from dlt.common import json
 
 from utils import collect_markdown_files
 
