@@ -26,6 +26,7 @@ if __name__ == "__main__":
             print(f"Deleting {schema}...")
             try:
                 curr.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE;")
-            except (InsufficientPrivilege, InternalError_, SyntaxError):
+            except (InsufficientPrivilege, InternalError_, SyntaxError) as ex:
+                print(ex)
                 pass
             print(f"Deleted {schema}...")

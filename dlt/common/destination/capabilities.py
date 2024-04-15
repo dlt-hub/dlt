@@ -1,8 +1,13 @@
-from typing import Any, Callable, ClassVar, List, Literal, Optional, Tuple, Set, get_args
+from typing import Any, Callable, ClassVar, List, Literal, Optional, Sequence, Tuple, Set, get_args
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
+from dlt.common.destination.exceptions import (
+    DestinationIncompatibleLoaderFileFormatException,
+    DestinationLoadingViaStagingNotSupported,
+    DestinationLoadingWithoutStagingNotSupported,
+)
 from dlt.common.utils import identity
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -22,9 +27,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
 
     preferred_loader_file_format: TLoaderFileFormat = None
-    supported_loader_file_formats: List[TLoaderFileFormat] = None
+    supported_loader_file_formats: Sequence[TLoaderFileFormat] = None
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
-    supported_staging_file_formats: List[TLoaderFileFormat] = None
+    supported_staging_file_formats: Sequence[TLoaderFileFormat] = None
     escape_identifier: Callable[[str], str] = None
     escape_literal: Callable[[Any], Any] = None
     decimal_precision: Tuple[int, int] = None
@@ -46,8 +51,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
-    max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
     """Destination supports CREATE TABLE ... CLONE ... statements"""
+    max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
@@ -75,3 +80,36 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supports_transactions = True
         caps.supports_multiple_statements = True
         return caps
+
+
+def merge_caps_file_formats(
+    destination: str,
+    staging: str,
+    dest_caps: DestinationCapabilitiesContext,
+    stage_caps: DestinationCapabilitiesContext,
+) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
+    """Merges preferred and supported file formats from destination and staging.
+    Returns new preferred file format and all possible formats.
+    """
+    possible_file_formats = dest_caps.supported_loader_file_formats
+    if stage_caps:
+        if not dest_caps.supported_staging_file_formats:
+            raise DestinationLoadingViaStagingNotSupported(destination)
+        possible_file_formats = [
+            f
+            for f in dest_caps.supported_staging_file_formats
+            if f in stage_caps.supported_loader_file_formats
+        ]
+    if len(possible_file_formats) == 0:
+        raise DestinationIncompatibleLoaderFileFormatException(
+            destination, staging, None, possible_file_formats
+        )
+    if not stage_caps:
+        if not dest_caps.preferred_loader_file_format:
+            raise DestinationLoadingWithoutStagingNotSupported(destination)
+        requested_file_format = dest_caps.preferred_loader_file_format
+    elif stage_caps and dest_caps.preferred_staging_file_format in possible_file_formats:
+        requested_file_format = dest_caps.preferred_staging_file_format
+    else:
+        requested_file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
+    return requested_file_format, possible_file_formats

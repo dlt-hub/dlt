@@ -3,6 +3,9 @@ from dlt.common.data_writers.writers import (
     DataWriterMetrics,
     TDataItemFormat,
     FileWriterSpec,
+    resolve_best_writer_spec,
+    get_best_writer_spec,
+    is_native_writer,
 )
 from dlt.common.data_writers.buffered import BufferedDataWriter, new_file_id
 from dlt.common.data_writers.escape import (
@@ -14,6 +17,9 @@ from dlt.common.data_writers.escape import (
 __all__ = [
     "DataWriter",
     "FileWriterSpec",
+    "resolve_best_writer_spec",
+    "get_best_writer_spec",
+    "is_native_writer",
     "DataWriterMetrics",
     "TDataItemFormat",
     "BufferedDataWriter",
