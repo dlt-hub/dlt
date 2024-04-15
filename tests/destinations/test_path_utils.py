@@ -265,7 +265,7 @@ def test_layout_validity(
             return_value=job_info,
         )
 
-        now_timestamp = pendulum.now().to_iso8601_string()
+        now_timestamp = frozen_datetime.to_iso8601_string()
         check_layout(layout, EXTRA_PLACEHOLDERS)
         path = create_path(
             layout,
