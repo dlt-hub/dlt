@@ -296,8 +296,9 @@ Please note:
 
 ### Advanced layout configuration
 
-Filesystem allows you to configure advanced layout and additional placeholders via `config.toml` or when initializing via the factory
+Filesystem destination allows you to configure advanced layout and additional placeholders via `config.toml` or when initializing via the factory
 
+> 💡 For deeply nested layouts you might want to enable automatic directory creation for local filesystem destination by specifying `kwargs = '{"auto_mkdir": true}'`.
 
 #### Via the configuration
 ```toml
