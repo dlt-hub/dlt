@@ -231,6 +231,7 @@ Current default layout: **{table_name}/{load_id}.{file_id}.{ext}`**
 * `ext` - a format of the file i.e. jsonl or parquet
 
 #### Date and time placeholders
+> 💡 Keep in mind all values are lowercased.
 
 * Years
   * `YYYY` - 2024, 2025
