@@ -1,9 +1,8 @@
 from typing import List, Tuple
 
-import pendulum
 import pytest
 
-from dlt.common import logger
+from dlt.common import logger, pendulum
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 

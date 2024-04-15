@@ -4,11 +4,10 @@ import posixpath
 from pathlib import Path
 from typing import Any, Callable
 
-import pendulum
-
 import dlt
 import pytest
 
+from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
