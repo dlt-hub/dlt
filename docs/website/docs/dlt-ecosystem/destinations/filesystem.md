@@ -254,7 +254,20 @@ You can change the file name format by providing the layout setting for the file
 ```toml
 [destination.filesystem]
 layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming scheme
-# layout="{schema_name}.{table_name}.{load_id}.{file_id}.{ext}" # naming scheme in dlt 0.3.11 and earlier
+
+# More examples
+# With timestamp
+# layout = "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}"
+
+# With timestamp of the load package
+# layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
+
+# Parquet like layout (note: it is not compatible with internal datetime of parquet file)
+# layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+
+# Custom placeholders
+extra_placeholders = { "owner" = "admin", "department" = "finance" }
+# layout = "{table_name}/{owner}/{finance}/{load_id}.{file_id}.{ext}"
 ```
 
 A few things to know when specifying your filename layout:
