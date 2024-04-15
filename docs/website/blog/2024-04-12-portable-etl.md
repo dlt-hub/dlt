@@ -113,6 +113,9 @@ thereby enhancing efficiency and developer experience.
 
 dlt was built for just such a scenario and we are happy to be adopted into it. Besides adding connectors, dlt adds a simple way to build custom pipelines.
 
+Read more about it on [Dagster blog post on dlt](https://dagster.io/blog/expanding-dagsters-embedded-elt-ecosystem-with-dlthub-for-data-ingestion).
+
+
 ### Dagworks' `dlt` + `duckdb` + `ibis` + `Hamilton` demo
 
 The DAGWorks Substack post introduces a highly portable pipeline of all libraries, and leverages a blend of open-source Python libraries: dlt, Ibis, and Hamilton.
@@ -126,6 +129,9 @@ implications of adopting a lightweight stack that can operate within diverse inf
 underscoring the shift towards interoperability and backend agnosticism in data engineering practices. This approach illustrates a shift
 in the data landscape, moving from monolithic systems to flexible, adaptive solutions that can meet specific organizational needs
 without heavy dependencies or extensive infrastructure.
+
+Read more about it on [Dagworks blog post on dlt](https://blog.dagworks.io/p/slack-summary-pipeline-with-dlt-ibis).
+
 
 ## Closing thoughts
 
