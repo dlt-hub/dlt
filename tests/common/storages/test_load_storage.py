@@ -6,6 +6,8 @@ from dlt.common.schema import TSchemaTables
 from dlt.common.storages import PackageStorage, LoadStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathException
 
+from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_package import create_load_id
 from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
 from tests.utils import write_version, autouse_test_storage
 
@@ -158,21 +160,40 @@ def test_get_unknown_package_info(load_storage: LoadStorage) -> None:
         load_storage.get_load_package_info("UNKNOWN LOAD ID")
 
 
+def test_import_extracted_package(load_storage: LoadStorage) -> None:
+    # create extracted package
+    extracted = PackageStorage(
+        FileStorage(os.path.join(load_storage.config.load_volume_path, "extracted")), "new"
+    )
+    load_id = create_load_id()
+    extracted.create_package(load_id)
+    extracted_state = extracted.get_load_package_state(load_id)
+    load_storage.import_extracted_package(load_id, extracted)
+    # make sure state was imported
+    assert extracted_state == load_storage.new_packages.get_load_package_state(load_id)
+    # move to normalized
+    load_storage.commit_new_load_package(load_id)
+    assert extracted_state == load_storage.normalized_packages.get_load_package_state(load_id)
+    # move to loaded
+    load_storage.complete_load_package(load_id, aborted=False)
+    assert extracted_state == load_storage.loaded_packages.get_load_package_state(load_id)
+
+
 def test_full_migration_path() -> None:
     # create directory structure
-    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "1.0.0")
     # must be able to migrate to current version
-    s = LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(False, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     assert s.version == LoadStorage.STORAGE_VERSION
 
 
 def test_unknown_migration_path() -> None:
     # create directory structure
-    s = LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+    s = LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     # overwrite known initial version
     write_version(s.storage, "10.0.0")
     # must be able to migrate to current version
     with pytest.raises(NoMigrationPathException):
-        LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        LoadStorage(False, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)

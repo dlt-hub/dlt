@@ -64,6 +64,15 @@ The default naming convention:
 
 > 💡 Use simple, short small caps identifiers for everything!
 
+To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention, in "config.toml" as follows:
+```toml
+[schema]
+SCHEMA__NAMING = "direct"
+```
+:::caution
+Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
+:::
+
 The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).

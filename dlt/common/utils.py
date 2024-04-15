@@ -296,7 +296,7 @@ def update_dict_nested(dst: TDict, src: StrAny, keep_dst_values: bool = False) -
         if key in dst:
             if _is_recursive_merge(dst[key], src[key]):
                 # If the key for both `dst` and `src` are both Mapping types (e.g. dict), then recurse.
-                update_dict_nested(dst[key], src[key])
+                update_dict_nested(dst[key], src[key], keep_dst_values=keep_dst_values)
             elif dst[key] is src[key]:
                 # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
                 pass

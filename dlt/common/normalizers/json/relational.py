@@ -1,13 +1,21 @@
+from functools import lru_cache
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
-from dlt.common.data_types.typing import TDataType
+from dlt.common.json import json
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
-from dlt.common.schema.utils import column_name_validator
+from dlt.common.schema.typing import (
+    TTableSchema,
+    TColumnSchema,
+    TColumnName,
+    TSimpleRegex,
+    DLT_NAME_PREFIX,
+)
+from dlt.common.schema.utils import column_name_validator, get_validity_column_names
+from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import (
     TNormalizedRowIterator,
@@ -128,6 +136,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         return cast(TDataItemRow, out_rec_row), out_rec_list
 
     @staticmethod
+    def get_row_hash(row: Dict[str, Any]) -> str:
+        """Returns hash of row.
+
+        Hash includes column names and values and is ordered by column name.
+        Excludes dlt system columns.
+        Can be used as deterministic row identifier.
+        """
+        row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
+        row_str = json.dumps(row_filtered, sort_keys=True)
+        return digest128(row_str, DLT_ID_LENGTH_BYTES)
+
+    @staticmethod
     def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> str:
         # create deterministic unique id of the child row taking into account that all lists are ordered
         # and all child tables must be lists
@@ -220,10 +240,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         pos: Optional[int] = None,
         _r_lvl: int = 0,
+        row_hash: bool = False,
     ) -> TNormalizedRowIterator:
         schema = self.schema
         table = schema.naming.shorten_fragments(*parent_path, *ident_path)
-
+        # compute row hash and set as row id
+        if row_hash:
+            row_id = self.get_row_hash(dict_row)  # type: ignore[arg-type]
+            dict_row["_dlt_id"] = row_id
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -296,10 +320,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
+        # determine if row hash should be used as dlt id
+        row_hash = False
+        if self._is_scd2_table(self.schema, table_name):
+            row_hash = self._dlt_id_is_row_hash(self.schema, table_name)
+            self._validate_validity_column_names(
+                self._get_validity_column_names(self.schema, table_name), item
+            )
         yield from self._normalize_row(
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
+            row_hash=row_hash,
         )
 
     @classmethod
@@ -333,3 +365,33 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             "./normalizers/json/config",
             validator_f=column_name_validator(schema.naming),
         )
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _is_scd2_table(schema: Schema, table_name: str) -> bool:
+        if table_name in schema.data_table_names():
+            if schema.get_table(table_name).get("x-merge-strategy") == "scd2":
+                return True
+        return False
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_validity_column_names(schema: Schema, table_name: str) -> List[Optional[str]]:
+        return get_validity_column_names(schema.get_table(table_name))
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
+        return schema.get_table(table_name)["columns"].get("_dlt_id", dict()).get("x-row-version", False)  # type: ignore[return-value]
+
+    @staticmethod
+    def _validate_validity_column_names(
+        validity_column_names: List[Optional[str]], item: TDataItem
+    ) -> None:
+        """Raises exception if configured validity column name appears in data item."""
+        for validity_column_name in validity_column_names:
+            if validity_column_name in item.keys():
+                raise ColumnNameConflictException(
+                    "Found column in data item with same name as validity column"
+                    f' "{validity_column_name}".'
+                )

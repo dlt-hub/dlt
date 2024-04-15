@@ -26,6 +26,7 @@ import inspect
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import MERGE_STRATEGIES
 from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
     get_write_disposition,
@@ -344,6 +345,12 @@ class JobClientBase(ABC):
                     table_name,
                     self.capabilities.max_identifier_length,
                 )
+            if table.get("write_disposition") == "merge":
+                if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
+                    raise SchemaException(
+                        f'"{table["x-merge-strategy"]}" is not a valid merge strategy. '  # type: ignore[typeddict-item]
+                        f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                    )
             if has_column_with_prop(table, "hard_delete"):
                 if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                     raise SchemaException(

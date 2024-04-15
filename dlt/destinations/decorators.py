@@ -7,14 +7,15 @@ from dlt.common.typing import AnyFun
 from functools import wraps
 
 from dlt.common import logger
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.typing import TDataItems
+from dlt.common.schema import TTableSchema
+
 from dlt.destinations.impl.destination.factory import destination as _destination
 from dlt.destinations.impl.destination.configuration import (
     TDestinationCallableParams,
     CustomDestinationClientConfiguration,
 )
-from dlt.common.destination import TLoaderFileFormat
-from dlt.common.typing import TDataItems
-from dlt.common.schema import TTableSchema
 
 
 def destination(

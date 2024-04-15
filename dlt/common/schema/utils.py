@@ -5,7 +5,7 @@ import yaml
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import NamingConvention
@@ -34,6 +34,7 @@ from dlt.common.schema.typing import (
     TTypeDetectionFunc,
     TTypeDetections,
     TWriteDisposition,
+    TLoaderMergeStrategy,
     TSchemaContract,
     TSortOrder,
 )
@@ -47,6 +48,7 @@ from dlt.common.schema.exceptions import (
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
+DEFAULT_MERGE_STRATEGY: TLoaderMergeStrategy = "delete-insert"
 
 
 def is_valid_schema_name(name: str) -> bool:
@@ -516,6 +518,13 @@ def get_dedup_sort_tuple(
     return (dedup_sort_col, dedup_sort_order)
 
 
+def get_validity_column_names(table: TTableSchema) -> List[Optional[str]]:
+    return [
+        get_first_column_name_with_prop(table, "x-valid-from"),
+        get_first_column_name_with_prop(table, "x-valid-to"),
+    ]
+
+
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
     aggregated_update: TSchemaTables = {}
     for schema_update in schema_updates:
@@ -713,11 +722,17 @@ def new_column(
     column_name: str,
     data_type: TDataType = None,
     nullable: bool = True,
+    precision: int = None,
+    scale: int = None,
     validate_schema: bool = False,
 ) -> TColumnSchema:
     column: TColumnSchema = {"name": column_name, "nullable": nullable}
     if data_type:
         column["data_type"] = data_type
+    if precision is not None:
+        column["precision"] = precision
+    if scale is not None:
+        column["scale"] = scale
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

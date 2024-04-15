@@ -11,6 +11,7 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.schema.exceptions import SchemaException
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.extract import DltResource
@@ -26,6 +27,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -153,6 +155,7 @@ def github():
     return load_issues
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
@@ -861,7 +864,8 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # compare observed records with expected records, now for child table
     qual_name = p.sql_client().make_qualified_table_name(table_name + "__val")
-    observed = [row[0] for row in select_data(p, f"SELECT value FROM {qual_name}")]
+    value_quoted = p.sql_client().escape_column_name("value")
+    observed = [row[0] for row in select_data(p, f"SELECT {value_quoted} FROM {qual_name}")]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
     table_name = "test_dedup_sort_hint_with_hard_delete"
@@ -943,3 +947,19 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r(), loader_file_format=destination_config.file_format)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_invalid_merge_strategy(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+    def r():
+        yield {"foo": "bar"}
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaException)

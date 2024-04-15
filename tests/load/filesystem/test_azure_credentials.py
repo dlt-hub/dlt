@@ -11,6 +11,9 @@ from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.common.configuration.utils import environment
 from tests.utils import preserve_environ, autouse_test_storage
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 if "az" not in ALL_FILESYSTEM_DRIVERS:
     pytest.skip("az filesystem driver not configured", allow_module_level=True)
 

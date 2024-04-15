@@ -23,7 +23,9 @@ from typing import (
 import zlib
 import re
 
-from dlt.common import json, pendulum, logger
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import (
     COLUMN_HINTS,
@@ -363,7 +365,7 @@ WHERE """
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
             " l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY"
-            " created_at DESC"
+            " l.load_id DESC"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()

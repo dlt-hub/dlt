@@ -1,0 +1,24 @@
+{
+    "name": "nas",
+    "config": {
+        "path": "/tmp",
+        "defaultCtasFormat": "ICEBERG",
+        "propertyList": []
+    },
+    "accelerationRefreshPeriod": 3600000,
+    "accelerationGracePeriod": 10800000,
+    "metadataPolicy": {
+        "deleteUnavailableDatasets": true,
+        "autoPromoteDatasets": false,
+        "namesRefreshMillis": 3600000,
+        "datasetDefinitionRefreshAfterMillis": 3600000,
+        "datasetDefinitionExpireAfterMillis": 10800000,
+        "authTTLMillis": 86400000,
+        "updateMode": "PREFETCH_QUERIED"
+    },
+    "type": "NAS",
+    "accessControlList": {
+        "userControls": [],
+        "roleControls": []
+    }
+}

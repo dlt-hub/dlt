@@ -24,7 +24,7 @@ from typing import Any, Dict, Iterator, Optional
 
 from bson.decimal128 import Decimal128
 from bson.objectid import ObjectId
-from pendulum import _datetime
+from pendulum import _datetime  # noqa: I251
 from pymongo import MongoClient
 
 import dlt

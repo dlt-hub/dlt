@@ -17,6 +17,9 @@ from dlt.destinations import duckdb
 from tests.load.pipeline.utils import drop_pipeline, assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(autouse=True)
 def delete_default_duckdb_credentials() -> Iterator[None]:

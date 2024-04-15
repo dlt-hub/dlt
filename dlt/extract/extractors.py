@@ -5,7 +5,6 @@ from dlt.common import logger
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -22,7 +21,7 @@ from dlt.common.schema.typing import (
 from dlt.extract.hints import HintsMeta
 from dlt.extract.resource import DltResource
 from dlt.extract.items import TableNameMeta
-from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
+from dlt.extract.storage import ExtractorItemStorage
 
 try:
     from dlt.common.libs import pyarrow
@@ -49,8 +48,6 @@ def materialize_schema_item() -> MaterializedEmptyList:
 
 
 class Extractor:
-    file_format: TLoaderFileFormat
-
     @configspec
     class ExtractorConfiguration(BaseConfiguration):
         _caps: Optional[DestinationCapabilitiesContext] = None
@@ -59,7 +56,7 @@ class Extractor:
     def __init__(
         self,
         load_id: str,
-        storage: ExtractStorage,
+        item_storage: ExtractorItemStorage,
         schema: Schema,
         collector: Collector = NULL_COLLECTOR,
         *,
@@ -73,32 +70,11 @@ class Extractor:
         self.resources_with_empty: Set[str] = set()
         """Track resources that received empty materialized list"""
         self.load_id = load_id
+        self.item_storage = item_storage
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
-        self._storage = storage
         self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
-
-    @property
-    def storage(self) -> ExtractorItemStorage:
-        return self._storage.get_storage(self.file_format)
-
-    @staticmethod
-    def item_format(items: TDataItems) -> Optional[TLoaderFileFormat]:
-        """Detect the loader file format of the data items based on type.
-        Currently this is either 'arrow' or 'puae-jsonl'
-
-        Returns:
-            The loader file format or `None` if if can't be detected.
-        """
-        for item in items if isinstance(items, list) else [items]:
-            # Assume all items in list are the same type
-            if (pyarrow and pyarrow.is_arrow_item(item)) or (
-                pandas and isinstance(item, pandas.DataFrame)
-            ):
-                return "arrow"
-            return "puae-jsonl"
-        return None  # Empty list is unknown format
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
@@ -121,7 +97,7 @@ class Extractor:
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
-        self.storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
+        self.item_storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
         if resource._table_name_hint_fun:
@@ -142,11 +118,12 @@ class Extractor:
         items: TDataItems,
         columns: TTableSchemaColumns = None,
     ) -> None:
-        new_rows_count = self.storage.write_data_item(
+        new_rows_count = self.item_storage.write_data_item(
             self.load_id, self.schema.name, table_name, items, columns
         )
         self.collector.update(table_name, inc=new_rows_count)
-        if new_rows_count > 0:
+        # if there were rows or item was empty arrow table
+        if new_rows_count > 0 or self.__class__ is ArrowExtractor:
             self.resources_with_items.add(resource_name)
         else:
             if isinstance(items, MaterializedEmptyList):
@@ -229,12 +206,21 @@ class Extractor:
         self._filtered_columns.clear()
 
 
-class JsonLExtractor(Extractor):
-    file_format = "puae-jsonl"
+class ObjectExtractor(Extractor):
+    """Extracts Python object data items into typed jsonl"""
+
+    pass
 
 
 class ArrowExtractor(Extractor):
-    file_format = "arrow"
+    """Extracts arrow data items into parquet. Normalizes arrow items column names.
+    Compares the arrow schema to actual dlt table schema to reorder the columns and to
+    insert missing columns (without data).
+
+    We do things that normalizer should do here so we do not need to load and save parquet
+    files again later.
+
+    """
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
@@ -256,12 +242,19 @@ class ArrowExtractor(Extractor):
         ]
         super().write_items(resource, items, meta)
 
+    def _write_to_static_table(
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
+    ) -> None:
+        # contract cache not supported for arrow tables
+        self._reset_contracts_cache()
+        super()._write_to_static_table(resource, table_name, items, meta)
+
     def _apply_contract_filters(
         self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]
     ) -> "TAnyArrowItem":
         """Removes the columns (discard value) or rows (discard rows) as indicated by contract filters."""
         # convert arrow schema names into normalized names
-        rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item, self.naming)
+        rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item.schema, self.naming)
         # find matching columns and delete by original name
         table_name = static_table_name or self._get_dynamic_table_name(resource, item)
         filtered_columns = self._filtered_columns.get(table_name)
@@ -298,42 +291,56 @@ class ArrowExtractor(Extractor):
         items: TDataItems,
         columns: TTableSchemaColumns = None,
     ) -> None:
-        columns = columns or self.schema.tables[table_name]["columns"]
+        columns = columns or self.schema.get_table_columns(table_name)
         # Note: `items` is always a list here due to the conversion in `write_table`
         items = [
-            pyarrow.normalize_py_arrow_schema(item, columns, self.naming, self._caps)
+            pyarrow.normalize_py_arrow_item(item, columns, self.naming, self._caps)
             for item in items
         ]
+        # write items one by one
         super()._write_item(table_name, resource_name, items, columns)
 
     def _compute_table(
         self, resource: DltResource, items: TDataItems, meta: Any
     ) -> TPartialTableSchema:
-        items = items[0]
-        computed_table = super()._compute_table(resource, items, Any)
+        arrow_table: TTableSchema = None
 
-        # Merge the columns to include primary_key and other hints that may be set on the resource
-        arrow_table = copy(computed_table)
-        arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(items.schema)
-        # normalize arrow table before merging
-        arrow_table = self.schema.normalize_table_identifiers(arrow_table)
-        # issue warnings when overriding computed with arrow
-        for col_name, column in arrow_table["columns"].items():
-            if src_column := computed_table["columns"].get(col_name):
-                for hint_name, hint in column.items():
-                    if (src_hint := src_column.get(hint_name)) is not None:
-                        if src_hint != hint:
-                            logger.warning(
-                                f"In resource: {resource.name}, when merging arrow schema on column"
-                                f" {col_name}. The hint {hint_name} value {src_hint} defined in"
-                                f" resource is overwritten from arrow with value {hint}."
-                            )
+        # several arrow tables will update the pipeline schema and we want that earlier
+        # arrow tables override the latter so the resultant schema is the same as if
+        # they are sent separately
+        for item in reversed(items):
+            computed_table = super()._compute_table(resource, item, Any)
+            # Merge the columns to include primary_key and other hints that may be set on the resource
+            if arrow_table:
+                utils.merge_table(computed_table, arrow_table)
+            else:
+                arrow_table = copy(computed_table)
+            arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            # normalize arrow table before merging
+            arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+            # issue warnings when overriding computed with arrow
+            override_warn: bool = False
+            for col_name, column in arrow_table["columns"].items():
+                if src_column := computed_table["columns"].get(col_name):
+                    for hint_name, hint in column.items():
+                        if (src_hint := src_column.get(hint_name)) is not None:
+                            if src_hint != hint:
+                                override_warn = True
+                                logger.info(
+                                    f"In resource: {resource.name}, when merging arrow schema on"
+                                    f" column {col_name}. The hint {hint_name} value"
+                                    f" {src_hint} defined in resource will overwrite arrow hint"
+                                    f" with value {hint}."
+                                )
+            if override_warn:
+                logger.warning(
+                    f"In resource: {resource.name}, when merging arrow schema with dlt schema,"
+                    " several column hints were different. dlt schema hints were kept and arrow"
+                    " schema and data were unmodified. It is up to destination to coerce the"
+                    " differences when loading. Change log level to INFO for more details."
+                )
 
-        # we must override the columns to preserve the order in arrow table
-        arrow_table["columns"] = update_dict_nested(
-            arrow_table["columns"], computed_table["columns"], keep_dst_values=True
-        )
-
+            update_dict_nested(arrow_table["columns"], computed_table["columns"])
         return arrow_table
 
     def _compute_and_update_table(

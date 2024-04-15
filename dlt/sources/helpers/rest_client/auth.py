@@ -12,18 +12,18 @@ from typing import (
     Iterable,
     TYPE_CHECKING,
 )
-from dlt.sources.helpers import requests
 from requests.auth import AuthBase
 from requests import PreparedRequest  # noqa: I251
-import pendulum
-
-from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common import logger
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.exceptions import NativeValueError
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
+
+from dlt.sources.helpers import requests
 
 if TYPE_CHECKING:
     from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes

@@ -1,16 +1,15 @@
 import os
-import datetime  # noqa: 251
 import itertools
 from typing import Callable, List, Dict, NamedTuple, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, Executor
 
-from dlt.common import logger, sleep
+from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
-from dlt.common.data_writers import DataWriterMetrics
+from dlt.common.data_writers import DataWriter, DataWriterMetrics, TDataItemFormat
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
-from dlt.common.destination import TLoaderFileFormat
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -39,7 +38,7 @@ from dlt.common.utils import chunks
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.items_normalizers import (
-    ParquetItemsNormalizer,
+    ArrowItemsNormalizer,
     JsonLItemsNormalizer,
     ItemsNormalizer,
 )
@@ -89,7 +88,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # normalize saves in preferred format but can read all supported formats
         self.load_storage = LoadStorage(
             True,
-            self.config.destination_capabilities.preferred_loader_file_format,
             LoadStorage.ALL_SUPPORTED_FILE_FORMATS,
             config=self.config._load_storage_config,
         )
@@ -105,44 +103,76 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     ) -> TWorkerRV:
         destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
-        item_normalizers: Dict[TLoaderFileFormat, ItemsNormalizer] = {}
-
-        def _create_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
-            """Creates a load storage for particular file_format"""
-            # TODO: capabilities.supported_*_formats can be None, it should have defaults
-            supported_formats = destination_caps.supported_loader_file_formats or []
-            if file_format == "parquet":
-                if file_format in supported_formats:
-                    supported_formats.append(
-                        "arrow"
-                    )  # TODO: Hack to make load storage use the correct writer
-                    file_format = "arrow"
-                else:
-                    # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
-                    file_format = (
-                        destination_caps.preferred_loader_file_format
-                        or destination_caps.preferred_staging_file_format
-                    )
-            else:
-                file_format = (
-                    destination_caps.preferred_loader_file_format
-                    or destination_caps.preferred_staging_file_format
-                )
-            return LoadStorage(False, file_format, supported_formats, loader_storage_config)
+        item_normalizers: Dict[TDataItemFormat, ItemsNormalizer] = {}
+        # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
+        preferred_file_format = (
+            destination_caps.preferred_loader_file_format
+            or destination_caps.preferred_staging_file_format
+        )
+        # TODO: capabilities.supported_*_formats can be None, it should have defaults
+        supported_formats = destination_caps.supported_loader_file_formats or []
 
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
+            load_storage = LoadStorage(False, supported_formats, loader_storage_config)
 
-            def _get_items_normalizer(file_format: TLoaderFileFormat) -> ItemsNormalizer:
-                if file_format in item_normalizers:
-                    return item_normalizers[file_format]
-                klass = ParquetItemsNormalizer if file_format == "parquet" else JsonLItemsNormalizer
-                norm = item_normalizers[file_format] = klass(
-                    _create_load_storage(file_format), normalize_storage, schema, load_id, config
+            def _get_items_normalizer(item_format: TDataItemFormat) -> ItemsNormalizer:
+                if item_format in item_normalizers:
+                    return item_normalizers[item_format]
+                item_storage = load_storage.create_item_storage(preferred_file_format, item_format)
+                if item_storage.writer_spec.file_format != preferred_file_format:
+                    logger.warning(
+                        f"For data items yielded as {item_format} job files in format"
+                        f" {preferred_file_format} cannot be created."
+                        f" {item_storage.writer_spec.file_format} jobs will be used instead."
+                    )
+                cls = ArrowItemsNormalizer if item_format == "arrow" else JsonLItemsNormalizer
+                logger.info(
+                    f"Created items normalizer {cls.__name__} with writer"
+                    f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
+                    f" format {item_storage.writer_spec.file_format}"
+                )
+                norm = item_normalizers[item_format] = cls(
+                    item_storage,
+                    normalize_storage,
+                    schema,
+                    load_id,
+                    config,
                 )
                 return norm
+
+            def _gather_metrics_and_close(
+                parsed_fn: ParsedLoadJobFileName, in_exception: bool
+            ) -> List[DataWriterMetrics]:
+                writer_metrics: List[DataWriterMetrics] = []
+                try:
+                    try:
+                        for normalizer in item_normalizers.values():
+                            normalizer.item_storage.close_writers(load_id, skip_flush=in_exception)
+                    except Exception:
+                        # if we had exception during flushing the writers, close them without flushing
+                        if not in_exception:
+                            for normalizer in item_normalizers.values():
+                                normalizer.item_storage.close_writers(load_id, skip_flush=True)
+                        raise
+                    finally:
+                        # always gather metrics
+                        for normalizer in item_normalizers.values():
+                            norm_metrics = normalizer.item_storage.closed_files(load_id)
+                            writer_metrics.extend(norm_metrics)
+                        for normalizer in item_normalizers.values():
+                            normalizer.item_storage.remove_closed_files(load_id)
+                except Exception as exc:
+                    if in_exception:
+                        # swallow exception if we already handle exceptions
+                        return writer_metrics
+                    else:
+                        # enclose the exception during the closing in job failed exception
+                        job_id = parsed_fn.job_id() if parsed_fn else ""
+                        raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics)
+                return writer_metrics
 
             parsed_file_name: ParsedLoadJobFileName = None
             try:
@@ -155,7 +185,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         parsed_file_name.table_name
                     )
                     root_tables.add(root_table_name)
-                    normalizer = _get_items_normalizer(parsed_file_name.file_format)
+                    normalizer = _get_items_normalizer(
+                        DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
+                    )
                     logger.debug(
                         f"Processing extracted items in {extracted_items_file} in load_id"
                         f" {load_id} with table name {root_table_name} and schema {schema.name}"
@@ -165,17 +197,13 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     logger.debug(f"Processed file {extracted_items_file}")
             except Exception as exc:
                 job_id = parsed_file_name.job_id() if parsed_file_name else ""
-                raise NormalizeJobFailed(load_id, job_id, str(exc)) from exc
-            finally:
-                for normalizer in item_normalizers.values():
-                    normalizer.load_storage.close_writers(load_id)
+                writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=True)
+                raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics) from exc
+            else:
+                writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=False)
 
-        writer_metrics: List[DataWriterMetrics] = []
-        for normalizer in item_normalizers.values():
-            norm_metrics = normalizer.load_storage.closed_files(load_id)
-            writer_metrics.extend(norm_metrics)
-        logger.info(f"Processed all items in {len(extracted_items_files)} files")
-        return TWorkerRV(schema_updates, writer_metrics)
+            logger.info(f"Processed all items in {len(extracted_items_files)} files")
+            return TWorkerRV(schema_updates, writer_metrics)
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
@@ -233,9 +261,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             for task in list(tasks):
                 pending, params = task
                 if pending.done():
-                    result: TWorkerRV = (
-                        pending.result()
-                    )  # Exception in task (if any) is raised here
+                    # collect metrics from the exception (if any)
+                    if isinstance(pending.exception(), NormalizeJobFailed):
+                        summary.file_metrics.extend(pending.exception().writer_metrics)  # type: ignore[attr-defined]
+                    # Exception in task (if any) is raised here
+                    result: TWorkerRV = pending.result()
                     try:
                         # gather schema from all manifests, validate consistency and combine
                         self.update_table(schema, result[0])
@@ -348,7 +378,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         # delete existing folder for the case that this is a retry
         self.load_storage.new_packages.delete_package(load_id, not_exists_ok=True)
         # normalized files will go here before being atomically renamed
-        self.load_storage.new_packages.create_package(load_id)
+        self.load_storage.import_extracted_package(
+            load_id, self.normalize_storage.extracted_packages
+        )
         logger.info(f"Created new load package {load_id} on loading volume")
         try:
             # process parallel
@@ -362,7 +394,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             )
             # start from scratch
             self.load_storage.new_packages.delete_package(load_id)
-            self.load_storage.new_packages.create_package(load_id)
+            self.load_storage.import_extracted_package(
+                load_id, self.normalize_storage.extracted_packages
+            )
             self.spool_files(load_id, schema.clone(update_normalizers=True), self.map_single, files)
 
         return load_id

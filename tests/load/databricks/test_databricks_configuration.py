@@ -8,6 +8,9 @@ from dlt.destinations.impl.databricks.configuration import DatabricksClientConfi
 from dlt.common.configuration import resolve_configuration
 from tests.utils import preserve_environ
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_databricks_credentials_to_connector_params():
     os.environ["CREDENTIALS__SERVER_HOSTNAME"] = "my-databricks.example.com"

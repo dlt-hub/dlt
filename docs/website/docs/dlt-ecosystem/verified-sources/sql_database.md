@@ -62,7 +62,7 @@ The database above doesn't require a password.
 The connection URL can be broken down into:
 
 ```py
-connection_url = connection_string = f"{drivername}://{username}:{password}@{host}:{port}{database}"
+connection_url = f"{drivername}://{username}:{password}@{host}:{port}/{database}"
 ```
 
 `drivername`: Indicates both the database system and driver used.

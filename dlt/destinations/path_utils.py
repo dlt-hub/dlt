@@ -1,8 +1,9 @@
 # this can probably go some other place, but it is shared by destinations, so for now it is here
 from typing import List, Sequence, Tuple
 
-import pendulum
 import re
+
+from dlt.common.pendulum import pendulum
 
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 

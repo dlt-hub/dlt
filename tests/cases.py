@@ -1,3 +1,4 @@
+import hashlib
 from typing import Dict, List, Any, Sequence, Tuple, Literal, Union
 import base64
 from hexbytes import HexBytes
@@ -7,6 +8,7 @@ import random
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
+from dlt.common.schema.utils import new_column
 from dlt.common.typing import StrAny, TDataItems
 from dlt.common.wei import Wei
 from dlt.common.time import (
@@ -17,9 +19,7 @@ from dlt.common.time import (
 )
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
-
-TArrowFormat = Literal["pandas", "table", "record_batch"]
-
+from tests.utils import TPythonTableFormat, TestDataItemFormat, arrow_item_from_pandas
 
 # _UUID = "c8209ee7-ee95-4b90-8c9f-f7a0f8b51014"
 JSON_TYPED_DICT: StrAny = {
@@ -101,22 +101,22 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {"name": "col7_precision", "data_type": "binary", "precision": 19, "nullable": False},
     {"name": "col11_precision", "data_type": "time", "precision": 3, "nullable": False},
 ]
-TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]: t for t in TABLE_UPDATE}
+TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {c["name"]: c for c in TABLE_UPDATE}
 
 TABLE_ROW_ALL_DATA_TYPES = {
     "col1": 989127831,
     "col2": 898912.821982,
     "col3": True,
     "col4": "2022-05-23T13:26:45.176451+00:00",
-    "col5": "string data \n \r \x8e 🦆",
+    "col5": "string data \n \r  🦆",
     "col6": Decimal("2323.34"),
-    "col7": b"binary data \n \r \x8e",
+    "col7": b"binary data \n \r ",
     "col8": 2**56 + 92093890840,
     "col9": {
         "complex": [1, 2, 3, "a"],
         "link": (
             "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6"
-            " \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"
+            " \\vity%3A69'08444473\n\n551163392%2C6n \r 9085"
         ),
     },
     "col10": "2023-02-27",
@@ -134,10 +134,40 @@ TABLE_ROW_ALL_DATA_TYPES = {
     "col11_null": None,
     "col1_precision": 22324,
     "col4_precision": "2022-05-23T13:26:46.167231+00:00",
-    "col5_precision": "string data 2 \n \r \x8e 🦆",
+    "col5_precision": "string data 2 \n \r  🦆",
     "col6_precision": Decimal("2323.34"),
-    "col7_precision": b"binary data 2 \n \r \x8e",
+    "col7_precision": b"binary data 2 \n \r A",
     "col11_precision": "13:26:45.176451",
+}
+
+
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4"] = ensure_pendulum_datetime(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col10"] = ensure_pendulum_date(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col10"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"] = ensure_pendulum_datetime(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"])  # type: ignore[arg-type]
+
+
+TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS = [
+    new_column("col1_ts", "timestamp", precision=0),
+    new_column("col2_ts", "timestamp", precision=3),
+    new_column("col3_ts", "timestamp", precision=6),
+    new_column("col4_ts", "timestamp", precision=9),
+]
+TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS_COLUMNS: TTableSchemaColumns = {
+    c["name"]: c for c in TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
+}
+
+TABLE_UPDATE_ALL_INT_PRECISIONS = [
+    new_column("col1_int", "bigint", precision=8),
+    new_column("col2_int", "bigint", precision=16),
+    new_column("col3_int", "bigint", precision=32),
+    new_column("col4_int", "bigint", precision=64),
+    new_column("col5_int", "bigint", precision=128),
+]
+TABLE_UPDATE_ALL_INT_PRECISIONS_COLUMNS: TTableSchemaColumns = {
+    c["name"]: c for c in TABLE_UPDATE_ALL_INT_PRECISIONS
 }
 
 
@@ -194,6 +224,11 @@ def assert_all_data_types_row(
             ensure_pendulum_datetime(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
         )
 
+    if "col11" in expected_rows:
+        expected_rows["col11"] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_time(expected_rows["col11"]), timestamp_precision  # type: ignore[arg-type]
+        ).isoformat()
+
     if "col11_precision" in expected_rows:
         parsed_time = ensure_pendulum_time(db_mapping["col11_precision"])
         db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(parsed_time, 3)
@@ -244,52 +279,42 @@ def assert_all_data_types_row(
     assert db_mapping == expected_rows
 
 
-def arrow_format_from_pandas(
-    df: Any,
-    object_format: TArrowFormat,
-) -> Any:
-    from dlt.common.libs.pyarrow import pyarrow as pa
-
-    if object_format == "pandas":
-        return df
-    elif object_format == "table":
-        return pa.Table.from_pandas(df)
-    elif object_format == "record_batch":
-        return pa.RecordBatch.from_pandas(df)
-    raise ValueError("Unknown item type: " + object_format)
-
-
 def arrow_table_all_data_types(
-    object_format: TArrowFormat,
+    object_format: TestDataItemFormat,
     include_json: bool = True,
     include_time: bool = True,
+    include_binary: bool = True,
+    include_decimal: bool = True,
+    include_date: bool = True,
     include_not_normalized_name: bool = True,
     include_name_clash: bool = False,
     num_rows: int = 3,
-) -> Tuple[Any, List[Dict[str, Any]]]:
+    tz="UTC",
+) -> Tuple[Any, List[Dict[str, Any]], Dict[str, List[Any]]]:
     """Create an arrow object or pandas dataframe with all supported data types.
 
     Returns the table and its records in python format
     """
     import pandas as pd
-    from dlt.common.libs.pyarrow import pyarrow as pa
+    import numpy as np
 
     data = {
-        "string": [random.choice(ascii_lowercase) for _ in range(num_rows)],
+        "string": [random.choice(ascii_lowercase) + "\"'\\🦆\n\r" for _ in range(num_rows)],
         "float": [round(random.uniform(0, 100), 4) for _ in range(num_rows)],
         "int": [random.randrange(0, 100) for _ in range(num_rows)],
-        "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz="UTC"),
-        "date": pd.date_range("2021-01-01", periods=num_rows, tz="UTC").date,
-        "binary": [random.choice(ascii_lowercase).encode() for _ in range(num_rows)],
-        "decimal": [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)],
+        "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz=tz, unit="us"),
         "bool": [random.choice([True, False]) for _ in range(num_rows)],
         "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [None],
+        "float_null": [round(random.uniform(0, 100), 5) for _ in range(num_rows - 1)] + [
+            None
+        ],  # decrease precision
         "null": pd.Series([None for _ in range(num_rows)]),
     }
 
     if include_name_clash:
         data["pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
         include_not_normalized_name = True
+
     if include_not_normalized_name:
         data["Pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
 
@@ -299,7 +324,19 @@ def arrow_table_all_data_types(
     if include_time:
         data["time"] = pd.date_range("2021-01-01", periods=num_rows, tz="UTC").time
 
+    if include_binary:
+        # "binary": [hashlib.sha3_256(random.choice(ascii_lowercase).encode()).digest() for _ in range(num_rows)],
+        data["binary"] = [random.choice(ascii_lowercase).encode() for _ in range(num_rows)]
+
+    if include_decimal:
+        data["decimal"] = [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)]
+
+    if include_date:
+        data["date"] = pd.date_range("2021-01-01", periods=num_rows, tz=tz).date
+
     df = pd.DataFrame(data)
+    # None integers/floats are converted to nan, also replaces floats with objects and loses precision
+    df = df.replace(np.nan, None)
     # records have normalized identifiers for comparing
     rows = (
         df.rename(
@@ -310,4 +347,32 @@ def arrow_table_all_data_types(
         .drop(columns=["null"])
         .to_dict("records")
     )
-    return arrow_format_from_pandas(df, object_format), rows
+    if object_format == "object":
+        return rows, rows, data
+    else:
+        return arrow_item_from_pandas(df, object_format), rows, data
+
+
+def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:
+    from dlt.common.libs.pyarrow import remove_columns
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    table, _, _ = arrow_table_all_data_types(
+        "arrow-table",
+        include_json=False,
+        include_not_normalized_name=False,
+        tz="Europe/Berlin",
+        num_rows=5432,
+    )
+    # remove null column from table (it will be removed in extract)
+    table = remove_columns(table, "null")
+    # shuffled_columns = table.schema.names
+    shuffled_indexes = list(range(len(table.schema.names)))
+    random.shuffle(shuffled_indexes)
+    shuffled_table = pa.Table.from_arrays(
+        [table.column(idx) for idx in shuffled_indexes],
+        schema=pa.schema([table.schema.field(idx) for idx in shuffled_indexes]),
+    )
+    shuffled_removed_column = remove_columns(shuffled_table, ["binary"])
+    assert shuffled_table.schema.names != table.schema.names
+    return table, shuffled_table, shuffled_removed_column

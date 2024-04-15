@@ -1,0 +1,55 @@
+{
+    "id": "b102f4cb-d233-4145-b32a-cc78d4d1ad44",
+    "name": "minio",
+    "config": {
+        "credentialType": "ACCESS_KEY",
+        "accessKey": "minioadmin",
+        "accessSecret": "minioadmin",
+        "secure": false,
+        "externalBucketList": [
+            "dlt-ci-test-bucket"
+        ],
+        "enableAsync": true,
+        "compatibilityMode": true,
+        "requesterPays": false,
+        "enableFileStatusCheck": true,
+        "isPartitionInferenceEnabled": false,
+        "rootPath": "/",
+        "defaultCtasFormat": "ICEBERG",
+        "propertyList": [
+            {
+                "name": "fs.s3a.path.style.access",
+                "value": "true"
+            },
+            {
+                "name": "fs.s3a.endpoint",
+                "value": "minio:9000"
+            }
+        ],
+        "whitelistedBuckets": [
+            "dlt-ci-test-bucket"
+        ],
+        "isCachingEnabled": true,
+        "maxCacheSpacePct": 100
+    },
+    "allowCrossSourceSelection": false,
+    "disableMetadataValidityCheck": false,
+    "accelerationRefreshPeriod": 3600000,
+    "accelerationGracePeriod": 10800000,
+    "accelerationNeverExpire": false,
+    "accelerationNeverRefresh": false,
+    "metadataPolicy": {
+        "deleteUnavailableDatasets": true,
+        "autoPromoteDatasets": false,
+        "namesRefreshMillis": 3600000,
+        "datasetDefinitionRefreshAfterMillis": 3600000,
+        "datasetDefinitionExpireAfterMillis": 10800000,
+        "authTTLMillis": 86400000,
+        "updateMode": "PREFETCH_QUERIED"
+    },
+    "type": "S3",
+    "accessControlList": {
+        "userControls": [],
+        "roleControls": []
+    }
+}

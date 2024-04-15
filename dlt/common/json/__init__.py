@@ -12,7 +12,7 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_in_place
@@ -99,19 +99,19 @@ def _datetime_decoder(obj: str) -> datetime:
         # Backwards compatibility for data encoded with previous dlt version
         # fromisoformat does not support Z suffix (until py3.11)
         obj = obj[:-1] + "+00:00"
-    return pendulum.DateTime.fromisoformat(obj)  # type: ignore[attr-defined, no-any-return]
+    return pendulum.DateTime.fromisoformat(obj)
 
 
 # define decoder for each prefix
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
     _datetime_decoder,
-    pendulum.Date.fromisoformat,  # type: ignore[attr-defined]
+    pendulum.Date.fromisoformat,
     UUID,
     HexBytes,
     base64.b64decode,
     Wei,
-    pendulum.Time.fromisoformat,  # type: ignore[attr-defined]
+    pendulum.Time.fromisoformat,
 ]
 # how many decoders?
 PUA_CHARACTER_MAX = len(DECODERS)

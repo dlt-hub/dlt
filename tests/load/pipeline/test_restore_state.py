@@ -39,6 +39,7 @@ def duckdb_pipeline_location() -> None:
         del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
