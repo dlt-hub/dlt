@@ -369,6 +369,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         if isinstance(job_client, WithStagingDataset)
                         else None
                     ),
+                    load_id=load_id,
                 )
 
                 # init staging client
@@ -385,6 +386,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             expected_update,
                             job_client.should_truncate_table_before_load_on_staging_destination,
                             job_client.should_load_data_to_staging_dataset_on_staging_destination,
+                            load_id=load_id,
                         )
 
                 self.load_storage.commit_schema_update(load_id, applied_update)

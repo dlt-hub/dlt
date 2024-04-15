@@ -273,7 +273,10 @@ class JobClientBase(ABC):
         pass
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        load_id: str = None,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
@@ -281,6 +284,7 @@ class JobClientBase(ABC):
         destination has single writer and no other processes modify the schema.
 
         Args:
+            load_id (str, optional): Load id during which the schema is updated
             only_tables (Sequence[str], optional): Updates only listed tables. Defaults to None.
             expected_update (TSchemaTables, optional): Update that is expected to be applied to the destination
         Returns:

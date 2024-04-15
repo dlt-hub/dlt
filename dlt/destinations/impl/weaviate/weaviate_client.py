@@ -424,9 +424,12 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     @wrap_weaviate_error
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        load_id: str = None,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
+        super().update_stored_schema(load_id, only_tables, expected_update)
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
         try:

@@ -47,9 +47,12 @@ class DestinationClient(JobClientBase):
         pass
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        load_id: str = None,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        return super().update_stored_schema(only_tables, expected_update)
+        return super().update_stored_schema(load_id, only_tables, expected_update)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
