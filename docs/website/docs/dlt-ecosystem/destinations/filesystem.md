@@ -123,7 +123,7 @@ To pass any additional arguments to `fsspec`, you may supply `kwargs` and `clien
 
 ```toml
 [destination.filesystem]
-kwargs = '{"use_ssl": true}'
+kwargs = '{"use_ssl": true, "auto_mkdir": true}'
 client_kwargs = '{"verify": "public.crt"}'
 ```
 
@@ -222,6 +222,33 @@ Current default layout: **{table_name}/{load_id}.{file_id}.{ext}`**
 
 ### Available layout placeholders
 
+Layout placeholders
+
+* Years
+  * `YYYY` - 2024, 2025
+  * `Y` - 2024, 2025
+* Months
+  * `MMMM` - January, February, March
+  * `MMM` - Jan, Feb, Mar
+  * `MM` - 01, 02, 03
+  * `M` - 1, 2, 3
+* Days of month
+  * `DD` - 01, 02
+  * `D` - 1, 2
+* Hours 24h format
+  * `HH` - 00, 01, 02...23
+  * `H` - 0, 1, 2...23
+* Minutes
+  * `mm` - 00, 01, 02...59
+  * `m` - 0, 1, 2...59
+* Days of week
+  * `dddd` - Monday, Tuesday, Wednesday
+  * `ddd` - Mon, Tue, Wed
+  * `dd` - Mo, Tu, We
+  * `d` - 0-6
+* `Q` - quarters Q1, Q2, Q3, Q4
+* `timestamp` - timestamp from pendulum.DateTime,
+* `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids)
 
 You can change the file name format by providing the layout setting for the filesystem destination like so:
 ```toml
@@ -243,6 +270,12 @@ to work, you have to
 Please note:
 - `dlt` will not dump the current schema content to the bucket
 - `dlt` will mark complete loads by creating an empty file that corresponds to `_dlt_loads` table. For example, if `chess._dlt_loads.1685299832` file is present in dataset folders, you can be sure that all files for the load package `1685299832` are completely loaded
+
+
+### Advanced layout configuration
+
+Filesystem allows you to configure advanced layout and additional placeholders via `config.toml` and when initializing via factory
+
 
 ## Supported file formats
 You can choose the following file formats:
