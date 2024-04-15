@@ -128,7 +128,7 @@ class InvalidFilesystemLayout(DestinationTerminalException):
 
         message = (
             f"Layout '{layout}' expected {', '.join(expected_placeholders)} placeholders."
-            f"Invalid placeholders detected in filesystem layout: {invalid_placeholders}. "
+            f"Found invalid placeholders: {invalid_placeholders}. "
         )
 
         if extra_placeholders:
