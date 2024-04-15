@@ -302,11 +302,12 @@ if __name__ == "__main__":
     # these stages are python only
     python_snippets = [s for s in filtered_snippets if s.language == "py"]
     with ThreadPoolExecutor() as runner:
+        futures = []
         if args.command in ["lint", "full"]:
-            runner.submit(lint_snippets, python_snippets, args.verbose)
+            futures.append(runner.submit(lint_snippets, python_snippets, args.verbose))
 
         if ENABLE_MYPY and args.command in ["typecheck", "full"]:
-            runner.submit(typecheck_snippets(python_snippets, args.verbose))
+            futures.append(runner.submit(typecheck_snippets(python_snippets, args.verbose)))
 
     # unlink lint_me file
     if os.path.exists(LINT_FILE):
