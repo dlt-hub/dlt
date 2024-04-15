@@ -132,7 +132,7 @@ class InvalidFilesystemLayout(DestinationTerminalException):
         )
 
         if extra_placeholders:
-            message += f"Additional placeholders specified: {', '.join(extra_placeholders)}."
+            message += f"Extra placeholders specified: {', '.join(extra_placeholders)}."
 
         if unused_placeholders:
             message += f"Unused placeholders: {', '.join(unused_placeholders)}."
