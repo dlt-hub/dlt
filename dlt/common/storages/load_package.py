@@ -78,6 +78,8 @@ class TLoadPackageState(TVersionedState, total=False):
 
     dropped_tables: NotRequired[List[TTableSchema]]
     """List of tables that are to be dropped from the schema and destination (i.e. when `refresh` mode is used)"""
+    truncated_tables: NotRequired[List[TTableSchema]]
+    """List of tables that are to be truncated in the destination (i.e. when `refresh='drop_data'` mode is used)"""
 
 
 class TLoadPackage(TypedDict, total=False):

@@ -1,8 +1,10 @@
-import pytest
+from unittest import mock
 
+import pytest
 import dlt
 from dlt.common.pipeline import resource_state
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 from tests.utils import clean_test_storage, preserve_environ
 from tests.pipeline.utils import assert_load_info
@@ -198,9 +200,19 @@ def test_refresh_drop_data_only():
 
     # Second run of pipeline with only selected resources
     first_run = False
-    info = pipeline.run(
-        my_source().with_resources("some_data_1", "some_data_2"), write_disposition="append"
-    )
+
+    # Mock wrap sql client to capture all queries executed
+    with mock.patch.object(
+        DuckDbSqlClient, "execute_query", side_effect=DuckDbSqlClient.execute_query, autospec=True
+    ) as mock_execute_query:
+        info = pipeline.run(
+            my_source().with_resources("some_data_1", "some_data_2"), write_disposition="append"
+        )
+
+    all_queries = [k[0][1] for k in mock_execute_query.call_args_list]
+    assert all_queries
+    for q in all_queries:
+        assert "drop table" not in q.lower()  # Tables are only truncated, never dropped
 
     # Tables selected in second run are truncated and should only have data from second run
     with pipeline.sql_client() as client:
@@ -210,8 +222,6 @@ def test_refresh_drop_data_only():
     with pipeline.sql_client() as client:
         result = client.execute_sql("SELECT id FROM some_data_1 ORDER BY id")
     assert result == [(1,), (2,)]
-
-    # TODO: Test tables were truncated , not dropped
 
     # Tables not selected in second run are not truncated, still have data from first run
     with pipeline.sql_client() as client:

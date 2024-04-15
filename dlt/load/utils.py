@@ -67,8 +67,8 @@ def init_client(
     expected_update: TSchemaTables,
     truncate_filter: Callable[[TTableSchema], bool],
     load_staging_filter: Callable[[TTableSchema], bool],
-    refresh: Optional[TRefreshMode] = None,
     drop_tables: Optional[List[TTableSchema]] = None,
+    truncate_tables: Optional[List[TTableSchema]] = None,
 ) -> TSchemaTables:
     """Initializes destination storage including staging dataset if supported
 
@@ -81,6 +81,8 @@ def init_client(
         expected_update (TSchemaTables): Schema update as in load package. Always present even if empty
         truncate_filter (Callable[[TTableSchema], bool]): A filter that tells which table in destination dataset should be truncated
         load_staging_filter (Callable[[TTableSchema], bool]): A filter which tell which table in the staging dataset may be loaded into
+        drop_tables (Optional[List[TTableSchema]]): List of tables to drop before initializing storage
+        truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
 
     Returns:
         TSchemaTables: Actual migrations done at destination
@@ -96,19 +98,21 @@ def init_client(
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their child tables
-
-    if refresh == "drop_data":
-        truncate_filter = lambda t: t["name"] in tables_with_jobs - dlt_tables
-
-    truncate_tables = set(
-        _extend_tables_with_table_chain(schema, tables_with_jobs, tables_with_jobs, truncate_filter)
+    initial_truncate_names = set(t["name"] for t in truncate_tables) if truncate_tables else set()
+    truncate_table_names = set(
+        _extend_tables_with_table_chain(
+            schema,
+            tables_with_jobs,
+            tables_with_jobs,
+            lambda t: truncate_filter(t) or t["name"] in initial_truncate_names,
+        )
     )
 
     applied_update = _init_dataset_and_update_schema(
         job_client,
         expected_update,
         tables_with_jobs | dlt_tables,
-        truncate_tables,
+        truncate_table_names,
         drop_tables=drop_tables,
     )
 

@@ -366,6 +366,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         new_jobs = self.get_new_jobs_info(load_id)
 
         dropped_tables = current_load_package()["state"].get("dropped_tables", [])
+        truncated_tables = current_load_package()["state"].get("truncated_tables", [])
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
@@ -382,8 +383,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         if isinstance(job_client, WithStagingDataset)
                         else None
                     ),
-                    refresh=self.refresh,
                     drop_tables=dropped_tables,
+                    truncate_tables=truncated_tables,
                 )
 
                 # init staging client
@@ -402,8 +403,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             job_client.should_truncate_table_before_load_on_staging_destination,
                             # should_truncate_staging,
                             job_client.should_load_data_to_staging_dataset_on_staging_destination,
-                            refresh=self.refresh,
                             drop_tables=dropped_tables,
+                            truncate_tables=truncated_tables,
                         )
 
                 self.load_storage.commit_schema_update(load_id, applied_update)

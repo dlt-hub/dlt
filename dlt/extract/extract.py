@@ -403,7 +403,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         _state,
                         resources=_resources_to_drop,
                         drop_all=self.refresh == "drop_dataset",
-                        state_only=self.refresh == "drop_data",
                         state_paths="*" if self.refresh == "drop_dataset" else [],
                     )
                     _state.update(new_state)
@@ -413,9 +412,12 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             for table in source.schema.tables.values()
                             if table["name"] in drop_info["tables"]
                         ]
-                        load_package.state["dropped_tables"] = drop_tables
-                    source.schema.tables.clear()
-                    source.schema.tables.update(new_schema.tables)
+                        if self.refresh == "drop_data":
+                            load_package.state["truncated_tables"] = drop_tables
+                        else:
+                            source.schema.tables.clear()
+                            source.schema.tables.update(new_schema.tables)
+                            load_package.state["dropped_tables"] = drop_tables
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():
