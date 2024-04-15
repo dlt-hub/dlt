@@ -214,13 +214,18 @@ ALL_LAYOUTS = (  # type: ignore
         True,
         [],
     ),
+    ("{timestamp}{table_name}", f"{int(frozen_datetime.timestamp())}mocked-table", True, []),
+    ("{ddd}/{MMM}/{table_name}", "sun/apr/mocked-table", True, []),
+    (
+        "{Y}/{timestamp}/{table_name}",
+        f"{frozen_datetime.format('YYYY')}/{int(frozen_datetime.timestamp())}/mocked-table",
+        True,
+        [],
+    ),
+    ("{load_id}/{ext}/{table_name}", "mocked-load-id/jsonl/mocked-table", True, []),
+    ("{HH}/{mm}/{schema_name}", f"{frozen_datetime.format('HH/mm')}/schema-name", True, []),
+    ("{type}/{bobo}/{table_name}", "one-for-all/is-name/mocked-table", True, []),
     # invalid placeholders
-    ("{timestamp}{table_name}", "", False, []),
-    ("{ddd}/{MMM}/{table_name}", "", False, []),
-    ("{Y}/{timestamp}/{table_name}", "", False, []),
-    ("{load_id}/{ext}/{table_name}", "", False, []),
-    ("{HH}/{mm}/{schema_name}", "", False, []),
-    ("{type}/{bobo}/{table_name}", "", False, []),
     ("{illegal_placeholder}{table_name}", "", False, ["illegal_placeholder"]),
     ("{unknown_placeholder}/{volume}/{table_name}", "", False, ["unknown_placeholder", "volume"]),
     (
@@ -254,20 +259,19 @@ def test_layout_validity(
         file_format="jsonl",
     )
     load_id = "mocked-load-id"
+    mocker.patch("pendulum.now", return_value=frozen_datetime)
+    mocker.patch(
+        "pendulum.DateTime.timestamp",
+        return_value=frozen_datetime.timestamp(),
+    )
+
+    mocker.patch(
+        "dlt.common.storages.load_package.ParsedLoadJobFileName.parse",
+        return_value=job_info,
+    )
+
+    now_timestamp = frozen_datetime.to_iso8601_string()
     if is_valid:
-        mocker.patch("pendulum.now", return_value=frozen_datetime)
-        mocker.patch(
-            "pendulum.DateTime.timestamp",
-            return_value=frozen_datetime.timestamp(),
-        )
-
-        mocker.patch(
-            "dlt.common.storages.load_package.ParsedLoadJobFileName.parse",
-            return_value=job_info,
-        )
-
-        now_timestamp = frozen_datetime.to_iso8601_string()
-        check_layout(layout, EXTRA_PLACEHOLDERS)
         path = create_path(
             layout,
             schema_name="schema-name",
@@ -280,8 +284,15 @@ def test_layout_validity(
         assert len(path.split("/")) == len(layout.split("/"))
     else:
         with pytest.raises(InvalidFilesystemLayout) as exc:
-            check_layout("{other_ph}.{table_name}", EXTRA_PLACEHOLDERS)
-            assert set(exc.value.invalid_placeholders) == set(invalid_placeholders)
+            create_path(
+                layout,
+                schema_name="schema-name",
+                load_id=load_id,
+                load_package_timestamp=now_timestamp,
+                file_name=job_info.file_name(),
+                extra_placeholders=EXTRA_PLACEHOLDERS,
+            )
+        assert set(exc.value.invalid_placeholders) == set(invalid_placeholders)
 
 
 def test_create_path(test_load: TestLoad) -> None:
