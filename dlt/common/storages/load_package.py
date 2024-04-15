@@ -692,7 +692,7 @@ def destination_state() -> DictStrAny:
 
 
 def load_package_source_state() -> DictStrAny:
-    """Get segment of load package state that is specific to the current destination."""
+    """Get segment of load package state that is specific to the sources."""
     lp = load_package()
     return lp["state"].setdefault("source_state", {})
 

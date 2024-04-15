@@ -178,6 +178,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                         " should be created previously!"
                     )
 
+        # we mark the storage folder as initialized
+        self.fs_client.makedirs(self.dataset_path, exist_ok=True)
+        self.fs_client.touch(posixpath.join(self.dataset_path, INIT_FILE_NAME))
+
     def update_stored_schema(
         self,
         load_id: str = None,
@@ -215,7 +219,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         return table_dirs
 
     def is_storage_initialized(self) -> bool:
-        return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]
+        return self.fs_client.exists(posixpath.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         # skip the state table, we create a jsonl file in the complete_load step
@@ -363,8 +367,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                 break
 
         if selected_path:
+            print("got state")
             return StorageSchemaInfo(**json.loads(self.fs_client.read_text(selected_path)))
-
+        print("no state")
         return None
 
     def _store_current_schema(self, load_id: str) -> None:
