@@ -49,6 +49,11 @@ frozen_datetime = pendulum.DateTime(
     microsecond=0,
 )
 
+# Each layout example is a tuple of
+# 1. layout to expand,
+# 2. expected path,
+# 3. valid or not flag,
+# 4. the list of expected invalid or unknown placeholders.
 ALL_LAYOUTS = (  # type: ignore
     # Usual placeholders
     (
