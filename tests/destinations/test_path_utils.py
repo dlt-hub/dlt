@@ -220,6 +220,7 @@ ALL_LAYOUTS = (  # type: ignore
     ("{Y}/{timestamp}/{table_name}", "", False, []),
     ("{load_id}/{ext}/{table_name}", "", False, []),
     ("{HH}/{mm}/{schema_name}", "", False, []),
+    ("{type}/{bobo}/{table_name}", "", False, []),
     ("{illegal_placeholder}{table_name}", "", False, ["illegal_placeholder"]),
     ("{unknown_placeholder}/{volume}/{table_name}", "", False, ["unknown_placeholder", "volume"]),
     (
