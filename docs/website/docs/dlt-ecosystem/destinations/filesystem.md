@@ -220,6 +220,9 @@ Current default layout: **{table_name}/{load_id}.{file_id}.{ext}`**
 > 💡 Note that the default layout format has changed from `{schema_name}.{table_name}.{load_id}.{file_id}.{ext}` to `{table_name}/{load_id}.{file_id}.{ext}` in dlt 0.3.12. You can revert to the old layout by setting the old value in your toml file.
 
 
+### Available layout placeholders
+
+
 You can change the file name format by providing the layout setting for the filesystem destination like so:
 ```toml
 [destination.filesystem]
