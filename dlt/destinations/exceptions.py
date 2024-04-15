@@ -115,21 +115,20 @@ class InvalidFilesystemLayout(DestinationTerminalException):
     def __init__(
         self,
         layout: str,
-        standard_placeholders: Sequence[str],
+        expected_placeholders: Sequence[str],
         extra_placeholders: Sequence[str],
         invalid_placeholders: Sequence[str],
         unused_placeholders: Sequence[str],
     ) -> None:
         self.invalid_placeholders = invalid_placeholders
         self.extra_placeholders = extra_placeholders
-        self.standard_placeholders = standard_placeholders
+        self.expected_placeholders = expected_placeholders
         self.unused_placeholders = unused_placeholders
         self.layout = layout
 
         message = (
+            f"Layout '{layout}' expected {', '.join(expected_placeholders)} placeholders."
             f"Invalid placeholders detected in filesystem layout: {invalid_placeholders}. "
-            f"Using layout: '{layout}', the expected placeholders include: "
-            f"{', '.join(standard_placeholders)}. "
         )
 
         if extra_placeholders:

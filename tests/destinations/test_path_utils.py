@@ -7,11 +7,7 @@ from dlt.common import logger, pendulum
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
-from dlt.destinations.path_utils import (
-    check_layout,
-    create_path,
-    get_table_prefix_layout,
-)
+from dlt.destinations.path_utils import create_path, get_table_prefix_layout
 
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 from tests.common.storages.utils import start_loading_file, load_storage

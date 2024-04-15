@@ -174,7 +174,7 @@ def check_layout(
     if invalid_placeholders:
         raise InvalidFilesystemLayout(
             layout,
-            standard_placeholders,  # type: ignore[arg-type]
+            all_placeholders,  # type: ignore[arg-type]
             extra_placeholder_keys,
             invalid_placeholders,
             unused_placeholders,
