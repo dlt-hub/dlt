@@ -1,8 +1,6 @@
 import re
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-import pendulum
-
 from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
