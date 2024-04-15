@@ -34,7 +34,7 @@ can read or even speak OOP, the team will not be able to do so without sacrifici
 
 This means that in order to be able to cater to a data team as a dev team, we need to aknowledge a different abstraction is needed.
 
-### Goodbye OOP, hello @decorators!
+### Goodbye OOP, hello `@decorators`!
 
 Data teams often navigate complex systems and workflows that prioritize functional clarity over object-oriented
 programming (OOP) principles. They require tools that simplify process definition, enabling quick, readable,
@@ -111,7 +111,7 @@ thereby enhancing efficiency and developer experience.
 
 dlt was built for just such a scenario and we are happy to be adopted into it. Besides adding connectors, dlt adds a simple way to build custom pipelines.
 
-### Dagworks' `dlt` + `duckdb` + `ibis´ + `Hamilton` demo
+### Dagworks' `dlt` + `duckdb` + `ibis` + `Hamilton` demo
 
 The DAGWorks Substack post introduces a highly portable pipeline of all libraries, and leverages a blend of open-source Python libraries: dlt, Ibis, and Hamilton.
 This integration exemplifies the trend towards modular, decentralized data systems, where each component specializes in a segment of the data handling process—dlt for extraction and loading,
