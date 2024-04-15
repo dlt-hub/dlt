@@ -10,7 +10,7 @@ authors:
 tags: [Pub/Sub, dlt, Segment, Streaming]
 ---
 :::info
-TL;DR: This blog post introduces a cost-effective solution for event streaming that results in up to 18x savings. The solution leverages Cloud Pub/Sub and DLT to build an efficient event streaming pipeline.
+TL;DR: This blog post introduces a cost-effective solution for event streaming that results in up to 18x savings. The solution leverages Cloud Pub/Sub and dlt to build an efficient event streaming pipeline.
 :::
 
 ## The Segment Problem
@@ -18,19 +18,19 @@ Event tracking is a complicated problem for which there exist many solutions. On
 
 :::note
 
-💡 With Segment, you pay 1-1.2 cents for every tracked users. 
+💡 With Segment, you pay 1-1.2 cents for every tracked users.
 
 Let’s take a back-of-napkin example: for 100.000 users, ingesting their events data would cost **$1000.**
 
 **The bill:**
-* **Minimum 10,000 monthly tracked users (0-10K)** + $120. 
+* **Minimum 10,000 monthly tracked users (0-10K)** + $120.
 * **Additional 1,000 monthly tracked users (10K - 25K)** + $12 / 1000 user.
 * **Additional 1,000 monthly tracked users (25k - 100K)** + $11 / 1000 user.
 * **Additional 1,000 monthly tracked users (100k +)** + $10 / 1000 user.
 
 :::
 
-The price of **$1000/month** for 100k tracked users doesn’t seem excessive, given the complexity of the task at hand. 
+The price of **$1000/month** for 100k tracked users doesn’t seem excessive, given the complexity of the task at hand.
 
 However, similar results can be achieved on GCP by combining different services. If those 100k users produce 1-2m events, **those costs would stay in the  $10-60 range.**
 
@@ -45,18 +45,18 @@ Our proposed solution to replace Segment involves using dlt with Cloud Pub/Sub t
 
 In this architecture, a publisher initiates the process by pushing events to a Pub/Sub topic. Specifically, in the context of dlt, the library acts as the publisher, directing user telemetry data to a designated topic within Pub/Sub.
 
-A subscriber is attached to the topic. Pub/Sub offers a push-based [subscriber](https://cloud.google.com/pubsub/docs/subscription-overview) that proactively receives messages from the topic and writes them to Cloud Storage. The subscriber is configured to aggregate all messages received within a 10-minute window and then forward them to a designated storage bucket. 
+A subscriber is attached to the topic. Pub/Sub offers a push-based [subscriber](https://cloud.google.com/pubsub/docs/subscription-overview) that proactively receives messages from the topic and writes them to Cloud Storage. The subscriber is configured to aggregate all messages received within a 10-minute window and then forward them to a designated storage bucket.
 
 Once the data is written to the Cloud Storage this triggers a Cloud Function. The Cloud Function reads the data from the storage bucket and uses dlt to ingest the data into BigQuery.
 
 ## Code Walkthrough
-This section dives into a comprehensive code walkthrough that illustrates the step-by-step process of implementing our proposed event streaming pipeline. 
+This section dives into a comprehensive code walkthrough that illustrates the step-by-step process of implementing our proposed event streaming pipeline.
 
 Implementing the pipeline requires the setup of various resources, including storage buckets and serverless functions. To streamline the procurement of these resources, we'll leverage Terraform—an Infrastructure as Code (IaC) tool.
 
 ### Prerequisites
 
-Before we embark on setting up the pipeline, there are essential tools that need to be installed to ensure a smooth implementation process. 
+Before we embark on setting up the pipeline, there are essential tools that need to be installed to ensure a smooth implementation process.
 
 - **Firstly**, follow the official guide to install [Terraform](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli), a tool for automating the deployment of cloud infrastructure.
 - **Secondly**, install the [Google Cloud Pub/Sub API client library](https://cloud.google.com/sdk/docs/install) which is required for publishing events to Cloud Pub/Sub.
@@ -93,7 +93,7 @@ To set up our pipeline, start by cloning the [GitHub Repository](https://github.
 │   └── variables.tf
 ```
 
-Within this structure, the **Terraform** directory houses all the Terraform code required to set up the necessary resources on Google Cloud. 
+Within this structure, the **Terraform** directory houses all the Terraform code required to set up the necessary resources on Google Cloud.
 
 Meanwhile, the **cloud_functions** folder includes the code for the Cloud Function that will be deployed. This function will read the data from storage and use dlt to ingest data into BigQuery. The code for the function can be found in `cloud_functions/main.py` file.
 
@@ -133,7 +133,7 @@ variable "service_account_email" {
 
 ### Step 3: Procure Cloud Resources
 
-We are now ready to set up some cloud resources. To get started, navigate into the **terraform** directory and `terraform init`. The command initializes the working directory containing Terraform configuration files. 
+We are now ready to set up some cloud resources. To get started, navigate into the **terraform** directory and `terraform init`. The command initializes the working directory containing Terraform configuration files.
 
 With the initialization complete, you're ready to proceed with the creation of your cloud resources. To do this, run the following Terraform commands in sequence. These commands instruct Terraform to plan and apply the configurations defined in your `.tf` files, setting up the infrastructure on Google Cloud as specified.
 
@@ -174,7 +174,7 @@ python publisher.py
 
 ### Step 5: Results
 
-Once the publisher sends events to the Pub/Sub Topic, the pipeline is activated. These are asynchronous calls, so there's a delay between message publication and their appearance in BigQuery. 
+Once the publisher sends events to the Pub/Sub Topic, the pipeline is activated. These are asynchronous calls, so there's a delay between message publication and their appearance in BigQuery.
 
 The average completion time of the pipeline is approximately 12 minutes, accounting for the 10-minute time interval after which the subscriber pushes data to storage plus the Cloud Function execution time. The push interval of the subscriber can be adjusted by changing the **max_duration** in `pubsub.tf`
 
@@ -197,7 +197,7 @@ On average the cost for our proposed pipeline are as follows:
 - Our web tracking user:event ratio is 1:15, so the Segment cost equivalent would be **$55**.
 - Our telemetry device:event ratio is 1:60,  so the Segment cost equivalent would be **$220**.
 
-So with our setup, as long as we keep events-to-user ratio **under 270**, we will have cost savings over Segment. In reality, it gets even better because GCP offers a very generous free tier that resets every month, where Segment costs more at low volumes. 
+So with our setup, as long as we keep events-to-user ratio **under 270**, we will have cost savings over Segment. In reality, it gets even better because GCP offers a very generous free tier that resets every month, where Segment costs more at low volumes.
 
 **GCP Cost Calculation:**
 Currently, our telemetry tracks 50,000 anonymized devices each month on a 1:60 device-to-event ratio. Based on these data volumes we can estimate the cost of our proposed pipeline.

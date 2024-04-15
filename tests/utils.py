@@ -77,7 +77,7 @@ for destination in SQL_DESTINATIONS:
 for destination in ACTIVE_DESTINATIONS:
     assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
 
-TArrowFormat = Literal["pandas", "arrow-table", "arrow-batch"]
+TPythonTableFormat = Literal["pandas", "arrow-table", "arrow-batch"]
 """Possible arrow item formats"""
 
 TestDataItemFormat = Literal["object", "pandas", "arrow-table", "arrow-batch"]
@@ -229,7 +229,7 @@ def data_item_length(data: TDataItem) -> int:
 
 def arrow_item_from_pandas(
     df: Any,
-    object_format: TArrowFormat,
+    object_format: TPythonTableFormat,
 ) -> Any:
     from dlt.common.libs.pyarrow import pyarrow as pa
 
@@ -244,7 +244,7 @@ def arrow_item_from_pandas(
 
 def arrow_item_from_table(
     table: Any,
-    object_format: TArrowFormat,
+    object_format: TPythonTableFormat,
 ) -> Any:
     if object_format == "pandas":
         return table.to_pandas()

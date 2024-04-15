@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 import pendulum
 
 from dlt.common import logger
+from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
@@ -11,6 +12,7 @@ from dlt.destinations.exceptions import (
     InvalidPlaceholderCallback,
 )
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
+
 
 
 # For formatting options please see

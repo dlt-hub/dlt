@@ -208,10 +208,12 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
     return td
 
 
-T = TypeVar("T", bound=Union[pendulum.DateTime, pendulum.Time])
+TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[pendulum.DateTime, pendulum.Time])
 
 
-def reduce_pendulum_datetime_precision(value: T, microsecond_precision: int) -> T:
-    if microsecond_precision >= 6:
+def reduce_pendulum_datetime_precision(
+    value: TTimeWithPrecision, precision: int
+) -> TTimeWithPrecision:
+    if precision >= 6:
         return value
-    return value.replace(microsecond=value.microsecond // 10 ** (6 - microsecond_precision) * 10 ** (6 - microsecond_precision))  # type: ignore
+    return value.replace(microsecond=value.microsecond // 10 ** (6 - precision) * 10 ** (6 - precision))  # type: ignore

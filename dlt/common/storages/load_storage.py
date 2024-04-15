@@ -2,7 +2,7 @@ from os.path import join
 from typing import Iterable, List, Optional, Sequence
 
 from dlt.common.data_writers.exceptions import DataWriterNotFound
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
 from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
@@ -104,6 +104,14 @@ class LoadStorage(VersionedStorage):
                     except DataWriterNotFound:
                         pass
             raise
+
+    def import_extracted_package(
+        self, load_id: str, extract_package_storage: PackageStorage
+    ) -> None:
+        # pass the original state
+        self.new_packages.create_package(
+            load_id, extract_package_storage.get_load_package_state(load_id)
+        )
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""

@@ -4,13 +4,14 @@ from typing import Callable, Union, cast, TypeVar
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, Future
 from typing_extensions import ParamSpec
 
-from dlt.common import logger, sleep
+from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.runners.typing import TRunMetrics
 from dlt.common.runtime import signals
+from dlt.common.runtime.signals import sleep
 from dlt.common.exceptions import SignalReceivedException
 
 

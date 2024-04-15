@@ -1,7 +1,6 @@
 from typing import Optional, Dict, Any
 
-from dlt.common import pendulum
-from dlt.common.exceptions import MissingDependencyException
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,

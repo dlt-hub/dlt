@@ -3,7 +3,8 @@ from typing import Any, Optional, Type
 
 from hexbytes import HexBytes
 
-from dlt.common import pendulum, Wei
+from dlt.common.pendulum import pendulum
+from dlt.common.wei import Wei
 from dlt.common.data_types import TDataType
 from dlt.common.time import parse_iso_like_datetime
 

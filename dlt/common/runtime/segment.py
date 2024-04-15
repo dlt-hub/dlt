@@ -6,13 +6,11 @@ import os
 import atexit
 import base64
 import requests
-from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, Optional
 from dlt.common.configuration.paths import get_dlt_data_dir
 
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
-
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
 from dlt.common.typing import DictStrAny, StrAny

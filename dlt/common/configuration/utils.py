@@ -5,7 +5,7 @@ import tomlkit
 from typing import Any, Dict, Mapping, NamedTuple, Optional, Tuple, Type, Sequence
 from collections.abc import Mapping as C_Mapping
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.typing import AnyType, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
@@ -122,8 +122,6 @@ def log_traces(
     default_value: Any,
     traces: Sequence[LookupTrace],
 ) -> None:
-    from dlt.common import logger
-
     # if logger.is_logging() and logger.log_level() == "DEBUG" and config:
     #     logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
     # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")

@@ -24,7 +24,9 @@ import weaviate
 from weaviate.gql.get import GetBuilder
 from weaviate.util import generate_uuid5
 
-from dlt.common import json, pendulum, logger
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
@@ -491,7 +493,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
         while True:
             state_records = self.get_records(
                 self.schema.state_table_name,
-                sort={"path": ["created_at"], "order": "desc"},
+                # search by package load id which is guaranteed to increase over time
+                sort={"path": ["_dlt_load_id"], "order": "desc"},
                 where={
                     "path": ["pipeline_name"],
                     "operator": "Equal",

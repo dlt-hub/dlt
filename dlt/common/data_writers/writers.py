@@ -17,7 +17,7 @@ from typing import (
     TypeVar,
 )
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.configuration import configspec, known_sections, with_config
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.data_writers.exceptions import DataWriterNotFound, InvalidDataItem
@@ -176,6 +176,9 @@ class TypedJsonlListWriter(JsonlWriter):
 
 class InsertValuesWriter(DataWriter):
     def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
+        assert (
+            caps is not None
+        ), "InsertValuesWriter requires destination capabilities to be present"
         super().__init__(f, caps)
         self._chunks_written = 0
         self._headers_lookup: Dict[str, int] = None
@@ -272,7 +275,7 @@ class ParquetDataWriter(DataWriter):
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
     ) -> None:
-        super().__init__(f, caps)
+        super().__init__(f, caps or DestinationCapabilitiesContext.generic_capabilities("parquet"))
         from dlt.common.libs.pyarrow import pyarrow
 
         self.writer: Optional[pyarrow.parquet.ParquetWriter] = None
@@ -287,7 +290,15 @@ class ParquetDataWriter(DataWriter):
         self.allow_truncated_timestamps = allow_truncated_timestamps
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
-        from dlt.common.libs.pyarrow import pyarrow
+        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_timestamp
+
+        # if timestamps are not explicitly coerced, use destination resolution
+        # TODO: introduce maximum timestamp resolution, using timestamp_precision too aggressive
+        # if not self.coerce_timestamps:
+        #     self.coerce_timestamps = get_py_arrow_timestamp(
+        #         self._caps.timestamp_precision, "UTC"
+        #     ).unit
+        #     self.allow_truncated_timestamps = True
 
         return pyarrow.parquet.ParquetWriter(
             self._f,
@@ -331,7 +342,9 @@ class ParquetDataWriter(DataWriter):
         for key in self.complex_indices:
             for row in rows:
                 if (value := row.get(key)) is not None:
-                    row[key] = json.dumps(value)
+                    # TODO: make this configurable
+                    if value is not None and not isinstance(value, str):
+                        row[key] = json.dumps(value)
 
         table = pyarrow.Table.from_pylist(rows, schema=self.schema)
         # Write

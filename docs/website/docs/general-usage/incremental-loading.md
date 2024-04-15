@@ -48,7 +48,13 @@ dataset with the merge write disposition.
 
 ## Merge incremental loading
 
-The `merge` write disposition is used in two scenarios:
+The `merge` write disposition can be used with two different strategies:
+1) `delete-insert` (default strategy)
+2) `scd2`
+
+### `delete-insert` strategy
+
+The default `delete-insert` strategy is used in two scenarios:
 
 1. You want to keep only one instance of certain record i.e. you receive updates of the `user` state
    from an API and want to keep just one record per `user_id`.
@@ -56,7 +62,7 @@ The `merge` write disposition is used in two scenarios:
    instance of a record for each batch even in case you load an old batch or load the current batch
    several times a day (i.e. to receive "live" updates).
 
-The `merge` write disposition loads data to a `staging` dataset, deduplicates the staging data if a
+The `delete-insert` strategy loads data to a `staging` dataset, deduplicates the staging data if a
 `primary_key` is provided, deletes the data from the destination using `merge_key` and `primary_key`,
 and then inserts the new records. All of this happens in a single atomic transaction for a parent and all
 child tables.
@@ -126,7 +132,7 @@ def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "
     yield from _get_rest_pages("events")
 ```
 
-### Delete records
+#### Delete records
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded
 2) other types: each `not None` value leads to a delete
@@ -135,7 +141,7 @@ Each record in the destination table with the same `primary_key` or `merge_key` 
 
 Deletes are propagated to any child table that might exist. For each record that gets deleted in the root table, all corresponding records in the child table(s) will also be deleted. Records in parent and child tables are linked through the `root key` that is explained in the next section.
 
-#### Example: with primary key and boolean delete column
+##### Example: with primary key and boolean delete column
 ```py
 @dlt.resource(
     primary_key="id",
@@ -158,7 +164,7 @@ def resource():
 ...
 ```
 
-#### Example: with merge key and non-boolean delete column
+##### Example: with merge key and non-boolean delete column
 ```py
 @dlt.resource(
     merge_key="id",
@@ -176,7 +182,7 @@ def resource():
 ...
 ```
 
-#### Example: with primary key and "dedup_sort" hint
+##### Example: with primary key and "dedup_sort" hint
 ```py
 @dlt.resource(
     primary_key="id",
@@ -198,7 +204,7 @@ def resource():
 ...
 ```
 
-### Forcing root key propagation
+#### Forcing root key propagation
 
 Merge write disposition requires that the `_dlt_id` of top level table is propagated to child
 tables. This concept is similar to foreign key which references a parent table, and we call it a
@@ -229,6 +235,136 @@ info = pipeline.run(fb_ads.with_resources("ads"), write_disposition="merge")
 In example above we enforce the root key propagation with `fb_ads.root_key = True`. This ensures
 that correct data is propagated on initial `replace` load so the future `merge` load can be
 executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`.
+
+### `scd2` strategy
+`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. The resource is expected to provide a full extract of the source table each run. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A high timestamp (9999-12-31 00:00:00.000000) is used to indicate an active record.
+
+#### Example: `scd2` merge strategy
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "scd2"}
+)
+def dim_customer():
+    # initial load
+    yield [
+        {"customer_key": 1, "c1": "foo", "c2": 1},
+        {"customer_key": 2, "c1": "bar", "c2": 2}
+    ]
+
+pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
+...
+```
+
+*`dim_customer` destination table after first run—inserted two records present in initial load and added validity columns:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 2 | bar | 2 |
+
+```py
+...
+def dim_customer():
+    # second load — record for customer_key 1 got updated
+    yield [
+        {"customer_key": 1, "c1": "foo_updated", "c2": 1},
+        {"customer_key": 2, "c1": "bar", "c2": 2}
+]
+
+pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
+```
+
+*`dim_customer` destination table after second run—inserted new record for `customer_key` 1 and retired old record by updating `_dlt_valid_to`:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 2 | bar | 2 |
+| **2024-04-09 22:13:07.943703** | **9999-12-31 00:00:00.000000** | **1** | **foo_updated** | **1** |
+
+```py
+...
+def dim_customer():
+    # third load — record for customer_key 2 got deleted
+    yield [
+        {"customer_key": 1, "c1": "foo_updated", "c2": 1},
+    ]
+
+pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
+```
+
+*`dim_customer` destination table after third run—retired deleted record by updating `_dlt_valid_to`:*
+
+| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -- | -- | -- | -- | -- |
+| 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703 | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2 | bar | 2 |
+| 2024-04-09 22:13:07.943703 | 9999-12-31 00:00:00.000000 | 1 | foo_updated | 1 |
+
+#### Example: customize validity column names
+`_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "validity_column_names": ["from", "to"],  # will use "from" and "to" instead of default values
+    }
+)
+def dim_customer():
+    ...
+...
+```
+
+#### Example: use your own row hash
+By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_version_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "row_version_column_name": "row_hash",  # the column "row_hash" should be provided by the resource
+    }
+)
+def dim_customer():
+    ...
+...
+```
+
+#### 🧪 Use scd2 with Arrow Tables and Panda frames
+`dlt` will not add **row hash** column to the tabular data automatically (we are working on it).
+You need to do that yourself by adding a transform function to `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
+```py
+import dlt
+from dlt.sources.helpers.transform import add_row_hash_to_table
+
+scd2_r = dlt.resource(
+          arrow_table,
+          name="tabular",
+          write_disposition={
+              "disposition": "merge",
+              "strategy": "scd2",
+              "row_version_column_name": "row_hash",
+          },
+      ).add_map(add_row_hash_to_table("row_hash"))
+```
+`add_row_hash_to_table` is the name of the transform function that will compute and create `row_hash` column that is declared as holding the hash by `row_version_column_name`.
+
+:::tip
+You can modify existing resources that yield data in tabular form by calling `apply_hints` and passing `scd2` config in `write_disposition` and then by
+adding the transform with `add_map`.
+:::
+
+#### Child tables
+Child tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in child tables can be obtained by joining the root table using `_dlt_root_id`.
+
+#### Limitations
+
+* You cannot use columns like `updated_at` or integer `version` of a record that are unique within a `primary_key` (even if it is defined). Hash column
+must be unique for a root table. We are working to allow `updated_at` style tracking
+* We do not detect changes in child tables (except new records) if row hash of the corresponding parent row does not change. Use `updated_at` or similar
+column in the root table to stamp changes in nested data.
+* `merge_key(s)` are (for now) ignored.
 
 ## Incremental loading with a cursor field
 

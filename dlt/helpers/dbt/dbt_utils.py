@@ -3,7 +3,8 @@ import logging
 from typing import Any, Sequence, Optional, Union
 import warnings
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import StrAny
 

@@ -1,18 +1,17 @@
-import binascii
 from copy import copy
-from typing import Tuple, cast, List
-import pendulum
+from typing import Tuple, cast
 
 import dlt
-from dlt.common import json
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
 from dlt.common.destination.reference import WithStateSync, Destination
-from dlt.common.utils import compressed_b64decode, compressed_b64encode
 from dlt.common.versioned_state import (
     generate_state_version_hash,
     bump_state_version_if_modified,
     default_versioned_state,
+    compress_state,
+    decompress_state,
 )
 from dlt.common.pipeline import TPipelineState
 
@@ -37,27 +36,6 @@ STATE_TABLE_COLUMNS: TTableSchemaColumns = {
         "nullable": True,
     },  # set to nullable so we can migrate existing tables
 }
-
-
-def json_encode_state(state: TPipelineState) -> str:
-    return json.typed_dumps(state)
-
-
-def json_decode_state(state_str: str) -> DictStrAny:
-    return json.typed_loads(state_str)  # type: ignore[no-any-return]
-
-
-def compress_state(state: TPipelineState) -> str:
-    return compressed_b64encode(json.typed_dumpb(state))
-
-
-def decompress_state(state_str: str) -> DictStrAny:
-    try:
-        state_bytes = compressed_b64decode(state_str)
-    except binascii.Error:
-        return json.typed_loads(state_str)  # type: ignore[no-any-return]
-    else:
-        return json.typed_loadb(state_bytes)  # type: ignore[no-any-return]
 
 
 def generate_pipeline_state_version_hash(state: TPipelineState) -> str:
