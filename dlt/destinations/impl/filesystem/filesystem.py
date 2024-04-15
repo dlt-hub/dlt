@@ -45,7 +45,7 @@ class LoadFilesystemJob(LoadJob):
             schema_name,
             load_id,
             current_datetime=config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
             extra_placeholders=config.extra_placeholders,
         )
 
@@ -57,7 +57,7 @@ class LoadFilesystemJob(LoadJob):
             schema_name,
             load_id,
             current_datetime=config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
             extra_placeholders=config.extra_placeholders,
         )
         item = self.make_remote_path()
