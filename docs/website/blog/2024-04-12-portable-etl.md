@@ -12,6 +12,8 @@ tags: [full code etl, yes code etl, etl, pythonic]
 
 # Portable, embeddable ETL - what if pipelines could run anywhere?
 
+![embeddable etl](https://storage.googleapis.com/dlt-blog-images/embeddable-etl.png)
+
 ## The versatility that enables "one way to rule them all"... requires a devtool
 
 A unified approach to ETL processes centers around standardization without compromising flexibility.
