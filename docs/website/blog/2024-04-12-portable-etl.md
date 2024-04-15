@@ -127,9 +127,23 @@ underscoring the shift towards interoperability and backend agnosticism in data 
 in the data landscape, moving from monolithic systems to flexible, adaptive solutions that can meet specific organizational needs
 without heavy dependencies or extensive infrastructure.
 
-## Closing words
-dlt was designed to be the anti-platform - Portable, embeddable etl made for data devs.
-We welcome a growing list of [projects using us](https://github.com/dlt-hub/dlt/network/dependents) :)
+## Closing thoughts
 
-Want to discuss? [Join our slack community](https://dlthub.com/community) to take part in the conversation.
+The concepts discussed here—portability, simplicity, and scalability—are central to modern data engineering practices. They reflect a shift towards
+tools that not only perform well but also integrate seamlessly across different environments, from high-powered servers to minimal infrastructures like
+edge devices. This shift emphasizes the importance of adaptability in tools used by data teams, catering to a broad spectrum of deployment scenarios without
+sacrificing performance.
+
+In this landscape, dlt exemplifies the type of tool that embodies these principles. It's not just about being another platform; it's about providing a
+framework that supports the diverse needs of developers and engineers. dlt's design allows it to be embedded directly within various architectures,
+enabling teams to implement robust data processes with minimal overhead. This approach reduces complexity and fosters an environment where innovation is
+not hindered by the constraints of traditional data platforms.
+
+We invite the community to engage with these concepts through dlt, contributing to its evolution and refinement. By participating in this collaborative
+effort, you can help ensure that the tool remains at the forefront of data engineering technology, providing effective solutions that address the real-world
+challenges of data management and integration.
+
+Join the conversation and share your insights in our [Slack community](https://dlthub.com/community) or contribute directly to the growing list of [projects using us](https://github.com/dlt-hub/dlt/network/dependents). Your expertise can drive
+the continuous improvement of dlt, shaping it into a tool that not only meets current demands but also anticipates future needs in the data engineering field.
+
 
