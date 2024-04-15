@@ -309,11 +309,11 @@ current_datetime="2024-04-14T00:00:00"
 You can override configuration options if you initialize and pass filesystem destination directly to pipeline.
 It is also possible to provide callbacks for extra placeholder options and each callback should accept the parameters below and return a string
 
-1. `schema_name: str`
-2. `table_name: str`
-3. `load_id: str`
-4. `file_id: str`
-5. `ext: str`
+1. `schema_name`
+2. `table_name`
+3. `load_id`
+4. `file_id`
+5. `ext`
 
 `current_datetime` can be a callback as well, it should return an instance of `pendulum.DateTime`.
 
