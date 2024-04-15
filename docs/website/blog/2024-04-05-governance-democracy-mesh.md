@@ -218,7 +218,7 @@ accessible, manageable, and governable across the entire spectrum of the organiz
 
 ## The future of data management
 
-![history_to_future](https://storage.googleapis.com/dlt-blog-images/evolution_of_data_democratisation.png)
+![history_to_future](https://storage.googleapis.com/dlt-blog-images/sld_data_sociocracy.png)
 
 Are we heading towards semantically annotated data marts as code? Why not? We're in the age of serverless infrastructures, after all.
 Could data sociocracy become the future? Would we eventually encourage the entire organisation to annotate data sources with their learnings?
