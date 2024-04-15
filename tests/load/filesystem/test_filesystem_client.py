@@ -129,6 +129,9 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
+                # remove internal paths
+                if "_dlt" in basedir:
+                    continue
                 for f in files:
                     paths.append(posixpath.join(basedir, f))
             ls = set(paths)
@@ -166,6 +169,9 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
+                # remove internal paths
+                if "_dlt" in basedir:
+                    continue
                 for f in files:
                     paths.append(posixpath.join(basedir, f))
             assert list(sorted(paths)) == expected_files

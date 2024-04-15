@@ -96,11 +96,6 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
 
     # table name will be last element of path
     table_name = path.split("/")[-1]
-
-    # skip loads table
-    if table_name == "_dlt_loads":
-        return table_name, []
-
     full_path = posixpath.join(path, file)
 
     # load jsonl
@@ -156,10 +151,6 @@ def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, A
                 result[table_name] = result[table_name] + items
             else:
                 result[table_name] = items
-
-            # loads file is special case
-            if LOADS_TABLE_NAME in table_names and file.find(".{LOADS_TABLE_NAME}."):
-                result[LOADS_TABLE_NAME] = []
 
     return result
 

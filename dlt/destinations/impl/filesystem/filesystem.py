@@ -368,8 +368,13 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         return None
 
     def _store_current_schema(self, load_id: str) -> None:
+        # check if schema with hash exists
+        current_hash = self.schema.stored_version_hash
+        if self._get_stored_schema_by_hash_or_newest(current_hash):
+            return
+
         # get paths
-        hash_path = self._get_schema_file_name(self.schema.stored_version_hash, load_id)
+        filepath = self._get_schema_file_name(self.schema.stored_version_hash, load_id)
 
         # TODO: duplicate of weaviate implementation, should be abstracted out
         version_info = {
@@ -382,7 +387,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         }
 
         # we always keep tabs on what the current schema is
-        self._write_to_json_file(hash_path, version_info)
+        self._write_to_json_file(filepath, version_info)
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""

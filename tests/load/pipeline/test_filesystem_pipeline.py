@@ -86,11 +86,15 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
         for job in pkg.jobs["completed_jobs"]:
             assert_file_matches(layout, job, pkg.load_id, client)
 
-    complete_fn = f"{client.schema.name}.{LOADS_TABLE_NAME}.%s"
+    complete_fn = f"{client.schema.name}__%s.jsonl"
 
     # Test complete_load markers are saved
-    assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id1))
-    assert client.fs_client.isfile(posixpath.join(client.dataset_path, complete_fn % load_id2))
+    assert client.fs_client.isfile(
+        posixpath.join(client.dataset_path, client.schema.loads_table_name, complete_fn % load_id1)
+    )
+    assert client.fs_client.isfile(
+        posixpath.join(client.dataset_path, client.schema.loads_table_name, complete_fn % load_id2)
+    )
 
     # Force replace
     pipeline.run(some_source(), write_disposition="replace")
