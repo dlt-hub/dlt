@@ -266,17 +266,17 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 
 # More examples
 # With timestamp
-# layout = "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}"
+layout = "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}"
 
 # With timestamp of the load package
-# layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
+layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
 
 # Parquet like layout (note: it is not compatible with internal datetime of parquet file)
-# layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
 
 # Custom placeholders
-# extra_placeholders = { "owner" = "admin", "department" = "finance" }
-# layout = "{table_name}/{owner}/{department}/{load_id}.{file_id}.{ext}"
+extra_placeholders = { "owner" = "admin", "department" = "finance" }
+layout = "{table_name}/{owner}/{department}/{load_id}.{file_id}.{ext}"
 ```
 
 A few things to know when specifying your filename layout:
