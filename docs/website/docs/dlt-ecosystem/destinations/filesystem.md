@@ -222,7 +222,15 @@ Current default layout: **{table_name}/{load_id}.{file_id}.{ext}`**
 
 ### Available layout placeholders
 
-Layout placeholders
+#### Standard placeholders
+
+* `schema_name` - the name of schema
+* `table_name` - table name
+* `load_id` - the id of the load package form which the file comes from
+* `file_id` - the id of the file
+* `ext` - a format of the file i.e. jsonl or parquet
+
+#### Date and time placeholders
 
 * Years
   * `YYYY` - 2024, 2025
@@ -246,8 +254,8 @@ Layout placeholders
   * `ddd` - Mon, Tue, Wed
   * `dd` - Mo, Tu, We
   * `d` - 0-6
-* `Q` - quarters Q1, Q2, Q3, Q4
-* `timestamp` - timestamp from pendulum.DateTime,
+* `Q` - quarters 1, 2, 3, 4,
+* `timestamp` - timestamp from pendulum.DateTime
 * `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids)
 
 You can change the file name format by providing the layout setting for the filesystem destination like so:
@@ -266,8 +274,8 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 # layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
 
 # Custom placeholders
-extra_placeholders = { "owner" = "admin", "department" = "finance" }
-# layout = "{table_name}/{owner}/{finance}/{load_id}.{file_id}.{ext}"
+# extra_placeholders = { "owner" = "admin", "department" = "finance" }
+# layout = "{table_name}/{owner}/{department}/{load_id}.{file_id}.{ext}"
 ```
 
 A few things to know when specifying your filename layout:
@@ -287,7 +295,56 @@ Please note:
 
 ### Advanced layout configuration
 
-Filesystem allows you to configure advanced layout and additional placeholders via `config.toml` and when initializing via factory
+Filesystem allows you to configure advanced layout and additional placeholders via `config.toml` or when initializing via the factory
+
+
+#### Via the configuration
+```toml
+layout = "{table_name}/{test_placeholer}/{YYYY}-{MM}-{DD}/{ddd}/{mm}/{load_id}.{file_id}.{ext}"
+extra_placeholders = { "test_placeholder" = "test" }
+current_datetime="2024-04-14T00:00:00"
+```
+
+#### Via the factory
+You can override configuration options if you initialize and pass filesystem destination directly to pipeline.
+It is also possible to provide callbacks for extra placeholder options and each callback should accept the parameters below and return a string
+
+1. `schema_name: str`
+2. `table_name: str`
+3. `load_id: str`
+4. `file_id: str`
+5. `ext: str`
+
+`current_datetime` can be a callback as well, it should return an instance of `pendulum.DateTime`.
+
+```py
+def placeholder_callback(
+    schema_name: str,
+    table_name: str,
+    load_id: str,
+    file_id: str,
+    ext: str,
+) -> str:
+    return "value"
+
+
+def get_current_datetime() -> pendulum.DateTime:
+    return pendulum.now()
+
+
+pipeline = dlt.pipeline(
+    pipeline_name="data_things",
+    destination=filesystem(
+        layout = "{table_name}/{placeholer_x}/{timestamp}/{load_id}.{file_id}.{ext}",
+        current_datetime=datetime.now(),
+        # current_datetime=get_current_datetime,
+        extra_placehodlers={
+            "test_placeholder": "test",
+            "placeholder_x": placeholder_callback
+        }
+    )
+)
+```
 
 
 ## Supported file formats
