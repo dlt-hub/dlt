@@ -8,9 +8,8 @@ import subprocess
 import argparse
 
 from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor
 from textwrap import dedent
-from typing import List, Dict, Optional
+from typing import List
 
 import tomlkit
 import yaml
@@ -301,21 +300,11 @@ if __name__ == "__main__":
 
     # these stages are python only
     python_snippets = [s for s in filtered_snippets if s.language == "py"]
-    with ThreadPoolExecutor() as runner:
-        for snippet in python_snippets:
-            if args.command in ["lint", "full"]:
-                runner.submit(
-                    lint_snippets,
-                    [snippet],
-                    args.verbose,
-                )
+    if args.command in ["lint", "full"]:
+        lint_snippets(python_snippets, args.verbose)
 
-            if ENABLE_MYPY and args.command in ["typecheck", "full"]:
-                runner.submit(
-                    typecheck_snippets,
-                    [snippet],
-                    args.verbose,
-                )
+    if ENABLE_MYPY and args.command in ["typecheck", "full"]:
+        typecheck_snippets(python_snippets, args.verbose)
 
     # unlink lint_me file
     if os.path.exists(LINT_FILE):
