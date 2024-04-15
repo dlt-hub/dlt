@@ -309,7 +309,7 @@ current_datetime="2024-04-14T00:00:00"
 
 #### Via the factory
 You can override configuration options if you initialize and pass filesystem destination directly to pipeline.
-It is also possible to provide callbacks for extra placeholder options and each callback should accept the parameters below and return a string
+It is also possible to provide callbacks for extra placeholder options and each callback should accept positional arguments listed below and return a string
 
 1. `schema_name`
 2. `table_name`
