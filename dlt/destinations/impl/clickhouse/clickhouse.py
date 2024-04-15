@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
-from jinja2 import Template
 
 import dlt
 from dlt import config
@@ -200,19 +199,15 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
 
             structure = "auto"
 
-            template = Template("""
-                SELECT * FROM s3('{{ url }}'{% if access_key_id and secret_access_key %},
-                '{{ access_key_id }}','{{ secret_access_key }}'{% else %},NOSIGN{% endif %},'{{ clickhouse_format }}','{{ structure }}','{{ compression }}')
-                """)
+            table_function = f"SELECT * FROM s3('{bucket_http_url}'"
 
-            table_function = template.render(
-                url=bucket_http_url,
-                access_key_id=access_key_id,
-                secret_access_key=secret_access_key,
-                clickhouse_format=clickhouse_format,
-                structure=structure,
-                compression=compression,
-            ).strip()
+            if access_key_id and secret_access_key:
+                table_function += f",'{access_key_id}','{secret_access_key}'"
+            else:
+                table_function += ",NOSIGN"
+
+            table_function += f",'{clickhouse_format}','{structure}','{compression}')"
+
             statement = f"INSERT INTO {qualified_table_name} {table_function}"
 
         elif bucket_scheme in ("az", "abfs"):
