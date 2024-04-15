@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import pytest
+import dlt.destinations.path_utils
 
 from dlt.common import logger, pendulum
 from dlt.common.storages import LoadStorage
@@ -453,7 +454,9 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     timestamp = int(now.timestamp())
     now_timestamp = now.to_iso8601_string()
     logger_spy = mocker.spy(logger, "info")
-    pendulum_spy = mocker.spy(pendulum, "parse")
+    ensure_pendulum_datetime_spy = mocker.spy(
+        dlt.destinations.path_utils, "ensure_pendulum_datetime"
+    )
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
@@ -465,7 +468,7 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     logger_spy.assert_called_once_with(
         "current_datetime is not set, using timestamp from load package"
     )
-    pendulum_spy.assert_called_once_with(now_timestamp)
+    ensure_pendulum_datetime_spy.assert_called_once_with(now_timestamp)
 
 
 def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:

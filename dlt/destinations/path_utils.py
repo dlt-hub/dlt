@@ -4,13 +4,13 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
     InvalidFilesystemLayout,
     InvalidPlaceholderCallback,
 )
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime
-
 
 
 # For formatting options please see
@@ -79,7 +79,7 @@ def prepare_datetime_params(
     params: Dict[str, str] = {}
     current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
-        current_timestamp = pendulum.parse(load_package_timestamp)  # type: ignore[assignment]
+        current_timestamp = ensure_pendulum_datetime(load_package_timestamp)  # type: ignore[assignment]
         params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
 
     if not current_datetime:
