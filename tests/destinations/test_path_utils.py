@@ -39,60 +39,187 @@ EXTRA_PLACEHOLDERS = {
     "random_value": dummy_callback2,
 }
 
+frozen_datetime = pendulum.DateTime(
+    year=2024,
+    month=4,
+    day=14,
+    hour=8,
+    minute=32,
+    second=0,
+    microsecond=0,
+)
+
 ALL_LAYOUTS = (  # type: ignore
     # Usual placeholders
-    ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", True, []),
-    ("{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}88{load_id}-u-{file_id}.{ext}", True, []),
+    (
+        "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+        "schema-name/mocked-table/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",
+        "schema-name.mocked-table.mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}88{load_id}-u-{file_id}.{ext}",
+        "mocked-table88mocked-load-id-u-mocked-file-id.jsonl",
+        True,
+        [],
+    ),
     # Additional placeholders
-    ("{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}", True, []),
-    ("{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{timestamp}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/dayofweek-{ddd}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{Q}/{MM}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{YY}-{MM}-{D}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{Y}-{M}-{D}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{HH}/{mm}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{H}/{m}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{M}/{dddd}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{M}/{ddd}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{M}/{dd}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{M}/{d}/{load_id}.{file_id}.{ext}", True, []),
-    ("{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}", True, []),
+    (
+        "{table_name}/{curr_date}/{load_id}.{file_id}.{ext}{timestamp}",
+        f"mocked-table/{str(frozen_datetime.date())}/mocked-load-id.mocked-file-id.jsonl{int(frozen_datetime.timestamp())}",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{YYYY}-{MM}-{DD}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('YYYY-MM-DD')}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{YYYY}-{MMM}-{D}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('YYYY-MMM-D').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{DD}/{HH}/{m}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('DD/HH/m').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{D}/{HH}/{mm}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('D/HH/mm').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{int(frozen_datetime.timestamp())}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/dayofweek-{ddd}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/dayofweek-{frozen_datetime.format('ddd').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{ddd}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('ddd').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{Q}/{MM}/{ddd}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('Q/MM/ddd').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{YY}-{MM}-{D}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('YY-MM-D').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{Y}-{M}-{D}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('Y-M-D').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{HH}/{mm}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('HH/mm').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{H}/{m}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('H/m').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{M}/{dddd}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('M/dddd').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{M}/{ddd}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('M/ddd').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{M}/{dd}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('M/dd').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{M}/{d}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('M/d').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{int(frozen_datetime.timestamp())}/{frozen_datetime.format('d')}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
     # Extra placehodlers
     (
         "{table_name}/{timestamp}/{type}-{vm}-{module}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{int(frozen_datetime.timestamp())}/one-for-all-beam-__MODULE__/mocked-load-id.mocked-file-id.jsonl",
         True,
         [],
     ),
     (
         "{table_name}/{timestamp}/{type}-{bobo}-{module}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{int(frozen_datetime.timestamp())}/one-for-all-is-name-__MODULE__/mocked-load-id.mocked-file-id.jsonl",
         True,
         [],
     ),
     (
         "{table_name}/{type}/{bobo}/{module}/{load_id}.{file_id}.{ext}",
+        "mocked-table/one-for-all/is-name/__MODULE__/mocked-load-id.mocked-file-id.jsonl",
         True,
         [],
     ),
     (
         "{table_name}/{callback}/{callback}/{type}/{load_id}.{file_id}.{ext}",
+        "mocked-table/schema-name-mocked-table-mocked-load-id-mocked-file-id-jsonl/schema-name-mocked-table-mocked-load-id-mocked-file-id-jsonl/one-for-all/mocked-load-id.mocked-file-id.jsonl",
         True,
         [],
     ),
     (
         "{table_name}/{random_value}/{callback}/{load_id}.{file_id}.{ext}",
+        "mocked-table/random-value/schema-name-mocked-table-mocked-load-id-mocked-file-id-jsonl/mocked-load-id.mocked-file-id.jsonl",
         True,
         [],
     ),
     # invalid placeholders
-    ("{illegal_placeholder}{table_name}", False, ["illegal_placeholder"]),
+    ("{timestamp}{table_name}", "", False, []),
+    ("{ddd}/{MMM}/{table_name}", "", False, []),
+    ("{Y}/{timestamp}/{table_name}", "", False, []),
+    ("{load_id}/{ext}/{table_name}", "", False, []),
+    ("{HH}/{mm}/{schema_name}", "", False, []),
+    ("{illegal_placeholder}{table_name}", "", False, ["illegal_placeholder"]),
+    ("{unknown_placeholder}/{volume}/{table_name}", "", False, ["unknown_placeholder", "volume"]),
     (
         "{table_name}/{abc}/{load_id}.{ext}{timestamp}-{random}",
+        "",
         False,
         ["abc", "random"],
     ),
@@ -106,22 +233,44 @@ def test_load(load_storage: LoadStorage) -> TestLoad:
     return load_id, info
 
 
-@pytest.mark.parametrize("layout,is_valid,invalid_placeholders", ALL_LAYOUTS)
+@pytest.mark.parametrize("layout,expected_path,is_valid,invalid_placeholders", ALL_LAYOUTS)
 def test_layout_validity(
-    layout: str, is_valid: bool, invalid_placeholders: List[str], test_load: TestLoad
+    layout: str,
+    expected_path: str,
+    is_valid: bool,
+    invalid_placeholders: List[str],
+    mocker,
 ) -> None:
-    load_id, job_info = test_load
+    job_info = ParsedLoadJobFileName(
+        table_name="mocked-table",
+        file_id="mocked-file-id",
+        retry_count=0,
+        file_format="jsonl",
+    )
+    load_id = "mocked-load-id"
     if is_valid:
+        mocker.patch("pendulum.now", return_value=frozen_datetime)
+        mocker.patch(
+            "pendulum.DateTime.timestamp",
+            return_value=frozen_datetime.timestamp(),
+        )
+
+        mocker.patch(
+            "dlt.common.storages.load_package.ParsedLoadJobFileName.parse",
+            return_value=job_info,
+        )
+
         now_timestamp = pendulum.now().to_iso8601_string()
         check_layout(layout, EXTRA_PLACEHOLDERS)
         path = create_path(
             layout,
-            schema_name="schema_name",
+            schema_name="schema-name",
             load_id=load_id,
             load_package_timestamp=now_timestamp,
             file_name=job_info.file_name(),
             extra_placeholders=EXTRA_PLACEHOLDERS,
         )
+        assert path == expected_path
         assert len(path.split("/")) == len(layout.split("/"))
     else:
         with pytest.raises(InvalidFilesystemLayout) as exc:
