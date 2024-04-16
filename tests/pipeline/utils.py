@@ -80,7 +80,7 @@ def assert_data_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny) -> No
     ), f"Table counts do not match, expected {expected_counts}, got {table_counts}"
 
 
-def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
+def load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
     """
     util function to load a filesystem destination file and return parsed content
     values may not be cast to the right type, especially for insert_values, please
@@ -100,17 +100,18 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
 
     # load jsonl
     if ext == "jsonl":
-        with open(full_path, "rU", encoding="utf-8") as f:
-            for line in f:
+        file_text = fs_client.read_text(full_path)
+        for line in file_text.split("\n"):
+            if line:
                 result.append(json.loads(line))
 
     # load insert_values (this is a bit volatile if the exact format of the source file changes)
     elif ext == "insert_values":
-        with open(full_path, "rU", encoding="utf-8") as f:
-            lines = f.readlines()
-            # extract col names
-            cols = lines[0][15:-2].split(",")
-            for line in lines[2:]:
+        file_text = fs_client.read_text(full_path)
+        lines = file_text.split("\n")
+        cols = lines[0][15:-2].split(",")
+        for line in lines[2:]:
+            if line:
                 values = line[1:-3].split(",")
                 result.append(dict(zip(cols, values)))
 
@@ -118,20 +119,20 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
     elif ext == "parquet":
         import pyarrow.parquet as pq
 
-        with open(full_path, "rb") as f:
-            table = pq.read_table(f)
-            cols = table.column_names
-            count = 0
-            for column in table:
-                column_name = cols[count]
-                item_count = 0
-                for item in column.to_pylist():
-                    if len(result) <= item_count:
-                        result.append({column_name: item})
-                    else:
-                        result[item_count][column_name] = item
-                    item_count += 1
-                count += 1
+        file_bytes = fs_client.read_bytes()
+        table = pq.read_table(file_bytes)
+        cols = table.column_names
+        count = 0
+        for column in table:
+            column_name = cols[count]
+            item_count = 0
+            for item in column.to_pylist():
+                if len(result) <= item_count:
+                    result.append({column_name: item})
+                else:
+                    result[item_count][column_name] = item
+                item_count += 1
+            count += 1
 
     return table_name, result
 
@@ -144,7 +145,7 @@ def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, A
         client.dataset_path, detail=False, refresh=True
     ):
         for file in files:
-            table_name, items = load_file(basedir, file)
+            table_name, items = load_file(client.fs_client, basedir, file)
             if table_name not in table_names:
                 continue
             if table_name in result:

@@ -313,6 +313,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         if not doc:
             return
 
+        # this is not done in other destinations...
+        doc["dlt_load_id"] = load_id
+
         # get paths
         pipeline_name = doc["pipeline_name"]
         hash_path = self._get_state_file_name(
