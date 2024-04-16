@@ -294,13 +294,13 @@ Please note:
 - `dlt` will not dump the current schema content to the bucket
 - `dlt` will mark complete loads by creating an empty file that corresponds to `_dlt_loads` table. For example, if `chess._dlt_loads.1685299832` file is present in dataset folders, you can be sure that all files for the load package `1685299832` are completely loaded
 
-## Advanced Layout Configuration
+## Advanced layout configuration
 
 The filesystem destination configuration supports advanced layout customization and the inclusion of additional placeholders. This can be done through `config.toml` or programmatically when initializing via a factory method.
 
 💡 **Tip:** For handling deeply nested layouts, consider enabling automatic directory creation for the local filesystem destination. This can be done by setting `kwargs = '{"auto_mkdir": true}'` to facilitate the creation of directories automatically.
 
-### Configuration Via `config.toml`
+### Configuration via `config.toml`
 
 To configure the layout and placeholders using `config.toml`, use the following format:
 
@@ -311,7 +311,7 @@ current_datetime="2024-04-14T00:00:00"
 ```
 Note: Ensure that the placeholder names match the intended usage. For example, `{test_placeholer}` should be corrected to `{test_placeholder}` for consistency.
 
-### Configuration Via Factory Method
+### Configuration via factory method
 
 Configuration options, including layout and placeholders, can be overridden dynamically when initializing and passing the filesystem destination directly to the pipeline. Furthermore, it is possible to customize the behavior with callbacks for extra placeholder functionality. Each callback must accept the following positional arguments and return a string:
 
@@ -324,9 +324,6 @@ Configuration options, including layout and placeholders, can be overridden dyna
 The `current_datetime` can also be a callback function and expected to return a `pendulum.DateTime` instance.
 
 ```python
-import pendulum
-from dlt import pipeline, filesystem
-
 def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_id: str, ext: str) -> str:
     # Custom logic here
     return "custom_value"
@@ -334,7 +331,7 @@ def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_i
 def get_current_datetime() -> pendulum.DateTime:
     return pendulum.now()
 
-pipeline = dlt.pipeline(
+pipeline = pipeline(
     pipeline_name="data_things",
     destination=filesystem(
         layout="{table_name}/{placeholder_x}/{timestamp}/{load_id}.{file_id}.{ext}",
@@ -348,7 +345,7 @@ pipeline = dlt.pipeline(
 ```
 Ensure you correct typos such as `extra_placehodlers` to `extra_placeholders` and comment out or remove duplicate or incorrect `current_datetime` lines for clarity and correctness.
 
-## Recommended Layout
+## Recommended layout
 
 The currently recommended layout structure is straightforward:
 
