@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Tuple
 import pytest
 import random
 from os import environ
+import io
 
 import dlt
 from dlt.common import json, sleep
@@ -119,8 +120,8 @@ def load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any]
     elif ext == "parquet":
         import pyarrow.parquet as pq
 
-        file_bytes = fs_client.read_bytes()
-        table = pq.read_table(file_bytes)
+        file_bytes = fs_client.read_bytes(full_path)
+        table = pq.read_table(io.BytesIO(file_bytes))
         cols = table.column_names
         count = 0
         for column in table:
