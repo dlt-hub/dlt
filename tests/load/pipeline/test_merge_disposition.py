@@ -596,8 +596,10 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("key_type", ["primary_key", "merge_key"])
+@pytest.mark.parametrize("key_type", ["primary_key", "merge_key", "no_key"])
 def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
+    # no_key setting will have the effect that hard deletes have no effect, since hard delete records
+    # can not be matched
     table_name = "test_hard_delete_hint"
 
     @dlt.resource(
@@ -612,6 +614,9 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         data_resource.apply_hints(primary_key="id", merge_key="")
     elif key_type == "merge_key":
         data_resource.apply_hints(primary_key="", merge_key="id")
+    elif key_type == "no_key":
+        # we test what happens if there are no merge keys
+        pass
 
     p = destination_config.setup_pipeline(f"abstract_{key_type}", full_refresh=True)
 
@@ -630,7 +635,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     ]
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name)[table_name] == (1 if key_type != "no_key" else 2)
 
     # update one record (None for hard_delete column is treated as "not True")
     data = [
@@ -638,16 +643,17 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     ]
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name)[table_name] == (1 if key_type != "no_key" else 3)
 
     # compare observed records with expected records
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
-    observed = [
-        {"id": row[0], "val": row[1], "deleted": row[2]}
-        for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
-    ]
-    expected = [{"id": 2, "val": "baz", "deleted": None}]
-    assert sorted(observed, key=lambda d: d["id"]) == expected
+    if key_type != "no_key":
+        qual_name = p.sql_client().make_qualified_table_name(table_name)
+        observed = [
+            {"id": row[0], "val": row[1], "deleted": row[2]}
+            for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
+        ]
+        expected = [{"id": 2, "val": "baz", "deleted": None}]
+        assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # insert two records with same key
     data = [
@@ -661,6 +667,12 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         assert counts == 2
     elif key_type == "merge_key":
         assert counts == 3
+    elif key_type == "no_key":
+        assert counts == 5
+
+    # we do not need to test "no_key" further
+    if key_type == "no_key":
+        return
 
     # delete one key, resulting in one (primary key) or two (merge key) deleted records
     data = [
