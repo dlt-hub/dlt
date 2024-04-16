@@ -10,7 +10,7 @@ from dlt.common.typing import DictStrAny
 import re
 
 import dlt
-from dlt.common import logger
+from dlt.common import logger, time
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -183,7 +183,6 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
     def update_stored_schema(
         self,
-        load_id: str = None,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> TSchemaTables:
@@ -198,7 +197,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
         # don't store schema when used as staging
         if not self.config.as_staging:
-            self._store_current_schema(load_id or "1")
+            self._store_current_schema()
 
         return expected_update
 
@@ -379,14 +378,15 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
         return None
 
-    def _store_current_schema(self, load_id: str) -> None:
+    def _store_current_schema(self) -> None:
         # check if schema with hash exists
         current_hash = self.schema.stored_version_hash
         if self._get_stored_schema_by_hash_or_newest(current_hash):
             return
 
         # get paths
-        filepath = self._get_schema_file_name(self.schema.stored_version_hash, load_id)
+        schema_id = str(time.precise_time())
+        filepath = self._get_schema_file_name(self.schema.stored_version_hash, schema_id)
 
         # TODO: duplicate of weaviate implementation, should be abstracted out
         version_info = {

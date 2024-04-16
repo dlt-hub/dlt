@@ -181,11 +181,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def update_stored_schema(
         self,
-        load_id: str = None,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(load_id, only_tables, expected_update)
+        super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:

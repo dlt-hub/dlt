@@ -66,7 +66,6 @@ def init_client(
     expected_update: TSchemaTables,
     truncate_filter: Callable[[TTableSchema], bool],
     load_staging_filter: Callable[[TTableSchema], bool],
-    load_id: str = None,
 ) -> TSchemaTables:
     """Initializes destination storage including staging dataset if supported
 
@@ -98,7 +97,7 @@ def init_client(
     )
 
     applied_update = _init_dataset_and_update_schema(
-        job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables, load_id=load_id
+        job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables
     )
 
     # update the staging dataset if client supports this
@@ -118,7 +117,6 @@ def init_client(
                     staging_tables | {schema.version_table_name},  # keep only schema version
                     staging_tables,  # all eligible tables must be also truncated
                     staging_info=True,
-                    load_id=load_id,
                 )
 
     return applied_update
@@ -130,7 +128,6 @@ def _init_dataset_and_update_schema(
     update_tables: Iterable[str],
     truncate_tables: Iterable[str] = None,
     staging_info: bool = False,
-    load_id: str = None,
 ) -> TSchemaTables:
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
@@ -143,7 +140,7 @@ def _init_dataset_and_update_schema(
         f" {staging_text}"
     )
     applied_update = job_client.update_stored_schema(
-        load_id=load_id, only_tables=update_tables, expected_update=expected_update
+        only_tables=update_tables, expected_update=expected_update
     )
     logger.info(
         f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
