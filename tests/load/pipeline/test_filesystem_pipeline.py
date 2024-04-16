@@ -248,6 +248,9 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
     expected_files = set()
     known_files = set()
     for basedir, _dirs, files in client.fs_client.walk(client.dataset_path):  # type: ignore[attr-defined]
+        # strip out special tables
+        if "_dlt" in basedir:
+            continue
         for file in files:
             if file.endswith("jsonl"):
                 expected_files.add(os.path.join(basedir, file))
@@ -255,6 +258,9 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
     for load_package in load_info.load_packages:
         for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
             job_info = ParsedLoadJobFileName.parse(load_info.file_path)  # type: ignore[attr-defined]
+            # state file gets loaded a differentn way
+            if job_info.table_name == "_dlt_pipeline_state":
+                continue
             path = create_path(
                 layout,
                 file_name=job_info.file_name(),
@@ -270,6 +276,7 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
                 known_files.add(full_path)
 
     assert expected_files == known_files
+    assert known_files
     # 6 is because simple_row contains two rows
     # and in this test scenario we have 3 callbacks
     assert call_count >= 6
