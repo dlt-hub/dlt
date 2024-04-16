@@ -151,7 +151,8 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         writer=JsonlWriter, file_max_items=100, disable_compression=disable_compression
     ) as writer:
         # mock spec
-        writer._supports_schema_changes = writer.writer_spec.supports_schema_changes = "False"
+        writer._supports_schema_changes = "False"
+        writer.writer_spec = writer.writer_spec._replace(supports_schema_changes="False")
         # write 1 doc
         writer.write_data_item(list(c1_doc(1)), t1)
         # in buffer

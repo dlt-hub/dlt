@@ -8,7 +8,14 @@ from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
-from dlt.common.data_writers import DataWriter, DataWriterMetrics, TDataItemFormat
+from dlt.common.data_writers import (
+    DataWriter,
+    DataWriterMetrics,
+    TDataItemFormat,
+    resolve_best_writer_spec,
+    get_best_writer_spec,
+    is_native_writer,
+)
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
@@ -121,12 +128,30 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             def _get_items_normalizer(item_format: TDataItemFormat) -> ItemsNormalizer:
                 if item_format in item_normalizers:
                     return item_normalizers[item_format]
-                item_storage = load_storage.create_item_storage(preferred_file_format, item_format)
-                if item_storage.writer_spec.file_format != preferred_file_format:
+                # force file format
+                if config.loader_file_format:
+                    # TODO: pass supported_formats, when used in pipeline we already checked that
+                    # but if normalize is used standalone `supported_loader_file_formats` may be unresolved
+                    best_writer_spec = get_best_writer_spec(item_format, config.loader_file_format)
+                else:
+                    # find best spec among possible formats taking into account destination preference
+                    best_writer_spec = resolve_best_writer_spec(
+                        item_format, supported_formats, preferred_file_format
+                    )
+                    # if best_writer_spec.file_format != preferred_file_format:
+                    #     logger.warning(
+                    #         f"For data items yielded as {item_format} jobs in file format"
+                    #         f" {preferred_file_format} cannot be created."
+                    #         f" {best_writer_spec.file_format} jobs will be used instead."
+                    #         " This may decrease the performance."
+                    #     )
+                item_storage = load_storage.create_item_storage(best_writer_spec)
+                if not is_native_writer(item_storage.writer_cls):
                     logger.warning(
-                        f"For data items yielded as {item_format} job files in format"
-                        f" {preferred_file_format} cannot be created."
-                        f" {item_storage.writer_spec.file_format} jobs will be used instead."
+                        f"For data items yielded as {item_format} and job file format"
+                        f" {best_writer_spec.file_format} native writer could not be found. A"
+                        f" {item_storage.writer_cls.__name__} writer is used that internally"
+                        f" converts {item_format}. This will degrade performance."
                     )
                 cls = ArrowItemsNormalizer if item_format == "arrow" else JsonLItemsNormalizer
                 logger.info(

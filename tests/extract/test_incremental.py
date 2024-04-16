@@ -1353,6 +1353,7 @@ def test_async_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
     ) -> Any:
         for chunk in chunks(count(start=48, step=-1), 10):
             await asyncio.sleep(0.01)
+            print(updated_at.start_value)
             data = [{"updated_at": i} for i in chunk]
             yield data_to_item_format(item_type, data)
 

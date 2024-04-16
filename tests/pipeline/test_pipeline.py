@@ -22,6 +22,9 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
+    DestinationIncompatibleLoaderFileFormatException,
+    DestinationLoadingViaStagingNotSupported,
+    DestinationNoStagingMode,
     DestinationTerminalException,
     UnknownDestinationModule,
 )
@@ -132,6 +135,32 @@ def test_pipeline_with_non_alpha_name() -> None:
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
     assert p.default_schema_name == "another_pipeline_8329x"
+
+
+def test_file_format_resolution() -> None:
+    # raise on destinations that does not support staging
+    with pytest.raises(DestinationLoadingViaStagingNotSupported):
+        dlt.pipeline(
+            pipeline_name="managed_state_pipeline", destination="postgres", staging="filesystem"
+        )
+
+    # raise on staging that does not support staging interface
+    with pytest.raises(DestinationNoStagingMode):
+        dlt.pipeline(pipeline_name="managed_state_pipeline", staging="postgres")
+
+    # check invalid input
+    with pytest.raises(DestinationIncompatibleLoaderFileFormatException):
+        pipeline = dlt.pipeline(pipeline_name="managed_state_pipeline", destination="postgres")
+        pipeline.config.restore_from_destination = False
+        pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="parquet")
+
+    # check invalid input
+    with pytest.raises(DestinationIncompatibleLoaderFileFormatException):
+        pipeline = dlt.pipeline(
+            pipeline_name="managed_state_pipeline", destination="athena", staging="filesystem"
+        )
+        pipeline.config.restore_from_destination = False
+        pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="insert_values")
 
 
 def test_invalid_dataset_name() -> None:

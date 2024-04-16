@@ -1,10 +1,9 @@
-from contextlib import contextmanager
 import random
+from contextlib import contextmanager
 from copy import copy
 from types import TracebackType
 from typing import (
     ClassVar,
-    ContextManager,
     Dict,
     Iterator,
     Optional,

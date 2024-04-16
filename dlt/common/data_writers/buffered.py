@@ -47,9 +47,7 @@ class BufferedDataWriter(Generic[TWriter]):
         self.writer_spec = writer_spec
         if self.writer_spec.requires_destination_capabilities and not _caps:
             raise DestinationCapabilitiesRequired(self.writer_spec.file_format)
-        self.writer_cls = DataWriter.class_factory(
-            writer_spec.file_format, writer_spec.data_item_format
-        )
+        self.writer_cls = DataWriter.writer_class_from_spec(writer_spec)
         self._supports_schema_changes = self.writer_spec.supports_schema_changes
         self._caps = _caps
         # validate if template has correct placeholders

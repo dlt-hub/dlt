@@ -32,11 +32,9 @@ from dlt.common.configuration.exceptions import (
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.destination.exceptions import (
-    DestinationLoadingViaStagingNotSupported,
-    DestinationLoadingWithoutStagingNotSupported,
+    DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
-    DestinationIncompatibleLoaderFileFormatException,
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
@@ -67,6 +65,7 @@ from dlt.common.storages import (
 )
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
+    merge_caps_file_formats,
     TDestination,
     ALL_SUPPORTED_FILE_FORMATS,
     TLoaderFileFormat,
@@ -470,12 +469,20 @@ class Pipeline(SupportsPipeline):
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
+            loader_file_format=loader_file_format,
             _schema_storage_config=self._schema_storage_config,
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
         # run with destination context
-        with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
+        with self._maybe_destination_capabilities() as caps:
+            if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
+                raise DestinationIncompatibleLoaderFileFormatException(
+                    self.destination.destination_name,
+                    (self.staging.destination_name if self.staging else None),
+                    loader_file_format,
+                    set(caps.supported_loader_file_formats),
+                )
             # shares schema storage with the pipeline so we do not need to install
             normalize_step: Normalize = Normalize(
                 collector=self.collector,
@@ -759,8 +766,8 @@ class Pipeline(SupportsPipeline):
                         self._wipe_working_folder()
                         state = self._get_state()
                         self._configure(
-                            self._schema_storage_config.export_schema_path,
                             self._schema_storage_config.import_schema_path,
+                            self._schema_storage_config.export_schema_path,
                             False,
                         )
 
@@ -1262,7 +1269,7 @@ class Pipeline(SupportsPipeline):
 
     @contextmanager
     def _maybe_destination_capabilities(
-        self, loader_file_format: TLoaderFileFormat = None
+        self,
     ) -> Iterator[DestinationCapabilitiesContext]:
         try:
             caps: DestinationCapabilitiesContext = None
@@ -1273,61 +1280,18 @@ class Pipeline(SupportsPipeline):
                 injected_caps = self._container.injectable_context(destination_caps)
                 caps = injected_caps.__enter__()
 
-                caps.preferred_loader_file_format = self._resolve_loader_file_format(
-                    self.destination.destination_name,
-                    (
-                        # DestinationReference.to_name(self.destination),
-                        self.staging.destination_name
-                        if self.staging
-                        else None
-                    ),
-                    # DestinationReference.to_name(self.staging) if self.staging else None,
-                    destination_caps,
-                    stage_caps,
-                    loader_file_format,
+                caps.preferred_loader_file_format, caps.supported_loader_file_formats = (
+                    merge_caps_file_formats(
+                        self.destination.destination_name,
+                        (self.staging.destination_name if self.staging else None),
+                        destination_caps,
+                        stage_caps,
+                    )
                 )
-                caps.supported_loader_file_formats = (
-                    destination_caps.supported_staging_file_formats if stage_caps else None
-                ) or destination_caps.supported_loader_file_formats
             yield caps
         finally:
             if injected_caps:
                 injected_caps.__exit__(None, None, None)
-
-    @staticmethod
-    def _resolve_loader_file_format(
-        destination: str,
-        staging: str,
-        dest_caps: DestinationCapabilitiesContext,
-        stage_caps: DestinationCapabilitiesContext,
-        file_format: TLoaderFileFormat,
-    ) -> TLoaderFileFormat:
-        possible_file_formats = dest_caps.supported_loader_file_formats
-        if stage_caps:
-            if not dest_caps.supported_staging_file_formats:
-                raise DestinationLoadingViaStagingNotSupported(destination)
-            possible_file_formats = [
-                f
-                for f in dest_caps.supported_staging_file_formats
-                if f in stage_caps.supported_loader_file_formats
-            ]
-        if not file_format:
-            if not stage_caps:
-                if not dest_caps.preferred_loader_file_format:
-                    raise DestinationLoadingWithoutStagingNotSupported(destination)
-                file_format = dest_caps.preferred_loader_file_format
-            elif stage_caps and dest_caps.preferred_staging_file_format in possible_file_formats:
-                file_format = dest_caps.preferred_staging_file_format
-            else:
-                file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
-        if file_format not in possible_file_formats:
-            raise DestinationIncompatibleLoaderFileFormatException(
-                destination,
-                staging,
-                file_format,
-                set(possible_file_formats),
-            )
-        return file_format
 
     def _set_default_normalizers(self) -> None:
         _, self._default_naming, _ = import_normalizers(explicit_normalizers())

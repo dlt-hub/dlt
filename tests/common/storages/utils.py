@@ -133,7 +133,7 @@ def start_loading_file(
     load_id = uniq_id()
     s.new_packages.create_package(load_id)
     # write test file
-    item_storage = s.create_item_storage("jsonl", "object")
+    item_storage = s.create_item_storage(DataWriter.writer_spec_from_file_format("jsonl", "object"))
     file_name = write_temp_job_file(
         item_storage, s.storage, load_id, "mock_table", None, uniq_id(), content
     )
