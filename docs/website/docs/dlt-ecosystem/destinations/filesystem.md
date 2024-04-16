@@ -331,7 +331,7 @@ def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_i
 def get_current_datetime() -> pendulum.DateTime:
     return pendulum.now()
 
-pipeline = pipeline(
+pipeline = dlt.pipeline(
     pipeline_name="data_things",
     destination=filesystem(
         layout="{table_name}/{placeholder_x}/{timestamp}/{load_id}.{file_id}.{ext}",
