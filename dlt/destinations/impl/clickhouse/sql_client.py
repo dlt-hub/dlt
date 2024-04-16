@@ -57,9 +57,7 @@ class ClickHouseSqlClient(
         return len(self._list_tables()) > 0
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
-        self._conn = clickhouse_driver.dbapi.connect(
-            dsn=self.credentials.to_native_representation()
-        )
+        self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
         return self._conn
 
     @raise_open_connection_error
