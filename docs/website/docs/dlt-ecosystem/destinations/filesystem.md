@@ -323,7 +323,7 @@ Configuration options, including layout and placeholders, can be overridden dyna
 
 The `current_datetime` can also be a callback function and expected to return a `pendulum.DateTime` instance.
 
-```python
+```py
 def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_id: str, ext: str) -> str:
     # Custom logic here
     return "custom_value"
