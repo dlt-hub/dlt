@@ -27,7 +27,6 @@ def resource_state_info(
 
     schema = sources_state.get(schema_name)
     if not schema:
-        st.error(f"Schema with name: {schema_name} is not found")
         return
 
     resource = schema["resources"].get(resource_name)
