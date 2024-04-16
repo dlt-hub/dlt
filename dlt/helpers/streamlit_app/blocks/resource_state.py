@@ -22,15 +22,8 @@ def resource_state_info(
     resource_name: str,
 ) -> None:
     sources_state = pipeline.state.get("sources") or {}
-    if not sources_state:
-        return
-
-    schema = sources_state.get(schema_name)
-    if not schema:
-        return
-
-    resource = schema["resources"].get(resource_name)
-
+    schema = sources_state.get(schema_name, {})
+    resource = schema.get("resources", {}).get(resource_name)
     with st.expander("Resource state", expanded=(resource is None)):
         if not resource:
             st.info(f"{resource_name} is missing resource state")
