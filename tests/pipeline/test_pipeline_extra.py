@@ -467,3 +467,53 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
     table = pq.read_table(os.path.abspath(test_storage.make_full_path(files[0])))
     assert table.num_rows == 0
     assert set(table.schema.names) == {"id", "name", "_dlt_load_id", "_dlt_id"}
+
+
+def test_pick_matching_file_format(test_storage: FileStorage) -> None:
+    from dlt.destinations import filesystem
+
+    local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
+
+    import pyarrow as pa
+
+    data = {
+        "Numbers": [1, 2, 3, 4, 5],
+        "Strings": ["apple", "banana", "cherry", "date", "elderberry"],
+    }
+
+    df = pa.table(data)
+
+    # load arrow and object to filesystem. we should get a parquet and a jsonl file
+    info = dlt.run(
+        [
+            dlt.resource([data], name="object"),
+            dlt.resource(df, name="arrow"),
+        ],
+        destination=local,
+        dataset_name="user_data",
+    )
+    assert_load_info(info)
+    files = test_storage.list_folder_files("user_data/arrow")
+    assert len(files) == 1
+    assert files[0].endswith("parquet")
+    files = test_storage.list_folder_files("user_data/object")
+    assert len(files) == 1
+    assert files[0].endswith("jsonl")
+
+    # load as csv
+    info = dlt.run(
+        [
+            dlt.resource([data], name="object"),
+            dlt.resource(df, name="arrow"),
+        ],
+        destination=local,
+        dataset_name="user_data_csv",
+        loader_file_format="csv",
+    )
+    assert_load_info(info)
+    files = test_storage.list_folder_files("user_data_csv/arrow")
+    assert len(files) == 1
+    assert files[0].endswith("csv")
+    files = test_storage.list_folder_files("user_data_csv/object")
+    assert len(files) == 1
+    assert files[0].endswith("csv")

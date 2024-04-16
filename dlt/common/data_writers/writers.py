@@ -1,6 +1,5 @@
 import abc
 import csv
-from dataclasses import dataclass
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -20,7 +19,13 @@ from typing import (
 from dlt.common.json import json
 from dlt.common.configuration import configspec, known_sections, with_config
 from dlt.common.configuration.specs import BaseConfiguration
-from dlt.common.data_writers.exceptions import DataWriterNotFound, InvalidDataItem
+from dlt.common.data_writers.exceptions import (
+    SpecLookupFailed,
+    DataWriterNotFound,
+    FileFormatForItemFormatNotFound,
+    FileSpecNotFound,
+    InvalidDataItem,
+)
 from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
@@ -33,8 +38,7 @@ TDataItemFormat = Literal["arrow", "object"]
 TWriter = TypeVar("TWriter", bound="DataWriter")
 
 
-@dataclass
-class FileWriterSpec:
+class FileWriterSpec(NamedTuple):
     file_format: TLoaderFileFormat
     """format of the output file"""
     data_item_format: TDataItemFormat
@@ -105,13 +109,13 @@ class DataWriter(abc.ABC):
         f: IO[Any],
         caps: DestinationCapabilitiesContext = None,
     ) -> "DataWriter":
-        return cls.class_factory(file_format, data_item_format)(f, caps)
+        return cls.class_factory(file_format, data_item_format, ALL_WRITERS)(f, caps)
 
     @classmethod
     def writer_spec_from_file_format(
         cls, file_format: TLoaderFileFormat, data_item_format: TDataItemFormat
     ) -> FileWriterSpec:
-        return cls.class_factory(file_format, data_item_format).writer_spec()
+        return cls.class_factory(file_format, data_item_format, ALL_WRITERS).writer_spec()
 
     @classmethod
     def item_format_from_file_extension(cls, extension: str) -> TDataItemFormat:
@@ -124,14 +128,23 @@ class DataWriter(abc.ABC):
             raise ValueError(f"Cannot figure out data item format for extension {extension}")
 
     @staticmethod
+    def writer_class_from_spec(spec: FileWriterSpec) -> Type["DataWriter"]:
+        try:
+            return WRITER_SPECS[spec]
+        except KeyError:
+            raise FileSpecNotFound(spec.file_format, spec.data_item_format, spec)
+
+    @staticmethod
     def class_factory(
-        file_format: TLoaderFileFormat, data_item_format: TDataItemFormat
+        file_format: TLoaderFileFormat,
+        data_item_format: TDataItemFormat,
+        writers: Sequence[Type["DataWriter"]],
     ) -> Type["DataWriter"]:
-        for writer in ALL_WRITERS:
+        for writer in writers:
             spec = writer.writer_spec()
             if spec.file_format == file_format and spec.data_item_format == data_item_format:
                 return writer
-        raise DataWriterNotFound(file_format, data_item_format)
+        raise FileFormatForItemFormatNotFound(file_format, data_item_format)
 
 
 class JsonlWriter(DataWriter):
@@ -601,8 +614,7 @@ class ArrowToObjectAdapter:
     @staticmethod
     def convert_spec(base: Type[DataWriter]) -> FileWriterSpec:
         spec = base.writer_spec()
-        spec.data_item_format = "arrow"
-        return spec
+        return spec._replace(data_item_format="arrow")
 
 
 class ArrowToInsertValuesWriter(ArrowToObjectAdapter, InsertValuesWriter):
@@ -623,7 +635,14 @@ class ArrowToTypedJsonlListWriter(ArrowToObjectAdapter, TypedJsonlListWriter):
         return cls.convert_spec(TypedJsonlListWriter)
 
 
-# ArrowToCsvWriter
+def is_native_writer(writer_type: Type[DataWriter]) -> bool:
+    """Checks if writer has adapter mixin. Writers with adapters are not native and typically
+    decrease the performance.
+    """
+    # we only have arrow adapters now
+    return not issubclass(writer_type, ArrowToObjectAdapter)
+
+
 ALL_WRITERS: List[Type[DataWriter]] = [
     JsonlWriter,
     TypedJsonlListWriter,
@@ -636,3 +655,87 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
 ]
+
+WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {
+    writer.writer_spec(): writer for writer in ALL_WRITERS
+}
+
+NATIVE_FORMAT_WRITERS: Dict[TDataItemFormat, Tuple[Type[DataWriter], ...]] = {
+    # all "object" writers are native object writers (no adapters yet)
+    "object": tuple(
+        writer
+        for writer in ALL_WRITERS
+        if writer.writer_spec().data_item_format == "object" and is_native_writer(writer)
+    ),
+    # exclude arrow adapters
+    "arrow": tuple(
+        writer
+        for writer in ALL_WRITERS
+        if writer.writer_spec().data_item_format == "arrow" and is_native_writer(writer)
+    ),
+}
+
+
+def resolve_best_writer_spec(
+    item_format: TDataItemFormat,
+    possible_file_formats: Sequence[TLoaderFileFormat],
+    preferred_format: TLoaderFileFormat = None,
+) -> FileWriterSpec:
+    """Finds best writer for `item_format` out of `possible_file_formats`. Tries `preferred_format` first.
+    Best possible writer is a native writer for `item_format` writing files in `preferred_format`.
+    If not found, any native writer for `possible_file_formats` is picked.
+    Native writer supports `item_format` directly without a need to convert to other item formats.
+    """
+    native_writers = NATIVE_FORMAT_WRITERS[item_format]
+    # check if preferred format has native item_format writer
+    if preferred_format:
+        if preferred_format not in possible_file_formats:
+            raise ValueError(
+                f"Preferred format {preferred_format} not possible in {possible_file_formats}"
+            )
+        try:
+            return DataWriter.class_factory(
+                preferred_format, item_format, native_writers
+            ).writer_spec()
+        except DataWriterNotFound:
+            pass
+    # if not found, use scan native file formats for item format
+    for supported_format in possible_file_formats:
+        if supported_format != preferred_format:
+            try:
+                return DataWriter.class_factory(
+                    supported_format, item_format, native_writers
+                ).writer_spec()
+            except DataWriterNotFound:
+                pass
+
+    # search all writers
+    if preferred_format:
+        try:
+            return DataWriter.class_factory(
+                preferred_format, item_format, ALL_WRITERS
+            ).writer_spec()
+        except DataWriterNotFound:
+            pass
+
+    for supported_format in possible_file_formats:
+        if supported_format != preferred_format:
+            try:
+                return DataWriter.class_factory(
+                    supported_format, item_format, ALL_WRITERS
+                ).writer_spec()
+            except DataWriterNotFound:
+                pass
+
+    raise SpecLookupFailed(item_format, possible_file_formats, preferred_format)
+
+
+def get_best_writer_spec(
+    item_format: TDataItemFormat, file_format: TLoaderFileFormat
+) -> FileWriterSpec:
+    """Gets writer for `item_format` writing files in {file_format}. Looks for native writer first"""
+    native_writers = NATIVE_FORMAT_WRITERS[item_format]
+    try:
+        return DataWriter.class_factory(file_format, item_format, native_writers).writer_spec()
+    except DataWriterNotFound:
+        return DataWriter.class_factory(file_format, item_format, ALL_WRITERS).writer_spec()

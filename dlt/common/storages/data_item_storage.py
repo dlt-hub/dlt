@@ -16,9 +16,7 @@ from dlt.common.data_writers import (
 class DataItemStorage(ABC):
     def __init__(self, writer_spec: FileWriterSpec, *args: Any) -> None:
         self.writer_spec = writer_spec
-        self.writer_cls = DataWriter.class_factory(
-            writer_spec.file_format, writer_spec.data_item_format
-        )
+        self.writer_cls = DataWriter.writer_class_from_spec(writer_spec)
         self.buffered_writers: Dict[str, BufferedDataWriter[DataWriter]] = {}
         super().__init__(*args)
 
