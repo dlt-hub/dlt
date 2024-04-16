@@ -22,6 +22,9 @@ def resource_state_info(
     resource_name: str,
 ) -> None:
     sources_state = pipeline.state.get("sources") or {}
+    if not sources_state:
+        return
+
     schema = sources_state.get(schema_name)
     if not schema:
         st.error(f"Schema with name: {schema_name} is not found")
