@@ -82,28 +82,8 @@ class LoadStorage(VersionedStorage):
         self.storage.create_folder(LoadStorage.NORMALIZED_FOLDER, exists_ok=True)
         self.storage.create_folder(LoadStorage.LOADED_FOLDER, exists_ok=True)
 
-    def create_item_storage(
-        self, preferred_format: TLoaderFileFormat, item_format: TDataItemFormat
-    ) -> DataItemStorage:
-        """Creates item storage for preferred_format + item_format combination. If not found, it
-        tries the remaining file formats in supported formats.
-        """
-        try:
-            return LoadItemStorage(
-                self.new_packages,
-                DataWriter.writer_spec_from_file_format(preferred_format, item_format),
-            )
-        except DataWriterNotFound:
-            for supported_format in self.supported_loader_file_formats:
-                if supported_format != preferred_format:
-                    try:
-                        return LoadItemStorage(
-                            self.new_packages,
-                            DataWriter.writer_spec_from_file_format(supported_format, item_format),
-                        )
-                    except DataWriterNotFound:
-                        pass
-            raise
+    def create_item_storage(self, writer_spec: FileWriterSpec) -> DataItemStorage:
+        return LoadItemStorage(self.new_packages, writer_spec)
 
     def import_extracted_package(
         self, load_id: str, extract_package_storage: PackageStorage

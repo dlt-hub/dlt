@@ -1,3 +1,4 @@
+from typing import NamedTuple, Sequence
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import DltException
 
@@ -30,12 +31,42 @@ class DestinationCapabilitiesRequired(DataWriterException, ValueError):
 
 
 class DataWriterNotFound(DataWriterException):
+    pass
+
+
+class FileFormatForItemFormatNotFound(DataWriterNotFound):
     def __init__(self, file_format: TLoaderFileFormat, data_item_format: str):
         self.file_format = file_format
         self.data_item_format = data_item_format
         super().__init__(
             f"Can't find a file writer for file format {file_format} and item format"
             f" {data_item_format}"
+        )
+
+
+class FileSpecNotFound(KeyError, DataWriterNotFound):
+    def __init__(self, file_format: TLoaderFileFormat, data_item_format: str, spec: NamedTuple):
+        self.file_format = file_format
+        self.data_item_format = data_item_format
+        super().__init__(
+            f"Can't find a file writer for spec with file format {file_format} and item format"
+            f" {data_item_format} where the full spec is {spec}"
+        )
+
+
+class SpecLookupFailed(DataWriterNotFound):
+    def __init__(
+        self,
+        data_item_format: str,
+        possible_file_formats: Sequence[TLoaderFileFormat],
+        file_format: TLoaderFileFormat,
+    ):
+        self.file_format = file_format
+        self.possible_file_formats = possible_file_formats
+        self.data_item_format = data_item_format
+        super().__init__(
+            f"Lookup for best file writer for item format {data_item_format} among file formats"
+            f" {possible_file_formats} failed. The preferred file format was {file_format}."
         )
 
 
