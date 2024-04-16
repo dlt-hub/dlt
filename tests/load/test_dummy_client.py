@@ -1,6 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep
+from unittest import mock
 import pytest
 from unittest.mock import patch
 from typing import List
@@ -752,7 +753,15 @@ def test_terminal_exceptions() -> None:
 def assert_complete_job(load: Load, should_delete_completed: bool = False) -> None:
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     # will complete all jobs
-    with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), patch.object(
+        dummy_impl.DummyClient,
+        "complete_load",
+    ) as complete_load:
         with ThreadPoolExecutor() as pool:
             load.run(pool)
             # did process schema update

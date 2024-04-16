@@ -5,9 +5,10 @@ from typing import ClassVar, List, Type, Iterable, Set, Iterator
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
+import dlt
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
+from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -38,31 +39,29 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
+        self.destination_file_name = path_utils.create_path(
+            config.layout,
+            file_name,
+            schema_name,
+            load_id,
+            current_datetime=config.current_datetime,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
+            extra_placeholders=config.extra_placeholders,
         )
 
         super().__init__(file_name)
         fs_client, _ = fsspec_from_config(config)
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
+        self.destination_file_name = path_utils.create_path(
+            config.layout,
+            file_name,
+            schema_name,
+            load_id,
+            current_datetime=config.current_datetime,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
+            extra_placeholders=config.extra_placeholders,
         )
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
-
-    @staticmethod
-    def make_destination_filename(
-        layout: str, file_name: str, schema_name: str, load_id: str
-    ) -> str:
-        job_info = ParsedLoadJobFileName.parse(file_name)
-        return path_utils.create_path(
-            layout,
-            schema_name=schema_name,
-            table_name=job_info.table_name,
-            load_id=load_id,
-            file_id=job_info.file_id,
-            ext=job_info.file_format,
-        )
 
     def make_remote_path(self) -> str:
         return (
