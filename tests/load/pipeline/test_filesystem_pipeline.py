@@ -252,7 +252,7 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         if "_dlt" in basedir:
             continue
         for file in files:
-            if file.endswith("jsonl"):
+            if ".jsonl" in file:
                 expected_files.add(os.path.join(basedir, file))
 
     for load_package in load_info.load_packages:
@@ -272,7 +272,7 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
             )
             full_path = os.path.join(client.dataset_path, path)  # type: ignore[attr-defined]
             assert os.path.exists(full_path)
-            if full_path.endswith("jsonl"):
+            if ".jsonl" in full_path:
                 known_files.add(full_path)
 
     assert expected_files == known_files

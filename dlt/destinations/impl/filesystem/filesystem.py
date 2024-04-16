@@ -372,9 +372,8 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
                 break
 
         if selected_path:
-            print("got state")
             return StorageSchemaInfo(**json.loads(self.fs_client.read_text(selected_path)))
-        print("no state")
+
         return None
 
     def _store_current_schema(self, load_id: str) -> None:
