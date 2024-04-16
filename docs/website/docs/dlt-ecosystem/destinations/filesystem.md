@@ -192,10 +192,11 @@ The filesystem destination in the dlt library uses `gzip` compression by default
 To handle compressed files:
 
 - To disable compression, you can modify the `data_writer.disable_compression` setting in your "config.toml" file. This can be useful if you want to access the files directly without needing to decompress them. For example:
-  ```toml
-  [normalize.data_writer]
-  disable_compression=true
-  ```
+
+```toml
+[normalize.data_writer]
+disable_compression=true
+```
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
 
@@ -347,6 +348,21 @@ pipeline = dlt.pipeline(
     )
 )
 ```
+
+## Recommended layout
+
+Current recommended layout is
+
+```toml
+layout="{table_name}/{load_id}.{file_id}.{ext}"
+```
+
+The reasons are simple
+
+1. It is much fastest and simplest to process
+2. Supported `replace` write disposition
+3. When the structure is deeply nested it also makes it slower to walk through files
+4. Supported by destinations like Athena
 
 
 ## Supported file formats
