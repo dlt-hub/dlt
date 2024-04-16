@@ -294,23 +294,26 @@ Please note:
 - `dlt` will not dump the current schema content to the bucket
 - `dlt` will mark complete loads by creating an empty file that corresponds to `_dlt_loads` table. For example, if `chess._dlt_loads.1685299832` file is present in dataset folders, you can be sure that all files for the load package `1685299832` are completely loaded
 
+## Advanced Layout Configuration
 
-### Advanced layout configuration
+The filesystem destination configuration supports advanced layout customization and the inclusion of additional placeholders. This can be done through `config.toml` or programmatically when initializing via a factory method.
 
-Filesystem destination allows you to configure advanced layout and additional placeholders via `config.toml` or when initializing via the factory
+💡 **Tip:** For handling deeply nested layouts, consider enabling automatic directory creation for the local filesystem destination. This can be done by setting `kwargs = '{"auto_mkdir": true}'` to facilitate the creation of directories automatically.
 
-> 💡 For deeply nested layouts you might want to enable automatic directory creation for local filesystem destination by specifying `kwargs = '{"auto_mkdir": true}'`.
+### Configuration Via `config.toml`
 
-#### Via the configuration
+To configure the layout and placeholders using `config.toml`, use the following format:
+
 ```toml
-layout = "{table_name}/{test_placeholer}/{YYYY}-{MM}-{DD}/{ddd}/{mm}/{load_id}.{file_id}.{ext}"
-extra_placeholders = { "test_placeholder" = "test" }
+layout = "{table_name}/{test_placeholder}/{YYYY}-{MM}-{DD}/{ddd}/{mm}/{load_id}.{file_id}.{ext}"
+extra_placeholders = { "test_placeholder" = "test_value" }
 current_datetime="2024-04-14T00:00:00"
 ```
+Note: Ensure that the placeholder names match the intended usage. For example, `{test_placeholer}` should be corrected to `{test_placeholder}` for consistency.
 
-#### Via the factory
-You can override configuration options if you initialize and pass filesystem destination directly to pipeline.
-It is also possible to provide callbacks for extra placeholder options and each callback should accept positional arguments listed below and return a string
+### Configuration Via Factory Method
+
+Configuration options, including layout and placeholders, can be overridden dynamically when initializing and passing the filesystem destination directly to the pipeline. Furthermore, it is possible to customize the behavior with callbacks for extra placeholder functionality. Each callback must accept the following positional arguments and return a string:
 
 1. `schema_name`
 2. `table_name`
@@ -318,52 +321,46 @@ It is also possible to provide callbacks for extra placeholder options and each 
 4. `file_id`
 5. `ext`
 
-`current_datetime` can be a callback as well, it should return an instance of `pendulum.DateTime`.
+The `current_datetime` can also be a callback function and expected to return a `pendulum.DateTime` instance.
 
-```py
-def placeholder_callback(
-    schema_name: str,
-    table_name: str,
-    load_id: str,
-    file_id: str,
-    ext: str,
-) -> str:
-    return "value"
+```python
+import pendulum
+from dlt import pipeline, filesystem
 
+def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_id: str, ext: str) -> str:
+    # Custom logic here
+    return "custom_value"
 
 def get_current_datetime() -> pendulum.DateTime:
     return pendulum.now()
 
-
 pipeline = dlt.pipeline(
     pipeline_name="data_things",
     destination=filesystem(
-        layout = "{table_name}/{placeholer_x}/{timestamp}/{load_id}.{file_id}.{ext}",
-        current_datetime=datetime.now(),
-        # current_datetime=get_current_datetime,
-        extra_placehodlers={
-            "test_placeholder": "test",
+        layout="{table_name}/{placeholder_x}/{timestamp}/{load_id}.{file_id}.{ext}",
+        current_datetime=get_current_datetime,
+        extra_placeholders={
+            "test_placeholder": "test_value",
             "placeholder_x": placeholder_callback
         }
     )
 )
 ```
+Ensure you correct typos such as `extra_placehodlers` to `extra_placeholders` and comment out or remove duplicate or incorrect `current_datetime` lines for clarity and correctness.
 
-## Recommended layout
+## Recommended Layout
 
-Current recommended layout is
+The currently recommended layout structure is straightforward:
 
 ```toml
 layout="{table_name}/{load_id}.{file_id}.{ext}"
 ```
 
-The reasons are simple
-
-1. It is fastest and simplest to process
-2. Well supported `replace` write disposition
-3. Supported by destinations like Athena
-4. When the structure is deeply nested it also makes it slower to walk through files
-
+Adopting this layout offers several advantages:
+1. **Efficiency:** It's fast and simple to process.
+2. **Compatibility:** Supports `replace` as the write disposition method.
+3. **Flexibility:** Compatible with various destinations, including Athena.
+4. **Performance:** A deeply nested structure can slow down file navigation, whereas a simpler layout mitigates this issue.
 
 ## Supported file formats
 You can choose the following file formats:
