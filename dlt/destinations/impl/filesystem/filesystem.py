@@ -197,8 +197,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
             if tables_name in self.schema.dlt_table_names():
                 self.fs_client.touch(posixpath.join(directory, INIT_FILE_NAME))
 
-        # write schema to destination
-        self._store_current_schema(load_id or "1")
+        # don't store schema when used as staging
+        if not self.config.as_staging:
+            self._store_current_schema(load_id or "1")
 
         return expected_update
 
@@ -223,7 +224,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         # skip the state table, we create a jsonl file in the complete_load step
-        if table["name"] == self.schema.state_table_name:
+        # this does not apply to scenarios where we are using filesystem as staging
+        # where we want to load the state the regular way
+        if table["name"] == self.schema.state_table_name and not self.config.as_staging:
             return DoNothingJob(file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
@@ -299,6 +302,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         return f"{self.dataset_path}/{self.schema.state_table_name}/{pipeline_name}__{load_id}__{self._to_path_safe_string(version_hash)}.jsonl"
 
     def _store_current_state(self, load_id: str) -> None:
+        # don't save the state this way when used as staging
+        if self.config.as_staging:
+            return
         # get state doc from current pipeline
         from dlt.pipeline.current import load_package_source_state
         from dlt.pipeline.state_sync import LOAD_PACKAGE_STATE_KEY
