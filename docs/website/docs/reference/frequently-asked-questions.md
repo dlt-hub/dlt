@@ -5,11 +5,11 @@ keywords: [faq, usage information, technical help]
 ---
 
 
-## Can I configure different nesting levels for each resource in a source within DLT?
+## Can I configure different nesting levels for each resource?
 
 Currently, configuring different nesting levels for each resource directly is not supported, but there's an open GitHub issue ([#945](https://github.com/dlt-hub/dlt/issues/945)) addressing this. Meanwhile, you can use these workarounds.
 
-Resources can be seperated based on nesting needs, for example separate the execution of pipelines for resources based on their required maximum table nesting levels.
+Resources can be separated based on nesting needs, for example, separate the execution of pipelines for resources based on their required maximum table nesting levels.
 
 **For resources that don't require nesting (resource1, resource2), configure nesting as:**
 
@@ -55,9 +55,9 @@ These methods allow for a degree of customization in handling data structure and
 
 ## Can I configure dlt to load data in chunks of 10,000 records for more efficient processing, and how does this affect data resumption and retries in case of failures?
 
-`dlt` buffers to disk and can resume and retry so there is not big benefit of to doing that unless you run serverless. If you go this way you will have to manage atomicity after the fact, otherwise `dlt` will do the same via disk and load atomically. So the benefit to loading every 10k records would be that chunks arrive sooner (if you are actively reading) or that in case it breaks, if state is well handled and records are sorted, you would resume from where you last loaded on breakages. 
+`dlt` buffers to disk, and has built-in resume and retry mechanisms. This makes it less beneficial to manually manage atomicity after the fact unless you're running serverless. If you choose to load every 10k records instead, you could potentially see benefits like quicker data arrival if you're actively reading, and easier resumption from the last loaded point in case of failure, assuming that state is well-managed and records are sorted.
 
-It is to be noted that `dlt` has a request library replacement that has built-in retries. So if you pull 10m records one by one your data should be safe even with some network issues. Note that for resuming jobs after a failure, running the pipeline in its own virtual machine (VM) is necessary, as ephemeral storage solutions like Cloud Run won't support resumption.
+It's worth noting that `dlt` includes a request library replacement with built-in retries. This means if you pull 10 million records individually, your data should remain safe even in the face of network issues. To resume jobs after a failure, however, it's necessary to run the pipeline in its own virtual machine (VM). Ephemeral storage solutions like Cloud Run don't support job resumption.
 
 ## How to contribute a verified source?
 
@@ -80,7 +80,7 @@ p = dlt.pipeline(
 )
 
 # Extract data using the predefined source `my_source`
-p.extract(my_source)
+p.extract(my_source().add_limit(10))
 
 # Normalize the data structure for consistency
 p.normalize()
