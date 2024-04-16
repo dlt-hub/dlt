@@ -56,6 +56,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/facebook_ads',
             'dlt-ecosystem/verified-sources/filesystem',
             'dlt-ecosystem/verified-sources/github',
+            'dlt-ecosystem/verified-sources/google_ads',
             'dlt-ecosystem/verified-sources/google_analytics',
             'dlt-ecosystem/verified-sources/google_sheets',
             'dlt-ecosystem/verified-sources/hubspot',
