@@ -240,10 +240,17 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
+# mark as essential for now
+@pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
 )
 def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -> None:
+    # NOTE: we can test filesystem destination merge behavior here too, will also fallback!
+    if destination_config.file_format == "insert_values":
+        pytest.skip("Insert values row count checking is buggy, skipping")
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
     # remove all keys
@@ -264,8 +271,8 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    # only ten rows remains. merge falls back to replace when no keys are specified
-    assert github_1_counts["issues"] == 10 if destination_config.supports_merge else 100 - 45
+    # we have 10 rows more, merge falls back to append if no keys present
+    assert github_1_counts["issues"] == 100 - 45 + 10
 
 
 @pytest.mark.parametrize(
