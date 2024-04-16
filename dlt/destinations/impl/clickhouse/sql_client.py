@@ -14,7 +14,6 @@ import clickhouse_driver.errors  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 
-import dlt
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
@@ -128,7 +127,7 @@ class ClickHouseSqlClient(
     def execute_query(
         self, query: AnyStr, *args: Any, **kwargs: Any
     ) -> Iterator[ClickHouseDBApiCursorImpl]:
-        assert isinstance(query, str), "Query must be a string"
+        assert isinstance(query, str), "Query must be a string."
 
         db_args = kwargs.copy()
 
@@ -136,14 +135,6 @@ class ClickHouseSqlClient(
             query, db_args = _convert_to_old_pyformat(query, args, OperationalError)
             db_args.update(kwargs)
 
-        # Prefix each query transaction with experimental settings.
-        # These are necessary for nested datatypes to be available and other operations to work.
-        query = (
-            "set allow_experimental_lightweight_delete = 1;"
-            "set allow_experimental_object_type = 1;"
-            "set enable_http_compression= 1;"
-            f"{query}"
-        )
         with self._conn.cursor() as cursor:
             for query_line in query.split(";"):
                 if query_line := query_line.strip():

@@ -254,6 +254,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                         settings={
                             "allow_experimental_lightweight_delete": 1,
                             "allow_experimental_object_type": 1,
+                            "enable_http_compression": 1,
                         },
                         compression=compression,
                     )
