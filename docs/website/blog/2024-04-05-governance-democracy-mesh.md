@@ -226,5 +226,5 @@ Only time will tell.
 
 ### Want to discuss?
 
-[Join our slack community](https://dlthub.com/community) to take part in the conversation.
+[Join the dlt slack community](https://dlthub.com/community) to take part in the conversation.
 
