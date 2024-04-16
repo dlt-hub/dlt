@@ -359,10 +359,10 @@ layout="{table_name}/{load_id}.{file_id}.{ext}"
 
 The reasons are simple
 
-1. It is much fastest and simplest to process
-2. Supported `replace` write disposition
-3. When the structure is deeply nested it also makes it slower to walk through files
-4. Supported by destinations like Athena
+1. It is fastest and simplest to process
+2. Well supported `replace` write disposition
+3. Supported by destinations like Athena
+4. When the structure is deeply nested it also makes it slower to walk through files
 
 
 ## Supported file formats
