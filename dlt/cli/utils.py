@@ -1,11 +1,8 @@
 import ast
 import os
-import tempfile
 from typing import Callable
 
-from dlt.common import git
 from dlt.common.reflection.utils import set_ast_parents
-from dlt.common.storages import FileStorage
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import RunConfiguration

@@ -42,12 +42,12 @@ from tests.common.configuration.utils import (
 
 @configspec
 class EmbeddedWithGcpStorage(BaseConfiguration):
-    gcp_storage: GcpServiceAccountCredentialsWithoutDefaults
+    gcp_storage: GcpServiceAccountCredentialsWithoutDefaults = None
 
 
 @configspec
 class EmbeddedWithGcpCredentials(BaseConfiguration):
-    credentials: GcpServiceAccountCredentialsWithoutDefaults
+    credentials: GcpServiceAccountCredentialsWithoutDefaults = None
 
 
 def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> None:
@@ -378,7 +378,7 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
 
         # dict creates only shallow dict so embedded credentials will fail
         creds = WithCredentialsConfiguration()
-        creds.credentials = SecretCredentials({"secret_value": "***** ***"})
+        creds.credentials = SecretCredentials(secret_value=TSecretValue("***** ***"))
         with pytest.raises(ValueError):
             provider.set_value("written_creds", dict(creds), None)
 

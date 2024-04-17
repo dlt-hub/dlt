@@ -31,23 +31,10 @@ class SchemaStorageConfiguration(BaseConfiguration):
         True  # remove default values when exporting schema
     )
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            schema_volume_path: str = None,
-            import_schema_path: str = None,
-            export_schema_path: str = None,
-        ) -> None: ...
-
 
 @configspec
 class NormalizeStorageConfiguration(BaseConfiguration):
     normalize_volume_path: str = None  # path to volume where normalized loader files will be stored
-
-    if TYPE_CHECKING:
-
-        def __init__(self, normalize_volume_path: str = None) -> None: ...
 
 
 @configspec
@@ -58,12 +45,6 @@ class LoadStorageConfiguration(BaseConfiguration):
     delete_completed_jobs: bool = (
         False  # if set to true the folder with completed jobs will be deleted
     )
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self, load_volume_path: str = None, delete_completed_jobs: bool = None
-        ) -> None: ...
 
 
 FileSystemCredentials = Union[
@@ -86,7 +67,7 @@ class FilesystemConfiguration(BaseConfiguration):
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
         "gs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
-        "gdrive": GcpOAuthCredentials,
+        "gdrive": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "s3": AwsCredentials,
         "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
         "abfs": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
@@ -96,8 +77,10 @@ class FilesystemConfiguration(BaseConfiguration):
     bucket_url: str = None
 
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
-    credentials: FileSystemCredentials
+    credentials: FileSystemCredentials = None
 
+    read_only: bool = False
+    """Indicates read only filesystem access. Will enable caching"""
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
 
@@ -142,18 +125,3 @@ class FilesystemConfiguration(BaseConfiguration):
                 new_netloc += f":{url.port}"
             return url._replace(netloc=new_netloc).geturl()
         return self.bucket_url
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            bucket_url: str,
-            credentials: FileSystemCredentials = None,
-            kwargs: Optional[DictStrAny] = None,
-            client_kwargs: Optional[DictStrAny] = None,
-        ) -> None:
-            self.bucket_url = bucket_url
-            self.credentials = credentials
-            self.kwargs = kwargs
-            self.client_kwargs = client_kwargs
-            ...

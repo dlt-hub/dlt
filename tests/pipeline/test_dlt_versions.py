@@ -1,10 +1,12 @@
+import sys
 import pytest
 import tempfile
 import shutil
 from importlib.metadata import version as pkg_version
 
 import dlt
-from dlt.common import json
+from dlt.common import json, pendulum
+from dlt.common.json import custom_pua_decode
 from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.utils import custom_environ, set_working_dir
@@ -21,6 +23,9 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 from tests.utils import TEST_STORAGE_ROOT, test_storage
+
+if sys.version_info > (3, 11):
+    pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
 
 
 GITHUB_PIPELINE_NAME = "dlt_github_pipeline"
@@ -65,7 +70,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     }
                     # check loads table without attaching to pipeline
                     duckdb_cfg = resolve_configuration(
-                        DuckDbClientConfiguration(dataset_name=GITHUB_DATASET),
+                        DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
                         sections=("destination", "duckdb"),
                     )
                     with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
@@ -82,12 +87,14 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/state.json")
                     )
                     assert "_version_hash" not in state_dict
-                    assert (
+                    # also we expect correctly decoded pendulum here
+                    created_at_value = custom_pua_decode(
                         state_dict["sources"]["github"]["resources"]["load_issues"]["incremental"][
                             "created_at"
                         ]["last_value"]
-                        == "2021-04-16T04:34:05Z"
                     )
+                    assert isinstance(created_at_value, pendulum.DateTime)
+                    assert created_at_value == pendulum.parse("2021-04-16T04:34:05Z")
 
                 # execute in current version
                 venv = Venv.restore_current()
@@ -99,7 +106,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/schemas/github.schema.json"
                     )
                 )
-                assert github_schema["engine_version"] == 8
+                assert github_schema["engine_version"] == 9
                 assert "schema_version_hash" in github_schema["tables"][LOADS_TABLE_NAME]["columns"]
                 # load state
                 state_dict = json.loads(
@@ -135,12 +142,11 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
 
                 # attach to existing pipeline
                 pipeline = dlt.attach(GITHUB_PIPELINE_NAME, credentials=duckdb_cfg.credentials)
-                assert (
-                    pipeline.state["sources"]["github"]["resources"]["load_issues"]["incremental"][
-                        "created_at"
-                    ]["last_value"]
-                    == "2023-02-17T09:52:12Z"
-                )
+                created_at_value = pipeline.state["sources"]["github"]["resources"]["load_issues"][
+                    "incremental"
+                ]["created_at"]["last_value"]
+                assert isinstance(created_at_value, pendulum.DateTime)
+                assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
                 pipeline = pipeline.drop()
                 # print(pipeline.working_dir)
                 assert pipeline.dataset_name == GITHUB_DATASET
@@ -149,7 +155,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 pipeline.sync_destination()
                 # print(pipeline.working_dir)
                 # we have updated schema
-                assert pipeline.default_schema.ENGINE_VERSION == 8
+                assert pipeline.default_schema.ENGINE_VERSION == 9
                 # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
                 assert pipeline.default_schema.stored_version_hash == github_schema["version_hash"]
 
@@ -183,7 +189,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 venv = Venv.restore_current()
                 print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_load.py"))
                 duckdb_cfg = resolve_configuration(
-                    DuckDbClientConfiguration(dataset_name=GITHUB_DATASET),
+                    DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
                     sections=("destination", "duckdb"),
                 )
                 with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
@@ -204,7 +210,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 )
                 pipeline = pipeline.drop()
                 pipeline.sync_destination()
-                assert pipeline.default_schema.ENGINE_VERSION == 8
+                assert pipeline.default_schema.ENGINE_VERSION == 9
                 # schema version does not match `dlt.attach` does not update to the right schema by itself
                 assert pipeline.default_schema.stored_version_hash != github_schema["version_hash"]
                 # state has hash

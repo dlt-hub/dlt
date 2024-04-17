@@ -12,20 +12,21 @@ from dlt.destinations.impl.snowflake.configuration import (
 )
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def snowflake_client(schema: Schema) -> SnowflakeClient:
+def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
     return SnowflakeClient(
-        schema, SnowflakeClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds)
+        empty_schema,
+        SnowflakeClientConfiguration(credentials=creds)._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
 
 

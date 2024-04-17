@@ -23,7 +23,9 @@ from typing import (
 import zlib
 import re
 
-from dlt.common import json, pendulum, logger
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import (
     COLUMN_HINTS,
@@ -35,13 +37,13 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    DestinationClientDwhWithStagingConfiguration,
     NewLoadJob,
     WithStagingDataset,
     TLoadJobState,
@@ -50,16 +52,10 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
 )
-from dlt.common.utils import concat_strings_with_limit
-from dlt.destinations.exceptions import (
-    DatabaseUndefinedRelation,
-    DestinationSchemaTampered,
-    DestinationSchemaWillNotUpdate,
-)
+
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
-
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -76,15 +72,19 @@ class SqlLoadJob(LoadJob):
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
+        # Some clients (e.g. databricks) do not support multiple statements in one execute call
+        if not sql_client.capabilities.supports_multiple_statements:
+            sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
-        if (
+        elif (
             not self._string_containts_ddl_queries(sql)
             or sql_client.capabilities.supports_ddl_transactions
         ):
             # with sql_client.begin_transaction():
             sql_client.execute_sql(sql)
         else:
-            sql_client.execute_sql(sql)
+            # sql_client.execute_sql(sql)
+            sql_client.execute_many(self._split_fragments(sql))
 
     def state(self) -> TLoadJobState:
         # this job is always done
@@ -99,6 +99,9 @@ class SqlLoadJob(LoadJob):
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
         return False
+
+    def _split_fragments(self, sql: str) -> List[str]:
+        return [s + (";" if not s.endswith(";") else "") for s in sql.split(";") if s.strip()]
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
@@ -170,16 +173,16 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
             self.sql_client.create_dataset()
-        else:
-            # truncate requested tables
-            if truncate_tables:
-                self.sql_client.truncate_tables(*truncate_tables)
+        elif truncate_tables:
+            self.sql_client.truncate_tables(*truncate_tables)
 
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
@@ -207,7 +210,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
-        """Begins a transaction if sql client supports it, otherwise works in auto commit"""
+        """Begins a transaction if sql client supports it, otherwise works in auto commit."""
         if self.capabilities.supports_ddl_transactions:
             with self.sql_client.begin_transaction():
                 yield
@@ -295,6 +298,15 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> None:
         self.sql_client.close_connection()
 
+    def _get_storage_table_query_columns(self) -> List[str]:
+        """Column names used when querying table from information schema.
+        Override for databases that use different namings.
+        """
+        fields = ["column_name", "data_type", "is_nullable"]
+        if self.capabilities.schema_supports_numeric_precision:
+            fields += ["numeric_precision", "numeric_scale"]
+        return fields
+
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         def _null_to_bool(v: str) -> bool:
             if v == "NO":
@@ -303,9 +315,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
                 return True
             raise ValueError(v)
 
-        fields = ["column_name", "data_type", "is_nullable"]
-        if self.capabilities.schema_supports_numeric_precision:
-            fields += ["numeric_precision", "numeric_scale"]
+        fields = self._get_storage_table_query_columns()
         db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
             ".", 3
         )
@@ -357,22 +367,13 @@ WHERE """
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
             " l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY"
-            " created_at DESC"
+            " l.load_id DESC"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
         if not row:
             return None
         return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
-
-    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
-    #     """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
-    #     query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s ORDER BY created_at DESC"
-    #     result: List[StateInfo] = []
-    #     with self.sql_client.execute_query(query) as cur:
-    #         for row in cur.fetchall():
-    #             result.append(StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4])))
-    #     return result
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
@@ -381,28 +382,27 @@ WHERE """
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
-        # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
-        # assuming that most of the characters in DDL encode into single bytes
-        for sql_fragment in concat_strings_with_limit(
-            sql_scripts, "\n", self.capabilities.max_query_length // 2
-        ):
-            self.sql_client.execute_sql(sql_fragment)
+        # Stay within max query size when doing DDL.
+        # Some DB backends use bytes not characters, so decrease the limit by half,
+        # assuming most of the characters in DDL encoded into single bytes.
+        self.sql_client.execute_many(sql_scripts)
         self._update_schema_in_storage(self.schema)
         return schema_update
 
     def _build_schema_update_sql(
         self, only_tables: Iterable[str]
     ) -> Tuple[List[str], TSchemaTables]:
-        """Generates CREATE/ALTER sql for tables that differ between the destination and in client's Schema.
+        """Generates CREATE/ALTER sql for tables that differ between the destination and in the client's Schema.
 
-        This method compares all or `only_tables` defined in self.schema to the respective tables in the destination. It detects only new tables and new columns.
-        Any other changes like data types, hints etc. are ignored.
+        This method compares all or `only_tables` defined in `self.schema` to the respective tables in the destination.
+        It detects only new tables and new columns.
+        Any other changes like data types, hints, etc. are ignored.
 
         Args:
             only_tables (Iterable[str]): Only `only_tables` are included, or all if None.
 
         Returns:
-            Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts and a list of all tables with columns that will be added.
+            Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts, and a list of all tables with columns that will be added.
         """
         sql_updates = []
         schema_update: TSchemaTables = {}
@@ -417,7 +417,7 @@ WHERE """
                         sql += ";"
                     sql_updates.append(sql)
                 # create a schema update for particular table
-                partial_table = copy(self.get_load_table(table_name))
+                partial_table = copy(self.prepare_load_table(table_name))
                 # keep only new columns
                 partial_table["columns"] = {c["name"]: c for c in new_columns}
                 schema_update[table_name] = partial_table
@@ -427,7 +427,7 @@ WHERE """
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
     ) -> List[str]:
-        """Make one or more  ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
+        """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
         return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
 
     def _get_table_update_sql(
@@ -435,8 +435,8 @@ WHERE """
     ) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
-        table = self.get_load_table(table_name)
-        table_format = table.get("table_format") if table else None
+        table = self.prepare_load_table(table_name)
+        table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
@@ -451,7 +451,7 @@ WHERE """
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
             else:
-                # build ALTER as separate statement for each column (redshift limitation)
+                # build ALTER as a separate statement for each column (redshift limitation)
                 sql_result.extend(
                     [sql_base + col_statement for col_statement in add_column_statements]
                 )
@@ -529,10 +529,6 @@ WHERE """
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
-        # make sure that schema being saved was not modified from the moment it was loaded from storage
-        version_hash = schema.version_hash
-        if version_hash != schema.stored_version_hash:
-            raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())
         # TODO: not all databases store data as utf-8 but this exception is mostly for redshift

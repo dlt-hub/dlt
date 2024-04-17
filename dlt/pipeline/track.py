@@ -3,7 +3,8 @@ import contextlib
 from typing import Any
 import humanize
 
-from dlt.common import pendulum, logger
+from dlt.common import logger
+from dlt.common.pendulum import pendulum
 from dlt.common.utils import digest128
 from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
@@ -36,7 +37,7 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
         if author:
             author = f":hard-hat:{author}'s "
 
-        total_elapsed = pendulum.now() - trace.started_at
+        total_elapsed = pendulum.now().diff(trace.started_at)
 
         def _get_step_elapsed(step: PipelineStepTrace) -> str:
             if not step:

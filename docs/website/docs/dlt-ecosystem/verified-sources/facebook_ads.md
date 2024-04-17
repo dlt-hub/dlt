@@ -3,14 +3,11 @@ title: Facebook Ads
 description: dlt verified source for Facebook Ads
 keywords: [facebook ads api, verified source, facebook ads]
 ---
+import Header from './_source-info-header.md';
 
 # Facebook Ads
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 Facebook Ads is the advertising platform that lets businesses and individuals create targeted ads on
 Facebook and its affiliated apps like Instagram and Messenger.
@@ -66,9 +63,9 @@ By default, Facebook access tokens have a short lifespan of one hour. To exchang
 Facebook access token for a long-lived token, update the `.dlt/secrets.toml` with client_id, and
 client_secret and execute the provided Python code.
 
-```python
+```py
 from facebook_ads import get_long_lived_token
-print(get_long_lived_token("your short-lived token")
+print(get_long_lived_token("your short-lived token"))
 ```
 
 Replace the `access_token` in the `.dlt/secrets.toml` file with the long-lived token obtained from
@@ -77,7 +74,7 @@ the above code snippet.
 To retrieve the expiry date and the associated scopes of the token, you can use the following
 command:
 
-```python
+```py
 from facebook_ads import debug_access_token
 debug_access_token()
 ```
@@ -88,7 +85,7 @@ level. In `config.toml` / `secrets.toml`:
 
 ```toml
 [sources.facebook_ads]
-access_token_expires_at=1688821881...
+access_token_expires_at=1688821881
 ```
 
 > Note: The Facebook UI, which is described here, might change.
@@ -101,7 +98,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init facebook_ads duckdb
    ```
 
@@ -158,16 +155,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python facebook_ads_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `facebook_ads`, you may also
@@ -191,7 +188,7 @@ it is important to note the complete list of the default endpoints given in
 This function returns a list of resources to load campaigns, ad sets, ads, creatives, and ad leads
 data from Facebook Marketing API.
 
-```python
+```py
 @dlt.source(name="facebook_ads")
 def facebook_ads_source(
     account_id: str = dlt.config.value,
@@ -200,6 +197,7 @@ def facebook_ads_source(
     request_timeout: float = 300.0,
     app_api_version: str = None,
 ) -> Sequence[DltResource]:
+   ...
 ```
 
 `account_id`: Account id associated with add manager, configured in "config.toml".
@@ -220,7 +218,7 @@ were issued i.e. 'v17.0'. Defaults to the _facebook_business_ library default ve
 The ads function fetches ad data. It retrieves ads from a specified account with specific fields and
 states.
 
-```python
+```py
 @dlt.resource(primary_key="id", write_disposition="replace")
 def ads(
     fields: Sequence[str] = DEFAULT_AD_FIELDS,
@@ -254,7 +252,7 @@ The default fields are defined in
 
 This function returns a list of resources to load facebook_insights.
 
-```python
+```py
 @dlt.source(name="facebook_ads")
 def facebook_insights_source(
     account_id: str = dlt.config.value,
@@ -271,6 +269,7 @@ def facebook_insights_source(
     request_timeout: int = 300,
     app_api_version: str = None,
 ) -> DltResource:
+   ...
 ```
 
 `account_id`: Account id associated with ads manager, configured in _config.toml_.
@@ -315,13 +314,14 @@ were issued i.e. 'v17.0'. Defaults to the facebook_business library default vers
 This function fetches Facebook insights data incrementally from a specified start date until the
 current date, in day steps.
 
-```python
+```py
 @dlt.resource(primary_key=INSIGHTS_PRIMARY_KEY, write_disposition="merge")
 def facebook_insights(
     date_start: dlt.sources.incremental[str] = dlt.sources.incremental(
         "date_start", initial_value=initial_load_start_date_str
     )
 ) -> Iterator[TDataItems]:
+   ...
 ```
 
 `date_start`: Parameter sets the initial value for the "date_start" parameter in
@@ -337,7 +337,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="facebook_ads",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -350,7 +350,7 @@ verified source.
 
 1. To load all the data from, campaigns, ad sets, ads, ad creatives and leads.
 
-   ```python
+   ```py
    load_data = facebook_ads_source()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -359,7 +359,7 @@ verified source.
 1. To merge the Facebook Ads with the state “DISAPPROVED” and with ads state “PAUSED” you can do the
    following:
 
-   ```python
+   ```py
    load_data = facebook_ads_source()
    # It is recommended to enable root key propagation on a source that is not a merge one by default. this is not required if you always use merge but below we start with replace
    load_data.root_key = True
@@ -382,7 +382,7 @@ verified source.
 1. To load data with a custom field, for example, to load only “id” from Facebook ads, you can do
    the following:
 
-   ```python
+   ```py
    load_data = facebook_ads_source()
    # Only loads add ids, works the same for campaigns, leads etc.
    load_data.ads.bind(fields=("id",))
@@ -395,7 +395,7 @@ verified source.
    demonstrates how to enrich objects by adding an enrichment transformation that includes
    additional fields.
 
-   ```python
+   ```py
    # You can reduce the chunk size for smaller requests
    load_data = facebook_ads_source(chunk_size=2)
 
@@ -429,7 +429,7 @@ verified source.
    breakdowns, etc. As defined in the `facebook_insights_source`. This function generates daily
    reports for a specified number of past days.
 
-   ```python
+   ```py
    load_data = facebook_insights_source(
        initial_load_past_days=30,
        attribution_window_days_lag= 7,
@@ -443,3 +443,5 @@ verified source.
 > runs, only new reports are loaded, with the past `attribution_window_days_lag` days (default is 7)
 > being refreshed to accommodate any changes. You can adjust `time_increment_days` to change report
 > frequency (default set to one).
+
+<!--@@@DLT_TUBA facebook_ads-->

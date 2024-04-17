@@ -43,9 +43,18 @@ TValue = TypeVar("TValue")
 RowCounts = Dict[str, int]
 
 
-def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
-    for i in range(0, len(seq), n):
-        yield seq[i : i + n]
+def chunks(iterable: Iterable[T], n: int) -> Iterator[Sequence[T]]:
+    it = iter(iterable)
+    while True:
+        chunk = list()
+        try:
+            for _ in range(n):
+                chunk.append(next(it))
+        except StopIteration:
+            if chunk:
+                yield chunk
+            break
+        yield chunk
 
 
 def uniq_id(len_: int = 16) -> str:
@@ -272,8 +281,10 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
             del dest[k]
 
 
-def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
-    """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit."""
+def update_dict_nested(dst: TDict, src: StrAny, keep_dst_values: bool = False) -> TDict:
+    """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit.
+    Optionally (`keep_dst_values`) you can keep the `dst` value on conflict
+    """
     # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
 
     def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
@@ -285,12 +296,14 @@ def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
         if key in dst:
             if _is_recursive_merge(dst[key], src[key]):
                 # If the key for both `dst` and `src` are both Mapping types (e.g. dict), then recurse.
-                update_dict_nested(dst[key], src[key])
+                update_dict_nested(dst[key], src[key], keep_dst_values=keep_dst_values)
             elif dst[key] is src[key]:
                 # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
                 pass
             else:
-                dst[key] = src[key]
+                if not keep_dst_values:
+                    # if not keep then overwrite
+                    dst[key] = src[key]
         else:
             # If the key exists only in `src`, the value from the `src` object will be used.
             dst[key] = src[key]
@@ -575,3 +588,11 @@ def get_exception_trace_chain(
     elif exc.__context__:
         return get_exception_trace_chain(exc.__context__, traces, seen)
     return traces
+
+
+def order_deduped(lst: List[Any]) -> List[Any]:
+    """Returns deduplicated list preserving order of input elements.
+
+    Only works for lists with hashable elements.
+    """
+    return list(dict.fromkeys(lst))

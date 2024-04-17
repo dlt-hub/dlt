@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+import dataclasses
 import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
+
 from typing import (
     Any,
     Callable,
@@ -31,13 +33,15 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.destination import TDestinationReferenceArg, TDestination
-from dlt.common.exceptions import (
-    DestinationHasFailedJobs,
-    PipelineStateNotAvailable,
-    SourceSectionNotAvailable,
-)
+from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TColumnSchema,
+    TWriteDispositionConfig,
+    TSchemaContract,
+)
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
@@ -45,6 +49,7 @@ from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
+from dlt.common.versioned_state import TVersionedState
 
 
 class _StepInfo(NamedTuple):
@@ -102,13 +107,19 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
 
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
-        d: DictStrAny = self._asdict()  # type: ignore
-        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
-        d["load_packages"] = [package.asdict() for package in self.load_packages]
+        step_info: DictStrAny = self._asdict()  # type: ignore
+        step_info["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
+        step_info["load_packages"] = [package.asdict() for package in self.load_packages]
         if self.metrics:
-            d["started_at"] = self.started_at
-            d["finished_at"] = self.finished_at
-        return d
+            step_info["started_at"] = self.started_at
+            step_info["finished_at"] = self.finished_at
+            all_metrics = []
+            for load_id, metrics in step_info["metrics"].items():
+                for metric in metrics:
+                    all_metrics.append({**dict(metric), "load_id": load_id})
+
+            step_info["metrics"] = all_metrics
+        return step_info
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
@@ -448,7 +459,7 @@ class TPipelineLocalState(TypedDict, total=False):
     """Hash of state that was recently synced with destination"""
 
 
-class TPipelineState(TypedDict, total=False):
+class TPipelineState(TVersionedState, total=False):
     """Schema for a pipeline state that is stored within the pipeline working directory"""
 
     pipeline_name: str
@@ -463,9 +474,6 @@ class TPipelineState(TypedDict, total=False):
     staging_type: Optional[str]
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
-    _state_version: int
-    _version_hash: str
-    _state_engine_version: int
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
@@ -518,7 +526,7 @@ class SupportsPipeline(Protocol):
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         columns: Sequence[TColumnSchema] = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
@@ -541,7 +549,7 @@ class SupportsPipelineRun(Protocol):
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -551,8 +559,12 @@ class SupportsPipelineRun(Protocol):
 
 @configspec
 class PipelineContext(ContainerInjectableContext):
-    _deferred_pipeline: Callable[[], SupportsPipeline]
-    _pipeline: SupportsPipeline
+    _deferred_pipeline: Callable[[], SupportsPipeline] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    _pipeline: SupportsPipeline = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     can_create_default: ClassVar[bool] = True
 
@@ -590,13 +602,9 @@ class PipelineContext(ContainerInjectableContext):
 
 @configspec
 class StateInjectableContext(ContainerInjectableContext):
-    state: TPipelineState
+    state: TPipelineState = None
 
     can_create_default: ClassVar[bool] = False
-
-    if TYPE_CHECKING:
-
-        def __init__(self, state: TPipelineState = None) -> None: ...
 
 
 def pipeline_state(

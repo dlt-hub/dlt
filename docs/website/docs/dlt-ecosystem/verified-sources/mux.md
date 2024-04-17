@@ -1,10 +1,13 @@
+---
+title: Mux
+description: dlt verified source for Mux
+keywords: [mux api, mux verified source, mux]
+---
+import Header from './_source-info-header.md';
+
 # Mux
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 
 [Mux.com](http://mux.com/) is a video technology platform that provides infrastructure and tools for developers to build and stream high-quality video content.
@@ -46,7 +49,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init mux duckdb
    ```
 
@@ -88,16 +91,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python mux_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is
@@ -115,7 +118,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function yields resources "asset_resource" and "views_resource" to load video assets and views.
 
-```python
+```py
 @dlt.source
 def mux_source() -> Iterable[DltResource]:
     yield assets_resource
@@ -126,13 +129,14 @@ def mux_source() -> Iterable[DltResource]:
 
 The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint.
 
-```python
+```py
 @dlt.resource(write_disposition="merge")
 def assets_resource(
     mux_api_access_token: str = dlt.secrets.value,
     mux_api_secret_key: str = dlt.secrets.value,
     limit: int = DEFAULT_LIMIT,
 ) -> Iterable[TDataItem]:
+    ...
 ```
 
 `mux_api_access_token`: Mux API token for authentication, defaults to ".dlt/secrets.toml".
@@ -145,13 +149,14 @@ def assets_resource(
 
 This function yields data about every video view from yesterday to be loaded.
 
-```python
+```py
 @dlt.resource(write_disposition="append")
 def views_resource(
     mux_api_access_token: str = dlt.secrets.value,
     mux_api_secret_key: str = dlt.secrets.value,
     limit: int = DEFAULT_LIMIT,
 ) -> Iterable[DltResource]:
+    ...
 ```
 
 The arguments `mux_api_access_token`, `mux_api_secret_key` and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
@@ -165,7 +170,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-    ```python
+    ```py
     pipeline = dlt.pipeline(
         pipeline_name="mux_pipeline", # Use a custom name if desired
         destination="bigquery", # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -175,22 +180,23 @@ verified source.
 
 1. To load metadata about every asset to be loaded:
 
-    ```python
-    load_info = pipeline.run(mux_source().with_resources("assets_resource")
+    ```py
+    load_info = pipeline.run(mux_source().with_resources("assets_resource"))
     print(load_info)
     ```
 
 1. To load data for each video view from yesterday:
 
-    ```python
-    load_info = pipeline.run(mux_source().with_resources("views_resource")
+    ```py
+    load_info = pipeline.run(mux_source().with_resources("views_resource"))
     print(load_info)
     ```
 
 1. To load both metadata about assets and video views from yesterday:
 
-    ```python
+    ```py
     load_info = pipeline.run(mux_source())
     print(load_info)
     ```
 
+<!--@@@DLT_TUBA mux-->

@@ -12,6 +12,15 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 6. [Publishing (Maintainers Only)](#publishing-maintainers-only)
 7. [Resources](#resources)
 
+## Before You Begin
+
+- **Proposing significant changes or enhancements**: If you're thinking about making significant changes, make sure to [submit an issue](https://github.com/dlt-hub/dlt/issues/new/choose) first. This ensures your efforts align with the project's direction and that you don't invest time on a feature that may not be merged.
+
+- **Fixing bugs**:
+  - **Check existing issues**: search [open issues](https://github.com/dlt-hub/dlt/issues) to see if the bug you've found is already reported.
+    - If **not reported**, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose). You're more than welcome to fix it and submit a pull request with your solution. Thank you!
+    - If the bug is **already reported**, please leave a comment on that issue stating you're working on fixing it. This helps keep everyone updated and avoids duplicate efforts.
+
 ## Getting Started
 
 To get started, follow these steps:
@@ -38,12 +47,12 @@ When you're ready to contribute, follow these steps:
 
 We use **devel** (which is our default Github branch) to prepare a next release of `dlt`. We accept all regular contributions there (including most of the bugfixes).
 
-We use **master** branch for hot fixes (including documentation) that needs to be released out of normal schedule.
+We use **master** branch for hot fixes (including documentation) that needs to be released out of the normal schedule.
 
 On the release day, **devel** branch is merged into **master**. All releases of `dlt` happen only from the **master**.
 
 ### Submitting a hotfix
-We'll fix critical bugs and release `dlt` our of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
+We'll fix critical bugs and release `dlt` out of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
 
 ### Testing with Github Actions
 We enable our CI to run tests for contributions from forks. All the tests are run, but not all destinations are available due to credentials. Currently
@@ -71,7 +80,7 @@ To test local destinations (`duckdb` and `postgres`), run `make test-load-local`
 
 ### External Destinations
 
-To test external destinations use `make test`. You will need following external resources
+To test external destinations use `make test`. You will need the following external resources
 
 1. `BigQuery` project
 2. `Redshift` cluster
@@ -95,7 +104,7 @@ This section is intended for project maintainers who have the necessary permissi
 
 Please read how we [version the library](README.md#adding-as-dependency) first.
 
-The source of truth of the current version is is `pyproject.toml`, and we use `poetry` to manage it.
+The source of truth for the current version is `pyproject.toml`, and we use `poetry` to manage it.
 
 ### Regular release
 
@@ -104,14 +113,14 @@ Before publishing a new release, make sure to bump the project's version accordi
 1. Check out the **devel** branch.
 2. Use `poetry version patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
-4. Create a new branch, and submit the PR to **devel**. Go through standard process to merge it.
+4. Create a new branch, and submit the PR to **devel**. Go through the standard process to merge it.
 5. Create a merge PR from `devel` to `master` and merge it with a merge commit.
 
 ### Hotfix release
 1. Check out the **master** branch
 2. Use `poetry version patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
-4. Create a new branch, and submit the PR to **master** and merge it.
+4. Create a new branch, submit the PR to **master** and merge it.
 
 ### Pre-release
 Occasionally we may release an alpha version directly from the **branch**.

@@ -41,6 +41,7 @@ Load chess game data from chess.com API and save it in DuckDB:
 ```python
 import dlt
 from dlt.sources.helpers import requests
+
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination
 pipeline = dlt.pipeline(
@@ -48,12 +49,14 @@ pipeline = dlt.pipeline(
     destination='duckdb',
     dataset_name='player_data'
 )
+
 # Grab some player data from Chess.com API
 data = []
 for player in ['magnuscarlsen', 'rpragchess']:
     response = requests.get(f'https://api.chess.com/pub/player/{player}')
     response.raise_for_status()
     data.append(response.json())
+
 # Extract, normalize, and load the data
 pipeline.run(data, table_name='player')
 ```
@@ -110,4 +113,4 @@ The dlt project is quickly growing, and we're excited to have you join our commu
 
 ## License
 
-DLT is released under the [Apache 2.0 License](LICENSE.txt).
+`dlt` is released under the [Apache 2.0 License](LICENSE.txt).

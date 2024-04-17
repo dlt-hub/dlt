@@ -2,6 +2,7 @@ import pytest
 from copy import deepcopy
 import sqlfluff
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -11,21 +12,24 @@ from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
 )
 
-from tests.load.utils import TABLE_UPDATE
+from tests.cases import (
+    TABLE_UPDATE,
+    TABLE_UPDATE_ALL_INT_PRECISIONS,
+    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS,
+)
+from tests.load.utils import empty_schema
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> PostgresClient:
+def client(empty_schema: Schema) -> PostgresClient:
     # return client without opening connection
     return PostgresClient(
-        schema,
-        PostgresClientConfiguration(
-            dataset_name="test_" + uniq_id(), credentials=PostgresCredentials()
+        empty_schema,
+        PostgresClientConfiguration(credentials=PostgresCredentials())._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
         ),
     )
 
@@ -52,6 +56,23 @@ def test_create_table(client: PostgresClient) -> None:
     assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
     assert '"col7_precision" bytea' in sql
     assert '"col11_precision" time (3) without time zone  NOT NULL' in sql
+
+
+def test_create_table_all_precisions(client: PostgresClient) -> None:
+    # 128 bit integer will fail
+    table_update = list(TABLE_UPDATE_ALL_INT_PRECISIONS)
+    with pytest.raises(TerminalValueError) as tv_ex:
+        sql = client._get_table_update_sql("event_test_table", table_update, False)[0]
+    assert "128" in str(tv_ex.value)
+
+    # remove col5 HUGEINT which is last
+    table_update.pop()
+    sql = client._get_table_update_sql("event_test_table", table_update, False)[0]
+    sqlfluff.parse(sql, dialect="duckdb")
+    assert '"col1_int" smallint ' in sql
+    assert '"col2_int" smallint ' in sql
+    assert '"col3_int" integer ' in sql
+    assert '"col4_int" bigint ' in sql
 
 
 def test_alter_table(client: PostgresClient) -> None:
@@ -101,10 +122,9 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     client = PostgresClient(
         client.schema,
         PostgresClientConfiguration(
-            dataset_name="test_" + uniq_id(),
             create_indexes=False,
             credentials=PostgresCredentials(),
-        ),
+        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")

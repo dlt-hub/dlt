@@ -7,11 +7,11 @@ authors:
     title: Data and Analytics Lead at Taktile
     url: https://github.com/codingcyclist
     image_url: https://media.licdn.com/dms/image/C4E03AQHjlnKE9zCmXQ/profile-displayphoto-shrink_400_400/0/1650447289892?e=1707955200&v=beta&t=w9KR2GfXxjU4e3e2rL69wNr0ZwuD4YlPWDy1YOpjC2I
-tags: [AWS, AWS Lambda, Serverless Compute, Taktile]
+tags: [AWS, AWS Lambda, Serverless Compute, Taktile, Streaming]
 ---
 :::info
 **TL;DR: Combining dlt and AWS Lambda creates a secure, scalable, lightweight, and powerful instrumentation engine that Taktile uses for its low-code, high-volume data processing platform. I explain why dlt and AWS Lambda work together so well and how to get everything set up in less than one hour. If you want to jump to the code right away, you can find the accompanying GitHub repo [here](https://github.com/codingcyclist/dlt-aws-lambda).**
-:::  
+:::
 
 An important aspect of being a data person today is being able to navigate and choose from among many tools when setting up your company’s infrastructure. (And there are *many* tools out there!). While there is no one-size-fits-all when it comes to the right tooling, choosing ones that are powerful, flexible, and easily compatible with other tools empowers you to tailor your setup to your specific use case.
 
@@ -45,17 +45,17 @@ AWS Lambda is Amazon’s serverless compute service. dlt is a lightweight python
 SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM, you simply declare serverless resources like Lambda functions, API Gateways, etc. in a `template.yml` file and deploy them to your AWS account with a lightweight CLI.
 
 1. Install the SAM CLI [add link or command here]
-    
-    ```bash
+
+    ```sh
     pip install aws-sam-cli
     ```
-    
+
 2. Define your resources in a `template.yml` file
-    
-    ```yaml
+
+    ```text
     AWSTemplateFormatVersion: "2010-09-09"
     Transform: AWS::Serverless-2016-10-31
-    
+
     Resources:
       ApiGateway:
         Type: AWS::Serverless::Api
@@ -86,7 +86,7 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
                   Effect: Allow
                   Action:
                     - secretsmanager:GetSecretValue
-                  Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DLT_*
+                  Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:DLT_*"
         Metadata:
           DockerTag: dlt-aws
           DockerContext: .
@@ -96,28 +96,28 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
         Description: "API Gateway endpoint URL for Staging stage for Hello World function"
         Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/v1/collect/"
     ```
-    
+
 3. Build a deployment package
-    
-    ```bash
+
+    ```sh
     sam build
     ```
-    
+
 4. Test your setup locally
-    
-    ```bash
+
+    ```sh
     sam local start-api
-    
+
     # in a second terminal window
     curl -X POST http://127.0.0.1:3000/collect -d '{"hello":"world"}'
     ```
-    
+
 5. Deploy your resources to AWS
-    
-    ```bash
+
+    ```sh
     sam deploy --stack-name=<your-stack-name> --resolve-image-repos --resolve-s3 --capabilities CAPABILITY_IAM
     ```
-    
+
 
 ### Caveats to be aware of when setting up dlt on AWS Lambda:
 

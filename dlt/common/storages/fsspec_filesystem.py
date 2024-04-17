@@ -20,11 +20,11 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from fsspec import AbstractFileSystem
+from fsspec import AbstractFileSystem, register_implementation
 from fsspec.core import url_to_fs
 
 from dlt import version
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,
@@ -57,6 +57,7 @@ MTIME_DISPATCH = {
     "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
+    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -70,6 +71,7 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "gcs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "gdrive": lambda config: {"credentials": cast(GcpCredentials, config.credentials)},
     "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
 }
@@ -105,9 +107,15 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     Returns:
         DictStrAny: The arguments for the fsspec filesystem constructor.
     """
-    proto = config.protocol
-    fs_kwargs: DictStrAny = {"use_listings_cache": False}
-    credentials = CREDENTIALS_DISPATCH.get(proto, lambda _: {})(config)
+    protocol = config.protocol
+    # never use listing caches
+    fs_kwargs: DictStrAny = {"use_listings_cache": False, "listings_expiry_time": 60.0}
+    credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
+
+    if protocol == "gdrive":
+        from dlt.common.storages.fsspecs.google_drive import GoogleDriveFileSystem
+
+        register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
 
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
@@ -134,6 +142,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     Returns: (fsspec filesystem, normalized url)
     """
     fs_kwargs = prepare_fsspec_args(config)
+
     try:
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:
@@ -273,10 +282,11 @@ def glob_files(
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
-
-    bucket_path = bucket_url_parsed._replace(scheme="").geturl()
-    bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
-    filter_url = posixpath.join(bucket_path, file_glob)
+    bucket_url_no_schema = bucket_url_parsed._replace(scheme="", query="").geturl()
+    bucket_url_no_schema = (
+        bucket_url_no_schema[2:] if bucket_url_no_schema.startswith("//") else bucket_url_no_schema
+    )
+    filter_url = posixpath.join(bucket_url_no_schema, file_glob)
 
     glob_result = fs_client.glob(filter_url, detail=True)
     if isinstance(glob_result, list):
@@ -292,8 +302,10 @@ def glob_files(
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = f"/{file}"
-        file_name = posixpath.relpath(file, bucket_path)
-        file_url = f"{bucket_url_parsed.scheme}://{file}"
+        file_name = posixpath.relpath(file, bucket_url_no_schema)
+        file_url = bucket_url_parsed._replace(
+            path=posixpath.join(bucket_url_parsed.path, file_name)
+        ).geturl()
 
         mime_type, encoding = guess_mime_type(file_name)
         yield FileItem(

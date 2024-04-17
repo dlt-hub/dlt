@@ -9,11 +9,14 @@ from tests.load.pipeline.utils import (
     load_table_counts,
     load_tables_to_dicts,
 )
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.pipeline.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    REPLACE_STRATEGIES,
+)
 
-REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
-
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -38,8 +41,6 @@ def test_replace_disposition(
     # make duckdb to reuse database in working folder
     os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = "duckdb:///test_replace_disposition.duckdb"
 
-    # TODO: start storing _dlt_loads with right json content
-    increase_loads = lambda x: x if destination_config.destination == "filesystem" else x + 1
     increase_state_loads = lambda info: len(
         [
             job
@@ -49,11 +50,9 @@ def test_replace_disposition(
         ]
     )
 
-    # filesystem does not have versions and child tables
+    # filesystem does not have child tables, prepend defaults
     def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
-        if destination_config.destination != "filesystem":
-            return counts
-        return {**{"_dlt_version": 0}, **{t: 0 for t in child_tables}, **counts}
+        return {**{t: 0 for t in child_tables}, **counts}
 
     dataset_name = "test_replace_strategies_ds" + uniq_id()
     pipeline = destination_config.setup_pipeline(
@@ -105,8 +104,8 @@ def test_replace_disposition(
     assert_load_info(info)
     # count state records that got extracted
     state_records = increase_state_loads(info)
-    dlt_loads: int = increase_loads(0)
-    dlt_versions: int = increase_loads(0)
+    dlt_loads: int = 1
+    dlt_versions: int = 1
 
     # second run with higher offset so we can check the results
     offset = 1000
@@ -115,11 +114,11 @@ def test_replace_disposition(
     )
     assert_load_info(info)
     state_records += increase_state_loads(info)
-    dlt_loads = increase_loads(dlt_loads)
+    dlt_loads += 1
 
     # we should have all items loaded
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
-    assert norm_table_counts(table_counts) == {
+    assert table_counts == {
         "append_items": 24,  # loaded twice
         "items": 120,
         "items__sub_items": 240,
@@ -163,7 +162,7 @@ def test_replace_disposition(
     )
     assert_load_info(info)
     state_records += increase_state_loads(info)
-    dlt_loads = increase_loads(dlt_loads)
+    dlt_loads += 1
 
     # table and child tables should be cleared
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
@@ -197,8 +196,8 @@ def test_replace_disposition(
     assert_load_info(info)
     new_state_records = increase_state_loads(info)
     assert new_state_records == 1
-    dlt_loads = increase_loads(dlt_loads)
-    dlt_versions = increase_loads(dlt_versions)
+    dlt_loads += 1
+    dlt_versions += 1
     # check trace
     assert pipeline_2.last_trace.last_normalize_info.row_counts == {
         "items_copy": 120,
@@ -211,18 +210,18 @@ def test_replace_disposition(
     assert_load_info(info)
     new_state_records = increase_state_loads(info)
     assert new_state_records == 0
-    dlt_loads = increase_loads(dlt_loads)
+    dlt_loads += 1
 
     # new pipeline
     table_counts = load_table_counts(pipeline_2, *pipeline_2.default_schema.tables.keys())
-    assert norm_table_counts(table_counts) == {
+    assert table_counts == {
         "append_items": 48,
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
         "_dlt_pipeline_state": state_records + 1,
         "_dlt_loads": dlt_loads,
-        "_dlt_version": increase_loads(dlt_versions),
+        "_dlt_version": dlt_versions + 1,
     }
     # check trace
     assert pipeline_2.last_trace.last_normalize_info.row_counts == {
@@ -240,7 +239,7 @@ def test_replace_disposition(
         "items__sub_items__sub_sub_items": 0,
         "_dlt_pipeline_state": state_records + 1,
         "_dlt_loads": dlt_loads,  #  next load
-        "_dlt_version": increase_loads(dlt_versions),  # new table name -> new schema
+        "_dlt_version": dlt_versions + 1,  # new table name -> new schema
     }
 
 

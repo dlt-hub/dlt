@@ -1,29 +1,28 @@
 import pytest
-from copy import deepcopy
 import sqlfluff
 
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-pytest.importorskip("dlt.destinations.mssql.mssql", reason="MSSQL ODBC driver not installed")
+pytest.importorskip("dlt.destinations.impl.mssql.mssql", reason="MSSQL ODBC driver not installed")
 
 from dlt.destinations.impl.mssql.mssql import MsSqlClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> MsSqlClient:
+def client(empty_schema: Schema) -> MsSqlClient:
     # return client without opening connection
     return MsSqlClient(
-        schema,
-        MsSqlClientConfiguration(dataset_name="test_" + uniq_id(), credentials=MsSqlCredentials()),
+        empty_schema,
+        MsSqlClientConfiguration(credentials=MsSqlCredentials())._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
 
 

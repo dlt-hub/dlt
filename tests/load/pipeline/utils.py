@@ -21,6 +21,8 @@ from tests.load.utils import DestinationTestConfiguration, destinations_configs
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
+REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+
 
 @pytest.fixture(autouse=True)
 def drop_pipeline(request) -> Iterator[None]:
@@ -63,7 +65,7 @@ def drop_active_pipeline_data() -> None:
                 for schema_name in p.schema_names:
                     _drop_dataset(schema_name)
 
-        p._wipe_working_folder()
+        # p._wipe_working_folder()
         # deactivate context
         Container()[PipelineContext].deactivate()
 

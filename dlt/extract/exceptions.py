@@ -1,9 +1,9 @@
-from inspect import Signature, isgenerator
+from inspect import Signature, isgenerator, isgeneratorfunction, unwrap
 from typing import Any, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
-from dlt.extract.typing import ValidateItem, TDataItems
+from dlt.extract.items import ValidateItem, TDataItems
 
 
 class ExtractorException(DltException):
@@ -88,7 +88,7 @@ class PipeGenInvalid(PipeException):
             " extract method."
         )
         msg += (
-            "dlt will evaluate functions that were passed as data argument. If you passed a"
+            " dlt will evaluate functions that were passed as data argument. If you passed a"
             " function the returned data type is not iterable. "
         )
         type_name = str(type(gen))
@@ -98,6 +98,17 @@ class PipeGenInvalid(PipeException):
         if "DltResource" in type_name:
             msg += " Did you pass a function that returns dlt.resource without calling it?"
 
+        super().__init__(pipe_name, msg)
+
+
+class UnclosablePipe(PipeException):
+    def __init__(self, pipe_name: str, gen: Any) -> None:
+        type_name = str(type(gen))
+        if gen_name := getattr(gen, "__name__", None):
+            type_name = f"{type_name} ({gen_name})"
+        msg = f"Pipe with gen of type {type_name} cannot be closed."
+        if callable(gen) and isgeneratorfunction(unwrap(gen)):
+            msg += " Closing of partially evaluated transformers is not yet supported."
         super().__init__(pipe_name, msg)
 
 
@@ -144,15 +155,14 @@ class InvalidResourceDataType(DltResourceException):
         )
 
 
-class InvalidResourceDataTypeAsync(InvalidResourceDataType):
+class InvalidParallelResourceDataType(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(
             resource_name,
             item,
             _typ,
-            "Async iterators and generators are not valid resources. Please use standard iterators"
-            " and generators that yield Awaitables instead (for example by yielding from async"
-            " function without await",
+            "Parallel resource data must be a generator or a generator function. The provided"
+            f" data type for resource '{resource_name}' was {_typ.__name__}.",
         )
 
 
@@ -300,13 +310,6 @@ class ResourceNotATransformer(DltResourceException):
         super().__init__(resource_name, f"This resource is not a transformer: {msg}")
 
 
-class TableNameMissing(DltSourceException):
-    def __init__(self) -> None:
-        super().__init__(
-            """Table name is missing in table template. Please provide a string or a function that takes a data item as an argument"""
-        )
-
-
 class InconsistentTableTemplate(DltSourceException):
     def __init__(self, reason: str) -> None:
         msg = f"A set of table hints provided to the resource is inconsistent: {reason}"
@@ -377,11 +380,19 @@ class SourceIsAClassTypeError(DltSourceException):
         )
 
 
-class SourceSchemaNotAvailable(DltSourceException):
+class CurrentSourceSchemaNotAvailable(DltSourceException):
     def __init__(self) -> None:
         super().__init__(
             "Current source schema is available only when called from a function decorated with"
             " dlt.source or dlt.resource"
+        )
+
+
+class CurrentSourceNotAvailable(DltSourceException):
+    def __init__(self) -> None:
+        super().__init__(
+            "Current source is available only when called from a function decorated with"
+            " dlt.resource or dlt.transformer during the extract step"
         )
 
 

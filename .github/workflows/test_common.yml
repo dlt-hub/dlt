@@ -1,5 +1,4 @@
-
-name: test common
+name: common | common
 
 on:
   pull_request:
@@ -8,15 +7,20 @@ on:
       - devel
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   RUNTIME__LOG_LEVEL: ERROR
 
 jobs:
   get_docs_changes:
+    name: docs changes
     uses: ./.github/workflows/get_docs_changes.yml
 
   run_common:
-    name: Tests common dlt code
+    name: test
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -32,6 +36,8 @@ jobs:
             os: "ubuntu-latest"
           - python-version: "3.10.x"
             os: "ubuntu-latest"
+          - python-version: "3.12.x"
+            os: "ubuntu-latest"
 
     defaults:
       run:
@@ -46,6 +52,18 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+
+      - name: Install tzdata on windows
+        run: |
+          cd %USERPROFILE%
+          curl https://data.iana.org/time-zones/releases/tzdata2021e.tar.gz --output tzdata.tar.gz
+          mkdir tzdata
+          tar --extract --file tzdata.tar.gz --directory tzdata
+          mkdir %USERPROFILE%\Downloads\tzdata
+          copy tzdata %USERPROFILE%\Downloads\tzdata
+          curl https://raw.githubusercontent.com/unicode-org/cldr/master/common/supplemental/windowsZones.xml --output %USERPROFILE%\Downloads\tzdata\windowsZones.xml
+        if: runner.os == 'Windows'
+        shell: cmd
 
       - name: Install Poetry
         # https://github.com/snok/install-poetry#running-on-windows
@@ -81,13 +99,26 @@ jobs:
         run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os != 'Windows'
         name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
+        shell: cmd
+
+      - name: Install pyarrow
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk
+
+      - run: |
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
+        if: runner.os != 'Windows'
+        name: Run pipeline tests with pyarrow but no pandas installed
+      - run: |
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
+        if: runner.os == 'Windows'
+        name: Run pipeline tests with pyarrow but no pandas installed Windows
         shell: cmd
 
       - name: Install pipeline dependencies
@@ -117,7 +148,7 @@ jobs:
       #   shell: cmd
 
   matrix_job_required_check:
-    name: Common tests
+    name: common | common tests
     needs: run_common
     runs-on: ubuntu-latest
     if: always()

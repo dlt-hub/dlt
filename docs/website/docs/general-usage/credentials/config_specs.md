@@ -21,7 +21,7 @@ service account credentials, while `ConnectionStringCredentials` handles databas
 As an example, let's use `ConnectionStringCredentials` which represents a database connection
 string.
 
-```python
+```py
 from dlt.sources.credentials import ConnectionStringCredentials
 
 @dlt.source
@@ -60,17 +60,17 @@ dsn.password="loader"
 
 You can explicitly provide credentials in various forms:
 
-```python
+```py
 query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 # or
-query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"...})
+query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"})
 ```
 
 ## Built in credentials
 
 We have some ready-made credentials you can reuse:
 
-```python
+```py
 from dlt.sources.credentials import ConnectionStringCredentials
 from dlt.sources.credentials import OAuth2Credentials
 from dlt.sources.credentials import GcpServiceAccountCredentials, GcpOAuthCredentials
@@ -87,14 +87,14 @@ and additional query parameters.
 This class provides methods for parsing and generating connection strings.
 
 #### Usage
-```python
+```py
 credentials = ConnectionStringCredentials()
 
 # Set the necessary attributes
 credentials.drivername = "postgresql"
 credentials.database = "my_database"
 credentials.username = "my_user"
-credentials.password = "my_password"
+credentials.password = "my_password"  # type: ignore
 credentials.host = "localhost"
 credentials.port = 5432
 
@@ -117,11 +117,11 @@ client secret, refresh token, and access token.
 It also allows for the addition of scopes and provides methods for client authentication.
 
 Usage:
-```python
+```py
 credentials = OAuth2Credentials(
     client_id="CLIENT_ID",
-    client_secret="CLIENT_SECRET",
-    refresh_token="REFRESH_TOKEN",
+    client_secret="CLIENT_SECRET",  # type: ignore
+    refresh_token="REFRESH_TOKEN",  # type: ignore
     scopes=["scope1", "scope2"]
 )
 
@@ -153,7 +153,7 @@ This class provides methods to retrieve native credentials for Google clients.
 - You may just pass the `service.json` as string or dictionary (in code and via config providers).
 - Or default credentials will be used.
 
-```python
+```py
 credentials = GcpServiceAccountCredentials()
 # Parse a native value (ServiceAccountCredentials)
 # Accepts a native value, which can be either an instance of ServiceAccountCredentials
@@ -163,7 +163,7 @@ native_value = {"private_key": ".."} # or "path/to/services.json"
 credentials.parse_native_representation(native_value)
 ```
 or more preferred use:
-```python
+```py
 import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
 
@@ -204,7 +204,7 @@ serialized OAuth client secrets JSON.
 This class provides methods for authentication and obtaining access tokens.
 
 ##### Usage
-```python
+```py
 oauth_credentials = GcpOAuthCredentials()
 
 # Accepts a native value, which can be either an instance of GoogleOAuth2Credentials
@@ -214,7 +214,7 @@ native_value_oauth = {"client_secret": ...}
 oauth_credentials.parse_native_representation(native_value_oauth)
 ```
 or more preferred use:
-```python
+```py
 import dlt
 from dlt.sources.credentials import GcpOAuthCredentials
 
@@ -277,7 +277,7 @@ It inherits the ability to manage default credentials and extends it with method
 for handling partial credentials and converting credentials to a botocore session.
 
 #### Usage
-```python
+```py
 credentials = AwsCredentials()
 # Set the necessary attributes
 credentials.aws_access_key_id = "ACCESS_KEY_ID"
@@ -285,7 +285,7 @@ credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
 credentials.region_name = "us-east-1"
 ```
 or
-```python
+```py
 # Imports an external boto3 session and sets the credentials properties accordingly.
 import botocore.session
 
@@ -295,7 +295,7 @@ credentials.parse_native_representation(session)
 print(credentials.aws_access_key_id)
 ```
 or more preferred use:
-```python
+```py
 @dlt.source
 def aws_readers(
     bucket_url: str = dlt.config.value,
@@ -340,14 +340,14 @@ handling partial credentials and converting credentials to a format suitable
 for interacting with Azure Blob Storage using the adlfs library.
 
 #### Usage
-```python
+```py
 credentials = AzureCredentials()
 # Set the necessary attributes
 credentials.azure_storage_account_name = "ACCOUNT_NAME"
 credentials.azure_storage_account_key = "ACCOUNT_KEY"
 ```
 or more preferred use:
-```python
+```py
 @dlt.source
 def azure_readers(
     bucket_url: str = dlt.config.value,
@@ -388,7 +388,7 @@ decorated function.
 
 Example:
 
-```python
+```py
 @dlt.source
 def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
   # depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in `credentials` argument
@@ -432,7 +432,7 @@ This is used a lot in the `dlt` core and may become useful for complicated sourc
 In fact, for each decorated function a spec is synthesized. In case of `google_sheets` following
 class is created:
 
-```python
+```py
 from dlt.sources.config import configspec, with_config
 
 @configspec

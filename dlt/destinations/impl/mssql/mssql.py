@@ -1,5 +1,6 @@
 from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -20,6 +21,8 @@ from dlt.destinations.type_mapping import TypeMapper
 
 
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
+VARCHAR_MAX_N: int = 4000
+VARBINARY_MAX_N: int = 8000
 
 
 class MsSqlTypeMapper(TypeMapper):
@@ -71,7 +74,11 @@ class MsSqlTypeMapper(TypeMapper):
             return "smallint"
         if precision <= 32:
             return "int"
-        return "bigint"
+        elif precision <= 64:
+            return "bigint"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into mssql integer type"
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
@@ -133,8 +140,8 @@ class MsSqlMergeJob(SqlMergeJob):
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str) -> str:
-        name = SqlMergeJob._new_temp_table_name(name_prefix)
+    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+        name = SqlMergeJob._new_temp_table_name(name_prefix, sql_client)
         return "#" + name
 
 

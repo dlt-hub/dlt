@@ -15,6 +15,8 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 from tests.utils import skip_if_not_active
 from dlt.destinations.exceptions import DatabaseTerminalException
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 skip_if_not_active("athena")
 
@@ -27,7 +29,7 @@ def test_iceberg() -> None:
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://dlt-ci-test-bucket"
 
     pipeline = dlt.pipeline(
-        pipeline_name="aaaaathena-iceberg",
+        pipeline_name="athena-iceberg",
         destination="athena",
         staging="filesystem",
         full_refresh=True,

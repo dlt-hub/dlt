@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const dedent = require('dedent');
 var watch = require('node-watch');
+const fetch = require('sync-fetch')
 
 // docs snippets settings
 const BASE_DIR = "./docs/";
@@ -18,6 +19,13 @@ const EXAMPLES_CODE_SUBDIR = "/code";
 const DLT_MARKER = "@@@DLT";
 const START_MARKER = DLT_MARKER + "_SNIPPET_START";
 const END_MARKER = DLT_MARKER + "_SNIPPET_END";
+
+const tubaConfig = fetch('https://dlthub.com/docs/pipelines/links.json', {
+  headers: {
+    Accept: 'application/vnd.citationstyles.csl+json'
+  }
+}).json()
+
 
 // yield all files in dir
 function *walkSync(dir) {
@@ -39,8 +47,6 @@ function *listDirsSync(dir) {
       }
     }
 }
-
-
 
 // extract the snippet name from a line
 const extractSnippetName = (tag, line) => {
@@ -99,8 +105,34 @@ function getSnippetFromFile(snippetsFileName, snippetName) {
 
 // get the right snippet for a file
 function getSnippet(fileName, snippetName) {
+
+    // regular snippet
     const ext = path.extname(fileName);
-    const snippetParts = snippetName.split("::");
+    const snippetParts = snippetName.split("::"); 
+
+    // tuba snippet
+    if (snippetName.startsWith("tuba::")) {
+        const tag = snippetParts[1];
+        const links = []
+        for (const link of tubaConfig) {
+            if (link.tags.includes(tag)) {
+                links.push(link)
+            }
+        }
+        // no matching links
+        if (links.length == 0) {
+            return []
+        }
+
+        // render links
+        const snippet = ["## Additional Setup guides", ""]
+        for (const link of links) {
+            snippet.push(`- [${link.title}](${link.public_url})`)
+        }
+        return snippet
+    }
+
+    // regular snippet
     let snippetsFileName = fileName.slice(0, -ext.length) + SNIPPETS_FILE_SUFFIX;
     if (snippetParts.length > 1) {
         snippetsFileName = path. dirname(fileName) + "/" + snippetParts[0];

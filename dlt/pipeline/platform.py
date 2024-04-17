@@ -1,14 +1,15 @@
 """Implements SupportsTracking"""
 from typing import Any, cast, TypedDict, List
 import requests
-from dlt.common.managed_thread_pool import ManagedThreadPool
 from urllib.parse import urljoin
 
-from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
-from dlt.common import json
-from dlt.common.runtime import logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.pipeline import LoadInfo
+from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.schema.typing import TStoredSchema
+
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 
 _THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
 TRACE_URL_SUFFIX = "/trace"

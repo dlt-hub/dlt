@@ -1,7 +1,6 @@
-import yaml
 from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast, Literal
-from dlt.common import json
+from dlt.common.schema.migrations import migrate_schema
 
 from dlt.common.utils import extend_list_deduplicated
 from dlt.common.typing import (
@@ -75,13 +74,15 @@ class Schema:
 
     _schema_name: str
     _dlt_tables_prefix: str
-    _stored_version: int  # version at load/creation time
-    _stored_version_hash: str  # version hash at load/creation time
+    _stored_version: int  # version at load time
+    _stored_version_hash: str  # version hash at load time
     _stored_previous_hashes: Optional[List[str]]  # list of ancestor hashes of the schema
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
-    _settings: TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    _settings: (
+        TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    )
 
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
@@ -103,7 +104,7 @@ class Schema:
     @classmethod
     def from_dict(cls, d: DictStrAny, bump_version: bool = True) -> "Schema":
         # upgrade engine if needed
-        stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
+        stored_schema = migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
         utils.validate_stored_schema(stored_schema)
         # add defaults
@@ -123,10 +124,22 @@ class Schema:
         self._from_stored_schema(stored_schema)
         return self
 
-    def replace_schema_content(self, schema: "Schema") -> None:
-        self._reset_schema(schema.name, schema._normalizers_config)
+    def replace_schema_content(
+        self, schema: "Schema", link_to_replaced_schema: bool = False
+    ) -> None:
+        """Replaces content of the current schema with `schema` content. Does not compute new schema hash and
+        does not increase the numeric version. Optionally will link the replaced schema to incoming schema
+        by keeping its hash in prev hashes and setting stored hash to replaced schema hash.
+        """
         # do not bump version so hash from `schema` is preserved
-        self._from_stored_schema(schema.to_dict(bump_version=False))
+        stored_schema = schema.to_dict(bump_version=False)
+        if link_to_replaced_schema:
+            replaced_version_hash = self.version_hash
+            # do not store hash if the replaced schema is identical
+            if schema.version_hash != replaced_version_hash:
+                utils.store_prev_hash(stored_schema, replaced_version_hash)
+        self._reset_schema(schema.name, schema._normalizers_config)
+        self._from_stored_schema(stored_schema)
 
     def to_dict(self, remove_defaults: bool = False, bump_version: bool = True) -> TStoredSchema:
         stored_schema: TStoredSchema = {
@@ -390,6 +403,7 @@ class Schema:
         return Schema.expand_schema_contract_settings(settings)
 
     def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+        """Adds or merges `partial_table` into the schema. Identifiers are not normalized"""
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -408,13 +422,13 @@ class Schema:
             self._schema_tables[table_name] = partial_table
         else:
             # merge tables performing additional checks
-            partial_table = utils.merge_tables(table, partial_table)
+            partial_table = utils.merge_table(table, partial_table)
 
         self.data_item_normalizer.extend_table(table_name)
         return partial_table
 
     def update_schema(self, schema: "Schema") -> None:
-        """Updates this schema from an incoming schema"""
+        """Updates this schema from an incoming schema. Normalizes identifiers after updating normalizers."""
         # update all tables
         for table in schema.tables.values():
             self.update_table(table)
@@ -423,19 +437,6 @@ class Schema:
         # update and compile settings
         self._settings = deepcopy(schema.settings)
         self._compile_settings()
-
-    def bump_version(self) -> Tuple[int, str]:
-        """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
-
-        Should not be used in production code. The method ``to_dict`` will generate TStoredSchema with correct value, only once before persisting schema to storage.
-
-        Returns:
-            Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
-        """
-        self._stored_version, self._stored_version_hash, _, _ = utils.bump_version_if_modified(
-            self.to_dict(bump_version=False)
-        )
-        return self._stored_version, self._stored_version_hash
 
     def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
         rv_row: DictStrAny = {}
@@ -497,7 +498,7 @@ class Schema:
                 # re-index columns as the name changed, if name space was reduced then
                 # some columns now clash with each other. so make sure that we merge columns that are already there
                 if new_col_name in new_columns:
-                    new_columns[new_col_name] = utils.merge_columns(
+                    new_columns[new_col_name] = utils.merge_column(
                         new_columns[new_col_name], c, merge_defaults=False
                     )
                 else:
@@ -535,22 +536,36 @@ class Schema:
                 if utils.is_complete_column(v)
             }
 
-    def data_tables(self, include_incomplete: bool = False) -> List[TTableSchema]:
+    def data_tables(
+        self, seen_data_only: bool = False, include_incomplete: bool = False
+    ) -> List[TTableSchema]:
         """Gets list of all tables, that hold the loaded data. Excludes dlt tables. Excludes incomplete tables (ie. without columns)"""
         return [
             t
             for t in self._schema_tables.values()
             if not t["name"].startswith(self._dlt_tables_prefix)
             and (
-                include_incomplete or len(self.get_table_columns(t["name"], include_incomplete)) > 0
+                (
+                    include_incomplete
+                    or len(self.get_table_columns(t["name"], include_incomplete)) > 0
+                )
+                and (not seen_data_only or utils.has_table_seen_data(t))
             )
         ]
+
+    def data_table_names(self) -> List[str]:
+        """Returns list of table table names. Excludes dlt table names."""
+        return [t["name"] for t in self.data_tables()]
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
         return [
             t for t in self._schema_tables.values() if t["name"].startswith(self._dlt_tables_prefix)
         ]
+
+    def dlt_table_names(self) -> List[str]:
+        """Returns list of dlt table names."""
+        return [t["name"] for t in self.dlt_tables()]
 
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
@@ -600,6 +615,19 @@ class Schema:
         return self._stored_version_hash
 
     @property
+    def is_modified(self) -> bool:
+        """Checks if schema was modified from the time it was saved or if this is a new schema
+
+        A current version hash is computed and compared with stored version hash
+        """
+        return self.version_hash != self._stored_version_hash
+
+    @property
+    def is_new(self) -> bool:
+        """Checks if schema was ever saved"""
+        return self._stored_version_hash is None
+
+    @property
     def name(self) -> str:
         return self._schema_name
 
@@ -614,22 +642,24 @@ class Schema:
 
     def to_pretty_json(self, remove_defaults: bool = True) -> str:
         d = self.to_dict(remove_defaults=remove_defaults)
-        return json.dumps(d, pretty=True)
+        return utils.to_pretty_json(d)
 
     def to_pretty_yaml(self, remove_defaults: bool = True) -> str:
         d = self.to_dict(remove_defaults=remove_defaults)
-        return yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        return utils.to_pretty_yaml(d)
 
     def clone(self, with_name: str = None, update_normalizers: bool = False) -> "Schema":
         """Make a deep copy of the schema, optionally changing the name, and updating normalizers and identifiers in the schema if `update_normalizers` is True
 
-        Note that changing of name will break the previous version chain
+        Note that changing of name will set the schema as new
         """
-        d = deepcopy(self.to_dict())
+        d = deepcopy(self.to_dict(bump_version=False))
         if with_name is not None:
+            d["version"] = d["version_hash"] = None
+            d.pop("imported_version_hash", None)
             d["name"] = with_name
             d["previous_hashes"] = []
-        schema = Schema.from_dict(d)  # type: ignore
+        schema = Schema.from_stored_schema(d)
         # update normalizers and possibly all schema identifiers
         if update_normalizers:
             schema.update_normalizers()
@@ -750,7 +780,7 @@ class Schema:
             # if there's incomplete new_column then merge it with inferred column
             if new_column:
                 # use all values present in incomplete column to override inferred column - also the defaults
-                new_column = utils.merge_columns(inferred_column, new_column)
+                new_column = utils.merge_column(inferred_column, new_column)
             else:
                 new_column = inferred_column
 
@@ -774,6 +804,28 @@ class Schema:
             return any(h.search(col_name) for h in self._compiled_hints[hint_type])
         else:
             return False
+
+    def _bump_version(self) -> Tuple[int, str]:
+        """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
+
+        Should not be used directly. The method ``to_dict`` will generate TStoredSchema with correct value, only once before persisting schema to storage.
+
+        Returns:
+            Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
+        """
+        self._stored_version, self._stored_version_hash, _, _ = utils.bump_version_if_modified(
+            self.to_dict(bump_version=False)
+        )
+        return self._stored_version, self._stored_version_hash
+
+    def _drop_version(self) -> None:
+        """Stores first prev hash as stored hash and decreases numeric version"""
+        if len(self.previous_hashes) == 0 or self._stored_version is None:
+            self._stored_version = None
+            self._stored_version_hash = None
+        else:
+            self._stored_version -= 1
+            self._stored_version_hash = self._stored_previous_hashes.pop(0)
 
     def _add_standard_tables(self) -> None:
         self._schema_tables[self.version_table_name] = self.normalize_table_identifiers(
@@ -817,7 +869,7 @@ class Schema:
     def _reset_schema(self, name: str, normalizers: TNormalizersConfig = None) -> None:
         self._schema_tables: TSchemaTables = {}
         self._schema_name: str = None
-        self._stored_version = 1
+        self._stored_version = None
         self._stored_version_hash: str = None
         self._imported_version_hash: str = None
         self._schema_description: str = None
@@ -846,8 +898,6 @@ class Schema:
         self._add_standard_tables()
         # compile all known regexes
         self._compile_settings()
-        # set initial version hash
-        self._stored_version_hash = self.version_hash
 
     def _from_stored_schema(self, stored_schema: TStoredSchema) -> None:
         self._schema_tables = stored_schema.get("tables") or {}

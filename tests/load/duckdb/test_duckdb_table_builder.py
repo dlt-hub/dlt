@@ -8,18 +8,24 @@ from dlt.common.schema import Schema
 from dlt.destinations.impl.duckdb.duck import DuckDbClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
-from tests.load.utils import TABLE_UPDATE
+from tests.cases import (
+    TABLE_UPDATE_ALL_INT_PRECISIONS,
+    TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS,
+    TABLE_UPDATE,
+)
+from tests.load.utils import empty_schema
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> DuckDbClient:
+def client(empty_schema: Schema) -> DuckDbClient:
     # return client without opening connection
-    return DuckDbClient(schema, DuckDbClientConfiguration(dataset_name="test_" + uniq_id()))
+    return DuckDbClient(
+        empty_schema,
+        DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
+    )
 
 
 def test_create_table(client: DuckDbClient) -> None:
@@ -46,15 +52,34 @@ def test_create_table(client: DuckDbClient) -> None:
     assert '"col11_precision" TIME  NOT NULL' in sql
 
 
+def test_create_table_all_precisions(client: DuckDbClient) -> None:
+    # non existing table
+    sql = client._get_table_update_sql(
+        "event_test_table",
+        TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS,
+        False,
+    )[0]
+    sqlfluff.parse(sql, dialect="duckdb")
+    assert '"col1_ts" TIMESTAMP_S ' in sql
+    assert '"col2_ts" TIMESTAMP_MS ' in sql
+    assert '"col3_ts" TIMESTAMP WITH TIME ZONE ' in sql
+    assert '"col4_ts" TIMESTAMP_NS ' in sql
+    assert '"col1_int" TINYINT ' in sql
+    assert '"col2_int" SMALLINT ' in sql
+    assert '"col3_int" INTEGER ' in sql
+    assert '"col4_int" BIGINT ' in sql
+    assert '"col5_int" HUGEINT ' in sql
+
+
 def test_alter_table(client: DuckDbClient) -> None:
     # existing table has no columns
     sqls = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     for sql in sqls:
         sqlfluff.parse(sql, dialect="duckdb")
-    cannonical_name = client.sql_client.make_qualified_table_name("event_test_table")
+    canonical_name = client.sql_client.make_qualified_table_name("event_test_table")
     # must have several ALTER TABLE statements
     sql = ";\n".join(sqls)
-    assert sql.count(f"ALTER TABLE {cannonical_name}\nADD COLUMN") == 28
+    assert sql.count(f"ALTER TABLE {canonical_name}\nADD COLUMN") == 28
     assert "event_test_table" in sql
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql
@@ -94,7 +119,9 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     # same thing with indexes
     client = DuckDbClient(
         client.schema,
-        DuckDbClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=True),
+        DuckDbClientConfiguration(create_indexes=True)._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql)

@@ -14,10 +14,11 @@ from typing import (
 )
 from typing_extensions import Annotated, get_args, get_origin
 
+from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns
-from dlt.common.data_types import py_type_to_sc_type
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.typing import (
     TDataItem,
     TDataItems,
@@ -52,6 +53,9 @@ except ImportError:
 _TPydanticModel = TypeVar("_TPydanticModel", bound=BaseModel)
 
 
+snake_case_naming_convention = SnakeCaseNamingConvention()
+
+
 class ListModel(BaseModel, Generic[_TPydanticModel]):
     items: List[_TPydanticModel]
 
@@ -71,7 +75,7 @@ class DltConfig(TypedDict, total=False):
 
 
 def pydantic_to_table_schema_columns(
-    model: Union[BaseModel, Type[BaseModel]]
+    model: Union[BaseModel, Type[BaseModel]],
 ) -> TTableSchemaColumns:
     """Convert a pydantic model to a table schema columns dict
 
@@ -96,39 +100,63 @@ def pydantic_to_table_schema_columns(
             # This applies to pydantic.Json fields, the inner type is the type after json parsing
             # (In pydantic 2 the outer annotation is the final type)
             annotation = inner_annotation
+
         nullable = is_optional_type(annotation)
 
-        if is_union_type(annotation):
-            inner_type = get_args(annotation)[0]
-        else:
-            inner_type = extract_inner_type(annotation)
+        inner_type = extract_inner_type(annotation)
+        if is_union_type(inner_type):
+            first_argument_type = get_args(inner_type)[0]
+            inner_type = extract_inner_type(first_argument_type)
 
         if inner_type is Json:  # Same as `field: Json[Any]`
-            inner_type = Any
+            inner_type = Any  # type: ignore[assignment]
 
         if inner_type is Any:  # Any fields will be inferred from data
             continue
 
         if is_list_generic_type(inner_type):
             inner_type = list
-        elif is_dict_generic_type(inner_type) or issubclass(inner_type, BaseModel):
+        elif is_dict_generic_type(inner_type):
             inner_type = dict
 
+        is_inner_type_pydantic_model = False
         name = field.alias or field_name
         try:
             data_type = py_type_to_sc_type(inner_type)
         except TypeError:
-            # try to coerce unknown type to text
-            data_type = "text"
+            if issubclass(inner_type, BaseModel):
+                data_type = "complex"
+                is_inner_type_pydantic_model = True
+            else:
+                # try to coerce unknown type to text
+                data_type = "text"
 
-        if data_type == "complex" and skip_complex_types:
+        if is_inner_type_pydantic_model and not skip_complex_types:
+            result[name] = {
+                "name": name,
+                "data_type": "complex",
+                "nullable": nullable,
+            }
+        elif is_inner_type_pydantic_model:
+            # This case is for a single field schema/model
+            # we need to generate snake_case field names
+            # and return flattened field schemas
+            schema_hints = pydantic_to_table_schema_columns(inner_type)
+
+            for field_name, hints in schema_hints.items():
+                schema_key = snake_case_naming_convention.make_path(name, field_name)
+                result[schema_key] = {
+                    **hints,
+                    "name": snake_case_naming_convention.make_path(name, hints["name"]),
+                }
+        elif data_type == "complex" and skip_complex_types:
             continue
-
-        result[name] = {
-            "name": name,
-            "data_type": data_type,
-            "nullable": nullable,
-        }
+        else:
+            result[name] = {
+                "name": name,
+                "data_type": data_type,
+                "nullable": nullable,
+            }
 
     return result
 
@@ -202,7 +230,7 @@ def apply_schema_contract_to_model(
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
-            return Annotated[_process_annotation(a_t), a_m]  # type: ignore
+            return Annotated[_process_annotation(a_t), tuple(a_m)]  # type: ignore[return-value]
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
             try:
@@ -261,7 +289,8 @@ def create_list_model(
     # TODO: use LenientList to create list model that automatically discards invalid items
     #   https://github.com/pydantic/pydantic/issues/2274 and https://gist.github.com/dmontagu/7f0cef76e5e0e04198dd608ad7219573
     return create_model(
-        "List" + __name__, items=(List[model], ...)  # type: ignore[return-value,valid-type]
+        "List" + __name__,
+        items=(List[model], ...),  # type: ignore[return-value,valid-type]
     )
 
 

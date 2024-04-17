@@ -1,7 +1,7 @@
 import os
 import pytest
 from pathlib import Path
-from sqlalchemy.engine import make_url
+from dlt.common.libs.sql_alchemy import make_url
 
 pytest.importorskip("snowflake")
 
@@ -15,6 +15,9 @@ from dlt.destinations.impl.snowflake.configuration import (
 )
 
 from tests.common.configuration.utils import environment
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def test_connection_string_with_all_params() -> None:

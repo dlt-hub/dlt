@@ -1,24 +1,39 @@
 import os
+import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
 import pytest
-from pydantic import BaseModel
+
+try:
+    from pydantic import BaseModel
+    from dlt.common.libs.pydantic import DltConfig
+except ImportError:
+    # mock pydantic with dataclasses. allow to run tests
+    # not requiring pydantic
+    from dataclasses import dataclass
+
+    @dataclass
+    class BaseModel:  # type: ignore[no-redef]
+        pass
+
 
 import dlt
 from dlt.common import json, pendulum
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import TLoaderFileFormat
-from dlt.common.libs.pydantic import DltConfig
 from dlt.common.runtime.collector import (
     AliveCollector,
     EnlightenCollector,
     LogCollector,
     TqdmCollector,
 )
+from dlt.common.storages import FileStorage
+
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.validation import PydanticValidator
 
 from dlt.pipeline import TCollectorArg
 
+from tests.utils import TEST_STORAGE_ROOT, test_storage
 from tests.extract.utils import expect_extracted_file
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_delayed
@@ -192,6 +207,32 @@ def test_extract_pydantic_models() -> None:
     )
 
 
+def test_mark_hints_pydantic_columns() -> None:
+    pipeline = dlt.pipeline(destination="duckdb")
+
+    class User(BaseModel):
+        user_id: int
+        name: str
+
+    # this resource emits table schema with first item
+    @dlt.resource
+    def with_mark():
+        yield dlt.mark.with_hints(
+            {"user_id": 1, "name": "zenek"},
+            dlt.mark.make_hints(columns=User, primary_key="user_id"),
+        )
+
+    pipeline.run(with_mark)
+    # pydantic schema used to create columns
+    assert "with_mark" in pipeline.default_schema.tables
+    # resource name is kept
+    table = pipeline.default_schema.tables["with_mark"]
+    assert table["resource"] == "with_mark"
+    assert table["columns"]["user_id"]["data_type"] == "bigint"
+    assert table["columns"]["user_id"]["primary_key"] is True
+    assert table["columns"]["name"]["data_type"] == "text"
+
+
 @pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
 def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
     @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])
@@ -200,3 +241,279 @@ def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
 
     pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(generic(), loader_file_format=file_format)
+
+
+class Child(BaseModel):
+    child_attribute: str
+    optional_child_attribute: Optional[str] = None
+
+
+def test_flattens_model_when_skip_complex_types_is_set() -> None:
+    class Parent(BaseModel):
+        child: Child
+        optional_parent_attribute: Optional[str] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    example_data = {
+        "optional_parent_attribute": None,
+        "child": {
+            "child_attribute": "any string",
+            "optional_child_attribute": None,
+        },
+    }
+
+    p = dlt.pipeline("example", destination="duckdb")
+    p.run([example_data], table_name="items", columns=Parent)
+
+    with p.sql_client() as client:
+        with client.execute_query("SELECT * FROM items") as cursor:
+            loaded_values = {
+                col[0]: val
+                for val, col in zip(cursor.fetchall()[0], cursor.description)
+                if col[0] not in ("_dlt_id", "_dlt_load_id")
+            }
+
+            # Check if child dictionary is flattened and added to schema
+            assert loaded_values == {
+                "child__child_attribute": "any string",
+                "child__optional_child_attribute": None,
+                "optional_parent_attribute": None,
+            }
+
+    keys = p.default_schema.tables["items"]["columns"].keys()
+    columns = p.default_schema.tables["items"]["columns"]
+
+    assert keys == {
+        "child__child_attribute",
+        "child__optional_child_attribute",
+        "optional_parent_attribute",
+        "_dlt_load_id",
+        "_dlt_id",
+    }
+
+    assert columns["child__child_attribute"] == {
+        "name": "child__child_attribute",
+        "data_type": "text",
+        "nullable": False,
+    }
+
+    assert columns["child__optional_child_attribute"] == {
+        "name": "child__optional_child_attribute",
+        "data_type": "text",
+        "nullable": True,
+    }
+
+    assert columns["optional_parent_attribute"] == {
+        "name": "optional_parent_attribute",
+        "data_type": "text",
+        "nullable": True,
+    }
+
+
+def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
+    class Parent(BaseModel):
+        child: Child
+        optional_parent_attribute: Optional[str] = None
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+
+    example_data = {
+        "optional_parent_attribute": None,
+        "data_dictionary": {
+            "child_attribute": "any string",
+        },
+        "child": {
+            "child_attribute": "any string",
+            "optional_child_attribute": None,
+        },
+    }
+
+    p = dlt.pipeline("example", destination="duckdb")
+    p.run([example_data], table_name="items", columns=Parent)
+
+    with p.sql_client() as client:
+        with client.execute_query("SELECT * FROM items") as cursor:
+            loaded_values = {
+                col[0]: val
+                for val, col in zip(cursor.fetchall()[0], cursor.description)
+                if col[0] not in ("_dlt_id", "_dlt_load_id")
+            }
+
+            # Check if complex fields preserved
+            # their contents and were not flattened
+            assert loaded_values == {
+                "child": '{"child_attribute":"any string","optional_child_attribute":null}',
+                "optional_parent_attribute": None,
+                "data_dictionary": '{"child_attribute":"any string"}',
+            }
+
+    keys = p.default_schema.tables["items"]["columns"].keys()
+    assert keys == {
+        "child",
+        "optional_parent_attribute",
+        "data_dictionary",
+        "_dlt_load_id",
+        "_dlt_id",
+    }
+
+    columns = p.default_schema.tables["items"]["columns"]
+
+    assert columns["optional_parent_attribute"] == {
+        "name": "optional_parent_attribute",
+        "data_type": "text",
+        "nullable": True,
+    }
+
+    assert columns["data_dictionary"] == {
+        "name": "data_dictionary",
+        "data_type": "complex",
+        "nullable": False,
+    }
+
+
+def test_skips_complex_fields_when_skip_complex_types_is_true_and_field_is_not_a_pydantic_model():
+    class Parent(BaseModel):
+        data_list: List[int] = []
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    example_data = {
+        "optional_parent_attribute": None,
+        "data_list": [12, 12, 23, 23, 45],
+        "data_dictionary": {
+            "child_attribute": "any string",
+        },
+    }
+
+    p = dlt.pipeline("example", destination="duckdb")
+    p.run([example_data], table_name="items", columns=Parent)
+
+    table_names = [item["name"] for item in p.default_schema.data_tables()]
+    assert "items__data_list" in table_names
+
+    # But `data_list` and `data_dictionary` will be loaded
+    with p.sql_client() as client:
+        with client.execute_query("SELECT * FROM items") as cursor:
+            loaded_values = {
+                col[0]: val
+                for val, col in zip(cursor.fetchall()[0], cursor.description)
+                if col[0] not in ("_dlt_id", "_dlt_load_id")
+            }
+
+            assert loaded_values == {"data_dictionary__child_attribute": "any string"}
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("pandas") is not None,
+    reason="Test skipped because pandas IS installed",
+)
+def test_arrow_no_pandas() -> None:
+    import pyarrow as pa
+
+    data = {
+        "Numbers": [1, 2, 3, 4, 5],
+        "Strings": ["apple", "banana", "cherry", "date", "elderberry"],
+    }
+
+    df = pa.table(data)
+
+    @dlt.resource
+    def pandas_incremental(numbers=dlt.sources.incremental("Numbers")):
+        yield df
+
+    info = dlt.run(
+        pandas_incremental(), write_disposition="append", table_name="data", destination="duckdb"
+    )
+
+    with info.pipeline.sql_client() as client:  # type: ignore
+        with client.execute_query("SELECT * FROM data") as c:
+            with pytest.raises(ImportError):
+                df = c.df()
+
+
+def test_empty_parquet(test_storage: FileStorage) -> None:
+    from dlt.destinations import filesystem
+
+    local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
+
+    # we have two options to materialize columns: add columns hint or use dlt.mark to emit schema
+    # at runtime. below we use the second option
+
+    @dlt.resource
+    def users():
+        yield dlt.mark.with_hints(
+            # this is a special empty item which will materialize table schema
+            dlt.mark.materialize_table_schema(),
+            # emit table schema with the item
+            dlt.mark.make_hints(
+                columns=[
+                    {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
+                    {"name": "name", "data_type": "text", "nullable": False},
+                ]
+            ),
+        )
+
+    # write parquet file to storage
+    info = dlt.run(users, destination=local, loader_file_format="parquet", dataset_name="user_data")
+    assert_load_info(info)
+    assert set(info.pipeline.default_schema.tables["users"]["columns"].keys()) == {"id", "name", "_dlt_load_id", "_dlt_id"}  # type: ignore
+    # find parquet file
+    files = test_storage.list_folder_files("user_data/users")
+    assert len(files) == 1
+
+    # check rows and schema
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(os.path.abspath(test_storage.make_full_path(files[0])))
+    assert table.num_rows == 0
+    assert set(table.schema.names) == {"id", "name", "_dlt_load_id", "_dlt_id"}
+
+
+def test_pick_matching_file_format(test_storage: FileStorage) -> None:
+    from dlt.destinations import filesystem
+
+    local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
+
+    import pyarrow as pa
+
+    data = {
+        "Numbers": [1, 2, 3, 4, 5],
+        "Strings": ["apple", "banana", "cherry", "date", "elderberry"],
+    }
+
+    df = pa.table(data)
+
+    # load arrow and object to filesystem. we should get a parquet and a jsonl file
+    info = dlt.run(
+        [
+            dlt.resource([data], name="object"),
+            dlt.resource(df, name="arrow"),
+        ],
+        destination=local,
+        dataset_name="user_data",
+    )
+    assert_load_info(info)
+    files = test_storage.list_folder_files("user_data/arrow")
+    assert len(files) == 1
+    assert files[0].endswith("parquet")
+    files = test_storage.list_folder_files("user_data/object")
+    assert len(files) == 1
+    assert files[0].endswith("jsonl")
+
+    # load as csv
+    info = dlt.run(
+        [
+            dlt.resource([data], name="object"),
+            dlt.resource(df, name="arrow"),
+        ],
+        destination=local,
+        dataset_name="user_data_csv",
+        loader_file_format="csv",
+    )
+    assert_load_info(info)
+    files = test_storage.list_folder_files("user_data_csv/arrow")
+    assert len(files) == 1
+    assert files[0].endswith("csv")
+    files = test_storage.list_folder_files("user_data_csv/object")
+    assert len(files) == 1
+    assert files[0].endswith("csv")

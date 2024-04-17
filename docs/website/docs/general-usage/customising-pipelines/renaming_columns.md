@@ -12,7 +12,7 @@ In the example below, we create a dummy source with special characters in the na
 function that we intend to apply to the resource to modify its output (i.e. replacing the German
 umlaut): `replace_umlauts_in_dict_keys`.
 
-```python
+```py
 import dlt
 
 # create a dummy source with umlauts (special characters) in key names (um)
@@ -44,10 +44,10 @@ def replace_umlauts_in_dict_keys(d):
 data_source = dummy_source()
 
 # 2. Modify this source instance's resource
-data_source = data_source.dummy_data().add_map(replace_umlauts_in_dict_keys)
+data_resource = data_source.dummy_data().add_map(replace_umlauts_in_dict_keys)
 
 # 3. Inspect your result
-for row in data_source:
+for row in data_resource:
     print(row)
 
 # {'Objekt_0': {'Groesse': 0, 'Aequivalenzpruefung': True}}

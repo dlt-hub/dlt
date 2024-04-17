@@ -1,6 +1,5 @@
-import dlt
 from dlt import TSecretValue
-from dlt.common import logger
+from dlt.common.runtime.init import init_logging
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.configuration.providers import GoogleSecretsProvider
 from dlt.common.configuration.accessors import secrets
@@ -24,7 +23,7 @@ project_id="mock-credentials"
 
 
 def test_regular_keys() -> None:
-    logger.init_logging(RunConfiguration())
+    init_logging(RunConfiguration())
     # copy bigquery credentials into providers credentials
     c = resolve_configuration(
         GcpServiceAccountCredentials(), sections=(known_sections.DESTINATION, "bigquery")
@@ -34,6 +33,10 @@ def test_regular_keys() -> None:
     # print(c)
     provider: GoogleSecretsProvider = _google_secrets_provider()  # type: ignore[assignment]
     assert provider._toml.as_string().strip() == DLT_SECRETS_TOML_CONTENT.strip()
+    assert provider.get_value("secret_value", AnyType, "pipeline x !!") == (
+        None,
+        "pipelinex-secret_value",
+    )
     assert provider.get_value("secret_value", AnyType, None) == (2137, "secret_value")
     assert provider.get_value("secret_key", AnyType, None, "api") == ("ABCD", "api-secret_key")
 

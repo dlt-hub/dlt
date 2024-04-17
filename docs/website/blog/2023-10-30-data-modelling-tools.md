@@ -1,7 +1,7 @@
 ---
 slug: semantic-modeling-tools-comparison
 title: "Semantic Modeling Capabilities of Power BI, GoodData & Metabase: A Comparison"
-image: /img/people-stuck-with-tables-2.jpg
+image: https://storage.googleapis.com/dlt-blog-images/people-stuck-with-tables-2.jpg
 authors:
   name: Hiba Jamal
   title: Data Science intern at dlthub
@@ -10,7 +10,7 @@ authors:
 tags: [data modelling]
 ---
 
-![cover](/img/people-stuck-with-tables-2.jpg)
+![cover](https://storage.googleapis.com/dlt-blog-images/people-stuck-with-tables-2.jpg)
 DeepAI Image with prompt: People stuck with tables.
 
 <aside>
@@ -71,7 +71,7 @@ Our database is based on the data published by [LivWell](https://www.nature.com/
 
 Sample input structure:
 
-```jsx
+```py
 [{"survey_id": "AM2000DHS",
 "country": "Armenia",
 "marriage_related": [{...}, {...}, ...],
@@ -81,12 +81,12 @@ Sample input structure:
 "health_related": [{...}, {...}, ...],
 "age_related": [{...}, {...}, ...]
 },
-  {...}, {...}, {...}, ...}]
+  {...}, {...}, {...}, {...}]
 ```
 
 To break it up into proper tables representing the different sections of the surveys, we gave this data to **dlt** to unpack it into a flat relational structure into BigQuery. dlt automatically unpacked the original data into connected tables. The various child tables link to the parent table `wellness` using foreign keys. `Wellness` contains surveys identified by ID and country.  The final setup of indicators broken up into different categories can be found below, as displayed by Power BI. This structured database has been used to experiment with all three dashboarding tools in this article.
 
-![pbi-modelled-livewell](/img/pbi-modelled-livewell.png)
+![pbi-modelled-livewell](https://storage.googleapis.com/dlt-blog-images/pbi-modelled-livewell.png)
 The database schema as presented by a Power BI Model.
 
 # <a id="comp-table"></a>Comparison Metrics & Table
@@ -132,7 +132,7 @@ Before delving into detailed analyses on those metrics, here's an overview of wh
     <tr>
       <td><a href="#table-relationships">Inter Table Relationships </a></td>
       <td>Simplifies data modeling in Model View with drag-and-drop relationships, auto or manual detection, and cardinality editing.</td>
-      <td>GoodData separates date fields into distinct tables, creating a star schema, and automatically identifies keys using source naming conventions.</td>
+      <td>GoodData separates date fields into distinct tables, creating a star schema, automatically identifies keys using source naming conventions, and allows drag-and-drop relationships creation.</td>
       <td>Metabase lets you specify keys at the table level, globally in the admin panel, or within Models and questions, connecting tables through SQL queries or models.</td>
     </tr>
     <tr>
@@ -144,7 +144,7 @@ Before delving into detailed analyses on those metrics, here's an overview of wh
     <tr>
       <td><a href="#granularity-mngmt"> Data granularity Management: Column Creation & Aggregation capabilities </a></td>
       <td>Power BI permits the creation of custom fields, and tables, facilitating data granularity adjustments and customized aggregation.</td>
-      <td>Custom calculated fields need the Brick integrator. But, datetime granularity is simplified with custom truncation settings.</td>
+      <td>Custom calculated fields and other transformations can be achieved with a SQL query under the dataset. Datetime granularity is simplified with custom truncation settings.</td>
       <td>Like Power BI, it allows users to create models with custom aggregation levels and add custom fields through Custom Expressions.</td>
     </tr>
     <tr>
@@ -171,7 +171,7 @@ When designing databases, or even coding in languages that require the “type�
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-data-types-power-bi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-data-types-power-bi.png)
 
 </div>
 
@@ -187,7 +187,7 @@ The column types as declared in Power BI in the first image here show that inste
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/data-types-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/data-types-gooddata.png)
 
 </div>
 
@@ -203,7 +203,7 @@ While there is a wide range of [data types supported](https://www.gooddata.com/d
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/data-types-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/data-types-metabase.png)
 
 </div>
 
@@ -223,7 +223,7 @@ In order for an end user to use data, they need to have data literacy. That is t
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-data-dictionaries-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-data-dictionaries-pbi.png)
 
 </div>
 
@@ -240,7 +240,7 @@ It allows users to edit column level properties on both its main dashboard and o
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-data-dictionaries-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-data-dictionaries-gooddata.png)
 
 </div>
 
@@ -256,7 +256,7 @@ In GoodData Cloud, they increase the level of simplicity to read a data dictiona
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-data-dictionaries-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-data-dictionaries-metabase.png)
 
 </div>
 
@@ -277,7 +277,7 @@ For an analyst, navigating extensive databases within dashboards can be a challe
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-table-prop-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-table-prop-pbi.png)
 
 </div>
 
@@ -293,7 +293,7 @@ All tools show table level descriptions in some shape or form. Power BI shows ta
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-table-prop-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-table-prop-gooddata.png)
 
 </div>
 
@@ -309,7 +309,7 @@ GoodData on the other hand shows it in the “Data” tab, under “More” > �
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-table-prop-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-table-prop-metabase.png)
 
 </div>
 
@@ -329,7 +329,7 @@ In order to create metrics and visuals that involve data from multiple tables an
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-table-rel-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-table-rel-pbi.png)
 
 </div>
 
@@ -345,7 +345,7 @@ Power BI has one of the most popular setups for data modelling, all contained wi
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-table-rel-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-table-rel-gooddata.png)
 
 </div>
 
@@ -353,7 +353,7 @@ Power BI has one of the most popular setups for data modelling, all contained wi
 
 ### GoodData
 
-As for GoodData, the logical modelling layer is quite different than the first two. As discussed in the data types section, and shown in the image, the date type fields are taken and defined as separate tables (or datasets). The reason for doing so is in the spirit of creating a star schema; where one date table serves every table that requires a date dimension. GoodData takes into consideration the star and snowflake schemas as it splits all fields up into facts, labels and attributes. However, as simple as it might be on Power BI to assign primary and foreign keys by drag and drop methods, GoodData requires that fields be names according to a particular convention in the source to be recognized as keys automatically. There is no other way to define them within the tool.
+As for GoodData, the logical modelling layer is quite different than the other two. As discussed in the data types section, and shown in the image, the date type fields are taken and defined as separate tables (or datasets). The reason for doing so is in the spirit of creating a star schema; where one date table serves every table that requires a date dimension. GoodData takes into consideration the star and snowflake schemas as it splits all fields up into facts, labels and attributes. GoodData requires that fields be named according to a particular convention in the source to be recognized as keys automatically. However, it is also possible to assign primary and foreign keys by drag and drop methods.
 
 </div>
 </div>
@@ -361,7 +361,7 @@ As for GoodData, the logical modelling layer is quite different than the first t
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-table-rel-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-table-rel-metabase.png)
 
 </div>
 
@@ -381,7 +381,7 @@ When all drag and drop methodologies for defining metrics just aren’t cutting 
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-language-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-language-pbi.png)
 
 </div>
 
@@ -397,7 +397,7 @@ Power BI has two custom languages known to its developers. One of them is DAX - 
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-language-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-language-gooddata.png)
 
 </div>
 
@@ -405,7 +405,7 @@ Power BI has two custom languages known to its developers. One of them is DAX - 
 
 ### GoodData
 
-GoodData has its own query language called MAQL, or Multi Dimension Analytical Query Language. It is what is used to define metrics, expressions, functions, or other simple or statistical queries. It works on top of the logical data models defined, and hence is aware of the table relationships and dimensions. That is what sets is apart from SQL, which is for relational databases, while MAQL is designed to perform for multi-dimensional models.
+GoodData has its own query language called MAQL, or Multi Dimension Analytical Query Language. It is what is used to define metrics, expressions, functions, or other simple or statistical queries. It works on top of the logical data models defined, and hence is aware of the table relationships and dimensions. That is what sets is apart from SQL, which is for relational databases, while MAQL is designed to perform for multi-dimensional models. SQL can still be used to specify a [SQL dataset](https://www.gooddata.com/docs/cloud/model-data/create-logical-data-model/create-sql-datasets/) in scope of the logical data model. MAQL is then used on top of this stored query instead of a physical table.
 
 </div>
 </div>
@@ -413,7 +413,7 @@ GoodData has its own query language called MAQL, or Multi Dimension Analytical Q
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-language-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-language-metabase.png)
 
 </div>
 
@@ -433,7 +433,7 @@ In foundational database courses, we learn the importance of normalization and h
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-granularity-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-granularity-pbi.png)
 
 </div>
 
@@ -449,7 +449,7 @@ Power BI introduces the ability the create custom fields and columns where you m
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-granularity-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-granularity-gooddata.png)
 
 </div>
 
@@ -457,7 +457,7 @@ Power BI introduces the ability the create custom fields and columns where you m
 
 ### GoodData
 
-However, GoodData requires that if you’d like to add custom calculated fields, that it be done using the integrator Brick - functionalities that are offered by GoodData embedded analytics products, but are so far missing while simply creating a dashboard in the cloud version of the tool. Nonetheless, it helps manage granularity for datetime fields directly by a setting your own custom truncation to them. This can be done so easily by viewing the details on the datetime objects that are cast as a separate table/dataset by GoodData.
+GoodData allows you to switch each dataset from being mapped to a physical table to being defined by a custom SQL query. This feature enables you to add custom-calculated fields, filter out specific data, or even join multiple tables as needed. You can then map the fields to the results of that SQL query. Additionally, GoodData helps manage granularity for datetime fields directly by a setting your own custom truncation to them. This can be done so easily by viewing the details on the datetime objects that are cast as a separate table/dataset by GoodData.
 
 </div>
 </div>
@@ -465,7 +465,7 @@ However, GoodData requires that if you’d like to add custom calculated fields,
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-granularity-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-granularity-metabase.png)
 
 </div>
 
@@ -485,7 +485,7 @@ One of the main responsibilities of BI experts is to track metrics, align them w
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-metrics-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-metrics-pbi.png)
 
 </div>
 
@@ -501,7 +501,7 @@ In Power BI, these metrics are known as Measures, and can be created from both t
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-metrics-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-metrics-gooddata.png)
 
 </div>
 
@@ -517,7 +517,7 @@ Involving its own query language, GoodData uses MAQL to create custom metrics th
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-metrics-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-metrics-metabase.png)
 
 </div>
 
@@ -537,7 +537,7 @@ Whether a dashboard is being built for the first time, or is fully furnished but
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-refresh-pbi.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-refresh-pbi.png)
 
 </div>
 
@@ -553,7 +553,7 @@ Coming to data updates and refresh capabilities, it depends on how data was load
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-refresh-gooddata.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-refresh-gooddata.png)
 
 </div>
 
@@ -569,7 +569,7 @@ GoodData also has a clear refresh button and methodology to refresh sources in t
 <div style={{ display: 'flex' }}>
     <div style={{ flex: '1' }}>
 
-![hard coded dashboard](/img/blog-modelling-refresh-metabase.png)
+![hard coded dashboard](https://storage.googleapis.com/dlt-blog-images/blog-modelling-refresh-metabase.png)
 
 </div>
 

@@ -1,27 +1,29 @@
 import os
+from typing import Type
 import pytest
 
 from dlt.common.configuration.container import Container
-from dlt.common.data_writers.writers import DataWriterMetrics
-from dlt.common.destination.capabilities import TLoaderFileFormat, DestinationCapabilitiesContext
+from dlt.common.data_writers.writers import DataWriterMetrics, DataWriter
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
-from tests.common.data_writers.utils import ALL_WRITERS
 from dlt.common.storages.data_item_storage import DataItemStorage
 
 from tests.utils import TEST_STORAGE_ROOT
+from tests.common.data_writers.utils import ALL_OBJECT_WRITERS
 
 
-class TestItemStorage(DataItemStorage):
+class ItemTestStorage(DataItemStorage):
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
         return os.path.join(TEST_STORAGE_ROOT, f"{load_id}.{schema_name}.{table_name}.%s")
 
 
-@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
-def test_write_items(format_: TLoaderFileFormat) -> None:
+@pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
+def test_write_items(writer_type: Type[DataWriter]) -> None:
+    writer_spec = writer_type.writer_spec()
     with Container().injectable_context(
-        DestinationCapabilitiesContext.generic_capabilities(format_)
+        DestinationCapabilitiesContext.generic_capabilities(writer_spec.file_format)
     ):
-        item_storage = TestItemStorage(format_)
+        item_storage = ItemTestStorage(writer_spec)
         c1 = new_column("col1", "bigint")
         t1 = {"col1": c1}
         count = item_storage.write_data_item(

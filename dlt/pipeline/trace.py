@@ -7,14 +7,14 @@ import dataclasses
 from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
-from dlt.common import pendulum, json
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.utils import _RESOLVED_TRACES
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
-from dlt.common.runtime.logger import suppress_and_warn
+from dlt.common.logger import suppress_and_warn
 from dlt.common.runtime.exec_info import TExecutionContext, get_execution_context
 from dlt.common.pipeline import (
     ExtractInfo,

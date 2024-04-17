@@ -1,7 +1,6 @@
 import itertools
 import os
 import pytest
-from sqlalchemy.engine import Engine, create_engine
 from typing import Optional, Union, Any
 
 import dlt
@@ -27,8 +26,8 @@ class ZenCredentials(CredentialsConfiguration):
 
 @configspec
 class ZenEmailCredentials(ZenCredentials):
-    email: str
-    password: TSecretValue
+    email: str = None
+    password: TSecretValue = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         assert isinstance(native_value, str)
@@ -45,8 +44,8 @@ class ZenEmailCredentials(ZenCredentials):
 
 @configspec
 class ZenApiKeyCredentials(ZenCredentials):
-    api_key: str
-    api_secret: TSecretValue
+    api_key: str = None
+    api_secret: TSecretValue = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         assert isinstance(native_value, str)
@@ -63,14 +62,14 @@ class ZenApiKeyCredentials(ZenCredentials):
 
 @configspec
 class ZenConfig(BaseConfiguration):
-    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials]
+    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials] = None
     some_option: bool = False
 
 
 @configspec
 class ZenConfigOptCredentials:
     # add none to union to make it optional
-    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, None]
+    credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, None] = None
     some_option: bool = False
 
 
@@ -201,10 +200,10 @@ class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
     This class is used to store credentials Google Analytics
     """
 
-    client_id: str
-    client_secret: TSecretValue
-    project_id: TSecretValue
-    refresh_token: TSecretValue
+    client_id: str = None
+    client_secret: TSecretValue = None
+    project_id: TSecretValue = None
+    refresh_token: TSecretValue = None
     access_token: Optional[TSecretValue] = None
 
 
@@ -236,6 +235,10 @@ def test_google_auth_union(environment: Any) -> None:
     assert isinstance(credentials, GcpServiceAccountCredentials)
 
 
+class Engine:
+    pass
+
+
 @dlt.source
 def sql_database(credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value):
     yield dlt.resource([credentials], name="creds")
@@ -243,7 +246,7 @@ def sql_database(credentials: Union[ConnectionStringCredentials, Engine, str] = 
 
 def test_union_concrete_type(environment: Any) -> None:
     # we can pass engine explicitly
-    engine = create_engine("sqlite:///:memory:", echo=True)
+    engine = Engine()
     db = sql_database(credentials=engine)
     creds = list(db)[0]
     assert isinstance(creds, Engine)

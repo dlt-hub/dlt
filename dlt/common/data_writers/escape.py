@@ -4,6 +4,8 @@ from typing import Any, Dict
 from datetime import date, datetime, time  # noqa: I251
 
 from dlt.common.json import json
+from dlt.common.pendulum import pendulum
+from dlt.common.time import reduce_pendulum_datetime_precision
 
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
@@ -98,8 +100,14 @@ def escape_mssql_literal(v: Any) -> Any:
             json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE
         )
     if isinstance(v, bytes):
-        base_64_string = base64.b64encode(v).decode("ascii")
-        return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
+        from dlt.destinations.impl.mssql.mssql import VARBINARY_MAX_N
+
+        if len(v) <= VARBINARY_MAX_N:
+            n = str(len(v))
+        else:
+            n = "MAX"
+        return f"CONVERT(VARBINARY({n}), '{v.hex()}', 2)"
+
     if isinstance(v, bool):
         return str(int(v))
     if v is None:
@@ -113,6 +121,7 @@ def escape_redshift_identifier(v: str) -> str:
 
 escape_postgres_identifier = escape_redshift_identifier
 escape_athena_identifier = escape_postgres_identifier
+escape_dremio_identifier = escape_postgres_identifier
 
 
 def escape_bigquery_identifier(v: str) -> str:
@@ -124,3 +133,38 @@ def escape_snowflake_identifier(v: str) -> str:
     # Snowcase uppercase all identifiers unless quoted. Match this here so queries on information schema work without issue
     # See also https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers
     return escape_postgres_identifier(v.upper())
+
+
+escape_databricks_identifier = escape_bigquery_identifier
+
+
+DATABRICKS_ESCAPE_DICT = {"'": "\\'", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
+
+
+def escape_databricks_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(v, prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
+    if isinstance(v, bytes):
+        return f"X'{v.hex()}'"
+    if v is None:
+        return "NULL"
+
+    return str(v)
+
+
+def format_datetime_literal(v: pendulum.DateTime, precision: int = 6, no_tz: bool = False) -> str:
+    """Converts `v` to ISO string, optionally without timezone spec (in UTC) and with given `precision`"""
+    if no_tz:
+        v = v.in_timezone(tz="UTC").replace(tzinfo=None)
+    v = reduce_pendulum_datetime_precision(v, precision)
+    # yet another precision translation
+    timespec: str = "microseconds"
+    if precision < 6:
+        timespec = "milliseconds"
+    elif precision < 3:
+        timespec = "seconds"
+    return v.isoformat(sep=" ", timespec=timespec)

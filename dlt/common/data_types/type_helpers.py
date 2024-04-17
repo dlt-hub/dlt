@@ -1,18 +1,18 @@
 import binascii
 import base64
+import dataclasses
 import datetime  # noqa: I251
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
-from typing import Any, Type, Literal, Union, cast
+from typing import Any, Type, Union
 from enum import Enum
 
-from dlt.common import pendulum, json, Decimal, Wei
-from dlt.common.json import custom_pua_remove
+from dlt.common.json import custom_pua_remove, json
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
-from dlt.common.arithmetics import InvalidOperation
+from dlt.common.wei import Wei
+from dlt.common.arithmetics import InvalidOperation, Decimal
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
     ensure_pendulum_datetime,
-    parse_iso_like_datetime,
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
@@ -55,7 +55,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "bigint"
     if issubclass(t, bytes):
         return "binary"
-    if issubclass(t, (C_Mapping, C_Sequence)):
+    if dataclasses.is_dataclass(t) or issubclass(t, (C_Mapping, C_Sequence)):
         return "complex"
     # Enum is coerced to str or int respectively
     if issubclass(t, Enum):
@@ -81,13 +81,13 @@ def coerce_from_date_types(
     if to_type == "text":
         return v.isoformat()
     if to_type == "bigint":
-        return v.int_timestamp  # type: ignore
+        return v.int_timestamp
     if to_type == "double":
-        return v.timestamp()  # type: ignore
+        return v.timestamp()
     if to_type == "date":
         return ensure_pendulum_date(v)
     if to_type == "time":
-        return v.time()  # type: ignore[no-any-return]
+        return v.time()
     raise TypeError(f"Cannot convert timestamp to {to_type}")
 
 
@@ -104,6 +104,14 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             elif to_type == "bigint":
                 return int(value.value)
         return value
+
+    if to_type == "complex":
+        # try to coerce from text
+        if from_type == "text":
+            try:
+                return json.loads(value)
+            except Exception:
+                raise ValueError(value)
 
     if to_type == "text":
         if from_type == "complex":

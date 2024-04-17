@@ -83,8 +83,17 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        self._conn.rollback()
-        self._conn.autocommit = True
+        try:
+            self._conn.rollback()
+        except pyodbc.ProgrammingError as ex:
+            if (
+                ex.args[0] == "42000" and "(111214)" in ex.args[1]
+            ):  # "no corresponding transaction found"
+                pass  # there was nothing to rollback, we silently ignore the error
+            else:
+                raise
+        finally:
+            self._conn.autocommit = True
 
     @property
     def native_connection(self) -> pyodbc.Connection:
@@ -106,8 +115,8 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         )
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
-
-        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+        # Drop schema
+        self._drop_schema()
 
     def _drop_views(self, *tables: str) -> None:
         if not tables:
@@ -115,7 +124,10 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         statements = [
             f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
         ]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
+
+    def _drop_schema(self) -> None:
+        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any

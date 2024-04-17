@@ -11,9 +11,12 @@ from dlt.common.storages import (
 from dlt.common.storages.schema_storage import SchemaStorage
 
 from dlt.extract import DltResource, DltSource
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
 from dlt.extract.extract import ExtractStorage, Extract
+from dlt.extract.hints import make_hints
 
-from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
+from dlt.extract.items import TableNameMeta
+from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 
 
@@ -71,8 +74,7 @@ def test_extract_select_tables_mark(extract_step: Extract) -> None:
             yield dlt.mark.with_table_name(i, n_f(i))
 
     schema = expect_tables(extract_step, table_with_name_selectable)
-    # TODO: this one should not be there but we cannot remove it really, except explicit flag
-    assert "table_with_name_selectable" in schema.tables
+    assert "table_with_name_selectable" not in schema.tables
 
 
 def test_extract_select_tables_lambda(extract_step: Extract) -> None:
@@ -88,6 +90,192 @@ def test_extract_select_tables_lambda(extract_step: Extract) -> None:
     assert "table_name_with_lambda" not in schema.tables
 
 
+def test_make_hints_default() -> None:
+    hints = make_hints()
+    assert hints == {"columns": {}}
+
+    hints = make_hints(write_disposition=None)
+    assert hints == {"columns": {}}
+
+
+def test_extract_hints_mark(extract_step: Extract) -> None:
+    @dlt.resource
+    def with_table_hints():
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A"},
+            make_hints(columns=[{"name": "id", "data_type": "bigint"}], primary_key="pk"),
+        )
+        schema = dlt.current.source_schema()
+        # table and columns got updated in the schema
+        assert "with_table_hints" in schema.tables
+        table = schema.tables["with_table_hints"]
+        assert "pk" in table["columns"]
+        assert "id" in table["columns"]
+        assert table["columns"]["pk"]["primary_key"] is True
+        assert table["columns"]["id"]["data_type"] == "bigint"
+        # get the resource
+        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        table = resource.compute_table_schema()
+        # also there we see the hints
+        assert table["columns"]["pk"]["primary_key"] is True
+        assert table["columns"]["id"]["data_type"] == "bigint"
+
+        # add more columns and primary key
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk2": "B"},
+            make_hints(
+                write_disposition="merge",
+                columns=[{"name": "id", "precision": 16}, {"name": "text", "data_type": "decimal"}],
+                primary_key="pk2",
+            ),
+        )
+        # previous columns kept
+        table = resource.compute_table_schema()
+        assert schema is dlt.current.source().schema
+        # previous primary key is gone from the resource
+        assert "pk" not in table["columns"]
+        assert table["columns"]["id"]["data_type"] == "bigint"
+        assert table["columns"]["id"]["precision"] == 16
+        assert "text" in table["columns"]
+        assert table["write_disposition"] == "merge"
+        # still it is kept in the schema that is merged from resource each time it changes
+        table = schema.tables["with_table_hints"]
+        assert "pk" in table["columns"]
+        assert "text" in table["columns"]
+        assert table["write_disposition"] == "merge"
+
+        # make table name dynamic
+        yield dlt.mark.with_hints(
+            {"namer": "dynamic"}, make_hints(table_name=lambda item: f"{item['namer']}_table")
+        )
+        # dynamic table was created in the schema and it contains the newest resource table schema
+        table = schema.tables["dynamic_table"]
+        # so pk is not available
+        assert "pk" not in table["columns"]
+        assert "pk2" in table["columns"]
+        assert "id" in table["columns"]
+        assert "text" in table["columns"]
+        # get dynamic schema from resource
+        with pytest.raises(DataItemRequiredForDynamicTableHints):
+            table = resource.compute_table_schema()
+
+    source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
+    extract_step.extract(source, 20, 1)
+    table = source.schema.tables["dynamic_table"]
+    assert "pk" not in table["columns"]
+
+
+def test_extract_hints_table_variant(extract_step: Extract) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    @dlt.resource(primary_key="pk")
+    def with_table_hints():
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A"},
+            make_hints(table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]),
+            create_table_variant=True,
+        )
+        # get the resource
+        resource = dlt.current.source().resources[dlt.current.resource_name()]
+        assert "table_a" in resource._hints_variants
+        # get table
+        table = resource.compute_table_schema(meta=TableNameMeta("table_a"))
+        assert "pk" in table["columns"]
+        assert "id" in table["columns"]
+        assert table["columns"]["pk"]["primary_key"] is True
+        assert table["columns"]["id"]["data_type"] == "bigint"
+
+        schema = dlt.current.source_schema()
+        # table table_a will be created
+        assert "table_a" in schema.tables
+        schema_table = schema.tables["table_a"]
+        assert table == schema_table
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B"},
+            make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+        assert "table_b" in resource._hints_variants
+        # get table
+        table = resource.compute_table_schema(meta=TableNameMeta("table_b"))
+        assert table["write_disposition"] == "replace"
+        schema_table = schema.tables["table_b"]
+        assert table == schema_table
+
+        # item to resource
+        yield {"id": 3, "pk": "C"}
+
+    source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
+    extract_step.extract(source, 20, 1)
+
+
+def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:
+    @dlt.resource
+    def letters():
+        # extract 7 items
+        yield from "ABCDEFG"
+        # then fail
+        raise RuntimeError()
+        yield from "HI"
+
+    source = DltSource(dlt.Schema("letters"), "module", [letters])
+    with pytest.raises(ResourceExtractionError):
+        extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    # no jobs were created
+    assert len(step_info.load_packages[0].jobs["new_jobs"]) == 0
+    # make sure all writers are closed but not yet removed
+    current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
+    # get buffered writers
+    writers = extract_step.extract_storage.item_storages["object"].buffered_writers
+    assert len(writers) == 1
+    for name, writer in writers.items():
+        assert name.startswith(current_load_id)
+        assert writer._file is None
+
+
+def test_extract_metrics_on_exception_without_flush(extract_step: Extract) -> None:
+    @dlt.resource
+    def letters():
+        # extract 7 items
+        yield from "ABCDEFG"
+        # then fail
+        raise RuntimeError()
+        yield from "HI"
+
+    # flush buffer
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "4"
+    source = DltSource(dlt.Schema("letters"), "module", [letters])
+    with pytest.raises(ResourceExtractionError):
+        extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    # one job created because the file was flushed
+    jobs = step_info.load_packages[0].jobs["new_jobs"]
+    # print(jobs[0].job_file_info.job_id())
+    assert len(jobs) == 1
+    current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
+    # 7 items were extracted
+    assert (
+        step_info.metrics[current_load_id][0]["job_metrics"][
+            jobs[0].job_file_info.job_id()
+        ].items_count
+        == 4
+    )
+    # get buffered writers
+    writers = extract_step.extract_storage.item_storages["object"].buffered_writers
+    assert len(writers) == 1
+    for name, writer in writers.items():
+        assert name.startswith(current_load_id)
+        assert writer._file is None
+
+
+def test_extract_empty_metrics(extract_step: Extract) -> None:
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.load_packages == step_info.loads_ids == []
+
+
 # def test_extract_pipe_from_unknown_resource():
 #         pass
 
@@ -100,8 +288,7 @@ def test_extract_shared_pipe(extract_step: Extract):
     source = DltSource(
         dlt.Schema("selectables"), "module", [input_r, input_r.with_name("gen_clone")]
     )
-    load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source)
+    extract_step.extract(source, 20, 1)
     # both tables got generated
     assert "input_gen" in source.schema._schema_tables
     assert "gen_clone" in source.schema._schema_tables
@@ -120,8 +307,7 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
     source = DltSource(
         dlt.Schema("selectables"), "module", [input_r, (input_r | input_tx).with_name("tx_clone")]
     )
-    load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source)
+    extract_step.extract(source, 20, 1)
     assert "input_gen" in source.schema._schema_tables
     assert "tx_clone" in source.schema._schema_tables
     # mind that pipe name of the evaluated parent will have different name than the resource
@@ -130,8 +316,6 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
 
 def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = DltSource(dlt.Schema("selectables"), "module", [resource(10)])
-    schema = source.discover_schema()
-
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
     extract_step._extract_single_source(load_id, source)
     # odd and even tables must be in the source schema
@@ -149,6 +333,7 @@ def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     expect_extracted_file(
         extract_step.extract_storage, "selectables", "even_table", json.dumps([0, 2, 4, 6, 8])
     )
+    schema = source.schema
 
     # same thing but select only odd
     source = DltSource(dlt.Schema("selectables"), "module", [resource])

@@ -1,4 +1,4 @@
-name: get docs changes
+name: util | get docs changes
 
 on:
   workflow_call:
@@ -8,11 +8,12 @@ on:
         value: ${{ jobs.get_docs_changes.outputs.changes_outside_docs }}
 
 env:
-  EXCLUDED_FILE_PATTERNS: '^docs/|^README.md|^LICENSE\.txt|\.editorconfig|\.gitignore'
+  EXCLUDED_FILE_PATTERNS: '^docs/|^README.md|^CONTRIBUTING.md|^LICENSE\.txt|\.editorconfig|\.gitignore|get_docs_changes.yml'
 
 
 jobs:
   get_docs_changes:
+    name: docs changes
     runs-on: ubuntu-latest
     outputs:
       changes_outside_docs: ${{ steps.check_changes.outputs.changes_outside_docs }}

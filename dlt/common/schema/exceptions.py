@@ -98,7 +98,9 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         self.to_engine = to_engine
         super().__init__(
             f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine},"
-            f" stopped at {from_engine}"
+            f" stopped at {from_engine}. You possibly tried to run an older dlt"
+            " version against a destination you have previously loaded data to with a newer dlt"
+            " version."
         )
 
 
@@ -150,3 +152,7 @@ class UnknownTableException(SchemaException):
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name
         super().__init__(f"Trying to access unknown table {table_name}.")
+
+
+class ColumnNameConflictException(SchemaException):
+    pass

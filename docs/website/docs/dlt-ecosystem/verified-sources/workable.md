@@ -1,10 +1,13 @@
+---
+title: Workable
+description: dlt pipeline for Workable API
+keywords: [workable api, workable pipeline, workable]
+---
+import Header from './_source-info-header.md';
+
 # Workable
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Workable](https://www.workable.com/) is an online platform for posting jobs and managing the hiring process. With Workable,
 employers can create job listings, receive applications, track candidates, collaborate with team
@@ -65,7 +68,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init workable duckdb
    ```
 
@@ -117,20 +120,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```sh
    python workable_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 
@@ -146,7 +149,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 Note the default definitions of DEFAULT_ENDPOINTS and DEFAULT_DETAILS in "workable/settings.py".
 
-```python
+```py
 DEFAULT_ENDPOINTS = ("members", "recruiters", "stages", "requisitions", "jobs", "custom_attributes","events")
 
 DEFAULT_DETAILS = {
@@ -164,7 +167,7 @@ endpoints allow incremental 'merge' mode loading.
 
 This source returns a sequence of dltResources that correspond to the endpoints.
 
-```python
+```py
 @dlt.source(name="workable")
 def workable_source(
     access_token: str = dlt.secrets.value,
@@ -172,6 +175,7 @@ def workable_source(
     start_date: Optional[DateTime] = None,
     load_details: bool = False,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `access_token`: Authenticate the Workable API using the token specified in ".dlt/secrets.toml".
@@ -187,13 +191,14 @@ def workable_source(
 
 This function is used to retrieve "candidates" endpoints.
 
-```python
+```py
 @dlt.resource(name="candidates", write_disposition="merge", primary_key="id")
 def candidates_resource(
     updated_at: Optional[Any] = dlt.sources.incremental(
         "updated_at", initial_value=workable.start_date_iso
     )
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `updated_at`: Uses the dlt.sources.incremental method. Defaults to the function's start_date or Jan
@@ -211,7 +216,7 @@ To create your data pipeline using single loading and
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="workable",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -221,7 +226,7 @@ To create your data pipeline using single loading and
 
 1. To load all data:
 
-   ```python
+   ```py
    load_data = workable_source()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -232,7 +237,7 @@ To create your data pipeline using single loading and
 
 1. To load data from a specific date, including dependent endpoints:
 
-   ```python
+   ```py
    load_data = workable_source(start_date=datetime(2022, 1, 1), load_details=True)
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -244,8 +249,8 @@ To create your data pipeline using single loading and
 
 1. To load custom endpoints “candidates” and “members”:
 
-   ```python
-   load_info = pipeline.run(load_data.with_resources("candidates", "members")
+   ```py
+   load_info = pipeline.run(load_data.with_resources("candidates", "members"))
    # print the information on data that was loaded
    print(load_info)
    ```
@@ -255,7 +260,7 @@ To create your data pipeline using single loading and
 1. To load data from the “jobs” endpoint and its dependent endpoints like "activities" and
    "application_form":
 
-   ```python
+   ```py
    load_data = workable_source(start_date=datetime(2022, 2, 1), load_details=True)
    # Set the load_details as True to load all the dependent endpoints.
    load_info = pipeline.run(load_data.with_resources("jobs","jobs_activities","jobs_application_form"))
@@ -271,3 +276,4 @@ To create your data pipeline using single loading and
    disrupting metadata tracking for
    [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
+<!--@@@DLT_TUBA workable-->

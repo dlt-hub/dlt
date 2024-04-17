@@ -18,7 +18,7 @@ single API. The most common approach is to define it in a separate Python module
 
 ## Declare sources
 
-You declare source by decorating a function returning one or more resource with `dlt.source`. Our
+You declare source by decorating an (optionally async) function that return or yields one or more resource with `dlt.source`. Our
 [Create a pipeline](../walkthroughs/create-a-pipeline.md) how to guide teaches you how to do that.
 
 ### Create resources dynamically
@@ -26,7 +26,7 @@ You declare source by decorating a function returning one or more resource with 
 You can create resources by using `dlt.resource` as a function. In an example below we reuse a
 single generator function to create a list of resources for several Hubspot endpoints.
 
-```python
+```py
 @dlt.source
 def hubspot(api_key=dlt.secrets.value):
 
@@ -46,6 +46,12 @@ def hubspot(api_key=dlt.secrets.value):
 You can [create, attach and configure schema](schema.md#attaching-schemas-to-sources) that will be
 used when loading the source.
 
+### Avoid long lasting operations in source function
+Do not extract data in source function. Leave that task to your resources if possible. Source function is executed immediately when called (contrary to resources which delay execution - like Python generators). There are several benefits (error handling, execution metrics, parallelization) you get when you extract data in `pipeline.run` or `pipeline.extract`.
+
+If this is impractical (for example you want to reflect a database to create resources for tables) make sure you do not call source function too often. [See this note if you plan to deploy on Airflow](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file)
+
+
 ## Customize sources
 
 ### Access and select resources to load
@@ -53,7 +59,7 @@ used when loading the source.
 You can access resources present in a source and select which of them you want to load. In case of
 `hubspot` resource above we could select and load "companies", "deals" and "products" resources:
 
-```python
+```py
 from hubspot import hubspot
 
 source = hubspot()
@@ -67,7 +73,7 @@ pipeline.run(source.with_resources("companies", "deals"))
 
 Resources can be individually accessed and selected:
 
-```python
+```py
 # resources are accessible as attributes of a source
 for c in source.companies:  # enumerate all data in companies resource
     print(c)
@@ -83,7 +89,7 @@ source.deals.selected = False
 You can modify and filter data in resources, for example if we want to keep only deals after certain
 date:
 
-```python
+```py
 source.deals.add_filter(lambda deal: deal["created_at"] > yesterday)
 ```
 
@@ -97,7 +103,7 @@ You can easily get your test dataset in a few minutes, when otherwise you'd need
 the full loading to complete. Below we limit the `pipedrive` source to just get 10 pages of data
 from each endpoint. Mind that the transformers will be evaluated fully:
 
-```python
+```py
 from pipedrive import pipedrive_source
 
 pipeline = dlt.pipeline(pipeline_name='pipedrive', destination='duckdb', dataset_name='pipedrive_data')
@@ -115,7 +121,7 @@ declare a new
 [transformer that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals`
 resource and add it to the source.
 
-```python
+```py
 import dlt
 from hubspot import hubspot
 
@@ -134,11 +140,11 @@ source.resources.add(source.deals | deal_scores)
 pipeline.run(source)
 ```
 You can also set the resources in the source as follows
-```python
+```py
 source.deal_scores = source.deals | deal_scores
 ```
 or
-```python
+```py
 source.resources["deal_scores"] = source.deals | deal_scores
 ```
 :::note
@@ -150,7 +156,7 @@ When adding resource to the source, `dlt` clones the resource so your existing i
 You can limit how deep `dlt` goes when generating child tables. By default, the library will descend
 and generate child tables for all nested lists, without limit.
 
-```python
+```py
 @dlt.source(max_table_nesting=1)
 def mongo_db():
     ...
@@ -166,7 +172,7 @@ tables of child tables). Typical settings:
 
 You can achieve the same effect after the source instance is created:
 
-```python
+```py
 from mongo_db import mongo_db
 
 source = mongo_db()
@@ -196,7 +202,7 @@ You are also free to decompose a single source into several ones. For example, y
 down a 50 table copy job into an airflow dag with high parallelism to load the data faster. To do
 so, you could get the list of resources as:
 
-```python
+```py
 # get a list of resources' names
 resource_list = sql_source().resources.keys()
 
@@ -210,12 +216,12 @@ for res in resource_list:
 You can temporarily change the "write disposition" to `replace` on all (or selected) resources within
 a source to force a full refresh:
 
-```python
+```py
 p.run(merge_source(), write_disposition="replace")
 ```
 
 With selected resources:
 
-```python
+```py
 p.run(tables.with_resources("users"), write_disposition="replace")
 ```

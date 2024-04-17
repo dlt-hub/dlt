@@ -19,8 +19,12 @@ from typing import (
 
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.utils import concat_strings_with_limit
 
-from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
+from dlt.destinations.exceptions import (
+    DestinationConnectionError,
+    LoadClientNotConnected,
+)
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
 
@@ -86,7 +90,7 @@ SELECT 1
 
     def truncate_tables(self, *tables: str) -> None:
         statements = [self._truncate_table_sql(self.make_qualified_table_name(t)) for t in tables]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
@@ -94,7 +98,7 @@ SELECT 1
         statements = [
             f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
         ]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
 
     @abstractmethod
     def execute_sql(
@@ -113,6 +117,25 @@ SELECT 1
     ) -> Optional[Sequence[Sequence[Any]]]:
         """Executes several SQL fragments as efficiently as possible to prevent data copying. Default implementation just joins the strings and executes them together."""
         return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
+
+    def execute_many(
+        self, statements: Sequence[str], *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
+        """Executes multiple SQL statements as efficiently as possible. When client supports multiple statements in a single query
+        they are executed together in as few database calls as possible.
+        """
+        ret = []
+        if self.capabilities.supports_multiple_statements:
+            for sql_fragment in concat_strings_with_limit(
+                list(statements), "\n", self.capabilities.max_query_length // 2
+            ):
+                ret.append(self.execute_sql(sql_fragment, *args, **kwargs))
+        else:
+            for statement in statements:
+                result = self.execute_sql(statement, *args, **kwargs)
+                if result is not None:
+                    ret.append(result)
+        return ret
 
     @abstractmethod
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
@@ -197,7 +220,7 @@ class DBApiCursorImpl(DBApiCursor):
         return [c[0] for c in self.native_cursor.description]
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
-        from dlt.common.libs.pandas import _wrap_result
+        from dlt.common.libs.pandas_sql import _wrap_result
 
         columns = self._get_columns()
         if chunk_size is None:

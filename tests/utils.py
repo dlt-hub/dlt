@@ -19,7 +19,7 @@ from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
 from dlt.common.pipeline import PipelineContext
-from dlt.common.runtime.logger import init_logging
+from dlt.common.runtime.init import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
@@ -45,8 +45,12 @@ IMPLEMENTED_DESTINATIONS = {
     "motherduck",
     "mssql",
     "qdrant",
+    "destination",
+    "synapse",
+    "databricks",
+    "dremio",
 }
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant"}
+NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "destination"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
@@ -73,11 +77,12 @@ for destination in SQL_DESTINATIONS:
 for destination in ACTIVE_DESTINATIONS:
     assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
 
+TPythonTableFormat = Literal["pandas", "arrow-table", "arrow-batch"]
+"""Possible arrow item formats"""
 
-# possible TDataItem types
-TDataItemFormat = Literal["json", "pandas", "arrow", "arrow-batch"]
-ALL_DATA_ITEM_FORMATS = get_args(TDataItemFormat)
-"""List with TDataItem formats: json, arrow table/batch / pandas"""
+TestDataItemFormat = Literal["object", "pandas", "arrow-table", "arrow-batch"]
+ALL_TEST_DATA_ITEM_FORMATS = get_args(TestDataItemFormat)
+"""List with TDataItem formats: object, arrow table/batch / pandas"""
 
 
 def TEST_DICT_CONFIG_PROVIDER():
@@ -182,10 +187,10 @@ def wipe_pipeline() -> Iterator[None]:
 
 
 def data_to_item_format(
-    item_format: TDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]
+    item_format: TestDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]
 ) -> Any:
     """Return the given data in the form of pandas, arrow table/batch or json items"""
-    if item_format == "json":
+    if item_format == "object":
         return data
 
     import pandas as pd
@@ -195,12 +200,59 @@ def data_to_item_format(
     df = pd.DataFrame(list(data))
     if item_format == "pandas":
         return [df]
-    elif item_format == "arrow":
+    elif item_format == "arrow-table":
         return [pa.Table.from_pandas(df)]
     elif item_format == "arrow-batch":
         return [pa.RecordBatch.from_pandas(df)]
     else:
         raise ValueError(f"Unknown item format: {item_format}")
+
+
+def data_item_length(data: TDataItem) -> int:
+    import pandas as pd
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    if isinstance(data, list):
+        # If data is a list, check if it's a list of supported data types
+        if all(isinstance(item, (list, pd.DataFrame, pa.Table, pa.RecordBatch)) for item in data):
+            return sum(data_item_length(item) for item in data)
+        # If it's a list but not a list of supported types, treat it as a single list object
+        else:
+            return len(data)
+    elif isinstance(data, pd.DataFrame):
+        return len(data.index)
+    elif isinstance(data, pa.Table) or isinstance(data, pa.RecordBatch):
+        return data.num_rows
+    else:
+        raise TypeError("Unsupported data type.")
+
+
+def arrow_item_from_pandas(
+    df: Any,
+    object_format: TPythonTableFormat,
+) -> Any:
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    if object_format == "pandas":
+        return df
+    elif object_format == "arrow-table":
+        return pa.Table.from_pandas(df)
+    elif object_format == "arrow-batch":
+        return pa.RecordBatch.from_pandas(df)
+    raise ValueError("Unknown item type: " + object_format)
+
+
+def arrow_item_from_table(
+    table: Any,
+    object_format: TPythonTableFormat,
+) -> Any:
+    if object_format == "pandas":
+        return table.to_pandas()
+    elif object_format == "arrow-table":
+        return table
+    elif object_format == "arrow-batch":
+        return table.to_batches()[0]
+    raise ValueError("Unknown item type: " + object_format)
 
 
 def init_test_logging(c: RunConfiguration = None) -> None:
@@ -229,7 +281,7 @@ def clean_test_storage(
     if init_loader:
         from dlt.common.storages import LoadStorage
 
-        LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
+        LoadStorage(True, LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 
 

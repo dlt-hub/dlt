@@ -3,17 +3,14 @@ title: Arrow Table / Pandas
 description: dlt source for Arrow tables and Pandas dataframes
 keywords: [arrow, pandas, parquet, source]
 ---
+import Header from './_source-info-header.md';
 
 # Arrow Table / Pandas
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 You can load data directly from an Arrow table or Pandas dataframe.
-This is supported by all destinations, but recommended especially when using destinations that support the `parquet` foramt natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
+This is supported by all destinations, but recommended especially when using destinations that support the `parquet` file format natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
 See the [destination support](#destination-support-and-fallback) section for more information.
 
 When used with a `parquet` supported destination this is a more performant way to load structured data since `dlt` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
@@ -25,7 +22,7 @@ To write an Arrow source, pass any `pyarrow.Table`, `pyarrow.RecordBatch` or `pa
 
 This example loads a Pandas dataframe to a Snowflake table:
 
-```python
+```py
 import dlt
 from dlt.common import pendulum
 import pandas as pd
@@ -45,7 +42,7 @@ pipeline.run(df, table_name="orders")
 
 A `pyarrow` table can be loaded in the same way:
 
-```python
+```py
 import pyarrow as pa
 
 # Create dataframe and pipeline same as above
@@ -96,14 +93,14 @@ Usage is the same as without other dlt resources. Refer to the [incremental load
 
 Example:
 
-```python
+```py
 import dlt
 from dlt.common import pendulum
 import pandas as pd
 
 # Create a resource using that yields a dataframe, using the `ordered_at` field as an incremental cursor
 @dlt.resource(primary_key="order_id")
-def orders(ordered_at = dlt.sources.incremental('ordered_at'))
+def orders(ordered_at = dlt.sources.incremental('ordered_at')):
     # Get dataframe/arrow table from somewhere
     # If your database supports it, you can use the last_value to filter data at the source.
     # Otherwise it will be filtered automatically after loading the data.
@@ -144,7 +141,7 @@ All struct types are represented as `complex` and will be loaded as JSON (if des
 even if they are present in the destination.
 
 If you want to represent nested data as separated tables, you must yield panda frames and arrow tables as records. In the examples above:
-```python
+```py
 # yield panda frame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
 

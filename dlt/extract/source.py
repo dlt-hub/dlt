@@ -23,14 +23,16 @@ from dlt.common.pipeline import (
 )
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes
 
-from dlt.extract.typing import TDecompositionStrategy
-from dlt.extract.pipe import Pipe, ManagedPipeIterator
-from dlt.extract.hints import DltResourceHints
+from dlt.extract.items import TDecompositionStrategy
+from dlt.extract.pipe_iterator import ManagedPipeIterator
+from dlt.extract.pipe import Pipe
+from dlt.extract.hints import DltResourceHints, make_hints
 from dlt.extract.resource import DltResource
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     ResourcesNotFoundError,
     DeletingResourcesNotSupported,
+    InvalidParallelResourceDataType,
 )
 
 
@@ -64,7 +66,7 @@ class DltResourceDict(Dict[str, DltResource]):
                         resource = self[pipe.name]
                     except KeyError:
                         # resource for pipe not found: return mock resource
-                        mock_template = DltResourceHints.new_table_template(
+                        mock_template = make_hints(
                             pipe.name, write_disposition=resource.write_disposition
                         )
                         resource = DltResource(pipe, mock_template, False, section=resource.section)
@@ -331,6 +333,18 @@ class DltSource(Iterable[TDataItem]):
         """
         for resource in self.resources.selected.values():
             resource.add_limit(max_items)
+        return self
+
+    def parallelize(self) -> "DltSource":
+        """Mark all resources in the source to run in parallel.
+
+        Only transformers and resources based on generators and generator functions are supported, unsupported resources will be skipped.
+        """
+        for resource in self.resources.selected.values():
+            try:
+                resource.parallelize()
+            except InvalidParallelResourceDataType:
+                pass
         return self
 
     @property

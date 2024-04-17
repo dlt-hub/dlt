@@ -5,6 +5,7 @@ from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
+    Awaitable,
     Callable,
     ClassVar,
     Iterator,
@@ -27,18 +28,19 @@ from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectabl
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
+from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TColumnNames,
-    TTableSchemaColumns,
     TWriteDisposition,
+    TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
 )
+from dlt.extract.hints import make_hints
 from dlt.extract.utils import (
-    ensure_table_schema_columns_hint,
     simulate_func_call,
     wrap_compat_transformer,
     wrap_resource_gen,
@@ -48,6 +50,7 @@ from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
 from dlt.extract.exceptions import (
+    CurrentSourceNotAvailable,
     DynamicNameNotStandaloneResource,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     ResourceFunctionExpected,
@@ -56,26 +59,31 @@ from dlt.extract.exceptions import (
     SourceIsAClassTypeError,
     ExplicitSourceNameInvalid,
     SourceNotAFunction,
-    SourceSchemaNotAvailable,
+    CurrentSourceSchemaNotAvailable,
 )
 from dlt.extract.incremental import IncrementalResourceWrapper
 
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.items import TTableHintTemplate
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource, TUnboundDltResource
 
 
 @configspec
 class SourceSchemaInjectableContext(ContainerInjectableContext):
-    """A context containing the source schema, present when decorated function is executed"""
+    """A context containing the source schema, present when dlt.source/resource decorated function is executed"""
 
-    schema: Schema
+    schema: Schema = None
 
     can_create_default: ClassVar[bool] = False
 
-    if TYPE_CHECKING:
 
-        def __init__(self, schema: Schema = None) -> None: ...
+@configspec
+class SourceInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when dlt.resource decorated function is executed"""
+
+    source: DltSource = None
+
+    can_create_default: ClassVar[bool] = False
 
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
@@ -171,7 +179,9 @@ def source(
             "'name' has no effect when `schema` argument is present", source.__name__
         )
 
-    def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, TDltSourceImpl]:
+    def decorator(
+        f: Callable[TSourceFunParams, Any]
+    ) -> Callable[TSourceFunParams, Union[Awaitable[TDltSourceImpl], TDltSourceImpl]]:
         nonlocal schema, name
 
         if not callable(f) or isinstance(f, DltResource):
@@ -197,9 +207,27 @@ def source(
         source_sections = (known_sections.SOURCES, source_section, effective_name)
         conf_f = with_config(f, spec=spec, sections=source_sections)
 
+        def _eval_rv(_rv: Any) -> TDltSourceImpl:
+            """Evaluates return value from the source function or coroutine"""
+            if _rv is None:
+                raise SourceDataIsNone(schema.name)
+            # if generator, consume it immediately
+            if inspect.isgenerator(_rv):
+                _rv = list(_rv)
+
+            # convert to source
+            s = _impl_cls.from_data(schema.clone(update_normalizers=True), source_section, _rv)
+            # apply hints
+            if max_table_nesting is not None:
+                s.max_table_nesting = max_table_nesting
+            s.schema_contract = schema_contract
+            # enable root propagation
+            s.root_key = root_key
+            return s
+
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> TDltSourceImpl:
-            # make schema available to the source
+            """Wrap a regular function, injection context must be a part of the wrap"""
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
@@ -212,29 +240,37 @@ def source(
                     )
                 ):
                     rv = conf_f(*args, **kwargs)
-                    if rv is None:
-                        raise SourceDataIsNone(schema.name)
-                    # if generator, consume it immediately
-                    if inspect.isgenerator(rv):
-                        rv = list(rv)
+                    return _eval_rv(rv)
 
-            # convert to source
-            s = _impl_cls.from_data(schema.clone(update_normalizers=True), source_section, rv)
-            # apply hints
-            if max_table_nesting is not None:
-                s.max_table_nesting = max_table_nesting
-            s.schema_contract = schema_contract
-            # enable root propagation
-            s.root_key = root_key
-            return s
+        @wraps(conf_f)
+        async def _wrap_coro(*args: Any, **kwargs: Any) -> TDltSourceImpl:
+            """In case of co-routine we must wrap the whole injection context in awaitable,
+            there's no easy way to avoid some code duplication
+            """
+            with Container().injectable_context(SourceSchemaInjectableContext(schema)):
+                # configurations will be accessed in this section in the source
+                proxy = Container()[PipelineContext]
+                pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
+                with inject_section(
+                    ConfigSectionContext(
+                        pipeline_name=pipeline_name,
+                        sections=source_sections,
+                        source_state_key=schema.name,
+                    )
+                ):
+                    rv = await conf_f(*args, **kwargs)
+                    return _eval_rv(rv)
 
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
+        # get correct wrapper
+        wrapper = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap
         # store the source information
-        _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, _wrap, func_module)
-
-        # the typing is right, but makefun.wraps does not preserve signatures
-        return _wrap
+        _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, wrapper, func_module)
+        if inspect.iscoroutinefunction(inspect.unwrap(f)):
+            return _wrap_coro
+        else:
+            return _wrap
 
     if func is None:
         # we're called with parens.
@@ -250,7 +286,7 @@ def resource(
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -258,6 +294,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource: ...
 
 
@@ -267,7 +304,7 @@ def resource(
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -275,6 +312,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]: ...
 
 
@@ -284,7 +322,7 @@ def resource(
     /,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -292,6 +330,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: Literal[True] = True,
 ) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]: ...
 
@@ -302,7 +341,7 @@ def resource(
     /,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -310,6 +349,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource: ...
 
 
@@ -318,7 +358,7 @@ def resource(
     /,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
-    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    write_disposition: TTableHintTemplate[TWriteDispositionConfig] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
@@ -326,6 +366,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
 ) -> Any:
@@ -359,7 +400,9 @@ def resource(
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
+        Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
@@ -384,6 +427,8 @@ def resource(
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
+        parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources. Defaults to `False`.
+
     Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
@@ -395,16 +440,16 @@ def resource(
     def make_resource(
         _name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None
     ) -> DltResource:
-        table_template = DltResource.new_table_template(
+        table_template = make_hints(
             table_name,
-            write_disposition=write_disposition,
+            write_disposition=write_disposition or DEFAULT_WRITE_DISPOSITION,
             columns=columns,
             primary_key=primary_key,
             merge_key=merge_key,
             schema_contract=schema_contract,
             table_format=table_format,
         )
-        return DltResource.from_data(
+        resource = DltResource.from_data(
             _data,
             _name,
             _section,
@@ -413,6 +458,9 @@ def resource(
             cast(DltResource, data_from),
             incremental=incremental,
         )
+        if parallelized:
+            return resource.parallelize()
+        return resource
 
     def decorator(
         f: Callable[TResourceFunParams, Any]
@@ -522,6 +570,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
 
 
@@ -538,6 +587,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: Literal[True] = True,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
@@ -558,6 +608,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource: ...
 
 
@@ -574,6 +625,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: Literal[True] = True,
 ) -> Callable[TResourceFunParams, DltResource]: ...
 
@@ -590,6 +642,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: bool = False,
 ) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
@@ -664,6 +717,7 @@ def transformer(
         spec=spec,
         standalone=standalone,
         data_from=data_from,
+        parallelized=parallelized,
     )
 
 
@@ -694,7 +748,15 @@ def get_source_schema() -> Schema:
     try:
         return Container()[SourceSchemaInjectableContext].schema
     except ContextDefaultCannotBeCreated:
-        raise SourceSchemaNotAvailable()
+        raise CurrentSourceSchemaNotAvailable()
+
+
+def get_source() -> DltSource:
+    """When executed from the function decorated with @dlt.resource, returns currently extracted source"""
+    try:
+        return Container()[SourceInjectableContext].source
+    except ContextDefaultCannotBeCreated:
+        raise CurrentSourceNotAvailable()
 
 
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)

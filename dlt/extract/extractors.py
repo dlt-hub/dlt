@@ -1,10 +1,10 @@
 from copy import copy
-from typing import Set, Dict, Any, Optional, Set
+from typing import Set, Dict, Any, Optional, List
 
+from dlt.common import logger
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -18,26 +18,36 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
-
+from dlt.extract.hints import HintsMeta
 from dlt.extract.resource import DltResource
-from dlt.extract.typing import TableNameMeta
-from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
+from dlt.extract.items import TableNameMeta
+from dlt.extract.storage import ExtractorItemStorage
 
 try:
     from dlt.common.libs import pyarrow
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
     pyarrow = None
+    pa = None
 
 try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
+    from dlt.common.libs.pandas import pandas, pandas_to_arrow
+except MissingDependencyException:
+    pandas = None
+
+
+class MaterializedEmptyList(List[Any]):
+    """A list variant that will materialize tables even if empty list was yielded"""
+
+    pass
+
+
+def materialize_schema_item() -> MaterializedEmptyList:
+    """Yield this to materialize schema in the destination, even if there's no data."""
+    return MaterializedEmptyList()
 
 
 class Extractor:
-    file_format: TLoaderFileFormat
-
     @configspec
     class ExtractorConfiguration(BaseConfiguration):
         _caps: Optional[DestinationCapabilitiesContext] = None
@@ -46,9 +56,8 @@ class Extractor:
     def __init__(
         self,
         load_id: str,
-        storage: ExtractStorage,
+        item_storage: ExtractorItemStorage,
         schema: Schema,
-        resources_with_items: Set[str],
         collector: Collector = NULL_COLLECTOR,
         *,
         _caps: DestinationCapabilitiesContext = None,
@@ -56,45 +65,39 @@ class Extractor:
         self.schema = schema
         self.naming = schema.naming
         self.collector = collector
-        self.resources_with_items = resources_with_items
+        self.resources_with_items: Set[str] = set()
+        """Tracks resources that received items"""
+        self.resources_with_empty: Set[str] = set()
+        """Track resources that received empty materialized list"""
         self.load_id = load_id
+        self.item_storage = item_storage
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
-        self._storage = storage
         self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
-
-    @property
-    def storage(self) -> ExtractorItemStorage:
-        return self._storage.get_storage(self.file_format)
-
-    @staticmethod
-    def item_format(items: TDataItems) -> Optional[TLoaderFileFormat]:
-        """Detect the loader file format of the data items based on type.
-        Currently this is either 'arrow' or 'puae-jsonl'
-
-        Returns:
-            The loader file format or `None` if if can't be detected.
-        """
-        for item in items if isinstance(items, list) else [items]:
-            # Assume all items in list are the same type
-            if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
-                return "arrow"
-            return "puae-jsonl"
-        return None  # Empty list is unknown format
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
+        if isinstance(meta, HintsMeta):
+            # update the resource with new hints, remove all caches so schema is recomputed
+            # and contracts re-applied
+            resource.merge_hints(meta.hints, meta.create_table_variant)
+            # convert to table meta if created table variant so item is assigned to this table
+            if meta.create_table_variant:
+                # name in hints meta must be a string, otherwise merge_hints would fail
+                meta = TableNameMeta(meta.hints["name"])  # type: ignore[arg-type]
+            self._reset_contracts_cache()
+
         if table_name := self._get_static_table_name(resource, meta):
             # write item belonging to table with static name
-            self._write_to_static_table(resource, table_name, items)
+            self._write_to_static_table(resource, table_name, items, meta)
         else:
             # table has name or other hints depending on data items
             self._write_to_dynamic_table(resource, items)
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
-        self.storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
+        self.item_storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
         if resource._table_name_hint_fun:
@@ -115,12 +118,16 @@ class Extractor:
         items: TDataItems,
         columns: TTableSchemaColumns = None,
     ) -> None:
-        new_rows_count = self.storage.write_data_item(
+        new_rows_count = self.item_storage.write_data_item(
             self.load_id, self.schema.name, table_name, items, columns
         )
         self.collector.update(table_name, inc=new_rows_count)
-        if new_rows_count > 0:
+        # if there were rows or item was empty arrow table
+        if new_rows_count > 0 or self.__class__ is ArrowExtractor:
             self.resources_with_items.add(resource_name)
+        else:
+            if isinstance(items, MaterializedEmptyList):
+                self.resources_with_empty.add(resource_name)
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
         if not isinstance(items, list):
@@ -131,30 +138,32 @@ class Extractor:
             if table_name in self._filtered_tables:
                 continue
             if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
-                item = self._compute_and_update_table(resource, table_name, item)
+                item = self._compute_and_update_table(
+                    resource, table_name, item, TableNameMeta(table_name)
+                )
             # write to storage with inferred table name
             if table_name not in self._filtered_tables:
                 self._write_item(table_name, resource.name, item)
 
     def _write_to_static_table(
-        self, resource: DltResource, table_name: str, items: TDataItems
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> None:
         if table_name not in self._table_contracts:
-            items = self._compute_and_update_table(resource, table_name, items)
+            items = self._compute_and_update_table(resource, table_name, items, meta)
         if table_name not in self._filtered_tables:
             self._write_item(table_name, resource.name, items)
 
-    def _compute_table(self, resource: DltResource, items: TDataItems) -> TTableSchema:
+    def _compute_table(self, resource: DltResource, items: TDataItems, meta: Any) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items))
+        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items, meta))
 
     def _compute_and_update_table(
-        self, resource: DltResource, table_name: str, items: TDataItems
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
         """
-        Computes new table and does contract checks, if false is returned, the table may not be created and not items should be written
+        Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
-        computed_table = self._compute_table(resource, items)
+        computed_table = self._compute_table(resource, items, meta)
         # overwrite table name (if coming from meta)
         computed_table["name"] = table_name
         # get or compute contract
@@ -167,7 +176,7 @@ class Extractor:
             computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
-            diff_table = utils.diff_tables(existing_table, computed_table)
+            diff_table = utils.diff_table(existing_table, computed_table)
         else:
             diff_table = computed_table
 
@@ -190,13 +199,28 @@ class Extractor:
                     filtered_columns[name] = mode
         return items
 
+    def _reset_contracts_cache(self) -> None:
+        """Removes all cached contracts, filtered columns and tables"""
+        self._table_contracts.clear()
+        self._filtered_tables.clear()
+        self._filtered_columns.clear()
 
-class JsonLExtractor(Extractor):
-    file_format = "puae-jsonl"
+
+class ObjectExtractor(Extractor):
+    """Extracts Python object data items into typed jsonl"""
+
+    pass
 
 
 class ArrowExtractor(Extractor):
-    file_format = "arrow"
+    """Extracts arrow data items into parquet. Normalizes arrow items column names.
+    Compares the arrow schema to actual dlt table schema to reorder the columns and to
+    insert missing columns (without data).
+
+    We do things that normalizer should do here so we do not need to load and save parquet
+    files again later.
+
+    """
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
@@ -209,8 +233,8 @@ class ArrowExtractor(Extractor):
             for tbl in (
                 (
                     # 1. Convert pandas frame(s) to arrow Table
-                    pa.Table.from_pandas(item)
-                    if (pd and isinstance(item, pd.DataFrame))
+                    pandas_to_arrow(item)
+                    if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
                 for item in (items if isinstance(items, list) else [items])
@@ -218,12 +242,19 @@ class ArrowExtractor(Extractor):
         ]
         super().write_items(resource, items, meta)
 
+    def _write_to_static_table(
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
+    ) -> None:
+        # contract cache not supported for arrow tables
+        self._reset_contracts_cache()
+        super()._write_to_static_table(resource, table_name, items, meta)
+
     def _apply_contract_filters(
         self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]
     ) -> "TAnyArrowItem":
         """Removes the columns (discard value) or rows (discard rows) as indicated by contract filters."""
         # convert arrow schema names into normalized names
-        rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item, self.naming)
+        rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item.schema, self.naming)
         # find matching columns and delete by original name
         table_name = static_table_name or self._get_dynamic_table_name(resource, item)
         filtered_columns = self._filtered_columns.get(table_name)
@@ -260,34 +291,62 @@ class ArrowExtractor(Extractor):
         items: TDataItems,
         columns: TTableSchemaColumns = None,
     ) -> None:
-        columns = columns or self.schema.tables[table_name]["columns"]
+        columns = columns or self.schema.get_table_columns(table_name)
         # Note: `items` is always a list here due to the conversion in `write_table`
         items = [
-            pyarrow.normalize_py_arrow_schema(item, columns, self.naming, self._caps)
+            pyarrow.normalize_py_arrow_item(item, columns, self.naming, self._caps)
             for item in items
         ]
+        # write items one by one
         super()._write_item(table_name, resource_name, items, columns)
 
-    def _compute_table(self, resource: DltResource, items: TDataItems) -> TPartialTableSchema:
-        items = items[0]
-        computed_table = super()._compute_table(resource, items)
+    def _compute_table(
+        self, resource: DltResource, items: TDataItems, meta: Any
+    ) -> TPartialTableSchema:
+        arrow_table: TTableSchema = None
 
-        # Merge the columns to include primary_key and other hints that may be set on the resource
-        arrow_table = copy(computed_table)
-        arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(items.schema)
-        # normalize arrow table before merging
-        arrow_table = self.schema.normalize_table_identifiers(arrow_table)
-        # we must override the columns to preserve the order in arrow table
-        arrow_table["columns"] = update_dict_nested(
-            arrow_table["columns"], computed_table["columns"]
-        )
+        # several arrow tables will update the pipeline schema and we want that earlier
+        # arrow tables override the latter so the resultant schema is the same as if
+        # they are sent separately
+        for item in reversed(items):
+            computed_table = super()._compute_table(resource, item, Any)
+            # Merge the columns to include primary_key and other hints that may be set on the resource
+            if arrow_table:
+                utils.merge_table(computed_table, arrow_table)
+            else:
+                arrow_table = copy(computed_table)
+            arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            # normalize arrow table before merging
+            arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+            # issue warnings when overriding computed with arrow
+            override_warn: bool = False
+            for col_name, column in arrow_table["columns"].items():
+                if src_column := computed_table["columns"].get(col_name):
+                    for hint_name, hint in column.items():
+                        if (src_hint := src_column.get(hint_name)) is not None:
+                            if src_hint != hint:
+                                override_warn = True
+                                logger.info(
+                                    f"In resource: {resource.name}, when merging arrow schema on"
+                                    f" column {col_name}. The hint {hint_name} value"
+                                    f" {src_hint} defined in resource will overwrite arrow hint"
+                                    f" with value {hint}."
+                                )
+            if override_warn:
+                logger.warning(
+                    f"In resource: {resource.name}, when merging arrow schema with dlt schema,"
+                    " several column hints were different. dlt schema hints were kept and arrow"
+                    " schema and data were unmodified. It is up to destination to coerce the"
+                    " differences when loading. Change log level to INFO for more details."
+                )
 
+            update_dict_nested(arrow_table["columns"], computed_table["columns"])
         return arrow_table
 
     def _compute_and_update_table(
-        self, resource: DltResource, table_name: str, items: TDataItems
+        self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
     ) -> TDataItems:
-        items = super()._compute_and_update_table(resource, table_name, items)
+        items = super()._compute_and_update_table(resource, table_name, items, meta)
         # filter data item as filters could be updated in compute table
         items = [self._apply_contract_filters(item, resource, table_name) for item in items]
         return items

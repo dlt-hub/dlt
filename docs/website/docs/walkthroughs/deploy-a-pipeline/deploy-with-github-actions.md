@@ -22,7 +22,7 @@ initialize a Git repo in your `dlt` project directory and push it to GitHub as d
 
 Before you can deploy, you need a working pipeline. Make sure that it is working by running
 
-```shell
+```sh
 python3 chess_pipeline.py # replace chess_pipeline.py with your pipeline file
 ```
 
@@ -30,11 +30,11 @@ This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
 First you need to add additional dependencies that `deploy` command requires:
-```bash
+```sh
 pip install "dlt[cli]"
 ```
 then the command below will create a Github workflow that runs your pipeline script every 30 minutes:
-```shell
+```sh
 dlt deploy chess_pipeline.py github-action --schedule "*/30 * * * *"
 ```
 
@@ -52,13 +52,13 @@ out by the `dlt deploy` command line tool.
 
 To finish the GitHub Actions workflow setup, you need to first add and commit your files:
 
-```shell
+```sh
 git add . && git commit -m 'pipeline deployed with github action'
 ```
 
 And then push them to GitHub:
 
-```shell
+```sh
 git push origin
 ```
 

@@ -2,6 +2,7 @@ import itertools
 from typing import Iterator
 
 import pytest
+import asyncio
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -11,6 +12,7 @@ from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
 
 from dlt.extract import DltResource, DltSource, Incremental
+from dlt.extract.items import TableNameMeta
 from dlt.extract.source import DltResourceDict
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -21,6 +23,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
+    ResourceNotATransformer,
     ResourcesNotFoundError,
 )
 from dlt.extract.pipe import Pipe
@@ -767,9 +770,50 @@ def test_add_transform_steps_pipe() -> None:
     assert list(r) == ["1", "2", "2", "3", "3", "3"]
 
 
+def test_add_transformer_right_pipe() -> None:
+    # def tests right hand pipe
+    r = [1, 2, 3] | dlt.transformer(lambda i: i * 2, name="lambda")
+    # resource was created for a list
+    assert r._pipe.parent.name.startswith("iter")
+    assert list(r) == [2, 4, 6]
+
+    # works for iterators
+    r = iter([1, 2, 3]) | dlt.transformer(lambda i: i * 3, name="lambda")
+    assert list(r) == [3, 6, 9]
+
+    # must be a transformer
+    with pytest.raises(ResourceNotATransformer):
+        iter([1, 2, 3]) | dlt.resource(lambda i: i * 3, name="lambda")
+
+
 def test_limit_infinite_counter() -> None:
     r = dlt.resource(itertools.count(), name="infinity").add_limit(10)
     assert list(r) == list(range(10))
+
+
+@pytest.mark.parametrize("limit", (None, -1, 0, 10))
+def test_limit_edge_cases(limit: int) -> None:
+    r = dlt.resource(range(20), name="infinity").add_limit(limit)  # type: ignore
+
+    @dlt.resource()
+    async def r_async():
+        for i in range(20):
+            await asyncio.sleep(0.01)
+            yield i
+
+    sync_list = list(r)
+    async_list = list(r_async().add_limit(limit))
+
+    # check the expected results
+    assert sync_list == async_list
+    if limit == 10:
+        assert sync_list == list(range(10))
+    elif limit in [None, -1]:
+        assert sync_list == list(range(20))
+    elif limit == 0:
+        assert sync_list == []
+    else:
+        raise AssertionError(f"Unexpected limit: {limit}")
 
 
 def test_limit_source() -> None:
@@ -1087,8 +1131,29 @@ def test_exhausted_property() -> None:
 
     s = mysource()
     assert s.exhausted is False
-    assert next(iter(s)) == 2  # transformer is returned befor resource
-    assert s.exhausted is True
+    assert next(iter(s)) == 2  # transformer is returned before resource
+    assert s.exhausted is False
+
+
+def test_exhausted_with_limit() -> None:
+    def open_generator_data():
+        yield from [1, 2, 3, 4]
+
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [dlt.resource(open_generator_data)],
+    )
+    assert s.exhausted is False
+    list(s)
+    assert s.exhausted is False
+
+    # use limit
+    s.add_limit(1)
+    list(s)
+    # must still be false, limit should not open generator if it is still generator function
+    assert s.exhausted is False
+    assert list(s) == [1]
 
 
 def test_clone_resource_with_name() -> None:
@@ -1252,6 +1317,28 @@ def test_apply_hints() -> None:
         "primary_key": True,
         "merge_key": True,
     }
+    # test SCD2 write disposition hint
+    empty_r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "validity_column_names": ["from", "to"],
+        }
+    )
+    assert empty_r._hints["write_disposition"] == {
+        "disposition": "merge",
+        "strategy": "scd2",
+        "validity_column_names": ["from", "to"],
+    }
+    assert "from" not in empty_r._hints["columns"]
+    assert "to" not in empty_r._hints["columns"]
+    table = empty_r.compute_table_schema()
+    assert table["write_disposition"] == "merge"
+    assert table["x-merge-strategy"] == "scd2"
+    assert "from" in table["columns"]
+    assert "x-valid-from" in table["columns"]["from"]
+    assert "to" in table["columns"]
+    assert "x-valid-to" in table["columns"]["to"]
 
 
 def test_apply_dynamic_hints() -> None:
@@ -1262,9 +1349,11 @@ def test_apply_dynamic_hints() -> None:
 
     empty_r = empty()
     with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
+        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"], write_disposition=None)
 
-    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
+    empty_r.apply_hints(
+        table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"], write_disposition=None
+    )
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
 
@@ -1294,6 +1383,66 @@ def test_apply_dynamic_hints() -> None:
         {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]}
     )
     assert table["columns"]["tags"] == {"name": "tags"}
+
+
+def test_apply_hints_table_variants() -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+
+    empty = DltResource.from_data(empty_gen)
+
+    # table name must be a string
+    with pytest.raises(ValueError):
+        empty.apply_hints(write_disposition="append", create_table_variant=True)
+    with pytest.raises(ValueError):
+        empty.apply_hints(
+            table_name=lambda ev: ev["t"], write_disposition="append", create_table_variant=True
+        )
+
+    # table a with replace
+    empty.apply_hints(table_name="table_a", write_disposition="replace", create_table_variant=True)
+    table_a = empty.compute_table_schema(meta=TableNameMeta("table_a"))
+    assert table_a["name"] == "table_a"
+    assert table_a["write_disposition"] == "replace"
+
+    # unknown table (without variant) - created out resource hints
+    table_unk = empty.compute_table_schema(meta=TableNameMeta("table_unk"))
+    assert table_unk["name"] == "empty_gen"
+    assert table_unk["write_disposition"] == "append"
+
+    # resource hints are base for table variants
+    empty.apply_hints(
+        primary_key="id",
+        incremental=dlt.sources.incremental(cursor_path="x"),
+        columns=[{"name": "id", "data_type": "bigint"}],
+    )
+    empty.apply_hints(table_name="table_b", write_disposition="merge", create_table_variant=True)
+    table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
+    assert table_b["name"] == "table_b"
+    assert table_b["write_disposition"] == "merge"
+    assert len(table_b["columns"]) == 1
+    assert table_b["columns"]["id"]["primary_key"] is True
+    # overwrite table_b, remove column def and primary_key
+    empty.apply_hints(table_name="table_b", columns=[], primary_key=(), create_table_variant=True)
+    table_b = empty.compute_table_schema(meta=TableNameMeta("table_b"))
+    assert table_b["name"] == "table_b"
+    assert table_b["write_disposition"] == "merge"
+    assert len(table_b["columns"]) == 0
+
+    # dyn hints not allowed
+    with pytest.raises(InconsistentTableTemplate):
+        empty.apply_hints(
+            table_name="table_b", write_disposition=lambda ev: ev["wd"], create_table_variant=True
+        )
+
+
+def test_resource_no_template() -> None:
+    empty = DltResource.from_data([1, 2, 3], name="table")
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
+    empty.apply_hints()
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
 
 
 def test_selected_pipes_with_duplicates():

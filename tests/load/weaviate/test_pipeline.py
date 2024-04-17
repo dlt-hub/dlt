@@ -14,19 +14,16 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, drop_active_pipeline_data
+from tests.load.utils import sequence_generator
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
 def drop_weaviate_schema() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
-
-
-def sequence_generator():
-    count = 1
-    while True:
-        yield [{"content": str(count + i)} for i in range(3)]
-        count += 3
 
 
 def test_adapter_and_hints() -> None:

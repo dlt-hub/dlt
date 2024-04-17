@@ -36,7 +36,7 @@ scalable extraction via micro-batching and parallelism.
 
 ## The simplest pipeline: 1 liner to load data with schema evolution
 
-```python
+```py
 import dlt
 
 dlt.pipeline(destination='duckdb', dataset_name='mydata').run([{'id': 1, 'name': 'John'}], table_name="users")
@@ -52,7 +52,7 @@ named "three". With `dlt`, you can create a pipeline and run it with just a few 
 1. [Create a pipeline](walkthroughs/create-a-pipeline.md) to the [destination](dlt-ecosystem/destinations).
 1. Give this pipeline data and [run it](walkthroughs/run-a-pipeline.md).
 
-```python
+```py
 import dlt
 
 pipeline = dlt.pipeline(destination="duckdb", dataset_name="country_data")
@@ -84,7 +84,7 @@ In this example, we also run a dbt package and then load the outcomes of the loa
 This will enable us to log when schema changes occurred and match them to the loaded data for lineage, granting us both column and row level lineage.
 We also alert the schema change to a Slack channel where hopefully the producer and consumer are subscribed.
 
-```python
+```py
 import dlt
 
 # have data? dlt likes data
@@ -105,7 +105,7 @@ load_info = pipeline.run(
 )
 ```
 Add dbt runner, optionally with venv:
-```python
+```py
 venv = dlt.dbt.get_venv(pipeline)
 dbt = dlt.dbt.package(
     pipeline,
@@ -122,7 +122,7 @@ pipeline.run([models_info], table_name="transform_status", write_disposition='ap
 ```
 
 Let's alert any schema changes:
-```python
+```py
 from dlt.common.runtime.slack import send_slack_message
 
 slack_hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
@@ -211,7 +211,7 @@ that only one instance of each event is present.
 
 You can use the merge write disposition as follows:
 
-```python
+```py
 @dlt.resource(primary_key="id", write_disposition="merge")
 def github_repo_events():
     yield from _get_event_pages()
@@ -260,7 +260,7 @@ into DAGs, providing cross-database compatibility and various features such as t
 backfills, testing, and troubleshooting. You can use the dbt runner in `dlt` to seamlessly
 integrate dbt into your pipeline. Here's an example of running a dbt package after loading the data:
 
-```python
+```py
 import dlt
 from pipedrive import pipedrive_source
 
@@ -275,7 +275,7 @@ load_info = pipeline.run(pipedrive_source())
 print(load_info)
 ```
 Now transform from loaded data to dbt dataset:
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name='pipedrive',
     destination='bigquery',
@@ -306,7 +306,7 @@ transformations using SQL statements. You can execute SQL statements that change
 or manipulate data within tables. Here's an example of inserting a row into the `customers`
 table using the `dlt` SQL client:
 
-```python
+```py
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 
 with pipeline.sql_client() as client:
@@ -324,7 +324,7 @@ You can fetch query results as Pandas data frames and perform transformations us
 functionalities. Here's an example of reading data from the `issues` table in DuckDB and
 counting reaction types using Pandas:
 
-```python
+```py
 pipeline = dlt.pipeline(
     pipeline_name="github_pipeline",
     destination="duckdb",

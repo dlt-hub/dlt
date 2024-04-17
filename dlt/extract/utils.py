@@ -2,6 +2,7 @@ import inspect
 import makefun
 import asyncio
 from typing import (
+    Callable,
     Optional,
     Tuple,
     Union,
@@ -13,25 +14,68 @@ from typing import (
     AsyncGenerator,
     Awaitable,
     Generator,
+    Iterator,
 )
 from collections.abc import Mapping as C_Mapping
+from functools import wraps, partial
 
+from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems, TAnyFunOrGenerator
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidStepFunctionArguments,
 )
-from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
+from dlt.extract.items import (
+    TTableHintTemplate,
+    TDataItem,
+    TFunHintTemplate,
+    SupportsPipe,
+)
 
 try:
     from dlt.common.libs import pydantic
 except MissingDependencyException:
     pydantic = None
+
+
+try:
+    from dlt.common.libs import pyarrow
+except MissingDependencyException:
+    pyarrow = None
+
+try:
+    from dlt.common.libs.pandas import pandas
+except MissingDependencyException:
+    pandas = None
+
+
+def get_data_item_format(items: TDataItems) -> TDataItemFormat:
+    """Detect the format of the data item from `items`.
+
+    Reverts to `object` for empty lists
+
+    Returns:
+        The data file format.
+    """
+    if not pyarrow and not pandas:
+        return "object"
+
+    # Assume all items in list are the same type
+    try:
+        if isinstance(items, list):
+            items = items[0]
+        if (pyarrow and pyarrow.is_arrow_item(items)) or (
+            pandas and isinstance(items, pandas.DataFrame)
+        ):
+            return "arrow"
+    except IndexError:
+        pass
+    return "object"
 
 
 def resolve_column_value(
@@ -171,6 +215,55 @@ def wrap_async_iterator(
         exhausted = True
 
 
+def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
+    """Wraps a generator for parallel extraction"""
+
+    def _gen_wrapper(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
+        gen: TAnyFunOrGenerator
+        if callable(f):
+            gen = f(*args, **kwargs)
+        else:
+            gen = f
+
+        exhausted = False
+        busy = False
+
+        def _parallel_gen() -> TDataItems:
+            nonlocal busy
+            nonlocal exhausted
+            try:
+                return next(gen)  # type: ignore[call-overload]
+            except StopIteration:
+                exhausted = True
+                return None
+            finally:
+                busy = False
+
+        while not exhausted:
+            try:
+                while busy:
+                    yield None
+                busy = True
+                yield _parallel_gen
+            except GeneratorExit:
+                gen.close()  # type: ignore[attr-defined]
+                raise
+
+    if callable(f):
+        if inspect.isgeneratorfunction(inspect.unwrap(f)):
+            return wraps(f)(_gen_wrapper)  # type: ignore[arg-type]
+        else:
+
+            def _fun_wrapper(*args: Any, **kwargs: Any) -> Any:
+                def _curry() -> Any:
+                    return f(*args, **kwargs)
+
+                return _curry
+
+            return wraps(f)(_fun_wrapper)  # type: ignore[arg-type]
+    return _gen_wrapper()  # type: ignore[return-value]
+
+
 def wrap_compat_transformer(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
@@ -198,7 +291,7 @@ def wrap_resource_gen(
     if (
         inspect.isgeneratorfunction(inspect.unwrap(f))
         or inspect.isgenerator(f)
-        or inspect.isasyncgenfunction(f)
+        or inspect.isasyncgenfunction(inspect.unwrap(f))
     ):
 
         def _partial() -> Any:

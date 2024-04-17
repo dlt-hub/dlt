@@ -11,6 +11,9 @@ from unittest import mock
 import re
 from packaging.requirements import Requirement
 
+# import that because O3 modules cannot be unloaded
+import cryptography.hazmat.bindings._rust
+
 
 import dlt
 
@@ -186,6 +189,8 @@ def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> No
 def test_init_all_destinations(
     destination_name: str, project_files: FileStorage, repo_dir: str
 ) -> None:
+    if destination_name == "destination":
+        pytest.skip("Init for generic destination not implemented yet")
     pipeline_name = f"generic_{destination_name}_pipeline"
     init_command.init_command(pipeline_name, destination_name, True, repo_dir)
     assert_init_files(project_files, pipeline_name, destination_name)

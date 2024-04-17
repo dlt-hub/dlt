@@ -24,10 +24,10 @@ help:
 	@echo "		test"
 	@echo "			tests all the components including destinations"
 	@echo "		test-load-local"
-	@echo "			tests all components unsing local destinations: duckdb and postgres"
+	@echo "			tests all components using local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
-	@echo "		test-and-lint-snippets"
+	@echo "		lint-and-test-snippets"
 	@echo "			tests and lints snippets and examples in docs"
 	@echo "		build-library"
 	@echo "			makes dev and then builds dlt package for distribution"
@@ -47,7 +47,8 @@ dev: has-poetry
 	poetry install --all-extras --with airflow --with docs --with providers --with pipeline --with sentry-sdk
 
 lint:
-	./check-package.sh
+	./tools/check-package.sh
+	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
@@ -59,10 +60,21 @@ format:
 	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
 	# poetry run isort ./
 
-test-and-lint-snippets:
-	poetry run mypy --config-file mypy.ini docs/website docs/examples
-	poetry run flake8 --max-line-length=200 docs/website docs/examples
+lint-and-test-snippets:
+	cd docs/tools && poetry run python check_embedded_snippets.py full
+	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
+	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
+
+lint-and-test-examples:
+	poetry run mypy --config-file mypy.ini docs/examples
+	poetry run flake8 --max-line-length=200 docs/examples
+	cd docs/tools && poetry run python prepare_examples_tests.py
+	cd docs/examples && poetry run pytest
+
+
+test-examples:
+	cd docs/examples && poetry run pytest
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
@@ -74,7 +86,7 @@ test-load-local:
 	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(postgres or duckdb)'
 
 test-common:
-	poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common
+	poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common tests/load/test_dummy_client.py tests/libs tests/destinations
 
 reset-test-storage:
 	-rm -r _storage
@@ -89,9 +101,10 @@ publish-library: build-library
 	poetry publish
 
 test-build-images: build-library
-	poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
-	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
+	# TODO: enable when we can remove special duckdb setting for python 3.12
+	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
+	# grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
-	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
 

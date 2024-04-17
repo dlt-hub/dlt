@@ -2,6 +2,7 @@ from typing import Any
 
 from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
 from dlt.extract import DltResource, resource as make_resource
+from dlt.destinations.utils import ensure_resource
 
 VECTORIZE_HINT = "x-qdrant-embed"
 
@@ -31,15 +32,7 @@ def qdrant_adapter(
         >>> qdrant_adapter(data, embed="description")
         [DltResource with hints applied]
     """
-    # wrap `data` in a resource if not an instance already
-    resource: DltResource
-    if not isinstance(data, DltResource):
-        resource_name: str = None
-        if not hasattr(data, "__name__"):
-            resource_name = "content"
-        resource = make_resource(data, name=resource_name)
-    else:
-        resource = data
+    resource = ensure_resource(data)
 
     column_hints: TTableSchemaColumns = {}
 

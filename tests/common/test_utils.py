@@ -3,7 +3,7 @@ import inspect
 import binascii
 import pytest
 from typing import Dict
-from dlt.common.exceptions import IdentifierTooLongException, PipelineException, TerminalValueError
+from dlt.common.exceptions import PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (
@@ -21,6 +21,7 @@ from dlt.common.utils import (
     extend_list_deduplicated,
     get_exception_trace,
     get_exception_trace_chain,
+    update_dict_nested,
 )
 
 
@@ -230,6 +231,8 @@ def test_extend_list_deduplicated() -> None:
 
 
 def test_exception_traces() -> None:
+    from dlt.common.destination.exceptions import IdentifierTooLongException
+
     # bare exception without stack trace
     trace = get_exception_trace(Exception("Message"))
     assert trace["message"] == "Message"
@@ -242,7 +245,7 @@ def test_exception_traces() -> None:
         raise IdentifierTooLongException("postgres", "table", "too_long_table", 8)
     except Exception as exc:
         trace = get_exception_trace(exc)
-    assert trace["exception_type"] == "dlt.common.exceptions.IdentifierTooLongException"
+    assert trace["exception_type"] == "dlt.common.destination.exceptions.IdentifierTooLongException"
     assert isinstance(trace["stack_trace"], list)
     assert trace["exception_attrs"] == {
         "destination_name": "postgres",
@@ -261,6 +264,8 @@ def test_exception_traces() -> None:
 
 
 def test_exception_trace_chain() -> None:
+    from dlt.common.destination.exceptions import IdentifierTooLongException
+
     try:
         raise TerminalValueError("Val")
     except Exception:
@@ -275,5 +280,19 @@ def test_exception_trace_chain() -> None:
     # outer exception first
     assert len(traces) == 3
     assert traces[0]["exception_type"] == "dlt.common.exceptions.PipelineException"
-    assert traces[1]["exception_type"] == "dlt.common.exceptions.IdentifierTooLongException"
+    assert (
+        traces[1]["exception_type"]
+        == "dlt.common.destination.exceptions.IdentifierTooLongException"
+    )
     assert traces[2]["exception_type"] == "dlt.common.exceptions.TerminalValueError"
+
+
+def test_nested_dict_merge() -> None:
+    dict_1 = {"a": 1, "b": 2}
+    dict_2 = {"a": 2, "c": 4}
+
+    assert update_dict_nested(dict(dict_1), dict_2) == {"a": 2, "b": 2, "c": 4}
+    assert update_dict_nested(dict(dict_2), dict_1) == {"a": 1, "b": 2, "c": 4}
+    assert update_dict_nested(dict(dict_1), dict_2, keep_dst_values=True) == update_dict_nested(
+        dict_2, dict_1
+    )
