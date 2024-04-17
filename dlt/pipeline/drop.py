@@ -114,7 +114,9 @@ def drop_resources(
         resource_pattern = None
 
     if resource_pattern:
-        data_tables = {t["name"]: t for t in schema.data_tables()}  # Don't remove _dlt tables
+        data_tables = {
+            t["name"]: t for t in schema.data_tables(seen_data_only=True)
+        }  # Don't remove _dlt tables
         resource_tables = group_tables_by_resource(data_tables, pattern=resource_pattern)
         resource_names = list(resource_tables.keys())
         # TODO: If drop_tables

@@ -50,7 +50,11 @@ def test_refresh_drop_dataset():
             yield {"id": 5, "name": "Jack"}
             yield {"id": 6, "name": "Jill"}
 
-        return [some_data_1, some_data_2, some_data_3]
+        @dlt.resource
+        def some_data_4():
+            yield []
+
+        return [some_data_1, some_data_2, some_data_3, some_data_4]
 
     # First run pipeline with load to destination so tables are created
     pipeline = dlt.pipeline(
@@ -69,6 +73,13 @@ def test_refresh_drop_dataset():
     # pipeline.extract(my_source().with_resources("some_data_1", "some_data_2"))
     # pipeline.normalize()
     # pipeline.load()
+
+    assert set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True)) == {
+        "some_data_1",
+        "some_data_2",
+        # Table has never seen data and is not dropped
+        "some_data_4",
+    }
 
     # Confirm resource tables not selected on second run got wiped
     with pytest.raises(DatabaseUndefinedRelation):
