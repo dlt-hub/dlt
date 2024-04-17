@@ -111,12 +111,16 @@ def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     return doc
 
 
-def state_resource(state: TPipelineState) -> DltResource:
-    return dlt.resource(
-        [state_doc(state)],
-        name=STATE_TABLE_NAME,
-        write_disposition="append",
-        columns=STATE_TABLE_COLUMNS,
+def state_resource(state: TPipelineState) -> Tuple[DltResource, TPipelineStateDoc]:
+    doc = state_doc(state)
+    return (
+        dlt.resource(
+            [doc],
+            name=STATE_TABLE_NAME,
+            write_disposition="append",
+            columns=STATE_TABLE_COLUMNS,
+        ),
+        doc,
     )
 
 

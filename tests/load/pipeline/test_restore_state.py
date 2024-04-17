@@ -76,7 +76,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
         initial_state["_local"]["_last_extracted_hash"] = initial_state["_version_hash"]
         # add _dlt_id and _dlt_load_id
-        resource = state_resource(initial_state)
+        resource, _ = state_resource(initial_state)
         resource.apply_hints(
             columns={
                 "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False},
