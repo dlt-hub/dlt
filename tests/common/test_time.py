@@ -80,6 +80,8 @@ test_params = [
 def test_parse_iso_like_datetime() -> None:
     # naive datetime is still naive
     assert parse_iso_like_datetime("2021-01-01T05:02:32") == pendulum.DateTime(2021, 1, 1, 5, 2, 32)
+    # test that _parse_common form pendulum parsing is not failing with KeyError
+    assert parse_iso_like_datetime("2021:01:01 05:02:32") == pendulum.DateTime(2021, 1, 1, 5, 2, 32)
 
 
 @pytest.mark.parametrize("date_value, expected", test_params)

@@ -1,7 +1,5 @@
 # Filesystem & buckets
-Filesystem destination stores data in remote file systems and bucket storages like **S3**, **google storage** or **azure blob storage**.
-Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations.
-Its primary role is to be used as a staging for other destinations, but you can also quickly build a data lake with it.
+The Filesystem destination stores data in remote file systems and bucket storages like **S3**, **Google Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations, but you can also quickly build a data lake with it.
 
 > 💡 Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
 
@@ -15,8 +13,7 @@ This installs `s3fs` and `botocore` packages.
 
 :::caution
 
-You may also install the dependencies independently.
-Try:
+You may also install the dependencies independently. Try:
 ```sh
 pip install dlt
 pip install s3fs
@@ -28,16 +25,18 @@ so pip does not fail on backtracking.
 
 ### 1. Initialise the dlt project
 
-Let's start by initialising a new dlt project as follows:
+Let's start by initializing a new dlt project as follows:
    ```sh
    dlt init chess filesystem
    ```
-   > 💡 This command will initialise your pipeline with chess as the source and the AWS S3 filesystem as the destination.
+:::note
+This command will initialize your pipeline with chess as the source and the AWS S3 filesystem as the destination.
+:::
 
 ### 2. Set up bucket storage and credentials
 
 #### AWS S3
-The command above creates sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
+The command above creates a sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
 ```sh
 pip install -r requirements.txt
 ```
@@ -52,9 +51,7 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
 
-If you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above
-and `dlt` will fall back to your **default** profile in local credentials.
-If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** section above, and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
@@ -66,7 +63,7 @@ You can also pass an AWS region:
 region_name="eu-central-1"
 ```
 
-You need to create a S3 bucket and a user who can access that bucket. `dlt` is not creating buckets automatically.
+You need to create an S3 bucket and a user who can access that bucket. `dlt` does not create buckets automatically.
 
 1. You can create the S3 bucket in the AWS console by clicking on "Create Bucket" in S3 and assigning the appropriate name and permissions to the bucket.
 2. Once the bucket is created, you'll have the bucket URL. For example, If the bucket name is `dlt-ci-test-bucket`, then the bucket URL will be:
@@ -76,7 +73,7 @@ You need to create a S3 bucket and a user who can access that bucket. `dlt` is n
    ```
 
 3. To grant permissions to the user being used to access the S3 bucket, go to the IAM > Users, and click on “Add Permissions”.
-4. Below you can find a sample policy that gives a minimum permission required by `dlt` to a bucket we created above. The policy contains permissions to list files in a bucket, get, put and delete objects. **Remember to place your bucket name in Resource section of the policy!**
+4. Below you can find a sample policy that gives a minimum permission required by `dlt` to a bucket we created above. The policy contains permissions to list files in a bucket, get, put, and delete objects. **Remember to place your bucket name in the Resource section of the policy!**
 
 ```json
 {
@@ -105,7 +102,7 @@ You need to create a S3 bucket and a user who can access that bucket. `dlt` is n
 
 ##### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3 like [MinIO](https://min.io/) or [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) you may supply an `endpoint_url` in the config. This should be set along with aws credentials:
+To use an S3 compatible storage other than AWS S3 like [MinIO](https://min.io/) or [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
 [destination.filesystem]
@@ -123,12 +120,12 @@ To pass any additional arguments to `fsspec`, you may supply `kwargs` and `clien
 
 ```toml
 [destination.filesystem]
-kwargs = '{"use_ssl": true}'
+kwargs = '{"use_ssl": true, "auto_mkdir": true}'
 client_kwargs = '{"verify": "public.crt"}'
 ```
 
 #### Google Storage
-Run `pip install dlt[gs]` which will install `gcfs` package.
+Run `pip install dlt[gs]` which will install the `gcfs` package.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
 You'll see AWS credentials by default.
@@ -142,8 +139,9 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
-
-> 💡 Note that you can share the same credentials with BigQuery, replace the **[destination.filesystem.credentials]** section with less specific one: **[destination.credentials]** which applies to both destinations
+:::note
+Note that you can share the same credentials with BigQuery, replace the `[destination.filesystem.credentials]` section with a less specific one: `[destination.credentials]` which applies to both destinations
+:::
 
 if you have default google cloud credentials in your environment (i.e. on cloud function) remove the credentials sections above and `dlt` will fall back to the available default.
 
@@ -171,18 +169,18 @@ you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and 
 Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
 
 #### Local file system
-If for any reason you want to have those files in local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
+If for any reason you want to have those files in a local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
 
 ```toml
 [destination.filesystem]
-bucket_url = "file:///absolute/path"  # three / for absolute path
+bucket_url = "file:///absolute/path"  # three / for an absolute path
 # bucket_url = "file://relative/path" # two / for a relative path
 ```
 
 ## Write disposition
-`filesystem` destination handles the write dispositions as follows:
-- `append` - files belonging to such tables are added to dataset folder
-- `replace` - all files that belong to such tables are deleted from dataset folder, and then the current set of files is added.
+The filesystem destination handles the write dispositions as follows:
+- `append` - files belonging to such tables are added to the dataset folder
+- `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
 ## File Compression
@@ -192,54 +190,193 @@ The filesystem destination in the dlt library uses `gzip` compression by default
 To handle compressed files:
 
 - To disable compression, you can modify the `data_writer.disable_compression` setting in your "config.toml" file. This can be useful if you want to access the files directly without needing to decompress them. For example:
-  ```toml
-  [normalize.data_writer]
-  disable_compression=true
-  ```
+
+```toml
+[normalize.data_writer]
+disable_compression=true
+```
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
 
 For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and Enabling File Compression](https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression).
 
-## Data loading
-All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of `pipeline`. In our example chess pipeline it is **chess_players_games_data**.
+## Files layout
+All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of the `pipeline`. In our example chess pipeline, it is **chess_players_games_data**.
 
-> 💡 Note that bucket storages are in fact key-blob storage so folder structure is emulated by splitting file names into components by `/`.
+:::note
+Bucket storages are, in fact, key-blob storage so the folder structure is emulated by splitting file names into components by separator (`/`).
+:::
 
-### Files layout
+You can control files layout by specifying the desired configuration. There are several ways to do this.
 
-The name of each file contains essential metadata on the content:
+### Default layout
 
-- **schema_name** and **table_name** identify the [schema](../../general-usage/schema.md) and table that define the file structure (column names, data types, etc.)
-- **load_id** is the [id of the load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) form which the file comes from.
-- **file_id** is there are many files with data for a single table, they are copied with different file id.
-- **ext** a format of the file i.e. `jsonl` or `parquet`
+Current default layout: `{table_name}/{load_id}.{file_id}.{ext}`
 
-Current default layout: **{table_name}/{load_id}.{file_id}.{ext}`**
+:::note
+The default layout format has changed from `{schema_name}.{table_name}.{load_id}.{file_id}.{ext}` to `{table_name}/{load_id}.{file_id}.{ext}` in dlt 0.3.12. You can revert to the old layout by setting it manually.
+:::
 
-> 💡 Note that the default layout format has changed from `{schema_name}.{table_name}.{load_id}.{file_id}.{ext}` to `{table_name}/{load_id}.{file_id}.{ext}` in dlt 0.3.12. You can revert to the old layout by setting the old value in your toml file.
+### Available layout placeholders
 
+#### Standard placeholders
+
+* `schema_name` - the name of the [schema](../../general-usage/schema.md)
+* `table_name` - table name
+* `load_id` - the id of the [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) from which the file comes from
+* `file_id` - the id of the file, is there are many files with data for a single table, they are copied with different file ids
+* `ext` - a format of the file i.e. `jsonl` or `parquet`
+
+#### Date and time placeholders
+:::tip
+Keep in mind all values are lowercased.
+:::
+
+* `timestamp` - the current timestamp in Unix Timestamp format rounded to minutes
+* `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to minutes
+* Years
+  * `YYYY` - 2024, 2025
+  * `Y` - 2024, 2025
+* Months
+  * `MMMM` - January, February, March
+  * `MMM` - Jan, Feb, Mar
+  * `MM` - 01, 02, 03
+  * `M` - 1, 2, 3
+* Days of the month
+  * `DD` - 01, 02
+  * `D` - 1, 2
+* Hours 24h format
+  * `HH` - 00, 01, 02...23
+  * `H` - 0, 1, 2...23
+* Minutes
+  * `mm` - 00, 01, 02...59
+  * `m` - 0, 1, 2...59
+* Days of the week
+  * `dddd` - Monday, Tuesday, Wednesday
+  * `ddd` - Mon, Tue, Wed
+  * `dd` - Mo, Tu, We
+  * `d` - 0-6
+* `Q` - quarters 1, 2, 3, 4,
 
 You can change the file name format by providing the layout setting for the filesystem destination like so:
 ```toml
 [destination.filesystem]
 layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming scheme
-# layout="{schema_name}.{table_name}.{load_id}.{file_id}.{ext}" # naming scheme in dlt 0.3.11 and earlier
+
+# More examples
+# With timestamp
+# layout = "{table_name}/{timestamp}/{load_id}.{file_id}.{ext}"
+
+# With timestamp of the load package
+# layout = "{table_name}/{load_package_timestamp}/{load_id}.{file_id}.{ext}"
+
+# Parquet-like layout (note: it is not compatible with the internal datetime of the parquet file)
+# layout = "{table_name}/year={year}/month={month}/day={day}/{load_id}.{file_id}.{ext}"
+
+# Custom placeholders
+# extra_placeholders = { "owner" = "admin", "department" = "finance" }
+# layout = "{table_name}/{owner}/{department}/{load_id}.{file_id}.{ext}"
 ```
 
 A few things to know when specifying your filename layout:
 - If you want a different base path that is common to all filenames, you can suffix your `bucket_url` rather than prefix your `layout` setting.
-- If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as separator.
-- It is the best practice to have a separator between each placeholder. Separators can be any character allowed as a filename character, but dots, dashes and forward slashes are most common.
-- When you are using the `replace` disposition, `dlt`` will have to be able to figure out the correct files to delete before loading the new data. For this
-to work, you have to
+- If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as a separator.
+- It is the best practice to have a separator between each placeholder. Separators can be any character allowed as a filename character, but dots, dashes, and forward slashes are most common.
+- When you are using the `replace` disposition, `dlt` will have to be able to figure out the correct files to delete before loading the new data. For this to work, you have to
   - include the `{table_name}` placeholder in your layout
   - not have any other placeholders except for the `{schema_name}` placeholder before the table_name placeholder and
   - have a separator after the table_name placeholder
 
 Please note:
-- `dlt` will not dump the current schema content to the bucket
-- `dlt` will mark complete loads by creating an empty file that corresponds to `_dlt_loads` table. For example, if `chess._dlt_loads.1685299832` file is present in dataset folders, you can be sure that all files for the load package `1685299832` are completely loaded
+- `dlt` will mark complete loads by creating a json file in the `./_dlt_loads` folders that corresponds to the`_dlt_loads` table. For example, if `chess__1685299832.jsonl` file is present in the loads folder, you can be sure that all files for the load package `1685299832` are completely loaded
+
+### Advanced layout configuration
+
+The filesystem destination configuration supports advanced layout customization and the inclusion of additional placeholders. This can be done through `config.toml` or programmatically when initializing via a factory method.
+
+:::tip
+For handling deeply nested layouts, consider enabling automatic directory creation for the local filesystem destination. This can be done by setting `kwargs = '{"auto_mkdir": true}'` to facilitate the creation of directories automatically.
+:::
+
+#### Configuration via `config.toml`
+
+To configure the layout and placeholders using `config.toml`, use the following format:
+
+```toml
+layout = "{table_name}/{test_placeholder}/{YYYY}-{MM}-{DD}/{ddd}/{mm}/{load_id}.{file_id}.{ext}"
+extra_placeholders = { "test_placeholder" = "test_value" }
+current_datetime="2024-04-14T00:00:00"
+```
+
+:::note
+Ensure that the placeholder names match the intended usage. For example, `{test_placeholer}` should be corrected to `{test_placeholder}` for consistency.
+:::
+
+#### Dynamic configuration in the code
+
+Configuration options, including layout and placeholders, can be overridden dynamically when initializing and passing the filesystem destination directly to the pipeline.
+
+```py
+import pendulum
+
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline(
+    pipeline_name="data_things",
+    destination=filesystem(
+        layout="{table_name}/{test_placeholder}/{timestamp}/{load_id}.{file_id}.{ext}",
+        current_datetime=pendulum.now(),
+        extra_placeholders={
+            "test_placeholder": "test_value",
+        }
+    )
+)
+```
+
+Furthermore, it is possible to
+
+1. Customize the behavior with callbacks for extra placeholder functionality. Each callback must accept the following positional arguments and return a string.
+2. Customize the `current_datetime`, which can also be a callback function and expected to return a `pendulum.DateTime` instance.
+
+```py
+import pendulum
+
+import dlt
+from dlt.destinations import filesystem
+
+def placeholder_callback(schema_name: str, table_name: str, load_id: str, file_id: str, ext: str) -> str:
+    # Custom logic here
+    return "custom_value"
+
+def get_current_datetime() -> pendulum.DateTime:
+    return pendulum.now()
+
+pipeline = dlt.pipeline(
+    pipeline_name="data_things",
+    destination=filesystem(
+        layout="{table_name}/{placeholder_x}/{timestamp}/{load_id}.{file_id}.{ext}",
+        current_datetime=get_current_datetime,
+        extra_placeholders={
+            "placeholder_x": placeholder_callback
+        }
+    )
+)
+```
+
+### Recommended layout
+
+The currently recommended layout structure is straightforward:
+
+```toml
+layout="{table_name}/{load_id}.{file_id}.{ext}"
+```
+
+Adopting this layout offers several advantages:
+1. **Efficiency:** it's fast and simple to process.
+2. **Compatibility:** supports `replace` as the write disposition method.
+3. **Flexibility:** compatible with various destinations, including Athena.
+4. **Performance:** a deeply nested structure can slow down file navigation, whereas a simpler layout mitigates this issue.
 
 ## Supported file formats
 You can choose the following file formats:
@@ -249,7 +386,14 @@ You can choose the following file formats:
 
 
 ## Syncing of `dlt` state
-This destination does not support restoring the `dlt` state. You can change that by requesting the [feature](https://github.com/dlt-hub/dlt/issues/new/choose) or contributing to the core library 😄
-You can however easily [backup and restore the pipeline working folder](https://gist.github.com/rudolfix/ee6e16d8671f26ac4b9ffc915ad24b6e) - reusing the bucket and credentials used to store files.
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files that will be created at your destination which hold information about your pipeline state, schemas and completed loads. These folders DO NOT respect your
+settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are
+managed in the regular way by the final destination you have configured.
+
+You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables
+in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
+
+
+
 
 <!--@@@DLT_TUBA filesystem-->

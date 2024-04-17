@@ -237,7 +237,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             fileId=file_id, mimeType=mime_type, supportsAllDrives=True
         ).execute()
 
-    def ls(self, path: str, detail: Optional[bool] = False) -> Any:
+    def ls(self, path: str, detail: Optional[bool] = False, refresh: Optional[bool] = False) -> Any:
         """List files in a directory.
 
         Args:
