@@ -54,9 +54,23 @@ TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
 
 
+class TPipelineStateDoc(TypedDict, total=False):
+    """Corresponds to the StateInfo Tuple"""
+
+    version: int
+    engine_version: int
+    pipeline_name: str
+    state: str
+    version_hash: str
+    created_at: datetime.datetime
+    dlt_load_id: NotRequired[str]
+
+
 class TLoadPackageState(TVersionedState, total=False):
     created_at: DateTime
     """Timestamp when the load package was created"""
+    pipeline_state: NotRequired[TPipelineStateDoc]
+    """Pipeline state, added at the end of the extraction phase"""
 
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]

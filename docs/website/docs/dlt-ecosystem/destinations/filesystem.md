@@ -288,8 +288,7 @@ A few things to know when specifying your filename layout:
   - have a separator after the table_name placeholder
 
 Please note:
-- `dlt` will not dump the current schema content to the bucket
-- `dlt` will mark complete loads by creating an empty file that corresponds to `_dlt_loads` table. For example, if `chess._dlt_loads.1685299832` file is present in dataset folders, you can be sure that all files for the load package `1685299832` are completely loaded
+- `dlt` will mark complete loads by creating a json file in the `./_dlt_loads` folders that corresponds to the`_dlt_loads` table. For example, if `chess__1685299832.jsonl` file is present in the loads folder, you can be sure that all files for the load package `1685299832` are completely loaded
 
 ### Advanced layout configuration
 
@@ -387,7 +386,14 @@ You can choose the following file formats:
 
 
 ## Syncing of `dlt` state
-This destination does not support restoring the `dlt` state. You can change that by requesting the [feature](https://github.com/dlt-hub/dlt/issues/new/choose) or contributing to the core library 😄
-You can, however, easily [backup and restore the pipeline working folder](https://gist.github.com/rudolfix/ee6e16d8671f26ac4b9ffc915ad24b6e) - reusing the bucket and credentials used to store files.
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files that will be created at your destination which hold information about your pipeline state, schemas and completed loads. These folders DO NOT respect your
+settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are
+managed in the regular way by the final destination you have configured.
+
+You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables
+in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
+
+
+
 
 <!--@@@DLT_TUBA filesystem-->

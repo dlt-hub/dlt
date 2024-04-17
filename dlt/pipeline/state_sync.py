@@ -5,7 +5,7 @@ import dlt
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
-from dlt.common.destination.reference import WithStateSync, Destination
+from dlt.common.destination.reference import WithStateSync, Destination, StateInfo
 from dlt.common.versioned_state import (
     generate_state_version_hash,
     bump_state_version_if_modified,
@@ -14,7 +14,7 @@ from dlt.common.versioned_state import (
     decompress_state,
 )
 from dlt.common.pipeline import TPipelineState
-
+from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.extract import DltResource
 
 from dlt.pipeline.exceptions import (
@@ -22,6 +22,7 @@ from dlt.pipeline.exceptions import (
 )
 
 PIPELINE_STATE_ENGINE_VERSION = 4
+LOAD_PACKAGE_STATE_KEY = "pipeline_state"
 
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
@@ -93,11 +94,11 @@ def migrate_pipeline_state(
     return cast(TPipelineState, state)
 
 
-def state_resource(state: TPipelineState) -> DltResource:
+def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     state = copy(state)
     state.pop("_local")
     state_str = compress_state(state)
-    state_doc = {
+    doc: TPipelineStateDoc = {
         "version": state["_state_version"],
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
@@ -105,8 +106,21 @@ def state_resource(state: TPipelineState) -> DltResource:
         "created_at": pendulum.now(),
         "version_hash": state["_version_hash"],
     }
-    return dlt.resource(
-        [state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
+    if load_id:
+        doc["dlt_load_id"] = load_id
+    return doc
+
+
+def state_resource(state: TPipelineState) -> Tuple[DltResource, TPipelineStateDoc]:
+    doc = state_doc(state)
+    return (
+        dlt.resource(
+            [doc],
+            name=STATE_TABLE_NAME,
+            write_disposition="append",
+            columns=STATE_TABLE_COLUMNS,
+        ),
+        doc,
     )
 
 

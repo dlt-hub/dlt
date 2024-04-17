@@ -43,7 +43,10 @@ def duckdb_pipeline_location() -> None:
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_staging_configs=True, default_sql_configs=True, default_vector_configs=True
+        default_staging_configs=True,
+        default_sql_configs=True,
+        default_vector_configs=True,
+        all_buckets_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -62,8 +65,9 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(schema.version_table_name)
-        assert exists is True
+        # check if schema exists
+        stored_schema = job_client.get_stored_schema()
+        assert stored_schema is not None
         # dataset exists, still no table
         with pytest.raises(DestinationUndefinedEntity):
             load_pipeline_state_from_destination(p.pipeline_name, job_client)
@@ -72,7 +76,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
         initial_state["_local"]["_last_extracted_hash"] = initial_state["_version_hash"]
         # add _dlt_id and _dlt_load_id
-        resource = state_resource(initial_state)
+        resource, _ = state_resource(initial_state)
         resource.apply_hints(
             columns={
                 "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False},
@@ -86,8 +90,8 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(schema.state_table_name)
-        assert exists is True
+        stored_schema = job_client.get_stored_schema()
+        assert stored_schema is not None
         # table is there but no state
         assert load_pipeline_state_from_destination(p.pipeline_name, job_client) is None
         # extract state
@@ -180,7 +184,9 @@ def test_silently_skip_on_invalid_credentials(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
@@ -263,7 +269,9 @@ def test_get_schemas_from_destination(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_restore_state_pipeline(destination_config: DestinationTestConfiguration) -> None:
@@ -387,7 +395,9 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_ignore_state_unfinished_load(destination_config: DestinationTestConfiguration) -> None:
@@ -417,7 +427,9 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_restore_schemas_while_import_schemas_exist(
@@ -503,7 +515,9 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_restore_state_parallel_changes(destination_config: DestinationTestConfiguration) -> None:
@@ -609,7 +623,9 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_reset_pipeline_on_deleted_dataset(
