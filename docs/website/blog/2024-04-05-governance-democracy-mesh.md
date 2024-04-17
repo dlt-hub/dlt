@@ -120,10 +120,14 @@ And just like governments hire a lot of people, turns out, a governance system a
 Data mesh tries to solve much of that by embracing domain-oriented decentralization. In this model, data is treated as a product
 with the domain teams as the product owners. These teams are responsible for ensuring their data's quality and relevance,
 significantly reducing the latency issues found in centralized systems by eliminating the lengthy processes of data cleansing and approval.
-Moreover, data mesh empowers teams with the necessary tools and authority to manage their data effectively, fostering a culture where data
+
+Further, data mesh empowers teams with the necessary tools and authority to manage their data effectively, fostering a culture where data
 is a valuable asset across all levels of the organization. This approach not only supports rapid decision-making and innovation
 within teams but also offers scalability and flexibility as organizational data needs evolve, allowing domains to independently expand
 their data operations without a comprehensive overhaul of the central data infrastructure.
+
+Of course, at this point having a complete or partial data platform that offers some governance starts to become very important as we don't
+want individual business units to be burdened with responsibity but without proper tooling - or the outcome will be high entropy.
 
 ### From retrofitting governance to applying it from the start: Shift left data democracy!
 
@@ -165,6 +169,7 @@ to domain-specific teams. Shift-left data democracy, on the other hand, extends 
 beginning of the data lifecycle, advocating for early involvement and broad stakeholder participation in governance processes.
 
 The main difference is: Mesh is applied post-factum. For newly built systems, starting with governance as a technical universal standard is less complex.
+And while mesh grants autonomy, the entropy raises complexities and cost;  on the other hand formalising and standardising responsibilities from the start of data production reduces entropy.
 
 ## Practicing shift-left data democracy
 
@@ -195,15 +200,7 @@ For example, PII tags could enable automatic lineage documentation and governanc
 
 dlt currently supports column and row level lineage, as well as schema comments - which could be used as annotations.
 
-### Simplifying complexity: Democratizing tooling
-
-Tools for this role need to strike the right balance between accessibility for all organizational members and the complexity
-required for sophisticated data engineering tasks.
-
-By enabling the entire organisation's producers to participate in the process of source annotation, we don't only leverage a distributed system but also capture their domain
-expertise and make it available to others.
-
-### The role of the Data platform engineer
+### The role of the Data platform engineer will grow
 
 In a shift left data democracy, the data platform engineer is a key character, as much as a CTO is in an organisation. By having a data platform engineer you ensure your
 data governance is done with automated tooling, to support implementation and compliance.
