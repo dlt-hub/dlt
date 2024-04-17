@@ -52,6 +52,7 @@ def test_iso_date_detection() -> None:
     # ISO-8601 allows dates with reduced precision
     assert is_iso_date(str, "1975-05") == "date"
     assert is_iso_date(str, "1975") == "date"
+    assert is_iso_date(str, "1975/05/01") == "date"
 
     # dont auto-detect timestamps as dates
     assert is_iso_date(str, str(pendulum.now())) is None
@@ -68,7 +69,6 @@ def test_iso_date_detection() -> None:
     assert is_iso_date(str, "") is None
     assert is_iso_date(str, "75") is None
     assert is_iso_date(str, "01-12") is None
-    assert is_iso_date(str, "1975/05/01") is None
 
     # wrong type
     assert is_iso_date(float, str(pendulum.now().date())) is None
