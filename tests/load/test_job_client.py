@@ -516,7 +516,9 @@ def test_load_with_all_types(
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
     column_schemas, data_types = table_update_and_row(
-        exclude_types=["time"] if client.config.destination_type == "databricks" else None,
+        exclude_types=(
+            ["time"] if client.config.destination_type in ["databricks", "clickhouse"] else None
+        ),
     )
     # we should have identical content with all disposition types
     client.schema.update_table(
@@ -544,7 +546,11 @@ def test_load_with_all_types(
     expect_load_file(client, file_storage, query, table_name)
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     # content must equal
-    assert_all_data_types_row(db_row, schema=column_schemas)
+    assert_all_data_types_row(
+        db_row,
+        schema=column_schemas,
+        allow_base64_binary=True if client.config.destination_type in ["clickhouse"] else False,
+    )
 
 
 @pytest.mark.parametrize(

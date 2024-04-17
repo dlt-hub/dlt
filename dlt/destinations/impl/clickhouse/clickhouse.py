@@ -78,6 +78,7 @@ class ClickHouseTypeMapper(TypeMapper):
         "bool": "Boolean",
         "date": "Date",
         "timestamp": "DateTime('UTC')",
+        "time": "String",
         "bigint": "Int64",
         "binary": "String",
         "wei": "Decimal",
@@ -86,7 +87,7 @@ class ClickHouseTypeMapper(TypeMapper):
     sct_to_dbt = {
         "decimal": "Decimal(%i,%i)",
         "wei": "Decimal(%i,%i)",
-        "timestamp": "DateTime(%i,'UTC')",
+        "timestamp": "DateTime64(%i,'UTC')",
     }
 
     dbt_to_sct = {
@@ -95,15 +96,10 @@ class ClickHouseTypeMapper(TypeMapper):
         "Bool": "bool",
         "Date": "date",
         "DateTime": "timestamp",
-        "DateTime64": "timestamp",
-        "Time": "timestamp",
         "Int64": "bigint",
         "Object('json')": "complex",
         "Decimal": "decimal",
     }
-
-    def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
-        return "DateTime"
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
