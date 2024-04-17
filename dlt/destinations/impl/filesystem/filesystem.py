@@ -1,7 +1,8 @@
 import posixpath
 import os
+import base64
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set, Iterator, Optional, Tuple
+from typing import ClassVar, List, Type, Iterable, Set, Iterator, Optional, Tuple, cast
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 from dlt.common import json, pendulum
@@ -35,6 +36,7 @@ from dlt.destinations import path_utils
 
 
 INIT_FILE_NAME = "init"
+FILENAME_SEPARATOR = "__"
 
 
 class LoadFilesystemJob(LoadJob):
@@ -261,14 +263,15 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         self.fs_client.write_text(filepath, json.dumps(data), "utf-8")
 
     def _to_path_safe_string(self, s: str) -> str:
-        return "".join([c for c in s if re.match(r"\w", c)]) if s else None
+        """for base64 strings"""
+        return base64.b64decode(s).hex() if s else None
 
     def _list_dlt_dir(self, dirname: str) -> Iterator[Tuple[str, List[str]]]:
         if not self.fs_client.exists(posixpath.join(dirname, INIT_FILE_NAME)):
             raise DestinationUndefinedEntity({"dir": dirname})
-        for filepath in self.fs_client.listdir(dirname, detail=False):
+        for filepath in self.fs_client.ls(dirname, detail=False, refresh=True):
             filename = os.path.splitext(os.path.basename(filepath))[0]
-            fileparts = filename.split("__")
+            fileparts = filename.split(FILENAME_SEPARATOR)
             if len(fileparts) != 3:
                 continue
             yield filepath, fileparts
@@ -283,7 +286,11 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
             "inserted_at": pendulum.now().isoformat(),
             "schema_version_hash": self.schema.version_hash,
         }
-        filepath = f"{self.dataset_path}/{self.schema.loads_table_name}/{self.schema.name}__{load_id}.jsonl"
+        filepath = posixpath.join(
+            self.dataset_path,
+            self.schema.loads_table_name,
+            f"{self.schema.name}{FILENAME_SEPARATOR}{load_id}.jsonl",
+        )
         self._write_to_json_file(filepath, load_data)
 
     def complete_load(self, load_id: str) -> None:
@@ -297,32 +304,32 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
     def _get_state_file_name(self, pipeline_name: str, version_hash: str, load_id: str) -> str:
         """gets full path for schema file for a given hash"""
-        return f"{self.dataset_path}/{self.schema.state_table_name}/{pipeline_name}__{load_id}__{self._to_path_safe_string(version_hash)}.jsonl"
+        return posixpath.join(
+            self.dataset_path,
+            self.schema.state_table_name,
+            f"{pipeline_name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
+        )
 
     def _store_current_state(self, load_id: str) -> None:
         # don't save the state this way when used as staging
         if self.config.as_staging:
             return
         # get state doc from current pipeline
-        from dlt.pipeline.current import load_package_source_state
-        from dlt.pipeline.state_sync import LOAD_PACKAGE_STATE_KEY
+        from dlt.pipeline.current import load_package
 
-        doc = load_package_source_state().get(LOAD_PACKAGE_STATE_KEY, {})
+        pipeline_state_doc = load_package()["state"].get("pipeline_state")
 
-        if not doc:
+        if not pipeline_state_doc:
             return
 
-        # this is not done in other destinations...
-        doc["dlt_load_id"] = load_id
-
         # get paths
-        pipeline_name = doc["pipeline_name"]
+        pipeline_name = pipeline_state_doc["pipeline_name"]
         hash_path = self._get_state_file_name(
             pipeline_name, self.schema.stored_version_hash, load_id
         )
 
         # write
-        self._write_to_json_file(hash_path, doc)
+        self._write_to_json_file(hash_path, cast(DictStrAny, pipeline_state_doc))
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         # get base dir
@@ -350,7 +357,11 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
     def _get_schema_file_name(self, version_hash: str, load_id: str) -> str:
         """gets full path for schema file for a given hash"""
-        return f"{self.dataset_path}/{self.schema.version_table_name}/{self.schema.name}__{load_id}__{self._to_path_safe_string(version_hash)}.jsonl"
+        return posixpath.join(
+            self.dataset_path,
+            self.schema.version_table_name,
+            f"{self.schema.name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
+        )
 
     def _get_stored_schema_by_hash_or_newest(
         self, version_hash: str = None

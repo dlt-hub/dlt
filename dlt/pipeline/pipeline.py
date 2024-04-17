@@ -138,6 +138,7 @@ from dlt.pipeline.state_sync import (
     mark_state_extracted,
     migrate_pipeline_state,
     state_resource,
+    state_doc,
     default_pipeline_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
@@ -427,13 +428,13 @@ class Pipeline(SupportsPipeline):
                         raise SourceExhausted(source.name)
                     self._extract_source(extract_step, source, max_parallel_items, workers)
                 # extract state
+                state = None
                 if self.config.restore_from_destination:
                     # this will update state version hash so it will not be extracted again by with_state_sync
-                    self._bump_version_and_extract_state(
-                        self._container[StateInjectableContext].state, True, extract_step
-                    )
-                # commit load packages
-                extract_step.commit_packages()
+                    state = self._container[StateInjectableContext].state
+                    self._bump_version_and_extract_state(state, True, extract_step)
+                # commit load packages with state
+                extract_step.commit_packages(state_doc(state) if state else None)
                 return self._get_step_info(extract_step)
         except Exception as exc:
             # emit step info

@@ -9,6 +9,7 @@ from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemDestinationClientConfiguration,
+    INIT_FILE_NAME,
 )
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
@@ -156,10 +157,10 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 client.dataset_path, detail=False, refresh=True
             ):
                 # remove internal paths
-                if "_dlt" in basedir or "init" in basedir:
+                if "_dlt" in basedir:
                     continue
                 for f in files:
-                    if f == "init":
+                    if f == INIT_FILE_NAME:
                         continue
                     paths.append(posixpath.join(basedir, f))
 
@@ -222,7 +223,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                 if "_dlt" in basedir:
                     continue
                 for f in files:
-                    if f == "init":
+                    if f == INIT_FILE_NAME:
                         continue
                     paths.append(posixpath.join(basedir, f))
             assert list(sorted(paths)) == expected_files

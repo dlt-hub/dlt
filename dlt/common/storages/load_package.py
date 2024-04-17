@@ -54,15 +54,27 @@ TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
 
 
+class TPipelineStateDoc(TypedDict, total=False):
+    """Corresponds to the StateInfo Tuple"""
+
+    version: int
+    engine_version: int
+    pipeline_name: str
+    state: str
+    version_hash: str
+    created_at: datetime.datetime
+    dlt_load_id: NotRequired[str]
+
+
 class TLoadPackageState(TVersionedState, total=False):
     created_at: DateTime
     """Timestamp when the load package was created"""
+    pipeline_state: NotRequired[TPipelineStateDoc]
+    """Pipeline state, added at the end of the extraction phase"""
 
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
-    source_state: NotRequired[Dict[str, Any]]
-    """private space for source to store state relevant only to the load package, currently used for storing pipeline state"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -689,12 +701,6 @@ def destination_state() -> DictStrAny:
     """Get segment of load package state that is specific to the current destination."""
     lp = load_package()
     return lp["state"].setdefault("destination_state", {})
-
-
-def load_package_source_state() -> DictStrAny:
-    """Get segment of load package state that is specific to the sources."""
-    lp = load_package()
-    return lp["state"].setdefault("source_state", {})
 
 
 def clear_destination_state(commit: bool = True) -> None:

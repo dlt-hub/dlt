@@ -17,6 +17,7 @@ from dlt.common.pipeline import (
     WithStepInfo,
     reset_resource_state,
 )
+from dlt.common.typing import DictStrAny
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -30,6 +31,7 @@ from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, 
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
+    TPipelineStateDoc,
 )
 
 
@@ -400,10 +402,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 )
         return load_id
 
-    def commit_packages(self) -> None:
-        """Commits all extracted packages to normalize storage"""
+    def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:
+        """Commits all extracted packages to normalize storage, and adds the pipeline state to the load package"""
         # commit load packages
         for load_id, metrics in self._load_id_metrics.items():
+            package_state = self.extract_storage.new_packages.get_load_package_state(load_id)
+            package_state["pipeline_state"] = pipline_state_doc
+            self.extract_storage.new_packages.save_load_package_state(load_id, package_state)
             self.extract_storage.commit_new_load_package(
                 load_id, self.schema_storage[metrics[0]["schema_name"]]
             )

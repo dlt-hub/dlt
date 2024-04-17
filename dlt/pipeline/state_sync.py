@@ -5,7 +5,7 @@ import dlt
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
-from dlt.common.destination.reference import WithStateSync, Destination
+from dlt.common.destination.reference import WithStateSync, Destination, StateInfo
 from dlt.common.versioned_state import (
     generate_state_version_hash,
     bump_state_version_if_modified,
@@ -14,7 +14,7 @@ from dlt.common.versioned_state import (
     decompress_state,
 )
 from dlt.common.pipeline import TPipelineState
-
+from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.extract import DltResource
 
 from dlt.pipeline.exceptions import (
@@ -94,11 +94,11 @@ def migrate_pipeline_state(
     return cast(TPipelineState, state)
 
 
-def state_doc(state: TPipelineState) -> DictStrAny:
+def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     state = copy(state)
     state.pop("_local")
     state_str = compress_state(state)
-    doc = {
+    doc: TPipelineStateDoc = {
         "version": state["_state_version"],
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
@@ -106,13 +106,17 @@ def state_doc(state: TPipelineState) -> DictStrAny:
         "created_at": pendulum.now(),
         "version_hash": state["_version_hash"],
     }
+    if load_id:
+        doc["dlt_load_id"] = load_id
     return doc
 
 
 def state_resource(state: TPipelineState) -> DltResource:
-    doc = dlt.mark.with_package_state(state_doc(state), LOAD_PACKAGE_STATE_KEY)
     return dlt.resource(
-        [doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
+        [state_doc(state)],
+        name=STATE_TABLE_NAME,
+        write_disposition="append",
+        columns=STATE_TABLE_COLUMNS,
     )
 
 

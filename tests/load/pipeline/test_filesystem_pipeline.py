@@ -19,8 +19,11 @@ from tests.cases import arrow_table_all_data_types
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
-from tests.load.pipeline.utils import load_table_counts
+from tests.load.pipeline.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    load_table_counts,
+)
 
 
 skip_if_not_active("filesystem")

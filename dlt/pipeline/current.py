@@ -7,7 +7,6 @@ from dlt.common.storages.load_package import (
     load_package,
     commit_load_package_state,
     destination_state,
-    load_package_source_state,
     clear_destination_state,
 )
 from dlt.extract.decorators import get_source_schema, get_source
