@@ -43,7 +43,7 @@ def client(request) -> Iterator[SqlJobClientBase]:
     ids=lambda x: x.name,
 )
 def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     load_id = "182879721.182912"
     client.complete_load(load_id)
     curr: DBApiCursor
@@ -68,7 +68,7 @@ def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> Non
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     loads_table_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
 
     paramstyle = client.sql_client.dbapi.paramstyle
@@ -107,7 +107,7 @@ def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     loads_table_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
 
     paramstyle = client.sql_client.dbapi.paramstyle
@@ -144,7 +144,7 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_execute_sql(client: SqlJobClientBase) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     # ask with datetime
     # no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
     # assert len(no_rows) == 0
@@ -193,7 +193,7 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
 )
 def test_execute_ddl(client: SqlJobClientBase) -> None:
     uniq_suffix = uniq_id()
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     table_name = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES (1.0)")
@@ -215,7 +215,7 @@ def test_execute_ddl(client: SqlJobClientBase) -> None:
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_execute_query(client: SqlJobClientBase) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     version_table_name = client.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name}"
@@ -268,7 +268,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         chunk_size = 2048
         total_records = 3000
 
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     table_name = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
 
@@ -310,7 +310,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_database_exceptions(client: SqlJobClientBase) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     term_ex: Any
     # invalid table
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
@@ -581,7 +581,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
     client.schema._bump_version()
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"

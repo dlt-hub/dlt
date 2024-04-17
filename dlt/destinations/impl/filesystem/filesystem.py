@@ -183,7 +183,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(posixpath.join(self.dataset_path, INIT_FILE_NAME))
 
-    def update_stored_schema(
+    def migrate_storage_schema(
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,

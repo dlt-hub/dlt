@@ -282,12 +282,12 @@ class QdrantClient(JobClientBase, WithStateSync):
         """Delete the sentinel collection."""
         self.db_client.delete_collection(self.sentinel_collection)
 
-    def update_stored_schema(
+    def migrate_storage_schema(
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        super().update_stored_schema(only_tables, expected_update)
+        super().migrate_storage_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:

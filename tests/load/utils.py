@@ -480,7 +480,7 @@ def prepare_table(
     make_uniq_table: bool = True,
 ) -> str:
     client.schema._bump_version()
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
         user_table_name = table_name + uniq_id()
@@ -488,7 +488,7 @@ def prepare_table(
         user_table_name = table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
     client.schema._bump_version()
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     return user_table_name
 
 

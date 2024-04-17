@@ -139,7 +139,7 @@ def _init_dataset_and_update_schema(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
         f" {staging_text}"
     )
-    applied_update = job_client.update_stored_schema(
+    applied_update = job_client.migrate_storage_schema(
         only_tables=update_tables, expected_update=expected_update
     )
     logger.info(

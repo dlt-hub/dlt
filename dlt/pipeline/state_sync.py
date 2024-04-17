@@ -14,7 +14,7 @@ from dlt.common.versioned_state import (
     decompress_state,
 )
 from dlt.common.pipeline import TPipelineState
-from dlt.common.storages.load_package import TPipelineStateDoc
+from dlt.common.storages.load_package import TStoredPipelineState
 from dlt.extract import DltResource
 
 from dlt.pipeline.exceptions import (
@@ -94,11 +94,11 @@ def migrate_pipeline_state(
     return cast(TPipelineState, state)
 
 
-def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
+def state_doc(state: TPipelineState, load_id: str = None) -> TStoredPipelineState:
     state = copy(state)
     state.pop("_local")
     state_str = compress_state(state)
-    doc: TPipelineStateDoc = {
+    doc: TStoredPipelineState = {
         "version": state["_state_version"],
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
@@ -111,7 +111,7 @@ def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     return doc
 
 
-def state_resource(state: TPipelineState) -> Tuple[DltResource, TPipelineStateDoc]:
+def state_resource(state: TPipelineState) -> Tuple[DltResource, TStoredPipelineState]:
     doc = state_doc(state)
     return (
         dlt.resource(

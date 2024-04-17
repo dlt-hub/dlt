@@ -628,12 +628,12 @@ def test_init_client_truncate_tables() -> None:
     event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
 
     with patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage:
-        with patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema:
+        with patch.object(dummy_impl.DummyClient, "migrate_storage_schema") as migrate_storage_schema:
             with load.get_destination_client(schema) as client:
                 init_client(client, schema, [], {}, nothing_, nothing_)
             # we do not allow for any staging dataset tables
-            assert update_stored_schema.call_count == 1
-            assert update_stored_schema.call_args[1]["only_tables"] == {
+            assert migrate_storage_schema.call_count == 1
+            assert migrate_storage_schema.call_args[1]["only_tables"] == {
                 "_dlt_loads",
                 "_dlt_version",
             }
@@ -643,31 +643,31 @@ def test_init_client_truncate_tables() -> None:
             assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
 
             initialize_storage.reset_mock()
-            update_stored_schema.reset_mock()
+            migrate_storage_schema.reset_mock()
 
             # now we want all tables to be truncated but not on staging
             with load.get_destination_client(schema) as client:
                 init_client(client, schema, [event_user], {}, all_, nothing_)
-            assert update_stored_schema.call_count == 1
-            assert "event_user" in update_stored_schema.call_args[1]["only_tables"]
+            assert migrate_storage_schema.call_count == 1
+            assert "event_user" in migrate_storage_schema.call_args[1]["only_tables"]
             assert initialize_storage.call_count == 2
             assert initialize_storage.call_args_list[0].args == ()
             assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
 
             # now we push all to stage
             initialize_storage.reset_mock()
-            update_stored_schema.reset_mock()
+            migrate_storage_schema.reset_mock()
 
             with load.get_destination_client(schema) as client:
                 init_client(client, schema, [event_user, event_bot], {}, nothing_, all_)
-            assert update_stored_schema.call_count == 2
+            assert migrate_storage_schema.call_count == 2
             # first call main dataset
             assert {"event_user", "event_bot"} <= set(
-                update_stored_schema.call_args_list[0].kwargs["only_tables"]
+                migrate_storage_schema.call_args_list[0].kwargs["only_tables"]
             )
             # second one staging dataset
             assert {"event_user", "event_bot"} <= set(
-                update_stored_schema.call_args_list[1].kwargs["only_tables"]
+                migrate_storage_schema.call_args_list[1].kwargs["only_tables"]
             )
             assert initialize_storage.call_count == 4
             assert initialize_storage.call_args_list[0].args == ()
@@ -686,7 +686,7 @@ def test_init_client_truncate_tables() -> None:
             bot_chain = get_child_tables(schema.tables, "event_bot")
             for w_d in ["merge", "replace"]:
                 initialize_storage.reset_mock()
-                update_stored_schema.reset_mock()
+                migrate_storage_schema.reset_mock()
                 for bot in bot_chain:
                     bot["write_disposition"] = w_d  # type:ignore[typeddict-item]
                 # merge goes to staging, replace goes to truncate
@@ -695,40 +695,40 @@ def test_init_client_truncate_tables() -> None:
 
                 if w_d == "merge":
                     # we use staging dataset
-                    assert update_stored_schema.call_count == 2
+                    assert migrate_storage_schema.call_count == 2
                     # 4 tables to update in main dataset
-                    assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
+                    assert len(migrate_storage_schema.call_args_list[0].kwargs["only_tables"]) == 4
                     assert (
-                        "event_user" in update_stored_schema.call_args_list[0].kwargs["only_tables"]
+                        "event_user" in migrate_storage_schema.call_args_list[0].kwargs["only_tables"]
                     )
                     # full bot table chain + dlt version but no user
                     assert len(
-                        update_stored_schema.call_args_list[1].kwargs["only_tables"]
+                        migrate_storage_schema.call_args_list[1].kwargs["only_tables"]
                     ) == 1 + len(bot_chain)
                     assert (
                         "event_user"
-                        not in update_stored_schema.call_args_list[1].kwargs["only_tables"]
+                        not in migrate_storage_schema.call_args_list[1].kwargs["only_tables"]
                     )
 
                     assert initialize_storage.call_count == 4
                     assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
                     assert initialize_storage.call_args_list[3].kwargs[
                         "truncate_tables"
-                    ] == update_stored_schema.call_args_list[1].kwargs["only_tables"] - {
+                    ] == migrate_storage_schema.call_args_list[1].kwargs["only_tables"] - {
                         "_dlt_version"
                     }
 
                 if w_d == "replace":
-                    assert update_stored_schema.call_count == 1
+                    assert migrate_storage_schema.call_count == 1
                     assert initialize_storage.call_count == 2
                     # we truncate the whole bot chain but not user (which is append)
                     assert len(
                         initialize_storage.call_args_list[1].kwargs["truncate_tables"]
                     ) == len(bot_chain)
                     # migrate only tables for which we have jobs
-                    assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
+                    assert len(migrate_storage_schema.call_args_list[0].kwargs["only_tables"]) == 4
                     # print(initialize_storage.call_args_list)
-                    # print(update_stored_schema.call_args_list)
+                    # print(migrate_storage_schema.call_args_list)
 
 
 def test_dummy_staging_filesystem() -> None:

@@ -49,6 +49,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.storages.load_package import TStoredPipelineState, TStoredSchema
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -272,7 +273,7 @@ class JobClientBase(ABC):
         """Brings storage back into not initialized state. Typically data in storage is destroyed."""
         pass
 
-    def update_stored_schema(
+    def migrate_storage_schema(
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
@@ -429,19 +430,30 @@ class JobClientBase(ABC):
 
 
 class WithStateSync(ABC):
+
     @abstractmethod
-    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema(self) -> Optional[TStoredSchema]:
         """Retrieves newest schema from destination storage"""
         pass
 
     @abstractmethod
-    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+    def get_stored_schema_by_hash(self, version_hash: str) -> TStoredSchema:
         """retrieves the stored schema by hash"""
         pass
 
     @abstractmethod
-    def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
+    def store_schema(self, schema: TStoredSchema) -> None:
+        """saves schema to destination"""
+        pass
+
+    @abstractmethod
+    def get_stored_state(self, pipeline_name: str) -> Optional[TStoredPipelineState]:
         """Loads compressed state from destination storage"""
+        pass
+
+    @abstractmethod
+    def store_state(self, state:TStoredPipelineState) -> None:
+        """Saves compressed state to destination storage"""
         pass
 
 

@@ -218,7 +218,7 @@ def test_get_schemas_from_destination(
     with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
-        job_client.update_stored_schema()
+        job_client.migrate_storage_schema()
         # this may be a separate dataset depending in use_single_dataset setting
         assert get_normalized_dataset_name(
             job_client

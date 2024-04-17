@@ -80,7 +80,7 @@ def test_wei_value(client: RedshiftClient, file_storage: FileStorage) -> None:
 
 
 def test_schema_string_exceeds_max_text_length(client: RedshiftClient) -> None:
-    client.update_stored_schema()
+    client.migrate_storage_schema()
     # schema should be compressed and stored as base64
     schema = SchemaStorage.load_schema_file(
         os.path.join(COMMON_TEST_CASES_PATH, "schemas/ev1"), "event", ("json",)

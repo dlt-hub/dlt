@@ -63,7 +63,7 @@ from dlt.common.storages import (
     LoadJobInfo,
     LoadPackageInfo,
 )
-from dlt.common.storages.load_package import TPipelineStateDoc
+from dlt.common.storages.load_package import TStoredPipelineState
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
@@ -429,7 +429,7 @@ class Pipeline(SupportsPipeline):
                         raise SourceExhausted(source.name)
                     self._extract_source(extract_step, source, max_parallel_items, workers)
                 # extract state
-                state: TPipelineStateDoc = None
+                state: TStoredPipelineState = None
                 if self.config.restore_from_destination:
                     # this will update state version hash so it will not be extracted again by with_state_sync
                     state = self._bump_version_and_extract_state(
@@ -912,7 +912,7 @@ class Pipeline(SupportsPipeline):
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
-            return client.update_stored_schema()
+            return client.migrate_storage_schema()
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""
@@ -1515,7 +1515,7 @@ class Pipeline(SupportsPipeline):
 
     def _bump_version_and_extract_state(
         self, state: TPipelineState, extract_state: bool, extract: Extract = None
-    ) -> TPipelineStateDoc:
+    ) -> TStoredPipelineState:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.

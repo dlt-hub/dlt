@@ -31,7 +31,7 @@ from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, 
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
-    TPipelineStateDoc,
+    TStoredPipelineState,
 )
 
 
@@ -402,7 +402,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 )
         return load_id
 
-    def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:
+    def commit_packages(self, pipline_state_doc: TStoredPipelineState = None) -> None:
         """Commits all extracted packages to normalize storage, and adds the pipeline state to the load package"""
         # commit load packages
         for load_id, metrics in self._load_id_metrics.items():

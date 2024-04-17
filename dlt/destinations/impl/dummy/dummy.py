@@ -125,12 +125,12 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     def drop_storage(self) -> None:
         pass
 
-    def update_stored_schema(
+    def migrate_storage_schema(
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update)
+        applied_update = super().migrate_storage_schema(only_tables, expected_update)
         if self.config.fail_schema_update:
             raise DestinationTransientException(
                 "Raise on schema update due to fail_schema_update config flag"
