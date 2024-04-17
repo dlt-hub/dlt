@@ -23,24 +23,30 @@ _THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
 _SESSION: requests.Session = None
 _WRITE_KEY: str = None
 _SEGMENT_REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
-_SEGMENT_ENDPOINT = "https://api.segment.io/v1/track"
+_SEGMENT_ENDPOINT: str = None
 _SEGMENT_CONTEXT: TExecutionContext = None
 
 
 def init_segment(config: RunConfiguration) -> None:
-    assert (
-        config.dlthub_telemetry_segment_write_key
-    ), "dlthub_telemetry_segment_write_key not present in RunConfiguration"
+    global _WRITE_KEY, _SESSION, _SEGMENT_ENDPOINT
+    if "RUNTIME__TELEMETRY_ENDPOINT" not in os.environ:
+        assert (
+            config.dlthub_telemetry_segment_write_key
+        ), "dlthub_telemetry_segment_write_key not present in RunConfiguration"
+        # store write key
+        key_bytes = (config.dlthub_telemetry_segment_write_key + ":").encode("ascii")
+        _WRITE_KEY = base64.b64encode(key_bytes).decode("utf-8")
+        # store endpoint
+        _SEGMENT_ENDPOINT = config.dlthub_telemetry_endpoint
+    else:
+        _SEGMENT_ENDPOINT = os.environ["RUNTIME__TELEMETRY_ENDPOINT"]
+        _WRITE_KEY = None
 
     # create thread pool to send telemetry to segment
-    global _WRITE_KEY, _SESSION
     if not _SESSION:
         _SESSION = requests.Session()
         # flush pool on exit
         atexit.register(_at_exit_cleanup)
-    # store write key
-    key_bytes = (config.dlthub_telemetry_segment_write_key + ":").encode("ascii")
-    _WRITE_KEY = base64.b64encode(key_bytes).decode("utf-8")
     # cache the segment context
     _default_context_fields()
 
@@ -95,10 +101,15 @@ def _segment_request_header(write_key: str) -> StrAny:
     Returns:
         Authentication headers for segment.
     """
-    return {
-        "Authorization": "Basic {}".format(write_key),
-        "Content-Type": "application/json",
-    }
+    if not write_key:
+        return {
+            "Content-Type": "application/json",
+        }
+    else:
+        return {
+            "Authorization": "Basic {}".format(write_key),
+            "Content-Type": "application/json",
+        }
 
 
 def get_anonymous_id() -> str:
@@ -170,7 +181,7 @@ def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
         logger.debug("Skipping request to external service: payload was filtered out.")
         return
 
-    if not _WRITE_KEY:
+    if not _WRITE_KEY and _SEGMENT_ENDPOINT != RunConfiguration.dlthub_telemetry_endpoint:
         # If _WRITE_KEY is empty or `None`, telemetry has not been enabled
         logger.debug("Skipping request to external service: telemetry key not set.")
         return
@@ -179,13 +190,15 @@ def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
 
     def _future_send() -> None:
         # import time
-        # start_ts = time.time()
+        # start_ts = time.time_ns()
         resp = _SESSION.post(
             _SEGMENT_ENDPOINT, headers=headers, json=payload, timeout=_SEGMENT_REQUEST_TIMEOUT
         )
-        # print(f"SENDING TO Segment done {resp.status_code} {time.time() - start_ts} {base64.b64decode(_WRITE_KEY)}")
+        # end_ts = time.time_ns()
+        # elapsed_time = (end_ts - start_ts) / 10e6
+        # print(f"SENDING TO Segment done: {elapsed_time}ms Status: {resp.status_code}")
         # handle different failure cases
-        if resp.status_code != 200:
+        if resp.status_code != 200 or resp.status_code != 204:
             logger.debug(
                 f"Segment telemetry request returned a {resp.status_code} response. "
                 f"Body: {resp.text}"
