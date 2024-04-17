@@ -1,4 +1,5 @@
 import io
+import glob
 import gzip
 import mimetypes
 import pathlib
@@ -291,10 +292,14 @@ def glob_files(
     )
     filter_url = posixpath.join(bucket_url_no_schema, file_glob)
 
-    if filter_url.startswith(r"/\\"):
-        filter_url = filter_url[1:]
+    if "$" in filter_url:  # process UNC paths with Python glob module
+        files = glob.glob(filter_url, recursive=True)
+        glob_result = {}
+        for file in files:
+            glob_result[file] = fs_client.info(file)
+    else:
+        glob_result = fs_client.glob(filter_url, detail=True)
 
-    glob_result = fs_client.glob(filter_url, detail=True)
     if isinstance(glob_result, list):
         raise NotImplementedError(
             "Cannot request details when using fsspec.glob. For adlfs (Azure) please use version"

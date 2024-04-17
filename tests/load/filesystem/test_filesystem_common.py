@@ -1,4 +1,5 @@
 import os
+import platform
 import posixpath
 from typing import Union, Dict
 from urllib.parse import urlparse
@@ -18,6 +19,7 @@ from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
 from .utils import self_signed_cert
 from tests.common.configuration.utils import environment
+from tests.pipeline.utils import assert_load_info, load_table_counts
 
 
 @with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
@@ -172,3 +174,42 @@ def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert:
 
     with pytest.raises(SSLError, match="SSL: CERTIFICATE_VERIFY_FAILED"):
         print(filesystem.ls("", detail=False))
+
+
+@pytest.mark.skipif(platform.system() != "Windows", reason="Test it only on Windows")
+def test_windows_unc_path() -> None:
+    config = get_config()
+    config.read_only = True
+
+    unc_path = r"\\localhost\\" + os.path.abspath("tests/common/storages/samples").replace(":", "$")
+    abs_path = os.path.abspath(r"tests/common/storages/samples")
+
+    for bucket_url in [
+        unc_path,
+        "file://" + unc_path,
+        abs_path,
+        abs_path.replace(r"\\", "/"),
+    ]:
+
+        filesystem, _ = fsspec_from_config(config)
+
+        try:
+            all_file_items = list(glob_files(filesystem, bucket_url))
+            expected_files = [
+                "freshman_kgs.csv",
+                "freshman_lbs.csv",
+                "mlb_players.csv",
+                "mlb_teams_2012.csv",
+                "mlb_players.jsonl",
+                "A881_20230920.csv",
+                "A803_20230919.csv",
+                "A803_20230920.csv",
+                "mlb_players.parquet",
+                "taxi.csv.gz",
+                "sample.txt",
+            ]
+            for file in all_file_items:
+                file_name = file["file_name"].split("\\")[-1].split("/")[-1]
+                assert file_name in expected_files
+        except NotImplementedError as ex:
+            pytest.skip(f"Skipping due to {str(ex)}")
