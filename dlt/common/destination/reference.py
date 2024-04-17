@@ -273,7 +273,9 @@ class JobClientBase(ABC):
         pass
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
@@ -434,6 +436,7 @@ class WithStateSync(ABC):
 
     @abstractmethod
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+        """retrieves the stored schema by hash"""
         pass
 
     @abstractmethod

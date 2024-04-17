@@ -63,6 +63,7 @@ from dlt.common.storages import (
     LoadJobInfo,
     LoadPackageInfo,
 )
+from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
     merge_caps_file_formats,
@@ -138,6 +139,7 @@ from dlt.pipeline.state_sync import (
     mark_state_extracted,
     migrate_pipeline_state,
     state_resource,
+    state_doc,
     default_pipeline_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
@@ -427,13 +429,14 @@ class Pipeline(SupportsPipeline):
                         raise SourceExhausted(source.name)
                     self._extract_source(extract_step, source, max_parallel_items, workers)
                 # extract state
+                state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:
                     # this will update state version hash so it will not be extracted again by with_state_sync
-                    self._bump_version_and_extract_state(
+                    state = self._bump_version_and_extract_state(
                         self._container[StateInjectableContext].state, True, extract_step
                     )
-                # commit load packages
-                extract_step.commit_packages()
+                # commit load packages with state
+                extract_step.commit_packages(state)
                 return self._get_step_info(extract_step)
         except Exception as exc:
             # emit step info
@@ -728,7 +731,6 @@ class Pipeline(SupportsPipeline):
                             remote_state["schema_names"], always_download=True
                         )
                         # TODO: we should probably wipe out pipeline here
-
                 # if we didn't full refresh schemas, get only missing schemas
                 if restored_schemas is None:
                     restored_schemas = self._get_schemas_from_destination(
@@ -1513,7 +1515,7 @@ class Pipeline(SupportsPipeline):
 
     def _bump_version_and_extract_state(
         self, state: TPipelineState, extract_state: bool, extract: Extract = None
-    ) -> None:
+    ) -> TPipelineStateDoc:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
@@ -1521,7 +1523,7 @@ class Pipeline(SupportsPipeline):
         _, hash_, _ = bump_pipeline_state_version_if_modified(self._props_to_state(state))
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:
-            data = state_resource(state)
+            data, doc = state_resource(state)
             extract_ = extract or Extract(
                 self._schema_storage, self._normalize_storage_config(), original_data=data
             )
@@ -1532,7 +1534,9 @@ class Pipeline(SupportsPipeline):
             mark_state_extracted(state, hash_)
             # commit only if we created storage
             if not extract:
-                extract_.commit_packages()
+                extract_.commit_packages(doc)
+            return doc
+        return None
 
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""
