@@ -118,7 +118,6 @@ def test_from_arrow_scalar() -> None:
     assert py_dt == datetime(2021, 1, 1, 13, 2, 32, tzinfo=timezone.utc)
 
 
-
 def _row_at_index(table: pa.Table, index: int) -> List[Any]:
     return [table.column(column_name)[index].as_py() for column_name in table.column_names]
 

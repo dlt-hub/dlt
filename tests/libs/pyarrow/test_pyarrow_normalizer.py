@@ -3,7 +3,7 @@ from typing import List, Any
 import pyarrow as pa
 import pytest
 
-from dlt.common.libs.pyarrow import normalize_py_arrow_schema, NameNormalizationClash
+from dlt.common.libs.pyarrow import normalize_py_arrow_item, NameNormalizationClash
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.schema.utils import new_column, TColumnSchema
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -13,7 +13,7 @@ def _normalize(table: pa.Table, columns: List[TColumnSchema]) -> pa.Table:
     _, naming, _ = import_normalizers(explicit_normalizers())
     caps = DestinationCapabilitiesContext()
     columns_schema = {c["name"]: c for c in columns}
-    return normalize_py_arrow_schema(table, columns_schema, naming, caps)
+    return normalize_py_arrow_item(table, columns_schema, naming, caps)
 
 
 def _row_at_index(table: pa.Table, index: int) -> List[Any]:
