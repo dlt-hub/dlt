@@ -213,7 +213,7 @@ exclude = ["*.pyi"]
 
 [tool.ruff.lint]
 select = ["A", "B", "Q", "F", "S", "UP"]
-exclude = ["tests/reflection/module_cases/syntax_error.py"]
+exclude = ["tests/reflection/module_cases/**/*.py"]
 
 # Allow ruff to fix the following cases
 fixable = [
@@ -242,8 +242,18 @@ fixable = [
     "S110", # `try`-`except`-`pass` detected, consider logging the exception
 ]
 
-"tests/**/*.py" = ["S", "S608", "F401", "F811", "UP006", "UP007"]
-"docs/**/*.py" = ["S", "S608", "F401", "F811", "UP006", "UP007"]
+"tests/**/*.py" = [
+    "B008",
+    "B017",
+    "B018",
+    "S",
+    "S608",
+    "F401",
+    "F811",
+    "UP006",
+    "UP007",
+]
+"docs/**/*.py" = ["B904", "B008", "S", "S608", "F401", "F811", "UP006", "UP007"]
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
