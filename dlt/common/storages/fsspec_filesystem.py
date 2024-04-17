@@ -211,10 +211,8 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError(
-                """The argument `compression` must have one of the following values:
-                "auto", "enable", "disable"."""
-            )
+            raise ValueError("""The argument `compression` must have one of the following values:
+                "auto", "enable", "disable".""")
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to

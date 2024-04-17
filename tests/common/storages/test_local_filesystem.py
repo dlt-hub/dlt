@@ -2,6 +2,7 @@ import os
 import itertools
 import pytest
 import pathlib
+import platform
 
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import FileItemDict, glob_files
@@ -54,3 +55,41 @@ def test_filesystem_decompress() -> None:
         # read as uncompressed binary
         with file_dict.open(compression="enable") as f:
             assert f.read().startswith(b'"1200864931","2015-07-01 00:00:13"')
+
+
+@pytest.mark.skipif(platform.system() != "Windows", reason="Test it only on Windows")
+def test_windows_unc_path() -> None:
+    config = FilesystemConfiguration(bucket_url=TEST_SAMPLE_FILES)
+    config.read_only = True
+
+    unc_path = r"\\localhost\\" + os.path.abspath("tests/common/storages/samples").replace(":", "$")
+    abs_path = os.path.abspath(r"tests/common/storages/samples")
+
+    for bucket_url in [
+        unc_path,
+        "file://" + unc_path,
+        abs_path,
+        abs_path.replace(r"\\", "/"),
+    ]:
+        filesystem, _ = fsspec_from_config(config)
+
+        try:
+            all_file_items = list(glob_files(filesystem, bucket_url))
+            expected_files = [
+                "freshman_kgs.csv",
+                "freshman_lbs.csv",
+                "mlb_players.csv",
+                "mlb_teams_2012.csv",
+                "mlb_players.jsonl",
+                "A881_20230920.csv",
+                "A803_20230919.csv",
+                "A803_20230920.csv",
+                "mlb_players.parquet",
+                "taxi.csv.gz",
+                "sample.txt",
+            ]
+            for file in all_file_items:
+                file_name = file["file_name"].split("\\")[-1].split("/")[-1]
+                assert file_name in expected_files
+        except NotImplementedError as ex:
+            pytest.skip(f"Skipping due to {str(ex)}")
