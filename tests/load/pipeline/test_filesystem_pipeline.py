@@ -145,6 +145,35 @@ def test_pipeline_csv_filesystem_destination(item_type: TestDataItemFormat) -> N
         assert len(csv_rows) == 3
 
 
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_csv_options(item_type: TestDataItemFormat) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # set delimiter and disable headers
+    os.environ["NORMALIZE__DATA_WRITER__DELIMITER"] = "|"
+    os.environ["NORMALIZE__DATA_WRITER__INCLUDE_HEADER"] = "False"
+    # store locally
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    pipeline = dlt.pipeline(
+        pipeline_name="parquet_test_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="parquet_test_" + uniq_id(),
+    )
+
+    item, rows, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
+    info = pipeline.run(item, table_name="table", loader_file_format="csv")
+    info.raise_on_failed_jobs()
+    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
+    assert job.endswith("csv")
+    with open(job, "r", encoding="utf-8", newline="") as f:
+        csv_rows = list(csv.reader(f, dialect=csv.unix_dialect, delimiter="|"))
+        # no header
+        assert len(csv_rows) == 3
+    # object csv adds dlt columns
+    dlt_columns = 2 if item_type == "object" else 0
+    assert len(rows[0]) + dlt_columns == len(csv_rows[0])
+
+
 def test_pipeline_parquet_filesystem_destination() -> None:
     import pyarrow.parquet as pq  # Module is evaluated by other tests
 
