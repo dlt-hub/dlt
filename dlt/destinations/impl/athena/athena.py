@@ -367,7 +367,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             if is_iceberg:
                 sql.append(f"""CREATE TABLE {qualified_table_name}
                         ({columns})
-                        LOCATION '{location}'
+                        LOCATION '{location.rstrip('/')}'
                         TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
             elif table_format == "jsonl":
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
