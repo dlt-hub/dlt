@@ -316,7 +316,7 @@ def glob_files(
 
         if file.startswith("//"):
             file_name = file.replace("//", "\\\\")
-            file_url = "file://" + file_name
+            file_url = "file:///" + file_name
         else:
             file_name = posixpath.relpath(file, bucket_url_no_schema)
 
