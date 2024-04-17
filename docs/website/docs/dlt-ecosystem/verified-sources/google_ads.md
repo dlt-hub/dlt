@@ -21,12 +21,12 @@ loads data using the "Google Ads API" to the destination of your choice.
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                             |
-|------------------|-------------------------------------------------------------------------|
-| customers        | Businesses or individuals who pay to advertise their products           |
-| campaigns        | Structured sets of ad groups and advertisements                         |
-| change_events    | Modifications made to an account's ads, campaigns, and related settings |
-| customer_clients | Accounts that are managed by a given account                            |
+| S.No. | Name             | Description                                                             |
+|-------|------------------|-------------------------------------------------------------------------|
+| 1.    | customers        | Businesses or individuals who pay to advertise their products           |
+| 2.    | campaigns        | Structured sets of ad groups and advertisements                         |
+| 3.    | change_events    | Modifications made to an account's ads, campaigns, and related settings |
+| 4.    | customer_clients | Accounts that are managed by a given account                            |
 
 ## Setup Guide
 
@@ -113,7 +113,7 @@ token" that can be used to set up the "secrets.toml".
 ### Share the Google Ads Account with the API:
 
 :::note
-For service account authentication, use the client_email. For OAuth authentication, use the
+For service account authentication, use the `client_email`. For OAuth authentication, use the
 email associated with the app creation and refresh token generation.
 :::
 
@@ -123,15 +123,15 @@ email associated with the app creation and refresh token generation.
 
 1. Click on the "Tools & Settings" icon in the upper right corner of the screen.
 
-1. Under ‘Setup’, choose 'Account access' from the menu.
+1. Under "Setup", choose "Account access" from the menu.
 
 1. Click the blue “+” icon to add a new user.
 
 1. Enter the email address associated with either the service account (for service account authentication)
    or the email used during app creation and refresh token generation (for OAuth authentication).
 
-1. Assign the appropriate access level; for API purposes, 'Read-only' access might suffice if you only need data
-   retrieval capabilities. However, if using a service account, you might need to give 'Admin' access since service
+1. Assign the appropriate access level; for API purposes, "Read-only" access might suffice if you only need data
+   retrieval capabilities. However, if using a service account, you might need to give "Admin" access since service
    accounts usually perform tasks requiring higher privileges.
 
 1. Conclude the process by clicking the “Send invitation” button.
@@ -176,8 +176,7 @@ For more information, read the guide on [how to add a verified source](../../wal
    -  `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
    and helps manage individual Google Ads accounts. It is used for API access and account operations, and
    is visible in the top right corner of your Google Ads dashboard.
-   - `impersonated_email` allows secure use of the Google Ads API with a service account,
-using a specific user's permissions within the Ads platform.
+   - `impersonated_email` is the email address of the user whose identity the service account will impersonate.
 
 1. Next, for service account authentication:
 
@@ -249,8 +248,7 @@ def google_ads(
 
 `credentials`: GCP OAuth or service account credentials.
 
-`impersonated_email`: Allows secure use of the Google Ads API with a service account,
-using a specific user's permissions within the Ads platform.
+`impersonated_email`: Email address of the user whose identity the service account will impersonate.
 
 `dev_token`: A developer token, which is required to access the Google Ads API.
 
