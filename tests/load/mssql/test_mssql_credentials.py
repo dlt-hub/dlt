@@ -6,6 +6,9 @@ from dlt.common.exceptions import SystemConfigurationException
 
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_mssql_credentials_defaults() -> None:
     creds = MsSqlCredentials()

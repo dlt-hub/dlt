@@ -12,10 +12,10 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.pipeline.utils import load_table_counts
 from tests.utils import (
-    TDataItemFormat,
+    TestDataItemFormat,
     skip_if_not_active,
     data_to_item_format,
-    ALL_DATA_ITEM_FORMATS,
+    ALL_TEST_DATA_ITEM_FORMATS,
 )
 
 skip_if_not_active("duckdb")
@@ -100,7 +100,7 @@ def run_resource(
     pipeline: Pipeline,
     resource_fun: Callable[..., DltResource],
     settings: Any,
-    item_format: TDataItemFormat = "json",
+    item_format: TestDataItemFormat = "object",
     duplicates: int = 1,
 ) -> None:
     for item in settings.keys():
@@ -116,7 +116,7 @@ def run_resource(
     def source() -> Iterator[DltResource]:
         for idx in range(duplicates):
             resource: DltResource = resource_fun(settings.get("resource"))
-            if item_format != "json":
+            if item_format != "object":
                 resource._pipe.replace_gen(data_to_item_format(item_format, resource._pipe.gen()))  # type: ignore
             resource.table_name = resource.name
             yield resource.with_name(resource.name + str(idx))
@@ -149,9 +149,9 @@ def get_pipeline():
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_new_tables(
-    contract_setting: str, setting_location: str, item_format: TDataItemFormat
+    contract_setting: str, setting_location: str, item_format: TestDataItemFormat
 ) -> None:
     pipeline = get_pipeline()
 
@@ -181,7 +181,7 @@ def test_new_tables(
     pipeline.drop_pending_packages()
 
     # NOTE: arrow / pandas do not support variants and subtables so we must skip
-    if item_format == "json":
+    if item_format == "object":
         # run add variant column
         run_resource(pipeline, items_with_variant, full_settings)
         table_counts = load_table_counts(
@@ -203,9 +203,9 @@ def test_new_tables(
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("item_format", ALL_TEST_DATA_ITEM_FORMATS)
 def test_new_columns(
-    contract_setting: str, setting_location: str, item_format: TDataItemFormat
+    contract_setting: str, setting_location: str, item_format: TestDataItemFormat
 ) -> None:
     full_settings = {setting_location: {"columns": contract_setting}}
 
@@ -243,7 +243,7 @@ def test_new_columns(
     assert table_counts["items"] == expected_items_count
 
     # NOTE: arrow / pandas do not support variants and subtables so we must skip
-    if item_format == "json":
+    if item_format == "object":
         # subtable should work
         run_resource(pipeline, items_with_subtable, full_settings)
         table_counts = load_table_counts(

@@ -36,7 +36,12 @@ from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.exceptions import PipelineStateNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TColumnSchema,
+    TWriteDispositionConfig,
+    TSchemaContract,
+)
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime, precise_time
@@ -521,7 +526,7 @@ class SupportsPipeline(Protocol):
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         columns: Sequence[TColumnSchema] = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
@@ -544,7 +549,7 @@ class SupportsPipelineRun(Protocol):
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,

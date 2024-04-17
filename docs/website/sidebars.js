@@ -112,6 +112,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/athena',
             'dlt-ecosystem/destinations/weaviate',
             'dlt-ecosystem/destinations/qdrant',
+            'dlt-ecosystem/destinations/dremio',
             'dlt-ecosystem/destinations/destination',
             'dlt-ecosystem/destinations/motherduck'
           ]
@@ -170,6 +171,7 @@ const sidebars = {
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/csv',
             'dlt-ecosystem/file-formats/insert-format',
           ]
         },
@@ -233,6 +235,7 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
             'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
             'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
           ]
         },
         {

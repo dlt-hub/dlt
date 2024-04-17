@@ -5,7 +5,7 @@ import argparse
 import click
 
 from dlt.version import __version__
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.schema import Schema
 from dlt.common.typing import DictStrAny
 from dlt.common.runners import Venv

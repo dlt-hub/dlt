@@ -6,7 +6,7 @@ Its primary role is to be used as a staging for other destinations, but you can 
 > 💡 Please read the notes on the layout of the data files. Currently, we are getting feedback on it. Please join our Slack (icon at the top of the page) and help us find the optimal layout.
 
 ## Install dlt with filesystem
-**To install the DLT library with filesystem dependencies:**
+**To install the dlt library with filesystem dependencies:**
 ```sh
 pip install dlt[filesystem]
 ```
@@ -245,6 +245,7 @@ Please note:
 You can choose the following file formats:
 * [jsonl](../file-formats/jsonl.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
+* [csv](../file-formats/csv.md) is supported
 
 
 ## Syncing of `dlt` state

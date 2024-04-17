@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from urllib.parse import urlparse, urljoin
 
-from dlt.sources.helpers.requests import Response, Request
+from requests import Response, Request
 from dlt.common import jsonpath
 
 

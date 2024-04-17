@@ -7,7 +7,7 @@ keywords: [postgres, destination, data warehouse]
 # Postgres
 
 ## Install dlt with PostgreSQL
-**To install the DLT library with PostgreSQL dependencies, run:**
+**To install the dlt library with PostgreSQL dependencies, run:**
 ```sh
 pip install dlt[postgres]
 ```
@@ -78,8 +78,18 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default).
 
+### Fast loading with arrow tables and csv
+You can use [arrow tables](../verified-sources/arrow-pandas.md) and [csv](../file-formats/csv.md) to quickly load tabular data. Pick the `csv` loader file format
+like below
+```py
+info = pipeline.run(arrow_table, loader_file_format="csv")
+```
+In the example above `arrow_table` will be converted to csv with **pyarrow** and then streamed into **postgres** with COPY command. This method skips the regular
+`dlt` normalizer used for Python objects and is several times faster.
+
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default.
+* [csv](../file-formats/csv.md) is supported
 
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.

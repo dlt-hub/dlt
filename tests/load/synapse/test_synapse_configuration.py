@@ -8,6 +8,9 @@ from dlt.destinations.impl.synapse.configuration import (
     SynapseCredentials,
 )
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_synapse_configuration() -> None:
     # By default, unique indexes should not be created.

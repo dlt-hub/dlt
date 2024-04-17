@@ -19,6 +19,9 @@ from dlt.destinations.impl.synapse.synapse import (
     TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR,
 )
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def client(empty_schema: Schema) -> SynapseClient:

@@ -7,7 +7,7 @@ import dataclasses
 from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
-from dlt.common import pendulum, json
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext

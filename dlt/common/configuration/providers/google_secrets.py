@@ -1,9 +1,8 @@
 import base64
 import string
 import re
-from typing import Tuple
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.exceptions import MissingDependencyException
 from .toml import VaultTomlProvider

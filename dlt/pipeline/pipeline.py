@@ -19,7 +19,9 @@ from typing import (
 )
 
 from dlt import version
-from dlt.common import json, logger, pendulum
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.specs import RunConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
@@ -30,11 +32,9 @@ from dlt.common.configuration.exceptions import (
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
 from dlt.common.destination.exceptions import (
-    DestinationLoadingViaStagingNotSupported,
-    DestinationLoadingWithoutStagingNotSupported,
+    DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
-    DestinationIncompatibleLoaderFileFormatException,
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
@@ -42,13 +42,13 @@ from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import (
     TColumnNames,
     TSchemaTables,
-    TWriteDisposition,
+    TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrAny, TFun, TSecretValue, is_optional_type
+from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -63,7 +63,13 @@ from dlt.common.storages import (
     LoadJobInfo,
     LoadPackageInfo,
 )
-from dlt.common.destination import DestinationCapabilitiesContext, TDestination
+from dlt.common.destination import (
+    DestinationCapabilitiesContext,
+    merge_caps_file_formats,
+    TDestination,
+    ALL_SUPPORTED_FILE_FORMATS,
+    TLoaderFileFormat,
+)
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     WithStateSync,
@@ -75,7 +81,6 @@ from dlt.common.destination.reference import (
     DestinationClientStagingConfiguration,
     DestinationClientDwhWithStagingConfiguration,
 )
-from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import (
     ExtractInfo,
     LoadInfo,
@@ -92,8 +97,8 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
-from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.versioned_state import json_encode_state, json_decode_state
 
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
@@ -133,8 +138,6 @@ from dlt.pipeline.state_sync import (
     mark_state_extracted,
     migrate_pipeline_state,
     state_resource,
-    json_encode_state,
-    json_decode_state,
     default_pipeline_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
@@ -390,7 +393,7 @@ class Pipeline(SupportsPipeline):
         *,
         table_name: str = None,
         parent_table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
@@ -433,11 +436,13 @@ class Pipeline(SupportsPipeline):
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
         except Exception as exc:
+            # emit step info
             step_info = self._get_step_info(extract_step)
+            current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
             raise PipelineStepFailed(
                 self,
                 "extract",
-                extract_step.current_load_id,
+                current_load_id,
                 exc,
                 step_info,
             ) from exc
@@ -452,8 +457,8 @@ class Pipeline(SupportsPipeline):
         if is_interactive():
             workers = 1
 
-        if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
-            raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
+        if loader_file_format and loader_file_format not in ALL_SUPPORTED_FILE_FORMATS:
+            raise ValueError(f"{loader_file_format} is unknown.")
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
@@ -464,12 +469,20 @@ class Pipeline(SupportsPipeline):
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
+            loader_file_format=loader_file_format,
             _schema_storage_config=self._schema_storage_config,
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
         # run with destination context
-        with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
+        with self._maybe_destination_capabilities() as caps:
+            if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
+                raise DestinationIncompatibleLoaderFileFormatException(
+                    self.destination.destination_name,
+                    (self.staging.destination_name if self.staging else None),
+                    loader_file_format,
+                    set(caps.supported_loader_file_formats),
+                )
             # shares schema storage with the pipeline so we do not need to install
             normalize_step: Normalize = Normalize(
                 collector=self.collector,
@@ -556,7 +569,7 @@ class Pipeline(SupportsPipeline):
         dataset_name: str = None,
         credentials: Any = None,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
@@ -600,7 +613,9 @@ class Pipeline(SupportsPipeline):
             * `@dlt.resource`: resource contains the full table schema and that includes the table name. `table_name` will override this property. Use with care!
             * `@dlt.source`: source contains several resources each with a table schema. `table_name` will override all table names within the source and load the data into single table.
 
-            write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+            write_disposition (TWriteDispositionConfig, optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
+            Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+            Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
             Please note that in case of `dlt.resource` the table schema value will be overwritten and in case of `dlt.source`, the values in all resources will be overwritten.
 
             columns (Sequence[TColumnSchema], optional): A list of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
@@ -751,8 +766,8 @@ class Pipeline(SupportsPipeline):
                         self._wipe_working_folder()
                         state = self._get_state()
                         self._configure(
-                            self._schema_storage_config.export_schema_path,
                             self._schema_storage_config.import_schema_path,
+                            self._schema_storage_config.export_schema_path,
                             False,
                         )
 
@@ -893,8 +908,7 @@ class Pipeline(SupportsPipeline):
             )
 
         schema = self.schemas[schema_name] if schema_name else self.default_schema
-        client_config = self._get_destination_client_initial_config(credentials)
-        with self._get_destination_clients(schema, client_config)[0] as client:
+        with self._get_destination_clients(schema)[0] as client:
             client.initialize_storage()
             return client.update_stored_schema()
 
@@ -950,8 +964,7 @@ class Pipeline(SupportsPipeline):
         If no schema name is provided and no default schema is present in the pipeline, and ad hoc schema will be created and discarded after use.
         """
         schema = self._get_schema_or_create(schema_name)
-        client_config = self._get_destination_client_initial_config(credentials)
-        return self._get_destination_clients(schema, client_config)[0]
+        return self._get_destination_clients(schema)[0]
 
     def _get_schema_or_create(self, schema_name: str = None) -> Schema:
         if schema_name:
@@ -976,7 +989,6 @@ class Pipeline(SupportsPipeline):
         caps = self._get_destination_capabilities()
         return LoadStorage(
             True,
-            caps.preferred_loader_file_format,
             caps.supported_loader_file_formats,
             self._load_storage_config(),
         )
@@ -1257,7 +1269,7 @@ class Pipeline(SupportsPipeline):
 
     @contextmanager
     def _maybe_destination_capabilities(
-        self, loader_file_format: TLoaderFileFormat = None
+        self,
     ) -> Iterator[DestinationCapabilitiesContext]:
         try:
             caps: DestinationCapabilitiesContext = None
@@ -1268,61 +1280,18 @@ class Pipeline(SupportsPipeline):
                 injected_caps = self._container.injectable_context(destination_caps)
                 caps = injected_caps.__enter__()
 
-                caps.preferred_loader_file_format = self._resolve_loader_file_format(
-                    self.destination.destination_name,
-                    (
-                        # DestinationReference.to_name(self.destination),
-                        self.staging.destination_name
-                        if self.staging
-                        else None
-                    ),
-                    # DestinationReference.to_name(self.staging) if self.staging else None,
-                    destination_caps,
-                    stage_caps,
-                    loader_file_format,
+                caps.preferred_loader_file_format, caps.supported_loader_file_formats = (
+                    merge_caps_file_formats(
+                        self.destination.destination_name,
+                        (self.staging.destination_name if self.staging else None),
+                        destination_caps,
+                        stage_caps,
+                    )
                 )
-                caps.supported_loader_file_formats = (
-                    destination_caps.supported_staging_file_formats if stage_caps else None
-                ) or destination_caps.supported_loader_file_formats
             yield caps
         finally:
             if injected_caps:
                 injected_caps.__exit__(None, None, None)
-
-    @staticmethod
-    def _resolve_loader_file_format(
-        destination: str,
-        staging: str,
-        dest_caps: DestinationCapabilitiesContext,
-        stage_caps: DestinationCapabilitiesContext,
-        file_format: TLoaderFileFormat,
-    ) -> TLoaderFileFormat:
-        possible_file_formats = dest_caps.supported_loader_file_formats
-        if stage_caps:
-            if not dest_caps.supported_staging_file_formats:
-                raise DestinationLoadingViaStagingNotSupported(destination)
-            possible_file_formats = [
-                f
-                for f in dest_caps.supported_staging_file_formats
-                if f in stage_caps.supported_loader_file_formats
-            ]
-        if not file_format:
-            if not stage_caps:
-                if not dest_caps.preferred_loader_file_format:
-                    raise DestinationLoadingWithoutStagingNotSupported(destination)
-                file_format = dest_caps.preferred_loader_file_format
-            elif stage_caps and dest_caps.preferred_staging_file_format in possible_file_formats:
-                file_format = dest_caps.preferred_staging_file_format
-            else:
-                file_format = possible_file_formats[0] if len(possible_file_formats) > 0 else None
-        if file_format not in possible_file_formats:
-            raise DestinationIncompatibleLoaderFileFormatException(
-                destination,
-                staging,
-                file_format,
-                set(possible_file_formats) - INTERNAL_LOADER_FILE_FORMATS,
-            )
-        return file_format
 
     def _set_default_normalizers(self) -> None:
         _, self._default_naming, _ = import_normalizers(explicit_normalizers())

@@ -3,7 +3,7 @@ from typing import Any, Optional, Sequence, Tuple
 import dlt
 from dlt.cli.exceptions import CliCommandException
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv

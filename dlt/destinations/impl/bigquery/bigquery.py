@@ -7,9 +7,10 @@ import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
 from google.cloud import exceptions as gcp_exceptions
 from google.api_core import retry
-from google.cloud.bigquery.retry import _DEFAULT_RETRY_DEADLINE, _RETRYABLE_REASONS
+from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -232,10 +233,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 if insert_api == "streaming":
                     if table["write_disposition"] != "append":
                         raise DestinationTerminalException(
-                            (
-                                "BigQuery streaming insert can only be used with `append` write_disposition, while "
-                                f'the given resource has `{table["write_disposition"]}`.'
-                            )
+                            "BigQuery streaming insert can only be used with `append`"
+                            " write_disposition, while the given resource has"
+                            f" `{table['write_disposition']}`."
                         )
                     if file_path.endswith(".jsonl"):
                         job_cls = DestinationJsonlLoadJob
@@ -364,7 +364,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(column["name"])
-        column_def_sql = f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
+        column_def_sql = (
+            f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
+        )
         if column.get(ROUND_HALF_EVEN_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):
@@ -495,5 +497,5 @@ def _streaming_load(
     bq_client.insert_rows_json(
         full_name,
         items,
-        retry=retry.Retry(predicate=_should_retry, deadline=_DEFAULT_RETRY_DEADLINE),
+        retry=retry.Retry(predicate=_should_retry, deadline=600),  # with 10 mins deadline
     )

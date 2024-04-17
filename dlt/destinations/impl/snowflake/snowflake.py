@@ -166,7 +166,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         # decide on source format, stage_file_path will either be a local file or a bucket path
         source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
         if file_name.endswith("parquet"):
-            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
+            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
 
         with client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy

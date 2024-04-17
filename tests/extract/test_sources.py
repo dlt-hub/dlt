@@ -1317,6 +1317,28 @@ def test_apply_hints() -> None:
         "primary_key": True,
         "merge_key": True,
     }
+    # test SCD2 write disposition hint
+    empty_r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "validity_column_names": ["from", "to"],
+        }
+    )
+    assert empty_r._hints["write_disposition"] == {
+        "disposition": "merge",
+        "strategy": "scd2",
+        "validity_column_names": ["from", "to"],
+    }
+    assert "from" not in empty_r._hints["columns"]
+    assert "to" not in empty_r._hints["columns"]
+    table = empty_r.compute_table_schema()
+    assert table["write_disposition"] == "merge"
+    assert table["x-merge-strategy"] == "scd2"
+    assert "from" in table["columns"]
+    assert "x-valid-from" in table["columns"]["from"]
+    assert "to" in table["columns"]
+    assert "x-valid-to" in table["columns"]["to"]
 
 
 def test_apply_dynamic_hints() -> None:

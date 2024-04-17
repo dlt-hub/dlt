@@ -19,6 +19,7 @@ from typing import (
 from collections.abc import Mapping as C_Mapping
 from functools import wraps, partial
 
+from dlt.common.data_writers import TDataItemFormat
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
@@ -40,6 +41,41 @@ try:
     from dlt.common.libs import pydantic
 except MissingDependencyException:
     pydantic = None
+
+
+try:
+    from dlt.common.libs import pyarrow
+except MissingDependencyException:
+    pyarrow = None
+
+try:
+    from dlt.common.libs.pandas import pandas
+except MissingDependencyException:
+    pandas = None
+
+
+def get_data_item_format(items: TDataItems) -> TDataItemFormat:
+    """Detect the format of the data item from `items`.
+
+    Reverts to `object` for empty lists
+
+    Returns:
+        The data file format.
+    """
+    if not pyarrow and not pandas:
+        return "object"
+
+    # Assume all items in list are the same type
+    try:
+        if isinstance(items, list):
+            items = items[0]
+        if (pyarrow and pyarrow.is_arrow_item(items)) or (
+            pandas and isinstance(items, pandas.DataFrame)
+        ):
+            return "arrow"
+    except IndexError:
+        pass
+    return "object"
 
 
 def resolve_column_value(

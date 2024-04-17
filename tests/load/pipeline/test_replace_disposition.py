@@ -16,6 +16,7 @@ from tests.load.pipeline.utils import (
 )
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(

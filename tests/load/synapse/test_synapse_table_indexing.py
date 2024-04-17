@@ -17,6 +17,8 @@ from tests.load.pipeline.utils import (
 )  # this import ensures all test data gets removed
 from tests.load.synapse.utils import get_storage_table_index_type
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID = [
     ("heap", None),

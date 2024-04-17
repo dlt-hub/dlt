@@ -4,7 +4,7 @@ from typing import Any, Optional, Set, Tuple, List
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import TDataItem
 from dlt.common.jsonpath import find_values, JSONPathFields, compile_path
 from dlt.extract.incremental.exceptions import (

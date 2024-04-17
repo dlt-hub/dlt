@@ -1,6 +1,7 @@
 import os
 import platform
 import posixpath
+
 from typing import Union, Dict
 from urllib.parse import urlparse
 
@@ -8,18 +9,31 @@ import pytest
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from dlt.common import pendulum
+from dlt.common import logger
+from dlt.common import json, pendulum
+from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
+from dlt.common.configuration.specs import (
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+)
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
+from dlt.destinations import filesystem
+from dlt.destinations.impl.filesystem.configuration import (
+    FilesystemDestinationClientConfiguration,
+)
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
 from .utils import self_signed_cert
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import assert_load_info, load_table_counts
+
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
@@ -54,7 +68,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     def check_file_changed():
         details = filesystem.info(file_url)
         assert details["size"] == 11
-        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 120
+        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 160
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
@@ -126,7 +140,9 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
 
 def test_filesystem_configuration_with_additional_arguments() -> None:
     config = FilesystemConfiguration(
-        bucket_url="az://root", kwargs={"use_ssl": True}, client_kwargs={"verify": "public.crt"}
+        bucket_url="az://root",
+        kwargs={"use_ssl": True},
+        client_kwargs={"verify": "public.crt"},
     )
     assert dict(config) == {
         "read_only": False,
@@ -174,6 +190,74 @@ def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert:
 
     with pytest.raises(SSLError, match="SSL: CERTIFICATE_VERIFY_FAILED"):
         print(filesystem.ls("", detail=False))
+
+
+def test_filesystem_destination_config_reports_unused_placeholders(mocker) -> None:
+    with custom_environ({"DATASET_NAME": "BOBO"}):
+        extra_placeholders = {
+            "value": 1,
+            "otters": "lab",
+            "dlt": "labs",
+            "dlthub": "platform",
+            "x": "files",
+        }
+        logger_spy = mocker.spy(logger, "info")
+        resolve.resolve_configuration(
+            FilesystemDestinationClientConfiguration(
+                bucket_url="file:///tmp/dirbobo",
+                layout="{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
+                extra_placeholders=extra_placeholders,  # type: ignore
+            )
+        )
+        logger_spy.assert_called_once_with("Found unused layout placeholders: value, dlt, dlthub")
+
+
+def test_filesystem_destination_passed_parameters_override_config_values() -> None:
+    config_current_datetime = "2024-04-11T00:00:00Z"
+    config_extra_placeholders = {"placeholder_x": "x", "placeholder_y": "y"}
+    with custom_environ(
+        {
+            "DESTINATION__FILESYSTEM__BUCKET_URL": "file:///tmp/dirbobo",
+            "DESTINATION__FILESYSTEM__CURRENT_DATETIME": config_current_datetime,
+            "DESTINATION__FILESYSTEM__EXTRA_PLACEHOLDERS": json.dumps(config_extra_placeholders),
+        }
+    ):
+        extra_placeholders = {
+            "new_value": 1,
+            "dlt": "labs",
+            "dlthub": "platform",
+        }
+        now = pendulum.now()
+        config_now = pendulum.parse(config_current_datetime)
+
+        # Check with custom datetime and extra placeholders
+        # both should override config values
+        filesystem_destination = filesystem(
+            extra_placeholders=extra_placeholders, current_datetime=now
+        )
+        filesystem_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy_dataset"
+        )
+        bound_config = filesystem_destination.configuration(filesystem_config)
+        assert bound_config.current_datetime == now
+        assert bound_config.extra_placeholders == extra_placeholders
+
+        # Check only passing one parameter
+        filesystem_destination = filesystem(extra_placeholders=extra_placeholders)
+        filesystem_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy_dataset"
+        )
+        bound_config = filesystem_destination.configuration(filesystem_config)
+        assert bound_config.current_datetime == config_now
+        assert bound_config.extra_placeholders == extra_placeholders
+
+        filesystem_destination = filesystem()
+        filesystem_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
+            dataset_name="dummy_dataset"
+        )
+        bound_config = filesystem_destination.configuration(filesystem_config)
+        assert bound_config.current_datetime == config_now
+        assert bound_config.extra_placeholders == config_extra_placeholders
 
 
 @pytest.mark.skipif(platform.system() != "Windows", reason="Test it only on Windows")

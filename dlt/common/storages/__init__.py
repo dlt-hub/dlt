@@ -9,6 +9,7 @@ from .load_package import (
     LoadPackageInfo,
     PackageStorage,
     TJobState,
+    create_load_id,
 )
 from .data_item_storage import DataItemStorage
 from .load_storage import LoadStorage
@@ -40,6 +41,7 @@ __all__ = [
     "LoadPackageInfo",
     "PackageStorage",
     "TJobState",
+    "create_load_id",
     "fsspec_from_config",
     "fsspec_filesystem",
 ]
