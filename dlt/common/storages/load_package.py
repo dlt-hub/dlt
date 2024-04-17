@@ -500,20 +500,6 @@ class PackageStorage:
         ) as f:
             json.dump(schema_update, f)
 
-    def save_dropped_tables(self, load_id: str, dropped_tables: Sequence[str]) -> None:
-        with self.storage.open_file(
-            os.path.join(load_id, PackageStorage.DROPPED_TABLES_FILE_NAME), mode="wb"
-        ) as f:
-            json.dump(dropped_tables, f)
-
-    def load_dropped_tables(self, load_id: str) -> List[str]:
-        try:
-            return json.loads(  # type: ignore[no-any-return]
-                self.storage.load(os.path.join(load_id, PackageStorage.DROPPED_TABLES_FILE_NAME))
-            )
-        except FileNotFoundError:
-            return []
-
     #
     # Loadpackage state
     #
