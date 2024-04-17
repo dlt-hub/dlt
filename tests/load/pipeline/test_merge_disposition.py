@@ -298,14 +298,14 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     if not destination_config.supports_merge:
         return
 
-    # all the keys are invalid so the merge falls back to replace
+    # all the keys are invalid so the merge falls back to append
     github_data = github()
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
     github_data.load_issues.add_filter(take_first(1))
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_2_counts["issues"] == 1
+    assert github_2_counts["issues"] == 100 - 45 + 1
     with p._sql_job_client(p.default_schema) as job_c:
         _, table_schema = job_c.get_storage_table("issues")
         assert "url" in table_schema
