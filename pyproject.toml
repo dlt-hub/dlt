@@ -238,7 +238,14 @@ fixable = [
 "dlt/common/runners/venv.py" = [
     "S603", # `subprocess` call: check for execution of untrusted input
 ]
+
 "dlt/common/runtime/**/*.py" = [
+    "B904", # `try`-`except`-`pass` detected, consider logging the exception
+    "S110", # `try`-`except`-`pass` detected, consider logging the exception
+]
+
+"dlt/common/libs/**/*.py" = [
+    "B904", # `try`-`except`-`pass` detected, consider logging the exception
     "S110", # `try`-`except`-`pass` detected, consider logging the exception
 ]
 
