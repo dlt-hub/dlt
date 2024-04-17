@@ -314,7 +314,7 @@ def glob_files(
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = f"/{file}"
 
-        if file.startswith("//"):
+        if "$" in file:
             file_name = file
             file_url = "file:///" + file_name
         else:
