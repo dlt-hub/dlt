@@ -34,7 +34,7 @@ To obtain your Freshdesk credentials, follow these steps:
 
 1. Log in to your Freshdesk account.
 1. Click on the profile icon to open "Profile Settings".
-1. Locate and copy the API key displayed on the right side.
+1. Copy the API key displayed on the right side.
 
 ### Initialize the verified source
 
@@ -118,20 +118,20 @@ def freshdesk_source(
 ```
 > This source supports pagination and incremental data loading. It fetches data from a list of
 > specified endpoints, or defaults to predefined endpoints in
-> ['settings.py'.](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
+> ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
 
-`endpoints`: A list of Freshdesk API endpoints to fetch. Defaults to 'settings.py'.
+`endpoints`: A list of Freshdesk API endpoints to fetch. Defaults to "settings.py".
 
 `per_page`: The number of items to fetch per page, with a maximum of 100.
 
-`domain`: The Freshdesk domain from which to fetch the data. Defaults to 'config.toml'.
+`domain`: The Freshdesk domain from which to fetch the data. Defaults to "config.toml".
 
-`api_secret_key`: Freshdesk API key. Defaults to 'secrets.toml'.
+`api_secret_key`: Freshdesk API key. Defaults to "secrets.toml".
 
 ### Resource `endpoints`
 
 This function creates and yields a dlt resource for each endpoint in
-["settings.py."](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
+["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
 
 ```py
 @dlt.source()
@@ -173,7 +173,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load data from all the endpoints, specified in ["settings.py."](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
+1. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
    ```py
    load_data = freshdesk_source()
    # Run the pipeline
