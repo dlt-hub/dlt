@@ -1534,7 +1534,7 @@ class Pipeline(SupportsPipeline):
             mark_state_extracted(state, hash_)
             # commit only if we created storage
             if not extract:
-                extract_.commit_packages()
+                extract_.commit_packages(doc)
             return doc
         return None
 
