@@ -381,15 +381,27 @@ class ParquetDataWriter(DataWriter):
         )
 
 
+@configspec
+class CsvDataWriterConfiguration(BaseConfiguration):
+    delimiter: str = ","
+    include_header: bool = True
+
+    __section__: ClassVar[str] = known_sections.DATA_WRITER
+
+
 class CsvWriter(DataWriter):
+    @with_config(spec=CsvDataWriterConfiguration)
     def __init__(
         self,
         f: IO[Any],
         caps: DestinationCapabilitiesContext = None,
+        *,
         delimiter: str = ",",
+        include_header: bool = True,
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
+        self.include_header = include_header
         self.delimiter = delimiter
         self.writer: csv.DictWriter[str] = None
         self.bytes_encoding = bytes_encoding
@@ -404,7 +416,8 @@ class CsvWriter(DataWriter):
             delimiter=self.delimiter,
             quoting=csv.QUOTE_NONNUMERIC,
         )
-        self.writer.writeheader()
+        if self.include_header:
+            self.writer.writeheader()
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
         self.complex_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "complex"
@@ -499,11 +512,19 @@ class ArrowToParquetWriter(ParquetDataWriter):
 
 
 class ArrowToCsvWriter(DataWriter):
+    @with_config(spec=CsvDataWriterConfiguration)
     def __init__(
-        self, f: IO[Any], caps: DestinationCapabilitiesContext = None, delimiter: bytes = b","
+        self,
+        f: IO[Any],
+        caps: DestinationCapabilitiesContext = None,
+        *,
+        delimiter: str = ",",
+        include_header: bool = True,
     ) -> None:
         super().__init__(f, caps)
         self.delimiter = delimiter
+        self._delimiter_b = delimiter.encode("ascii")
+        self.include_header = include_header
         self.writer: Any = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
@@ -521,7 +542,8 @@ class ArrowToCsvWriter(DataWriter):
                             self._f,
                             row.schema,
                             write_options=pyarrow.csv.WriteOptions(
-                                include_header=True, delimiter=self.delimiter
+                                include_header=self.include_header,
+                                delimiter=self._delimiter_b,
                             ),
                         )
                         self._first_schema = row.schema
@@ -573,10 +595,10 @@ class ArrowToCsvWriter(DataWriter):
             self.items_count += row.num_rows
 
     def write_footer(self) -> None:
-        if self.writer is None:
+        if self.writer is None and self.include_header:
             # write empty file
             self._f.write(
-                self.delimiter.join(
+                self._delimiter_b.join(
                     [
                         b'"' + col["name"].encode("utf-8") + b'"'
                         for col in self._columns_schema.values()
