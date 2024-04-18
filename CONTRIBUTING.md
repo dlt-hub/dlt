@@ -6,7 +6,7 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 1. [Getting Started](#getting-started)
 2. [Submitting Changes](#submitting-changes)
-3. [Updating dependencies](#adding-or-updating-core-dependencies)
+3. [Adding or updating core dependencies](#adding-or-updating-core-dependencies)
 4. [Linting](#linting)
 5. [Testing](#testing)
 6. [Local Development](#local-development)
