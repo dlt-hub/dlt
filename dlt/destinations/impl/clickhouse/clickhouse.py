@@ -77,7 +77,7 @@ class ClickHouseTypeMapper(TypeMapper):
         "double": "Float64",
         "bool": "Boolean",
         "date": "Date",
-        "timestamp": "DateTime('UTC')",
+        "timestamp": "DateTime64(6,'UTC')",
         "time": "String",
         "bigint": "Int64",
         "binary": "String",
@@ -102,9 +102,6 @@ class ClickHouseTypeMapper(TypeMapper):
         "Object('json')": "complex",
         "Decimal": "decimal",
     }
-
-    def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
-        return "DateTime"
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -295,10 +292,16 @@ class ClickHouseMergeJob(SqlMergeJob):
         key_clauses: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
-        join_conditions = " AND ".join([c.format(d="d", s="s") for c in key_clauses])
-        return [
-            f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
-        ]
+        if for_delete:
+            # clickhouse doesn't support alias in DELETE FROM
+            return [
+                f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM"
+                f" {staging_root_table_name} WHERE"
+                f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
+            ]
+        return SqlMergeJob.gen_key_table_clauses(
+            root_table_name, staging_root_table_name, key_clauses, for_delete
+        )
 
 
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):

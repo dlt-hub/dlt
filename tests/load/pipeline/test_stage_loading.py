@@ -242,7 +242,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         allow_base64_binary = (
             destination_config.file_format == "jsonl"
             and destination_config.destination in ["redshift"]
-        )
+        ) or destination_config.destination in ["clickhouse"]
         # content must equal
         assert_all_data_types_row(
             db_row[:-2],
