@@ -277,16 +277,10 @@ class ClickHouseMergeJob(SqlMergeJob):
         key_clauses: Sequence[str],
         for_delete: bool,
     ) -> List[str]:
-        if for_delete:
-            # clickhouse doesn't support alias in DELETE FROM
-            return [
-                f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM"
-                f" {staging_root_table_name} WHERE"
-                f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
-            ]
-        return SqlMergeJob.gen_key_table_clauses(
-            root_table_name, staging_root_table_name, key_clauses, for_delete
-        )
+        return [
+            f"FROM {root_table_name} AS d INNER JOIN {staging_root_table_name} AS s ON"
+            f" {' AND '.join([c.format(d='d',s='s') for c in key_clauses])}"
+        ]
 
 
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
