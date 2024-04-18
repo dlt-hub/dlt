@@ -83,7 +83,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         schema = self.schema
         table = schema.get_table(table_name)
         max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
-        if max_table_nesting:
+        if max_table_nesting is not None:
             max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting

@@ -455,7 +455,7 @@ def resource(
             schema_contract=schema_contract,
             table_format=table_format,
         )
-        if max_table_nesting:
+        if max_table_nesting is not None:
             table_template.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
             table_template["x-normalizer"]["max_nesting"] = max_table_nesting  # type: ignore[typeddict-item]
 
