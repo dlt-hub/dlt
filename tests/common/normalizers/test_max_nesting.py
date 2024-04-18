@@ -18,11 +18,19 @@ ALL_TABLES_FOR_RASA_EVENT = [
 ]
 
 
+ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2 = [
+    "bot_events",
+    "bot_events__metadata__known_recipients",
+    "bot_events__metadata__vendor_list",
+]
+
+
 @pytest.mark.parametrize(
     "nesting_level,expected_num_tables,expected_table_names",
     (
         (0, 1, ["bot_events"]),
         (1, 1, ["bot_events"]),
+        (2, 3, ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2),
         (5, 8, ALL_TABLES_FOR_RASA_EVENT),
         (
             15,
