@@ -73,23 +73,21 @@ def test_windows_unc_path() -> None:
     ]:
         filesystem, _ = fsspec_from_config(config)
 
-        try:
-            all_file_items = list(glob_files(filesystem, bucket_url))
-            expected_files = [
-                "freshman_kgs.csv",
-                "freshman_lbs.csv",
-                "mlb_players.csv",
-                "mlb_teams_2012.csv",
-                "mlb_players.jsonl",
-                "A881_20230920.csv",
-                "A803_20230919.csv",
-                "A803_20230920.csv",
-                "mlb_players.parquet",
-                "taxi.csv.gz",
-                "sample.txt",
-            ]
-            for file in all_file_items:
-                file_name = file["file_name"].split("\\")[-1].split("/")[-1]
-                assert file_name in expected_files
-        except NotImplementedError as ex:
-            pytest.skip(f"Skipping due to {str(ex)}")
+        all_file_items = list(glob_files(filesystem, bucket_url))
+        expected_files = [
+            "csv/freshman_kgs.csv",
+            "csv/freshman_lbs.csv",
+            "csv/mlb_players.csv",
+            "csv/mlb_teams_2012.csv",
+            "jsonl/mlb_players.jsonl",
+            "met_csv/A801/A881_20230920.csv",
+            "met_csv/A803/A803_20230919.csv",
+            "met_csv/A803/A803_20230920.csv",
+            "parquet/mlb_players.parquet",
+            "gzip/taxi.csv.gz",
+            "sample.txt",
+        ]
+        assert len(all_file_items) == len(expected_files)
+
+        for file in all_file_items:
+            assert file["file_name"] in expected_files

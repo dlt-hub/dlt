@@ -211,8 +211,10 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError("""The argument `compression` must have one of the following values:
-                "auto", "enable", "disable".""")
+            raise ValueError(
+                """The argument `compression` must have one of the following values:
+                "auto", "enable", "disable"."""
+            )
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
@@ -277,9 +279,12 @@ def glob_files(
     """
     import os
 
+    is_unc_path = "$" in bucket_url
     bucket_url_parsed = urlparse(bucket_url)
     # if this is a file path without a scheme
-    if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
+    if (
+        not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url)
+    ) and not is_unc_path:
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
@@ -289,7 +294,6 @@ def glob_files(
         bucket_url_no_schema[2:] if bucket_url_no_schema.startswith("//") else bucket_url_no_schema
     )
     filter_url = posixpath.join(bucket_url_no_schema, file_glob)
-    is_unc_path = fs_client.protocol == "file" and "$" in filter_url
     if is_unc_path:
         # process UNC paths with Python glob module
         files = glob.glob(filter_url, recursive=True)
@@ -309,13 +313,15 @@ def glob_files(
         if md["type"] != "file":
             continue
 
+        scheme = bucket_url_parsed.scheme
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = f"/{file}"
 
         if is_unc_path:
-            file_name = file
-            file_url = "file:///" + file_name
+            file_url = "file:///" + file
+            file_name = file.replace(bucket_url_no_schema, "").replace("\\", "/").lstrip("/")
+            scheme = "file"
         else:
             file_name = posixpath.relpath(file, bucket_url_no_schema)
 
@@ -329,6 +335,6 @@ def glob_files(
             file_url=file_url,
             mime_type=mime_type,
             encoding=encoding,
-            modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
+            modification_date=MTIME_DISPATCH[scheme](md),
             size_in_bytes=int(md["size"]),
         )
