@@ -81,7 +81,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # turn everything at the recursion level into complex type
         max_nesting = self.max_nesting
         schema = self.schema
-        table = schema.get_table(table_name)
+        table = schema.tables.get(table_name, {})
         max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
         if max_table_nesting is not None:
             max_nesting = max_table_nesting
@@ -93,6 +93,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # path = f"{table_name}▶{field_name}"
         # or use definition in the schema
         column: TColumnSchema = None
+        table = schema.get_table(table_name)
         if table:
             column = table["columns"].get(field_name)
         if column is None:
