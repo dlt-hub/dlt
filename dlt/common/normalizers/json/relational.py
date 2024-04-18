@@ -68,7 +68,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     def _reset(self) -> None:
         self.normalizer_config = (
-            self.schema._normalizers_config["json"].get("config") or {}  # type: ignore
+            self.schema._normalizers_config["json"].get("config") or {}  # type: ignore[assignment]
         )
         self.propagation_config = self.normalizer_config.get("propagation", None)
         self.max_nesting = self.normalizer_config.get("max_nesting", 1000)
