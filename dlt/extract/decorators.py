@@ -456,7 +456,7 @@ def resource(
             table_format=table_format,
         )
         if max_table_nesting:
-            table_template.setdefault("x-normalizer", {})
+            table_template.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
             table_template["x-normalizer"]["max_nesting"] = max_table_nesting
 
         resource = DltResource.from_data(
