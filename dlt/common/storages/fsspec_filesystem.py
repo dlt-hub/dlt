@@ -211,10 +211,8 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError(
-                """The argument `compression` must have one of the following values:
-                "auto", "enable", "disable"."""
-            )
+            raise ValueError("""The argument `compression` must have one of the following values:
+                "auto", "enable", "disable".""")
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
@@ -291,8 +289,9 @@ def glob_files(
         bucket_url_no_schema[2:] if bucket_url_no_schema.startswith("//") else bucket_url_no_schema
     )
     filter_url = posixpath.join(bucket_url_no_schema, file_glob)
-
-    if "$" in filter_url:  # process UNC paths with Python glob module
+    is_unc_path = fs_client.protocol == "file" and "$" in filter_url
+    if is_unc_path:
+        # process UNC paths with Python glob module
         files = glob.glob(filter_url, recursive=True)
         glob_result = {}
         for file in files:
@@ -314,7 +313,7 @@ def glob_files(
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = f"/{file}"
 
-        if "$" in file:
+        if is_unc_path:
             file_name = file
             file_url = "file:///" + file_name
         else:
