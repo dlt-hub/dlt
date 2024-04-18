@@ -83,14 +83,6 @@ prevents the automatic jump to a potentially incompatible major version update i
 The other important note on using possible version minimas is to prevent potential cases where package
 versions will not be resolvable.
 
-### Hypothetical example:
-
-Let's consider we are using the package `tzdata==2022.1`. A critical issue in timezone data is discovered in all versions before `2023.1`. Default course of action, following our guidelines, would be to assess if `2023.1` introduces any breaking changes or major updates. If it doesn't, or if the data integrity concern outweighs the integration risks, we update our `pyproject.toml` to:
-
-```
-tzdata>=2023.1
-```
-
 ## Linting
 
 `dlt` uses `mypy` and `flake8` with several plugins for linting.
