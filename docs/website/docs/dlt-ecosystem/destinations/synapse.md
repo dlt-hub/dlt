@@ -129,7 +129,7 @@ pipeline = dlt.pipeline(
 ## Write disposition
 All write dispositions are supported.
 
-If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and replaced by the staging tables with an `ALTER SCHEMA ... TRANSFER` command. Please note that this operation is **not** atomic—it involves multiple DDL commands and Synapse does not support DDL transactions.
+> ❗ The `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md) is **not** implemented for Synapse.
 
 ## Data loading
 Data is loaded via `INSERT` statements by default.
@@ -166,7 +166,6 @@ Possible values:
 >* **CLUSTERED COLUMNSTORE INDEX tables do not support the `varchar(max)`, `nvarchar(max)`, and `varbinary(max)` data types.** If you don't specify the `precision` for columns that map to any of these types, `dlt` will use the maximum lengths `varchar(4000)`, `nvarchar(4000)`, and `varbinary(8000)`.
 >* **While Synapse creates CLUSTERED COLUMNSTORE INDEXES by default, `dlt` creates HEAP tables by default.** HEAP is a more robust choice because it supports all data types and doesn't require conversions.
 >* **When using the `insert-from-staging` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are always created as HEAP tables**—any configuration of the table index types is ignored. The HEAP strategy makes sense for staging tables for reasons explained [here](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables).
->* **When using the `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are already created with the configured table index type**, because the staging table becomes the final table.
 >* **`dlt` system tables are always created as HEAP tables, regardless of any configuration.** This is in line with Microsoft's recommendation that "for small lookup tables, less than 60 million rows, consider using HEAP or clustered index for faster query performance."
 >* Child tables, if any, inherit the table index type of their parent table.
 
