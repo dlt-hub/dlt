@@ -34,9 +34,8 @@ from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
     TPipelineStateDoc,
+    commit_load_package_state,
 )
-
-
 from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
@@ -384,9 +383,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             SourceInjectableContext(source)
         ), Container().injectable_context(
             LoadPackageStateInjectableContext(
-                storage=self.extract_storage.new_packages, load_id=load_id
+                load_id=load_id, storage=self.extract_storage.new_packages
             )
-        ):
+        ) as load_package:
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(
@@ -396,7 +395,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             ):
                 if self.refresh is not None:
                     _resources_to_drop = (
-                        list(source.resources.extracted) if self.refresh != "drop_dataset" else None
+                        list(source.resources.extracted) if self.refresh != "drop_dataset" else []
                     )
                     _state, _ = pipeline_state(Container())
                     new_schema, new_state, drop_info = drop_resources(
@@ -405,11 +404,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         resources=_resources_to_drop,
                         drop_all=self.refresh == "drop_dataset",
                         state_only=self.refresh == "drop_data",
-                        state_paths="*" if self.refresh == "drop_data" else [],
+                        state_paths="*" if self.refresh == "drop_dataset" else [],
                     )
                     _state.update(new_state)
                     source.schema.tables.clear()
                     source.schema.tables.update(new_schema.tables)
+                    dropped_tables = load_package.state.setdefault("dropped_tables", [])
+                    dropped_tables.extend(drop_info["tables"])
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():
@@ -423,6 +424,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
+                commit_load_package_state()
         return load_id
 
     def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:

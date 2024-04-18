@@ -15,7 +15,10 @@ from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithSte
 from dlt.common.schema.utils import get_top_level_table
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
-from dlt.common.storages.load_package import LoadPackageStateInjectableContext
+from dlt.common.storages.load_package import (
+    LoadPackageStateInjectableContext,
+    load_package as current_load_package,
+)
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.logger import pretty_format_exception
@@ -372,7 +375,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         for table_name in drop_tables:
             # pop not del: The table may not actually be in the schema if it's not being loaded again
             dropped_schema.tables.pop(table_name, None)
-        dropped_schema.bump_version()
+        dropped_schema._bump_version()
         trunc_dest: Set[str] = set()
         trunc_staging: Set[str] = set()
         # Drop from destination and replace stored schema so tables will be re-created before load
@@ -396,7 +399,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         new_jobs = self.get_new_jobs_info(load_id)
 
-        dropped_tables = self.load_storage.normalized_packages.load_dropped_tables(load_id)
+        dropped_tables = current_load_package()["state"].get("dropped_tables", [])
         # Drop tables before loading if refresh mode is set
         truncate_dest, truncate_staging = self._refresh(dropped_tables, schema)
 

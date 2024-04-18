@@ -50,7 +50,10 @@ def test_refresh_full():
 
     # First run pipeline with load to destination so tables are created
     pipeline = dlt.pipeline(
-        "refresh_full_test", destination="duckdb", refresh="full", dataset_name="refresh_full_test"
+        "refresh_full_test",
+        destination="duckdb",
+        refresh="drop_dataset",
+        dataset_name="refresh_full_test",
     )
 
     info = pipeline.run(my_source())

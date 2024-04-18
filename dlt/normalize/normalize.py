@@ -380,8 +380,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.load_storage.new_packages.save_schema_updates(
             load_id, merge_schema_updates(schema_updates)
         )
-        self.load_storage.new_packages.save_dropped_tables(
-            load_id, self.normalize_storage.extracted_packages.load_dropped_tables(load_id)
+        # self.load_storage.new_packages.save_dropped_tables(
+        #     load_id, self.normalize_storage.extracted_packages.load_dropped_tables(load_id)
+        # )
+        self.load_storage.new_packages.save_load_package_state(
+            load_id, self.normalize_storage.extracted_packages.get_load_package_state(load_id)
         )
         # files must be renamed and deleted together so do not attempt that when process is about to be terminated
         signals.raise_if_signalled()
