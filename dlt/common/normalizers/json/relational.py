@@ -32,7 +32,7 @@ class TDataItemRow(TypedDict, total=False):
 
 
 class TDataItemRowRoot(TDataItemRow, total=False):
-    _dlt_load_id: str  # load id to identify records loaded together that ie. need to be processed
+    _dlt_load_id: (str)  # load id to identify records loaded together that ie. need to be processed
     # _dlt_meta: TEventDLTMeta  # stores metadata, should never be sent to the normalizer
 
 
@@ -67,7 +67,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         self._reset()
 
     def _reset(self) -> None:
-        self.normalizer_config = self.schema._normalizers_config["json"].get("config") or {}  # type: ignore
+        self.normalizer_config = (
+            self.schema._normalizers_config["json"].get("config") or {}
+        )  # type: ignore
         self.propagation_config = self.normalizer_config.get("propagation", None)
         self.max_nesting = self.normalizer_config.get("max_nesting", 1000)
         self._skip_primary_key = {}
@@ -79,11 +81,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # turn everything at the recursion level into complex type
         max_nesting = self.max_nesting
         schema = self.schema
-        if (
-            max_table_nesting := schema.tables.get(table_name, {})
-            .get("x-normalizer", {})
-            .get("max_nesting")
-        ):
+        table = schema.get_table(table_name)
+        max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")
+        if max_table_nesting:
             max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting
@@ -93,7 +93,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # path = f"{table_name}▶{field_name}"
         # or use definition in the schema
         column: TColumnSchema = None
-        table = schema.tables.get(table_name)
         if table:
             column = table["columns"].get(field_name)
         if column is None:
@@ -226,7 +225,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             elif isinstance(v, list):
                 # to normalize lists of lists, we must create a tracking intermediary table by creating a mock row
                 yield from self._normalize_row(
-                    {"list": v}, extend, ident_path, parent_path, parent_row_id, idx, _r_lvl + 1
+                    {"list": v},
+                    extend,
+                    ident_path,
+                    parent_path,
+                    parent_row_id,
+                    idx,
+                    _r_lvl + 1,
                 )
             else:
                 # list of simple types
@@ -267,20 +272,29 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))
 
         # yield parent table first
-        should_descend = yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
+        should_descend = yield (
+            (table, schema.naming.shorten_fragments(*parent_path)),
+            flattened_row,
+        )
         if should_descend is False:
             return
 
         # normalize and yield lists
         for list_path, list_content in lists.items():
             yield from self._normalize_list(
-                list_content, extend, list_path, parent_path + ident_path, row_id, _r_lvl + 1
+                list_content,
+                extend,
+                list_path,
+                parent_path + ident_path,
+                row_id,
+                _r_lvl + 1,
             )
 
     def extend_schema(self) -> None:
         # validate config
         config = cast(
-            RelationalNormalizerConfig, self.schema._normalizers_config["json"].get("config") or {}
+            RelationalNormalizerConfig,
+            self.schema._normalizers_config["json"].get("config") or {},
         )
         DataItemNormalizer._validate_normalizer_config(self.schema, config)
 
@@ -388,7 +402,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @staticmethod
     @lru_cache(maxsize=None)
     def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
-        return schema.get_table(table_name)["columns"].get("_dlt_id", dict()).get("x-row-version", False)  # type: ignore[return-value]
+        return (
+            schema.get_table(table_name)["columns"]  # type: ignore[return-value]
+            .get("_dlt_id", dict())
+            .get("x-row-version", False)
+        )
 
     @staticmethod
     def _validate_validity_column_names(
