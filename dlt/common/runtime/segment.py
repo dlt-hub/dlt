@@ -42,9 +42,10 @@ def init_segment(config: RunConfiguration) -> None:
         _SESSION = requests.Session()
         # flush pool on exit
         atexit.register(_at_exit_cleanup)
-    # store write key
-    key_bytes = (config.dlthub_telemetry_segment_write_key + ":").encode("ascii")
-    _WRITE_KEY = base64.b64encode(key_bytes).decode("utf-8")
+    # store write key if present
+    if config.dlthub_telemetry_segment_write_key:
+        key_bytes = (config.dlthub_telemetry_segment_write_key + ":").encode("ascii")
+        _WRITE_KEY = base64.b64encode(key_bytes).decode("utf-8")
     # store endpoint
     _SEGMENT_ENDPOINT = config.dlthub_telemetry_endpoint
     # cache the segment context
@@ -101,15 +102,10 @@ def _segment_request_header(write_key: str) -> StrAny:
     Returns:
         Authentication headers for segment.
     """
-    if _SEGMENT_ENDPOINT == "https://api.segment.io/v1/track":
-        return {
-            "Authorization": "Basic {}".format(write_key),
-            "Content-Type": "application/json",
-        }
-    else:
-        return {
-            "Content-Type": "application/json",
-        }
+    headers = {"Content-Type": "application/json"}
+    if write_key:
+        headers["Authorization"] = "Basic {}".format(write_key)
+    return headers
 
 
 def get_anonymous_id() -> str:
