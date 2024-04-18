@@ -299,10 +299,10 @@ class ClickHouseMergeJob(SqlMergeJob):
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
-        return SqlMergeJob.gen_key_table_clauses(
-            root_table_name, staging_root_table_name, key_clauses, for_delete
-        )
-
+        join_conditions = " AND ".join([c.format(d="d", s="s") for c in key_clauses])
+        return [
+            f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
+        ]
 
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
