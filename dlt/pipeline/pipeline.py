@@ -16,6 +16,7 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
+    Dict,
 )
 
 from dlt import version
@@ -45,6 +46,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
+    TTableSchema,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -135,6 +137,7 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
+from dlt.common.pipeline import pipeline_state as current_pipeline_state
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
@@ -147,7 +150,7 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
 from dlt.common.storages.load_package import TLoadPackageState
-from dlt.pipeline.helpers import DropCommand
+from dlt.pipeline.drop import drop_resources
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -418,7 +421,6 @@ class Pipeline(SupportsPipeline):
             self._normalize_storage_config(),
             self.collector,
             original_data=data,
-            refresh=self.refresh if not self.first_run else None,
         )
         try:
             with self._maybe_destination_capabilities():
@@ -436,7 +438,10 @@ class Pipeline(SupportsPipeline):
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
-                    self._extract_source(extract_step, source, max_parallel_items, workers)
+
+                    self._extract_source(
+                        extract_step, source, max_parallel_items, workers, with_refresh=True
+                    )
                 # extract state
                 state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:
@@ -1091,8 +1096,33 @@ class Pipeline(SupportsPipeline):
     def _attach_pipeline(self) -> None:
         pass
 
+    def _refresh_source(self, source: DltSource) -> Tuple[Schema, TPipelineState, Dict[str, Any]]:
+        if self.refresh is None or self.first_run:
+            return source.schema, self.state, {}
+        _resources_to_drop = (
+            list(source.resources.extracted) if self.refresh != "drop_dataset" else []
+        )
+        drop_result = drop_resources(
+            source.schema,
+            self.state,
+            resources=_resources_to_drop,
+            drop_all=self.refresh == "drop_dataset",
+            state_paths="*" if self.refresh == "drop_dataset" else [],
+        )
+        load_package_state = {}
+        if drop_result.dropped_tables:
+            key = "dropped_tables" if self.refresh != "drop_data" else "truncated_tables"
+            load_package_state[key] = drop_result.dropped_tables
+        return drop_result.schema, drop_result.state, load_package_state
+
     def _extract_source(
-        self, extract: Extract, source: DltSource, max_parallel_items: int, workers: int
+        self,
+        extract: Extract,
+        source: DltSource,
+        max_parallel_items: int,
+        workers: int,
+        with_refresh: bool = False,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
     ) -> str:
         # discover the existing pipeline schema
         try:
@@ -1111,8 +1141,19 @@ class Pipeline(SupportsPipeline):
         except FileNotFoundError:
             pass
 
+        load_package_state_update = dict(load_package_state_update or {})
+        if with_refresh:
+            new_schema, new_state, load_package_state = self._refresh_source(source)
+            load_package_state_update.update(load_package_state)
+            source.schema = new_schema
+            state, _ = current_pipeline_state(self._container)
+            if "sources" in new_state:
+                state["sources"] = new_state["sources"]
+
         # extract into pipeline schema
-        load_id = extract.extract(source, max_parallel_items, workers)
+        load_id = extract.extract(
+            source, max_parallel_items, workers, load_package_state_update=load_package_state_update
+        )
 
         # save import with fully discovered schema
         # NOTE: moved to with_schema_sync, remove this if all test pass
@@ -1541,8 +1582,37 @@ class Pipeline(SupportsPipeline):
         state["schema_names"] = self._list_schemas_sorted()
         return state
 
+    def _save_and_extract_state_and_schema(
+        self,
+        state: TPipelineState,
+        schema: Schema,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Save given state + schema and extract creating a new load package
+
+        Args:
+            state: The new pipeline state, replaces the current state
+            schema: The new source schema, replaces current schema of the same name
+            load_package_state_update: Dict which items will be included in the load package state
+        """
+        self.schemas.save_schema(schema)
+        with self.managed_state() as old_state:
+            old_state.update(state)
+
+        self._bump_version_and_extract_state(
+            state,
+            extract_state=True,
+            load_package_state_update=load_package_state_update,
+            schema=schema,
+        )
+
     def _bump_version_and_extract_state(
-        self, state: TPipelineState, extract_state: bool, extract: Extract = None
+        self,
+        state: TPipelineState,
+        extract_state: bool,
+        extract: Extract = None,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
+        schema: Optional[Schema] = None,
     ) -> TPipelineStateDoc:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
@@ -1556,7 +1626,11 @@ class Pipeline(SupportsPipeline):
                 self._schema_storage, self._normalize_storage_config(), original_data=data
             )
             self._extract_source(
-                extract_, data_to_sources(data, self, self.default_schema)[0], 1, 1
+                extract_,
+                data_to_sources(data, self, schema or self.default_schema)[0],
+                1,
+                1,
+                load_package_state_update=load_package_state_update,
             )
             # set state to be extracted
             mark_state_extracted(state, hash_)

@@ -1,6 +1,7 @@
 from typing import Union, Iterable, Optional, List, Dict, Any, Tuple, TypedDict
 from copy import deepcopy
 from itertools import chain
+from dataclasses import dataclass
 
 from dlt.common.schema import Schema
 from dlt.common.pipeline import (
@@ -10,7 +11,7 @@ from dlt.common.pipeline import (
     reset_resource_state,
     _delete_source_state_keys,
 )
-from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.schema.typing import TSimpleRegex, TTableSchema
 from dlt.common.schema.utils import (
     group_tables_by_resource,
     compile_simple_regexes,
@@ -30,6 +31,14 @@ class _DropInfo(TypedDict):
     drop_all: bool
     resource_pattern: Optional[REPattern]
     warnings: List[str]
+
+
+@dataclass
+class _DropResult:
+    schema: Schema
+    state: TPipelineState
+    info: _DropInfo
+    dropped_tables: List[TTableSchema]
 
 
 def _create_modified_state(
@@ -68,7 +77,7 @@ def drop_resources(
     state_paths: jsonpath.TAnyJsonPath = (),
     drop_all: bool = False,
     state_only: bool = False,
-) -> Tuple[Schema, TPipelineState, _DropInfo]:
+) -> _DropResult:
     """Generate a new schema and pipeline state with the requested resources removed.
 
     Args:
@@ -140,8 +149,5 @@ def drop_resources(
             f" {list(group_tables_by_resource(data_tables).keys())}"
         )
 
-    for tbl in tables_to_drop:
-        del schema.tables[tbl["name"]]
-    schema._bump_version()  # TODO: needed?
-
-    return schema, new_state, info
+    dropped_tables = schema.drop_tables([t["name"] for t in tables_to_drop], seen_data_only=True)
+    return _DropResult(schema, new_state, info, dropped_tables)

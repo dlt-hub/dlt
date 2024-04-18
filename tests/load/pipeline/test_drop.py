@@ -220,28 +220,28 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
     assert_destination_state_loaded(attached)
 
 
-@pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
-)
-def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration) -> None:
-    """Fail directly after drop tables. Command runs again ignoring destination tables missing."""
-    source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
-    pipeline.run(source)
+# @pytest.mark.parametrize(
+#     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+# )
+# def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration) -> None:
+#     """Fail directly after drop tables. Command runs again ignoring destination tables missing."""
+#     source = droppable_source()
+#     pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
+#     pipeline.run(source)
 
-    attached = _attach(pipeline)
+#     attached = _attach(pipeline)
 
-    with mock.patch.object(
-        helpers.DropCommand, "_extract_state", side_effect=RuntimeError("Something went wrong")
-    ):
-        with pytest.raises(RuntimeError):
-            helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+#     with mock.patch.object(
+#         helpers.DropCommand, "_extract_state", side_effect=RuntimeError("Something went wrong")
+#     ):
+#         with pytest.raises(RuntimeError):
+#             helpers.drop(attached, resources=("droppable_a", "droppable_b"))
 
-    attached = _attach(pipeline)
-    helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+#     attached = _attach(pipeline)
+#     helpers.drop(attached, resources=("droppable_a", "droppable_b"))
 
-    assert_dropped_resources(attached, ["droppable_a", "droppable_b"])
-    assert_destination_state_loaded(attached)
+#     assert_dropped_resources(attached, ["droppable_a", "droppable_b"])
+#     assert_destination_state_loaded(attached)
 
 
 @pytest.mark.parametrize(

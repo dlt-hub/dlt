@@ -15,7 +15,6 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStagingDataset,
 )
-from dlt.common.pipeline import TRefreshMode
 
 
 def get_completed_table_chain(

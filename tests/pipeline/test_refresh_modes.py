@@ -5,6 +5,7 @@ import dlt
 from dlt.common.pipeline import resource_state
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 from tests.utils import clean_test_storage, preserve_environ
 from tests.pipeline.utils import assert_load_info
@@ -28,6 +29,7 @@ def test_refresh_drop_dataset():
                 assert "source_key_1" not in dlt.state()
                 assert "source_key_2" not in dlt.state()
                 assert "source_key_3" not in dlt.state()
+                resource_state("some_data_1")["resource_key_3"] = "resource_value_3"
             yield {"id": 1, "name": "John"}
             yield {"id": 2, "name": "Jane"}
 
@@ -64,6 +66,9 @@ def test_refresh_drop_dataset():
     # Second run of pipeline with only selected resources
     first_run = False
     info = pipeline.run(my_source().with_resources("some_data_1", "some_data_2"))
+    # pipeline.extract(my_source().with_resources("some_data_1", "some_data_2"))
+    # pipeline.normalize()
+    # pipeline.load()
 
     # Confirm resource tables not selected on second run got wiped
     with pytest.raises(DatabaseUndefinedRelation):
@@ -73,6 +78,15 @@ def test_refresh_drop_dataset():
     with pipeline.sql_client() as client:
         result = client.execute_sql("SELECT id FROM some_data_1 ORDER BY id")
     assert result == [(1,), (2,)]
+
+    # Loaded state contains only keys created in second run
+    with pipeline.destination_client() as dest_client:
+        destination_state = load_pipeline_state_from_destination(
+            pipeline.pipeline_name, dest_client  # type: ignore[arg-type]
+        )
+    assert destination_state["sources"]["my_source"]["resources"] == {
+        "some_data_1": {"resource_key_3": "resource_value_3"},
+    }
 
 
 def test_refresh_drop_tables():
@@ -105,6 +119,8 @@ def test_refresh_drop_tables():
                 dlt.state()["source_key_2"] = "source_value_2"
                 resource_state("some_data_2")["resource_key_3"] = "resource_value_3"
                 resource_state("some_data_2")["resource_key_4"] = "resource_value_4"
+            else:
+                resource_state("some_data_2")["resource_key_6"] = "resource_value_6"
             yield {"id": 3, "name": "Joe"}
             yield {"id": 4, "name": "Jill"}
 
@@ -141,6 +157,16 @@ def test_refresh_drop_tables():
     with pipeline.sql_client() as client:
         result = client.execute_sql("SELECT id FROM some_data_1 ORDER BY id")
     assert result == [(1,), (2,)]
+
+    # Loaded state contains only keys created in second run
+    with pipeline.destination_client() as dest_client:
+        destination_state = load_pipeline_state_from_destination(
+            pipeline.pipeline_name, dest_client  # type: ignore[arg-type]
+        )
+    assert destination_state["sources"]["my_source"]["resources"] == {
+        "some_data_2": {"resource_key_6": "resource_value_6"},
+        "some_data_3": {"resource_key_5": "resource_value_5"},
+    }
 
 
 def test_refresh_drop_data_only():

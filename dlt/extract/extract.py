@@ -16,8 +16,6 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
     reset_resource_state,
-    TRefreshMode,
-    pipeline_state,
 )
 from dlt.common.typing import DictStrAny
 from dlt.common.runtime import signals
@@ -48,7 +46,6 @@ from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
 from dlt.extract.utils import get_data_item_format
 from dlt.pipeline.drop import drop_resources
-from dlt.common.pipeline import TRefreshMode
 
 
 def data_to_sources(
@@ -179,14 +176,12 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         normalize_storage_config: NormalizeStorageConfiguration,
         collector: Collector = NULL_COLLECTOR,
         original_data: Any = None,
-        refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """optionally saves originally extracted `original_data` to generate extract info"""
         self.collector = collector
         self.schema_storage = schema_storage
         self.extract_storage = ExtractStorage(normalize_storage_config)
         self.original_data: Any = original_data
-        self.refresh = refresh
         super().__init__()
 
     def _compute_metrics(self, load_id: str, source: DltSource) -> ExtractMetrics:
@@ -374,6 +369,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         source: DltSource,
         max_parallel_items: int,
         workers: int,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
     ) -> str:
         # generate load package to be able to commit all the sources together later
         load_id = self.extract_storage.create_load_package(source.discover_schema())
@@ -393,31 +389,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source_state_key=source.name,
                 )
             ):
-                if self.refresh is not None:
-                    _resources_to_drop = (
-                        list(source.resources.extracted) if self.refresh != "drop_dataset" else []
-                    )
-                    _state, _ = pipeline_state(Container())
-                    new_schema, new_state, drop_info = drop_resources(
-                        source.schema,
-                        _state,
-                        resources=_resources_to_drop,
-                        drop_all=self.refresh == "drop_dataset",
-                        state_paths="*" if self.refresh == "drop_dataset" else [],
-                    )
-                    _state.update(new_state)
-                    if drop_info["tables"]:
-                        drop_tables = [
-                            table
-                            for table in source.schema.tables.values()
-                            if table["name"] in drop_info["tables"]
-                        ]
-                        if self.refresh == "drop_data":
-                            load_package.state["truncated_tables"] = drop_tables
-                        else:
-                            source.schema.tables.clear()
-                            source.schema.tables.update(new_schema.tables)
-                            load_package.state["dropped_tables"] = drop_tables
+                if load_package_state_update:
+                    load_package.state.update(load_package_state_update)  # type: ignore[typeddict-item]
 
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():

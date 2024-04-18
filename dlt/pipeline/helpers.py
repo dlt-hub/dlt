@@ -1,4 +1,5 @@
 import contextlib
+from copy import deepcopy
 from typing import (
     Callable,
     Sequence,
@@ -102,11 +103,10 @@ class DropCommand:
 
         if not pipeline.default_schema_name:
             raise PipelineNeverRan(pipeline.pipeline_name, pipeline.pipelines_dir)
-        self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name]
+        self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
 
-        self.drop_tables = not state_only
-
-        self._drop_schema, self._new_state, self.info = drop_resources(
+        drop_result = drop_resources(
+            # self._drop_schema, self._new_state, self.info = drop_resources(
             self.schema,
             pipeline.state,
             resources,
@@ -114,6 +114,12 @@ class DropCommand:
             drop_all,
             state_only,
         )
+
+        self._new_state = drop_result.state
+        self.info = drop_result.info
+        self._new_schema = drop_result.schema
+        self._dropped_tables = drop_result.dropped_tables
+        self.drop_tables = not state_only and bool(self._dropped_tables)
 
         self.drop_state = bool(drop_all or resources or state_paths)
 
@@ -124,46 +130,6 @@ class DropCommand:
             and len(self.info["state_paths"]) == 0
             and len(self.info["resource_states"]) == 0
         )
-
-    def _drop_destination_tables(self, allow_schema_tables: bool = False) -> None:
-        table_names = self.info["tables"]
-        if not allow_schema_tables:
-            for table_name in table_names:
-                assert table_name not in self.schema._schema_tables, (
-                    f"You are dropping table {table_name} in {self.schema.name} but it is still"
-                    " present in the schema"
-                )
-        with self.pipeline._sql_job_client(self.schema) as client:
-            client.drop_tables(*table_names, replace_schema=True)
-            # also delete staging but ignore if staging does not exist
-            if isinstance(client, WithStagingDataset):
-                with contextlib.suppress(DatabaseUndefinedRelation):
-                    with client.with_staging_dataset():
-                        client.drop_tables(*table_names, replace_schema=True)
-
-    def _delete_schema_tables(self) -> None:
-        for tbl in self.info["tables"]:
-            del self.schema.tables[tbl]
-        # bump schema, we'll save later
-        self.schema._bump_version()
-
-    def _extract_state(self) -> None:
-        state: Dict[str, Any]
-        with self.pipeline.managed_state(extract_state=True) as state:  # type: ignore[assignment]
-            state.clear()
-            state.update(self._new_state)
-        try:
-            # Also update the state in current context if one is active
-            # so that we can run the pipeline directly after drop in the same process
-            ctx = Container()[StateInjectableContext]
-            state = ctx.state  # type: ignore[assignment]
-            state.clear()
-            state.update(self._new_state)
-        except ContextDefaultCannotBeCreated:
-            pass
-
-    def _save_local_schema(self) -> None:
-        self.pipeline.schemas.save_schema(self.schema)
 
     def __call__(self) -> None:
         if (
@@ -177,14 +143,16 @@ class DropCommand:
         if not self.drop_state and not self.drop_tables:
             return  # Nothing to drop
 
-        if self.drop_tables:
-            self._delete_schema_tables()
-            self._drop_destination_tables()
-        if self.drop_tables:
-            self._save_local_schema()
-        if self.drop_state:
-            self._extract_state()
-        # Send updated state to destination
+        self._new_schema._bump_version()
+        new_state = deepcopy(self._new_state)
+        force_state_extract(new_state)
+
+        self.pipeline._save_and_extract_state_and_schema(
+            new_state,
+            schema=self._new_schema,
+            load_package_state_update={"dropped_tables": self._dropped_tables},
+        )
+
         self.pipeline.normalize()
         try:
             self.pipeline.load(raise_on_failed_jobs=True)
@@ -193,6 +161,8 @@ class DropCommand:
             self.pipeline.drop_pending_packages()
             with self.pipeline.managed_state() as state:
                 force_state_extract(state)
+            # Restore original schema file so all tables are known on next run
+            self.pipeline.schemas.save_schema(self.schema)
             raise
 
 
