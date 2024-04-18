@@ -80,7 +80,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         max_nesting = self.max_nesting
         schema = self.schema
         if (
-            max_table_nesting := schema.tables[table_name]
+            max_table_nesting := schema.tables.get(table_name, {})
             .get("x-normalizer", {})
             .get("max_nesting")
         ):

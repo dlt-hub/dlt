@@ -5,7 +5,7 @@ from tests.common.utils import json_case_path
 
 
 def test_resource_max_nesting():
-    @dlt.resource(max_table_nesting=2)
+    @dlt.resource(max_table_nesting=1)
     def bot_events():
         with open(json_case_path("rasa_event_bot_metadata"), "rb") as f:
             yield json.load(f)
