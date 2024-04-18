@@ -6,7 +6,7 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 1. [Getting Started](#getting-started)
 2. [Submitting Changes](#submitting-changes)
-3. [Updating dependencies](#updating-dependencies)
+3. [Updating dependencies](#adding-or-updating-core-dependencies)
 4. [Linting](#linting)
 5. [Testing](#testing)
 6. [Local Development](#local-development)
@@ -63,7 +63,7 @@ only the `duckdb` and `postgres` are available to forks.
 
 In case you submit a new destination or make changes to a destination that require credentials (so Bigquery, Snowflake, buckets etc.) you **should contact us so we can add you as contributor**. Then you should make a PR directly to the `dlt` repo.
 
-## Updating dependencies
+## Adding or updating core dependencies
 
 Our objective is to maintain stability and compatibility of dlt across all environments.
 By following these guidelines, we can make sure that dlt stays secure, reliable and compatible.
