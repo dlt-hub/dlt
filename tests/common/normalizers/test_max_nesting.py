@@ -6,6 +6,9 @@ import pytest
 from dlt.common import json
 from tests.common.utils import json_case_path
 
+
+TOP_LEVEL_TABLES = ["bot_events"]
+
 ALL_TABLES_FOR_RASA_EVENT = [
     "bot_events",
     "bot_events__metadata__known_recipients",
@@ -17,7 +20,6 @@ ALL_TABLES_FOR_RASA_EVENT = [
     "bot_events__metadata__vendor_list",
 ]
 
-
 ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2 = [
     "bot_events",
     "bot_events__metadata__known_recipients",
@@ -28,25 +30,13 @@ ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2 = [
 @pytest.mark.parametrize(
     "nesting_level,expected_num_tables,expected_table_names",
     (
-        (0, 1, ["bot_events"]),
-        (1, 1, ["bot_events"]),
+        (0, 1, TOP_LEVEL_TABLES),
+        (1, 1, TOP_LEVEL_TABLES),
         (2, 3, ALL_TABLES_FOR_RASA_EVENT_NESTING_LEVEL_2),
         (5, 8, ALL_TABLES_FOR_RASA_EVENT),
-        (
-            15,
-            8,
-            ALL_TABLES_FOR_RASA_EVENT,
-        ),
-        (
-            25,
-            8,
-            ALL_TABLES_FOR_RASA_EVENT,
-        ),
-        (
-            1000,
-            8,
-            ALL_TABLES_FOR_RASA_EVENT,
-        ),
+        (15, 8, ALL_TABLES_FOR_RASA_EVENT),
+        (25, 8, ALL_TABLES_FOR_RASA_EVENT),
+        (1000, 8, ALL_TABLES_FOR_RASA_EVENT),
     ),
 )
 def test_resource_max_nesting(
