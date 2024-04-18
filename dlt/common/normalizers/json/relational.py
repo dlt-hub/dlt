@@ -79,6 +79,12 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # turn everything at the recursion level into complex type
         max_nesting = self.max_nesting
         schema = self.schema
+        if (
+            max_table_nesting := schema.tables[table_name]
+            .get("x-normalizer", {})
+            .get("max_nesting")
+        ):
+            max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting
         if _r_lvl == max_nesting:

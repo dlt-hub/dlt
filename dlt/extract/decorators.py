@@ -448,7 +448,6 @@ def resource(
     ) -> DltResource:
         table_template = make_hints(
             table_name,
-            max_table_nesting=max_table_nesting,
             write_disposition=write_disposition or DEFAULT_WRITE_DISPOSITION,
             columns=columns,
             primary_key=primary_key,
@@ -456,6 +455,9 @@ def resource(
             schema_contract=schema_contract,
             table_format=table_format,
         )
+        if max_table_nesting:
+            table_template.setdefault("x-normalizer", {})
+            table_template["x-normalizer"]["max_nesting"] = max_table_nesting
 
         resource = DltResource.from_data(
             _data,
