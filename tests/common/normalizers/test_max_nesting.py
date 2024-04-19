@@ -4,7 +4,6 @@ import dlt
 import pytest
 
 from dlt.common import json
-from pytest_mock.plugin import MockerFixture
 
 from tests.common.utils import json_case_path
 
@@ -79,8 +78,22 @@ def test_resource_max_nesting(
 
 
 def test_with_multiple_resources_with_max_table_nesting_levels(
-    rasa_event_bot_metadata: Dict[str, Any], mocker: MockerFixture
+    rasa_event_bot_metadata: Dict[str, Any],
 ):
+    """Test max_table_nesting feature with multiple resources and a source
+    Test scenario includes
+
+    1. Testing three different sources with set and unset `max_table_nesting` parameter
+        and checks if the number of created tables in the schema match the expected numbers
+        and the exact list table names have been collected;
+    2. For the same parent source we change the `max_table_nesting` and verify if it is respected
+        by the third resource `third_resource_with_nested_data` as well as checking
+        the number of created tables in the current schema;
+    3. Run combined test where we set `max_table_nesting` for the parent source and check
+        if this `max_table_nesting` is respected by child resources where they don't define their
+        own nesting level;
+    """
+
     @dlt.resource(max_table_nesting=1)
     def rasa_bot_events_with_nesting_lvl_one():
         yield rasa_event_bot_metadata
@@ -119,6 +132,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
                         }
                     ],
                 },
+                "params": [{"id": 1, "q": "search"}, {"id": 2, "q": "hashtag-search"}],
             }
         ]
 
@@ -126,6 +140,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     assert "x-normalizer" in rasa_bot_events_with_nesting_lvl_two._hints
     assert "x-normalizer" not in third_resource_with_nested_data._hints
 
+    # Check scenario #1
     @dlt.source(max_table_nesting=100)
     def some_data():
         return [
@@ -161,10 +176,77 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
 
     # expect four tables for resource `third_resource_with_nested_data`
     tables = [tbl for tbl in all_table_names if "third_resource" in tbl]
-    assert len(tables) == 4
+    assert len(tables) == 5
     assert tables == [
         "third_resource_with_nested_data",
         "third_resource_with_nested_data__payload__hints",
         "third_resource_with_nested_data__payload__hints__f_float",
         "third_resource_with_nested_data__payload__hints__f_float__comments",
+        "third_resource_with_nested_data__params",
+    ]
+
+    # Check scenario #2
+    # now we need to check `third_resource_with_nested_data`
+    # using different nesting levels at the source level
+    # First we do with max_table_nesting=0
+    @dlt.source(max_table_nesting=0)
+    def some_data_v2():
+        yield third_resource_with_nested_data()
+
+    pipeline.drop()
+    pipeline.run(some_data_v2(), write_disposition="append")
+    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
+    all_table_names = pipeline_schema.data_table_names()
+    assert len(all_table_names) == 1
+    assert all_table_names == [
+        "third_resource_with_nested_data",
+    ]
+
+    # Second we do with max_table_nesting=1
+    some_data_source = some_data_v2()
+    some_data_source.max_table_nesting = 1
+
+    pipeline.drop()
+    pipeline.run(some_data_source, write_disposition="append")
+    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
+    all_table_names = pipeline_schema.data_table_names()
+    assert len(all_table_names) == 2
+    assert all_table_names == [
+        "third_resource_with_nested_data",
+        "third_resource_with_nested_data__params",
+    ]
+
+    # Second we do with max_table_nesting=2
+    some_data_source = some_data_v2()
+    some_data_source.max_table_nesting = 3
+
+    pipeline.drop()
+    pipeline.run(some_data_source, write_disposition="append")
+    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
+    all_table_names = pipeline_schema.data_table_names()
+
+    # 5 because payload is a dictionary not a collection of dictionaries
+    assert len(all_table_names) == 5
+    assert all_table_names == [
+        "third_resource_with_nested_data",
+        "third_resource_with_nested_data__payload__hints",
+        "third_resource_with_nested_data__payload__hints__f_float",
+        "third_resource_with_nested_data__payload__hints__f_float__comments",
+        "third_resource_with_nested_data__params",
+    ]
+
+    # Check scenario #3
+    pipeline.drop()
+    some_data_source = some_data()
+    some_data_source.max_table_nesting = 0
+    pipeline.run(some_data_source, write_disposition="append")
+    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
+    all_table_names = pipeline_schema.data_table_names()
+    assert len(all_table_names) == 5
+    assert sorted(all_table_names) == [
+        "rasa_bot_events_with_nesting_lvl_one",
+        "rasa_bot_events_with_nesting_lvl_two",
+        "rasa_bot_events_with_nesting_lvl_two__metadata__known_recipients",
+        "rasa_bot_events_with_nesting_lvl_two__metadata__vendor_list",
+        "third_resource_with_nested_data",
     ]
