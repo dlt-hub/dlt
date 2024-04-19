@@ -92,6 +92,8 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     3. Run combined test where we set `max_table_nesting` for the parent source and check
         if this `max_table_nesting` is respected by child resources where they don't define their
         own nesting level;
+    4. Run the pipeline with set `max_table_nesting` of a resource then set overrider it and
+        rerun the pipeline to check if the number of tables are greated than in the first run;
     """
 
     @dlt.resource(max_table_nesting=1)
@@ -251,6 +253,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
         "third_resource_with_nested_data",
     ]
 
+    # Check scenario #4
     # Set max_table_nesting via the setter and check the tables
     pipeline.drop()
     rasa_bot_events_resource = rasa_bot_events_with_nesting_lvl_one()
@@ -261,8 +264,9 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     )
     pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
     all_table_names = pipeline_schema.data_table_names()
+    count_all_tables_first_run = len(all_table_names)
     tables = pipeline_schema.data_table_names()
-    assert len(all_table_names) == 1
+    assert count_all_tables_first_run == 1
     assert tables == ["rasa_bot_events_with_nesting_lvl_one"]
 
     # now adjust the max_table_nesting for resource and check
@@ -274,8 +278,11 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
         write_disposition="append",
     )
     all_table_names = pipeline_schema.data_table_names()
+    count_all_tables_second_run = len(all_table_names)
+    assert count_all_tables_first_run < count_all_tables_second_run
+
     tables = pipeline_schema.data_table_names()
-    assert len(all_table_names) == 3
+    assert count_all_tables_second_run == 3
     assert tables == [
         "rasa_bot_events_with_nesting_lvl_one",
         "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
