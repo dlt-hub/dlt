@@ -36,6 +36,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
+    dataset_sentinel_table_name: str = "dlt_sentinel_table"
+    """Special table to mark dataset as existing"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -45,9 +47,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
         "database",
         "username",
         "password",
-        "connect_timeout",
-        "send_receive_timeout",
-        "dataset_table_separator",
     ]
 
     def parse_native_representation(self, native_value: Any) -> None:

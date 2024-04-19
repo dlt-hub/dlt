@@ -54,7 +54,10 @@ class ClickHouseSqlClient(
         self.database_name = credentials.database
 
     def has_dataset(self) -> bool:
-        return len(self._list_tables()) > 0
+        sentinel_table = self.credentials.dataset_sentinel_table_name
+        return sentinel_table in [
+            t.split(self.credentials.dataset_table_separator)[1] for t in self._list_tables()
+        ]
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
@@ -90,8 +93,13 @@ class ClickHouseSqlClient(
             return None if curr.description is None else curr.fetchall()
 
     def create_dataset(self) -> None:
-        # ClickHouse doesn't have schemas.
-        pass
+        # We create a sentinel table which defines wether we consider the dataset created
+        sentinel_table_name = self.make_qualified_table_name(
+            self.credentials.dataset_sentinel_table_name
+        )
+        self.execute_sql(
+            f"""CREATE TABLE {sentinel_table_name} (_dlt_id String NOT NULL PRIMARY KEY) ENGINE=MergeTree COMMENT 'internal dlt sentinel table'"""
+        )
 
     def drop_dataset(self) -> None:
         # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
@@ -115,7 +123,7 @@ class ClickHouseSqlClient(
             """,
             (
                 self.database_name,
-                f"{self.dataset_name}%",
+                f"{self.dataset_name}{self.credentials.dataset_table_separator}%",
             ),
         )
         return [row[0] for row in rows]
@@ -144,25 +152,20 @@ class ClickHouseSqlClient(
             yield ClickHouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+        database_name = self.database_name
+        dataset_name = self.dataset_name
         if escape:
-            database_name = self.capabilities.escape_identifier(self.database_name)
-            dataset_name = self.capabilities.escape_identifier(f"{self.dataset_name}")
-        else:
-            database_name = self.database_name
-            dataset_name = f"{self.dataset_name}"
+            database_name = self.capabilities.escape_identifier(database_name)
+            dataset_name = self.capabilities.escape_identifier(dataset_name)
         return f"{database_name}.{dataset_name}"
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        dataset_table_separator = self.credentials.dataset_table_separator
+        database_name = self.database_name
+        table_name = f"{self.dataset_name}{self.credentials.dataset_table_separator}{table_name}"
         if escape:
-            database_name = self.capabilities.escape_identifier(self.database_name)
-            dataset_and_table = self.capabilities.escape_identifier(
-                f"{self.dataset_name}{dataset_table_separator}{table_name}"
-            )
-        else:
-            database_name = self.database_name
-            dataset_and_table = f"{self.dataset_name}{dataset_table_separator}{table_name}"
-        return f"{database_name}.{dataset_and_table}"
+            database_name = self.capabilities.escape_identifier(database_name)
+            table_name = self.capabilities.escape_identifier(table_name)
+        return f"{database_name}.{table_name}"
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
