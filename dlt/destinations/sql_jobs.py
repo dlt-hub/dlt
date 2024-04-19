@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
-from dlt.common.data_writers.escape import format_datetime_literal
 from dlt.common.logger import pretty_format_exception
 
 from dlt.common.pendulum import pendulum
@@ -521,28 +520,30 @@ class SqlMergeJob(SqlBaseJob):
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
 
         # get column names
-        escape_id = sql_client.capabilities.escape_identifier
+        caps = sql_client.capabilities
+        escape_id = caps.escape_identifier
         from_, to = list(map(escape_id, get_validity_column_names(root_table)))  # validity columns
         hash_ = escape_id(
             get_first_column_name_with_prop(root_table, "x-row-version")
         )  # row hash column
 
         # define values for validity columns
+        format_datetime_literal = caps.format_datetime_literal
+        if format_datetime_literal is None:
+            format_datetime_literal = (
+                DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
+            )
         boundary_ts = format_datetime_literal(
             current_load_package()["state"]["created_at"],
-            sql_client.capabilities.timestamp_precision,
+            caps.timestamp_precision,
         )
-        active_record_ts = format_datetime_literal(
-            HIGH_TS, sql_client.capabilities.timestamp_precision
-        )
+        active_record_ts = format_datetime_literal(HIGH_TS, caps.timestamp_precision)
 
         # retire updated and deleted records
         sql.append(f"""
-            UPDATE {root_table_name} SET {to} = '{boundary_ts}'
-            WHERE NOT EXISTS (
-                SELECT s.{hash_} FROM {staging_root_table_name} AS s
-                WHERE {root_table_name}.{hash_} = s.{hash_}
-            ) AND {to} = '{active_record_ts}';
+            UPDATE {root_table_name} SET {to} = {boundary_ts}
+            WHERE {to} = {active_record_ts}
+            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
 
         # insert new active records in root table
@@ -550,9 +551,9 @@ class SqlMergeJob(SqlBaseJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, '{boundary_ts}' AS {from_}, '{active_record_ts}' AS {to}
+            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_ts} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE NOT EXISTS (SELECT s.{hash_} FROM {root_table_name} AS f WHERE f.{hash_} = s.{hash_});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
         """)
 
         # insert list elements for new active records in child tables
