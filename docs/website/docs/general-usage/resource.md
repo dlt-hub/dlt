@@ -354,6 +354,8 @@ there or fallback to default value which has 1000 as maximum nesting level.
 :::
 
 ```py
+import dlt
+
 @dlt.resource(max_table_nesting=1)
 def my_resource():
     yield {
@@ -367,7 +369,7 @@ def my_resource():
                 "notes": [
                     {
                         "text": "string",
-                        "author" "string",
+                        "author": "string",
                     }
                 ]
             }
