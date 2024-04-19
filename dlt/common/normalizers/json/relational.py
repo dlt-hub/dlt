@@ -392,7 +392,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _get_table_nesting_level(schema: Schema, table_name: str) -> Optional[int]:
         table = schema.tables.get(table_name)
         if table:
-            return table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
+            return table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[no-any-return]
+        return None
 
     @staticmethod
     @lru_cache(maxsize=None)
