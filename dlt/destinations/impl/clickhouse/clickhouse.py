@@ -304,6 +304,7 @@ class ClickHouseMergeJob(SqlMergeJob):
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
         ]
 
+
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -410,9 +411,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             }
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
-
-    def get_stored_schema(self) -> StorageSchemaInfo:
-        return super().get_stored_schema()
 
     @staticmethod
     def _gen_not_null(v: bool) -> str:

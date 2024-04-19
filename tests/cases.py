@@ -197,6 +197,7 @@ def assert_all_data_types_row(
     timestamp_precision: int = 6,
     schema: TTableSchemaColumns = None,
     expect_filtered_null_columns=False,
+    allow_string_binary: bool = False,
 ) -> None:
     # content must equal
     # print(db_row)
@@ -245,9 +246,14 @@ def assert_all_data_types_row(
                         db_mapping[binary_col]
                     )  # redshift returns binary as hex string
                 except ValueError:
-                    if not allow_base64_binary:
+                    if allow_string_binary:
+                        db_mapping[binary_col] = db_mapping[binary_col].encode("utf-8")
+                    elif allow_base64_binary:
+                        db_mapping[binary_col] = base64.b64decode(
+                            db_mapping[binary_col], validate=True
+                        )
+                    else:
                         raise
-                    db_mapping[binary_col] = base64.b64decode(db_mapping[binary_col], validate=True)
             else:
                 db_mapping[binary_col] = bytes(db_mapping[binary_col])
 

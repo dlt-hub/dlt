@@ -14,6 +14,11 @@ keywords: [ clickhouse, destination, data warehouse ]
 pip install dlt[clickhouse]
 ```
 
+## Dev Todos for docs
+* Clickhouse uses string for time
+* bytes are converted to base64 strings when using jsonl and regular strings when using parquet
+* JSON / complex fields are experimental currently, they are not supported when loading from parquet and nested structures will be changed when loading from jsonl
+
 ## Setup Guide
 
 ### 1. Initialize the dlt project

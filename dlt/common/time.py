@@ -141,8 +141,6 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
         result = parse_iso_like_datetime(value)
         if isinstance(result, pendulum.Time):
             return result
-        elif isinstance(result, pendulum.DateTime):
-            return result.time()
         else:
             raise ValueError(f"{value} is not a valid ISO time string.")
     raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")

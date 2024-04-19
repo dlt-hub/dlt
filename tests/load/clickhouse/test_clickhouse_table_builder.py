@@ -61,31 +61,31 @@ def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col1` Int64" in sql
     assert "`col2` Float64" in sql
     assert "`col3` Boolean" in sql
-    assert "`col4` DateTime('UTC')" in sql
+    assert "`col4` DateTime64(6,'UTC')" in sql
     assert "`col5` String" in sql
     assert "`col6` Decimal(38,9)" in sql
     assert "`col7` String" in sql
     assert "`col8` Decimal(76,0)" in sql
     assert "`col9` JSON" in sql
     assert "`col10` Date" in sql
-    assert "`col11` DateTime" in sql
+    assert "`col11` String" in sql
     assert "`col1_null` Nullable(Int64)" in sql
     assert "`col2_null` Nullable(Float64)" in sql
     assert "`col3_null` Nullable(Boolean)" in sql
-    assert "`col4_null` Nullable(DateTime('UTC'))" in sql
+    assert "`col4_null` Nullable(DateTime64(6,'UTC'))" in sql
     assert "`col5_null` Nullable(String)" in sql
     assert "`col6_null` Nullable(Decimal(38,9))" in sql
     assert "`col7_null` Nullable(String)" in sql
     assert "`col8_null` Nullable(Decimal(76,0))" in sql
     assert "`col9_null` JSON" in sql  # JSON isn't nullable in clickhouse
     assert "`col10_null` Nullable(Date)" in sql
-    assert "`col11_null` Nullable(DateTime)" in sql
+    assert "`col11_null` Nullable(String)" in sql
     assert "`col1_precision` Int64" in sql
-    assert "`col4_precision` DateTime(3,'UTC')" in sql
+    assert "`col4_precision` DateTime64(3,'UTC')" in sql
     assert "`col5_precision` String" in sql
     assert "`col6_precision` Decimal(6,2)" in sql
     assert "`col7_precision` String" in sql
-    assert "`col11_precision` DateTime" in sql
+    assert "`col11_precision` String" in sql
 
 
 def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
@@ -103,31 +103,31 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col1` Int64" in sql
     assert "`col2` Float64" in sql
     assert "`col3` Boolean" in sql
-    assert "`col4` DateTime('UTC')" in sql
+    assert "`col4` DateTime64(6,'UTC')" in sql
     assert "`col5` String" in sql
     assert "`col6` Decimal(38,9)" in sql
     assert "`col7` String" in sql
     assert "`col8` Decimal(76,0)" in sql
     assert "`col9` JSON" in sql
     assert "`col10` Date" in sql
-    assert "`col11` DateTime" in sql
+    assert "`col11` String" in sql
     assert "`col1_null` Nullable(Int64)" in sql
     assert "`col2_null` Nullable(Float64)" in sql
     assert "`col3_null` Nullable(Boolean)" in sql
-    assert "`col4_null` Nullable(DateTime('UTC'))" in sql
+    assert "`col4_null` Nullable(DateTime64(6,'UTC'))" in sql
     assert "`col5_null` Nullable(String)" in sql
     assert "`col6_null` Nullable(Decimal(38,9))" in sql
     assert "`col7_null` Nullable(String)" in sql
     assert "`col8_null` Nullable(Decimal(76,0))" in sql
     assert "`col9_null` JSON" in sql
     assert "`col10_null` Nullable(Date)" in sql
-    assert "`col11_null` Nullable(DateTime)" in sql
+    assert "`col11_null` Nullable(String)" in sql
     assert "`col1_precision` Int64" in sql
-    assert "`col4_precision` DateTime(3,'UTC')" in sql
+    assert "`col4_precision` DateTime64(3,'UTC')" in sql
     assert "`col5_precision` String" in sql
     assert "`col6_precision` Decimal(6,2)" in sql
     assert "`col7_precision` String" in sql
-    assert "`col11_precision` DateTime" in sql
+    assert "`col11_precision` String" in sql
 
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)

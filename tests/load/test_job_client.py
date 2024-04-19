@@ -129,7 +129,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_schema._bump_version()
     assert first_schema.version == this_schema.version == 2
     # wait to make load_newest_schema deterministic
-    sleep(0.1)
+    sleep(2)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_stored_schema_by_hash(first_schema.version_hash)
     newest_schema = client.get_stored_schema()
@@ -519,6 +519,11 @@ def test_load_with_all_types(
             ["time"] if client.config.destination_type in ["databricks", "clickhouse"] else None
         ),
     )
+
+    # switch complex to string for clickhouse
+    if client.config.destination_type in ["clickhouse"]:
+        column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+
     # we should have identical content with all disposition types
     client.schema.update_table(
         new_table(

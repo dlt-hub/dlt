@@ -180,6 +180,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         "redshift",
         "athena",
         "databricks",
+        "clickhouse",
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")
@@ -203,9 +204,13 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         exclude_types=exclude_types, exclude_columns=exclude_columns
     )
 
-    # bigquery cannot load into JSON fields from parquet
+    # clickhouse json is experimental, will not work for parquet and makes strange changes for jsonl
+    if destination_config.destination in ["clickhouse"]:
+        column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
+
+    # bigquery and clickhouse cannot load into JSON fields from parquet
     if destination_config.file_format == "parquet":
-        if destination_config.destination == "bigquery":
+        if destination_config.destination in ["bigquery"]:
             # change datatype to text and then allow for it in the assert (parse_complex_strings)
             column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
     # redshift cannot load from json into VARBYTE
@@ -241,13 +246,18 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         )
         allow_base64_binary = (
             destination_config.file_format == "jsonl"
-            and destination_config.destination in ["redshift"]
-        ) or destination_config.destination in ["clickhouse"]
+            and destination_config.destination in ["redshift", "clickhouse"]
+        )
+        allow_string_binary = (
+            destination_config.file_format == "parquet"
+            and destination_config.destination in ["clickhouse"]
+        )
         # content must equal
         assert_all_data_types_row(
             db_row[:-2],
             parse_complex_strings=parse_complex_strings,
             allow_base64_binary=allow_base64_binary,
+            allow_string_binary=allow_string_binary,
             timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
         )
