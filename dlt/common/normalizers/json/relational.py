@@ -85,9 +85,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         if table:
             max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
             if max_table_nesting is not None:
-                import ipdb
-
-                ipdb.set_trace()
                 max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting
