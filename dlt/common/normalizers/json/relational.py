@@ -8,7 +8,6 @@ from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
-    TTableSchema,
     TColumnSchema,
     TColumnName,
     TSimpleRegex,
@@ -407,7 +406,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
         return (
             schema.get_table(table_name)["columns"]  # type: ignore[return-value]
-            .get("_dlt_id", dict())
+            .get("_dlt_id", {})
             .get("x-row-version", False)
         )
 
