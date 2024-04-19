@@ -11,8 +11,6 @@ from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
-from dlt.common.typing import TDataItem
-from dlt.destinations.sql_jobs import HIGH_TS
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -29,8 +27,9 @@ get_row_hash = DataItemNormalizer.get_row_hash
 
 
 def get_active_ts(pipeline: dlt.Pipeline) -> datetime:
+    high_ts = pipeline.destination.capabilities().scd2_high_timestamp
     caps = pipeline._get_destination_capabilities()
-    active_ts = HIGH_TS.in_timezone(tz="UTC").replace(tzinfo=None)
+    active_ts = high_ts.in_timezone(tz="UTC").replace(tzinfo=None)
     return reduce_pendulum_datetime_precision(active_ts, caps.timestamp_precision)
 
 
@@ -46,10 +45,10 @@ def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> 
     return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
 
 
-def strip_timezone(ts: datetime) -> datetime:
+def strip_timezone(ts: datetime, high_ts: datetime) -> datetime:
     """Converts timezone of datetime object to UTC and removes timezone awareness."""
     ts = ensure_pendulum_datetime(ts)
-    if ts.replace(tzinfo=None) == HIGH_TS:
+    if ts.replace(tzinfo=None) == high_ts:
         return ts.replace(tzinfo=None)
     else:
         return ts.astimezone(tz=timezone.utc).replace(tzinfo=None)
@@ -59,10 +58,11 @@ def get_table(
     pipeline: dlt.Pipeline, table_name: str, sort_column: str, include_root_id: bool = True
 ) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
+    high_ts = pipeline.destination.capabilities().scd2_high_timestamp
     return sorted(
         [
             {
-                k: strip_timezone(v) if isinstance(v, datetime) else v
+                k: strip_timezone(v, high_ts) if isinstance(v, datetime) else v
                 for k, v in r.items()
                 if not k.startswith("_dlt")
                 or k in DEFAULT_VALIDITY_COLUMN_NAMES

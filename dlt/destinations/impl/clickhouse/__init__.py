@@ -1,5 +1,6 @@
 import sys
 
+from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import (
     escape_clickhouse_identifier,
@@ -24,6 +25,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     # https://stackoverflow.com/questions/68358686/what-is-the-maximum-length-of-a-column-in-clickhouse-can-it-be-modified
     caps.max_identifier_length = 255
     caps.max_column_identifier_length = 255
+    caps.scd2_high_timestamp = pendulum.datetime(2299, 12, 31)  # this is the max datetime...
 
     # ClickHouse has no max `String` type length.
     caps.max_text_data_type_length = sys.maxsize

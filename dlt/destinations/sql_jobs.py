@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 import yaml
 from dlt.common.logger import pretty_format_exception
 
-from dlt.common.pendulum import pendulum
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
@@ -22,10 +21,6 @@ from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.pipeline.current import load_package as current_load_package
-
-
-HIGH_TS = pendulum.datetime(9999, 12, 31)
-"""High timestamp used to indicate active records in `scd2` merge strategy."""
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -537,7 +532,9 @@ class SqlMergeJob(SqlBaseJob):
             current_load_package()["state"]["created_at"],
             caps.timestamp_precision,
         )
-        active_record_ts = format_datetime_literal(HIGH_TS, caps.timestamp_precision)
+        active_record_ts = format_datetime_literal(
+            caps.scd2_high_timestamp, caps.timestamp_precision
+        )
 
         # retire updated and deleted records
         sql.append(f"""

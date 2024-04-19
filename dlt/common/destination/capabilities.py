@@ -21,6 +21,7 @@ from dlt.common.wei import EVM_DECIMAL_PRECISION
 # sql - any sql statement
 TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
+HIGH_TS = pendulum.datetime(9999, 12, 31)
 
 
 @configspec
@@ -53,6 +54,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
+    scd2_high_timestamp: pendulum.DateTime = HIGH_TS
+    """High timestamp used to indicate active records in `scd2` merge strategy."""
+
     """Destination supports CREATE TABLE ... CLONE ... statements"""
     max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
 
