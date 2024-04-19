@@ -1,7 +1,11 @@
 import sys
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.escape import escape_clickhouse_identifier, escape_clickhouse_literal
+from dlt.common.data_writers.escape import (
+    escape_clickhouse_identifier,
+    escape_clickhouse_literal,
+    format_clickhouse_datetime_literal,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
@@ -13,6 +17,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = "jsonl"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
 
+    caps.format_datetime_literal = format_clickhouse_datetime_literal
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal
 

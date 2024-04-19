@@ -541,7 +541,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # retire updated and deleted records
         sql.append(f"""
-            UPDATE {root_table_name} SET {to} = {boundary_ts}
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
             WHERE {to} = {active_record_ts}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
@@ -587,3 +587,7 @@ class SqlMergeJob(SqlBaseJob):
                     WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{unique_column} = s.{unique_column});
                 """)
         return sql
+
+    @classmethod
+    def gen_update_table_prefix(cls, table_name: str) -> str:
+        return f"UPDATE {table_name} SET"

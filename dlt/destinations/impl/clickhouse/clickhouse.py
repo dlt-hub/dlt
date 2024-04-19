@@ -278,6 +278,10 @@ class ClickHouseMergeJob(SqlMergeJob):
             f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
         ]
 
+    @classmethod
+    def gen_update_table_prefix(cls, table_name: str) -> str:
+        return f"ALTER TABLE {table_name} UPDATE"
+
 
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()

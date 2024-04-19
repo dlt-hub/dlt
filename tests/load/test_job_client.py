@@ -116,6 +116,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
 
     # update in storage
     client._update_schema_in_storage(schema)
+    sleep(1)
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
     newest_schema = client.get_stored_schema()
     assert this_schema == newest_schema
@@ -129,7 +130,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_schema._bump_version()
     assert first_schema.version == this_schema.version == 2
     # wait to make load_newest_schema deterministic
-    sleep(2)
+    sleep(1)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_stored_schema_by_hash(first_schema.version_hash)
     newest_schema = client.get_stored_schema()

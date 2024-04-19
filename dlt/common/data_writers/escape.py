@@ -213,3 +213,11 @@ def format_bigquery_datetime_literal(
     """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#timestamp_literals
     return "TIMESTAMP " + format_datetime_literal(v, precision, no_tz)
+
+
+def format_clickhouse_datetime_literal(
+    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
+) -> str:
+    """Returns clickhouse compatibel function"""
+    datetime = format_datetime_literal(v, precision, True)
+    return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"
