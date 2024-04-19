@@ -19,6 +19,7 @@ from typing import (
     Iterator,
     ContextManager,
     cast,
+    Union,
 )
 import zlib
 import re
@@ -186,7 +187,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
-        schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
+        self.schema.version
+        schema_info = self.get_stored_schema_by_hash(
+            self.schema.stored_version_hash, self.schema.version
+        )
         if schema_info is None:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
@@ -375,10 +379,17 @@ WHERE """
             return None
         return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
 
-    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+    def get_stored_schema_by_hash(
+        self, version_hash: str, version: Optional[int] = None
+    ) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s;"
-        return self._row_to_schema_info(query, version_hash)
+        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s"
+        params: List[Union[int, str]] = [version_hash]
+        if version is not None:
+            params.append(version)
+            query += " AND version = %s"
+        query += ";"
+        return self._row_to_schema_info(query, *params)
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)

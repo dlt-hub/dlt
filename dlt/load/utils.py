@@ -150,24 +150,20 @@ def _init_dataset_and_update_schema(
         f"Client for {job_client.config.destination_type} will start initialize storage"
         f" {staging_text}"
     )
+    job_client.initialize_storage()
     if drop_tables:
-        old_schema = job_client.schema
-        new_schema = job_client.schema.clone()
-        job_client.schema = new_schema
-        for table in drop_tables:
-            new_schema.tables.pop(table["name"], None)
-        new_schema._bump_version()
+        drop_table_names = [table["name"] for table in drop_tables]
         if hasattr(job_client, "drop_tables"):
             logger.info(
                 f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
             )
-            job_client.drop_tables(*[table["name"] for table in drop_tables], replace_schema=True)
-        job_client.schema = old_schema
-    job_client.initialize_storage()
+            job_client.drop_tables(*drop_table_names, replace_schema=False)
+
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
         f" {staging_text}"
     )
+
     applied_update = job_client.update_stored_schema(
         only_tables=update_tables, expected_update=expected_update
     )
