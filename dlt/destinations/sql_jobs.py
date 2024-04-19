@@ -542,10 +542,8 @@ class SqlMergeJob(SqlBaseJob):
         # retire updated and deleted records
         sql.append(f"""
             UPDATE {root_table_name} SET {to} = {boundary_ts}
-            WHERE NOT EXISTS (
-                SELECT s.{hash_} FROM {staging_root_table_name} AS s
-                WHERE {root_table_name}.{hash_} = s.{hash_}
-            ) AND {to} = {active_record_ts};
+            WHERE {to} = {active_record_ts}
+            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
 
         # insert new active records in root table
@@ -555,7 +553,7 @@ class SqlMergeJob(SqlBaseJob):
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
             SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_ts} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE NOT EXISTS (SELECT s.{hash_} FROM {root_table_name} AS f WHERE f.{hash_} = s.{hash_});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
         """)
 
         # insert list elements for new active records in child tables
