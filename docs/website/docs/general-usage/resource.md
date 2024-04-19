@@ -363,7 +363,7 @@ def my_resource():
             {
                 "name": "customer_age",
                 "type": "int",
-                "label": "Age"
+                "label": "Age",
                 "notes": [
                     {
                         "text": "string",
