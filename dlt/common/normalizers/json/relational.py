@@ -80,11 +80,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # turn everything at the recursion level into complex type
         max_nesting = self.max_nesting
         schema = self.schema
-        table = schema.tables.get(table_name)
-        if table:
-            max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
-            if max_table_nesting is not None:
-                max_nesting = max_table_nesting
+        max_table_nesting = self._get_table_nesting_level(schema, table_name)
+        if max_table_nesting is not None:
+            max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting
         if _r_lvl == max_nesting:
@@ -94,6 +92,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # path = f"{table_name}▶{field_name}"
         # or use definition in the schema
         column: TColumnSchema = None
+        table = schema.tables.get(table_name)
         if table:
             column = table["columns"].get(field_name)
         if column is None:
@@ -387,6 +386,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             "./normalizers/json/config",
             validator_f=column_name_validator(schema.naming),
         )
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_table_nesting_level(schema: Schema, table_name: str) -> Optional[int]:
+        table = schema.tables.get(table_name)
+        if table:
+            return table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
 
     @staticmethod
     @lru_cache(maxsize=None)
