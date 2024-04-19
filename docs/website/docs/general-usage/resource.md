@@ -388,8 +388,8 @@ You can achieve the same effect after the source instance is created:
 ```py
 from my_resource import my_awesome_module
 
-source = my_resource()
-source.max_table_nesting = 0
+resource = my_resource()
+resource.max_table_nesting = 0
 ```
 
 Several data sources are prone to contain semi-structured documents with very deep nesting i.e.
