@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.9a0"
+version = "0.4.9a2"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -30,7 +30,7 @@ simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
 semver = ">=2.13.0"
 hexbytes = ">=0.2.2"
-tzdata = ">=2024.1"
+tzdata = ">=2022.1"
 tomlkit = ">=0.11.3"
 pathvalidate = ">=2.5.2"
 typing-extensions = ">=4.0.0"
@@ -82,6 +82,8 @@ databricks-sql-connector = {version = ">=2.9.3,<3.0.0", optional = true}
 dbt-databricks = {version = "^1.7.3", optional = true}
 clickhouse-driver = { version = "^0.2.7", optional = true }
 clickhouse-connect = { version = "^0.7.7", optional = true }
+black = "23.9.1"
+
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake", "dbt-athena-community", "dbt-databricks"]
