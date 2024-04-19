@@ -12,13 +12,19 @@ tags: [source, python etl, etl, sdmx]
 
 # Simplifying SDMX Data Integration with Python
 
-Statistical Data and Metadata eXchange (SDMX) is an international standard used extensively by global organizations, government agencies, and financial institutions to facilitate the efficient exchange, sharing, and processing of statistical data. Utilizing SDMX enables seamless integration and access to a broad spectrum of statistical datasets covering economics, finance, population demographics, health, and education, among others. These capabilities make it invaluable for creating robust, data-driven solutions that rely on accurate and comprehensive data sources.
+Statistical Data and Metadata eXchange (SDMX) is an international standard used extensively by global organizations, government agencies, and financial institutions to facilitate the efficient exchange, sharing, and processing of statistical data.
+
+Utilizing SDMX enables seamless integration and access to a broad spectrum of statistical datasets covering economics, finance, population demographics, health, and education, among others.
+
+These capabilities make it invaluable for creating robust, data-driven solutions that rely on accurate and comprehensive data sources.
 
 ![embeddable etl](https://storage.googleapis.com/dlt-blog-images/sdmx.png)
 
 ## Why SDMX?
 
-SDMX not only standardizes data formats across disparate systems but also simplifies the access to data provided by institutions such as Eurostat, the ECB (European Central Bank), the IMF (International Monetary Fund), and many national statistics offices. This standardization allows data engineers and scientists to focus more on analyzing data rather than spending time on data cleaning and preparation.
+SDMX not only standardizes data formats across disparate systems but also simplifies the access to data provided by institutions such as Eurostat, the ECB (European Central Bank), the IMF (International Monetary Fund), and many national statistics offices.
+
+This standardization allows data engineers and scientists to focus more on analyzing data rather than spending time on data cleaning and preparation.
 
 ### Installation and Basic Usage
 To start integrating SDMX data sources into your Python applications, install the sdmx library using pip:
@@ -41,18 +47,18 @@ print(list(source))
 ```
 This configuration retrieves data from:
 
-Eurostat (ESTAT) for the Purchasing Power Parity (PPP) and Price Level Indices providing insights into economic factors across different regions.
-Eurostat's short-term statistics (sts_inpr_m) on industrial production, which is crucial for economic analysis.
-European Central Bank (ECB) for exchange rates, essential for financial and trade-related analyses.
+* Eurostat (ESTAT) for the Purchasing Power Parity (PPP) and Price Level Indices providing insights into economic factors across different regions.
+* Eurostat's short-term statistics (sts_inpr_m) on industrial production, which is crucial for economic analysis.
+* European Central Bank (ECB) for exchange rates, essential for financial and trade-related analyses.
 
 ## Loading the data with dlt, leveraging best practices
 
 After retrieving data using the sdmx library, the next challenge is effectively integrating this data into databases.
 The dlt library excels in this area by offering a robust solution for data loading that adheres to best practices in several key ways:
 
-* Automated schema management: dlt infers types and evolves schema as needed. It automatically handles nested structures too. You can customise this behavior, or turn the schema into a data contract.
-* Declarative configuration: You can easily switch between write dispositions (append/replace/merge) or destinations.
-* Scalability: dlt is designed to handle large volumes of data efficiently, making it suitable for enterprise-level applications and high-volume data streams. This scalability ensures that as your data needs grow, your data processing pipeline can grow with them without requiring significant redesign or resource allocation.
+* Automated schema management -> dlt infers types and evolves schema as needed. It automatically handles nested structures too. You can customise this behavior, or turn the schema into a data contract.
+* Declarative configuration -> You can easily switch between write dispositions (append/replace/merge) or destinations.
+* Scalability -> dlt is designed to handle large volumes of data efficiently, making it suitable for enterprise-level applications and high-volume data streams. This scalability ensures that as your data needs grow, your data processing pipeline can grow with them without requiring significant redesign or resource allocation.
 
 Martin Salo, CTO at Yummy, a food logistics company, uses dlt to efficiently manage complex data flows from SDMX sources.
 By leveraging dlt, Martin ensures that his data pipelines are not only easy to build, robust and error-resistant but also optimized for performance and scalability.
@@ -72,8 +78,4 @@ complex statistical data into their workflows, enabling more effective data-driv
 By engaging with the data engineering community and sharing strategies and insights on effective data integration,
 data engineers can continue to refine their practices and achieve better outcomes in their projects.
 
-
-Join the conversation and share your insights in our [Slack community](https://dlthub.com/community) or contribute directly to the growing list of [projects using us](https://github.com/dlt-hub/dlt/network/dependents). Your expertise can drive
-the continuous improvement of dlt, shaping it into a tool that not only meets current demands but also anticipates future needs in the data engineering field.
-
-
+Join the conversation and share your insights in our [Slack community](https://dlthub.com/community).
