@@ -57,7 +57,7 @@ These methods allow for a degree of customization in handling data structure and
 
 `dlt` buffers to disk, and has built-in resume and retry mechanisms. This makes it less beneficial to manually manage atomicity after the fact unless you're running serverless. If you choose to load every 10k records instead, you could potentially see benefits like quicker data arrival if you're actively reading, and easier resumption from the last loaded point in case of failure, assuming that state is well-managed and records are sorted.
 
-It's worth noting that `dlt` includes a request library replacement with built-in retries. This means if you pull 10 million records individually, your data should remain safe even in the face of network issues. To resume jobs after a failure, however, it's necessary to run the pipeline in its own virtual machine (VM). Ephemeral storage solutions like Cloud Run don't support job resumption.
+It's worth noting that `dlt` includes a request library replacement with [built-in retries](../../docs/reference/performance#using-the-built-in-requests-client). This means if you pull 10 million records individually, your data should remain safe even in the face of network issues. To resume jobs after a failure, however, it's necessary to run the pipeline in its own virtual machine (VM). Ephemeral storage solutions like Cloud Run don't support job resumption.
 
 ## How to contribute a verified source?
 
@@ -91,24 +91,26 @@ print(p.default_schema.to_pretty_yaml())
 
 This method ensures you obtain the full schema details, including all columns, as seen by `dlt`, without needing a predefined contract on these resources.
 
-## Can `dlt` periodically commit updates to a resource state to an external database during a pipeline run?
+## Can `dlt` periodically commit updates to a resource state?
+https://dlthub-community.slack.com/archives/C04DQA7JJN6/p1710534100683919
 
 Currently, `dlt` does not offer the functionality to checkpoint the extraction process during its execution. This limitation means that any updates to a resource state are not committed until the pipeline has fully completed its run. This issue has been recognized by the `dlt` development team and is currently being tracked under a specific GitHub issue ([#215](https://github.com/dlt-hub/dlt/issues/215)). Unfortunately, there is no specified timeline for when this feature will be available.
 
-In light of this limitation, `dlt` advises a workaround for incremental loading. This involves specifying both the start and end dates or page numbers for your data extraction process and conducting the backfill using smaller, manageable ranges, which are usually divided into around 100 loads. Implementing this strategy provides a higher degree of control and significantly mitigates the risk of losing any progress should the pipeline experience a failure or if it needs to be stopped midway through execution. For a more comprehensive understanding of how to implement this workaround, it is recommended to consult `dlt's` documentation on incremental loading with a cursor field, which can be found here: [Incremental Loading with a Cursor Field](../../docs/general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
+In light of this limitation, `dlt` advises a workaround using incremental loading. This involves specifying the start and end dates or page numbers for your data extraction process and conducting the backfill using smaller, manageable ranges. For e.g. 100 loads. Implementing this strategy provides a higher degree of control. It significantly mitigates the risk of losing any progress should the pipeline experience a failure or if it needs to be stopped midway through execution. For a more comprehensive understanding of how to implement this workaround, it is recommended to consult `dlt's` documentation on incremental loading with a cursor field, which can be found here: [Incremental Loading with a Cursor Field](../../docs/general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
 
 ## Is truncating or deleting a staging table safe?
 
 You can safely truncate those or even drop the whole staging dataset. However, it will have to be recreated on the next load and might incur extra loading time or cost.
+You can also delete it with Python using [Bigquery client.](https://cloud.google.com/bigquery/docs/samples/bigquery-delete-dataset#bigquery_delete_dataset-python)
 
 ## How can I develop a "custom" pagination tracker?
 
 There are two ways. One, you can use `dlt.sources.incremental` to create a custom cursor for tracking pagination in data streams that lack an explicit cursor field.
 
-Second, while it's possible to utilize `dlt.sources.incremental` for tracking changes in data streams, you're not limited to this method for managing pagination or custom cursors. Instead, you can leverage the flexibility of managing state directly in Python. Access and modify the state like a standard Python dictionary: `state = dlt.current.resource_state(); state["your_custom_key"] = "your_value"`. This approach allows you to define your custom pagination logic based on your specific needs.
+Second, while it's possible to utilize `dlt.sources.incremental` for tracking changes in data streams, you're not limited to this method for managing pagination or custom cursors. Instead, you can leverage the flexibility of managing state directly in Python. Access and modify the state like a standard Python dictionary: `state = dlt.current.resource_state(); state["your_custom_key"] = "your_value"`. This approach allows you to define your custom pagination logic based on your specific needs. Here's an example: [Link.](https://github.com/dlt-hub/verified-sources/blob/master/sources/chess/__init__.py#L95)
 
 However, be cautious about overusing the state dictionary, especially in cases involving substreams for each user, as it might become unwieldy. A better strategy might involve tracking users incrementally. Then, upon updates, you only refresh the affected users' substreams entirely. This consideration helps maintain efficiency and manageability in your custom pagination implementation.
 
-## What's the best way to add an "_orchestrator_pipeline_run_id" to datasets during ingestion to trace back to the specific run or code?
+## What is the best way to add a "run_id" from the orchestrator runs to datasets during ingestion to trace back to the specific run or code?
 
-To include an `_orchestrator_pipeline_run_id`, utilize environmental variables by adding this identifier to your data (e.g., in a dictionary or dataframe) before yielding it in your resource. Alternatively, create a dedicated resource for a lookup table mapping `_dlt_load_id` to `_orchestrator_pipeline_run_id`. This method ensures minimal storage impact while maintaining efficient traceability of your data assets.
+To include an orchestrator's `run_id`, if it is present as an environmental variable, you can add an identifier to your data (e.g., in a dictionary or data frame) before yielding it in your resource. Alternatively, you can create a dedicated resource for a lookup table mapping `_dlt_load_id` to `run_id`. This method ensures minimal storage impact while maintaining efficient traceability of your data assets.
