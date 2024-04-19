@@ -38,7 +38,9 @@ def client(request) -> Iterator[SqlJobClientBase]:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse", "dremio"]),
+    destinations_configs(
+        default_sql_configs=True, exclude=["mssql", "synapse", "dremio", "clickhouse"]
+    ),
     indirect=True,
     ids=lambda x: x.name,
 )

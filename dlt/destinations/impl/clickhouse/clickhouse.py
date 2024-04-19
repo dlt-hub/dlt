@@ -148,92 +148,23 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
         super().__init__(file_name)
 
         qualified_table_name = client.make_qualified_table_name(table_name)
+        bucket_path = None
 
-        bucket_path: str = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
-            else ""
-        )
-        file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
-        )
-        file_extension = os.path.splitext(file_name)[1][
-            1:
-        ].lower()  # Remove dot (.) from file extension.
+        if NewReferenceJob.is_reference_job(file_path):
+            bucket_path = NewReferenceJob.resolve_reference(file_path)
+            file_name = FileStorage.get_file_name_from_file_path(bucket_path)
+            bucket_url = urlparse(bucket_path)
+            bucket_scheme = bucket_url.scheme
 
-        if file_extension not in ["parquet", "jsonl"]:
-            raise LoadJobTerminalException(
-                file_path, "ClickHouse loader Only supports parquet and jsonl files."
-            )
+        ext = cast(SUPPORTED_FILE_FORMATS, os.path.splitext(file_name)[1][1:].lower())
+        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[ext]
 
-        bucket_url = urlparse(bucket_path)
-        bucket_scheme = bucket_url.scheme
+        compression = "auto"
 
-        file_extension = cast(SUPPORTED_FILE_FORMATS, file_extension)
-        clickhouse_format: str = FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING[file_extension]
-        if file_extension == "parquet":
-            # Auto works for parquet
-            compression = "auto"
-        else:
-            # It does not work for json
-            compression = "none" if config.get("data_writer.disable_compression") else "gz"
-
-        statement: str = ""
-
-        if bucket_scheme in ("s3", "gs", "gcs"):
-            bucket_http_url = convert_storage_to_http_scheme(bucket_url)
-
-            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                access_key_id = staging_credentials.aws_access_key_id
-                secret_access_key = staging_credentials.aws_secret_access_key
-            elif isinstance(staging_credentials, GcpCredentials):
-                access_key_id = dlt.config["destination.filesystem.credentials.gcp_access_key_id"]
-                secret_access_key = dlt.config[
-                    "destination.filesystem.credentials.gcp_secret_access_key"
-                ]
-            else:
-                access_key_id = None
-                secret_access_key = None
-
-            structure = "auto"
-
-            table_function = f"SELECT * FROM s3('{bucket_http_url}'"
-
-            if access_key_id and secret_access_key:
-                table_function += f",'{access_key_id}','{secret_access_key}'"
-            else:
-                table_function += ",NOSIGN"
-
-            table_function += f",'{clickhouse_format}','{structure}','{compression}')"
-
-            statement = f"INSERT INTO {qualified_table_name} {table_function}"
-
-        elif bucket_scheme in ("az", "abfs"):
-            if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
-                raise LoadJobTerminalException(
-                    file_path,
-                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
-                )
-
-            # Authenticated access.
-            account_name = staging_credentials.azure_storage_account_name
-            storage_account_url = (
-                f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
-            )
-            account_key = staging_credentials.azure_storage_account_key
-            container_name = bucket_url.netloc
-            blobpath = bucket_url.path
-
-            table_function = (
-                "SELECT * FROM"
-                f" azureBlobStorage('{storage_account_url}','{container_name}','{blobpath}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
-            )
-            statement = f"INSERT INTO {qualified_table_name} {table_function}"
-        elif not bucket_path:
+        # Don't use dbapi driver for local files.
+        if not bucket_path:
             # Local filesystem.
-            if file_extension == "parquet":
-                compression = "auto"
-            else:
+            if ext == "jsonl":
                 compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
             try:
                 with clickhouse_connect.create_client(
@@ -261,16 +192,59 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                     file_path,
                     f"ClickHouse connection failed due to {e}.",
                 ) from e
+            return
+
+        # Auto does not work for jsonl, get info from config for buckets
+        if ext == "jsonl":
+            compression = "none" if config.get("data_writer.disable_compression") else "gz"
+
+        if bucket_scheme in ("s3", "gs", "gcs"):
+            # get auth and bucket url
+            bucket_http_url = convert_storage_to_http_scheme(bucket_url)
+            access_key_id = None
+            secret_access_key = None
+            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                access_key_id = staging_credentials.aws_access_key_id
+                secret_access_key = staging_credentials.aws_secret_access_key
+            elif isinstance(staging_credentials, GcpCredentials):
+                access_key_id = dlt.config["destination.filesystem.credentials.gcp_access_key_id"]
+                secret_access_key = dlt.config[
+                    "destination.filesystem.credentials.gcp_secret_access_key"
+                ]
+
+            auth = "NOSIGN"
+            if access_key_id and secret_access_key:
+                auth = f"'{access_key_id}','{secret_access_key}'"
+
+            table_function = (
+                f"s3('{bucket_http_url}',{auth},'{clickhouse_format}','auto','{compression}')"
+            )
+
+        elif bucket_scheme in ("az", "abfs"):
+            if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
+                )
+
+            # Authenticated access.
+            account_name = staging_credentials.azure_storage_account_name
+            storage_account_url = (
+                f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            )
+            account_key = staging_credentials.azure_storage_account_key
+
+            # build table func
+            table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
         else:
             raise LoadJobTerminalException(
                 file_path,
                 f"ClickHouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
-        # Don't use dbapi driver for local files.
-        if bucket_path:
-            with client.begin_transaction():
-                client.execute_sql(statement)
+        statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"
+        with client.begin_transaction():
+            client.execute_sql(statement)
 
     def state(self) -> TLoadJobState:
         return "completed"
