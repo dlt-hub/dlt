@@ -4,7 +4,7 @@ import dlt
 import pytest
 
 from dlt.common import json
-
+from dlt.destinations import dummy
 from tests.common.utils import json_case_path
 
 
@@ -61,7 +61,7 @@ def test_resource_max_nesting(
     pipeline_name = f"test_max_table_nesting_{nesting_level}_{expected_num_tables}"
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
-        destination="duckdb",
+        destination=dummy(timeout=0.1),
         full_refresh=True,
     )
 
@@ -152,7 +152,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     pipeline_name = "test_different_table_nesting_levels"
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
-        destination="duckdb",
+        destination=dummy(timeout=0.1),
         full_refresh=True,
     )
 
