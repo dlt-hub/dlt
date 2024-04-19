@@ -455,6 +455,11 @@ def resource(
             schema_contract=schema_contract,
             table_format=table_format,
         )
+
+        # If custom nesting level was specified then
+        # we need to add it to table hints so that
+        # later in normalizer dlt/common/normalizers/json/relational.py
+        # we can override max_nesting level for the given table
         if max_table_nesting is not None:
             table_template.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
             table_template["x-normalizer"]["max_nesting"] = max_table_nesting  # type: ignore[typeddict-item]

@@ -81,25 +81,30 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # turn everything at the recursion level into complex type
         max_nesting = self.max_nesting
         schema = self.schema
-        table = schema.tables.get(table_name, {})
-        max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
-        if max_table_nesting is not None:
-            max_nesting = max_table_nesting
+        table = schema.tables.get(table_name)
+        if table:
+            max_table_nesting = table.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
+            if max_table_nesting is not None:
+                import ipdb
+
+                ipdb.set_trace()
+                max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting
         if _r_lvl == max_nesting:
             return True
+
         # use cached value
         # path = f"{table_name}▶{field_name}"
         # or use definition in the schema
         column: TColumnSchema = None
-        table = schema.get_table(table_name)
         if table:
             column = table["columns"].get(field_name)
         if column is None:
             data_type = schema.get_preferred_type(field_name)
         else:
             data_type = column["data_type"]
+
         return data_type == "complex"
 
     def _flatten(
