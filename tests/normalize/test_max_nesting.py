@@ -250,3 +250,34 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
         "rasa_bot_events_with_nesting_lvl_two__metadata__vendor_list",
         "third_resource_with_nested_data",
     ]
+
+    # Set max_table_nesting via the setter and check the tables
+    pipeline.drop()
+    rasa_bot_events_resource = rasa_bot_events_with_nesting_lvl_one()
+    pipeline.run(
+        rasa_bot_events_resource,
+        dataset_name="bot_events",
+        write_disposition="append",
+    )
+    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
+    all_table_names = pipeline_schema.data_table_names()
+    tables = pipeline_schema.data_table_names()
+    assert len(all_table_names) == 1
+    assert tables == ["rasa_bot_events_with_nesting_lvl_one"]
+
+    # now adjust the max_table_nesting for resource and check
+    pipeline.drop()
+    rasa_bot_events_resource.max_table_nesting = 2
+    pipeline.run(
+        rasa_bot_events_resource,
+        dataset_name="bot_events",
+        write_disposition="append",
+    )
+    all_table_names = pipeline_schema.data_table_names()
+    tables = pipeline_schema.data_table_names()
+    assert len(all_table_names) == 3
+    assert tables == [
+        "rasa_bot_events_with_nesting_lvl_one",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
+    ]
