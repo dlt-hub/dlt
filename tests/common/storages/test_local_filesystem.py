@@ -58,7 +58,8 @@ def test_filesystem_decompress() -> None:
 
 
 @pytest.mark.skipif(platform.system() != "Windows", reason="Test it only on Windows")
-def test_windows_unc_path() -> None:
+@pytest.mark.parametrize("load_content", [True, False])
+def test_windows_unc_path(load_content: bool) -> None:
     config = FilesystemConfiguration(bucket_url=TEST_SAMPLE_FILES)
     config.read_only = True
 
@@ -73,21 +74,8 @@ def test_windows_unc_path() -> None:
     ]:
         filesystem, _ = fsspec_from_config(config)
 
-        all_file_items = list(glob_files(filesystem, bucket_url))
-        expected_files = [
-            "csv/freshman_kgs.csv",
-            "csv/freshman_lbs.csv",
-            "csv/mlb_players.csv",
-            "csv/mlb_teams_2012.csv",
-            "jsonl/mlb_players.jsonl",
-            "met_csv/A801/A881_20230920.csv",
-            "met_csv/A803/A803_20230919.csv",
-            "met_csv/A803/A803_20230920.csv",
-            "parquet/mlb_players.parquet",
-            "gzip/taxi.csv.gz",
-            "sample.txt",
-        ]
-        assert len(all_file_items) == len(expected_files)
-
-        for file in all_file_items:
-            assert file["file_name"] in expected_files
+        try:
+            all_file_items = list(glob_files(filesystem, bucket_url))
+            assert_sample_files(all_file_items, filesystem, config, load_content)
+        except NotImplementedError as ex:
+            pytest.skip("Skipping due to " + str(ex))

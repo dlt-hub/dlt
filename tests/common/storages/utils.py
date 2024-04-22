@@ -53,7 +53,7 @@ def assert_sample_files(
 
     for item in all_file_items:
         # only accept file items we know
-        assert item["file_name"] in minimally_expected_file_items
+        assert item["relative_path"] in minimally_expected_file_items
 
         # is valid url
         file_url_parsed = urlparse(item["file_url"])
@@ -63,7 +63,12 @@ def assert_sample_files(
         assert isinstance(item["mime_type"], str)
         assert isinstance(item["size_in_bytes"], int)
         assert isinstance(item["modification_date"], pendulum.DateTime)
-        content = filesystem.read_bytes(item["file_url"])
+
+        if "$" in item["file_url"]:
+            with open(item["file_url"].replace("file:", "").lstrip("/"), "rb") as f:
+                content = f.read()
+        else:
+            content = filesystem.read_bytes(item["file_url"])
         assert len(content) == item["size_in_bytes"]
         if load_content:
             item["file_content"] = content

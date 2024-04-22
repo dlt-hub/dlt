@@ -2,6 +2,7 @@ import io
 import glob
 import gzip
 import mimetypes
+import os
 import pathlib
 import posixpath
 from io import BytesIO
@@ -182,6 +183,15 @@ class FileItemDict(DictStrAny):
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
+    @property
+    def unc_url(self) -> str:
+        """Get the URL in a form of UNC path.
+
+        Returns:
+            str: UNC path.
+        """
+        return self["file_url"].replace("file:", "").lstrip("/")
+
     def open(  # noqa: A003
         self,
         mode: str = "rb",
@@ -237,9 +247,15 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
-            opened_file = self.fsspec.open(
-                self["file_url"], mode=mode, compression=compression_arg, **kwargs
-            )
+            if "$" in self["file_url"]:
+                if self["file_name"].endswith(".gz") and compression_arg == "gzip":
+                    opened_file = gzip.open(self.unc_url, mode=mode, **kwargs)
+                else:
+                    opened_file = open(self.unc_url, mode=mode, **kwargs)
+            else:
+                opened_file = self.fsspec.open(
+                    self["file_url"], mode=mode, compression=compression_arg, **kwargs
+                )
         return opened_file
 
     def read_bytes(self) -> bytes:
@@ -248,11 +264,14 @@ class FileItemDict(DictStrAny):
         Returns:
             bytes: The file content.
         """
-        return (  # type: ignore
-            self["file_content"]
-            if "file_content" in self and self["file_content"] is not None
-            else self.fsspec.read_bytes(self["file_url"])
-        )
+        if "file_content" in self and self["file_content"] is not None:
+            return self["file_content"]
+        else:
+            if "$" in self["file_url"]:
+                with open(self.unc_url, "rb") as f:
+                    return f.read()
+
+            return self.fsspec.read_bytes(self["file_url"])
 
 
 def guess_mime_type(file_name: str) -> Sequence[str]:
@@ -277,8 +296,6 @@ def glob_files(
     Returns:
         Iterable[FileItem]: The list of files.
     """
-    import os
-
     is_unc_path = "$" in bucket_url
     bucket_url_parsed = urlparse(bucket_url)
     # if this is a file path without a scheme
@@ -320,18 +337,19 @@ def glob_files(
 
         if is_unc_path:
             file_url = "file:///" + file
-            file_name = file.replace(bucket_url_no_schema, "").replace("\\", "/").lstrip("/")
+            rel_path = file.replace(bucket_url_no_schema, "").replace("\\", "/").lstrip("/")
             scheme = "file"
         else:
-            file_name = posixpath.relpath(file, bucket_url_no_schema)
+            rel_path = posixpath.relpath(file, bucket_url_no_schema)
 
             file_url = bucket_url_parsed._replace(
-                path=posixpath.join(bucket_url_parsed.path, file_name)
+                path=posixpath.join(bucket_url_parsed.path, rel_path)
             ).geturl()
 
-        mime_type, encoding = guess_mime_type(file_name)
+        mime_type, encoding = guess_mime_type(rel_path)
         yield FileItem(
-            file_name=file_name,
+            file_name=os.path.basename(rel_path),
+            relative_path=rel_path,
             file_url=file_url,
             mime_type=mime_type,
             encoding=encoding,
