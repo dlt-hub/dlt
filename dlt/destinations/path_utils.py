@@ -39,6 +39,8 @@ DATETIME_PLACEHOLDERS = {
     "ddd",  # Mon, Tue, Wed
     "dd",  # Mo, Tu, We
     "d",  # 0-6
+    "ss",  # 01-59
+    "s",  # 0-59
     # Quarters of the year
     "Q",  # 1, 2, 3, 4
 }
