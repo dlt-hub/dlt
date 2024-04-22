@@ -6,11 +6,11 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
-from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 MOTHERDUCK_DRIVERNAME = "md"
+MOTHERDUCK_PARTNER_ID: str = "dltHub_dlt"
 
 
 @configspec(init=False)
@@ -25,7 +25,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "database"]
 
     def _conn_str(self) -> str:
-        return f"{MOTHERDUCK_DRIVERNAME}:{self.database}?token={self.password}"
+        return f"{MOTHERDUCK_DRIVERNAME}:{self.database}?token={self.password}&application={MOTHERDUCK_PARTNER_ID}"
 
     def _token_to_password(self) -> None:
         # could be motherduck connection
