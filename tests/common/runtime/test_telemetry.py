@@ -1,4 +1,5 @@
 from typing import Any, TYPE_CHECKING
+from contextlib import nullcontext as does_not_raise
 import os
 import pytest
 import logging
@@ -47,6 +48,59 @@ def test_sentry_log_level() -> None:
     assert sll._handler.level == logging._nameToLevel["WARNING"]
     sll = _get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="INFO"))
     assert sll._handler.level == logging._nameToLevel["WARNING"]
+
+
+@pytest.mark.parametrize(
+    "endpoint, write_key, expectation",
+    [
+        (
+            "https://api.segment.io/v1/track",
+            "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
+            does_not_raise(),
+        ),
+        (
+            "https://telemetry-tracker.services4758.workers.dev/",
+            None,
+            does_not_raise(),
+        ),
+    ],
+)
+def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
+    from dlt.common.runtime import segment
+    
+    with expectation:
+        segment.init_segment(RunConfiguration(
+            dlthub_telemetry_endpoint=endpoint, 
+            dlthub_telemetry_segment_write_key=write_key)
+        )
+
+    assert segment._SEGMENT_ENDPOINT == endpoint
+    assert segment._WRITE_KEY is not None
+
+
+@pytest.mark.parametrize(
+    "endpoint, write_key, expectation",
+    [
+        (
+            "https://api.segment.io/v1/track",
+            None,
+            pytest.raises(AssertionError),
+        ),
+        (
+            None,
+            "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
+            pytest.raises(ValueError),
+        ),
+    ],
+)
+def test_telemetry_endpoint_exceptions(endpoint, write_key, expectation) -> None:
+    from dlt.common.runtime import segment
+    
+    with expectation:
+        segment.init_segment(RunConfiguration(
+            dlthub_telemetry_endpoint=endpoint, 
+            dlthub_telemetry_segment_write_key=write_key)
+        )
 
 
 @pytest.mark.forked
