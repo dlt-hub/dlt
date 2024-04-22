@@ -1,7 +1,7 @@
 ---
 slug: replacing-saas-elt
 title: "Replacing Saas ETL with Python dlt: A painless experience for Yummy.eu"
-image:  https://storage.googleapis.com/dlt-blog-images/embeddable-etl.png
+image:  https://storage.googleapis.com/dlt-blog-images/martin_salo_tweet.png
 authors:
   name: Adrian Brudaru
   title: Open source Data Engineer
