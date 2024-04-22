@@ -67,11 +67,12 @@ def test_sentry_log_level() -> None:
 )
 def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
     from dlt.common.runtime import segment
-    
+
     with expectation:
-        segment.init_segment(RunConfiguration(
-            dlthub_telemetry_endpoint=endpoint, 
-            dlthub_telemetry_segment_write_key=write_key)
+        segment.init_segment(
+            RunConfiguration(
+                dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
+            )
         )
 
     assert segment._SEGMENT_ENDPOINT == endpoint
@@ -95,11 +96,12 @@ def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
 )
 def test_telemetry_endpoint_exceptions(endpoint, write_key, expectation) -> None:
     from dlt.common.runtime import segment
-    
+
     with expectation:
-        segment.init_segment(RunConfiguration(
-            dlthub_telemetry_endpoint=endpoint, 
-            dlthub_telemetry_segment_write_key=write_key)
+        segment.init_segment(
+            RunConfiguration(
+                dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
+            )
         )
 
 
