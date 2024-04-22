@@ -252,8 +252,8 @@ Keep in mind all values are lowercased.
   * `mm` - 00, 01, 02...59
   * `m` - 0, 1, 2...59
 * Seconds
-  * `ss` - 01-59
-  * `s` - 0-59
+  * `ss` - 00, 01, 02...59
+  * `s` - 0, 1, 2...59
 * Days of the week
   * `dddd` - Monday, Tuesday, Wednesday
   * `ddd` - Mon, Tue, Wed
