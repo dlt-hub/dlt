@@ -13,6 +13,7 @@ from tests.utils import patch_home_dir, preserve_environ, skip_if_not_active
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+motherduck_partner_id = "dltHub_dlt"
 
 skip_if_not_active("motherduck")
 
@@ -24,6 +25,7 @@ def test_motherduck_configuration() -> None:
     assert cred.database == "dlt_data"
     assert cred.is_partial() is False
     assert cred.is_resolved() is True
+    assert f"application={motherduck_partner_id}" in str(cred._conn_str())
 
     cred = MotherDuckCredentials()
     cred.parse_native_representation("md:///?token=TOKEN")
@@ -31,6 +33,7 @@ def test_motherduck_configuration() -> None:
     assert cred.database == ""
     assert cred.is_partial() is False
     assert cred.is_resolved() is False
+    assert f"application={motherduck_partner_id}" in str(cred._conn_str())
 
     # password or token are mandatory
     with pytest.raises(ConfigFieldMissingException) as conf_ex:
@@ -55,6 +58,9 @@ def test_motherduck_connect() -> None:
         MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
         sections=("destination", "motherduck"),
     )
+
+    assert f"application={motherduck_partner_id}" in config.credentials._conn_str()
+
     # connect
     con = config.credentials.borrow_conn(read_only=False)
     con.sql("SHOW DATABASES")
