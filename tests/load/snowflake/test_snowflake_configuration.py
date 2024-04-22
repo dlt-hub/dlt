@@ -36,8 +36,10 @@ def test_connection_string_with_all_params() -> None:
     assert creds.private_key_passphrase == "paphr"
 
     expected = make_url(url)
+    creds_url = creds.to_url()
 
     # Test URL components regardless of query param order
+    assert creds_url == expected
     assert make_url(creds.to_native_representation()) == expected
 
 
@@ -109,8 +111,10 @@ def test_snowflake_credentials_native_value(environment) -> None:
         SnowflakeCredentials(),
         explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1",
     )
+
     assert c.is_resolved()
     assert c.password == "pass"
+    assert f"application={snowflake_partner_id}" in str(c.to_url())
     # # but if password is specified - it is final
     c = resolve_configuration(
         SnowflakeCredentials(),
@@ -118,6 +122,7 @@ def test_snowflake_credentials_native_value(environment) -> None:
     )
     assert c.is_resolved()
     assert c.password == "pass1"
+    assert f"application={snowflake_partner_id}" in str(c.to_url())
 
     # set PK via env
     del os.environ["CREDENTIALS__PASSWORD"]
