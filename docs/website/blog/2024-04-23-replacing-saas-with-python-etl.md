@@ -16,47 +16,45 @@ Yummy is a Lean-ops meal-kit company streamlines the entire food preparation pro
 nutritional guidance, and even shopping services. Their innovative approach ensures a hassle-free, nutritionally optimized meal experience,
 making daily cooking convenient and enjoyable.
 
-
-Yummy is a food box business. At the intersection of gastronomy and logistics, this market is very competitive. To make it in this market, Yummy needs to be fast and informed in their operations.
+Yummy is a food box business. At the intersection of gastronomy and logistics, this market is very competitive.
+To make it in this market, Yummy needs to be fast and informed in their operations.
 
 ### Pipelines are not yet a commodity.
 
-At Yummy, time is the most valuable resource. When presented with the option to buy vs build, it’s a no brainer - BUY!
+At Yummy, time is the most valuable resource. When presented with the option to buy vs build, Yummy's CTO Martin thought not to waste time and BUY!
 
 Yummy’s use cases for data pipelining was copying sql data with low latency and high SLA for operational usage as well as analytical.
 
 Unfortunately, money does not buy ~~happiness~~ fast, reliable pipelines.
 
-## A rant about how SaaS vendors will rip you off if they can: A common experience of opaque pricing and black hat practices
+### What’s important: Velocity, Reliability, Speed, time. Money is secondary.
 
-There is lots of literature about how saas vendors take money where they shouldn’t, for example:
-
-- **Pricing transparency**: By billing for things you cannot measure, it is difficult to plan cost and you might be surprised by 2-10x cost compared to what you thought (never pleasantly - that would be advertised upfront).
-- **Default to max payment:** New table? no problem, vendors will make sure to replicate it by default at max cost to you (full refresh). Imagine if your waiter decided to bring you desert and bill you for it, you’d be outraged, no?
-- **Customization options**: While the automation of processes simplifies data integration significantly, it also limits customization. Greater flexibility in customizing ETL processes would benefit those with complex data workflows and specific business requirements.
-- **Connector dependency**: The extensive range of connectors greatly facilitates data integration across various sources. However, the functionality heavily relies on the availability and maintenance of these connectors. More frequent updates and expansions to the connector library would ensure robust data integration capabilities for all users.
-- **Feature access across different plans**: Many essential features are accessible only at higher subscription tiers. Providing a broader range of critical features across all plans would make the platform more competitive and accessible to a wider range of businesses.
-- **Data sync frequencies**: Limitations on data sync frequencies in lower-tier plans can hinder businesses that require more frequent updates. Offering more flexibility with sync frequencies across all plans would better support the needs of businesses with dynamic data requirements.
-
-In the case of Martin, cost was not even the main factor - the delays were a pain and so was the lack of reliability. And when Martin added a state log table to the production database and that ended up full replicated over and over by default, generating stupid high bills, he had enough.
-
-This is a very common experience. And you won’t get your money back by complaining either, despite the actual cost of delivering you the service was only 1% of your bill at most. Because, it was no accident!
-
-Suppose you set up a tool for the first time. It’s the vendor’s responsibility to take your attention through all the considerations they created, and give you the information with clarity.
-
-If I were in the shoes of the person who had to explain this bill to finance, I would avoid those tools like the plague. To be overcharged, and dependent on poor quality service? I’ll take a hard pass.
-
-### Back to what’s important: Velocity, Reliability, Speed, time, money
-
-Cost aside, the main requirement for Yummy was
+Cost aside, the main requirement for Yummy was as below:
 
 - Velocity: it should not take much of our time, fast to set up
 - Reliabilty: the data should not stop flowing as it’s used for operations.
-- Speed: It should be fast to run
+- Speed: It should load data with low latency
 - ideally, it would also be cheap
 - ideally, it would be able to extract once and write to multiple destinations.
 
-Besides the velocity to set up, none of the other requirements were met by the vendor.
+Martin found the velocity to set up to be good, but everything else lacking.
+
+## Enough is enough! Black hat practices of vendors drove Martin away.
+
+Martin, like many others, was very open to using the saas service and was happy to not do it himself.
+
+However, he quickly ran into the dark side of saas vendor service. Initially, the latency and reliability were annoying, but not enough reason to move.
+
+Martin's patience ran out when a state log table added to his production database was automatically replicated in full, repeatedly.
+
+This default setting led to exorbitantly high charges that were neither justified nor sustainable, pushing him to seek better solutions.
+
+This is a common issue which is "by design" as people complain about it for over a decade. But the majority of customers were "born yesterday" into the etl marketplace and the vendors are ready to take them for a ride.
+
+<aside>
+💡 One thing's for sure, without human intervention, that new table isn't getting used, so the only reason to default to copying a table instead of notifying is purely to take your money. This is a standard, known black-hat practice in the industry for a decade and hasn't going away.
+</aside>
+
 
 ## 10x faster, 182x cheaper with dlt + async + modal
 
@@ -83,6 +81,7 @@ https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff
 ### The outcome
 
 ETL cost down 182x per month, sync time improved 10x using Modal labs and dlt and dropping fivetran.
+Martin was happy enough that he agreed to go on a call and tell us about it :)
 
 [![salo-martin-tweet](https://storage.googleapis.com/dlt-blog-images/martin_salo_tweet.png)](https://twitter.com/salomartin/status/1755146404773658660)
 
