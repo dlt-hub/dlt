@@ -65,7 +65,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
-    partner_integration_params: Dict[str, Any] = None
+    partner_integration_params: Optional[Dict[str, Any]] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -111,6 +111,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         private_key: Optional[bytes] = None
         if self.private_key:
             private_key = _read_private_key(self.private_key, self.private_key_passphrase)
+
         conn_params = dict(
             self.query or {},
             user=self.username,
