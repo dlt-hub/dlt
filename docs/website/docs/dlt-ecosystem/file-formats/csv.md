@@ -32,6 +32,26 @@ info = pipeline.run(some_source(), loader_file_format="csv")
 * UNIX new lines are used
 * dates are represented as ISO 8601
 
+### Change settings
+You can change basic **csv** settings, this may be handy when working with **filesystem** destination. Other destinations are tested
+with standard settings:
+
+* delimiter: change the delimiting character (default: ',')
+* include_header: include the header row (default: True)
+
+```toml
+[normalize.data_writer]
+delimiter="|"
+include_header=false
+```
+
+Or using environment variables:
+
+```sh
+NORMALIZE__DATA_WRITER__DELIMITER=|
+NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
+```
+
 ## Limitations
 **arrow writer**
 

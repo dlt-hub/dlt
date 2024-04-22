@@ -81,6 +81,7 @@ def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str,
     assert actual_set == expected_set
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config,simple,validity_column_names",
     [  # test basic case for alle SQL destinations supporting merge
