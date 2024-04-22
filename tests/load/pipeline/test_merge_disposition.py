@@ -139,7 +139,7 @@ def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfigur
 
 
 @dlt.source(root_key=True)
-def github():
+def github(remove_lists: bool = False):
     @dlt.resource(
         table_name="issues",
         write_disposition="merge",
@@ -150,7 +150,12 @@ def github():
         with open(
             "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
         ) as f:
-            yield from json.load(f)
+            for item in json.load(f):
+                # for clickhouse we cannot have lists in json fields
+                if remove_lists:
+                    item.pop("assignees")
+                    item.pop("labels")
+                yield item
 
     return load_issues
 
@@ -212,7 +217,7 @@ def test_merge_source_compound_keys_and_changes(
 )
 def test_merge_no_child_tables(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
-    github_data = github()
+    github_data = github(True)
     assert github_data.max_table_nesting is None
     assert github_data.root_key is True
     # set max nesting to 0 so no child tables are generated
@@ -231,7 +236,7 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_1_counts["issues"] == 15
 
     # load all
-    github_data = github()
+    github_data = github(True)
     github_data.max_table_nesting = 0
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
