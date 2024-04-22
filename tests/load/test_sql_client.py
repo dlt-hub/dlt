@@ -641,7 +641,7 @@ def prepare_temp_table(client: SqlJobClientBase) -> str:
         )
         coltype = "bigint"
         qualified_table_name = table_name
-    if client.config.destination_type == "clickhouse":
+    elif client.config.destination_type == "clickhouse":
         ddl_suffix = "ENGINE = MergeTree() ORDER BY col"
         qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     else:
