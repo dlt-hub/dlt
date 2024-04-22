@@ -74,9 +74,10 @@ By building a dlt postgres source with async functionality and running it on Mod
 
 ### The build
 
-Yummy needed the data to stay competitive, so Martin wasted no more time, and set of to create one of the cooler pipelines i’ve seen - a postgres async source that will extract data async by slicing tables and passing the data to dlt, which can also process it in paralel.
+Yummy needed the data to stay competitive, so Martin wasted no more time, and set of to create one of the cooler pipelines I’ve seen - a postgres async
+source that will extract data async by slicing tables and passing the data to dlt, which can also process it in parallel.
 
-https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff
+Check out [Martin's async postgres source in this gist here](https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff).
 
 ### The outcome
 
