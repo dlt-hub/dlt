@@ -910,7 +910,7 @@ def test_pipeline_upfront_tables_two_loads(
             yield {"id": 1}
 
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "unique": True}],
             write_disposition="merge",
         )
         def table_2():

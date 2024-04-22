@@ -382,7 +382,7 @@ class SqlMergeJob(SqlBaseJob):
         unique_column: str = None
         root_key_column: str = None
 
-        if len(table_chain) == 1 and cls.supports_simple_merge_delete():
+        if len(table_chain) == 1 and cls.requires_temp_table_for_delete():
             key_table_clauses = cls.gen_key_table_clauses(
                 root_table_name, staging_root_table_name, key_clauses, for_delete=True
             )
@@ -592,7 +592,7 @@ class SqlMergeJob(SqlBaseJob):
         return f"UPDATE {table_name} SET"
 
     @classmethod
-    def supports_simple_merge_delete(cls) -> bool:
+    def requires_temp_table_for_delete(cls) -> bool:
         """this could also be a capabitiy, but probably it is better stored here
         this identifies destinations that can have a simplified method for merging single
         table table chains

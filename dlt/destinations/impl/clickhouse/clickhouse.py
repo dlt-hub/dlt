@@ -276,7 +276,7 @@ class ClickHouseMergeJob(SqlMergeJob):
         return f"ALTER TABLE {table_name} UPDATE"
 
     @classmethod
-    def supports_simple_merge_delete(cls) -> bool:
+    def requires_temp_table_for_delete(cls) -> bool:
         return False
 
 
