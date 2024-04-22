@@ -1,6 +1,7 @@
-import dataclasses
 import base64
-from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING, Union
+import dataclasses
+
+from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from dlt import version
 from dlt.common.libs.sql_alchemy import URL
@@ -11,6 +12,8 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
+
+snowflake_partner_id: str = "dltHub_dlt"
 
 
 def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes:
@@ -85,6 +88,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query["warehouse"] = self.warehouse
         if self.role and "role" not in query:
             query["role"] = self.role
+        query["application"] = snowflake_partner_id
+
         return URL.create(
             self.drivername,
             self.username,
