@@ -113,6 +113,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             warehouse=self.warehouse,
             role=self.role,
             private_key=private_key,
+            application=snowflake_partner_id,
         )
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator

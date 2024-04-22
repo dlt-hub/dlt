@@ -18,10 +18,10 @@ from tests.common.configuration.utils import environment
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
-
+snowflake_partner_id = "dltHub_dlt"
 
 def test_connection_string_with_all_params() -> None:
-    url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=cGs%3D&private_key_passphrase=paphr"
+    url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=cGs%3D&private_key_passphrase=paphr&application=dltHub_dlt"
 
     creds = SnowflakeCredentials()
     creds.parse_native_representation(url)
@@ -66,6 +66,7 @@ def test_to_connector_params() -> None:
         password=None,
         warehouse="warehouse1",
         role="role1",
+        application=snowflake_partner_id,
     )
 
     # base64 encoded DER key
@@ -92,6 +93,7 @@ def test_to_connector_params() -> None:
         password=None,
         warehouse="warehouse1",
         role="role1",
+        application=snowflake_partner_id,
     )
 
 
