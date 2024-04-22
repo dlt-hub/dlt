@@ -208,6 +208,7 @@ def destinations_configs(
             DestinationTestConfiguration(
                 destination="clickhouse",
                 file_format="jsonl",
+                supports_dbt=False
             )
         ]
         destination_configs += [
