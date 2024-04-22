@@ -83,6 +83,7 @@ class BigQueryTypeMapper(TypeMapper):
         "NUMERIC": "decimal",
         "BIGNUMERIC": "decimal",
         "JSON": "complex",
+        "TIME": "time",
     }
 
     def to_db_decimal_type(self, precision: Optional[int], scale: Optional[int]) -> str:

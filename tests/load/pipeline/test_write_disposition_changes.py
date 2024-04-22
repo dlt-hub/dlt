@@ -132,7 +132,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     if destination_allows_adding_root_key and not with_root_key:
         return
 
-    # without a root key this will fail, it is expected
+    # without a root key this will fail, it is expected as adding non-nullable columns should not work
     if not with_root_key and destination_config.supports_merge:
         with pytest.raises(PipelineStepFailed):
             pipeline.run(

@@ -178,7 +178,9 @@ clickhouse:
   outputs:
     analytics:
       type: clickhouse
-      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      schema: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
       host: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT', 8443) | as_number }}"
+      secure: True

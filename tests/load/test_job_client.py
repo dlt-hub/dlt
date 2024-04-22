@@ -790,18 +790,21 @@ def test_many_schemas_single_dataset(
         # 3 rows because we load to the same table
         _load_something(client, 3)
 
-        # adding new non null column will generate sync error
+        # adding new non null column will generate sync error, except for clickhouse, there it will work
         event_3_schema.tables["event_user"]["columns"]["mandatory_column"] = new_column(
             "mandatory_column", "text", nullable=False
         )
         client.schema._bump_version()
-        with pytest.raises(DatabaseException) as py_ex:
+        if destination_config.destination == "clickhouse":
             client.update_stored_schema()
-        assert (
-            "mandatory_column" in str(py_ex.value).lower()
-            or "NOT NULL" in str(py_ex.value)
-            or "Adding columns with constraints not yet supported" in str(py_ex.value)
-        )
+        else:
+            with pytest.raises(DatabaseException) as py_ex:
+                client.update_stored_schema()
+            assert (
+                "mandatory_column" in str(py_ex.value).lower()
+                or "NOT NULL" in str(py_ex.value)
+                or "Adding columns with constraints not yet supported" in str(py_ex.value)
+            )
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, Any]], str]:
