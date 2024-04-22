@@ -14,7 +14,9 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 from dlt.common.utils import digest128
 
 snowflake_partner_id: str = "dltHub_dlt"
-
+DEFAULT_PARTNER_INTEGRATION_PARAMS = {
+    "application": snowflake_partner_id
+}
 
 def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes:
     """Load an encrypted or unencrypted private key from string."""
@@ -63,6 +65,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
+    partner_integration_params: Dict[str, Any] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -76,6 +79,9 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             self.resolve()
 
     def on_resolved(self) -> None:
+        if self.partner_integration_params is None:
+            self.partner_integration_params = DEFAULT_PARTNER_INTEGRATION_PARAMS
+
         if not self.password and not self.private_key:
             raise ConfigurationValueError(
                 "Please specify password or private_key. SnowflakeCredentials supports password and"
@@ -88,7 +94,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query["warehouse"] = self.warehouse
         if self.role and "role" not in query:
             query["role"] = self.role
-        query["application"] = snowflake_partner_id
+
+        query.update(self.partner_integration_params)
 
         return URL.create(
             self.drivername,
@@ -113,7 +120,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             warehouse=self.warehouse,
             role=self.role,
             private_key=private_key,
-            application=snowflake_partner_id,
+            **self.partner_integration_params,
         )
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
