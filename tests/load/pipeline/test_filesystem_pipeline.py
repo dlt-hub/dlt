@@ -352,7 +352,7 @@ def test_filesystem_destination_extended_layout_placeholders(
                 extra_placeholders=extra_placeholders,
             )
             full_path = posixpath.join(client.dataset_path, path)  # type: ignore[attr-defined]
-            assert client.fs_client.exists(full_path)
+            assert client.fs_client.exists(full_path)  # type: ignore[attr-defined]
             if ".jsonl" in full_path:
                 known_files.add(full_path)
 
