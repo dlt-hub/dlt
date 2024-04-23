@@ -8,6 +8,7 @@ from dlt.common.data_writers.escape import (
     format_clickhouse_datetime_literal,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.destinations.impl.clickhouse.clickhouse_adapter import clickhouse_adapter
 
 
 def capabilities() -> DestinationCapabilitiesContext:

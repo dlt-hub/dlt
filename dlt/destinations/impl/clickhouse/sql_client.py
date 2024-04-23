@@ -98,7 +98,7 @@ class ClickHouseSqlClient(
             self.credentials.dataset_sentinel_table_name
         )
         self.execute_sql(
-            f"""CREATE TABLE {sentinel_table_name} (_dlt_id String NOT NULL PRIMARY KEY) ENGINE=MergeTree COMMENT 'internal dlt sentinel table'"""
+            f"""CREATE TABLE {sentinel_table_name} (_dlt_id String NOT NULL PRIMARY KEY) ENGINE=ReplicatedMergeTree COMMENT 'internal dlt sentinel table'"""
         )
 
     def drop_dataset(self) -> None:

@@ -106,12 +106,17 @@ ClickHouse supports the following [column hints](https://dlthub.com/docs/general
 
 ## Table Engine
 
-By default, tables are created using the `ReplicatedMergeTree` table engine in ClickHouse. You can specify an alternate table engine using the `table_engine_type` hint on the resource:
+By default, tables are created using the `ReplicatedMergeTree` table engine in ClickHouse. You can specify an alternate table engine using the `table_engine_type` with the clickhouse adapter:
 
 ```py
-@dlt.resource(table_engine_type="merge_tree")
+from dlt.destinations.adapters import clickhouse_adapter
+
+@dlt.resource()
 def my_resource():
   ...
+
+clickhouse_adapter(my_resource, table_engine_type="merge_tree")
+
 ```
 
 Supported values are:

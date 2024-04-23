@@ -42,6 +42,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
         "port",
+        "http_port",
         "database",
         "username",
         "password",
