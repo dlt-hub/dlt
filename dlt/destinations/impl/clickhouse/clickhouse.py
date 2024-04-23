@@ -71,7 +71,7 @@ TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
 
 class ClickHouseTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
-        "complex": "text",
+        "complex": "String",
         "text": "String",
         "double": "Float64",
         "bool": "Boolean",
@@ -313,7 +313,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # JSON type isn't nullable in ClickHouse.
         type_with_nullability_modifier = (
             f"Nullable({self.type_mapper.to_db_type(c)})"
-            if c.get("nullable", True) and c.get("data_type") != "complex"
+            if c.get("nullable", True)
             else self.type_mapper.to_db_type(c)
         )
 

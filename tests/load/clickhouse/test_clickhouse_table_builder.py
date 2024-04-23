@@ -66,7 +66,7 @@ def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col6` Decimal(38,9)" in sql
     assert "`col7` String" in sql
     assert "`col8` Decimal(76,0)" in sql
-    assert "`col9` JSON" in sql
+    assert "`col9` String" in sql
     assert "`col10` Date" in sql
     assert "`col11` String" in sql
     assert "`col1_null` Nullable(Int64)" in sql
@@ -77,7 +77,7 @@ def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col6_null` Nullable(Decimal(38,9))" in sql
     assert "`col7_null` Nullable(String)" in sql
     assert "`col8_null` Nullable(Decimal(76,0))" in sql
-    assert "`col9_null` JSON" in sql  # JSON isn't nullable in clickhouse
+    assert "`col9_null` Nullable(String)" in sql
     assert "`col10_null` Nullable(Date)" in sql
     assert "`col11_null` Nullable(String)" in sql
     assert "`col1_precision` Int64" in sql
@@ -108,7 +108,7 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col6` Decimal(38,9)" in sql
     assert "`col7` String" in sql
     assert "`col8` Decimal(76,0)" in sql
-    assert "`col9` JSON" in sql
+    assert "`col9` String" in sql
     assert "`col10` Date" in sql
     assert "`col11` String" in sql
     assert "`col1_null` Nullable(Int64)" in sql
@@ -119,7 +119,7 @@ def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col6_null` Nullable(Decimal(38,9))" in sql
     assert "`col7_null` Nullable(String)" in sql
     assert "`col8_null` Nullable(Decimal(76,0))" in sql
-    assert "`col9_null` JSON" in sql
+    assert "`col9_null` Nullable(String)" in sql
     assert "`col10_null` Nullable(Date)" in sql
     assert "`col11_null` Nullable(String)" in sql
     assert "`col1_precision` Int64" in sql

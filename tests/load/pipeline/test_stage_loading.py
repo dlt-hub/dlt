@@ -256,5 +256,4 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
             allow_string_binary=allow_string_binary,
             timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
-            expect_empty_string_for_null_complex=destination_config.destination == "clickhouse",
         )

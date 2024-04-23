@@ -198,7 +198,6 @@ def assert_all_data_types_row(
     schema: TTableSchemaColumns = None,
     expect_filtered_null_columns=False,
     allow_string_binary: bool = False,
-    expect_empty_string_for_null_complex: bool = False,
 ) -> None:
     # content must equal
     # print(db_row)
@@ -237,9 +236,6 @@ def assert_all_data_types_row(
         expected_rows["col11_precision"] = reduce_pendulum_datetime_precision(
             ensure_pendulum_time(expected_rows["col11_precision"]), 3  # type: ignore[arg-type]
         )
-
-    if "col9_null" in expected_rows and expect_empty_string_for_null_complex:
-        expected_rows["col9_null"] = ""
 
     # redshift and bigquery return strings from structured fields
     for binary_col in ["col7", "col7_precision"]:

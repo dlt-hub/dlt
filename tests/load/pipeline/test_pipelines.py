@@ -873,7 +873,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             in ["snowflake", "bigquery", "redshift"],
             allow_string_binary=destination_config.destination == "clickhouse",
             timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
-            expect_empty_string_for_null_complex=destination_config.destination == "clickhouse",
         )
 
 

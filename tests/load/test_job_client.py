@@ -389,8 +389,10 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             "time",
         ):
             continue
-        # mssql and synapse have no native data type for the complex type.
-        if client.config.destination_type in ("mssql", "synapse") and c["data_type"] in ("complex"):
+        # mssql, clickhouse and synapse have no native data type for the complex type.
+        if client.config.destination_type in ("mssql", "synapse", "clickhouse") and c[
+            "data_type"
+        ] in ("complex"):
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
             continue
@@ -550,7 +552,7 @@ def test_load_with_all_types(
     assert_all_data_types_row(
         db_row,
         schema=column_schemas,
-        allow_base64_binary=True if client.config.destination_type in ["clickhouse"] else False,
+        allow_base64_binary=client.config.destination_type in ["clickhouse"],
     )
 
 
