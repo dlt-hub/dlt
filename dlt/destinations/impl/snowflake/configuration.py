@@ -122,7 +122,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
 
-        if self.application != "" and self.application != "":
+        if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
 
         return conn_params
