@@ -309,7 +309,6 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         destination=filesystem(
             layout=layout,
             extra_placeholders=extra_placeholders,
-            kwargs={"auto_mkdir": True},
             current_datetime=counter(now),
         ),
     )
