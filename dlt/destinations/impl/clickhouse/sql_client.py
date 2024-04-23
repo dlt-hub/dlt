@@ -183,10 +183,7 @@ class ClickHouseSqlClient(
                 clickhouse_driver.dbapi.errors.InternalError,
             ),
         ):
-            if term := cls._maybe_make_terminal_exception_from_data_error():
-                return term
-            else:
-                return DatabaseTransientException(ex)
+            return DatabaseTransientException(ex)
         elif isinstance(
             ex,
             (
@@ -200,10 +197,6 @@ class ClickHouseSqlClient(
             return DatabaseTransientException(ex)
         else:
             return ex
-
-    @staticmethod
-    def _maybe_make_terminal_exception_from_data_error() -> Optional[Exception]:
-        return None
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
