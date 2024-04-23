@@ -89,8 +89,12 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query["warehouse"] = self.warehouse
         if self.role and "role" not in query:
             query["role"] = self.role
-        if self.application and self.application != "skip" and "application" not in query:
-            query["application"] = self.application
+
+        if "application" not in query:
+            if self.application is None:
+                query["application"] = snowflake_application_id
+            elif self.application and self.application != "skip":
+                query["application"] = self.application
 
         return URL.create(
             self.drivername,
@@ -120,8 +124,10 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
 
-        if self.application and self.application != "skip":
+        if self.application is None:
             conn_params["application"] = snowflake_application_id
+        elif self.application and self.application != "skip":
+            conn_params["application"] = self.application
 
         return conn_params
 
