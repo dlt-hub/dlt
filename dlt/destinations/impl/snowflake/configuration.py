@@ -63,7 +63,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
-    application: Optional[str] = None
+    application: Optional[str] = snowflake_application_id
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -90,11 +90,8 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         if self.role and "role" not in query:
             query["role"] = self.role
 
-        if "application" not in query:
-            if self.application is None:
-                query["application"] = snowflake_application_id
-            elif self.application and self.application != "":
-                query["application"] = self.application
+        if self.application != "" and "application" not in query:
+            query["application"] = self.application
 
         return URL.create(
             self.drivername,
@@ -125,9 +122,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
 
-        if self.application is None:
-            conn_params["application"] = snowflake_application_id
-        elif self.application and self.application != "":
+        if self.application != "" and self.application != "":
             conn_params["application"] = self.application
 
         return conn_params
