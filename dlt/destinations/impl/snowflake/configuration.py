@@ -93,7 +93,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         if "application" not in query:
             if self.application is None:
                 query["application"] = snowflake_application_id
-            elif self.application and self.application != "skip":
+            elif self.application and self.application != "":
                 query["application"] = self.application
 
         return URL.create(
@@ -127,7 +127,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
         if self.application is None:
             conn_params["application"] = snowflake_application_id
-        elif self.application and self.application != "skip":
+        elif self.application and self.application != "":
             conn_params["application"] = self.application
 
         return conn_params

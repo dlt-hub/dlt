@@ -146,8 +146,8 @@ def test_snowflake_credentials_native_value(environment) -> None:
     assert c.private_key == "pk"
     assert "application=dlt" in str(c.to_url())
 
-    # check with application = skip it should not be in connection string
-    os.environ["CREDENTIALS__APPLICATION"] = "skip"
+    # check with application = "" it should not be in connection string
+    os.environ["CREDENTIALS__APPLICATION"] = ""
     c = resolve_configuration(
         SnowflakeCredentials(),
         explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1",
