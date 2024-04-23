@@ -110,6 +110,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         private_key: Optional[bytes] = None
         if self.private_key:
             private_key = _read_private_key(self.private_key, self.private_key_passphrase)
+
         conn_params = dict(
             self.query or {},
             user=self.username,
