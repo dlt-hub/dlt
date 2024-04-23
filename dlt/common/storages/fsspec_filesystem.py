@@ -192,7 +192,7 @@ class FileItemDict(DictStrAny):
         Returns:
             str: UNC path.
         """
-        return self["file_url"].replace("file:", "").lstrip("/")
+        return self["file_url"].replace("file:", "").lstrip("/")  # type: ignore
 
     def open(  # noqa: A003
         self,
@@ -228,7 +228,7 @@ class FileItemDict(DictStrAny):
                 "auto", "enable", "disable"."""
             )
 
-        opened_file: IO[Any]
+        opened_file: Union[IO[Any], GzipFile]
         # if the user has already extracted the content, we use it so there is no need to
         # download the file again.
         if "file_content" in self:
@@ -267,13 +267,13 @@ class FileItemDict(DictStrAny):
             bytes: The file content.
         """
         if "file_content" in self and self["file_content"] is not None:
-            return self["file_content"]
+            return self["file_content"]  # type: ignore
         else:
             if "$" in self["file_url"]:
                 with open(self.unc_url, "rb") as f:
                     return f.read()
 
-            return self.fsspec.read_bytes(self["file_url"])
+            return self.fsspec.read_bytes(self["file_url"])  # type: ignore
 
 
 def guess_mime_type(file_name: str) -> Sequence[str]:
