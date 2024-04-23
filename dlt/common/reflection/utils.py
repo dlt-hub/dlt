@@ -1,12 +1,12 @@
 import ast
 import inspect
 import astunparse
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from dlt.common.typing import AnyFun
 
 
-def get_literal_defaults(node: ast.FunctionDef) -> Dict[str, str]:
+def get_literal_defaults(node: Union[ast.FunctionDef, ast.AsyncFunctionDef]) -> Dict[str, str]:
     """Extract defaults from function definition node literally, as pieces of source code"""
     defaults: List[ast.expr] = []
     if node.args.defaults:
@@ -30,12 +30,12 @@ def get_literal_defaults(node: ast.FunctionDef) -> Dict[str, str]:
     return literal_defaults
 
 
-def get_func_def_node(f: AnyFun) -> ast.FunctionDef:
+def get_func_def_node(f: AnyFun) -> Union[ast.FunctionDef, ast.AsyncFunctionDef]:
     """Finds the function definition node for function f by parsing the source code of the f's module"""
     source, lineno = inspect.findsource(inspect.unwrap(f))
 
     for node in ast.walk(ast.parse("".join(source))):
-        if isinstance(node, ast.FunctionDef):
+        if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
             f_lineno = node.lineno - 1
             # get line number of first decorator
             if node.decorator_list:

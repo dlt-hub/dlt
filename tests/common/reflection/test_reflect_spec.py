@@ -358,3 +358,23 @@ def test_reflect_custom_base() -> None:
     assert SPEC.get_resolvable_fields()["str_str"] == int
     # default
     assert fields["str_str"] == 300
+
+
+def test_reflect_async_function() -> None:
+    async def _f_1_as(str_str: str = dlt.config.value, blah: bool = dlt.config.value):
+        import asyncio
+
+        await asyncio.sleep(1)
+
+    SPEC_AS, fields_as = spec_from_signature(_f_1_as, inspect.signature(_f_1_as), False)
+
+    def _f_1(str_str: str = dlt.config.value, blah: bool = dlt.config.value):
+        pass
+
+    SPEC, fields = spec_from_signature(_f_1, inspect.signature(_f_1), False)
+
+    # discovered fields are the same for sync and async functions
+    assert fields
+    assert fields == fields_as
+    assert len(SPEC.get_resolvable_fields()) == len(fields) == 2
+    assert SPEC.get_resolvable_fields() == SPEC_AS.get_resolvable_fields()

@@ -31,6 +31,33 @@ info = pipeline.run(some_source(), loader_file_format="csv")
 * `NULL` values are empty strings
 * UNIX new lines are used
 * dates are represented as ISO 8601
+* quoting style is "when needed"
+
+### Change settings
+You can change basic **csv** settings, this may be handy when working with **filesystem** destination. Other destinations are tested
+with standard settings:
+
+* delimiter: change the delimiting character (default: ',')
+* include_header: include the header row (default: True)
+* quoting: **quote_all** - all values are quoted, **quote_needed** - quote only values that need quoting (default: `quote_needed`)
+
+When **quote_needed** is selected: in case of Python csv writer all non-numeric values are quoted. In case of pyarrow csv writer, the exact behavior is not described in the documentation. We observed that in some cases, strings are not quoted as well.
+
+
+```toml
+[normalize.data_writer]
+delimiter="|"
+include_header=false
+quoting="quote_all"
+```
+
+Or using environment variables:
+
+```sh
+NORMALIZE__DATA_WRITER__DELIMITER=|
+NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
+NORMALIZE__DATA_WRITER__QUOTING=quote_all
+```
 
 ## Limitations
 **arrow writer**
