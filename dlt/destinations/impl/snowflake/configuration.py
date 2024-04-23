@@ -49,6 +49,9 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     )
 
 
+snowflake_application_id = "dltHub_dlt"
+
+
 @configspec(init=False)
 class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
@@ -60,6 +63,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
+    application: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -85,6 +89,9 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query["warehouse"] = self.warehouse
         if self.role and "role" not in query:
             query["role"] = self.role
+        if self.application and self.application != "skip" and "application" not in query:
+            query["application"] = self.application
+
         return URL.create(
             self.drivername,
             self.username,
@@ -109,8 +116,13 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             role=self.role,
             private_key=private_key,
         )
+
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
+
+        if self.application and self.application != "skip":
+            conn_params["application"] = snowflake_application_id
+
         return conn_params
 
 

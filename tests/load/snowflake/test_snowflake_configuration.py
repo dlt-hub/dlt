@@ -103,12 +103,14 @@ def test_snowflake_credentials_native_value(environment) -> None:
         )
     # set password via env
     os.environ["CREDENTIALS__PASSWORD"] = "pass"
+    os.environ["CREDENTIALS__APPLICATION"] = "dlt"
     c = resolve_configuration(
         SnowflakeCredentials(),
         explicit_value="snowflake://user1@host1/db1?warehouse=warehouse1&role=role1",
     )
     assert c.is_resolved()
     assert c.password == "pass"
+    assert "application=dlt" in str(c.to_url())
     # # but if password is specified - it is final
     c = resolve_configuration(
         SnowflakeCredentials(),
@@ -126,6 +128,7 @@ def test_snowflake_credentials_native_value(environment) -> None:
     )
     assert c.is_resolved()
     assert c.private_key == "pk"
+    assert "application=dlt" in str(c.to_url())
 
 
 def test_snowflake_configuration() -> None:
