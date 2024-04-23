@@ -21,90 +21,49 @@ To make it in this market, Yummy needs to be fast and informed in their operatio
 
 ### Pipelines are not yet a commodity.
 
-At Yummy, time is the most valuable resource. When presented with the option to buy vs build, Yummy's CTO Martin thought not to waste time and BUY!
-
-Yummy’s use cases for data pipelining was copying sql data with low latency and high SLA for operational usage as well as analytical.
-
-Unfortunately, money does not buy ~~happiness~~ fast, reliable pipelines.
+At Yummy, efficiency and timeliness are paramount. Initially, Martin, Yummy’s CTO, chose to purchase data pipelining tools for their operational and analytical
+needs, aiming to maximize time efficiency. However, the real-world performance of these purchased solutions did not meet expectations, which
+led to a reassessment of their approach.
 
 ### What’s important: Velocity, Reliability, Speed, time. Money is secondary.
 
-Cost aside, the main requirement for Yummy was as below:
+Martin was initially satisfied with the ease of setup provided by the SaaS services.
 
-- Velocity: it should not take much of our time, fast to set up
-- Reliabilty: the data should not stop flowing as it’s used for operations.
-- Speed: It should load data with low latency
-- ideally, it would also be cheap
-- ideally, it would be able to extract once and write to multiple destinations.
-
-Martin found the velocity to set up to be good, but everything else lacking.
-
-## Enough is enough! Black hat practices of vendors drove Martin away.
-
-Martin, like many others, was very open to using the saas service and was happy to not do it himself.
-
-However, he quickly ran into the dark side of saas vendor service. Initially, the latency and reliability were annoying, but not enough reason to move.
-
-Martin's patience ran out when a state log table added to his production database was automatically replicated in full, repeatedly.
-
-This default setting led to exorbitantly high charges that were neither justified nor sustainable, pushing him to seek better solutions.
-
-This is a common issue which is "by design" as people complain about it for over a decade. But the majority of customers were "born yesterday" into the etl marketplace and the vendors are ready to take them for a ride.
+The tipping point came when an update to Yummy’s database introduced a new log table, leading to unexpectedly high fees due to the vendor’s default settings that automatically replicated new tables fully on every refresh. This situation highlighted the need for greater control over data management processes and prompted a shift towards more transparent and cost-effective solutions.
 
 <aside>
-💡 One thing's for sure, without human intervention, that new table isn't getting used, so the only reason to default to copying a table instead of notifying is purely to take your money. This is a standard, known black-hat practice in the industry for a decade and hasn't going away.
+💡 Proactive management of data pipeline settings is essential.
+Automatic replication of new tables, while common, often leads to increased costs without adding value, especially if those tables are not immediately needed.
+Understanding and adjusting these settings can lead to significant cost savings and more efficient data use.
 </aside>
 
 
 ## 10x faster, 182x cheaper with dlt + async + modal
 
-Fast to build, fast & cheap to run.
+Motivated to find a solution that balanced cost with performance, Martin explored using dlt, a tool known for its simplicity in building data pipelines.
+By combining dlt with asynchronous operations and using [Modal](https://modal.com/)  for managed execution, the improvements were substantial:
 
-- dlt lets you go from idea to pipeline in minutes due to its simplicity
-- async lets you leverage parallelism
-- [Modal](https://modal.com/) give you orchestrated parallelism at low cost
+* Data processing speed increased tenfold.
+* Cost reduced by 182 times compared to the traditional SaaS tool.
+* The new system supports extracting data once and writing to multiple destinations without additional costs.
 
-By building a dlt postgres source with async functionality and running it on Modal, the important stuff was done.
+For a peek into on how Martin implemented this solution, [please see Martin's async Postgres source on GitHub.](https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff).
 
-- Velocity: easy to build with dlt.
-- Reliabilty: Both dlt and modal are reliable.
-- Speed: 10x gains over the saas tool
-- cost: 183x cheaper than the saas vendor (it doesn’t help their case to have costly defaults)
-- ideally, it would be able to extract once and write to multiple destinations. Dlt can, to do this with a saas vendor you would need to chain pipelines and thus also multiply costs and delays.
-
-### The build
-
-Yummy needed the data to stay competitive, so Martin wasted no more time, and set of to create one of the cooler pipelines I’ve seen - a postgres async
-source that will extract data async by slicing tables and passing the data to dlt, which can also process it in parallel.
-
-Check out [Martin's async postgres source in this gist here](https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff).
-
-### The outcome
-
-ETL cost down 182x per month, sync time improved 10x using Modal labs and dlt and dropping fivetran.
-Martin was happy enough that he agreed to go on a call and tell us about it :)
 
 [![salo-martin-tweet](https://storage.googleapis.com/dlt-blog-images/martin_salo_tweet.png)](https://twitter.com/salomartin/status/1755146404773658660)
 
-## Closing thoughts
+## Taking back control with open source has never been easier
 
-Taking back control of your data stack has never been easier, given the ample open source options.
+Taking control of your data stack is more accessible than ever with the broad array of open-source tools available. SQL copy pipelines, often seen as a basic utility in data management, do not generally differ significantly between platforms. They perform similar transformations and schema management, making them a commodity available at minimal cost.
 
-SQL copy pipelines **are** a commodity. They are mostly interchangeable, there is no special transformation or schema difference between varieties of them,
-and you can find many of them for free online. Besides the rarer ones that have special requirements, there' little uniqueness
-distinguishing various sql copy pipelines from each other.
+SQL to SQL copy pipelines are widespread, yet many service providers charge exorbitant fees for these simple tasks. In contrast, these pipelines can often be set up and run at a fraction of the cost—sometimes just the price of a few coffees.
 
-SQL to SQL copy pipelines remain one of the most common use cases in the industry. Despite the low complexity of such pipelines,
-this is where many vendors make a fortune, charging thousands of euros monthly for something that could be run for the cost of a few coffees.
+At dltHub, we advocate for leveraging straightforward, freely available resources to regain control over your data processes and budget effectively.
 
-At dltHub, we encourage you to use simple, free resources to take back control of your data deliverability and budgets.
+Setting up a SQL pipeline can take just a few minutes with the right tools. Explore these resources to enhance your data operations:
 
-From our experience, the cost of setting up a SQL pipeline can be minutes.
+- [30+ SQL database sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database)
+- [Martin’s async PostgreSQL source](https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff)
+- [Arrow + connectorx](https://www.notion.so/Martin-Salo-Yummy-2061c3139e8e4b7fa355255cc994bba5?pvs=21) for up to 30x faster data transfers
 
-Try these pipelines:
-
-- [30+ sql database sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database)
-- [Martin’s async postgres source](https://gist.github.com/salomartin/c0d4b0b5510feb0894da9369b5e649ff)
-- [Arrow + connectorx](https://www.notion.so/Martin-Salo-Yummy-2061c3139e8e4b7fa355255cc994bba5?pvs=21) for up to 30x faster copies
-
-Need help? [Join our community!](https://dlthub.com/community)
+For additional support or to connect with fellow data professionals, [join our community](https://dlthub.com/community).
