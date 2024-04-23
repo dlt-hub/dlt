@@ -253,7 +253,7 @@ class FileItemDict(DictStrAny):
                 if self["file_name"].endswith(".gz") and compression_arg == "gzip":
                     opened_file = gzip.open(self.unc_url, mode=mode, **kwargs)
                 else:
-                    opened_file = open(self.unc_url, mode=mode, **kwargs)
+                    opened_file = open(self.unc_url, mode=mode, **kwargs)  # type: ignore
             else:
                 opened_file = self.fsspec.open(
                     self["file_url"], mode=mode, compression=compression_arg, **kwargs
