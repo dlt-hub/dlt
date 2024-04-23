@@ -174,6 +174,41 @@ def test_csv_options(item_type: TestDataItemFormat) -> None:
     assert len(rows[0]) + dlt_columns == len(csv_rows[0])
 
 
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_csv_quoting_style(item_type: TestDataItemFormat) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # set quotes to all
+    os.environ["NORMALIZE__DATA_WRITER__QUOTING"] = "quote_all"
+    os.environ["NORMALIZE__DATA_WRITER__INCLUDE_HEADER"] = "False"
+    # store locally
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    pipeline = dlt.pipeline(
+        pipeline_name="parquet_test_" + uniq_id(),
+        destination="filesystem",
+        dataset_name="parquet_test_" + uniq_id(),
+    )
+
+    item, _, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=True)
+    info = pipeline.run(item, table_name="table", loader_file_format="csv")
+    info.raise_on_failed_jobs()
+    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
+    assert job.endswith("csv")
+    with open(job, "r", encoding="utf-8", newline="") as f:
+        # we skip headers and every line of data has 3 physical lines (due to string value in arrow_table_all_data_types)
+        for line in f:
+            line += f.readline()
+            line += f.readline()
+            # all elements are quoted
+            for elem in line.strip().split(","):
+                # NULL values are not quoted on arrow writer
+                assert (
+                    elem.startswith('"')
+                    and elem.endswith('"')
+                    or (len(elem) == 0 and item_type != "object")
+                )
+
+
 def test_pipeline_parquet_filesystem_destination() -> None:
     import pyarrow.parquet as pq  # Module is evaluated by other tests
 

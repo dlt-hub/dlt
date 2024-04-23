@@ -381,10 +381,14 @@ class ParquetDataWriter(DataWriter):
         )
 
 
+CsvQuoting = Literal["quote_all", "quote_needed"]
+
+
 @configspec
 class CsvDataWriterConfiguration(BaseConfiguration):
     delimiter: str = ","
     include_header: bool = True
+    quoting: CsvQuoting = "quote_needed"
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
 
@@ -398,23 +402,32 @@ class CsvWriter(DataWriter):
         *,
         delimiter: str = ",",
         include_header: bool = True,
+        quoting: CsvQuoting = "quote_needed",
         bytes_encoding: str = "utf-8",
     ) -> None:
         super().__init__(f, caps)
         self.include_header = include_header
         self.delimiter = delimiter
+        self.quoting: CsvQuoting = quoting
         self.writer: csv.DictWriter[str] = None
         self.bytes_encoding = bytes_encoding
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         self._columns_schema = columns_schema
+        if self.quoting == "quote_needed":
+            quoting: Literal[1, 2] = csv.QUOTE_NONNUMERIC
+        elif self.quoting == "quote_all":
+            quoting = csv.QUOTE_ALL
+        else:
+            raise ValueError(self.quoting)
+
         self.writer = csv.DictWriter(
             self._f,
             fieldnames=list(columns_schema.keys()),
             extrasaction="ignore",
             dialect=csv.unix_dialect,
             delimiter=self.delimiter,
-            quoting=csv.QUOTE_NONNUMERIC,
+            quoting=quoting,
         )
         if self.include_header:
             self.writer.writeheader()
@@ -520,11 +533,13 @@ class ArrowToCsvWriter(DataWriter):
         *,
         delimiter: str = ",",
         include_header: bool = True,
+        quoting: CsvQuoting = "quote_needed",
     ) -> None:
         super().__init__(f, caps)
         self.delimiter = delimiter
         self._delimiter_b = delimiter.encode("ascii")
         self.include_header = include_header
+        self.quoting: CsvQuoting = quoting
         self.writer: Any = None
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
@@ -537,6 +552,12 @@ class ArrowToCsvWriter(DataWriter):
         for row in rows:
             if isinstance(row, (pyarrow.Table, pyarrow.RecordBatch)):
                 if not self.writer:
+                    if self.quoting == "quote_needed":
+                        quoting = "needed"
+                    elif self.quoting == "quote_all":
+                        quoting = "all_valid"
+                    else:
+                        raise ValueError(self.quoting)
                     try:
                         self.writer = pyarrow.csv.CSVWriter(
                             self._f,
@@ -544,6 +565,7 @@ class ArrowToCsvWriter(DataWriter):
                             write_options=pyarrow.csv.WriteOptions(
                                 include_header=self.include_header,
                                 delimiter=self._delimiter_b,
+                                quoting_style=quoting,
                             ),
                         )
                         self._first_schema = row.schema
