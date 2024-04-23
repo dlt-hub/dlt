@@ -16,7 +16,7 @@ TSecureConnection = Literal[0, 1]
 @configspec(init=False)
 class ClickHouseCredentials(ConnectionStringCredentials):
     drivername: str = "clickhouse"
-    host: str  # type: ignore
+    host: str = None
     """Host with running ClickHouse server."""
     port: int = 9440
     """Native port ClickHouse server is bound to. Defaults to 9440."""
@@ -42,8 +42,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
         "port",
-        "http_port",
-        "secure",
         "database",
         "username",
         "password",

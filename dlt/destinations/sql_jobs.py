@@ -382,7 +382,7 @@ class SqlMergeJob(SqlBaseJob):
         unique_column: str = None
         root_key_column: str = None
 
-        if len(table_chain) == 1 and cls.requires_temp_table_for_delete():
+        if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
             key_table_clauses = cls.gen_key_table_clauses(
                 root_table_name, staging_root_table_name, key_clauses, for_delete=True
             )
@@ -597,4 +597,4 @@ class SqlMergeJob(SqlBaseJob):
         this identifies destinations that can have a simplified method for merging single
         table table chains
         """
-        return True
+        return False

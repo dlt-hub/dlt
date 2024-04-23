@@ -277,7 +277,7 @@ class ClickHouseMergeJob(SqlMergeJob):
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
-        return False
+        return True
 
 
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
