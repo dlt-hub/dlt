@@ -39,8 +39,14 @@ DATETIME_PLACEHOLDERS = {
     "ddd",  # Mon, Tue, Wed
     "dd",  # Mo, Tu, We
     "d",  # 0-6
+    # Seconds
     "ss",  # 01-59
     "s",  # 0-59
+    # Fractional seconds
+    "SSSS",  # 000[0..] 001[0..] ... 998[0..] 999[0..]
+    "SSS",  # 000 001 ... 998 999
+    "SS",  # 00, 01, 02 ... 98, 99
+    "S",  # 0 1 ... 8 9
     # Quarters of the year
     "Q",  # 1, 2, 3, 4
 }
@@ -54,7 +60,10 @@ STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
         "ext",
         "curr_date",
         "timestamp",
+        "timestamp",
+        "timestamp_ms",
         "load_package_timestamp",
+        "load_package_timestamp_ms",
     }
 )
 
@@ -83,6 +92,7 @@ def prepare_datetime_params(
     if load_package_timestamp:
         current_timestamp = ensure_pendulum_datetime(load_package_timestamp)
         params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
+        params["load_package_timestamp_ms"] = current_timestamp.format("SSS")
 
     if not current_datetime:
         if current_timestamp:
@@ -93,6 +103,7 @@ def prepare_datetime_params(
             current_datetime = pendulum.now()
 
     params["timestamp"] = str(int(current_datetime.timestamp()))
+    params["timestamp_ms"] = current_datetime.format("SSS")
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:

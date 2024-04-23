@@ -162,6 +162,24 @@ ALL_LAYOUTS = (  # type: ignore
         [],
     ),
     (
+        "{table_name}/{SSS}/{SS}/{S}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('SSS/SS/S').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/{SS}/{S}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/{frozen_datetime.format('SS/S').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
+        "{table_name}/ms={SSS}/mcs={SSSS}/{load_id}.{file_id}.{ext}",
+        f"mocked-table/ms={frozen_datetime.format('SSS').lower()}/mcs={frozen_datetime.format('SSSS').lower()}/mocked-load-id.mocked-file-id.jsonl",
+        True,
+        [],
+    ),
+    (
         "{table_name}/{H}/{m}/{load_id}.{file_id}.{ext}",
         f"mocked-table/{frozen_datetime.format('H/m').lower()}/mocked-load-id.mocked-file-id.jsonl",
         True,

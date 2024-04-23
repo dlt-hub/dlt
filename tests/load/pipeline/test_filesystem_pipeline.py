@@ -274,6 +274,10 @@ TEST_LAYOUTS = (
         "{table_name}/{YYYY}/{YY}/{Y}/{MMMM}/{MMM}/{MM}/{M}/{DD}/{D}/"
         "{HH}/{H}/{ddd}/{dd}/{d}/{ss}/{s}/{Q}/{timestamp}/{curr_date}/{load_id}.{file_id}.{ext}"
     ),
+    (
+        "{table_name}/{YYYY}/{YY}/{Y}/{MMMM}/{MMM}/{MM}/{M}/{DD}/{D}/"
+        "{SSSS}/{SSS}/{SS}/{S}/{Q}/{timestamp}/{curr_date}/{load_id}.{file_id}.{ext}"
+    ),
 )
 
 
