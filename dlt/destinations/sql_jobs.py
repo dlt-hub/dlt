@@ -579,12 +579,11 @@ class SqlMergeJob(SqlBaseJob):
                     staging_table_name = sql_client.make_qualified_table_name(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}
-                    SELECT s.*
-                    FROM {staging_table_name} AS s
-                    LEFT JOIN {table_name} as t
-                        on s.{unique_column} = t.{unique_column}
-                    WHERE t.{unique_column} IS NULL or t.{unique_column} = '';
+                    SELECT *
+                    FROM {staging_table_name}
+                    WHERE {unique_column} NOT IN (SELECT {unique_column} FROM {table_name});
                 """)
+
         return sql
 
     @classmethod
