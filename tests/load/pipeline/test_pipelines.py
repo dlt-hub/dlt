@@ -795,7 +795,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # parquet on bigquery and clickhouse does not support JSON but we still want to run the test
-    if destination_config.destination in ["bigquery", "clickhouse"]:
+    if destination_config.destination in ["bigquery"]:
         column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
 
     # duckdb 0.9.1 does not support TIME other than 6
@@ -873,6 +873,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             in ["snowflake", "bigquery", "redshift"],
             allow_string_binary=destination_config.destination == "clickhouse",
             timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
+            expect_empty_string_for_null_complex=destination_config.destination == "clickhouse",
         )
 
 

@@ -521,10 +521,6 @@ def test_load_with_all_types(
         ),
     )
 
-    # switch complex to string for clickhouse
-    if client.config.destination_type in ["clickhouse"]:
-        column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
-
     # we should have identical content with all disposition types
     client.schema.update_table(
         new_table(

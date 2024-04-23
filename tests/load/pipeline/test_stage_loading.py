@@ -204,10 +204,6 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         exclude_types=exclude_types, exclude_columns=exclude_columns
     )
 
-    # clickhouse json is experimental, will not work for parquet and makes strange changes for jsonl
-    if destination_config.destination in ["clickhouse"]:
-        column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
-
     # bigquery and clickhouse cannot load into JSON fields from parquet
     if destination_config.file_format == "parquet":
         if destination_config.destination in ["bigquery"]:
@@ -260,4 +256,5 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
             allow_string_binary=allow_string_binary,
             timestamp_precision=sql_client.capabilities.timestamp_precision,
             schema=column_schemas,
+            expect_empty_string_for_null_complex=destination_config.destination == "clickhouse",
         )

@@ -22,7 +22,6 @@ from dlt.common.destination.reference import (
     FollowupJob,
     LoadJob,
     NewLoadJob,
-    StorageSchemaInfo,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -72,7 +71,7 @@ TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
 
 class ClickHouseTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
-        "complex": "JSON",
+        "complex": "text",
         "text": "String",
         "double": "Float64",
         "bool": "Boolean",
@@ -182,7 +181,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                         fmt=clickhouse_format,
                         settings={
                             "allow_experimental_lightweight_delete": 1,
-                            "allow_experimental_object_type": 1,
+                            # "allow_experimental_object_type": 1,
                             "enable_http_compression": 1,
                         },
                         compression=compression,
