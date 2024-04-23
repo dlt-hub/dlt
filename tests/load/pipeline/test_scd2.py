@@ -199,6 +199,7 @@ def test_core_functionality(
     ]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, supports_merge=True),
