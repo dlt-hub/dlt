@@ -305,14 +305,9 @@ def test_filesystem_destination_extended_layout_placeholders(
         "hiphip": counter("Hurraaaa"),
     }
     now = pendulum.now()
-    kwargs = {}
-    if default_buckets_env.startswith("file://"):
-        kwargs = {"auto_mkdir": True}
-
     fs_destination = filesystem(
         layout=layout,
         extra_placeholders=extra_placeholders,
-        kwargs=kwargs,
         current_datetime=counter(now),
     )
     pipeline = dlt.pipeline(
