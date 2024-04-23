@@ -39,11 +39,16 @@ username = "loader"
 host = "kgiotue-wn98412"
 warehouse = "COMPUTE_WH"
 role = "DLT_LOADER_ROLE"
+application = "dltHub_dlt"
 ```
 In the case of Snowflake, the **host** is your [Account Identifier](https://docs.snowflake.com/en/user-guide/admin-account-identifier). You can get it in **Admin**/**Accounts** by copying the account URL: https://kgiotue-wn98412.snowflakecomputing.com and extracting the host name (**kgiotue-wn98412**).
 
 The **warehouse** and **role** are optional if you assign defaults to your user. In the example below, we do not do that, so we set them explicitly.
 
+:::note
+We use `application = "dltHub_dlt"` to let Snowflake to know about dlt users if you would like to disable this behavior
+please set it to empty string `application = ""` this will disable it.
+:::
 
 ### Setup the database user and permissions
 The instructions below assume that you use the default account setup that you get after creating a Snowflake account. You should have a default warehouse named **COMPUTE_WH** and a Snowflake account. Below, we create a new database, user, and assign permissions. The permissions are very generous. A more experienced user can easily reduce `dlt` permissions to just one schema in the database.
