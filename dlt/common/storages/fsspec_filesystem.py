@@ -6,6 +6,7 @@ import os
 import pathlib
 import posixpath
 from io import BytesIO
+from gzip import GzipFile
 from typing import (
     Literal,
     cast,
@@ -43,6 +44,7 @@ class FileItem(TypedDict, total=False):
 
     file_url: str
     file_name: str
+    relative_path: str
     mime_type: str
     encoding: Optional[str]
     modification_date: pendulum.DateTime
@@ -197,7 +199,7 @@ class FileItemDict(DictStrAny):
         mode: str = "rb",
         compression: Literal["auto", "disable", "enable"] = "auto",
         **kwargs: Any,
-    ) -> IO[Any]:
+    ) -> Union[GzipFile, IO[Any]]:
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using

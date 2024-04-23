@@ -296,7 +296,8 @@ data. You can quickly build pipelines to:
 #### `FileItem` Fields:
 
 - `file_url` - Complete URL of the file; also the primary key (e.g. `file://`).
-- `file_name` - Name or relative path of the file from the bucket URL.
+- `file_name` - Name of the file from the bucket URL.
+- `relative_path` - Relative path of the file in the bucket.
 - `mime_type` - File's mime type; sourced from the bucket provider or inferred from its extension.
 - `modification_date` - File's last modification time (format: `pendulum.DateTime`).
 - `size_in_bytes` - File size.

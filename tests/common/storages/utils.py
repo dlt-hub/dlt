@@ -49,6 +49,7 @@ def assert_sample_files(
         "gzip/taxi.csv.gz",
         "sample.txt",
     }
+    expected_file_names = [path.split("/")[-1] for path in minimally_expected_file_items]
     assert len(all_file_items) == len(minimally_expected_file_items)
 
     for item in all_file_items:
@@ -58,6 +59,7 @@ def assert_sample_files(
         # is valid url
         file_url_parsed = urlparse(item["file_url"])
         assert isinstance(item["file_name"], str)
+        assert item["file_name"] in expected_file_names
         assert file_url_parsed.path.endswith(item["file_name"])
         assert item["file_url"].startswith(config.protocol)
         assert isinstance(item["mime_type"], str)
