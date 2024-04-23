@@ -80,17 +80,23 @@ def test_field_normalization() -> None:
     assert _row_at_index(result, 0) == ["hello", 1]
 
 
-def test_dlt_columns_not_added() -> None:
+def test_default_dlt_columns_not_added() -> None:
     table = pa.Table.from_pylist(
         [
             {"col1": 1},
         ]
     )
-    columns = [new_column("_dlt_something", "bigint"), new_column("col2", "text")]
+    columns = [
+        new_column("_dlt_something", "bigint"),
+        new_column("_dlt_id", "text"),
+        new_column("_dlt_load_id", "text"),
+        new_column("col2", "text"),
+        new_column("col1", "text"),
+    ]
     result = _normalize(table, columns)
-    # no dlt columns
-    assert result.column_names == ["col2", "col1"]
-    assert _row_at_index(result, 0) == [None, 1]
+    # no dlt_id or dlt_load_id columns
+    assert result.column_names == ["_dlt_something", "col2", "col1"]
+    assert _row_at_index(result, 0) == [None, None, 1]
 
 
 @pytest.mark.skip(reason="Somehow this does not fail, should we add an exception??")

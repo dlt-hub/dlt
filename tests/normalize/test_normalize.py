@@ -711,7 +711,7 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
 
 
-def test_removal_of_normalizer_schema_section(raw_normalize: Normalize) -> None:
+def test_removal_of_normalizer_schema_section_and_add_seen_data(raw_normalize: Normalize) -> None:
     extract_cases(
         raw_normalize,
         [
@@ -727,14 +727,22 @@ def test_removal_of_normalizer_schema_section(raw_normalize: Normalize) -> None:
     extracted_schema.tables["event__parse_data__intent_ranking"] = new_table(
         "event__parse_data__intent_ranking"
     )
+    extracted_schema.tables["event__random_table"] = new_table("event__random_table")
 
     # add x-normalizer info (and other block to control)
     extracted_schema.tables["event"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
     extracted_schema.tables["event"]["x-other-info"] = "blah"  # type: ignore
-    extracted_schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] = {}  # type: ignore
+    extracted_schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] = {"seen-data": True, "random-entry": 1234}  # type: ignore
+    extracted_schema.tables["event__random_table"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
 
     normalize_pending(raw_normalize, extracted_schema)
     schema = raw_normalize.schema_storage.load_schema("event")
-    assert "x-normalizer" not in schema.tables["event"]
-    assert "x-normalizer" not in schema.tables["event__parse_data__intent_ranking"]
+    # seen data gets added, schema settings get removed
+    assert schema.tables["event"]["x-normalizer"] == {"seen-data": True}  # type: ignore
+    assert schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] == {  # type: ignore
+        "seen-data": True,
+        "random-entry": 1234,
+    }
+    # no data seen here, so seen-data is not set and evolve settings stays until first data is seen
+    assert schema.tables["event__random_table"]["x-normalizer"] == {"evolve-columns-once": True}  # type: ignore
     assert "x-other-info" in schema.tables["event"]
