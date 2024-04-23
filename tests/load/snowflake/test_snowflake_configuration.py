@@ -10,6 +10,7 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
 
 from dlt.destinations.impl.snowflake.configuration import (
+    SNOWFLAKE_APPLICATION_ID,
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
@@ -78,7 +79,7 @@ def test_to_connector_params() -> None:
         warehouse="warehouse1",
         role="role1",
         # default application identifier will be used
-        application="dltHub_dlt",
+        application=SNOWFLAKE_APPLICATION_ID,
     )
 
     # base64 encoded DER key
@@ -93,7 +94,7 @@ def test_to_connector_params() -> None:
     creds.warehouse = "warehouse1"
     creds.role = "role1"
     # set application identifier and check it
-    creds.application = "dltHub_dlt"
+    creds.application = "custom_app_id"
 
     params = creds.to_connector_params()
 
@@ -107,7 +108,7 @@ def test_to_connector_params() -> None:
         password=None,
         warehouse="warehouse1",
         role="role1",
-        application="dltHub_dlt",
+        application="custom_app_id",
     )
 
 

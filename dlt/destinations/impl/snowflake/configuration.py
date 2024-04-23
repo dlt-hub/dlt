@@ -49,7 +49,7 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     )
 
 
-snowflake_application_id = "dltHub_dlt"
+SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
 
 
 @configspec(init=False)
@@ -63,7 +63,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
-    application: Optional[str] = snowflake_application_id
+    application: Optional[str] = SNOWFLAKE_APPLICATION_ID
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
