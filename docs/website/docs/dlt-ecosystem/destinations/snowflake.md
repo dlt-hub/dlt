@@ -46,8 +46,10 @@ In the case of Snowflake, the **host** is your [Account Identifier](https://docs
 The **warehouse** and **role** are optional if you assign defaults to your user. In the example below, we do not do that, so we set them explicitly.
 
 :::note
-We use `application = "dltHub_dlt"` to let Snowflake to know about dlt users if you would like to disable this behavior
-please set it to empty string `application = ""` this will disable it.
+The `application` field enables Snowflake Support Engineers (SE) to offer targeted customer support.
+It is set to `dltHub_dlt` by default, if you prefer not to share the application ID for privacy or other reasons,
+just set `application` to an empty string (`""`) will prevent this information from being sent to Snowflake, thereby disabling the feature
+or simply you can take advantage of this as well by setting your own value.
 :::
 
 ### Setup the database user and permissions
