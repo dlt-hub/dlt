@@ -99,7 +99,6 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         pipeline_name="test_switch_to_merge", full_refresh=True
     )
 
-
     @dlt.source()
     def source():
         return data_with_subtables(10)

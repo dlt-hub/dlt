@@ -148,7 +148,6 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(posixpath.join(self.dataset_path, INIT_FILE_NAME))
 
-
     def truncate_table(self, table_name: str) -> None:
         """Truncate table with given name"""
         for table_file in self.list_table_files(table_name):

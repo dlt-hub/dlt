@@ -21,6 +21,11 @@ class FSClientBase(ABC):
         """returns all filepaths for a given table"""
         pass
 
+    @abstractmethod
+    def truncate_table(self, table_name: str) -> None:
+        """truncates the given table"""
+        pass
+
     def read_bytes(self, path: str, start: Any = None, end: Any = None, **kwargs: Any) -> bytes:
         """reads given file to bytes object"""
         return cast(bytes, self.fs_client.read_bytes(path, start, end, **kwargs))
