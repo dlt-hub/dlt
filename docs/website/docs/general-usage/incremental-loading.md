@@ -242,7 +242,7 @@ In example above we enforce the root key propagation with `fb_ads.root_key = Tru
 that correct data is propagated on initial `replace` load so the future `merge` load can be
 executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`.
 
-### `scd2` strategy
+### 🧪 `scd2` strategy
 `dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. The resource is expected to provide a full extract of the source table each run. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A high timestamp (9999-12-31 00:00:00.000000) is used to indicate an active record.
 
 #### Example: `scd2` merge strategy
@@ -306,6 +306,11 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 | 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703 | 1 | foo | 1 |
 | 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2 | bar | 2 |
 | 2024-04-09 22:13:07.943703 | 9999-12-31 00:00:00.000000 | 1 | foo_updated | 1 |
+
+:::caution
+SCD2 is still work in progress. We plan to change the default **high timestamp** from `9999-12-31 00:00:00.000000` to `NULL`
+and make it configurable. This feature will be released with `dlt` 0.4.10
+:::
 
 #### Example: customize validity column names
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
