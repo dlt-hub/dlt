@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, List, Any, Final, Literal, cast
+from typing import ClassVar, List, Any, Final, Literal, cast, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -38,6 +38,10 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
+    gcp_access_key_id: Optional[str] = None
+    """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
+    gcp_secret_access_key: Optional[str] = None
+    """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -67,7 +71,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
                 ("secure", str(1) if self.secure else str(0)),
                 # Toggle experimental settings. These are necessary for certain datatypes and not optional.
                 ("allow_experimental_lightweight_delete", "1"),
-                ("allow_experimental_object_type", "1"),
+                # ("allow_experimental_object_type", "1"),
                 ("enable_http_compression", "1"),
             ]
         )

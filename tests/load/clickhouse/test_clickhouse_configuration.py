@@ -60,17 +60,6 @@ def test_clickhouse_configuration() -> None:
     assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
 
 
-@pytest.mark.usefixtures("environment")
-def test_clickhouse_gcp_hmac_getter_accessor(environment: Any) -> None:
-    environment["DESTINATION__FILESYSTEM__CREDENTIALS__GCP_ACCESS_KEY_ID"] = "25g08jaDJacj42"
-    environment["DESTINATION__FILESYSTEM__CREDENTIALS__GCP_SECRET_ACCESS_KEY"] = "ascvntp45uasdf"
-
-    assert dlt.config["destination.filesystem.credentials.gcp_access_key_id"] == "25g08jaDJacj42"
-    assert (
-        dlt.config["destination.filesystem.credentials.gcp_secret_access_key"] == "ascvntp45uasdf"
-    )
-
-
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
     """Test experimental settings are set correctly for session."""
     conn = client.sql_client.open_connection()
@@ -84,5 +73,4 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
         res = cursor.fetchall()
 
         assert ("allow_experimental_lightweight_delete", "1") in res
-        assert ("allow_experimental_object_type", "1") in res
         assert ("enable_http_compression", "1") in res

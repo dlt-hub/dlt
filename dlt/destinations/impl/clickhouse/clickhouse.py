@@ -15,6 +15,7 @@ from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentialsWithoutDefaults,
 )
+from dlt.destinations.exceptions import DestinationTransientException
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
@@ -194,22 +195,28 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             return
 
         # Auto does not work for jsonl, get info from config for buckets
+        # NOTE: we should not really be accessing the config this way, but for
+        # now it is ok...
         if ext == "jsonl":
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
             # get auth and bucket url
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
-            access_key_id = None
-            secret_access_key = None
+            access_key_id: str = None
+            secret_access_key: str = None
             if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 access_key_id = staging_credentials.aws_access_key_id
                 secret_access_key = staging_credentials.aws_secret_access_key
             elif isinstance(staging_credentials, GcpCredentials):
-                access_key_id = dlt.config["destination.filesystem.credentials.gcp_access_key_id"]
-                secret_access_key = dlt.config[
-                    "destination.filesystem.credentials.gcp_secret_access_key"
-                ]
+                access_key_id = client.credentials.gcp_access_key_id
+                secret_access_key = client.credentials.gcp_secret_access_key
+                if not access_key_id or not secret_access_key:
+                    raise DestinationTransientException(
+                        "You have tried loading from gcs with clickhouse. Please provide valid"
+                        " 'gcp_access_key_id' and 'gcp_secret_access_key' to connect to gcs as"
+                        " outlined in the dlthub docs."
+                    )
 
             auth = "NOSIGN"
             if access_key_id and secret_access_key:
