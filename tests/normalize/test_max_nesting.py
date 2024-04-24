@@ -337,6 +337,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     assert tables == tables_with_nesting_level_set
 
     # Check scenario #5
+    # We give priority `max_table_nesting` of the resource if it is defined
     @dlt.source(max_table_nesting=1000)
     def some_data_with_table_nesting():
         yield rasa_bot_events_with_nesting_lvl_one()
@@ -347,3 +348,26 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     tables = pipeline_schema.data_table_names()
     assert len(tables) == 1
     assert tables == ["rasa_bot_events_with_nesting_lvl_one"]
+
+    # Now check the case when `max_table_nesting` is not defined in the resource
+    rasa_bot_events_with_nesting_lvl_one.max_table_nesting = None
+
+    @dlt.source(max_table_nesting=1000)
+    def some_data_with_table_nesting():
+        yield rasa_bot_events_with_nesting_lvl_one()
+
+    pipeline.drop()
+    pipeline.run(some_data_with_table_nesting())
+    pipeline_schema = pipeline.schemas[pipeline.default_schema_name]
+    tables = pipeline_schema.data_table_names()
+    assert len(tables) == 8
+    assert tables == [
+        "rasa_bot_events_with_nesting_lvl_one",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__target",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__starbucks",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__amazon",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__employer",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__interest",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
+    ]
