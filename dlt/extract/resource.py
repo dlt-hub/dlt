@@ -12,6 +12,7 @@ from typing import (
     Any,
     Optional,
 )
+from threading import Lock
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
@@ -332,7 +333,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # make sure max_items is a number, to allow "None" as value for unlimited
         if max_items is None:
             max_items = -1
-
+        counter_lock = Lock()
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
 
@@ -354,7 +355,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 for i in gen:  # type: ignore # TODO: help me fix this later
                     yield i
                     if i is not None:
-                        count += 1
+                        with counter_lock:
+                            count += 1
+
                         # async gen yields awaitable so we must count one awaitable more
                         # so the previous one is evaluated and yielded.
                         # new awaitable will be cancelled
