@@ -12,6 +12,8 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
+from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.common.storages import FileStorage
 
 from tests.utils import TEST_STORAGE_ROOT
 
