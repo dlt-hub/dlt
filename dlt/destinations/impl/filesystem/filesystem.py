@@ -73,6 +73,11 @@ class LoadFilesystemJob(LoadJob):
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
             extra_placeholders=config.extra_placeholders,
         )
+
+        # We would like to avoid failing for local filesystem where
+        # deeply nested directory will not exist before writing a file.
+        # It `auto_mkdir` is disabled by default in fsspec so we made some
+        # trade offs between different options and decided on this.
         item = self.make_remote_path()
         if self.config.protocol == "file":
             fs_client.makedirs(posixpath.dirname(item), exist_ok=True)
