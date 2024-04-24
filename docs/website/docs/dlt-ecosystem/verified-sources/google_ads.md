@@ -12,7 +12,9 @@ to display ads across Google's search results, websites, and other platforms.
 
 :::warning Alert!
 Please note that we were unable to conduct testing on the specified source due to difficulties
-in obtaining the necessary credentials.
+in obtaining the necessary credentials. While we have not yet verified its functionality,
+we anticipate that the source should operate smoothly once the correct credentials are
+provided.
 :::
 
 This Google Ads `dlt` verified source and
@@ -21,20 +23,19 @@ loads data using the "Google Ads API" to the destination of your choice.
 
 Resources that can be loaded using this verified source are:
 
-| S.No. | Name             | Description                                                             |
-|-------|------------------|-------------------------------------------------------------------------|
-| 1.    | customers        | Businesses or individuals who pay to advertise their products           |
-| 2.    | campaigns        | Structured sets of ad groups and advertisements                         |
-| 3.    | change_events    | Modifications made to an account's ads, campaigns, and related settings |
-| 4.    | customer_clients | Accounts that are managed by a given account                            |
+| Name             | Description                                                             |
+|------------------|-------------------------------------------------------------------------|
+| customers        | Businesses or individuals who pay to advertise their products           |
+| campaigns        | Structured sets of ad groups and advertisements                         |
+| change_events    | Modifications made to an account's ads, campaigns, and related settings |
+| customer_clients | Accounts that are managed by a given account                            |
 
 ## Setup Guide
 
 ### Grab credentials
 
 To access Google Ads verified sources, you'll need a developer token. For instructions on obtaining
-one, please refer to documentation:
-["Obtain a developer token"](https://developers.google.com/google-ads/api/docs/get-started/dev-token).
+one, you can search online or ask GPT.
 
 Next, there are two methods to get authenticated for using this verified source:
 
@@ -113,7 +114,7 @@ token" that can be used to set up the "secrets.toml".
 ### Share the Google Ads Account with the API:
 
 :::note
-For service account authentication, use the `client_email`. For OAuth authentication, use the
+For service account authentication, use the client_email. For OAuth authentication, use the
 email associated with the app creation and refresh token generation.
 :::
 
@@ -123,20 +124,18 @@ email associated with the app creation and refresh token generation.
 
 1. Click on the "Tools & Settings" icon in the upper right corner of the screen.
 
-1. Under "Setup", choose "Account access" from the menu.
+1. Under ‘Setup’, choose 'Account access' from the menu.
 
 1. Click the blue “+” icon to add a new user.
 
 1. Enter the email address associated with either the service account (for service account authentication)
    or the email used during app creation and refresh token generation (for OAuth authentication).
 
-1. Assign the appropriate access level; for API purposes, "Read-only" access might suffice if you only need data
-   retrieval capabilities. However, if using a service account, you might need to give "Admin" access since service
+1. Assign the appropriate access level; for API purposes, 'Read-only' access might suffice if you only need data
+   retrieval capabilities. However, if using a service account, you might need to give 'Admin' access since service
    accounts usually perform tasks requiring higher privileges.
 
 1. Conclude the process by clicking the “Send invitation” button.
-
-1. For service account "client_email", there's no need to accept the invitation, it's automatically accepted.
 
 ### Initialize the verified source
 
@@ -165,18 +164,19 @@ For more information, read the guide on [how to add a verified source](../../wal
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
    information securely, like access tokens. Keep this file safe. In this file setup the "developer
-   token" and "customer ID" as follows:
+   token", "customer ID" and "impersonated_email" as follows:
    ```toml
    [sources.google_ads]
    dev_token = "please set me up!"
    customer_id = "please set me up!"
    impersonated_email = "please set me up"
    ```
-
-   -  `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
+   - `dev_token` is the developer token that lets you connect to the Google Ads API.
+   - `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
    and helps manage individual Google Ads accounts. It is used for API access and account operations, and
    is visible in the top right corner of your Google Ads dashboard.
-   - `impersonated_email` is the email address of the user whose identity the service account will impersonate.
+   - `impersonated_email` enables secure access to Google Ads accounts through the API using a service account,
+   while leveraging the permissions of a specific user within the Ads platform.
 
 1. Next, for service account authentication:
 
@@ -235,20 +235,29 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ### Source `google_ads`
 
-This function returns a list of resources from the Google Ads API.
+This function returns a list of resources including metadata, fields, and metrics data from
+the Google Ads API.
 
 ```py
 def google_ads(
-    credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials] = dlt.secrets.value,
+    credentials: Union[
+        GcpOAuthCredentials, GcpServiceAccountCredentials
+    ] = dlt.secrets.value,
     impersonated_email: str = dlt.secrets.value,
-    dev_token: str = dlt.secrets.value
-) -> List[DltResource]:
-    ...
+    dev_token: str = dlt.secrets.value,
+)  -> List[DltResource]:
+   """
+   Initializes a client with the provided credentials and development token to
+   load default tables from Google Ads into the database. This function returns
+   various resources such as customers, campaigns, change events, and customer
+   clients.
+   """
 ```
 
 `credentials`: GCP OAuth or service account credentials.
 
-`impersonated_email`: Email address of the user whose identity the service account will impersonate.
+`impersonated_email`: enables secure access to Google Ads accounts through the API using a service account,
+while leveraging the permissions of a specific user within the Ads platform.
 
 `dev_token`: A developer token, which is required to access the Google Ads API.
 
@@ -258,18 +267,21 @@ This function retrieves all dimensions for a report from a Google Ads project.
 
 ```py
 @dlt.resource(write_disposition="replace")
-def customers(client, customer_id: str = dlt.secrets.value):
+def customers(
+    client: Resource, customer_id: str = dlt.secrets.value
+) -> Iterator[TDataItem]:
     """
-    Dlt resource which loads dimensions.
+    Fetches customer data from the Google Ads service and
+    yields each customer as a dictionary.
     """
 ```
 
-`client`: Contains authentication parameters passed to the source for resource access.
+`client`: refers to a Google API Resource object used to interact with Google services.
 
 `customer_id`: Individual identifier for google ads account.
 
 Similarly, there are resource functions called `campaigns`, `change_events` and `customer_clients` that populate
-respective tables.
+respective dimensions.
 
 ## Customization
 ### Create your own pipeline
