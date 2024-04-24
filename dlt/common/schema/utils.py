@@ -35,6 +35,7 @@ from dlt.common.schema.typing import (
     TTypeDetections,
     TWriteDisposition,
     TLoaderMergeStrategy,
+    TActiveRecordLiteralType,
     TSchemaContract,
     TSortOrder,
 )
@@ -523,6 +524,12 @@ def get_validity_column_names(table: TTableSchema) -> List[Optional[str]]:
         get_first_column_name_with_prop(table, "x-valid-from"),
         get_first_column_name_with_prop(table, "x-valid-to"),
     ]
+
+
+def get_active_record_literal_type(table: TTableSchema) -> TActiveRecordLiteralType:
+    # method assumes a column with "x-active-record-literal-type" property exists
+    cname = get_first_column_name_with_prop(table, "x-active-record-literal-type")
+    return table["columns"][cname]["x-active-record-literal-type"]  # type: ignore[no-any-return, typeddict-item]
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:

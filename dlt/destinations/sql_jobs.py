@@ -13,6 +13,7 @@ from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
     get_validity_column_names,
+    get_active_record_literal_type,
     DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
@@ -537,12 +538,18 @@ class SqlMergeJob(SqlBaseJob):
             current_load_package()["state"]["created_at"],
             caps.timestamp_precision,
         )
-        active_record_ts = format_datetime_literal(HIGH_TS, caps.timestamp_precision)
+        active_record_literal_type = get_active_record_literal_type(root_table)
+        if active_record_literal_type == "null":
+            active_record_literal = "NULL"
+            is_active_clause = f"{to} IS NULL"
+        elif active_record_literal_type == "high_timestamp":
+            active_record_literal = format_datetime_literal(HIGH_TS, caps.timestamp_precision)
+            is_active_clause = f"{to} = {active_record_literal}"
 
         # retire updated and deleted records
         sql.append(f"""
             UPDATE {root_table_name} SET {to} = {boundary_ts}
-            WHERE {to} = {active_record_ts}
+            WHERE {is_active_clause}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
 
@@ -551,7 +558,7 @@ class SqlMergeJob(SqlBaseJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_ts} AS {to}
+            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
         """)
