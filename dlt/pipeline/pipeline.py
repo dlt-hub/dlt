@@ -95,6 +95,7 @@ from dlt.common.pipeline import (
     StateInjectableContext,
     TStepMetrics,
     WithStepInfo,
+    TRefreshMode,
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
@@ -122,6 +123,7 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
     SqlClientNotAvailable,
     FSClientNotAvailable,
+    PipelineNeverRan,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
@@ -133,7 +135,7 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
-from dlt.pipeline.typing import TPipelineStep, TRefreshMode
+from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
     bump_pipeline_state_version_if_modified,
@@ -145,7 +147,7 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
 from dlt.common.storages.load_package import TLoadPackageState
-from dlt.pipeline.helpers import drop as drop_command
+from dlt.pipeline.helpers import DropCommand
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -409,8 +411,6 @@ class Pipeline(SupportsPipeline):
         schema_contract: TSchemaContract = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
-        if self.refresh == "full":
-            drop_command(self, drop_all=True, state_paths="*")
 
         # create extract storage to which all the sources will be extracted
         extract_step = Extract(
@@ -435,7 +435,36 @@ class Pipeline(SupportsPipeline):
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
-                    self._extract_source(extract_step, source, max_parallel_items, workers)
+                    dropped_tables = []
+                    if not self.first_run:
+                        if self.refresh == "full":
+                            # Drop all tables from all resources and all source state paths
+                            d = DropCommand(
+                                self,
+                                drop_all=True,
+                                extract_only=True,  # Only modify local state/schema, destination drop tables is done in load step
+                                state_paths="*",
+                                schema_name=source.schema.name,
+                            )
+                            dropped_tables = d.info["tables"]
+                            d()
+                        elif self.refresh == "replace":
+                            # Drop tables from resources being currently extracted
+                            d = DropCommand(
+                                self,
+                                resources=source.resources.extracted,
+                                extract_only=True,
+                                schema_name=source.schema.name,
+                            )
+                            dropped_tables = d.info["tables"]
+                            d()
+                    load_id = self._extract_source(
+                        extract_step, source, max_parallel_items, workers
+                    )
+                    # Save the tables that were dropped locally (to be dropped from destination in load step)
+                    extract_step.extract_storage.new_packages.save_dropped_tables(
+                        load_id, dropped_tables
+                    )
                 # extract state
                 state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:

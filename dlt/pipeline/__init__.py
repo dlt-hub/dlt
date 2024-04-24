@@ -9,13 +9,12 @@ from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
-from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
+from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir, TRefreshMode
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 from dlt.pipeline.warnings import credentials_argument_deprecated, full_refresh_argument_deprecated
-from dlt.pipeline.typing import TRefreshMode
 
 TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 

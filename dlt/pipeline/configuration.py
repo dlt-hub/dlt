@@ -5,7 +5,7 @@ from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
 from dlt.common.destination import TLoaderFileFormat
-from dlt.pipeline.typing import TRefreshMode
+from dlt.common.pipeline import TRefreshMode
 
 
 @configspec

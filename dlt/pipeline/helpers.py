@@ -99,6 +99,8 @@ class DropCommand:
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
         state_only: bool = False,
+        tables_only: bool = False,
+        extract_only: bool = False,
     ) -> None:
         """
         Args:
@@ -108,7 +110,10 @@ class DropCommand:
             state_paths: JSON path(s) relative to the source state to drop
             drop_all: Drop all resources and tables in the schema (supersedes `resources` list)
             state_only: Drop only state, not tables
+            extract_only: Only apply changes locally, but do not normalize and load to destination
+
         """
+        self.extract_only = extract_only
         self.pipeline = pipeline
         if isinstance(resources, str):
             resources = [resources]
@@ -121,7 +126,7 @@ class DropCommand:
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables
         self.drop_tables = not state_only
-        self.drop_state = True
+        self.drop_state = not tables_only
         self.state_paths_to_drop = compile_paths(state_paths)
 
         resources = set(resources)
@@ -177,13 +182,14 @@ class DropCommand:
             and len(self.info["resource_states"]) == 0
         )
 
-    def _drop_destination_tables(self) -> None:
+    def _drop_destination_tables(self, allow_schema_tables: bool = False) -> None:
         table_names = [tbl["name"] for tbl in self.tables_to_drop]
-        for table_name in table_names:
-            assert table_name not in self.schema._schema_tables, (
-                f"You are dropping table {table_name} in {self.schema.name} but it is still present"
-                " in the schema"
-            )
+        if not allow_schema_tables:
+            for table_name in table_names:
+                assert table_name not in self.schema._schema_tables, (
+                    f"You are dropping table {table_name} in {self.schema.name} but it is still"
+                    " present in the schema"
+                )
         with self.pipeline._sql_job_client(self.schema) as client:
             client.drop_tables(*table_names, replace_schema=True)
             # also delete staging but ignore if staging does not exist
@@ -241,6 +247,9 @@ class DropCommand:
         except ContextDefaultCannotBeCreated:
             pass
 
+    def _save_local_schema(self) -> None:
+        self.pipeline.schemas.save_schema(self.schema)
+
     def __call__(self) -> None:
         if (
             self.pipeline.has_pending_data
@@ -255,12 +264,15 @@ class DropCommand:
 
         if self.drop_tables:
             self._delete_schema_tables()
-            self._drop_destination_tables()
+            if not self.extract_only:
+                self._drop_destination_tables()
         if self.drop_tables:
-            self.pipeline.schemas.save_schema(self.schema)
+            self._save_local_schema()
         if self.drop_state:
             self._extract_state()
         # Send updated state to destination
+        if self.extract_only:
+            return
         self.pipeline.normalize()
         try:
             self.pipeline.load(raise_on_failed_jobs=True)
