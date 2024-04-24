@@ -64,10 +64,23 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
    password = "Dlt*12345789234567"          # ClickHouse password if any
    host = "localhost"                       # ClickHouse server host
    port = 9000                              # ClickHouse HTTP port, default is 9000
-   http_port = 8443                         # HTTP Port to connect to ClickHouse server's HTTP interface.
+   http_port = 8443                         # HTTP Port to connect to ClickHouse server's HTTP interface. Defaults to 8443.
    secure = 1                               # Set to 1 if using HTTPS, else 0.
    dataset_table_separator = "___"          # Separator for dataset table names from dataset.
    ```
+
+   :::info http_port
+   The `http_port` parameter specifies the port number to use when connecting to the ClickHouse server's HTTP interface. This is different from default port 9000, which is used for the native TCP
+   protocol.
+
+   You must set `http_port` if you are not using external staging (i.e. you don't set the staging parameter in your pipeline). This is because dlt's built-in ClickHouse local storage staging uses the
+   [clickhouse-connect](https://github.com/ClickHouse/clickhouse-connect) library, which communicates with ClickHouse over HTTP.
+
+   Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example, if you set `http_port = 8443`, then ClickHouse should be listening for
+   HTTP
+   requests on port 8443. If you are using external staging, you can omit the `http_port` parameter, since clickhouse-connect will not be used in this case.
+   :::
+
 2. You can pass a database connection string similar to the one used by the `clickhouse-driver` library. The credentials above will look like this:
 
    ```toml
@@ -165,7 +178,8 @@ pipeline = dlt.pipeline(
 dlt supports using Google Cloud Storage (GCS) as a staging area when loading data into ClickHouse. This is handled automatically by
 ClickHouse's [GCS table function](https://clickhouse.com/docs/en/sql-reference/table-functions/gcs) which dlt uses under the hood.
 
-Somewhat annoyingly, the GCS table function only supports authentication using Hash-based Message Authentication Code (HMAC) keys. To enable this, GCS provides an S3 compatibility mode that emulates the Amazon S3
+Somewhat annoyingly, the GCS table function only supports authentication using Hash-based Message Authentication Code (HMAC) keys. To enable this, GCS provides an S3 compatibility mode that emulates
+the Amazon S3
 API. ClickHouse takes advantage of this to allow accessing GCS buckets via its S3 integration.
 
 To set up GCS staging with HMAC authentication in dlt:
