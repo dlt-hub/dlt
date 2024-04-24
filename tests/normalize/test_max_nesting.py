@@ -150,6 +150,8 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
 
     assert "x-normalizer" in rasa_bot_events_with_nesting_lvl_one._hints
     assert "x-normalizer" in rasa_bot_events_with_nesting_lvl_two._hints
+    assert rasa_bot_events_with_nesting_lvl_one.max_table_nesting == 1
+    assert rasa_bot_events_with_nesting_lvl_two.max_table_nesting == 2
     assert rasa_bot_events_with_nesting_lvl_one._hints["x-normalizer"]["max_nesting"] == 1  # type: ignore[typeddict-item]
     assert rasa_bot_events_with_nesting_lvl_two._hints["x-normalizer"]["max_nesting"] == 2  # type: ignore[typeddict-item]
     assert "x-normalizer" not in third_resource_with_nested_data._hints
