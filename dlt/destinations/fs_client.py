@@ -22,7 +22,7 @@ class FSClientBase(ABC):
         pass
 
     @abstractmethod
-    def truncate_table(self, table_name: str) -> None:
+    def truncate_tables(self, table_names: List[str]) -> None:
         """truncates the given table"""
         pass
 

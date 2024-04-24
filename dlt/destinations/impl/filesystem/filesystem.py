@@ -140,32 +140,34 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if truncate_tables and self.fs_client.isdir(self.dataset_path):
             # get all dirs with table data to delete. the table data are guaranteed to be files in those folders
             # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
-            for table_name in truncate_tables:
-                logger.info(f"Will truncate table {table_name}")
-                self.truncate_table(table_name)
+            logger.info(f"Will truncate tables {truncate_tables}")
+            self.truncate_tables(list(truncate_tables))
 
         # we mark the storage folder as initialized
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(posixpath.join(self.dataset_path, INIT_FILE_NAME))
 
-    def truncate_table(self, table_name: str) -> None:
+    def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate table with given name"""
-        for table_file in self.list_table_files(table_name):
-            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-            # print(f"DEL {item}")
-            try:
-                # NOTE: must use rm_file to get errors on delete
-                self.fs_client.rm_file(table_file)
-            except NotImplementedError:
-                # not all filesystem implement the above
-                self.fs_client.rm(table_file)
-                if self.fs_client.exists(table_file):
-                    raise FileExistsError(table_file)
-            except FileNotFoundError:
-                logger.info(
-                    f"Directory or path to truncate tables {table_name} does not exist but"
-                    " it should have been created previously!"
-                )
+        table_dirs = set(self.get_table_dirs(table_names))
+        table_prefixes = [self.get_table_prefix(t) for t in table_names]
+        for table_dir in table_dirs:
+            for table_file in self.list_files_with_prefixes(table_dir, table_prefixes):
+                # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                # print(f"DEL {item}")
+                try:
+                    # NOTE: must use rm_file to get errors on delete
+                    self.fs_client.rm_file(table_file)
+                except NotImplementedError:
+                    # not all filesystem implement the above
+                    self.fs_client.rm(table_file)
+                    if self.fs_client.exists(table_file):
+                        raise FileExistsError(table_file)
+                except FileNotFoundError:
+                    logger.info(
+                        f"Directory or path to truncate tables {table_names} does not exist but"
+                        " it should have been created previously!"
+                    )
 
     def update_stored_schema(
         self,
@@ -189,14 +191,18 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def get_table_dir(self, table_name: str) -> str:
         # dlt tables do not respect layout (for now)
-        if table_name in self.schema.dlt_table_names():
+        table_prefix = self.get_table_prefix(table_name)
+        return posixpath.dirname(table_prefix)
+
+    def get_table_prefix(self, table_name: str) -> str:
+        # dlt tables do not respect layout (for now)
+        if table_name.startswith(self.schema._dlt_tables_prefix):
             table_prefix = posixpath.join(table_name, "")
         else:
             table_prefix = self.table_prefix_layout.format(
                 schema_name=self.schema.name, table_name=table_name
             )
-        destination_dir = posixpath.join(self.dataset_path, table_prefix)
-        return posixpath.dirname(destination_dir)
+        return posixpath.join(self.dataset_path, table_prefix)
 
     def get_table_dirs(self, table_names: Iterable[str]) -> List[str]:
         """Gets directories where table data is stored."""
@@ -206,16 +212,19 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         """gets list of files associated with one table"""
         table_dir = self.get_table_dir(table_name)
         # we need the table prefix so we separate table files if in the same folder
-        table_prefix = self.table_prefix_layout.format(
-            schema_name=self.schema.name, table_name=table_name
-        )
-        table_prefix = posixpath.join(self.dataset_path, table_prefix)
+        table_prefix = self.get_table_prefix(table_name)
+        return self.list_files_with_prefixes(table_dir, [table_prefix])
+
+    def list_files_with_prefixes(self, table_dir: str, prefixes: List[str]) -> List[str]:
+        """returns all files in a directory that match given prefixes"""
         result = []
         for current_dir, _dirs, files in self.fs_client.walk(table_dir, detail=False, refresh=True):
             for file in files:
                 filename = posixpath.join(current_dir, file)
-                if filename.startswith(table_prefix):
-                    result.append(posixpath.join(current_dir, file))
+                for p in prefixes:
+                    if filename.startswith(p):
+                        result.append(posixpath.join(current_dir, file))
+                        continue
         return result
 
     def is_storage_initialized(self) -> bool:

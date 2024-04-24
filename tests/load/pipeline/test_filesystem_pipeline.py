@@ -273,7 +273,11 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
         ),
     )
     load_info = pipeline.run(
-        [dlt.resource(data, name="table_1"), dlt.resource(data * 2, name="table_2")],
+        [
+            dlt.resource(data, name="table_1"),
+            dlt.resource(data * 2, name="table_2"),
+            dlt.resource(data * 3, name="table_3"),
+        ],
         write_disposition="append",
     )
     client = pipeline.destination_client()
@@ -314,9 +318,16 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
     assert call_count >= 6
 
     # check that table separation works for every path
-    assert load_table_counts(pipeline, "table_1", "table_2") == {"table_1": 2, "table_2": 4}
-    pipeline.fs_client().truncate_table("table_1")
-    assert load_table_counts(pipeline, "table_1", "table_2") == {"table_2": 4}
+    # we cannot test when ext is not the last value
+    if ".{ext}{timestamp}" not in layout:
+        assert load_table_counts(pipeline, "table_1", "table_2", "table_3") == {
+            "table_1": 2,
+            "table_2": 4,
+            "table_3": 6,
+        }
+    pipeline.fs_client().truncate_tables(["table_1", "table_3"])
+    if ".{ext}{timestamp}" not in layout:
+        assert load_table_counts(pipeline, "table_1", "table_2", "table_3") == {"table_2": 4}
 
 
 @pytest.mark.parametrize(
@@ -431,11 +442,21 @@ def test_knows_dataset_state(destination_config: DestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("restore", [True, False])
-def test_simple_incremental(
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "{table_name}/{load_id}.{file_id}.{ext}",
+        "{schema_name}/other_folder/{table_name}-{load_id}.{file_id}.{ext}",
+        "{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}"
+    ],
+)  # we need a layout where the table has its own folder and one where it does not
+def test_state_with_simple_incremental(
     destination_config: DestinationTestConfiguration,
     restore: bool,
+    layout: str,
 ) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = str(restore)
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
 
     p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
 
@@ -458,9 +479,9 @@ def test_simple_incremental(
     p.run(my_resource)
     p._wipe_working_folder()
 
+    # check incremental
     p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
     p.run(my_resource_inc)
-
     assert load_table_counts(p, "items") == {"items": 4 if restore else 6}
 
 
@@ -491,6 +512,10 @@ def test_client_methods(
     def table_2():
         yield [1, 2, 3, 4, 5, 6, 7]
 
+    @dlt.resource()
+    def table_3():
+        yield [1, 2, 3, 4, 5, 6, 7, 8]
+
     # 3 files for t_1, 2 files for t_2
     p.run([table_1(), table_2()])
     p.run([table_1(), table_2()])
@@ -507,11 +532,11 @@ def test_client_methods(
     # verify that files are in the same folder on the second layout
     folder = fs_client.get_table_dir("table_1")
     file_count = len(fs_client.fs_client.ls(folder))
-    if "/other_folder/" in layout:
+    if "{table_name}/" in layout:
         print(fs_client.fs_client.ls(folder))
-        assert file_count == 5
-    else:
         assert file_count == 3
+    else:
+        assert file_count == 5
 
     # check opening of file
     values = []
@@ -524,9 +549,17 @@ def test_client_methods(
     assert fs_client.read_bytes(t1_files[0]) == str.encode(fs_client.read_text(t1_files[0]))
 
     # check truncate
-    fs_client.truncate_table("table_1")
+    fs_client.truncate_tables(["table_1"])
     assert load_table_counts(p, "table_1", "table_2") == {"table_2": 14}
 
     # load again
-    p.run([table_1(), table_2()])
-    assert load_table_counts(p, "table_1", "table_2") == {"table_1": 5, "table_2": 21}
+    p.run([table_1(), table_2(), table_3()])
+    assert load_table_counts(p, "table_1", "table_2", "table_3") == {
+        "table_1": 5,
+        "table_2": 21,
+        "table_3": 8,
+    }
+
+    # test truncate multiple
+    fs_client.truncate_tables(["table_1", "table_3"])
+    assert load_table_counts(p, "table_1", "table_2", "table_3") == {"table_2": 21}
