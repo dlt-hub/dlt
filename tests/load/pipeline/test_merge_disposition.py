@@ -239,10 +239,17 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
+# mark as essential for now
+@pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
 )
 def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -> None:
+    # NOTE: we can test filesystem destination merge behavior here too, will also fallback!
+    if destination_config.file_format == "insert_values":
+        pytest.skip("Insert values row count checking is buggy, skipping")
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
     # remove all keys
@@ -263,8 +270,8 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    # only ten rows remains. merge falls back to replace when no keys are specified
-    assert github_1_counts["issues"] == 10 if destination_config.supports_merge else 100 - 45
+    # we have 10 rows more, merge falls back to append if no keys present
+    assert github_1_counts["issues"] == 100 - 45 + 10
 
 
 @pytest.mark.parametrize(
@@ -290,14 +297,14 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     if not destination_config.supports_merge:
         return
 
-    # all the keys are invalid so the merge falls back to replace
+    # all the keys are invalid so the merge falls back to append
     github_data = github()
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
     github_data.load_issues.add_filter(take_first(1))
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_2_counts["issues"] == 1
+    assert github_2_counts["issues"] == 100 - 45 + 1
     with p._sql_job_client(p.default_schema) as job_c:
         _, table_schema = job_c.get_storage_table("issues")
         assert "url" in table_schema
@@ -588,8 +595,10 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("key_type", ["primary_key", "merge_key"])
+@pytest.mark.parametrize("key_type", ["primary_key", "merge_key", "no_key"])
 def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
+    # no_key setting will have the effect that hard deletes have no effect, since hard delete records
+    # can not be matched
     table_name = "test_hard_delete_hint"
 
     @dlt.resource(
@@ -604,6 +613,9 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         data_resource.apply_hints(primary_key="id", merge_key="")
     elif key_type == "merge_key":
         data_resource.apply_hints(primary_key="", merge_key="id")
+    elif key_type == "no_key":
+        # we test what happens if there are no merge keys
+        pass
 
     p = destination_config.setup_pipeline(f"abstract_{key_type}", full_refresh=True)
 
@@ -622,7 +634,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     ]
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name)[table_name] == (1 if key_type != "no_key" else 2)
 
     # update one record (None for hard_delete column is treated as "not True")
     data = [
@@ -630,16 +642,17 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     ]
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name)[table_name] == (1 if key_type != "no_key" else 3)
 
     # compare observed records with expected records
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
-    observed = [
-        {"id": row[0], "val": row[1], "deleted": row[2]}
-        for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
-    ]
-    expected = [{"id": 2, "val": "baz", "deleted": None}]
-    assert sorted(observed, key=lambda d: d["id"]) == expected
+    if key_type != "no_key":
+        qual_name = p.sql_client().make_qualified_table_name(table_name)
+        observed = [
+            {"id": row[0], "val": row[1], "deleted": row[2]}
+            for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
+        ]
+        expected = [{"id": 2, "val": "baz", "deleted": None}]
+        assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # insert two records with same key
     data = [
@@ -653,6 +666,12 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         assert counts == 2
     elif key_type == "merge_key":
         assert counts == 3
+    elif key_type == "no_key":
+        assert counts == 5
+
+    # we do not need to test "no_key" further
+    if key_type == "no_key":
+        return
 
     # delete one key, resulting in one (primary key) or two (merge key) deleted records
     data = [
