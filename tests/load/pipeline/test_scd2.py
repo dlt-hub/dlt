@@ -2,9 +2,10 @@
 
 import pytest
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone  # noqa: I251
+from datetime import date, datetime, timezone  # noqa: I251
 
 import dlt
+from dlt.common.typing import TAnyDateTime
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.exceptions import ColumnNameConflictException
@@ -498,6 +499,48 @@ def test_validity_column_name_conflict(destination_config: DestinationTestConfig
     with pytest.raises(PipelineStepFailed):
         p.run(r(dim_snap), loader_file_format=destination_config.file_format)
     assert isinstance(pip_ex.value.__context__.__context__, ColumnNameConflictException)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "active_record_timestamp",
+    [
+        date(9999, 12, 31),
+        datetime(9999, 12, 31),
+        pendulum.Date(9999, 12, 31),
+        pendulum.DateTime(9999, 12, 31),
+        "9999-12-31",
+        "9999-12-31T00:00:00",
+        "9999-12-31T00:00:00+00:00",
+        "9999-12-31T00:00:00+01:00",
+    ],
+)
+def test_active_record_timestamp(
+    destination_config: DestinationTestConfiguration,
+    active_record_timestamp: Optional[TAnyDateTime],
+) -> None:
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+
+    @dlt.resource(
+        table_name="dim_test",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "active_record_timestamp": active_record_timestamp,
+        },
+    )
+    def r():
+        yield {"foo": "bar"}
+
+    p.run(r())
+    actual_active_record_timestamp = ensure_pendulum_datetime(
+        load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
+    )
+    assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
 
 
 @pytest.mark.parametrize(

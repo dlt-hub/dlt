@@ -17,7 +17,7 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder
+from dlt.common.typing import TSortOrder, TAnyDateTime
 from dlt.common.pendulum import pendulum
 
 try:
@@ -171,7 +171,7 @@ class TWriteDispositionDict(TypedDict):
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
-    active_record_timestamp: Optional[pendulum.DateTime]
+    active_record_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 
