@@ -325,7 +325,7 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
             "table_2": 4,
             "table_3": 6,
         }
-    pipeline.fs_client().truncate_tables(["table_1", "table_3"])
+    pipeline._fs_client().truncate_tables(["table_1", "table_3"])
     if ".{ext}{timestamp}" not in layout:
         assert load_table_counts(pipeline, "table_1", "table_2", "table_3") == {"table_2": 4}
 
@@ -521,7 +521,7 @@ def test_client_methods(
     p.run([table_1(), table_2()])
     p.run([table_1()])
 
-    fs_client = p.fs_client()
+    fs_client = p._fs_client()
     t1_files = fs_client.list_table_files("table_1")
     t2_files = fs_client.list_table_files("table_2")
     assert len(t1_files) == 3

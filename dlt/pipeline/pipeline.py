@@ -958,15 +958,17 @@ class Pipeline(SupportsPipeline):
         schema = self._get_schema_or_create(schema_name)
         return self._sql_job_client(schema, credentials).sql_client
 
-    def fs_client(self, schema_name: str = None, credentials: Any = None) -> FSClientBase:
-        """Returns a filesystem client configured to point to the right folder / bucket for each table. For example
-        you may read all parquet files as bytes for one table with the following code:
-        >>> files = pipeline.fs_client.list_table_files("customers")
+    def _fs_client(self, schema_name: str = None, credentials: Any = None) -> FSClientBase:
+        """Returns a filesystem client configured to point to the right folder / bucket for each table.
+        For example you may read all parquet files as bytes for one table with the following code:
+        >>> files = pipeline._fs_client.list_table_files("customers")
         >>> for file in files:
         >>>     file_bytes = pipeline.fs_client.read_bytes(file)
         >>>     # now you can read them into a pyarrow table for example
         >>>     import pyarrow.parquet as pq
         >>>     table = pq.read_table(io.BytesIO(file_bytes))
+        NOTE: This currently is considered a private endpoint and will become stable after we have decided on the
+        interface of FSClientBase.
         """
         client = self.destination_client(schema_name, credentials)
         if isinstance(client, FSClientBase):

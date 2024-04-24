@@ -157,7 +157,7 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 #
 def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
-    client = p.fs_client()
+    client = p._fs_client()
     result: Dict[str, Any] = {}
 
     for table_name in table_names:
@@ -272,7 +272,7 @@ def _assert_table_fs(
     info: LoadInfo = None,
 ) -> None:
     """Assert table is loaded to filesystem destination"""
-    client = p.fs_client()
+    client = p._fs_client()
     # assumes that each table has a folder
     files = client.list_table_files(table_name)
     # glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.table_prefix_layout.format(schema_name=schema_name, table_name=table_name)}/*'))
