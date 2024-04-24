@@ -142,26 +142,31 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
             for table_name in truncate_tables:
                 logger.info(f"Will truncate table {table_name}")
-                for table_file in self.list_table_files(table_name):
-                    # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                    # print(f"DEL {item}")
-                    try:
-                        # NOTE: must use rm_file to get errors on delete
-                        self.fs_client.rm_file(table_file)
-                    except NotImplementedError:
-                        # not all filesystem implement the above
-                        self.fs_client.rm(table_file)
-                        if self.fs_client.exists(table_file):
-                            raise FileExistsError(table_file)
-                    except FileNotFoundError:
-                        logger.info(
-                            f"Directory or path to truncate tables {table_name} does not exist but"
-                            " it should have been created previously!"
-                        )
+                self.truncate_table(table_name)
 
         # we mark the storage folder as initialized
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(posixpath.join(self.dataset_path, INIT_FILE_NAME))
+
+
+    def truncate_table(self, table_name: str) -> None:
+        """Truncate table with given name"""
+        for table_file in self.list_table_files(table_name):
+            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+            # print(f"DEL {item}")
+            try:
+                # NOTE: must use rm_file to get errors on delete
+                self.fs_client.rm_file(table_file)
+            except NotImplementedError:
+                # not all filesystem implement the above
+                self.fs_client.rm(table_file)
+                if self.fs_client.exists(table_file):
+                    raise FileExistsError(table_file)
+            except FileNotFoundError:
+                logger.info(
+                    f"Directory or path to truncate tables {table_name} does not exist but"
+                    " it should have been created previously!"
+                )
 
     def update_stored_schema(
         self,
