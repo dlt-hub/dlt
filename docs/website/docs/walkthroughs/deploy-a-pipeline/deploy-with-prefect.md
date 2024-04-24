@@ -8,9 +8,9 @@ keywords: [how to, deploy a pipeline, Prefect]
 
 ## Introduction to Prefect
 
-![Prefect Flow Run](images/prefect-flow-run.png)
-
 Prefect is a workflow orchestration and observability platform that automates and orchestrates data pipelines. As an open-source platform, it offers a framework for defining, scheduling, and executing tasks with dependencies. It enables users to observe, maintain, and scale their data workflows efficiently.
+
+![Prefect Flow Run](images/prefect-flow-run.png)
 
 ### Prefect features
 
