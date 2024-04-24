@@ -14,7 +14,6 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
-    DEFAULT_ACTIVE_RECORD_LITERAL_TYPE,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -444,9 +443,7 @@ class DltResourceHints:
                     "data_type": "timestamp",
                     "nullable": True,
                     "x-valid-to": True,
-                    "x-active-record-literal-type": mddict.get(
-                        "active_record_literal_type", DEFAULT_ACTIVE_RECORD_LITERAL_TYPE
-                    ),
+                    "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
                 hash_ = mddict.get("row_version_column_name", "_dlt_id")
                 dict_["columns"][hash_] = {

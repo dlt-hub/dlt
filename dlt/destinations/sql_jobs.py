@@ -13,7 +13,7 @@ from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
     get_validity_column_names,
-    get_active_record_literal_type,
+    get_active_record_timestamp,
     DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
@@ -23,10 +23,6 @@ from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.pipeline.current import load_package as current_load_package
-
-
-HIGH_TS = pendulum.datetime(9999, 12, 31)
-"""High timestamp used to indicate active records in `scd2` merge strategy."""
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -538,12 +534,14 @@ class SqlMergeJob(SqlBaseJob):
             current_load_package()["state"]["created_at"],
             caps.timestamp_precision,
         )
-        active_record_literal_type = get_active_record_literal_type(root_table)
-        if active_record_literal_type == "null":
+        active_record_timestamp = get_active_record_timestamp(root_table)
+        if active_record_timestamp is None:
             active_record_literal = "NULL"
             is_active_clause = f"{to} IS NULL"
-        elif active_record_literal_type == "high_timestamp":
-            active_record_literal = format_datetime_literal(HIGH_TS, caps.timestamp_precision)
+        else:  # it's a datetime
+            active_record_literal = format_datetime_literal(
+                active_record_timestamp, caps.timestamp_precision
+            )
             is_active_clause = f"{to} = {active_record_literal}"
 
         # retire updated and deleted records

@@ -5,13 +5,13 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone  # noqa: I251
 
 import dlt
+from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.exceptions import ColumnNameConflictException
-from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES, TActiveRecordLiteralType
+from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
-from dlt.destinations.sql_jobs import HIGH_TS
 from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -27,21 +27,6 @@ from tests.utils import TPythonTableFormat
 get_row_hash = DataItemNormalizer.get_row_hash
 
 
-def get_active_record_literal(
-    active_record_literal_type: TActiveRecordLiteralType = "null",
-    pipeline: dlt.Pipeline = None,
-) -> Optional[datetime]:
-    def get_active_ts(pipeline: dlt.Pipeline) -> datetime:
-        caps = pipeline._get_destination_capabilities()
-        active_ts = HIGH_TS.in_timezone(tz="UTC").replace(tzinfo=None)
-        return reduce_pendulum_datetime_precision(active_ts, caps.timestamp_precision)
-
-    if active_record_literal_type == "null":
-        return None
-    elif active_record_literal_type == "high_timestamp":
-        return get_active_ts(pipeline)
-
-
 def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> datetime:
     """Returns `created_at` property of load package state."""
     load_id = load_info.asdict()["loads_ids"][0]
@@ -54,19 +39,15 @@ def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> 
     return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
 
 
-def strip_timezone(ts: datetime) -> datetime:
-    """Converts timezone of datetime object to UTC and removes timezone awareness."""
-    ts = ensure_pendulum_datetime(ts)
-    if ts.replace(tzinfo=None) == HIGH_TS:
-        return ts.replace(tzinfo=None)
-    else:
-        return ts.astimezone(tz=timezone.utc).replace(tzinfo=None)
-
-
 def get_table(
     pipeline: dlt.Pipeline, table_name: str, sort_column: str, include_root_id: bool = True
 ) -> List[Dict[str, Any]]:
     """Returns destination table contents as list of dictionaries."""
+
+    def strip_timezone(ts: datetime) -> datetime:
+        """Converts timezone of datetime object to UTC and removes timezone awareness."""
+        return ensure_pendulum_datetime(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
+
     return sorted(
         [
             {
@@ -91,22 +72,22 @@ def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str,
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config,simple,validity_column_names,active_record_literal_type",
+    "destination_config,simple,validity_column_names,active_record_timestamp",
     # test basic cases for alle SQL destinations supporting merge
     [
-        (dconf, True, None, "null")
+        (dconf, True, None, None)
         for dconf in destinations_configs(default_sql_configs=True, supports_merge=True)
     ]
     + [
-        (dconf, True, None, "high_timestamp")
+        (dconf, True, None, pendulum.DateTime(3234, 12, 31, 22, 2, 59))  # arbitrary timestamp
         for dconf in destinations_configs(default_sql_configs=True, supports_merge=True)
     ]
     + [  # test nested columns and validity column name configuration only for postgres and duckdb
-        (dconf, False, ["from", "to"], "null")
+        (dconf, False, ["from", "to"], None)
         for dconf in destinations_configs(default_sql_configs=True, subset=["postgres", "duckdb"])
     ]
     + [
-        (dconf, False, ["ValidFrom", "ValidTo"], "null")
+        (dconf, False, ["ValidFrom", "ValidTo"], None)
         for dconf in destinations_configs(default_sql_configs=True, subset=["postgres", "duckdb"])
     ],
     ids=lambda x: (
@@ -119,7 +100,7 @@ def test_core_functionality(
     destination_config: DestinationTestConfiguration,
     simple: bool,
     validity_column_names: List[str],
-    active_record_literal_type: TActiveRecordLiteralType,
+    active_record_timestamp: Optional[pendulum.DateTime],
 ) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
@@ -129,7 +110,7 @@ def test_core_functionality(
             "disposition": "merge",
             "strategy": "scd2",
             "validity_column_names": validity_column_names,
-            "active_record_literal_type": active_record_literal_type,
+            "active_record_timestamp": active_record_timestamp,
         },
     )
     def r(data):
@@ -154,7 +135,6 @@ def test_core_functionality(
     assert table["x-merge-strategy"] == "scd2"  # type: ignore[typeddict-item]
     assert table["columns"][from_]["x-valid-from"]  # type: ignore[typeddict-item]
     assert table["columns"][to]["x-valid-to"]  # type: ignore[typeddict-item]
-    assert table["columns"][to]["x-active-record-literal-type"] == active_record_literal_type  # type: ignore[typeddict-item]
     assert table["columns"]["_dlt_id"]["x-row-version"]  # type: ignore[typeddict-item]
     # _dlt_id is still unique
     assert table["columns"]["_dlt_id"]["unique"]
@@ -166,14 +146,14 @@ def test_core_functionality(
     assert get_table(p, "dim_test", cname) == [
         {
             from_: ts_1,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 2,
             "c1": "bar",
             cname: "bar",
         },
         {
             from_: ts_1,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 1,
             "c1": "foo",
             cname: "foo",
@@ -191,7 +171,7 @@ def test_core_functionality(
     assert get_table(p, "dim_test", cname) == [
         {
             from_: ts_1,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 2,
             "c1": "bar",
             cname: "bar",
@@ -199,7 +179,7 @@ def test_core_functionality(
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", cname: "foo"},
         {
             from_: ts_2,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 1,
             "c1": "foo",
             cname: "foo_updated",
@@ -218,7 +198,7 @@ def test_core_functionality(
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", cname: "foo"},
         {
             from_: ts_2,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 1,
             "c1": "foo",
             cname: "foo_updated",
@@ -237,7 +217,7 @@ def test_core_functionality(
         {from_: ts_1, to: ts_3, "nk": 2, "c1": "bar", cname: "bar"},
         {
             from_: ts_4,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 3,
             "c1": "baz",
             cname: "baz",
@@ -245,7 +225,7 @@ def test_core_functionality(
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", cname: "foo"},
         {
             from_: ts_2,
-            to: get_active_record_literal(active_record_literal_type, p),
+            to: active_record_timestamp,
             "nk": 1,
             "c1": "foo",
             cname: "foo_updated",
@@ -280,8 +260,8 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_1 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: get_active_record_literal(), "nk": 2, "c1": "bar"},
-        {from_: ts_1, to: get_active_record_literal(), "nk": 1, "c1": "foo"},
+        {from_: ts_1, to: None, "nk": 2, "c1": "bar"},
+        {from_: ts_1, to: None, "nk": 1, "c1": "foo"},
     ]
     cname = "value" if simple else "cc1"
     assert get_table(p, "dim_test__c2", cname) == [
@@ -299,9 +279,9 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ts_2 = get_load_package_created_at(p, info)
     assert_load_info(info)
     assert get_table(p, "dim_test", "c1") == [
-        {from_: ts_1, to: get_active_record_literal(), "nk": 2, "c1": "bar"},
+        {from_: ts_1, to: None, "nk": 2, "c1": "bar"},
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},  # updated
-        {from_: ts_2, to: get_active_record_literal(), "nk": 1, "c1": "foo_updated"},  # new
+        {from_: ts_2, to: None, "nk": 1, "c1": "foo_updated"},  # new
     ]
     assert_records_as_set(
         get_table(p, "dim_test__c2", cname),
@@ -328,10 +308,10 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     assert_records_as_set(
         get_table(p, "dim_test", "c1"),
         [
-            {from_: ts_1, to: get_active_record_literal(), "nk": 2, "c1": "bar"},
+            {from_: ts_1, to: None, "nk": 2, "c1": "bar"},
             {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
             {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},  # updated
-            {from_: ts_3, to: get_active_record_literal(), "nk": 1, "c1": "foo_updated"},  # new
+            {from_: ts_3, to: None, "nk": 1, "c1": "foo_updated"},  # new
         ],
     )
     exp_3 = [
@@ -357,7 +337,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
             {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},  # updated
             {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
             {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},
-            {from_: ts_3, to: get_active_record_literal(), "nk": 1, "c1": "foo_updated"},
+            {from_: ts_3, to: None, "nk": 1, "c1": "foo_updated"},
         ],
     )
     assert_records_as_set(
@@ -376,10 +356,10 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
         get_table(p, "dim_test", "c1"),
         [
             {from_: ts_1, to: ts_4, "nk": 2, "c1": "bar"},
-            {from_: ts_5, to: get_active_record_literal(), "nk": 3, "c1": "baz"},  # new
+            {from_: ts_5, to: None, "nk": 3, "c1": "baz"},  # new
             {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo"},
             {from_: ts_2, to: ts_3, "nk": 1, "c1": "foo_updated"},
-            {from_: ts_3, to: get_active_record_literal(), "nk": 1, "c1": "foo_updated"},
+            {from_: ts_3, to: None, "nk": 1, "c1": "foo_updated"},
         ],
     )
     assert_records_as_set(
@@ -623,7 +603,7 @@ def test_user_provided_row_hash(destination_config: DestinationTestConfiguration
         {from_: ts_1, to: ts_2, "nk": 1, "c1": "foo", "row_hash": "mocked_hash_1"},
         {
             from_: ts_2,
-            to: get_active_record_literal(),
+            to: None,
             "nk": 1,
             "c1": "foo_upd",
             "row_hash": "mocked_hash_1_upd",
