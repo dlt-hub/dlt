@@ -4,8 +4,10 @@ from typing import Any
 from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    assert_data_table_counts,
 )
+
+from tests.pipeline.utils import assert_data_table_counts
+
 from tests.pipeline.utils import assert_load_info
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -96,7 +98,6 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_switch_to_merge", full_refresh=True
     )
-
 
     @dlt.source()
     def source():

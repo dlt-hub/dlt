@@ -5,9 +5,8 @@ from typing import Iterator, Any
 import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
-from tests.load.pipeline.utils import load_table_counts
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, load_table_counts
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 

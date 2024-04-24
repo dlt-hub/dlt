@@ -21,8 +21,9 @@ from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    load_tables_to_dicts,
 )
+from tests.pipeline.utils import load_tables_to_dicts
+
 from tests.utils import TPythonTableFormat
 
 get_row_hash = DataItemNormalizer.get_row_hash
