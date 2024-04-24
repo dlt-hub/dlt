@@ -79,7 +79,7 @@ class LoadFilesystemJob(LoadJob):
         # It `auto_mkdir` is disabled by default in fsspec so we made some
         # trade offs between different options and decided on this.
         item = self.make_remote_path()
-        if self.config.protocol.startswith("file"):
+        if self.config.protocol == "file":
             fs_client.makedirs(posixpath.dirname(item), exist_ok=True)
 
         fs_client.put_file(local_path, item)
