@@ -104,6 +104,14 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     def rasa_bot_events_with_nesting_lvl_two():
         yield rasa_event_bot_metadata
 
+    all_table_names_for_third_resource = [
+        "third_resource_with_nested_data",
+        "third_resource_with_nested_data__payload__hints",
+        "third_resource_with_nested_data__payload__hints__f_float",
+        "third_resource_with_nested_data__payload__hints__f_float__comments",
+        "third_resource_with_nested_data__params",
+    ]
+
     @dlt.resource
     def third_resource_with_nested_data():  # first top level table `third_resource_with_nested_data`
         yield [
@@ -179,13 +187,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     # expect four tables for resource `third_resource_with_nested_data`
     tables = [tbl for tbl in all_table_names if "third_resource" in tbl]
     assert len(tables) == 5
-    assert tables == [
-        "third_resource_with_nested_data",
-        "third_resource_with_nested_data__payload__hints",
-        "third_resource_with_nested_data__payload__hints__f_float",
-        "third_resource_with_nested_data__payload__hints__f_float__comments",
-        "third_resource_with_nested_data__params",
-    ]
+    assert tables == all_table_names_for_third_resource
 
     # Check scenario #2
     # now we need to check `third_resource_with_nested_data`
@@ -229,13 +231,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
 
     # 5 because payload is a dictionary not a collection of dictionaries
     assert len(all_table_names) == 5
-    assert all_table_names == [
-        "third_resource_with_nested_data",
-        "third_resource_with_nested_data__payload__hints",
-        "third_resource_with_nested_data__payload__hints__f_float",
-        "third_resource_with_nested_data__payload__hints__f_float__comments",
-        "third_resource_with_nested_data__params",
-    ]
+    assert all_table_names == all_table_names_for_third_resource
 
     # Check scenario #3
     pipeline.drop()
@@ -288,3 +284,41 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
         "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
         "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
     ]
+
+    pipeline.drop()
+    rasa_bot_events_resource.max_table_nesting = 10
+    pipeline.run(
+        rasa_bot_events_resource,
+        dataset_name="bot_events",
+        write_disposition="append",
+    )
+    all_table_names = pipeline_schema.data_table_names()
+    count_all_tables_second_run = len(all_table_names)
+    assert count_all_tables_first_run < count_all_tables_second_run
+
+    tables = pipeline_schema.data_table_names()
+    assert count_all_tables_second_run == 8
+    assert tables == [
+        "rasa_bot_events_with_nesting_lvl_one",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__known_recipients",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__target",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__starbucks",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__spend__amazon",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__employer",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__transaction_history__deposit__interest",
+        "rasa_bot_events_with_nesting_lvl_one__metadata__vendor_list",
+    ]
+
+    pipeline.drop()
+    third_resource_with_nested_data.max_table_nesting = 10
+    pipeline.run(
+        third_resource_with_nested_data,
+        write_disposition="append",
+    )
+    all_table_names = pipeline_schema.data_table_names()
+    count_all_tables_second_run = len(all_table_names)
+    assert count_all_tables_first_run < count_all_tables_second_run
+
+    tables = pipeline_schema.data_table_names()
+    assert count_all_tables_second_run == 5
+    assert tables == all_table_names_for_third_resource
