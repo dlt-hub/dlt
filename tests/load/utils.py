@@ -232,6 +232,10 @@ def destinations_configs(
             DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
 
+        # sanity check that when selecting default destinations, one of each sql destination is actually
+        # provided
+        assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
+
     if default_vector_configs:
         # for now only weaviate
         destination_configs += [DestinationTestConfiguration(destination="weaviate")]
