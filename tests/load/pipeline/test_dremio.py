@@ -2,7 +2,7 @@ import pytest
 from typing import Iterator, Any
 
 import dlt
-from tests.load.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
 

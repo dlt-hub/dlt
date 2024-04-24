@@ -17,7 +17,7 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCa
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
-from tests.load.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts
 from tests.utils import TEST_STORAGE_ROOT
 
 
