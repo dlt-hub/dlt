@@ -353,6 +353,14 @@ class JobClientBase(ABC):
                         f'"{table["x-merge-strategy"]}" is not a valid merge strategy. '  # type: ignore[typeddict-item]
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                     )
+                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
+                    table, "merge_key"
+                ):
+                    logger.warning(
+                        f"Table {table_name} has write_disposition set to merge, but no primary or"
+                        " merge keys defined. "
+                        + "dlt will fall back to append for this table."
+                    )
             if has_column_with_prop(table, "hard_delete"):
                 if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                     raise SchemaException(

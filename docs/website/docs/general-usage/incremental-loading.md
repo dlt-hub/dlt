@@ -132,6 +132,12 @@ def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "
     yield from _get_rest_pages("events")
 ```
 
+:::note
+If you use the `merge` write disposition, but do not specify merge or primary keys, merge will fallback to `append`.
+The appended data will be inserted from a staging table in one transaction for most destinations in this case.
+:::
+
+
 #### Delete records
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded

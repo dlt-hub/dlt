@@ -29,29 +29,13 @@ from tests.load.pipeline.utils import (
 skip_if_not_active("filesystem")
 
 
-def assert_file_matches(
-    layout: str, job: LoadJobInfo, load_id: str, client: FilesystemClient
-) -> None:
-    """Verify file contents of load job are identical to the corresponding file in destination"""
-    local_path = Path(job.file_path)
-    filename = local_path.name
-    destination_fn = create_path(
-        layout,
-        filename,
-        client.schema.name,
-        load_id,
-        extra_placeholders=client.config.extra_placeholders,
-    )
-    destination_path = posixpath.join(client.dataset_path, destination_fn)
-
-    assert local_path.read_bytes() == client.fs_client.read_bytes(destination_path)
-
-
 def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     """Run pipeline twice with merge write disposition
-    Resource with primary key falls back to append. Resource without keys falls back to replace.
+    Regardless wether primary key is set or not, filesystem appends
     """
     import pyarrow.parquet as pq  # Module is evaluated by other tests
+
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
     pipeline = dlt.pipeline(
         pipeline_name="test_" + uniq_id(),
@@ -71,54 +55,25 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     def some_source():
         return [some_data(), other_data()]
 
-    info1 = pipeline.run(some_source(), write_disposition="merge")
-    info2 = pipeline.run(some_source(), write_disposition="merge")
+    pipeline.run(some_source(), write_disposition="merge")
+    assert load_table_counts(pipeline, "some_data", "other_data") == {
+        "some_data": 3,
+        "other_data": 5,
+    }
 
-    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
-    layout = client.config.layout
+    # second load shows that merge always appends on filesystem
+    pipeline.run(some_source(), write_disposition="merge")
+    assert load_table_counts(pipeline, "some_data", "other_data") == {
+        "some_data": 6,
+        "other_data": 10,
+    }
 
-    append_glob = list(client._get_table_dirs(["some_data"]))[0]
-    replace_glob = list(client._get_table_dirs(["other_data"]))[0]
-
-    append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
-    replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
-
-    load_id1 = info1.loads_ids[0]
-    load_id2 = info2.loads_ids[0]
-
-    # resource with pk is loaded with append and has 1 copy for each load
-    assert len(append_files) == 2
-    assert any(load_id1 in fn for fn in append_files)
-    assert any(load_id2 in fn for fn in append_files)
-
-    # resource without pk is treated as append disposition
-    assert len(replace_files) == 2
-    assert any(load_id1 in fn for fn in replace_files)
-    assert any(load_id2 in fn for fn in replace_files)
-
-    # Verify file contents
-    assert info2.load_packages
-    for pkg in info2.load_packages:
-        assert pkg.jobs["completed_jobs"]
-        for job in pkg.jobs["completed_jobs"]:
-            assert_file_matches(layout, job, pkg.load_id, client)
-
-    complete_fn = f"{client.schema.name}__%s.jsonl"
-
-    # Test complete_load markers are saved
-    assert client.fs_client.isfile(
-        posixpath.join(client.dataset_path, client.schema.loads_table_name, complete_fn % load_id1)
-    )
-    assert client.fs_client.isfile(
-        posixpath.join(client.dataset_path, client.schema.loads_table_name, complete_fn % load_id2)
-    )
-
-    # Force replace
+    # Force replace, back to initial values
     pipeline.run(some_source(), write_disposition="replace")
-    append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
-    replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
-    assert len(append_files) == 1
-    assert len(replace_files) == 1
+    assert load_table_counts(pipeline, "some_data", "other_data") == {
+        "some_data": 3,
+        "other_data": 5,
+    }
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
