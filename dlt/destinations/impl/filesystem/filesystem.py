@@ -74,6 +74,8 @@ class LoadFilesystemJob(LoadJob):
             extra_placeholders=config.extra_placeholders,
         )
         item = self.make_remote_path()
+        if self.config.protocol == "file":
+            fs_client.makedirs(posixpath.dirname(item), exist_ok=True)
         fs_client.put_file(local_path, item)
 
     def make_remote_path(self) -> str:

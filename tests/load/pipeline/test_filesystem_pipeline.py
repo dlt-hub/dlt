@@ -447,7 +447,7 @@ def test_knows_dataset_state(destination_config: DestinationTestConfiguration) -
     [
         "{table_name}/{load_id}.{file_id}.{ext}",
         "{schema_name}/other_folder/{table_name}-{load_id}.{file_id}.{ext}",
-        "{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}"
+        "{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}",
     ],
 )  # we need a layout where the table has its own folder and one where it does not
 def test_state_with_simple_incremental(
