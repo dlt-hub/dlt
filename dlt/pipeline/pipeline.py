@@ -107,6 +107,7 @@ from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
@@ -120,6 +121,7 @@ from dlt.pipeline.exceptions import (
     PipelineNotActive,
     PipelineStepFailed,
     SqlClientNotAvailable,
+    FSClientNotAvailable,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
@@ -955,6 +957,21 @@ class Pipeline(SupportsPipeline):
         #     )
         schema = self._get_schema_or_create(schema_name)
         return self._sql_job_client(schema, credentials).sql_client
+
+    def fs_client(self, schema_name: str = None, credentials: Any = None) -> FSClientBase:
+        """Returns a filesystem client configured to point to the right folder / bucket for each table. For example
+        you may read all parquet files as bytes for one table with the following code:
+        >>> files = pipeline.fs_client.list_table_files("customers")
+        >>> for file in files:
+        >>>     file_bytes = pipeline.fs_client.read_bytes(file)
+        >>>     # now you can read them into a pyarrow table for example
+        >>>     import pyarrow.parquet as pq
+        >>>     table = pq.read_table(io.BytesIO(file_bytes))
+        """
+        client = self.destination_client(schema_name, credentials)
+        if isinstance(client, FSClientBase):
+            return client
+        raise FSClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
     def destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
         """Get the destination job client for the configured destination

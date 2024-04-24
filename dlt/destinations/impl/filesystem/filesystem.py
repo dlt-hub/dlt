@@ -33,7 +33,7 @@ from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
-
+from dlt.destinations.fs_client import FSClientBase
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
@@ -99,7 +99,7 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
         return jobs
 
 
-class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
+class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStateSync):
     """filesystem client storing jobs in memory"""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -140,7 +140,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         if truncate_tables and self.fs_client.isdir(self.dataset_path):
             # get all dirs with table data to delete. the table data are guaranteed to be files in those folders
             # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
-            truncated_dirs = self._get_table_dirs(truncate_tables)
+            truncated_dirs = self.get_table_dirs(truncate_tables)
             # print(f"TRUNCATE {truncated_dirs}")
             truncate_prefixes: Set[str] = set()
             for table in truncate_tables:
@@ -190,7 +190,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     ) -> TSchemaTables:
         # create destination dirs for all tables
         table_names = only_tables or self.schema.tables.keys()
-        dirs_to_create = self._get_table_dirs(table_names)
+        dirs_to_create = self.get_table_dirs(table_names)
         for tables_name, directory in zip(table_names, dirs_to_create):
             self.fs_client.makedirs(directory, exist_ok=True)
             # we need to mark the folders of the data tables as initialized
@@ -203,21 +203,29 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
         return expected_update
 
-    def _get_table_dirs(self, table_names: Iterable[str]) -> List[str]:
+    def get_table_dir(self, table_name: str) -> str:
+        # dlt tables do not respect layout (for now)
+        if table_name in self.schema.dlt_table_names():
+            table_prefix = posixpath.join(table_name, "")
+        else:
+            table_prefix = self.table_prefix_layout.format(
+                schema_name=self.schema.name, table_name=table_name
+            )
+        destination_dir = posixpath.join(self.dataset_path, table_prefix)
+        return posixpath.dirname(destination_dir)
+
+    def get_table_dirs(self, table_names: Iterable[str]) -> List[str]:
         """Gets directories where table data is stored."""
-        table_dirs: List[str] = []
-        for table_name in table_names:
-            # dlt tables do not respect layout (for now)
-            if table_name in self.schema.dlt_table_names():
-                table_prefix = posixpath.join(table_name, "")
-            else:
-                table_prefix = self.table_prefix_layout.format(
-                    schema_name=self.schema.name, table_name=table_name
-                )
-            destination_dir = posixpath.join(self.dataset_path, table_prefix)
-            # extract the path component
-            table_dirs.append(posixpath.dirname(destination_dir))
-        return table_dirs
+        return [self.get_table_dir(t) for t in table_names]
+
+    def list_table_files(self, table_name: str) -> List[str]:
+        """gets list of files associated with one table"""
+        table_dir = self.get_table_dir(table_name)
+        result = []
+        for current_dir, _dirs, files in self.fs_client.walk(table_dir, detail=False, refresh=True):
+            for file in files:
+                result.append(posixpath.join(current_dir, file))
+        return result
 
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(posixpath.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
@@ -266,10 +274,11 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         """for base64 strings"""
         return base64.b64decode(s).hex() if s else None
 
-    def _list_dlt_dir(self, dirname: str) -> Iterator[Tuple[str, List[str]]]:
+    def _list_dlt_table_files(self, table_name: str) -> Iterator[Tuple[str, List[str]]]:
+        dirname = self.get_table_dir(table_name)
         if not self.fs_client.exists(posixpath.join(dirname, INIT_FILE_NAME)):
             raise DestinationUndefinedEntity({"dir": dirname})
-        for filepath in self.fs_client.ls(dirname, detail=False, refresh=True):
+        for filepath in self.list_table_files(table_name):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             fileparts = filename.split(FILENAME_SEPARATOR)
             if len(fileparts) != 3:
@@ -305,8 +314,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     def _get_state_file_name(self, pipeline_name: str, version_hash: str, load_id: str) -> str:
         """gets full path for schema file for a given hash"""
         return posixpath.join(
-            self.dataset_path,
-            self.schema.state_table_name,
+            self.get_table_dir(self.schema.state_table_name),
             f"{pipeline_name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
         )
 
@@ -332,13 +340,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
         self._write_to_json_file(hash_path, cast(DictStrAny, pipeline_state_doc))
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
-        # get base dir
-        dirname = posixpath.dirname(self._get_state_file_name(pipeline_name, "", ""))
-
         # search newest state
         selected_path = None
         newest_load_id = "0"
-        for filepath, fileparts in self._list_dlt_dir(dirname):
+        for filepath, fileparts in self._list_dlt_table_files(self.schema.state_table_name):
             if fileparts[0] == pipeline_name and fileparts[1] > newest_load_id:
                 newest_load_id = fileparts[1]
                 selected_path = filepath
@@ -357,9 +362,9 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
 
     def _get_schema_file_name(self, version_hash: str, load_id: str) -> str:
         """gets full path for schema file for a given hash"""
+
         return posixpath.join(
-            self.dataset_path,
-            self.schema.version_table_name,
+            self.get_table_dir(self.schema.version_table_name),
             f"{self.schema.name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
         )
 
@@ -368,11 +373,10 @@ class FilesystemClient(JobClientBase, WithStagingDataset, WithStateSync):
     ) -> Optional[StorageSchemaInfo]:
         """Get the schema by supplied hash, falls back to getting the newest version matching the existing schema name"""
         version_hash = self._to_path_safe_string(version_hash)
-        dirname = posixpath.dirname(self._get_schema_file_name("", ""))
         # find newest schema for pipeline or by version hash
         selected_path = None
         newest_load_id = "0"
-        for filepath, fileparts in self._list_dlt_dir(dirname):
+        for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
             if (
                 not version_hash
                 and fileparts[0] == self.schema.name

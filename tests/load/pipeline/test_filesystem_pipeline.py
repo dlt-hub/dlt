@@ -78,8 +78,8 @@ def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
     layout = client.config.layout
 
-    append_glob = list(client._get_table_dirs(["some_data"]))[0]
-    replace_glob = list(client._get_table_dirs(["other_data"]))[0]
+    append_glob = client.get_table_dir("some_data")
+    replace_glob = client.get_table_dir("other_data")
 
     append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
     replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)

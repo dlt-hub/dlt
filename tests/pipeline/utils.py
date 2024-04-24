@@ -11,7 +11,7 @@ from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.destinations.fs_client import FSClientBase
 
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -97,7 +97,7 @@ def _is_filesystem(p: dlt.Pipeline) -> bool:
     return p.destination.destination_name == "filesystem"
 
 
-def _load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
+def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
     """
     util function to load a filesystem destination file and return parsed content
     values may not be cast to the right type, especially for insert_values, please
@@ -106,25 +106,21 @@ def _load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any
     result: List[Dict[str, Any]] = []
 
     # check if this is a file we want to read
-    file_name_items = file.split(".")
+    file_name_items = filepath.split(".")
     ext = file_name_items[-1]
     if ext not in ["jsonl", "insert_values", "parquet"]:
-        return "skip", []
-
-    # table name will be last element of path
-    table_name = path.split("/")[-1]
-    full_path = posixpath.join(path, file)
+        return []
 
     # load jsonl
     if ext == "jsonl":
-        file_text = fs_client.read_text(full_path)
+        file_text = client.read_text(filepath)
         for line in file_text.split("\n"):
             if line:
                 result.append(json.loads(line))
 
     # load insert_values (this is a bit volatile if the exact format of the source file changes)
     elif ext == "insert_values":
-        file_text = fs_client.read_text(full_path)
+        file_text = client.read_text(filepath)
         lines = file_text.split("\n")
         cols = lines[0][15:-2].split(",")
         for line in lines[2:]:
@@ -136,7 +132,7 @@ def _load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any
     elif ext == "parquet":
         import pyarrow.parquet as pq
 
-        file_bytes = fs_client.read_bytes(full_path)
+        file_bytes = client.read_bytes(filepath)
         table = pq.read_table(io.BytesIO(file_bytes))
         cols = table.column_names
         count = 0
@@ -151,7 +147,7 @@ def _load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any
                 item_count += 1
             count += 1
 
-    return table_name, result
+    return result
 
 
 #
@@ -159,15 +155,13 @@ def _load_file(fs_client, path: str, file: str) -> Tuple[str, List[Dict[str, Any
 #
 def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
-    client: FilesystemClient = p.destination_client()  # type: ignore[assignment]
+    client = p.fs_client()
     result: Dict[str, Any] = {}
-    for basedir, _dirs, files in client.fs_client.walk(
-        client.dataset_path, detail=False, refresh=True
-    ):
-        for file in files:
-            table_name, items = _load_file(client.fs_client, basedir, file)
-            if table_name not in table_names:
-                continue
+
+    for table_name in table_names:
+        table_files = client.list_table_files(table_name)
+        for file in table_files:
+            items = _load_file(client, file)
             if table_name in result:
                 result[table_name] = result[table_name] + items
             else:
@@ -247,6 +241,7 @@ def assert_data_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny) -> No
 # TODO: migrate to be able to do full assertions on filesystem too, should be possible
 #
 
+
 def _assert_table_sql(
     p: dlt.Pipeline,
     table_name: str,
@@ -275,16 +270,15 @@ def _assert_table_fs(
     info: LoadInfo = None,
 ) -> None:
     """Assert table is loaded to filesystem destination"""
-    client: FilesystemClient = p.destination_client(schema_name)  # type: ignore[assignment]
-    # get table directory
-    table_dir = list(client._get_table_dirs([table_name]))[0]
+    client = p.fs_client()
     # assumes that each table has a folder
-    files = client.fs_client.ls(table_dir, detail=False, refresh=True)
+    files = client.list_table_files(table_name)
     # glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.table_prefix_layout.format(schema_name=schema_name, table_name=table_name)}/*'))
     assert len(files) >= 1
     assert client.fs_client.isfile(files[0])
     # TODO: may verify that filesize matches load package size
     assert client.fs_client.size(files[0]) > 0
+
 
 def assert_table(
     p: dlt.Pipeline,
@@ -295,7 +289,6 @@ def assert_table(
 ) -> None:
     func = _assert_table_fs if _is_filesystem(p) else _assert_table_sql
     func(p, table_name, table_data, schema_name, info)
-
 
 
 def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
