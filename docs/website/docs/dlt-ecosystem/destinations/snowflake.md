@@ -50,6 +50,11 @@ The `application` field enables Snowflake Support Engineers (SE) to offer target
 It is set to `dltHub_dlt` by default, if you prefer not to share the application ID for privacy or other reasons,
 just set `application` to an empty string (`""`) will prevent this information from being sent to Snowflake
 or simply you can take advantage of this as well by setting your own value.
+:::note
+The `application` field enables Snowflake to identify details about connections made to
+Snowflake instances. Snowflake will use this identifier to better understand the usage patterns
+associated with specific partner integrations. It is set to `dltHub_dlt` by default, if you prefer not to share the application ID,
+just set `application` to an empty string (`""`).
 :::
 
 ### Setup the database user and permissions
