@@ -6,8 +6,8 @@ keywords: [Snowflake, destination, data warehouse]
 
 # Snowflake
 
-## Install dlt with Snowflake
-**To install the dlt library with Snowflake dependencies, run:**
+## Install `dlt` with Snowflake
+**To install the `dlt` library with Snowflake dependencies, run:**
 ```sh
 pip install dlt[snowflake]
 ```
@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ```
 This will install `dlt` with the `snowflake` extra, which contains the Snowflake Python dbapi client.
 
-**3. Create a new database, user, and give dlt access.**
+**3. Create a new database, user, and give `dlt` access.**
 
 Read the next chapter below.
 
@@ -39,18 +39,10 @@ username = "loader"
 host = "kgiotue-wn98412"
 warehouse = "COMPUTE_WH"
 role = "DLT_LOADER_ROLE"
-application = "dltHub_dlt"
 ```
 In the case of Snowflake, the **host** is your [Account Identifier](https://docs.snowflake.com/en/user-guide/admin-account-identifier). You can get it in **Admin**/**Accounts** by copying the account URL: https://kgiotue-wn98412.snowflakecomputing.com and extracting the host name (**kgiotue-wn98412**).
 
 The **warehouse** and **role** are optional if you assign defaults to your user. In the example below, we do not do that, so we set them explicitly.
-
-:::note
-The `application` field enables Snowflake to identify details about connections made to
-Snowflake instances. Snowflake will use this identifier to better understand the usage patterns
-associated with specific partner integrations. It is set to `dltHub_dlt` by default, if you prefer not to share the application ID,
-just set `application` to an empty string (`""`).
-:::
 
 ### Setup the database user and permissions
 The instructions below assume that you use the default account setup that you get after creating a Snowflake account. You should have a default warehouse named **COMPUTE_WH** and a Snowflake account. Below, we create a new database, user, and assign permissions. The permissions are very generous. A more experienced user can easily reduce `dlt` permissions to just one schema in the database.
@@ -64,7 +56,7 @@ CREATE ROLE DLT_LOADER_ROLE;
 GRANT ROLE DLT_LOADER_ROLE TO USER loader;
 -- give database access to new role
 GRANT USAGE ON DATABASE dlt_data TO DLT_LOADER_ROLE;
--- allow dlt to create new schemas
+-- allow `dlt` to create new schemas
 GRANT CREATE SCHEMA ON DATABASE dlt_data TO ROLE DLT_LOADER_ROLE
 -- allow access to a warehouse named COMPUTE_WH
 GRANT USAGE ON WAREHOUSE COMPUTE_WH TO DLT_LOADER_ROLE;
@@ -150,22 +142,22 @@ Names of tables and columns in [schemas](../../general-usage/schema.md) are kept
 
 ## Staging support
 
-Snowflake supports S3 and GCS as file staging destinations. dlt will upload files in the parquet format to the bucket provider and will ask Snowflake to copy their data directly into the db.
+Snowflake supports S3 and GCS as file staging destinations. `dlt` will upload files in the parquet format to the bucket provider and will ask Snowflake to copy their data directly into the db.
 
 Alternatively to parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
 ### Snowflake and Amazon S3
 
-Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the dlt Redshift loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
+Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For S3, the `dlt` Redshift loader will use the AWS credentials provided for S3 to access the S3 bucket if not specified otherwise (see config options below). Alternatively, you can create a stage for your S3 Bucket by following the instructions provided in the [Snowflake S3 documentation](https://docs.snowflake.com/en/user-guide/data-load-s3-config-storage-integration).
 The basic steps are as follows:
 
 * Create a storage integration linked to GCS and the right bucket
 * Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
 * Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
 * Also grant access to this stage for the role you are using to load data into Snowflake.
-* Provide the name of your stage (including the namespace) to dlt like so:
+* Provide the name of your stage (including the namespace) to `dlt` like so:
 
-To prevent dlt from forwarding the S3 bucket credentials on every command, and set your S3 stage, change these settings:
+To prevent `dlt` from forwarding the S3 bucket credentials on every command, and set your S3 stage, change these settings:
 
 ```toml
 [destination]
@@ -175,7 +167,7 @@ stage_name="PUBLIC.my_s3_stage"
 To run Snowflake with S3 as the staging destination:
 
 ```py
-# Create a dlt pipeline that will load
+# Create a `dlt` pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on S3
 pipeline = dlt.pipeline(
@@ -194,7 +186,7 @@ Please refer to the [Google Storage filesystem documentation](./filesystem.md#go
 * Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
 * Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
 * Also grant access to this stage for the role you are using to load data into Snowflake.
-* Provide the name of your stage (including the namespace) to dlt like so:
+* Provide the name of your stage (including the namespace) to `dlt` like so:
 
 ```toml
 [destination]
@@ -204,7 +196,7 @@ stage_name="PUBLIC.my_gcs_stage"
 To run Snowflake with GCS as the staging destination:
 
 ```py
-# Create a dlt pipeline that will load
+# Create a `dlt` pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on GCS
 pipeline = dlt.pipeline(
@@ -225,7 +217,7 @@ Please consult the Snowflake Documentation on [how to create a stage for your Az
 * Grant access to this storage integration to the Snowflake role you are using to load the data into Snowflake.
 * Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
 * Also grant access to this stage for the role you are using to load data into Snowflake.
-* Provide the name of your stage (including the namespace) to dlt like so:
+* Provide the name of your stage (including the namespace) to `dlt` like so:
 
 ```toml
 [destination]
@@ -235,7 +227,7 @@ stage_name="PUBLIC.my_azure_stage"
 To run Snowflake with Azure as the staging destination:
 
 ```py
-# Create a dlt pipeline that will load
+# Create a `dlt` pipeline that will load
 # chess player data to the Snowflake destination
 # via staging on Azure
 pipeline = dlt.pipeline(
@@ -261,6 +253,10 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-s
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+
+### Snowflake connection identifier
+We enable Snowflake to identify that the connection is created by `dlt`. Snowflake will use this identifier to better understand the usage patterns
+associated with `dlt` integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA snowflake-->
 
