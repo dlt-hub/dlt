@@ -92,8 +92,8 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     3. Run combined test where we set `max_table_nesting` for the parent source and check
         if this `max_table_nesting` is respected by child resources where they don't define their
         own nesting level;
-    4. Run the pipeline with set `max_table_nesting` of a resource then set overrider it and
-        rerun the pipeline to check if the number of tables are greated than in the first run;
+    4. Run the pipeline with set `max_table_nesting` of a resource then override it and
+        rerun the pipeline to check if the number and names of tables are expected;
     """
 
     @dlt.resource(max_table_nesting=1)
