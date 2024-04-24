@@ -94,7 +94,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
         own nesting level;
     4. Run the pipeline with set `max_table_nesting` of a resource then override it and
         rerun the pipeline to check if the number and names of tables are expected;
-    5. Check if source and resource both have defined `max_nesting_level` and we respect
+    5. Create source and resource both with defined `max_nesting_level` and check if we respect
         `max_nesting_level` from resource;
     """
 
