@@ -349,8 +349,9 @@ You can limit how deep `dlt` goes when generating child tables. By default, the 
 and generate child tables for all nested lists, without limit.
 
 :::note
-You can completely `max_table_nesting`, in this case dlt will use it from the source if it is specified
-there or fallback to default value which has 1000 as maximum nesting level.
+`max_table_nesting` is optional so you can skip it, in this case dlt will
+use it from the source if it is specified there or fallback to default
+value which has 1000 as maximum nesting level.
 :::
 
 ```py
@@ -377,7 +378,7 @@ def my_resource():
     }
 ```
 
-In the example above we want only 1 level of child tables to be generates (so there are no child
+In the example above we want only 1 level of child tables to be generated (so there are no child
 tables of child tables). Typical settings:
 
 - `max_table_nesting=0` will not generate child tables at all and all nested data will be
