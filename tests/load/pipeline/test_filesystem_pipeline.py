@@ -4,6 +4,9 @@ import posixpath
 from pathlib import Path
 from typing import Any, Callable, List, Dict, cast
 
+from fsspec import register_implementation
+from pytest_mock import MockerFixture
+
 import dlt
 import pytest
 
@@ -13,10 +16,12 @@ from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-from dlt.common.schema.typing import LOADS_TABLE_NAME
+from fsspec.implementations.local import LocalFileSystem
 
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import arrow_table_all_data_types
 from tests.common.utils import load_json_case
+from tests.common.configuration.utils import environment
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
 from tests.load.pipeline.utils import (
@@ -356,6 +361,38 @@ def test_filesystem_destination_extended_layout_placeholders(
     # 6 is because simple_row contains two rows
     # and in this test scenario we have 3 callbacks
     assert call_count >= 6
+
+
+@pytest.fixture(scope="module")
+def mock_local_fs():
+    class MockLocalFS(LocalFileSystem):
+        def makedirs(self, path, exist_ok=False):
+            pass
+
+    register_implementation("file", MockLocalFS, clobber=True)
+
+    yield
+
+    register_implementation("file", LocalFileSystem, clobber=True)
+
+
+@pytest.mark.parametrize("layout", TEST_LAYOUTS)
+def test_filesystem_local_filesystem_put_file_fails_if_we_do_not_create_destination_folder_regression(
+    layout: str, mocker: MockerFixture, mock_local_fs
+) -> None:
+    data = load_json_case("simple_row")
+    pipeline = dlt.pipeline(
+        pipeline_name="test_extended_layouts",
+        destination=filesystem(layout=layout, bucket_url="file://_storage"),
+    )
+
+    with pytest.raises(PipelineStepFailed) as exc_context:
+        pipeline.run(
+            dlt.resource(data, name="simple_rows"),
+            write_disposition="append",
+        )
+
+    assert isinstance(exc_context.value.exception, FileNotFoundError)
 
 
 @pytest.mark.parametrize(
