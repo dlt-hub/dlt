@@ -322,3 +322,17 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     tables = pipeline_schema.data_table_names()
     assert count_all_tables_second_run == 5
     assert tables == all_table_names_for_third_resource
+
+    # Set max_table_nesting=None and check if the same tables exist
+    third_resource_with_nested_data.max_table_nesting = None
+    pipeline.run(
+        third_resource_with_nested_data,
+        write_disposition="append",
+    )
+    all_table_names = pipeline_schema.data_table_names()
+    count_all_tables_second_run = len(all_table_names)
+    assert count_all_tables_first_run < count_all_tables_second_run
+
+    tables = pipeline_schema.data_table_names()
+    assert count_all_tables_second_run == 5
+    assert tables == all_table_names_for_third_resource
