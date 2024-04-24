@@ -48,7 +48,7 @@ The **warehouse** and **role** are optional if you assign defaults to your user.
 :::note
 The `application` field enables Snowflake Support Engineers (SE) to offer targeted customer support.
 It is set to `dltHub_dlt` by default, if you prefer not to share the application ID for privacy or other reasons,
-just set `application` to an empty string (`""`) will prevent this information from being sent to Snowflake, thereby disabling the feature
+just set `application` to an empty string (`""`) will prevent this information from being sent to Snowflake
 or simply you can take advantage of this as well by setting your own value.
 :::
 
