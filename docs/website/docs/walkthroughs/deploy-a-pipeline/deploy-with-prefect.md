@@ -63,7 +63,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
     
 3. You can view deployment details and scheduled runs, including successes and failures, using [PrefectUI](https://app.prefect.cloud/auth/login). This will help you know when a pipeline ran or more importantly, when it did not.
 
-![Prefect Dashboard](images/prefect-dhasboard.png)
+![Prefect Dashboard](images/prefect-dashboard.png)
 
 You can further extend the pipeline further by: 
 
