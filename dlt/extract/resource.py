@@ -215,6 +215,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if validator:
             self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
 
+    @property
+    def max_table_nesting(self) -> Optional[int]:
+        """A schema hint for resource that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
+        max_nesting = self._hints.get("x-normalizer", {}).get("max_nesting")  # type: ignore[attr-defined]
+        return max_nesting if isinstance(max_nesting, int) else None
+
+    @max_table_nesting.setter
+    def max_table_nesting(self, value: int) -> None:
+        self._hints.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
+        self._hints["x-normalizer"]["max_nesting"] = value  # type: ignore[typeddict-item]
+
     def pipe_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""
         if self.is_transformer:
