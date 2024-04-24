@@ -386,7 +386,7 @@ tables of child tables). Typical settings:
 - `max_table_nesting=1` will generate child tables of top level tables and nothing more. All nested
   data in child tables will be represented as json.
 
-You can achieve the same effect after the source instance is created:
+You can achieve the same effect after the resource instance is created:
 
 ```py
 from my_resource import my_awesome_module
