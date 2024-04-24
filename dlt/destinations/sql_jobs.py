@@ -140,7 +140,10 @@ class SqlStagingCopyJob(SqlBaseJob):
 
 
 class SqlMergeJob(SqlBaseJob):
-    """Generates a list of sql statements that merge the data from staging dataset into destination dataset."""
+    """
+    Generates a list of sql statements that merge the data from staging dataset into destination dataset.
+    If no merge keys are discovered, falls back to append.
+    """
 
     failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
@@ -377,67 +380,73 @@ class SqlMergeJob(SqlBaseJob):
                 get_columns_names_with_prop(root_table, "merge_key"),
             )
         )
-        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
 
-        unique_column: str = None
-        root_key_column: str = None
+        # if we do not have any merge keys to select from, we will fall back to a staged append, i.E.
+        # just skip the delete part
+        append_fallback = (len(primary_keys) + len(merge_keys)) == 0
 
-        if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
-            key_table_clauses = cls.gen_key_table_clauses(
-                root_table_name, staging_root_table_name, key_clauses, for_delete=True
-            )
-            # if no child tables, just delete data from top table
-            for clause in key_table_clauses:
-                sql.append(f"DELETE {clause};")
-        else:
-            key_table_clauses = cls.gen_key_table_clauses(
-                root_table_name, staging_root_table_name, key_clauses, for_delete=False
-            )
-            # use unique hint to create temp table with all identifiers to delete
-            unique_columns = get_columns_names_with_prop(root_table, "unique")
-            if not unique_columns:
-                raise MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    staging_root_table_name,
-                    [t["name"] for t in table_chain],
-                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
-                    " it is not possible to link child tables to it.",
+        if not append_fallback:
+            key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
+
+            unique_column: str = None
+            root_key_column: str = None
+
+            if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
+                key_table_clauses = cls.gen_key_table_clauses(
+                    root_table_name, staging_root_table_name, key_clauses, for_delete=True
                 )
-            # get first unique column
-            unique_column = escape_id(unique_columns[0])
-            # create temp table with unique identifier
-            create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(
-                unique_column, key_table_clauses, sql_client
-            )
-            sql.extend(create_delete_temp_table_sql)
-
-            # delete from child tables first. This is important for databricks which does not support temporary tables,
-            # but uses temporary views instead
-            for table in table_chain[1:]:
-                table_name = sql_client.make_qualified_table_name(table["name"])
-                root_key_columns = get_columns_names_with_prop(table, "root_key")
-                if not root_key_columns:
+                # if no child tables, just delete data from top table
+                for clause in key_table_clauses:
+                    sql.append(f"DELETE {clause};")
+            else:
+                key_table_clauses = cls.gen_key_table_clauses(
+                    root_table_name, staging_root_table_name, key_clauses, for_delete=False
+                )
+                # use unique hint to create temp table with all identifiers to delete
+                unique_columns = get_columns_names_with_prop(root_table, "unique")
+                if not unique_columns:
                     raise MergeDispositionException(
                         sql_client.fully_qualified_dataset_name(),
                         staging_root_table_name,
                         [t["name"] for t in table_chain],
-                        "There is no root foreign key (ie _dlt_root_id) in child table"
-                        f" {table['name']} so it is not possible to refer to top level table"
-                        f" {root_table['name']} unique column {unique_column}",
+                        "There is no unique column (ie _dlt_id) in top table"
+                        f" {root_table['name']} so it is not possible to link child tables to it.",
                     )
-                root_key_column = escape_id(root_key_columns[0])
+                # get first unique column
+                unique_column = escape_id(unique_columns[0])
+                # create temp table with unique identifier
+                create_delete_temp_table_sql, delete_temp_table_name = (
+                    cls.gen_delete_temp_table_sql(unique_column, key_table_clauses, sql_client)
+                )
+                sql.extend(create_delete_temp_table_sql)
+
+                # delete from child tables first. This is important for databricks which does not support temporary tables,
+                # but uses temporary views instead
+                for table in table_chain[1:]:
+                    table_name = sql_client.make_qualified_table_name(table["name"])
+                    root_key_columns = get_columns_names_with_prop(table, "root_key")
+                    if not root_key_columns:
+                        raise MergeDispositionException(
+                            sql_client.fully_qualified_dataset_name(),
+                            staging_root_table_name,
+                            [t["name"] for t in table_chain],
+                            "There is no root foreign key (ie _dlt_root_id) in child table"
+                            f" {table['name']} so it is not possible to refer to top level table"
+                            f" {root_table['name']} unique column {unique_column}",
+                        )
+                    root_key_column = escape_id(root_key_columns[0])
+                    sql.append(
+                        cls.gen_delete_from_sql(
+                            table_name, root_key_column, delete_temp_table_name, unique_column
+                        )
+                    )
+
+                # delete from top table now that child tables have been prcessed
                 sql.append(
                     cls.gen_delete_from_sql(
-                        table_name, root_key_column, delete_temp_table_name, unique_column
+                        root_table_name, unique_column, delete_temp_table_name, unique_column
                     )
                 )
-
-            # delete from top table now that child tables have been prcessed
-            sql.append(
-                cls.gen_delete_from_sql(
-                    root_table_name, unique_column, delete_temp_table_name, unique_column
-                )
-            )
 
         # get name of column with hard_delete hint, if specified
         not_deleted_cond: str = None

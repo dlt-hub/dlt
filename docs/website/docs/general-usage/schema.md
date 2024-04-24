@@ -222,7 +222,7 @@ and columns are inferred from data.
 ### Data type autodetectors
 
 You can define a set of functions that will be used to infer the data type of the column from a
-value. The functions are run from top to bottom on the lists. Look in `detections.py` to see what is
+value. The functions are run from top to bottom on the lists. Look in [`detections.py`](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/detections.py) to see what is
 available.
 
 ```yaml
@@ -231,6 +231,9 @@ settings:
     - timestamp
     - iso_timestamp
     - iso_date
+    - large_integer
+    - hexbytes_to_text
+    - wei_to_double
 ```
 
 ### Column hint rules

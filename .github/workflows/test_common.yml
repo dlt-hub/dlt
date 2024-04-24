@@ -13,6 +13,7 @@ concurrency:
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
+  RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
 
 jobs:
   get_docs_changes:
