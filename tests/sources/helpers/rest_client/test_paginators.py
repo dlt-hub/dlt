@@ -18,7 +18,7 @@ class TestHeaderLinkPaginator:
         response = Mock(Response)
         response.links = {"next": {"url": "http://example.com/next"}}
         paginator.update_state(response)
-        assert paginator.next_reference == "http://example.com/next"
+        assert paginator._next_reference == "http://example.com/next"
         assert paginator.has_next_page is True
 
     def test_update_state_without_next(self):
@@ -86,7 +86,7 @@ class TestJSONResponsePaginator:
             paginator = JSONResponsePaginator(next_url_path=next_url_path)
         response = Mock(Response, json=lambda: test_case["response_json"])
         paginator.update_state(response)
-        assert paginator.next_reference == test_case["expected"]["next_reference"]
+        assert paginator._next_reference == test_case["expected"]["next_reference"]
         assert paginator.has_next_page == test_case["expected"]["has_next_page"]
 
     # Test update_request from BaseNextUrlPaginator
@@ -151,7 +151,7 @@ class TestJSONResponsePaginator:
     )
     def test_update_request(self, test_case):
         paginator = JSONResponsePaginator()
-        paginator.next_reference = test_case["next_reference"]
+        paginator._next_reference = test_case["next_reference"]
         request = Mock(Request, url=test_case["request_url"])
         paginator.update_request(request)
         assert request.url == test_case["expected"]
