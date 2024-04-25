@@ -8,8 +8,8 @@ from dlt.common.utils import uniq_id
 from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    load_table_counts,
 )
+from tests.pipeline.utils import load_table_counts
 
 
 @pytest.mark.parametrize(
