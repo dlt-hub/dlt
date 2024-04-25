@@ -343,6 +343,62 @@ for user in users().add_filter(lambda user: user["user_id"] != "me").add_map(ano
     print(user)
 ```
 
+### Reduce the nesting level of generated tables
+
+You can limit how deep `dlt` goes when generating child tables. By default, the library will descend
+and generate child tables for all nested lists, without limit.
+
+:::note
+`max_table_nesting` is optional so you can skip it, in this case dlt will
+use it from the source if it is specified there or fallback to default
+value which has 1000 as maximum nesting level.
+:::
+
+```py
+import dlt
+
+@dlt.resource(max_table_nesting=1)
+def my_resource():
+    yield {
+        "id": 1,
+        "name": "random name",
+        "properties": [
+            {
+                "name": "customer_age",
+                "type": "int",
+                "label": "Age",
+                "notes": [
+                    {
+                        "text": "string",
+                        "author": "string",
+                    }
+                ]
+            }
+        ]
+    }
+```
+
+In the example above we want only 1 level of child tables to be generated (so there are no child
+tables of child tables). Typical settings:
+
+- `max_table_nesting=0` will not generate child tables at all and all nested data will be
+  represented as json.
+- `max_table_nesting=1` will generate child tables of top level tables and nothing more. All nested
+  data in child tables will be represented as json.
+
+You can achieve the same effect after the resource instance is created:
+
+```py
+from my_resource import my_awesome_module
+
+resource = my_resource()
+resource.max_table_nesting = 0
+```
+
+Several data sources are prone to contain semi-structured documents with very deep nesting i.e.
+MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
+produces the clearest and human-readable schemas.
+
 ### Sample from large data
 
 If your resource loads thousands of pages of data from a REST API or millions of rows from a db

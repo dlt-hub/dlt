@@ -232,8 +232,10 @@ The default layout format has changed from `{schema_name}.{table_name}.{load_id}
 Keep in mind all values are lowercased.
 :::
 
-* `timestamp` - the current timestamp in Unix Timestamp format rounded to minutes
-* `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to minutes
+* `timestamp` - the current timestamp in Unix Timestamp format rounded to seconds
+* `timestamp_ms` - the current timestamp in Unix Timestamp format rounded to milliseconds
+* `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to seconds
+* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to milliseconds
 * Years
   * `YYYY` - 2024, 2025
   * `Y` - 2024, 2025
@@ -251,6 +253,14 @@ Keep in mind all values are lowercased.
 * Minutes
   * `mm` - 00, 01, 02...59
   * `m` - 0, 1, 2...59
+* Seconds
+  * `ss` - 00, 01, 02...59
+  * `s` - 0, 1, 2...59
+* Fractional seconds
+  * `SSSS` - 000[0..] 001[0..] ... 998[0..] 999[0..]
+  * `SSS` - 000 001 ... 998 999
+  * `SS` - 00, 01, 02 ... 98, 99
+  * `S` - 0 1 ... 8 9
 * Days of the week
   * `dddd` - Monday, Tuesday, Wednesday
   * `ddd` - Mon, Tue, Wed

@@ -3,13 +3,9 @@ import yaml
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
 
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
 from tests.load.pipeline.utils import (
     drop_active_pipeline_data,
-    load_table_counts,
-    load_tables_to_dicts,
-)
-from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     REPLACE_STRATEGIES,

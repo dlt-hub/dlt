@@ -10,7 +10,7 @@ from dlt.common.utils import uniq_id
 from dlt.helpers.dbt import create_venv
 from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesException
 
-from tests.load.pipeline.utils import select_data
+from tests.pipeline.utils import select_data
 from tests.utils import ACTIVE_SQL_DESTINATIONS
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 

@@ -26,7 +26,14 @@ from dlt.pipeline.exceptions import (
 )
 
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
-from tests.pipeline.utils import assert_data_table_counts, assert_load_info
+from tests.pipeline.utils import (
+    assert_data_table_counts,
+    assert_load_info,
+    assert_query_data,
+    assert_table,
+    load_table_counts,
+    select_data,
+)
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -35,10 +42,6 @@ from tests.load.utils import (
 )
 from tests.load.pipeline.utils import (
     drop_active_pipeline_data,
-    assert_query_data,
-    assert_table,
-    load_table_counts,
-    select_data,
     REPLACE_STRATEGIES,
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration

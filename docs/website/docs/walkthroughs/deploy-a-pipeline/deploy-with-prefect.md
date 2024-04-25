@@ -8,14 +8,16 @@ keywords: [how to, deploy a pipeline, Prefect]
 
 ## Introduction to Prefect
 
-Prefect is a workflow management system that automates and orchestrates data pipelines. As an open-source platform, it offers a framework for defining, scheduling, and executing tasks with dependencies. It enables users to scale and maintain their data workflows efficiently.
+Prefect is a workflow orchestration and observability platform that automates and orchestrates data pipelines. As an open-source platform, it offers a framework for defining, scheduling, and executing tasks with dependencies. It enables users to observe, maintain, and scale their data workflows efficiently.
+
+![Prefect Flow Run](images/prefect-flow-run.png)
 
 ### Prefect features
 
 - **Flows**:  These contain workflow logic, and are defined as Python functions.
 - **Tasks**:  A task represents a discrete unit of work. Tasks allow encapsulation of workflow logic that can be reused for flows and subflows.
-- **Deployments and Scheduling**:  Deployments transform workflows from manually called functions into API-managed entities that you can trigger remotely. Prefect allows you to use schedules to automatically create new flow runs for deployments.
-- **Automation:** Prefect Cloud enables you to configure [actions](https://docs.prefect.io/latest/concepts/automations/#actions) that Prefect executes automatically based on [trigger](https://docs.prefect.io/latest/concepts/automations/#triggers) conditions.
+- **Deployments and Scheduling**:  Deployments transform workflows from manually called functions into API-managed entities that you can trigger remotely. Prefect allows you to use schedules to automatically create new flow runs for deployments or trigger new runs based on events.
+- **Automations:** Prefect Cloud enables you to configure [actions](https://docs.prefect.io/latest/concepts/automations/#actions) that Prefect executes automatically based on [triggers](https://docs.prefect.io/latest/concepts/automations/#triggers).
 - **Caching:** This feature enables a task to reflect a completed state without actually executing its defining code.
 - **Oberservality**: This feature allows users to monitor workflows and tasks. It provides insights into data pipeline performance and behavior through logging, metrics, and notifications.
 
@@ -61,6 +63,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
     
 3. You can view deployment details and scheduled runs, including successes and failures, using [PrefectUI](https://app.prefect.cloud/auth/login). This will help you know when a pipeline ran or more importantly, when it did not.
 
+![Prefect Dashboard](images/prefect-dashboard.png)
 
 You can further extend the pipeline further by: 
 
