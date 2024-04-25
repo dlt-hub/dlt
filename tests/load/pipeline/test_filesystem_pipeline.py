@@ -3,6 +3,8 @@ import os
 import posixpath
 from pathlib import Path
 from typing import Any, Callable, List, Dict, cast
+
+from pytest_mock import MockerFixture
 import dlt
 import pytest
 
@@ -16,7 +18,11 @@ from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 from tests.cases import arrow_table_all_data_types
 from tests.common.utils import load_json_case
-from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
+from tests.utils import (
+    ALL_TEST_DATA_ITEM_FORMATS,
+    TestDataItemFormat,
+    skip_if_not_active,
+)
 from dlt.destinations.path_utils import create_path
 from tests.load.pipeline.utils import (
     destinations_configs,
@@ -240,7 +246,7 @@ TEST_LAYOUTS = (
 
 @pytest.mark.parametrize("layout", TEST_LAYOUTS)
 def test_filesystem_destination_extended_layout_placeholders(
-    layout: str, default_buckets_env: str
+    layout: str, default_buckets_env: str, mocker: MockerFixture
 ) -> None:
     data = load_json_case("simple_row")
     call_count = 0
@@ -265,6 +271,12 @@ def test_filesystem_destination_extended_layout_placeholders(
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
 
+    # the reason why we are patching pendulum.from_timestamp is that
+    # we are checking if the load package under a given path exists
+    # so we have to mock this out because there will difference in
+    # calculated timestamps thus will make the test flaky due to
+    # small differences in timestamp calculations
+    mocker.patch("pendulum.from_timestamp", return_value=now)
     fs_destination = filesystem(
         layout=layout,
         extra_placeholders=extra_placeholders,
