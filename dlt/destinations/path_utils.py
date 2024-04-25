@@ -92,7 +92,7 @@ def prepare_datetime_params(
     if load_package_timestamp:
         current_timestamp = ensure_pendulum_datetime(load_package_timestamp)
         params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
-        params["load_package_timestamp_ms"] = current_timestamp.format("SSS")
+        params["load_package_timestamp_ms"] = str(int(current_timestamp.timestamp() * 1000))
 
     if not current_datetime:
         if current_timestamp:
@@ -103,7 +103,7 @@ def prepare_datetime_params(
             current_datetime = pendulum.now()
 
     params["timestamp"] = str(int(current_datetime.timestamp()))
-    params["timestamp_ms"] = current_datetime.format("SSS")
+    params["timestamp_ms"] = str(int(current_datetime.timestamp() * 1000))
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
