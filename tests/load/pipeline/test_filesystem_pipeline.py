@@ -3,17 +3,16 @@ import os
 import posixpath
 from pathlib import Path
 from typing import Any, Callable, List, Dict, cast
-
 import dlt
 import pytest
 
+from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 from tests.cases import arrow_table_all_data_types
 from tests.common.utils import load_json_case
@@ -22,8 +21,9 @@ from dlt.destinations.path_utils import create_path
 from tests.load.pipeline.utils import (
     destinations_configs,
     DestinationTestConfiguration,
-    load_table_counts,
 )
+
+from tests.pipeline.utils import load_table_counts
 
 
 skip_if_not_active("filesystem")
@@ -237,7 +237,9 @@ TEST_LAYOUTS = (
 
 
 @pytest.mark.parametrize("layout", TEST_LAYOUTS)
-def test_filesystem_destination_extended_layout_placeholders(layout: str) -> None:
+def test_filesystem_destination_extended_layout_placeholders(
+    layout: str, default_buckets_env: str
+) -> None:
     data = load_json_case("simple_row")
     call_count = 0
 
@@ -259,29 +261,37 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
     }
     now = pendulum.now()
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    fs_destination = filesystem(
+        layout=layout,
+        extra_placeholders=extra_placeholders,
+        current_datetime=counter(now),
+    )
     pipeline = dlt.pipeline(
         pipeline_name="test_extended_layouts",
-        destination=filesystem(
-            layout=layout,
-            extra_placeholders=extra_placeholders,
-            kwargs={"auto_mkdir": True},
-            current_datetime=counter(now),
-        ),
+        destination=fs_destination,
     )
     load_info = pipeline.run(
-        dlt.resource(data, name="simple_rows"),
+        [
+            dlt.resource(data, name="table_1"),
+            dlt.resource(data * 2, name="table_2"),
+            dlt.resource(data * 3, name="table_3"),
+        ],
         write_disposition="append",
     )
     client = pipeline.destination_client()
+
     expected_files = set()
     known_files = set()
     for basedir, _dirs, files in client.fs_client.walk(client.dataset_path):  # type: ignore[attr-defined]
         # strip out special tables
         if "_dlt" in basedir:
             continue
+
         for file in files:
             if ".jsonl" in file:
-                expected_files.add(os.path.join(basedir, file))
+                expected_files.add(posixpath.join(basedir, file))
 
     for load_package in load_info.load_packages:
         for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
@@ -298,8 +308,8 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
                 load_package_timestamp=load_info.created_at.to_iso8601_string(),  # type: ignore[attr-defined]
                 extra_placeholders=extra_placeholders,
             )
-            full_path = os.path.join(client.dataset_path, path)  # type: ignore[attr-defined]
-            assert os.path.exists(full_path)
+            full_path = posixpath.join(client.dataset_path, path)  # type: ignore[attr-defined]
+            assert client.fs_client.exists(full_path)  # type: ignore[attr-defined]
             if ".jsonl" in full_path:
                 known_files.add(full_path)
 
@@ -308,6 +318,18 @@ def test_filesystem_destination_extended_layout_placeholders(layout: str) -> Non
     # 6 is because simple_row contains two rows
     # and in this test scenario we have 3 callbacks
     assert call_count >= 6
+
+    # check that table separation works for every path
+    # we cannot test when ext is not the last value
+    if ".{ext}{timestamp}" not in layout:
+        assert load_table_counts(pipeline, "table_1", "table_2", "table_3") == {
+            "table_1": 2,
+            "table_2": 4,
+            "table_3": 6,
+        }
+    pipeline._fs_client().truncate_tables(["table_1", "table_3"])
+    if ".{ext}{timestamp}" not in layout:
+        assert load_table_counts(pipeline, "table_1", "table_2", "table_3") == {"table_2": 4}
 
 
 @pytest.mark.parametrize(
@@ -422,11 +444,21 @@ def test_knows_dataset_state(destination_config: DestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("restore", [True, False])
-def test_simple_incremental(
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "{table_name}/{load_id}.{file_id}.{ext}",
+        "{schema_name}/other_folder/{table_name}-{load_id}.{file_id}.{ext}",
+        "{table_name}/{load_package_timestamp}/{d}/{load_id}.{file_id}.{ext}",
+    ],
+)  # we need a layout where the table has its own folder and one where it does not
+def test_state_with_simple_incremental(
     destination_config: DestinationTestConfiguration,
     restore: bool,
+    layout: str,
 ) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = str(restore)
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
 
     p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
 
@@ -449,7 +481,87 @@ def test_simple_incremental(
     p.run(my_resource)
     p._wipe_working_folder()
 
+    # check incremental
     p = destination_config.setup_pipeline("p1", dataset_name="incremental_test")
     p.run(my_resource_inc)
-
     assert load_table_counts(p, "items") == {"items": 4 if restore else 6}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "layout",
+    [
+        "{table_name}/{load_id}.{file_id}.{ext}",
+        "{schema_name}/other_folder/{table_name}-{load_id}.{file_id}.{ext}",
+    ],
+)  # we need a layout where the table has its own folder and one where it does not
+def test_client_methods(
+    destination_config: DestinationTestConfiguration,
+    layout: str,
+) -> None:
+    p = destination_config.setup_pipeline("access", dataset_name="incremental_test")
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+
+    @dlt.resource()
+    def table_1():
+        yield [1, 2, 3, 4, 5]
+
+    @dlt.resource()
+    def table_2():
+        yield [1, 2, 3, 4, 5, 6, 7]
+
+    @dlt.resource()
+    def table_3():
+        yield [1, 2, 3, 4, 5, 6, 7, 8]
+
+    # 3 files for t_1, 2 files for t_2
+    p.run([table_1(), table_2()])
+    p.run([table_1(), table_2()])
+    p.run([table_1()])
+
+    fs_client = p._fs_client()
+    t1_files = fs_client.list_table_files("table_1")
+    t2_files = fs_client.list_table_files("table_2")
+    assert len(t1_files) == 3
+    assert len(t2_files) == 2
+
+    assert load_table_counts(p, "table_1", "table_2") == {"table_1": 15, "table_2": 14}
+
+    # verify that files are in the same folder on the second layout
+    folder = fs_client.get_table_dir("table_1")
+    file_count = len(fs_client.fs_client.ls(folder))
+    if "{table_name}/" in layout:
+        print(fs_client.fs_client.ls(folder))
+        assert file_count == 3
+    else:
+        assert file_count == 5
+
+    # check opening of file
+    values = []
+    for line in fs_client.read_text(t1_files[0]).split("\n"):
+        if line:
+            values.append(json.loads(line)["value"])
+    assert values == [1, 2, 3, 4, 5]
+
+    # check binary read
+    assert fs_client.read_bytes(t1_files[0]) == str.encode(fs_client.read_text(t1_files[0]))
+
+    # check truncate
+    fs_client.truncate_tables(["table_1"])
+    assert load_table_counts(p, "table_1", "table_2") == {"table_2": 14}
+
+    # load again
+    p.run([table_1(), table_2(), table_3()])
+    assert load_table_counts(p, "table_1", "table_2", "table_3") == {
+        "table_1": 5,
+        "table_2": 21,
+        "table_3": 8,
+    }
+
+    # test truncate multiple
+    fs_client.truncate_tables(["table_1", "table_3"])
+    assert load_table_counts(p, "table_1", "table_2", "table_3") == {"table_2": 21}

@@ -11,7 +11,7 @@ from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.extract.exceptions import ResourceExtractionError
 
-from tests.load.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts
 from tests.utils import (
     TestDataItemFormat,
     skip_if_not_active,

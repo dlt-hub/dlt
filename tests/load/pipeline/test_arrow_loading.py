@@ -12,8 +12,7 @@ from dlt.common import pendulum
 from dlt.common.time import reduce_pendulum_datetime_precision, ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.load.pipeline.utils import select_data
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, select_data
 from tests.utils import (
     TestDataItemFormat,
     arrow_item_from_pandas,

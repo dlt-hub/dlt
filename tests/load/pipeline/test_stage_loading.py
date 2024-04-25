@@ -8,7 +8,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
 
 from tests.load.pipeline.test_merge_disposition import github
-from tests.load.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
