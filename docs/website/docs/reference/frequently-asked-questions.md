@@ -65,7 +65,7 @@ To submit your source code to our verified source repository, please refer to [t
 
 ## If you don't have the source required listed in verified sources?
 
-In case you don't have the source required listed in the [verified sources](../../docs/dlt-ecosystem/verified-sources/), you could create your own pipeline by refering to the [following docs](../../docs/walkthroughs/create-a-pipeline). 
+In case you don't have the source required listed in the [verified sources](../../docs/dlt-ecosystem/verified-sources/), you could create your own pipeline by referring to the [following docs](../../docs/walkthroughs/create-a-pipeline). 
 
 ## How can I retrieve the complete schema of a `dlt` source?
 
@@ -91,13 +91,6 @@ print(p.default_schema.to_pretty_yaml())
 
 This method ensures you obtain the full schema details, including all columns, as seen by `dlt`, without needing a predefined contract on these resources.
 
-## Can `dlt` periodically commit updates to a resource state?
-https://dlthub-community.slack.com/archives/C04DQA7JJN6/p1710534100683919
-
-Currently, `dlt` does not offer the functionality to checkpoint the extraction process during its execution. This limitation means that any updates to a resource state are not committed until the pipeline has fully completed its run. This issue has been recognized by the `dlt` development team and is currently being tracked under a specific GitHub issue ([#215](https://github.com/dlt-hub/dlt/issues/215)). Unfortunately, there is no specified timeline for when this feature will be available.
-
-In light of this limitation, `dlt` advises a workaround using incremental loading. This involves specifying the start and end dates or page numbers for your data extraction process and conducting the backfill using smaller, manageable ranges. For e.g. 100 loads. Implementing this strategy provides a higher degree of control. It significantly mitigates the risk of losing any progress should the pipeline experience a failure or if it needs to be stopped midway through execution. For a more comprehensive understanding of how to implement this workaround, it is recommended to consult `dlt's` documentation on incremental loading with a cursor field, which can be found here: [Incremental Loading with a Cursor Field](../../docs/general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
-
 ## Is truncating or deleting a staging table safe?
 
 You can safely truncate those or even drop the whole staging dataset. However, it will have to be recreated on the next load and might incur extra loading time or cost.
@@ -105,12 +98,14 @@ You can also delete it with Python using [Bigquery client.](https://cloud.google
 
 ## How can I develop a "custom" pagination tracker?
 
-There are two ways. One, you can use `dlt.sources.incremental` to create a custom cursor for tracking pagination in data streams that lack an explicit cursor field.
+You can use `dlt.sources.incremental` to create a custom cursor for tracking pagination in data streams that lack a specific cursor field. An example can be found in the [Incremental loading with a cursor](https://deploy-preview-1204--dlt-hub-docs.netlify.app/docs/general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
 
-Second, while it's possible to utilize `dlt.sources.incremental` for tracking changes in data streams, you're not limited to this method for managing pagination or custom cursors. Instead, you can leverage the flexibility of managing state directly in Python. Access and modify the state like a standard Python dictionary: `state = dlt.current.resource_state(); state["your_custom_key"] = "your_value"`. This approach allows you to define your custom pagination logic based on your specific needs. Here's an example: [Link.](https://github.com/dlt-hub/verified-sources/blob/master/sources/chess/__init__.py#L95)
+Alternatively, you can manage the state directly in Python. You can access and modify the state like a standard Python dictionary: 
+```
+state = dlt.current.resource_state(); 
+state["your_custom_key"] = "your_value"
+```
+This method allows you to create custom pagination logic based on your requirements. An example of using `resource_state()` for pagination can be found [here](https://dlthub.com/docs/general-usage/incremental-loading#custom-incremental-loading-with-pipeline-state).
 
 However, be cautious about overusing the state dictionary, especially in cases involving substreams for each user, as it might become unwieldy. A better strategy might involve tracking users incrementally. Then, upon updates, you only refresh the affected users' substreams entirely. This consideration helps maintain efficiency and manageability in your custom pagination implementation.
 
-## What is the best way to add a "run_id" from the orchestrator runs to datasets during ingestion to trace back to the specific run or code?
-
-To include an orchestrator's `run_id`, if it is present as an environmental variable, you can add an identifier to your data (e.g., in a dictionary or data frame) before yielding it in your resource. Alternatively, you can create a dedicated resource for a lookup table mapping `_dlt_load_id` to `run_id`. This method ensures minimal storage impact while maintaining efficient traceability of your data assets.
