@@ -55,6 +55,8 @@ TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfi
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
+DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
+
 
 class StorageSchemaInfo(NamedTuple):
     version_hash: str
@@ -155,7 +157,7 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     as_staging: bool = False
     bucket_url: str = None
     # layout of the destination files
-    layout: str = "{table_name}/{load_id}.{file_id}.{ext}"
+    layout: str = DEFAULT_FILE_LAYOUT
 
 
 @configspec

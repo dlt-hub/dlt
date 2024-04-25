@@ -235,6 +235,7 @@ def create_path(
 def get_table_prefix_layout(
     layout: str,
     supported_prefix_placeholders: Sequence[str] = SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS,
+    table_needs_own_folder: bool = False,
 ) -> str:
     """get layout fragment that defines positions of the table, cutting other placeholders
     allowed `supported_prefix_placeholders` that may appear before table.
@@ -265,5 +266,9 @@ def get_table_prefix_layout(
     prefix = layout[: layout.index("{table_name}") + 13]
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
+    if prefix[-1] != "/" and table_needs_own_folder:
+        raise CantExtractTablePrefix(
+            layout, "Table requires it's own folder, please add a '/' after your {table_name}. "
+        )
 
     return prefix

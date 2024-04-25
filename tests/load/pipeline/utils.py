@@ -8,6 +8,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import LoadInfo, PipelineContext
 
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
+from dlt.destinations.exceptions import CantExtractTablePrefix
 
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -20,7 +21,12 @@ def drop_pipeline(request) -> Iterator[None]:
     yield
     if "no_load" in request.keywords:
         return
-    drop_active_pipeline_data()
+    try:
+        drop_active_pipeline_data()
+    except CantExtractTablePrefix:
+        # for some tests we test that this exception is raised,
+        # so we suppress it here
+        pass
 
 
 def drop_active_pipeline_data() -> None:
