@@ -148,6 +148,49 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 [Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
 
+## Using pagination helper
+
+In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` provides a helper function `paginate` that simplifies this process. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
+
+Let's rewrite the previous example using the `paginate` helper:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
+@dlt.resource(
+    table_name="issues",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_issues(
+    updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+):
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/issues",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+            "sort": "updated",
+            "direction": "desc",
+            "state": "open",
+        },
+    ):
+        yield page
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_issues_merge",
+    destination="duckdb",
+    dataset_name="github_data_merge",
+)
+load_info = pipeline.run(get_issues)
+row_counts = pipeline.last_trace.last_normalize_info
+
+print(row_counts)
+print("------")
+print(load_info)
+```
+
 ## Next steps
 
 Continue your journey with the [Resource Grouping and Secrets](grouping-resources) tutorial.
