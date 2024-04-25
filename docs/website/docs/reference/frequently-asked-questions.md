@@ -101,7 +101,7 @@ You can also delete it with Python using [Bigquery client.](https://cloud.google
 You can use `dlt.sources.incremental` to create a custom cursor for tracking pagination in data streams that lack a specific cursor field. An example can be found in the [Incremental loading with a cursor](https://deploy-preview-1204--dlt-hub-docs.netlify.app/docs/general-usage/incremental-loading#incremental-loading-with-a-cursor-field).
 
 Alternatively, you can manage the state directly in Python. You can access and modify the state like a standard Python dictionary: 
-```
+```py
 state = dlt.current.resource_state(); 
 state["your_custom_key"] = "your_value"
 ```
