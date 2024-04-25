@@ -9,6 +9,8 @@ from dlt.common.time import (
     timestamp_within,
     ensure_pendulum_datetime,
     ensure_pendulum_date,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
 )
 from dlt.common.typing import TAnyDateTime
 
@@ -100,3 +102,13 @@ def test_ensure_pendulum_date_utc() -> None:
     assert ensure_pendulum_date(
         datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=8)))
     ) == pendulum.date(2020, 12, 31)
+
+
+@pytest.mark.parametrize("date_value,datetime_obj", test_params)
+def test_datetime_to_timestamp_helpers(
+    date_value: TAnyDateTime, datetime_obj: pendulum.DateTime
+) -> None:
+    dt = ensure_pendulum_datetime(date_value)
+    assert isinstance(dt, pendulum.DateTime)
+    assert datetime_to_timestamp(datetime_obj) == int(datetime_obj.timestamp())
+    assert datetime_to_timestamp_ms(datetime_obj) == int(datetime_obj.timestamp() * 1000)

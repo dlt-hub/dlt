@@ -184,6 +184,14 @@ def to_py_date(value: datetime.date) -> datetime.date:
     return value
 
 
+def datetime_to_timestamp(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return int(moment.timestamp())
+
+
+def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return int(moment.timestamp() * 1000)
+
+
 def _datetime_from_ts_or_iso(
     value: Union[int, float, str]
 ) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
