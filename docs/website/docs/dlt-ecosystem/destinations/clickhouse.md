@@ -115,12 +115,12 @@ destination.
 
 The `clickhouse` destination has a few specific deviations from the default sql destinations:
 
-1. `Clickhouse` has an experimental `object` datatype, but we have found it to be a bit unpredictable, so the dlt clickhouse destination will load the complex datatype to a `text` column. If you need
-   this feature, get in touch with our Slack community, and we will consider adding it.
+1. `Clickhouse` has an experimental `object` datatype, but we have found it to be a bit unpredictable, so the dlt clickhouse destination will load the complex datatype to a `text` column. If you need this feature, get in touch with our Slack community, and we will consider adding it.
 2. `Clickhouse` does not support the `time` datatype. Time will be loaded to a `text` column.
 3. `Clickhouse` does not support the `binary` datatype. Binary will be loaded to a `text` column. When loading from `jsonl`, this will be a base64 string, when loading from parquet this will be
    the `binary` object converted to `text`.
 4. `Clickhouse` accepts adding columns to a populated table that are not null.
+5. `Clickhouse` can produce rounding errors under certain conditions when using the float / double datatype. Make sure to use decimal if you cannot afford to have rounding errors. Loading the value 12.7001 to a double column with the loader file format jsonl set will predictbly produce a rounding error for example.
 
 ## Supported column hints
 
@@ -178,7 +178,7 @@ pipeline = dlt.pipeline(
 dlt supports using Google Cloud Storage (GCS) as a staging area when loading data into ClickHouse. This is handled automatically by
 ClickHouse's [GCS table function](https://clickhouse.com/docs/en/sql-reference/table-functions/gcs) which dlt uses under the hood.
 
-Somewhat annoyingly, the GCS table function only supports authentication using Hash-based Message Authentication Code (HMAC) keys. To enable this, GCS provides an S3 compatibility mode that emulates
+The clickhouse GCS table function only supports authentication using Hash-based Message Authentication Code (HMAC) keys. To enable this, GCS provides an S3 compatibility mode that emulates
 the Amazon S3
 API. ClickHouse takes advantage of this to allow accessing GCS buckets via its S3 integration.
 
