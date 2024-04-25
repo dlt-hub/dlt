@@ -49,6 +49,9 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     )
 
 
+SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
+
+
 @configspec(init=False)
 class SnowflakeCredentials(ConnectionStringCredentials):
     drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
@@ -60,6 +63,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
+    application: Optional[str] = SNOWFLAKE_APPLICATION_ID
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -85,6 +89,10 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query["warehouse"] = self.warehouse
         if self.role and "role" not in query:
             query["role"] = self.role
+
+        if self.application != "" and "application" not in query:
+            query["application"] = self.application
+
         return URL.create(
             self.drivername,
             self.username,
@@ -99,6 +107,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         private_key: Optional[bytes] = None
         if self.private_key:
             private_key = _read_private_key(self.private_key, self.private_key_passphrase)
+
         conn_params = dict(
             self.query or {},
             user=self.username,
@@ -109,8 +118,13 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             role=self.role,
             private_key=private_key,
         )
+
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
+
+        if self.application != "" and "application" not in conn_params:
+            conn_params["application"] = self.application
+
         return conn_params
 
 

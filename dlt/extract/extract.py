@@ -17,6 +17,7 @@ from dlt.common.pipeline import (
     WithStepInfo,
     reset_resource_state,
 )
+from dlt.common.typing import DictStrAny
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -24,10 +25,16 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TColumnNames,
     TSchemaContract,
-    TWriteDisposition,
+    TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.storages.load_package import (
+    ParsedLoadJobFileName,
+    LoadPackageStateInjectableContext,
+    TPipelineStateDoc,
+)
+
+
 from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
@@ -47,7 +54,7 @@ def data_to_sources(
     schema: Schema = None,
     table_name: str = None,
     parent_table_name: str = None,
-    write_disposition: TWriteDisposition = None,
+    write_disposition: TWriteDispositionConfig = None,
     columns: TAnySchemaColumns = None,
     primary_key: TColumnNames = None,
     schema_contract: TSchemaContract = None,
@@ -367,7 +374,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         load_id = self.extract_storage.create_load_package(source.discover_schema())
         with Container().injectable_context(
             SourceSchemaInjectableContext(source.schema)
-        ), Container().injectable_context(SourceInjectableContext(source)):
+        ), Container().injectable_context(
+            SourceInjectableContext(source)
+        ), Container().injectable_context(
+            LoadPackageStateInjectableContext(
+                storage=self.extract_storage.new_packages, load_id=load_id
+            )
+        ):
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(
@@ -389,10 +402,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 )
         return load_id
 
-    def commit_packages(self) -> None:
-        """Commits all extracted packages to normalize storage"""
+    def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:
+        """Commits all extracted packages to normalize storage, and adds the pipeline state to the load package"""
         # commit load packages
         for load_id, metrics in self._load_id_metrics.items():
+            if pipline_state_doc:
+                package_state = self.extract_storage.new_packages.get_load_package_state(load_id)
+                package_state["pipeline_state"] = {**pipline_state_doc, "dlt_load_id": load_id}
+                self.extract_storage.new_packages.save_load_package_state(load_id, package_state)
             self.extract_storage.commit_new_load_package(
                 load_id, self.schema_storage[metrics[0]["schema_name"]]
             )

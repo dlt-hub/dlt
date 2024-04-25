@@ -24,11 +24,13 @@ except ModuleNotFoundError:
 
 
 import dlt
-from dlt.common import pendulum
 from dlt.common import logger
+from dlt.common.pendulum import pendulum
 from dlt.common.runtime.telemetry import with_telemetry
+
 from dlt.common.destination import TLoaderFileFormat
-from dlt.common.schema.typing import TWriteDisposition, TSchemaContract
+from dlt.common.schema.typing import TWriteDispositionConfig, TSchemaContract
+
 from dlt.common.utils import uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.configuration.container import Container
@@ -165,7 +167,7 @@ class PipelineTasksGroup(TaskGroup):
         pipeline: Pipeline,
         data: Any,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
@@ -180,7 +182,7 @@ class PipelineTasksGroup(TaskGroup):
             data (Any): The data to run the pipeline with
             table_name (str, optional): The name of the table to
                 which the data should be loaded within the `dataset`.
-            write_disposition (TWriteDisposition, optional): Same as
+            write_disposition (TWriteDispositionConfig, optional): Same as
                 in `run` command.
             loader_file_format (TLoaderFileFormat, optional):
                 The file format the loader will use to create the
@@ -210,7 +212,7 @@ class PipelineTasksGroup(TaskGroup):
         pipeline: Pipeline,
         data: Any,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
@@ -223,7 +225,7 @@ class PipelineTasksGroup(TaskGroup):
             table_name (str, optional): The name of the
                 table to which the data should be loaded
                 within the `dataset`.
-            write_disposition (TWriteDisposition, optional):
+            write_disposition (TWriteDispositionConfig, optional):
                 Same as in `run` command.
             loader_file_format (TLoaderFileFormat, optional):
                 The file format the loader will use to create
@@ -320,7 +322,7 @@ class PipelineTasksGroup(TaskGroup):
         *,
         decompose: Literal["none", "serialize", "parallel", "parallel-isolated"] = "none",
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         **kwargs: Any,
@@ -358,7 +360,7 @@ class PipelineTasksGroup(TaskGroup):
                 Parallel tasks are executed in different pipelines, all derived from the original
                 one, but with the state isolated from each other.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
-            write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
+            write_disposition (TWriteDispositionConfig, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
                 Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
             schema_contract (TSchemaContract, optional): On override for the schema contract settings,

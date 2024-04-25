@@ -19,7 +19,7 @@ from dlt.common.time import (
 )
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
-from tests.utils import TArrowFormat, TestDataItemFormat, arrow_item_from_pandas
+from tests.utils import TPythonTableFormat, TestDataItemFormat, arrow_item_from_pandas
 
 # _UUID = "c8209ee7-ee95-4b90-8c9f-f7a0f8b51014"
 JSON_TYPED_DICT: StrAny = {

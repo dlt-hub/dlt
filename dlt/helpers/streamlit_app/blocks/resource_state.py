@@ -1,9 +1,9 @@
 from typing import Union
-
-import dlt
-import pendulum
 import streamlit as st
 import yaml
+
+import dlt
+from dlt.common.pendulum import pendulum
 
 
 def date_to_iso(
@@ -22,13 +22,8 @@ def resource_state_info(
     resource_name: str,
 ) -> None:
     sources_state = pipeline.state.get("sources") or {}
-    schema = sources_state.get(schema_name)
-    if not schema:
-        st.error(f"Schema with name: {schema_name} is not found")
-        return
-
-    resource = schema["resources"].get(resource_name)
-
+    schema = sources_state.get(schema_name, {})
+    resource = schema.get("resources", {}).get(resource_name)
     with st.expander("Resource state", expanded=(resource is None)):
         if not resource:
             st.info(f"{resource_name} is missing resource state")

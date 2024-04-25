@@ -604,6 +604,4 @@ def get_named_ranges():
     tasks.add_run(pipeline, google_spreadsheet("1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"), decompose="none", trigger_rule="all_done", retries=0, provide_context=True)
 ```
 
-Enjoy the DLT Google Sheets pipeline experience!
-
 <!--@@@DLT_TUBA google_sheets-->

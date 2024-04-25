@@ -15,7 +15,7 @@ from typing import (
 )
 
 from dlt import version
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
 
@@ -119,7 +119,7 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     return pyarrow.int64()
 
 
-def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     """Returns (data_type, precision, scale) tuple from pyarrow.DataType"""
     if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
         return dict(data_type="text")
@@ -226,14 +226,14 @@ def should_normalize_arrow_schema(
 ) -> Tuple[bool, Mapping[str, str], Dict[str, str], TTableSchemaColumns]:
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
-    dlt_table_prefix = naming.normalize_table_identifier(DLT_NAME_PREFIX)
+    dlt_tables = list(map(naming.normalize_table_identifier, ("_dlt_id", "_dlt_load_id")))
 
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
     # that should happen in the normalizer
     columns = {
         name: column
         for name, column in columns.items()
-        if not name.startswith(dlt_table_prefix) or name in rev_mapping
+        if name not in dlt_tables or name in rev_mapping
     }
 
     # check if nothing to rename
@@ -322,7 +322,7 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
         result[field.name] = {
             "name": field.name,
             "nullable": field.nullable,
-            **_get_column_type_from_py_arrow(field.type),
+            **get_column_type_from_py_arrow(field.type),
         }
     return result
 

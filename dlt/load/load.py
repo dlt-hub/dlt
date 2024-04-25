@@ -5,7 +5,8 @@ from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable
 from concurrent.futures import Executor
 import os
 
-from dlt.common import sleep, logger
+from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
@@ -340,7 +341,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # do not commit load id for aborted packages
         if not aborted:
             with self.get_destination_client(schema) as job_client:
-                job_client.complete_load(load_id)
+                with Container().injectable_context(
+                    LoadPackageStateInjectableContext(
+                        storage=self.load_storage.normalized_packages,
+                        load_id=load_id,
+                    )
+                ):
+                    job_client.complete_load(load_id)
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
         self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
@@ -468,10 +475,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
-        container = Container()
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
-            with container.injectable_context(
+            with Container().injectable_context(
                 LoadPackageStateInjectableContext(
                     storage=self.load_storage.normalized_packages,
                     load_id=load_id,

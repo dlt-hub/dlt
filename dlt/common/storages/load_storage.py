@@ -2,7 +2,7 @@ from os.path import join
 from typing import Iterable, List, Optional, Sequence
 
 from dlt.common.data_writers.exceptions import DataWriterNotFound
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
 from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
@@ -82,28 +82,16 @@ class LoadStorage(VersionedStorage):
         self.storage.create_folder(LoadStorage.NORMALIZED_FOLDER, exists_ok=True)
         self.storage.create_folder(LoadStorage.LOADED_FOLDER, exists_ok=True)
 
-    def create_item_storage(
-        self, preferred_format: TLoaderFileFormat, item_format: TDataItemFormat
-    ) -> DataItemStorage:
-        """Creates item storage for preferred_format + item_format combination. If not found, it
-        tries the remaining file formats in supported formats.
-        """
-        try:
-            return LoadItemStorage(
-                self.new_packages,
-                DataWriter.writer_spec_from_file_format(preferred_format, item_format),
-            )
-        except DataWriterNotFound:
-            for supported_format in self.supported_loader_file_formats:
-                if supported_format != preferred_format:
-                    try:
-                        return LoadItemStorage(
-                            self.new_packages,
-                            DataWriter.writer_spec_from_file_format(supported_format, item_format),
-                        )
-                    except DataWriterNotFound:
-                        pass
-            raise
+    def create_item_storage(self, writer_spec: FileWriterSpec) -> DataItemStorage:
+        return LoadItemStorage(self.new_packages, writer_spec)
+
+    def import_extracted_package(
+        self, load_id: str, extract_package_storage: PackageStorage
+    ) -> None:
+        # pass the original state
+        self.new_packages.create_package(
+            load_id, extract_package_storage.get_load_package_state(load_id)
+        )
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""

@@ -9,7 +9,8 @@ from google.cloud import exceptions as gcp_exceptions
 from google.api_core import retry
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,

@@ -14,7 +14,7 @@ def get_installed_requirement_string(package: str = DLT_PKG_NAME) -> str:
     # PEP 610 https://packaging.python.org/en/latest/specifications/direct-url/#specification
     direct_url = dist.read_text("direct_url.json")
     if direct_url is not None:
-        from dlt.common import json
+        from dlt.common.json import json
 
         # `url` contain the location of the distribution
         url = urlparse(json.loads(direct_url)["url"])

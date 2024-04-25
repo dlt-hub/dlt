@@ -1,13 +1,20 @@
 """
 Walks through all markdown files, finds all code snippets, and checks wether they are parseable.
 """
-from typing import List, Dict, Optional
+import os
+import ast
+import subprocess
+import argparse
 
-import os, ast, json, yaml, tomlkit, subprocess, argparse  # noqa: I251
 from dataclasses import dataclass
 from textwrap import dedent
+from typing import List
 
+import tomlkit
+import yaml
 import dlt.cli.echo as fmt
+
+from dlt.common import json
 
 from utils import collect_markdown_files
 
@@ -295,6 +302,7 @@ if __name__ == "__main__":
     python_snippets = [s for s in filtered_snippets if s.language == "py"]
     if args.command in ["lint", "full"]:
         lint_snippets(python_snippets, args.verbose)
+
     if ENABLE_MYPY and args.command in ["typecheck", "full"]:
         typecheck_snippets(python_snippets, args.verbose)
 

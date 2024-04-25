@@ -47,6 +47,15 @@ class SqlClientNotAvailable(PipelineException):
         )
 
 
+class FSClientNotAvailable(PipelineException):
+    def __init__(self, pipeline_name: str, destination_name: str) -> None:
+        super().__init__(
+            pipeline_name,
+            f"Filesystem Client not available for destination {destination_name} in pipeline"
+            f" {pipeline_name}",
+        )
+
+
 class PipelineStepFailed(PipelineException):
     """Raised by run, extract, normalize and load Pipeline methods."""
 

@@ -4,6 +4,7 @@ import time
 from typing import Iterator
 
 from dlt.common import pendulum, json
+from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
 from dlt.common.typing import AnyFun
 
 # from dlt.destinations.postgres import capabilities
@@ -18,11 +19,21 @@ from dlt.common.data_writers.escape import (
 
 # import all writers here to check if it can be done without all the dependencies
 from dlt.common.data_writers.writers import (
+    WRITER_SPECS,
+    ArrowToCsvWriter,
+    ArrowToInsertValuesWriter,
+    ArrowToJsonlWriter,
+    ArrowToParquetWriter,
+    ArrowToTypedJsonlListWriter,
+    CsvWriter,
     DataWriter,
     DataWriterMetrics,
     EMPTY_DATA_WRITER_METRICS,
     InsertValuesWriter,
     JsonlWriter,
+    get_best_writer_spec,
+    resolve_best_writer_spec,
+    is_native_writer,
 )
 
 from tests.common.utils import load_json_case, row_to_column_schemas
@@ -174,3 +185,77 @@ def test_data_writer_metrics_add() -> None:
     # time range extends when added
     add_m = metrics + DataWriterMetrics("file", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
     assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)
+
+
+def test_is_native_writer() -> None:
+    assert is_native_writer(InsertValuesWriter)
+    assert is_native_writer(ArrowToCsvWriter)
+    assert is_native_writer(CsvWriter)
+    # and not one with adapter
+    assert is_native_writer(ArrowToJsonlWriter) is False
+
+
+def test_resolve_best_writer() -> None:
+    assert (
+        WRITER_SPECS[
+            resolve_best_writer_spec("arrow", ("insert_values", "jsonl", "parquet", "csv"))
+        ]
+        == ArrowToParquetWriter
+    )
+    assert WRITER_SPECS[resolve_best_writer_spec("object", ("jsonl",))] == JsonlWriter
+    # order of what is possible matters
+    assert (
+        WRITER_SPECS[
+            resolve_best_writer_spec("arrow", ("insert_values", "jsonl", "csv", "parquet"))
+        ]
+        == ArrowToCsvWriter
+    )
+    # jsonl is ignored because it is not native
+    assert (
+        WRITER_SPECS[
+            resolve_best_writer_spec("arrow", ("insert_values", "jsonl", "parquet"), "jsonl")
+        ]
+        == ArrowToParquetWriter
+    )
+    # csv not possible
+    with pytest.raises(ValueError):
+        resolve_best_writer_spec("arrow", ("insert_values", "jsonl", "parquet"), "csv")
+    # csv is native and preferred so goes over parquet
+    assert (
+        WRITER_SPECS[
+            resolve_best_writer_spec("arrow", ("insert_values", "jsonl", "parquet", "csv"), "csv")
+        ]
+        == ArrowToCsvWriter
+    )
+
+    # not a native writer
+    assert (
+        WRITER_SPECS[
+            resolve_best_writer_spec(
+                "arrow",
+                ("insert_values",),
+            )
+        ]
+        == ArrowToInsertValuesWriter
+    )
+    assert (
+        WRITER_SPECS[
+            resolve_best_writer_spec("arrow", ("insert_values", "typed-jsonl"), "typed-jsonl")
+        ]
+        == ArrowToTypedJsonlListWriter
+    )
+
+    # no route
+    with pytest.raises(SpecLookupFailed) as spec_ex:
+        resolve_best_writer_spec("arrow", ("tsv",), "tsv")  # type: ignore[arg-type]
+    assert spec_ex.value.possible_file_formats == ("tsv",)
+    assert spec_ex.value.data_item_format == "arrow"
+    assert spec_ex.value.file_format == "tsv"
+
+
+def test_get_best_writer() -> None:
+    assert WRITER_SPECS[get_best_writer_spec("arrow", "csv")] == ArrowToCsvWriter
+    assert WRITER_SPECS[get_best_writer_spec("object", "csv")] == CsvWriter
+    assert WRITER_SPECS[get_best_writer_spec("arrow", "insert_values")] == ArrowToInsertValuesWriter
+    with pytest.raises(DataWriterNotFound):
+        get_best_writer_spec("arrow", "tsv")  # type: ignore

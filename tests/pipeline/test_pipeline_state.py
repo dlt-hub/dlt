@@ -4,7 +4,10 @@ import pytest
 
 import dlt
 
-from dlt.common.exceptions import PipelineStateNotAvailable, ResourceNameNotAvailable
+from dlt.common.exceptions import (
+    PipelineStateNotAvailable,
+    ResourceNameNotAvailable,
+)
 from dlt.common.schema import Schema
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages import FileStorage
@@ -465,24 +468,6 @@ def test_transformer_state_write() -> None:
             "tx_other_name_async"
         ]["gen"]
         is True
-    )
-
-
-def test_transform_function_state_write() -> None:
-    r = some_data_resource_state()
-
-    # transform executed within the same thread
-    def transform(item):
-        dlt.current.resource_state()["form"] = item
-        return item * 2
-
-    r.add_map(transform)
-    assert list(r) == [2, 4, 6]
-    assert (
-        state_module._last_full_state["sources"]["test_pipeline_state"]["resources"][
-            "some_data_resource_state"
-        ]["form"]
-        == 3
     )
 
 

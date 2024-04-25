@@ -24,7 +24,9 @@ import weaviate
 from weaviate.gql.get import GetBuilder
 from weaviate.util import generate_uuid5
 
-from dlt.common import json, pendulum, logger
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
@@ -422,7 +424,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     @wrap_weaviate_error
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         # Retrieve the schema from Weaviate
@@ -491,7 +495,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
         while True:
             state_records = self.get_records(
                 self.schema.state_table_name,
-                sort={"path": ["created_at"], "order": "desc"},
+                # search by package load id which is guaranteed to increase over time
+                sort={"path": ["_dlt_load_id"], "order": "desc"},
                 where={
                     "path": ["pipeline_name"],
                     "operator": "Equal",
@@ -520,17 +525,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 if len(load_records):
                     state["dlt_load_id"] = state.pop("_dlt_load_id")
                     return StateInfo(**state)
-
-    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
-    #     state_records = self.get_records(state_table,
-    #         sort={
-    #             "path": ["created_at"],
-    #             "order": "desc"
-    #         }, properties=self.state_properties)
-
-    #     for state in state_records:
-    #         state["dlt_load_id"] = state.pop("_dlt_load_id")
-    #     return [StateInfo(**state) for state in state_records]
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""

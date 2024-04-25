@@ -23,7 +23,9 @@ from typing import (
 import zlib
 import re
 
-from dlt.common import json, pendulum, logger
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import (
     COLUMN_HINTS,
@@ -178,7 +180,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return self.sql_client.has_dataset()
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
@@ -363,22 +367,13 @@ WHERE """
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
             " l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY"
-            " created_at DESC"
+            " l.load_id DESC"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
         if not row:
             return None
         return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
-
-    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
-    #     """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
-    #     query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s ORDER BY created_at DESC"
-    #     result: List[StateInfo] = []
-    #     with self.sql_client.execute_query(query) as cur:
-    #         for row in cur.fetchall():
-    #             result.append(StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4])))
-    #     return result
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
