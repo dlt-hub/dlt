@@ -102,7 +102,7 @@ You can use `dlt.sources.incremental` to create a custom cursor for tracking pag
 
 Alternatively, you can manage the state directly in Python. You can access and modify the state like a standard Python dictionary: 
 ```py
-state = dlt.current.resource_state(); 
+state = dlt.current.resource_state()
 state["your_custom_key"] = "your_value"
 ```
 This method allows you to create custom pagination logic based on your requirements. An example of using `resource_state()` for pagination can be found [here](https://dlthub.com/docs/general-usage/incremental-loading#custom-incremental-loading-with-pipeline-state).
