@@ -17,7 +17,8 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder
+from dlt.common.typing import TSortOrder, TAnyDateTime
+from dlt.common.pendulum import pendulum
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -33,8 +34,6 @@ VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 STATE_TABLE_NAME = "_dlt_pipeline_state"
 DLT_NAME_PREFIX = "_dlt"
-DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
-"""Default values for validity column names used in `scd2` merge strategy."""
 
 TColumnProp = Literal[
     "name",
@@ -161,6 +160,9 @@ TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
 
+DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
+"""Default values for validity column names used in `scd2` merge strategy."""
+
 
 class TWriteDispositionDict(TypedDict):
     disposition: TWriteDisposition
@@ -169,6 +171,7 @@ class TWriteDispositionDict(TypedDict):
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
     validity_column_names: Optional[List[str]]
+    active_record_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 

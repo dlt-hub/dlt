@@ -65,7 +65,8 @@ class TestRESTClient:
             assert isinstance(page.request, Request)
             # make request url should be same as next link in paginator
             if page.paginator.has_next_page:
-                assert page.paginator.next_reference == page.request.url
+                paginator = cast(JSONResponsePaginator, page.paginator)
+                assert paginator._next_reference == page.request.url
 
     def test_default_paginator(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate("/posts")
