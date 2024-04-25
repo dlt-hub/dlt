@@ -443,11 +443,9 @@ class DltResourceHints:
                     "data_type": "timestamp",
                     "nullable": True,
                     "x-valid-to": True,
+                    "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
-                if mddict.get("row_version_column_name") is None:
-                    hash_ = "_dlt_id"
-                else:
-                    hash_ = mddict["row_version_column_name"]
+                hash_ = mddict.get("row_version_column_name", "_dlt_id")
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
