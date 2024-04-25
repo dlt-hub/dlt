@@ -98,5 +98,7 @@ Our observation is that if you write a lot of data into the database, then close
 ### Invalid Input Error: Initialization function "motherduck_init" from file
 Use `duckdb 0.8.1` or above.
 
+### Motherduck connection identifier
+We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
+associated with `dlt` integration. The connection identifier is `dltHub_dlt@DLT_VERSION`.
 <!--@@@DLT_TUBA motherduck-->
-
