@@ -9,7 +9,6 @@ from dlt.common import jsonpath
 class BasePaginator(ABC):
     def __init__(self) -> None:
         self._has_next_page = True
-        self._next_reference: Optional[str] = None
 
     @property
     def has_next_page(self) -> bool:
@@ -20,15 +19,6 @@ class BasePaginator(ABC):
             bool: True if there is a next page available, False otherwise.
         """
         return self._has_next_page
-
-    @property
-    def next_reference(self) -> Optional[str]:
-        return self._next_reference
-
-    @next_reference.setter
-    def next_reference(self, value: Optional[str]) -> None:
-        self._next_reference = value
-        self._has_next_page = value is not None
 
     @abstractmethod
     def update_state(self, response: Response) -> None:
@@ -107,15 +97,30 @@ class OffsetPaginator(BasePaginator):
         request.params[self.limit_param] = self.limit
 
 
-class BaseNextUrlPaginator(BasePaginator):
+class BaseReferencePaginator(BasePaginator):
+    def __init__(self) -> None:
+        super().__init__()
+        self.__next_reference: Optional[str] = None
+
+    @property
+    def _next_reference(self) -> Optional[str]:
+        return self.__next_reference
+
+    @_next_reference.setter
+    def _next_reference(self, value: Optional[str]) -> None:
+        self.__next_reference = value
+        self._has_next_page = value is not None
+
+
+class BaseNextUrlPaginator(BaseReferencePaginator):
     def update_request(self, request: Request) -> None:
         # Handle relative URLs
-        if self.next_reference:
-            parsed_url = urlparse(self.next_reference)
+        if self._next_reference:
+            parsed_url = urlparse(self._next_reference)
             if not parsed_url.scheme:
-                self.next_reference = urljoin(request.url, self.next_reference)
+                self._next_reference = urljoin(request.url, self._next_reference)
 
-        request.url = self.next_reference
+        request.url = self._next_reference
 
 
 class HeaderLinkPaginator(BaseNextUrlPaginator):
@@ -136,7 +141,7 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
         self.links_next_key = links_next_key
 
     def update_state(self, response: Response) -> None:
-        self.next_reference = response.links.get(self.links_next_key, {}).get("url")
+        self._next_reference = response.links.get(self.links_next_key, {}).get("url")
 
 
 class JSONResponsePaginator(BaseNextUrlPaginator):
@@ -158,10 +163,10 @@ class JSONResponsePaginator(BaseNextUrlPaginator):
 
     def update_state(self, response: Response) -> None:
         values = jsonpath.find_values(self.next_url_path, response.json())
-        self.next_reference = values[0] if values else None
+        self._next_reference = values[0] if values else None
 
 
-class JSONResponseCursorPaginator(BasePaginator):
+class JSONResponseCursorPaginator(BaseReferencePaginator):
     """A paginator that uses a cursor query param to paginate. The cursor for the
     next page is found in the JSON response.
     """
@@ -182,7 +187,7 @@ class JSONResponseCursorPaginator(BasePaginator):
 
     def update_state(self, response: Response) -> None:
         values = jsonpath.find_values(self.cursor_path, response.json())
-        self.next_reference = values[0] if values else None
+        self._next_reference = values[0] if values else None
 
     def update_request(self, request: Request) -> None:
         if request.params is None:
