@@ -7,8 +7,7 @@ from dlt.common import jsonpath
 
 
 class BasePaginator(ABC):
-    """
-    Base class for all paginator implementations. Paginators are used
+    """A base class for all paginator implementations. Paginators are used
     to handle paginated responses from RESTful APIs.
 
     See `RESTClient.paginate()` for example usage.
@@ -32,7 +31,8 @@ class BasePaginator(ABC):
 
         This method should extract necessary pagination details (like next page
         references) from the response and update the paginator's state
-        accordingly.
+        accordingly. It should also set the `_has_next_page` attribute to
+        indicate if there is a next page available.
 
         Args:
             response (Response): The response object from the API request.
@@ -162,6 +162,15 @@ class OffsetPaginator(BasePaginator):
 
 
 class BaseReferencePaginator(BasePaginator):
+    """A base paginator class for paginators that use a reference to the next
+    page, such as a URL or a cursor string.
+
+    Subclasses should implement:
+      1. `update_state` method to extract the next page reference and
+        set the `_next_reference` attribute accordingly.
+      2. `update_request` method to update the request object with the next
+        page reference.
+    """
     def __init__(self) -> None:
         super().__init__()
         self.__next_reference: Optional[str] = None
@@ -195,7 +204,7 @@ class BaseNextUrlPaginator(BaseReferencePaginator):
     headers or in the JSON response.
 
     Subclasses should implement the `update_state` method to extract the next
-    page URL and set the `next_reference` attribute accordingly.
+    page URL and set the `_next_reference` attribute accordingly.
 
     See `HeaderLinkPaginator` and `JSONResponsePaginator` for examples.
     """
