@@ -479,6 +479,7 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
     with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
         yield json.load(f)
 ```
+
 ### Using `last_value_func` for lookback
 The example below uses the `last_value_func` to load data from the past month. 
 ```py
@@ -502,7 +503,6 @@ def get_events(last_created_at = dlt.sources.incremental("created_at", last_valu
     with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
         yield json.load(f)
 ```
-
 
 ### Using `end_value` for backfill
 You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
