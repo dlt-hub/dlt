@@ -81,7 +81,7 @@ def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str,
         for dconf in destinations_configs(default_sql_configs=True, supports_merge=True)
     ]
     + [
-        (dconf, True, None, pendulum.DateTime(3234, 12, 31, 22, 2, 59))  # arbitrary timestamp
+        (dconf, True, None, pendulum.DateTime(2099, 12, 31, 22, 2, 59))  # arbitrary timestamp
         for dconf in destinations_configs(default_sql_configs=True, supports_merge=True)
     ]
     + [  # test nested columns and validity column name configuration only for postgres and duckdb

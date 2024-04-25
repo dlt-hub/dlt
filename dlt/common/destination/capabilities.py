@@ -54,7 +54,6 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
-    scd2_high_timestamp: pendulum.DateTime = HIGH_TS
     """High timestamp used to indicate active records in `scd2` merge strategy."""
 
     """Destination supports CREATE TABLE ... CLONE ... statements"""
