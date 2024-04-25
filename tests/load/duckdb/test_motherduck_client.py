@@ -1,10 +1,15 @@
 import os
+
+import duckdb
 import pytest
+
+from pytest_mock import MockerFixture
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.resolve import resolve_configuration
 
 from dlt.destinations.impl.motherduck.configuration import (
+    MOTHERDUCK_USER_AGENT,
     MotherDuckCredentials,
     MotherDuckClientConfiguration,
 )
@@ -47,10 +52,11 @@ def test_motherduck_configuration() -> None:
     assert config.password == "tok"
 
 
-def test_motherduck_connect() -> None:
+def test_motherduck_connect(mocker: MockerFixture) -> None:
     # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize
     os.environ["HOME"] = "/tmp"
 
+    connect_spy = mocker.spy(duckdb, "connect")
     config = resolve_configuration(
         MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
         sections=("destination", "motherduck"),
@@ -59,3 +65,36 @@ def test_motherduck_connect() -> None:
     con = config.credentials.borrow_conn(read_only=False)
     con.sql("SHOW DATABASES")
     config.credentials.return_conn(con)
+
+    # check for the default user agent value
+    connect_spy.assert_called()
+    assert "config" in connect_spy.call_args.kwargs
+    assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == MOTHERDUCK_USER_AGENT
+
+
+def test_motherduck_connect_disable_user_agent_passing(mocker: MockerFixture) -> None:
+    # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize
+    os.environ["HOME"] = "/tmp"
+
+    connect_spy = mocker.spy(duckdb, "connect")
+    config = resolve_configuration(
+        MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
+        sections=("destination", "motherduck"),
+    )
+    config.credentials.custom_user_agent = ""
+    # connect
+    con = config.credentials.borrow_conn(read_only=False)
+    con.sql("SHOW DATABASES")
+    config.credentials.return_conn(con)
+
+    # check for the default user agent value
+    connect_spy.assert_called()
+    assert "config" in connect_spy.call_args.kwargs
+    assert "custom_user_agent" not in connect_spy.call_args.kwargs["config"]
+
+    # now try to assign a custom value and check
+    config.credentials.custom_user_agent = "patates"
+    con = config.credentials.borrow_conn(read_only=False)
+    config.credentials.return_conn(con)
+    connect_spy.assert_called()
+    assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == "patates"
