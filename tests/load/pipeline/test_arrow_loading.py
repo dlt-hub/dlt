@@ -125,6 +125,13 @@ def test_load_arrow_item(
         for i in range(len(row)):
             if isinstance(row[i], datetime):
                 row[i] = pendulum.instance(row[i])
+            # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
+            if (
+                destination_config.destination == "clickhouse"
+                and destination_config.file_format == "jsonl"
+                and isinstance(row[i], float)
+            ):
+                row[i] = round(row[i], 4)
 
     expected = sorted([list(r.values()) for r in records])
 

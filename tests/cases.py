@@ -311,7 +311,7 @@ def arrow_table_all_data_types(
         "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz=tz, unit="us"),
         "bool": [random.choice([True, False]) for _ in range(num_rows)],
         "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [None],
-        "float_null": [round(random.uniform(0, 100), 5) for _ in range(num_rows - 1)] + [
+        "float_null": [round(random.uniform(0, 100), 4) for _ in range(num_rows - 1)] + [
             None
         ],  # decrease precision
         "null": pd.Series([None for _ in range(num_rows)]),
