@@ -52,6 +52,30 @@ We use **master** branch for hot fixes (including documentation) that needs to b
 
 On the release day, **devel** branch is merged into **master**. All releases of `dlt` happen only from the **master**.
 
+### Branch naming rules
+
+We are using the following branch naming pattern (all lowercase and dashes, no underscores):
+
+```sh
+{category}/{ticket-id}-description-of-the-branch
+# example:
+feat/4922-add-avro-support
+```
+
+#### Branch categories
+
+* **feat** - a new feature that is being implemented (ticket required)
+* **fix** - a change that fixes a bug (ticket required)
+* **exp** - an experiment where we are testing a new  idea or want to demonstrate something to the team, might turn into a feat later (ticket encouraged)
+* **test** - anything related to the tests (ticket encouraged)
+* **blogs** - a new entry to our blog (ticket optional)
+* **docs** - a change to our docs (ticket optional)
+
+#### Ticket Numbers
+
+We encourage you to attach your branches to a ticket, if none exists, create one an explain what you are doing. For feat and fix branches, tickets are mandatory, for exp and test branches encouraged and for blogs and cos branches optional.
+
+
 ### Submitting a hotfix
 We'll fix critical bugs and release `dlt` out of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
 
@@ -166,3 +190,4 @@ Once the version has been bumped, follow these steps to publish the new release 
 - [Poetry Documentation](https://python-poetry.org/docs/)
 
 If you have any questions or need help, don't hesitate to reach out to us. We're here to help you succeed in contributing to `dlt`. Happy coding!
+****
