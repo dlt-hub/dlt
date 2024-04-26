@@ -163,6 +163,51 @@ def test_file_format_resolution() -> None:
         pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="insert_values")
 
 
+def test_staging_cleared() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_cleared",
+        destination="bigquery",
+        staging="filesystem",
+        full_refresh=True,
+    )
+    info = pipeline.run(
+        [{"field": 1}, {"field": 2}, {"field": 3}],
+        table_name="staging_cleared_resource",
+    )
+    assert_load_info(info)
+
+    _, staging = pipeline._get_destination_clients(pipeline.default_schema)
+    assert staging.list_table_files("staging_cleared_resource") == []
+
+    with pipeline.sql_client() as client:
+        with client.execute_query("SELECT * FROM staging_cleared_resource") as cur:
+            assert len(cur.fetchall()) == 3
+
+
+def test_staging_not_cleared() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_cleared",
+        destination="bigquery",
+        staging="filesystem",
+        full_refresh=True,
+    )
+    info = pipeline.run(
+        [{"field": 1}, {"field": 2}, {"field": 3}],
+        table_name="staging_cleared_resource",
+        truncate_staging=False,
+    )
+    assert_load_info(info)
+
+    _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
+    assert (
+        "staging_cleared_resource" in staging_client.list_table_files("staging_cleared_resource")[0]
+    )
+
+    with pipeline.sql_client() as client:
+        with client.execute_query("SELECT * FROM staging_cleared_resource") as cur:
+            assert len(cur.fetchall()) == 3
+
+
 def test_invalid_dataset_name() -> None:
     # this is invalid dataset name but it will be normalized within a destination
     p = dlt.pipeline(dataset_name="!")
