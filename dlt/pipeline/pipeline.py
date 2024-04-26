@@ -1581,11 +1581,11 @@ class Pipeline(SupportsPipeline):
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
 
-    def _truncate_staging(self, load_step) -> None:
+    def _truncate_staging(self, load_step: Load) -> None:
         """Truncate staging destination.
 
         Args:
-            load_step (LoadStep): Finished load instance.
+            load_step (Load): Finished load instance.
         """
         try:
             with load_step.get_staging_destination_client(self.default_schema) as staging_client:
@@ -1595,7 +1595,7 @@ class Pipeline(SupportsPipeline):
         except Exception as exc:
             logger.warn(
                 (
-                    f"Staging destination truncate failed due to the following error: {exc.message}"
+                    f"Staging destination truncate failed due to the following error: {exc}"
                     " However, it doesn't affect the main destination data integrity."
                 )
             )

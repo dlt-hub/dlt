@@ -177,7 +177,7 @@ def test_staging_cleared() -> None:
     assert_load_info(info)
 
     _, staging = pipeline._get_destination_clients(pipeline.default_schema)
-    assert staging.list_table_files("staging_cleared_resource") == []
+    assert staging.list_table_files("staging_cleared_resource") == []  # type: ignore
 
     with pipeline.sql_client() as client:
         with client.execute_query("SELECT * FROM staging_cleared_resource") as cur:
@@ -198,7 +198,7 @@ def test_staging_not_cleared() -> None:
     )
     assert_load_info(info)
 
-    _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
+    _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)  # type: ignore
     assert (
         "staging_cleared_resource" in staging_client.list_table_files("staging_cleared_resource")[0]
     )
