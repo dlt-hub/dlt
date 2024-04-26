@@ -16,25 +16,7 @@ MOTHERDUCK_USER_AGENT = f"dltHub_dlt@{__version__}"
 
 
 @configspec(init=False)
-class MotherDuckCredentials(DuckDbBaseCredentials):
-    drivername: Final[str] = dataclasses.field(default="md", init=False, repr=False, compare=False)  # type: ignore
-    username: str = "motherduck"
-    password: TSecretValue = None
-    database: str = "my_db"
-    custom_user_agent: str = MOTHERDUCK_USER_AGENT
-
-    read_only: bool = False  # open database read/write
-
-    __config_gen_annotations__: ClassVar[List[str]] = ["password", "database"]
-
-    def _conn_str(self) -> str:
-        return f"{MOTHERDUCK_DRIVERNAME}:{self.database}?token={self.password}"
-
-    def _token_to_password(self) -> None:
-        # could be motherduck connection
-        if self.query and "token" in self.query:
-            self.password = TSecretValue(self.query.pop("token"))
-
+class MotherDuckBaseCredentials(DuckDbBaseCredentials):
     def _connect(self, read_only: bool) -> Any:
         # TODO: Can this be done in sql client instead?
         import duckdb
@@ -75,6 +57,29 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
             raise
 
+
+@configspec(init=False)
+class MotherDuckCredentials(MotherDuckBaseCredentials):
+    drivername: Final[str] = dataclasses.field(
+        default="md", init=False, repr=False, compare=False
+    )  # type: ignore
+    username: str = "motherduck"
+    password: TSecretValue = None
+    database: str = "my_db"
+    custom_user_agent: str = MOTHERDUCK_USER_AGENT
+
+    read_only: bool = False  # open database read/write
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["password", "database"]
+
+    def _conn_str(self) -> str:
+        return f"{MOTHERDUCK_DRIVERNAME}:{self.database}?token={self.password}"
+
+    def _token_to_password(self) -> None:
+        # could be motherduck connection
+        if self.query and "token" in self.query:
+            self.password = TSecretValue(self.query.pop("token"))
+
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self._token_to_password()
@@ -88,7 +93,9 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
 @configspec
 class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="motherduck", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: Final[str] = dataclasses.field(
+        default="motherduck", init=False, repr=False, compare=False
+    )  # type: ignore
     credentials: MotherDuckCredentials = None
 
     create_indexes: bool = (
