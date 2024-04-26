@@ -163,7 +163,8 @@ def test_file_format_resolution() -> None:
         pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="insert_values")
 
 
-def test_staging_cleared() -> None:
+@pytest.mark.parametrize("truncate_staging", (True, False))
+def test_staging_truncate(truncate_staging) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_staging_cleared",
         destination="bigquery",
@@ -173,35 +174,18 @@ def test_staging_cleared() -> None:
     info = pipeline.run(
         [{"field": 1}, {"field": 2}, {"field": 3}],
         table_name="staging_cleared_resource",
+        truncate_staging=truncate_staging,
     )
     assert_load_info(info)
 
     _, staging = pipeline._get_destination_clients(pipeline.default_schema)
-    assert staging.list_table_files("staging_cleared_resource") == []  # type: ignore
 
-    with pipeline.sql_client() as client:
-        with client.execute_query("SELECT * FROM staging_cleared_resource") as cur:
-            assert len(cur.fetchall()) == 3
-
-
-def test_staging_not_cleared() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_staging_cleared",
-        destination="bigquery",
-        staging="filesystem",
-        full_refresh=True,
-    )
-    info = pipeline.run(
-        [{"field": 1}, {"field": 2}, {"field": 3}],
-        table_name="staging_cleared_resource",
-        truncate_staging=False,
-    )
-    assert_load_info(info)
-
-    _, staging_client = pipeline._get_destination_clients(pipeline.default_schema)
-    assert (
-        "staging_cleared_resource" in staging_client.list_table_files("staging_cleared_resource")[0]  # type: ignore
-    )
+    if truncate_staging:
+        assert staging.list_table_files("staging_cleared_resource") == []  # type: ignore
+    else:
+        assert (
+            "staging_cleared_resource" in staging.list_table_files("staging_cleared_resource")[0]  # type: ignore
+        )
 
     with pipeline.sql_client() as client:
         with client.execute_query("SELECT * FROM staging_cleared_resource") as cur:
