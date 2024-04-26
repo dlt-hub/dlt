@@ -133,7 +133,6 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
     Returns:
         A pendulum.Time object
     """
-
     if isinstance(value, datetime.time):
         if isinstance(value, pendulum.Time):
             return value

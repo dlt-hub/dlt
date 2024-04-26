@@ -797,8 +797,8 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
-    # parquet on bigquery does not support JSON but we still want to run the test
-    if destination_config.destination == "bigquery":
+    # parquet on bigquery and clickhouse does not support JSON but we still want to run the test
+    if destination_config.destination in ["bigquery"]:
         column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
 
     # duckdb 0.9.1 does not support TIME other than 6
@@ -811,7 +811,13 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas["col4_precision"]["precision"] = 6
 
     # drop TIME from databases not supporting it via parquet
-    if destination_config.destination in ["redshift", "athena", "synapse", "databricks"]:
+    if destination_config.destination in [
+        "redshift",
+        "athena",
+        "synapse",
+        "databricks",
+        "clickhouse",
+    ]:
         data_types.pop("col11")
         data_types.pop("col11_null")
         data_types.pop("col11_precision")
@@ -868,6 +874,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=column_schemas,
             parse_complex_strings=destination_config.destination
             in ["snowflake", "bigquery", "redshift"],
+            allow_string_binary=destination_config.destination == "clickhouse",
             timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
         )
 
@@ -906,7 +913,7 @@ def test_pipeline_upfront_tables_two_loads(
             yield {"id": 1}
 
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "unique": True}],
             write_disposition="merge",
         )
         def table_2():
