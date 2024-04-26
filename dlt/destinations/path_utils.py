@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import (
+    ensure_pendulum_datetime,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
+)
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
     InvalidFilesystemLayout,
@@ -91,8 +95,8 @@ def prepare_datetime_params(
     current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
         current_timestamp = ensure_pendulum_datetime(load_package_timestamp)
-        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
-        params["load_package_timestamp_ms"] = current_timestamp.format("SSS")
+        params["load_package_timestamp"] = str(datetime_to_timestamp(current_timestamp))
+        params["load_package_timestamp_ms"] = str(datetime_to_timestamp_ms(current_timestamp))
 
     if not current_datetime:
         if current_timestamp:
@@ -102,8 +106,8 @@ def prepare_datetime_params(
             logger.info("current_datetime is not set, using pendulum.now()")
             current_datetime = pendulum.now()
 
-    params["timestamp"] = str(int(current_datetime.timestamp()))
-    params["timestamp_ms"] = current_datetime.format("SSS")
+    params["timestamp"] = str(datetime_to_timestamp(current_datetime))
+    params["timestamp_ms"] = str(datetime_to_timestamp_ms(current_datetime))
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:

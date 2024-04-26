@@ -9,6 +9,8 @@ from dlt.common.time import (
     timestamp_within,
     ensure_pendulum_datetime,
     ensure_pendulum_date,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
 )
 from dlt.common.typing import TAnyDateTime
 
@@ -100,3 +102,25 @@ def test_ensure_pendulum_date_utc() -> None:
     assert ensure_pendulum_date(
         datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=8)))
     ) == pendulum.date(2020, 12, 31)
+
+
+test_timestamps = [
+    (pendulum.DateTime(2024, 4, 26, 5, 16, 22, 738029).in_tz("UTC"), 1714108582, 1714108582738),
+    (pendulum.DateTime(2024, 4, 26, 6, 26, 22, 738029).in_tz("UTC"), 1714112782, 1714112782738),
+    (pendulum.DateTime(2024, 4, 26, 7, 36, 22, 738029).in_tz("UTC"), 1714116982, 1714116982738),
+    (pendulum.DateTime(2024, 4, 26, 8, 46, 22, 738029).in_tz("UTC"), 1714121182, 1714121182738),
+    (pendulum.DateTime(2024, 4, 26, 9, 56, 22, 738029).in_tz("UTC"), 1714125382, 1714125382738),
+    (pendulum.DateTime(2024, 4, 26, 11, 6, 22, 738029).in_tz("UTC"), 1714129582, 1714129582738),
+    (pendulum.DateTime(2024, 4, 26, 12, 16, 22, 738029).in_tz("UTC"), 1714133782, 1714133782738),
+    (pendulum.DateTime(2024, 4, 26, 13, 26, 22, 738029).in_tz("UTC"), 1714137982, 1714137982738),
+    (pendulum.DateTime(2024, 4, 26, 14, 36, 22, 738029).in_tz("UTC"), 1714142182, 1714142182738),
+    (pendulum.DateTime(2024, 4, 26, 15, 46, 22, 738029).in_tz("UTC"), 1714146382, 1714146382738),
+]
+
+
+@pytest.mark.parametrize("datetime_obj,timestamp,timestamp_ms", test_timestamps)
+def test_datetime_to_timestamp_helpers(
+    datetime_obj: pendulum.DateTime, timestamp: int, timestamp_ms: int
+) -> None:
+    assert datetime_to_timestamp(datetime_obj) == timestamp
+    assert datetime_to_timestamp_ms(datetime_obj) == timestamp_ms

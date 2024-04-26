@@ -233,9 +233,14 @@ Keep in mind all values are lowercased.
 :::
 
 * `timestamp` - the current timestamp in Unix Timestamp format rounded to seconds
-* `timestamp_ms` - the current timestamp in Unix Timestamp format rounded to milliseconds
+* `timestamp_ms` - the current timestamp in Unix Timestamp format in milliseconds
 * `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to seconds
-* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to milliseconds
+* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format in milliseconds
+
+:::note
+Both `timestamp_ms` and `load_package_timestamp_ms` are in milliseconds (e.g., 12334455233), not fractional seconds to make sure millisecond precision without decimals.
+:::
+
 * Years
   * `YYYY` - 2024, 2025
   * `Y` - 2024, 2025
