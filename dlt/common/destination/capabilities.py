@@ -9,6 +9,7 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingWithoutStagingNotSupported,
 )
 from dlt.common.utils import identity
+from dlt.common.pendulum import pendulum
 
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
@@ -32,6 +33,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supported_staging_file_formats: Sequence[TLoaderFileFormat] = None
     escape_identifier: Callable[[str], str] = None
     escape_literal: Callable[[Any], Any] = None
+    format_datetime_literal: Callable[..., str] = None
     decimal_precision: Tuple[int, int] = None
     wei_precision: Tuple[int, int] = None
     max_identifier_length: int = None
@@ -51,6 +53,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
+
     """Destination supports CREATE TABLE ... CLONE ... statements"""
     max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
 
@@ -61,6 +64,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
     ) -> "DestinationCapabilitiesContext":
+        from dlt.common.data_writers.escape import format_datetime_literal
+
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
@@ -68,6 +73,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supported_staging_file_formats = []
         caps.escape_identifier = identity
         caps.escape_literal = serialize_value
+        caps.format_datetime_literal = format_datetime_literal
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (EVM_DECIMAL_PRECISION, 0)
         caps.max_identifier_length = 65536

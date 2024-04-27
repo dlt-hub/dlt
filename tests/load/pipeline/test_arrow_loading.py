@@ -1,19 +1,18 @@
 from datetime import datetime  # noqa: I251
-from typing import Any, Union, List, Dict, Tuple, Literal
 import os
 
 import pytest
 import numpy as np
 import pyarrow as pa
 import pandas as pd
+import base64
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.time import reduce_pendulum_datetime_precision
+from dlt.common.time import reduce_pendulum_datetime_precision, ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.load.pipeline.utils import select_data
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, select_data
 from tests.utils import (
     TestDataItemFormat,
     arrow_item_from_pandas,
@@ -47,11 +46,13 @@ def test_load_arrow_item(
         "redshift",
         "databricks",
         "synapse",
+        "clickhouse",
     )  # athena/redshift can't load TIME columns
     include_binary = not (
         destination_config.destination in ("redshift", "databricks")
         and destination_config.file_format == "jsonl"
     )
+
     include_decimal = not (
         destination_config.destination == "databricks" and destination_config.file_format == "jsonl"
     )
@@ -107,15 +108,30 @@ def test_load_arrow_item(
                 row[i] = row[i].tobytes()
 
     if destination_config.destination == "redshift":
-        # Binary columns are hex formatted in results
+        # Redshift needs hex string
         for record in records:
             if "binary" in record:
                 record["binary"] = record["binary"].hex()
+
+    if destination_config.destination == "clickhouse":
+        for record in records:
+            # Clickhouse needs base64 string for jsonl
+            if "binary" in record and destination_config.file_format == "jsonl":
+                record["binary"] = base64.b64encode(record["binary"]).decode("ascii")
+            if "binary" in record and destination_config.file_format == "parquet":
+                record["binary"] = record["binary"].decode("ascii")
 
     for row in rows:
         for i in range(len(row)):
             if isinstance(row[i], datetime):
                 row[i] = pendulum.instance(row[i])
+            # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
+            if (
+                destination_config.destination == "clickhouse"
+                and destination_config.file_format == "jsonl"
+                and isinstance(row[i], float)
+            ):
+                row[i] = round(row[i], 4)
 
     expected = sorted([list(r.values()) for r in records])
 
@@ -134,6 +150,7 @@ def test_load_arrow_item(
 
     for row, expected_row in zip(rows, expected):
         # Compare without _dlt_id/_dlt_load_id columns
+        assert row[3] == expected_row[3]
         assert row[:-2] == expected_row
         # Load id and dlt_id are set
         assert row[-2] == load_id

@@ -168,21 +168,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 duckdb.ParserException,
             ),
         ):
-            term = cls._maybe_make_terminal_exception_from_data_error(ex)
-            if term:
-                return term
-            else:
-                return DatabaseTransientException(ex)
+            return DatabaseTransientException(ex)
         elif isinstance(ex, (duckdb.DataError, duckdb.ProgrammingError, duckdb.IntegrityError)):
             return DatabaseTerminalException(ex)
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
         else:
             return ex
-
-    @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(pg_ex: duckdb.Error) -> Optional[Exception]:
-        return None
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:

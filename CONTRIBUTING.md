@@ -6,11 +6,12 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 1. [Getting Started](#getting-started)
 2. [Submitting Changes](#submitting-changes)
-3. [Linting](#linting)
-4. [Testing](#testing)
-5. [Local Development](#local-development)
-6. [Publishing (Maintainers Only)](#publishing-maintainers-only)
-7. [Resources](#resources)
+3. [Adding or updating core dependencies](#adding-or-updating-core-dependencies)
+4. [Linting](#linting)
+5. [Testing](#testing)
+6. [Local Development](#local-development)
+7. [Publishing (Maintainers Only)](#publishing-maintainers-only)
+8. [Resources](#resources)
 
 ## Before You Begin
 
@@ -61,6 +62,26 @@ only the `duckdb` and `postgres` are available to forks.
 ## Submitting Changes Requiring Full CI Credentials.
 
 In case you submit a new destination or make changes to a destination that require credentials (so Bigquery, Snowflake, buckets etc.) you **should contact us so we can add you as contributor**. Then you should make a PR directly to the `dlt` repo.
+
+## Adding or updating core dependencies
+
+Our objective is to maintain stability and compatibility of dlt across all environments.
+By following these guidelines, we can make sure that dlt stays secure, reliable and compatible.
+Please consider the following points carefully when proposing updates to dependencies.
+
+### Updating guidelines
+
+1. **Critical security or system integrity updates only:**
+   Major or minor version updates to dependencies should only be considered if there are critical security vulnerabilities or issues that impact the system's integrity. In such cases, updating is necessary to protect the system and the data it processes.
+
+2. **Using the '>=' operator:**
+   When specifying dependencies, please make sure to use the `>=` operator while also maintaining version minima. This approach ensures our project remains compatible with older systems and setups, mitigating potential unsolvable dependency conflicts.
+
+For example, if our project currently uses a package `example-package==1.2.3`, and a security update is
+released as `1.2.4`, instead of updating to `example-package==1.2.4`, we can set it to `example-package>=1.2.3,<2.0.0`. This permits the necessary security update and at the same time
+prevents the automatic jump to a potentially incompatible major version update in the future.
+The other important note on using possible version minimas is to prevent potential cases where package
+versions will not be resolvable.
 
 ## Linting
 

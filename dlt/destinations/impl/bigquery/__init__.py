@@ -1,4 +1,7 @@
-from dlt.common.data_writers.escape import escape_bigquery_identifier
+from dlt.common.data_writers.escape import (
+    escape_bigquery_identifier,
+    format_bigquery_datetime_literal,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
@@ -11,6 +14,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_bigquery_identifier
     caps.escape_literal = None
+    caps.format_datetime_literal = format_bigquery_datetime_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (76, 38)
     caps.max_identifier_length = 1024

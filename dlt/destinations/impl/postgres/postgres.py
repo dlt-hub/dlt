@@ -112,6 +112,8 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
         with FileStorage.open_zipsafe_ro(file_path, "rb") as f:
             # all headers in first line
             headers = f.readline().decode("utf-8").strip()
+            # quote headers if not quoted - all special keywords like "binary" must be quoted
+            headers = ",".join(h if h.startswith('"') else f'"{h}"' for h in headers.split(","))
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             copy_sql = (
                 "COPY %s (%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', NULL '', FORCE_NULL(%s))"

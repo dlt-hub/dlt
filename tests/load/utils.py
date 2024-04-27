@@ -45,7 +45,7 @@ from tests.cases import (
     assert_all_data_types_row,
 )
 
-# bucket urls
+# Bucket urls.
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
@@ -178,12 +178,13 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
+            if destination
+            not in ("athena", "mssql", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
         ]
-        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
@@ -201,6 +202,11 @@ def destinations_configs(
                 supports_merge=False,
                 supports_dbt=False,
                 extra_info="iceberg",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="clickhouse", file_format="jsonl", supports_dbt=False
             )
         ]
         destination_configs += [
@@ -225,6 +231,10 @@ def destinations_configs(
             DestinationTestConfiguration(destination="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
+
+        # sanity check that when selecting default destinations, one of each sql destination is actually
+        # provided
+        assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
 
     if default_vector_configs:
         # for now only weaviate
@@ -314,6 +324,49 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
                 destination="dremio",

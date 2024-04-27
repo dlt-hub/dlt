@@ -133,7 +133,6 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
     Returns:
         A pendulum.Time object
     """
-
     if isinstance(value, datetime.time):
         if isinstance(value, pendulum.Time):
             return value
@@ -182,6 +181,14 @@ def to_py_date(value: datetime.date) -> datetime.date:
     if isinstance(value, pendulum.Date):
         return datetime.date(value.year, value.month, value.day)
     return value
+
+
+def datetime_to_timestamp(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return int(moment.timestamp())
+
+
+def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return int(moment.timestamp() * 1000)
 
 
 def _datetime_from_ts_or_iso(

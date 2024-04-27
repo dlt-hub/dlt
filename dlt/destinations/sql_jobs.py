@@ -1,10 +1,8 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 
 import yaml
-from dlt.common.data_writers.escape import format_datetime_literal
 from dlt.common.logger import pretty_format_exception
 
-from dlt.common.pendulum import pendulum
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
@@ -14,6 +12,7 @@ from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
     get_validity_column_names,
+    get_active_record_timestamp,
     DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
@@ -23,10 +22,6 @@ from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.pipeline.current import load_package as current_load_package
-
-
-HIGH_TS = pendulum.datetime(9999, 12, 31)
-"""High timestamp used to indicate active records in `scd2` merge strategy."""
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -146,7 +141,10 @@ class SqlStagingCopyJob(SqlBaseJob):
 
 
 class SqlMergeJob(SqlBaseJob):
-    """Generates a list of sql statements that merge the data from staging dataset into destination dataset."""
+    """
+    Generates a list of sql statements that merge the data from staging dataset into destination dataset.
+    If no merge keys are discovered, falls back to append.
+    """
 
     failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
@@ -383,67 +381,73 @@ class SqlMergeJob(SqlBaseJob):
                 get_columns_names_with_prop(root_table, "merge_key"),
             )
         )
-        key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
 
-        unique_column: str = None
-        root_key_column: str = None
+        # if we do not have any merge keys to select from, we will fall back to a staged append, i.E.
+        # just skip the delete part
+        append_fallback = (len(primary_keys) + len(merge_keys)) == 0
 
-        if len(table_chain) == 1:
-            key_table_clauses = cls.gen_key_table_clauses(
-                root_table_name, staging_root_table_name, key_clauses, for_delete=True
-            )
-            # if no child tables, just delete data from top table
-            for clause in key_table_clauses:
-                sql.append(f"DELETE {clause};")
-        else:
-            key_table_clauses = cls.gen_key_table_clauses(
-                root_table_name, staging_root_table_name, key_clauses, for_delete=False
-            )
-            # use unique hint to create temp table with all identifiers to delete
-            unique_columns = get_columns_names_with_prop(root_table, "unique")
-            if not unique_columns:
-                raise MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    staging_root_table_name,
-                    [t["name"] for t in table_chain],
-                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
-                    " it is not possible to link child tables to it.",
+        if not append_fallback:
+            key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
+
+            unique_column: str = None
+            root_key_column: str = None
+
+            if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
+                key_table_clauses = cls.gen_key_table_clauses(
+                    root_table_name, staging_root_table_name, key_clauses, for_delete=True
                 )
-            # get first unique column
-            unique_column = escape_id(unique_columns[0])
-            # create temp table with unique identifier
-            create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(
-                unique_column, key_table_clauses, sql_client
-            )
-            sql.extend(create_delete_temp_table_sql)
-
-            # delete from child tables first. This is important for databricks which does not support temporary tables,
-            # but uses temporary views instead
-            for table in table_chain[1:]:
-                table_name = sql_client.make_qualified_table_name(table["name"])
-                root_key_columns = get_columns_names_with_prop(table, "root_key")
-                if not root_key_columns:
+                # if no child tables, just delete data from top table
+                for clause in key_table_clauses:
+                    sql.append(f"DELETE {clause};")
+            else:
+                key_table_clauses = cls.gen_key_table_clauses(
+                    root_table_name, staging_root_table_name, key_clauses, for_delete=False
+                )
+                # use unique hint to create temp table with all identifiers to delete
+                unique_columns = get_columns_names_with_prop(root_table, "unique")
+                if not unique_columns:
                     raise MergeDispositionException(
                         sql_client.fully_qualified_dataset_name(),
                         staging_root_table_name,
                         [t["name"] for t in table_chain],
-                        "There is no root foreign key (ie _dlt_root_id) in child table"
-                        f" {table['name']} so it is not possible to refer to top level table"
-                        f" {root_table['name']} unique column {unique_column}",
+                        "There is no unique column (ie _dlt_id) in top table"
+                        f" {root_table['name']} so it is not possible to link child tables to it.",
                     )
-                root_key_column = escape_id(root_key_columns[0])
+                # get first unique column
+                unique_column = escape_id(unique_columns[0])
+                # create temp table with unique identifier
+                create_delete_temp_table_sql, delete_temp_table_name = (
+                    cls.gen_delete_temp_table_sql(unique_column, key_table_clauses, sql_client)
+                )
+                sql.extend(create_delete_temp_table_sql)
+
+                # delete from child tables first. This is important for databricks which does not support temporary tables,
+                # but uses temporary views instead
+                for table in table_chain[1:]:
+                    table_name = sql_client.make_qualified_table_name(table["name"])
+                    root_key_columns = get_columns_names_with_prop(table, "root_key")
+                    if not root_key_columns:
+                        raise MergeDispositionException(
+                            sql_client.fully_qualified_dataset_name(),
+                            staging_root_table_name,
+                            [t["name"] for t in table_chain],
+                            "There is no root foreign key (ie _dlt_root_id) in child table"
+                            f" {table['name']} so it is not possible to refer to top level table"
+                            f" {root_table['name']} unique column {unique_column}",
+                        )
+                    root_key_column = escape_id(root_key_columns[0])
+                    sql.append(
+                        cls.gen_delete_from_sql(
+                            table_name, root_key_column, delete_temp_table_name, unique_column
+                        )
+                    )
+
+                # delete from top table now that child tables have been prcessed
                 sql.append(
                     cls.gen_delete_from_sql(
-                        table_name, root_key_column, delete_temp_table_name, unique_column
+                        root_table_name, unique_column, delete_temp_table_name, unique_column
                     )
                 )
-
-            # delete from top table now that child tables have been prcessed
-            sql.append(
-                cls.gen_delete_from_sql(
-                    root_table_name, unique_column, delete_temp_table_name, unique_column
-                )
-            )
 
         # get name of column with hard_delete hint, if specified
         not_deleted_cond: str = None
@@ -521,28 +525,38 @@ class SqlMergeJob(SqlBaseJob):
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
 
         # get column names
-        escape_id = sql_client.capabilities.escape_identifier
+        caps = sql_client.capabilities
+        escape_id = caps.escape_identifier
         from_, to = list(map(escape_id, get_validity_column_names(root_table)))  # validity columns
         hash_ = escape_id(
             get_first_column_name_with_prop(root_table, "x-row-version")
         )  # row hash column
 
         # define values for validity columns
+        format_datetime_literal = caps.format_datetime_literal
+        if format_datetime_literal is None:
+            format_datetime_literal = (
+                DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
+            )
         boundary_ts = format_datetime_literal(
             current_load_package()["state"]["created_at"],
-            sql_client.capabilities.timestamp_precision,
+            caps.timestamp_precision,
         )
-        active_record_ts = format_datetime_literal(
-            HIGH_TS, sql_client.capabilities.timestamp_precision
-        )
+        active_record_timestamp = get_active_record_timestamp(root_table)
+        if active_record_timestamp is None:
+            active_record_literal = "NULL"
+            is_active_clause = f"{to} IS NULL"
+        else:  # it's a datetime
+            active_record_literal = format_datetime_literal(
+                active_record_timestamp, caps.timestamp_precision
+            )
+            is_active_clause = f"{to} = {active_record_literal}"
 
         # retire updated and deleted records
         sql.append(f"""
-            UPDATE {root_table_name} SET {to} = '{boundary_ts}'
-            WHERE NOT EXISTS (
-                SELECT s.{hash_} FROM {staging_root_table_name} AS s
-                WHERE {root_table_name}.{hash_} = s.{hash_}
-            ) AND {to} = '{active_record_ts}';
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
+            WHERE {is_active_clause}
+            AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
 
         # insert new active records in root table
@@ -550,9 +564,9 @@ class SqlMergeJob(SqlBaseJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, '{boundary_ts}' AS {from_}, '{active_record_ts}' AS {to}
+            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
-            WHERE NOT EXISTS (SELECT s.{hash_} FROM {root_table_name} AS f WHERE f.{hash_} = s.{hash_});
+            WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
         """)
 
         # insert list elements for new active records in child tables
@@ -582,7 +596,20 @@ class SqlMergeJob(SqlBaseJob):
                 sql.append(f"""
                     INSERT INTO {table_name}
                     SELECT *
-                    FROM {staging_table_name} AS s
-                    WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{unique_column} = s.{unique_column});
+                    FROM {staging_table_name}
+                    WHERE {unique_column} NOT IN (SELECT {unique_column} FROM {table_name});
                 """)
+
         return sql
+
+    @classmethod
+    def gen_update_table_prefix(cls, table_name: str) -> str:
+        return f"UPDATE {table_name} SET"
+
+    @classmethod
+    def requires_temp_table_for_delete(cls) -> bool:
+        """this could also be a capabitiy, but probably it is better stored here
+        this identifies destinations that can have a simplified method for merging single
+        table table chains
+        """
+        return False

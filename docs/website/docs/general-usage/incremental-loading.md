@@ -132,6 +132,12 @@ def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "
     yield from _get_rest_pages("events")
 ```
 
+:::note
+If you use the `merge` write disposition, but do not specify merge or primary keys, merge will fallback to `append`.
+The appended data will be inserted from a staging table in one transaction for most destinations in this case.
+:::
+
+
 #### Delete records
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded
@@ -237,7 +243,7 @@ that correct data is propagated on initial `replace` load so the future `merge` 
 executed. You can achieve the same in the decorator `@dlt.source(root_key=True)`.
 
 ### `scd2` strategy
-`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. The resource is expected to provide a full extract of the source table each run. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A high timestamp (9999-12-31 00:00:00.000000) is used to indicate an active record.
+`dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. The resource is expected to provide a full extract of the source table each run. A row hash is stored in `_dlt_id` and used as surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but it's possible to use a configurable high timestamp (e.g. 9999-12-31 00:00:00.000000) instead.
 
 #### Example: `scd2` merge strategy
 ```py
@@ -259,8 +265,8 @@ pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 2 | bar | 2 |
+| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
+| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
 
 ```py
 ...
@@ -279,8 +285,8 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
 | -- | -- | -- | -- | -- |
 | 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | 9999-12-31 00:00:00.000000 | 2 | bar | 2 |
-| **2024-04-09 22:13:07.943703** | **9999-12-31 00:00:00.000000** | **1** | **foo_updated** | **1** |
+| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
 
 ```py
 ...
@@ -299,9 +305,9 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 | -- | -- | -- | -- | -- |
 | 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703 | 1 | foo | 1 |
 | 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2 | bar | 2 |
-| 2024-04-09 22:13:07.943703 | 9999-12-31 00:00:00.000000 | 1 | foo_updated | 1 |
+| 2024-04-09 22:13:07.943703 | NULL | 1 | foo_updated | 1 |
 
-#### Example: customize validity column names
+#### Example: configure validity column names
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
 ```py
 @dlt.resource(
@@ -314,6 +320,20 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 def dim_customer():
     ...
 ...
+```
+
+#### Example: configure active record timestamp
+You can configure the literal used to indicate an active record with `active_record_timestamp`. The default literal `NULL` is used if `active_record_timestamp` is omitted or set to `None`. Provide a date value if you prefer to use a high timestamp instead.
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "active_record_timestamp": "9999-12-31",  # e.g. datetime.datetime(9999, 12, 31) is also accepted
+    }
+)
+def dim_customer():
+    ...
 ```
 
 #### Example: use your own row hash
