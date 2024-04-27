@@ -2,7 +2,6 @@ import io
 import glob
 import gzip
 import mimetypes
-import os
 import pathlib
 import posixpath
 from io import BytesIO
@@ -186,13 +185,14 @@ class FileItemDict(DictStrAny):
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
     @property
-    def unc_url(self) -> str:
-        """Get the URL in a form of UNC path.
+    def local_file_path(self) -> str:
+        """Gets a valid local filesystem path from file:// scheme.
+        Supports POSIX/Windows/UNC paths
 
         Returns:
-            str: UNC path.
+            str: local filesystem path
         """
-        return self["file_url"].replace("file:", "").lstrip("/")  # type: ignore
+        return FilesystemConfiguration.make_local_path(self["file_url"])
 
     def open(  # noqa: A003
         self,
@@ -223,10 +223,8 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError(
-                """The argument `compression` must have one of the following values:
-                "auto", "enable", "disable"."""
-            )
+            raise ValueError("""The argument `compression` must have one of the following values:
+                "auto", "enable", "disable".""")
 
         opened_file: Union[IO[Any], GzipFile]
         # if the user has already extracted the content, we use it so there is no need to
@@ -249,15 +247,14 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
-            if "$" in self["file_url"]:
-                if self["file_name"].endswith(".gz") and compression_arg == "gzip":
-                    opened_file = gzip.open(self.unc_url, mode=mode, **kwargs)
-                else:
-                    opened_file = open(self.unc_url, mode=mode, **kwargs)  # noqa: ENC003
+            if "local" in self.fsspec.protocol:
+                # use native local file path to open file:// uris
+                file_url = self.local_file_path
             else:
-                opened_file = self.fsspec.open(
-                    self["file_url"], mode=mode, compression=compression_arg, **kwargs
-                )
+                file_url = self["file_url"]
+            opened_file = self.fsspec.open(
+                file_url, mode=mode, compression=compression_arg, **kwargs
+            )
         return opened_file
 
     def read_bytes(self) -> bytes:
@@ -269,11 +266,8 @@ class FileItemDict(DictStrAny):
         if "file_content" in self and self["file_content"] is not None:
             return self["file_content"]  # type: ignore
         else:
-            if "$" in self["file_url"]:
-                with open(self.unc_url, "rb") as f:
-                    return f.read()
-
-            return self.fsspec.read_bytes(self["file_url"])  # type: ignore
+            with self.open(mode="rb", compression="disable") as f:
+                return f.read()
 
 
 def guess_mime_type(file_name: str) -> Sequence[str]:
@@ -298,59 +292,45 @@ def glob_files(
     Returns:
         Iterable[FileItem]: The list of files.
     """
-    is_unc_path = "$" in bucket_url
-    bucket_url_parsed = urlparse(bucket_url)
-    # if this is a file path without a scheme
-    if (
-        not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url)
-    ) and not is_unc_path:
-        # this is a file so create a proper file url
-        bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
+    is_local_fs = "local" in fs_client.protocol
+    if is_local_fs and FilesystemConfiguration.is_local_path(bucket_url):
+        bucket_url = FilesystemConfiguration.make_file_uri(bucket_url)
+        bucket_url_parsed = urlparse(bucket_url)
+    else:
         bucket_url_parsed = urlparse(bucket_url)
 
-    bucket_url_no_schema = bucket_url_parsed._replace(scheme="", query="").geturl()
-    bucket_url_no_schema = (
-        bucket_url_no_schema[2:] if bucket_url_no_schema.startswith("//") else bucket_url_no_schema
-    )
-    filter_url = posixpath.join(bucket_url_no_schema, file_glob)
-    if is_unc_path:
-        # process UNC paths with Python glob module
-        files = glob.glob(filter_url, recursive=True)
-        glob_result = {}
-        for file in files:
-            glob_result[file] = fs_client.info(file)
+    if is_local_fs:
+        root_dir = FilesystemConfiguration.make_local_path(bucket_url)
+        # use a Python glob to get files
+        files = glob.glob(str(pathlib.Path(root_dir).joinpath(file_glob)), recursive=True)
+        glob_result = {file: fs_client.info(file) for file in files}
     else:
+        root_dir = bucket_url_parsed._replace(scheme="", query="").geturl().lstrip("/")
+        filter_url = posixpath.join(root_dir, file_glob)
         glob_result = fs_client.glob(filter_url, detail=True)
-
-    if isinstance(glob_result, list):
-        raise NotImplementedError(
-            "Cannot request details when using fsspec.glob. For adlfs (Azure) please use version"
-            " 2023.9.0 or later"
-        )
+        if isinstance(glob_result, list):
+            raise NotImplementedError(
+                "Cannot request details when using fsspec.glob. For adlfs (Azure) please use"
+                " version 2023.9.0 or later"
+            )
 
     for file, md in glob_result.items():
         if md["type"] != "file":
             continue
-
-        scheme = bucket_url_parsed.scheme
-        # make that absolute path on a file://
-        if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
-            file = f"/{file}"
-
-        if is_unc_path:
-            file_url = "file:///" + file
-            rel_path = file.replace(bucket_url_no_schema, "").replace("\\", "/").lstrip("/")
-            scheme = "file"
+        # relative paths are always POSIX
+        if is_local_fs:
+            rel_path = pathlib.Path(file).relative_to(root_dir).as_posix()
+            file_url = FilesystemConfiguration.make_file_uri(file)
         else:
-            rel_path = posixpath.relpath(file, bucket_url_no_schema)
-
+            rel_path = posixpath.relpath(file, root_dir)
             file_url = bucket_url_parsed._replace(
                 path=posixpath.join(bucket_url_parsed.path, rel_path)
             ).geturl()
 
+        scheme = bucket_url_parsed.scheme
         mime_type, encoding = guess_mime_type(rel_path)
         yield FileItem(
-            file_name=os.path.basename(rel_path),
+            file_name=posixpath.basename(rel_path),
             relative_path=rel_path,
             file_url=file_url,
             mime_type=mime_type,
