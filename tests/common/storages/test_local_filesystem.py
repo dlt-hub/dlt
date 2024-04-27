@@ -1,6 +1,7 @@
 import os
 import pytest
 import pathlib
+from urllib.parse import quote
 
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
@@ -18,23 +19,23 @@ UNC_WSL_PATH = r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\ .dlt"
 @pytest.mark.parametrize(
     "bucket_url,file_url",
     (
-        (UNC_LOCAL_PATH, "file:///" + pathlib.PureWindowsPath(UNC_LOCAL_PATH).as_posix()),
-        (UNC_WSL_PATH, "file:///" + pathlib.PureWindowsPath(UNC_WSL_PATH).as_posix()),
+        (UNC_LOCAL_PATH, pathlib.PureWindowsPath(UNC_LOCAL_PATH).as_uri()),
+        (UNC_WSL_PATH, pathlib.PureWindowsPath(UNC_WSL_PATH).as_uri()),
         (r"C:\hello", "file:///C:/hello"),
-        (r"a\b $\b", "file:///" + pathlib.Path(r"a\b $\b").resolve().as_posix()),
+        (r"a\b $\b", "file:///" + pathlib.Path(r"a\\" + quote("b $") + r"\b").resolve().as_posix()),
         # same paths but with POSIX separators
         (
             UNC_LOCAL_PATH.replace("\\", "/"),
-            "file:///" + pathlib.PureWindowsPath(UNC_LOCAL_PATH).as_posix(),
+            pathlib.PureWindowsPath(UNC_LOCAL_PATH).as_uri(),
         ),
         (
             UNC_WSL_PATH.replace("\\", "/"),
-            "file:///" + pathlib.PureWindowsPath(UNC_WSL_PATH).as_posix(),
+            pathlib.PureWindowsPath(UNC_WSL_PATH).as_uri(),
         ),
         (r"C:\hello".replace("\\", "/"), "file:///C:/hello"),
         (
             r"a\b $\b".replace("\\", "/"),
-            "file:///" + pathlib.Path(r"a\b $\b").resolve().as_posix(),
+            "file:///" + pathlib.Path(r"a\\" + quote("b $") + r"\b").resolve().as_posix(),
         ),
     ),
 )
@@ -88,7 +89,7 @@ def test_file_win_configuration() -> None:
 @pytest.mark.parametrize(
     "bucket_url,file_url",
     (
-        (r"/var/logs", "file:///var/logs"),
+        (r"/src/local/app", "file:///src/local/app"),
         (r"_storage", "file://" + pathlib.Path("_storage").resolve().as_posix()),
     ),
 )

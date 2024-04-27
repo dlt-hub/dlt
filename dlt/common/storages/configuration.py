@@ -164,12 +164,9 @@ class FilesystemConfiguration(BaseConfiguration):
     def make_file_uri(local_path: str) -> str:
         """Creates a normalized file:// uri from a local path
 
-        netloc is never set. UNC paths are represented as file:////host/path
+        netloc is never set. UNC paths are represented as file://host/path
         """
-        # we do not go straight into `uri` here because this converts UNC paths
-        # into file://host/path and we want file://///host/path
         p_ = pathlib.Path(local_path)
-        p_ = p_.expanduser()
-        # if not p_.is_absolute():
-        p_ = p_.resolve()
-        return "file:///" + p_.as_posix().lstrip("/")
+        p_ = p_.expanduser().resolve()
+        # return "file:///" + p_.as_posix().lstrip("/")
+        return p_.as_uri()
