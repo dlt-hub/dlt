@@ -18,7 +18,7 @@ from utils import collect_markdown_files
 # constants
 BASE_DIR = "../website/docs"
 GPT_MODEL = "gpt-3.5-turbo-0125"
-MAX_CHUNK_SIZE = 14000 # make sure that this is below the context window size of the model to not have cut off files
+MAX_CHUNK_SIZE = 14000  # make sure that this is below the context window size of the model to not have cut off files
 
 SYSTEM_PROMPT = """\
 You are a grammar checker. Every message you get will be a document that is to be grammarchecked and returned as such.
@@ -104,7 +104,7 @@ if __name__ == "__main__":
         chunks.append(current_chunk)
 
         # sanity test, make sure we still have the full doc
-        assert doc == functools.reduce(lambda a, b: a+b, chunks)
+        assert doc == functools.reduce(lambda a, b: a + b, chunks)
 
         fmt.note(f"Created {len(chunks)} chunks")
 
