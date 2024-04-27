@@ -158,3 +158,10 @@ def assert_query_data(
         # the second is load id
         if info:
             assert row[1] in info.loads_ids
+
+
+def assert_records_as_set(actual, expected) -> None:
+    """Compares two lists of dicts regardless of order"""
+    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
+    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
+    assert actual_set == expected_set

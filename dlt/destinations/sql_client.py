@@ -146,6 +146,12 @@ SELECT 1
             table_name = self.capabilities.escape_identifier(table_name)
         return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
 
+    def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
+        """Returns qualified names for table and corresponding staging table as tuple."""
+        with self.with_staging_dataset(staging=True):
+            staging_table_name = self.make_qualified_table_name(table_name, escape)
+        return self.make_qualified_table_name(table_name, escape), staging_table_name
+
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
         if escape:
             return self.capabilities.escape_identifier(column_name)

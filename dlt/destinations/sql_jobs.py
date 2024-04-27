@@ -159,6 +159,8 @@ class SqlMergeJob(SqlBaseJob):
         merge_strategy = table_chain[0].get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
         if merge_strategy == "delete-insert":
             return cls.gen_merge_sql(table_chain, sql_client)
+        elif merge_strategy == "upsert":
+            return cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
             return cls.gen_scd2_sql(table_chain, sql_client)
 
@@ -339,6 +341,67 @@ class SqlMergeJob(SqlBaseJob):
         return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
+    def gen_upsert_sql(
+        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        sql: List[str] = []
+        root_table = table_chain[0]
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+        caps = sql_client.capabilities
+        escape_id = caps.escape_identifier
+        root_unique_key = escape_id(get_first_column_name_with_prop(root_table, "unique"))
+
+        # generate merge statement for root table
+        col_str = ", ".join(["{alias}" + escape_id(c) for c in root_table["columns"]])
+        update_str = ", ".join(
+            [escape_id(c) + " = " + "s." + escape_id(c) for c in root_table["columns"]]
+        )
+        sql.append(f"""
+            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+            ON d.{root_unique_key} = s.{root_unique_key}
+            WHEN MATCHED
+                THEN UPDATE SET {update_str}
+            WHEN NOT MATCHED
+                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+        """)
+
+        # generate statements for child tables if they exist
+        child_tables = table_chain[1:]
+        if child_tables:
+            if len(child_tables) > 1 and caps.supports_temp_table:
+                # store unique keys in temp table for efficiency
+                temp_table_name = cls._new_temp_table_name("delete", sql_client)
+                select_statement = f"SELECT {root_unique_key} FROM {staging_root_table_name}"
+                sql.append(cls._to_temp_table(select_statement, temp_table_name))
+
+            for table in child_tables:
+                unique_key = escape_id(get_first_column_name_with_prop(table, "unique"))
+                root_key = escape_id(get_first_column_name_with_prop(table, "root_key"))
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+
+                # delete records for elements no longer in the list
+                sql.append(f"""
+                    DELETE FROM {table_name}
+                    WHERE {root_key} IN (SELECT {root_unique_key} FROM {temp_table_name if caps.supports_temp_table else staging_root_table_name})
+                    AND {unique_key} NOT IN (SELECT {unique_key} FROM {staging_table_name});
+                """)
+
+                # insert records for new elements in the list
+                col_str = ", ".join(
+                    ["{alias}" + escape_id(c) for c in list(table["columns"].keys())]
+                )
+                sql.append(f"""
+                    MERGE INTO {table_name} d USING {staging_table_name} s
+                    ON d.{unique_key} = s.{unique_key}
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                """)
+
+        return sql
+
+    @classmethod
     def gen_merge_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -437,7 +500,7 @@ class SqlMergeJob(SqlBaseJob):
                     )
                 )
 
-            # delete from top table now that child tables have been prcessed
+            # delete from top table now that child tables have been processed
             sql.append(
                 cls.gen_delete_from_sql(
                     root_table_name, unique_column, delete_temp_table_name, unique_column

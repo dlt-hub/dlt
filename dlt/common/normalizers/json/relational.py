@@ -8,13 +8,17 @@ from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
-    TTableSchema,
+    TLoaderMergeStrategy,
     TColumnSchema,
     TColumnName,
     TSimpleRegex,
     DLT_NAME_PREFIX,
 )
-from dlt.common.schema.utils import column_name_validator, get_validity_column_names
+from dlt.common.schema.utils import (
+    column_name_validator,
+    get_validity_column_names,
+    get_columns_names_with_prop,
+)
 from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import (
@@ -136,7 +140,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         return cast(TDataItemRow, out_rec_row), out_rec_list
 
     @staticmethod
-    def get_row_hash(row: Dict[str, Any]) -> str:
+    def get_row_hash(row: Dict[str, Any], subset: Optional[List[str]] = None) -> str:
         """Returns hash of row.
 
         Hash includes column names and values and is ordered by column name.
@@ -144,6 +148,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         Can be used as deterministic row identifier.
         """
         row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
+        if subset is not None:
+            row_filtered = {k: v for k, v in row.items() if k in subset}
         row_str = json.dumps(row_filtered, sort_keys=True)
         return digest128(row_str, DLT_ID_LENGTH_BYTES)
 
@@ -240,28 +246,34 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         pos: Optional[int] = None,
         _r_lvl: int = 0,
-        row_hash: bool = False,
+        row_id_type: str = None,
     ) -> TNormalizedRowIterator:
         schema = self.schema
-        table = schema.naming.shorten_fragments(*parent_path, *ident_path)
-        # compute row hash and set as row id
-        if row_hash:
+        table_name = schema.naming.shorten_fragments(*parent_path, *ident_path)
+        if row_id_type == "key_hash":
+            primary_key = self._get_primary_key(schema, table_name)
+            key_hash = self.get_row_hash(dict_row, subset=primary_key)  # type: ignore[arg-type]
+            dict_row["_dlt_id"] = key_hash
+        elif row_id_type == "row_hash":
             row_id = self.get_row_hash(dict_row)  # type: ignore[arg-type]
             dict_row["_dlt_id"] = row_id
         # flatten current row and extract all lists to recur into
-        flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
+        flattened_row, lists = self._flatten(table_name, dict_row, _r_lvl)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get("_dlt_id", None)
         if not row_id:
-            row_id = self._add_row_id(table, flattened_row, parent_row_id, pos, _r_lvl)
+            row_id = self._add_row_id(table_name, flattened_row, parent_row_id, pos, _r_lvl)
 
         # find fields to propagate to child tables in config
-        extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))
+        extend.update(self._get_propagated_values(table_name, flattened_row, _r_lvl))
 
         # yield parent table first
-        should_descend = yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
+        should_descend = (
+            yield (table_name, schema.naming.shorten_fragments(*parent_path)),
+            flattened_row,
+        )
         if should_descend is False:
             return
 
@@ -320,10 +332,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
-        # determine if row hash should be used as dlt id
-        row_hash = False
-        if self._is_scd2_table(self.schema, table_name):
-            row_hash = self._dlt_id_is_row_hash(self.schema, table_name)
+        # determine type of dlt id
+        row_id_type = None
+        if self._get_merge_strategy(self.schema, table_name) == "upsert":
+            row_id_type = "key_hash"
+        elif self._get_merge_strategy(self.schema, table_name) == "scd2":
+            if self._dlt_id_is_row_hash(self.schema, table_name):
+                row_id_type = "row_hash"
             self._validate_validity_column_names(
                 self._get_validity_column_names(self.schema, table_name), item
             )
@@ -331,7 +346,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
-            row_hash=row_hash,
+            row_id_type=row_id_type,
         )
 
     @classmethod
@@ -368,11 +383,16 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _is_scd2_table(schema: Schema, table_name: str) -> bool:
-        if table_name in schema.data_table_names():
-            if schema.get_table(table_name).get("x-merge-strategy") == "scd2":
-                return True
-        return False
+    def _get_merge_strategy(schema: Schema, table_name: str) -> Optional[TLoaderMergeStrategy]:
+        if table_name in schema.data_table_names(include_incomplete=True):
+            return schema.get_table(table_name).get("x-merge-strategy")  # type: ignore[return-value]
+        return None
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_primary_key(schema: Schema, table_name: str) -> List[str]:
+        table = schema.get_table(table_name)
+        return get_columns_names_with_prop(table, "primary_key", include_incomplete=True)
 
     @staticmethod
     @lru_cache(maxsize=None)

@@ -415,7 +415,8 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return super()._create_replace_followup_jobs(table_chain)
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        # fall back to append jobs for merge
+        if table_chain[0]["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
+            return super()._create_merge_followup_jobs(table_chain)
         return self._create_append_followup_jobs(table_chain)
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:

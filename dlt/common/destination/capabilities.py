@@ -54,6 +54,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
     """Destination supports CREATE TABLE ... CLONE ... statements"""
+    supports_temp_table: bool = True
     max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
@@ -84,6 +85,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supports_ddl_transactions = True
         caps.supports_transactions = True
         caps.supports_multiple_statements = True
+        caps.supports_temp_table = True
         return caps
 
 

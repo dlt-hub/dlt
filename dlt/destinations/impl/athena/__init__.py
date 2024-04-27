@@ -25,4 +25,5 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.schema_supports_numeric_precision = False
     caps.timestamp_precision = 3
     caps.supports_truncate_command = False
+    caps.supports_temp_table = False
     return caps
