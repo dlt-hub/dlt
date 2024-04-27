@@ -57,41 +57,54 @@ def test_filesystem_configuration() -> None:
 
 
 def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
-    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
-    def check_file_exists():
-        files = filesystem.ls(url, detail=True)
-        details = next(d for d in files if d["name"] == file_url)
-        assert details["size"] == 10
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1), reraise=True)
+    def check_file_exists(filedir_: str, file_url_: str):
+        try:
+            files = filesystem.ls(filedir_, detail=True)
+            details = next(d for d in files if d["name"] == file_url_)
+            assert details["size"] == 10
+        except Exception as ex:
+            print(ex)
+            raise
 
-    def check_file_changed():
-        details = filesystem.info(file_url)
+    def check_file_changed(file_url_: str):
+        details = filesystem.info(file_url_)
         assert details["size"] == 11
         assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 160
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
-    assert bucket_url.startswith(config.protocol)
+    # we do not add protocol to bucket_url (we need relative path)
+    assert bucket_url.startswith(config.protocol) or config.protocol == "file"
     filesystem, url = fsspec_from_config(config)
     if config.protocol != "file":
         assert bucket_url.endswith(url)
     # do a few file ops
     now = pendulum.now()
     filename = f"filesystem_common_{uniq_id()}"
-    file_url = posixpath.join(url, filename)
+    file_dir = posixpath.join(url, f"filesystem_common_dir_{uniq_id()}")
+    file_url = posixpath.join(file_dir, filename)
     try:
+        filesystem.mkdir(file_dir, create_parents=False)
         filesystem.pipe(file_url, b"test bytes")
-        check_file_exists()
+        check_file_exists(file_dir, file_url)
         filesystem.pipe(file_url, b"test bytes2")
-        check_file_changed()
+        check_file_changed(file_url)
     finally:
         filesystem.rm(file_url)
+        # s3 does not create folder with mkdir
+        if config.protocol != "s3":
+            filesystem.rmdir(file_dir)
         assert not filesystem.exists(file_url)
         with pytest.raises(FileNotFoundError):
             filesystem.info(file_url)
 
 
 @pytest.mark.parametrize("load_content", (True, False))
-def test_filesystem_dict(with_gdrive_buckets_env: str, load_content: bool) -> None:
+@pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
+def test_filesystem_dict(
+    with_gdrive_buckets_env: str, load_content: bool, glob_filter: str
+) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
     # enable caches
@@ -106,11 +119,8 @@ def test_filesystem_dict(with_gdrive_buckets_env: str, load_content: bool) -> No
     ).geturl()
     filesystem, _ = fsspec_from_config(config)
     # use glob to get data
-    try:
-        all_file_items = list(glob_files(filesystem, bucket_url))
-        assert_sample_files(all_file_items, filesystem, config, load_content)
-    except NotImplementedError as ex:
-        pytest.skip(f"Skipping due to {str(ex)}")
+    all_file_items = list(glob_files(filesystem, bucket_url, glob_filter))
+    assert_sample_files(all_file_items, filesystem, config, load_content, glob_filter)
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
