@@ -168,8 +168,25 @@ As with any other configuration, you can use environment variables instead of th
 - `RUNTIME__LOG_LEVEL` to set the log level
 - `LOG_FORMAT` to set the log format
 
-`dlt` logs to a logger named **dlt**. Note: redirecting **dlt** log to other logs is not yet
-supported.
+`dlt` logs to a logger named **dlt**. `dlt` logger uses a regular python logger so you can configure the handlers 
+as per your requirement.
+
+For example, to put logs to the file:
+```py
+import logging
+
+# Create a logger
+logger = logging.getLogger('dlt')
+
+# Set the log level
+logger.setLevel(logging.INFO)
+
+# Create a file handler
+handler = logging.FileHandler('dlt.log')
+
+# Add the handler to the logger
+logger.addHandler(handler)
+```
 
 ## Handle exceptions, failed jobs and retry the pipeline
 
