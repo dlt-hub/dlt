@@ -1,4 +1,5 @@
 import dataclasses
+import sys
 from typing import Any, ClassVar, Final, List, Optional
 
 from dlt.version import __version__
@@ -11,7 +12,7 @@ from dlt.common.utils import digest128
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 MOTHERDUCK_DRIVERNAME = "md"
-MOTHERDUCK_USER_AGENT = f"dltHub_dlt@{__version__}"
+MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
 
 
 @configspec(init=False)
