@@ -1,7 +1,9 @@
 from types import TracebackType
 from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
 
-from dlt.common import json, pendulum, logger
+from dlt.common import logger
+from dlt.common.json import json
+from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -281,7 +283,9 @@ class QdrantClient(JobClientBase, WithStateSync):
         self.db_client.delete_collection(self.sentinel_collection)
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}

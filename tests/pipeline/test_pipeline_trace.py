@@ -160,10 +160,10 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     load_id = extract_info.loads_ids[0]
     package = extract_info.load_packages[0]
     assert package.state == "new"
-    # no jobs
+    # no jobs - exceptions happened before save
     assert len(package.jobs["new_jobs"]) == 0
-    # no metrics - exception happened first
-    assert len(extract_info.metrics[load_id]) == 0
+    # metrics should be collected
+    assert len(extract_info.metrics[load_id]) == 1
 
     # normalize
     norm_info = p.normalize()

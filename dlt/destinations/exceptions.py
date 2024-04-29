@@ -112,9 +112,42 @@ class MergeDispositionException(DestinationTerminalException):
 
 
 class InvalidFilesystemLayout(DestinationTerminalException):
-    def __init__(self, invalid_placeholders: Sequence[str]) -> None:
+    def __init__(
+        self,
+        layout: str,
+        expected_placeholders: Sequence[str],
+        extra_placeholders: Sequence[str],
+        invalid_placeholders: Sequence[str],
+        unused_placeholders: Sequence[str],
+    ) -> None:
         self.invalid_placeholders = invalid_placeholders
-        super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
+        self.extra_placeholders = extra_placeholders
+        self.expected_placeholders = expected_placeholders
+        self.unused_placeholders = unused_placeholders
+        self.layout = layout
+
+        message = (
+            f"Layout '{layout}' expected {', '.join(expected_placeholders)} placeholders."
+            f"Missing placeholders: {', '.join(invalid_placeholders)}."
+        )
+
+        if extra_placeholders:
+            message += f"Extra placeholders specified: {', '.join(extra_placeholders)}."
+
+        if unused_placeholders:
+            message += f"Unused placeholders: {', '.join(unused_placeholders)}."
+
+        super().__init__(message)
+
+
+class InvalidPlaceholderCallback(DestinationTransientException):
+    def __init__(self, callback_name: str) -> None:
+        self.callback_name = callback_name
+        super().__init__(
+            f"Invalid placeholder callback: {callback_name}, please make sure it can"
+            " accept parameters the following `schema name`, `table name`,"
+            " `load_id`, `file_id` and an `extension`",
+        )
 
 
 class CantExtractTablePrefix(DestinationTerminalException):

@@ -16,6 +16,9 @@ from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, drop_active_pipeline_data
 from tests.load.utils import sequence_generator
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture(autouse=True)
 def drop_weaviate_schema() -> Iterator[None]:

@@ -65,11 +65,29 @@ class TestRESTClient:
             assert isinstance(page.request, Request)
             # make request url should be same as next link in paginator
             if page.paginator.has_next_page:
-                assert page.paginator.next_reference == page.request.url
+                paginator = cast(JSONResponsePaginator, page.paginator)
+                assert paginator._next_reference == page.request.url
 
     def test_default_paginator(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate("/posts")
 
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_excplicit_paginator(self, rest_client: RESTClient):
+        pages_iter = rest_client.paginate(
+            "/posts", paginator=JSONResponsePaginator(next_url_path="next_page")
+        )
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_excplicit_paginator_relative_next_url(self, rest_client: RESTClient):
+        pages_iter = rest_client.paginate(
+            "/posts_relative_next_url",
+            paginator=JSONResponsePaginator(next_url_path="next_page"),
+        )
         pages = list(pages_iter)
 
         assert_pagination(pages)
@@ -137,9 +155,7 @@ class TestRESTClient:
     def test_api_key_auth_success(self, rest_client: RESTClient):
         response = rest_client.get(
             "/protected/posts/api-key",
-            auth=APIKeyAuth(
-                name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")
-            ),
+            auth=APIKeyAuth(name="x-api-key", api_key=cast(TSecretStrValue, "test-api-key")),
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}

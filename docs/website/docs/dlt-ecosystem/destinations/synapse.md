@@ -7,7 +7,7 @@ keywords: [synapse, destination, data warehouse]
 # Synapse
 
 ## Install dlt with Synapse
-**To install the DLT library with Synapse dependencies:**
+**To install the dlt library with Synapse dependencies:**
 ```sh
 pip install dlt[synapse]
 ```
@@ -95,11 +95,41 @@ pipeline = dlt.pipeline(
     dataset_name='chess_data'
 )
 ```
+To use **Active Directory Principal**, you can use the `sqlalchemy.engine.URL.create` method to create the connection URL using your Active Directory Service Principal credentials. First create the connection string as:
+```py
+conn_str = (
+    f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+    f"SERVER={server_name};"
+    f"DATABASE={database_name};"
+    f"UID={service_principal_id}@{tenant_id};"
+    f"PWD={service_principal_secret};"
+    f"Authentication=ActiveDirectoryServicePrincipal"
+)
+```
+
+Next, create the connection URL:
+```py
+connection_url = URL.create(
+    "mssql+pyodbc",
+    query={"odbc_connect": conn_str}
+)
+```
+
+Once you have the connection URL, you can directly use it in your pipeline configuration or convert it to a string.
+```py
+pipeline = dlt.pipeline(
+    pipeline_name='chess',
+    destination=dlt.destinations.synapse(
+        credentials=connection_url.render_as_string(hide_password=True)
+    ),
+    dataset_name='chess_data'
+)
+```
 
 ## Write disposition
 All write dispositions are supported.
 
-If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and replaced by the staging tables with an `ALTER SCHEMA ... TRANSFER` command. Please note that this operation is **not** atomic—it involves multiple DDL commands and Synapse does not support DDL transactions.
+> ❗ The `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md) is **not** implemented for Synapse.
 
 ## Data loading
 Data is loaded via `INSERT` statements by default.
@@ -136,7 +166,6 @@ Possible values:
 >* **CLUSTERED COLUMNSTORE INDEX tables do not support the `varchar(max)`, `nvarchar(max)`, and `varbinary(max)` data types.** If you don't specify the `precision` for columns that map to any of these types, `dlt` will use the maximum lengths `varchar(4000)`, `nvarchar(4000)`, and `varbinary(8000)`.
 >* **While Synapse creates CLUSTERED COLUMNSTORE INDEXES by default, `dlt` creates HEAP tables by default.** HEAP is a more robust choice because it supports all data types and doesn't require conversions.
 >* **When using the `insert-from-staging` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are always created as HEAP tables**—any configuration of the table index types is ignored. The HEAP strategy makes sense for staging tables for reasons explained [here](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables).
->* **When using the `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are already created with the configured table index type**, because the staging table becomes the final table.
 >* **`dlt` system tables are always created as HEAP tables, regardless of any configuration.** This is in line with Microsoft's recommendation that "for small lookup tables, less than 60 million rows, consider using HEAP or clustered index for faster query performance."
 >* Child tables, if any, inherit the table index type of their parent table.
 

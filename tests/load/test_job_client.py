@@ -116,6 +116,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
 
     # update in storage
     client._update_schema_in_storage(schema)
+    sleep(1)
     this_schema = client.get_stored_schema_by_hash(schema.version_hash)
     newest_schema = client.get_stored_schema()
     assert this_schema == newest_schema
@@ -129,7 +130,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     first_schema._bump_version()
     assert first_schema.version == this_schema.version == 2
     # wait to make load_newest_schema deterministic
-    sleep(0.1)
+    sleep(1)
     client._update_schema_in_storage(first_schema)
     this_schema = client.get_stored_schema_by_hash(first_schema.version_hash)
     newest_schema = client.get_stored_schema()
@@ -156,6 +157,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     assert this_schema == newest_schema
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -387,10 +389,20 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             "time",
         ):
             continue
-        # mssql and synapse have no native data type for the complex type.
-        if client.config.destination_type in ("mssql", "synapse") and c["data_type"] in ("complex"):
+        # mssql, clickhouse and synapse have no native data type for the complex type.
+        if client.config.destination_type in ("mssql", "synapse", "clickhouse") and c[
+            "data_type"
+        ] in ("complex"):
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
+            continue
+        # ClickHouse has no active data type for binary or time type.
+        if client.config.destination_type == "clickhouse":
+            if c["data_type"] in ("binary", "time"):
+                continue
+            elif c["data_type"] == "complex" and c["nullable"]:
+                continue
+        if client.config.destination_type == "dremio" and c["data_type"] == "complex":
             continue
         assert c["data_type"] == expected_c["data_type"]
 
@@ -506,8 +518,11 @@ def test_load_with_all_types(
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
     column_schemas, data_types = table_update_and_row(
-        exclude_types=["time"] if client.config.destination_type == "databricks" else None,
+        exclude_types=(
+            ["time"] if client.config.destination_type in ["databricks", "clickhouse"] else None
+        ),
     )
+
     # we should have identical content with all disposition types
     client.schema.update_table(
         new_table(
@@ -534,7 +549,11 @@ def test_load_with_all_types(
     expect_load_file(client, file_storage, query, table_name)
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     # content must equal
-    assert_all_data_types_row(db_row, schema=column_schemas)
+    assert_all_data_types_row(
+        db_row,
+        schema=column_schemas,
+        allow_base64_binary=client.config.destination_type in ["clickhouse"],
+    )
 
 
 @pytest.mark.parametrize(
@@ -656,7 +675,9 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, exclude=["dremio"]),
+    ids=lambda x: x.name,
 )
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(
@@ -767,18 +788,21 @@ def test_many_schemas_single_dataset(
         # 3 rows because we load to the same table
         _load_something(client, 3)
 
-        # adding new non null column will generate sync error
+        # adding new non null column will generate sync error, except for clickhouse, there it will work
         event_3_schema.tables["event_user"]["columns"]["mandatory_column"] = new_column(
             "mandatory_column", "text", nullable=False
         )
         client.schema._bump_version()
-        with pytest.raises(DatabaseException) as py_ex:
+        if destination_config.destination == "clickhouse":
             client.update_stored_schema()
-        assert (
-            "mandatory_column" in str(py_ex.value).lower()
-            or "NOT NULL" in str(py_ex.value)
-            or "Adding columns with constraints not yet supported" in str(py_ex.value)
-        )
+        else:
+            with pytest.raises(DatabaseException) as py_ex:
+                client.update_stored_schema()
+            assert (
+                "mandatory_column" in str(py_ex.value).lower()
+                or "NOT NULL" in str(py_ex.value)
+                or "Adding columns with constraints not yet supported" in str(py_ex.value)
+            )
 
 
 def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, Any]], str]:

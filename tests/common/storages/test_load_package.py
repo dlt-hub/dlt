@@ -16,6 +16,7 @@ from dlt.common.pendulum import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
+    create_load_id,
     destination_state,
     load_package,
     commit_load_package_state,
@@ -69,7 +70,35 @@ def test_save_load_schema(load_storage: LoadStorage) -> None:
     assert schema.stored_version == schema_copy.stored_version
 
 
-def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
+def test_create_package(load_storage: LoadStorage) -> None:
+    package_storage = load_storage.new_packages
+    # create package without initial state
+    load_id = create_load_id()
+    package_storage.create_package(load_id)
+    # get state, created at must be == load_id
+    state = package_storage.get_load_package_state(load_id)
+    assert state["created_at"] == pendulum.from_timestamp(float(load_id))
+    # assume those few lines execute in less than a second
+    assert pendulum.now().diff(state["created_at"]).total_seconds() < 1
+
+    # create package with non timestamp load id
+    load_id = uniq_id()
+    package_storage.create_package(load_id)
+    state = package_storage.get_load_package_state(load_id)
+    # still valid created at is there
+    # assume those few lines execute in less than a second
+    assert pendulum.now().diff(state["created_at"]).total_seconds() < 1
+
+    force_created_at = pendulum.now().subtract(days=1)
+    state["destination_state"] = {"destination": "custom"}
+    state["created_at"] = force_created_at
+    load_id = uniq_id()
+    package_storage.create_package(load_id, initial_state=state)
+    state_2 = package_storage.get_load_package_state(load_id)
+    assert state_2["created_at"] == force_created_at
+
+
+def test_create_and_update_load_package_state(load_storage: LoadStorage) -> None:
     load_storage.new_packages.create_package("copy")
     state = load_storage.new_packages.get_load_package_state("copy")
     assert state["_state_version"] == 0
@@ -88,12 +117,20 @@ def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
     assert state["created_at"] == old_state["created_at"]
 
     # check timestamp
-    time = pendulum.parse(state["created_at"])
+    created_at = state["created_at"]
     now = pendulum.now()
-    assert (now - time).in_seconds() < 2  # type: ignore
+    assert (now - created_at).in_seconds() < 2
 
 
-def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None:
+def test_create_load_id() -> None:
+    # must increase over time
+    load_id_1 = create_load_id()
+    sleep(0.1)
+    load_id_2 = create_load_id()
+    assert load_id_2 > load_id_1
+
+
+def test_load_package_state_injectable_context(load_storage: LoadStorage) -> None:
     load_storage.new_packages.create_package("copy")
 
     container = Container()
@@ -185,7 +222,7 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
     file_id = ParsedLoadJobFileName.new_file_id()
     f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl")
     job_f_n = PackageStorage.build_job_file_name(
-        f_n_t.table_name, file_id, 0, loader_file_format=load_storage.loader_file_format
+        f_n_t.table_name, file_id, 0, loader_file_format="jsonl"
     )
     # test the exact representation but we should probably not test for that
     assert job_f_n == f"test_table.{file_id}.0.jsonl"
@@ -195,12 +232,8 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
 
     # parts cannot contain dots
     with pytest.raises(ValueError):
-        PackageStorage.build_job_file_name(
-            "test.table", file_id, 0, loader_file_format=load_storage.loader_file_format
-        )
-        PackageStorage.build_job_file_name(
-            "test_table", "f.id", 0, loader_file_format=load_storage.loader_file_format
-        )
+        PackageStorage.build_job_file_name("test.table", file_id, 0, loader_file_format="jsonl")
+        PackageStorage.build_job_file_name("test_table", "f.id", 0, loader_file_format="jsonl")
 
     # parsing requires 4 parts and retry count
     with pytest.raises(ValueError):

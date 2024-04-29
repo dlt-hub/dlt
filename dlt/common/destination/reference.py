@@ -26,6 +26,7 @@ import inspect
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import MERGE_STRATEGIES
 from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
     get_write_disposition,
@@ -272,7 +273,9 @@ class JobClientBase(ABC):
         pass
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
@@ -344,6 +347,23 @@ class JobClientBase(ABC):
                     table_name,
                     self.capabilities.max_identifier_length,
                 )
+            if table.get("write_disposition") == "merge":
+                if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
+                    raise SchemaException(
+                        f'"{table["x-merge-strategy"]}" is not a valid merge strategy. '  # type: ignore[typeddict-item]
+                        f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                    )
+                if (
+                    table.get("x-merge-strategy") == "delete-insert"
+                    and not has_column_with_prop(table, "primary_key")
+                    and not has_column_with_prop(table, "merge_key")
+                ):
+                    logger.warning(
+                        f"Table {table_name} has `write_disposition` set to `merge`"
+                        " and `merge_strategy` set to `delete-insert`, but no primary or"
+                        " merge keys defined."
+                        " dlt will fall back to `append` for this table."
+                    )
             if has_column_with_prop(table, "hard_delete"):
                 if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                     raise SchemaException(
@@ -427,6 +447,7 @@ class WithStateSync(ABC):
 
     @abstractmethod
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+        """retrieves the stored schema by hash"""
         pass
 
     @abstractmethod

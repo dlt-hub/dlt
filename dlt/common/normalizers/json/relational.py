@@ -1,13 +1,20 @@
+from functools import lru_cache
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
-from dlt.common.data_types.typing import TDataType
+from dlt.common.json import json
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
-from dlt.common.schema.utils import column_name_validator
+from dlt.common.schema.typing import (
+    TColumnSchema,
+    TColumnName,
+    TSimpleRegex,
+    DLT_NAME_PREFIX,
+)
+from dlt.common.schema.utils import column_name_validator, get_validity_column_names
+from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import (
     TNormalizedRowIterator,
@@ -24,7 +31,7 @@ class TDataItemRow(TypedDict, total=False):
 
 
 class TDataItemRowRoot(TDataItemRow, total=False):
-    _dlt_load_id: str  # load id to identify records loaded together that ie. need to be processed
+    _dlt_load_id: (str)  # load id to identify records loaded together that ie. need to be processed
     # _dlt_meta: TEventDLTMeta  # stores metadata, should never be sent to the normalizer
 
 
@@ -59,7 +66,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         self._reset()
 
     def _reset(self) -> None:
-        self.normalizer_config = self.schema._normalizers_config["json"].get("config") or {}  # type: ignore
+        self.normalizer_config = (
+            self.schema._normalizers_config["json"].get("config") or {}  # type: ignore[assignment]
+        )
         self.propagation_config = self.normalizer_config.get("propagation", None)
         self.max_nesting = self.normalizer_config.get("max_nesting", 1000)
         self._skip_primary_key = {}
@@ -71,10 +80,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # turn everything at the recursion level into complex type
         max_nesting = self.max_nesting
         schema = self.schema
+        max_table_nesting = self._get_table_nesting_level(schema, table_name)
+        if max_table_nesting is not None:
+            max_nesting = max_table_nesting
 
         assert _r_lvl <= max_nesting
         if _r_lvl == max_nesting:
             return True
+
         # use cached value
         # path = f"{table_name}▶{field_name}"
         # or use definition in the schema
@@ -86,6 +99,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             data_type = schema.get_preferred_type(field_name)
         else:
             data_type = column["data_type"]
+
         return data_type == "complex"
 
     def _flatten(
@@ -126,6 +140,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
         norm_row_dicts(dict_row, _r_lvl)
         return cast(TDataItemRow, out_rec_row), out_rec_list
+
+    @staticmethod
+    def get_row_hash(row: Dict[str, Any]) -> str:
+        """Returns hash of row.
+
+        Hash includes column names and values and is ordered by column name.
+        Excludes dlt system columns.
+        Can be used as deterministic row identifier.
+        """
+        row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
+        row_str = json.dumps(row_filtered, sort_keys=True)
+        return digest128(row_str, DLT_ID_LENGTH_BYTES)
 
     @staticmethod
     def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> str:
@@ -200,7 +226,13 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             elif isinstance(v, list):
                 # to normalize lists of lists, we must create a tracking intermediary table by creating a mock row
                 yield from self._normalize_row(
-                    {"list": v}, extend, ident_path, parent_path, parent_row_id, idx, _r_lvl + 1
+                    {"list": v},
+                    extend,
+                    ident_path,
+                    parent_path,
+                    parent_row_id,
+                    idx,
+                    _r_lvl + 1,
                 )
             else:
                 # list of simple types
@@ -220,10 +252,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         pos: Optional[int] = None,
         _r_lvl: int = 0,
+        row_hash: bool = False,
     ) -> TNormalizedRowIterator:
         schema = self.schema
         table = schema.naming.shorten_fragments(*parent_path, *ident_path)
-
+        # compute row hash and set as row id
+        if row_hash:
+            row_id = self.get_row_hash(dict_row)  # type: ignore[arg-type]
+            dict_row["_dlt_id"] = row_id
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -237,20 +273,29 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))
 
         # yield parent table first
-        should_descend = yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
+        should_descend = yield (
+            (table, schema.naming.shorten_fragments(*parent_path)),
+            flattened_row,
+        )
         if should_descend is False:
             return
 
         # normalize and yield lists
         for list_path, list_content in lists.items():
             yield from self._normalize_list(
-                list_content, extend, list_path, parent_path + ident_path, row_id, _r_lvl + 1
+                list_content,
+                extend,
+                list_path,
+                parent_path + ident_path,
+                row_id,
+                _r_lvl + 1,
             )
 
     def extend_schema(self) -> None:
         # validate config
         config = cast(
-            RelationalNormalizerConfig, self.schema._normalizers_config["json"].get("config") or {}
+            RelationalNormalizerConfig,
+            self.schema._normalizers_config["json"].get("config") or {},
         )
         DataItemNormalizer._validate_normalizer_config(self.schema, config)
 
@@ -296,10 +341,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
+        # determine if row hash should be used as dlt id
+        row_hash = False
+        if self._is_scd2_table(self.schema, table_name):
+            row_hash = self._dlt_id_is_row_hash(self.schema, table_name)
+            self._validate_validity_column_names(
+                self._get_validity_column_names(self.schema, table_name), item
+            )
         yield from self._normalize_row(
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
+            row_hash=row_hash,
         )
 
     @classmethod
@@ -333,3 +386,45 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             "./normalizers/json/config",
             validator_f=column_name_validator(schema.naming),
         )
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_table_nesting_level(schema: Schema, table_name: str) -> Optional[int]:
+        table = schema.tables.get(table_name)
+        if table:
+            return table.get("x-normalizer", {}).get("max_nesting")  # type: ignore
+        return None
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _is_scd2_table(schema: Schema, table_name: str) -> bool:
+        if table_name in schema.data_table_names():
+            if schema.get_table(table_name).get("x-merge-strategy") == "scd2":
+                return True
+        return False
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_validity_column_names(schema: Schema, table_name: str) -> List[Optional[str]]:
+        return get_validity_column_names(schema.get_table(table_name))
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
+        return (
+            schema.get_table(table_name)["columns"]  # type: ignore[return-value]
+            .get("_dlt_id", {})
+            .get("x-row-version", False)
+        )
+
+    @staticmethod
+    def _validate_validity_column_names(
+        validity_column_names: List[Optional[str]], item: TDataItem
+    ) -> None:
+        """Raises exception if configured validity column name appears in data item."""
+        for validity_column_name in validity_column_names:
+            if validity_column_name in item.keys():
+                raise ColumnNameConflictException(
+                    "Found column in data item with same name as validity column"
+                    f' "{validity_column_name}".'
+                )

@@ -5,7 +5,8 @@ from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable
 from concurrent.futures import Executor
 import os
 
-from dlt.common import sleep, logger
+from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
@@ -86,16 +87,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if self.staging_destination:
             supported_file_formats = (
                 self.staging_destination.capabilities().supported_loader_file_formats
-                + ["reference"]
             )
-        if isinstance(self.get_destination_client(Schema("test")), WithStagingDataset):
-            supported_file_formats += ["sql"]
         load_storage = LoadStorage(
             is_storage_owner,
-            self.capabilities.preferred_loader_file_format,
             supported_file_formats,
             config=self.config._load_storage_config,
         )
+        # add internal job formats
+        if issubclass(self.destination.client_class, WithStagingDataset):
+            load_storage.supported_job_file_formats += ["sql"]
+        if self.staging_destination:
+            load_storage.supported_job_file_formats += ["reference"]
+
         return load_storage
 
     def get_destination_client(self, schema: Schema) -> JobClientBase:
@@ -139,7 +142,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 else job_client
             ) as client:
                 job_info = ParsedLoadJobFileName.parse(file_path)
-                if job_info.file_format not in self.load_storage.supported_file_formats:
+                if job_info.file_format not in self.load_storage.supported_job_file_formats:
                     raise LoadClientUnsupportedFileFormats(
                         job_info.file_format,
                         self.capabilities.supported_loader_file_formats,
@@ -177,6 +180,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             # return no job so file stays in new jobs (root) folder
             logger.exception(f"Temporary problem when adding job {file_path}")
             job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
+        if job is None:
+            raise DestinationTerminalException(
+                f"Destination could not create a job for file {file_path}. Typically the file"
+                " extension could not be associated with job type and that indicates an error in"
+                " the code."
+            )
         self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 
@@ -332,7 +341,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # do not commit load id for aborted packages
         if not aborted:
             with self.get_destination_client(schema) as job_client:
-                job_client.complete_load(load_id)
+                with Container().injectable_context(
+                    LoadPackageStateInjectableContext(
+                        storage=self.load_storage.normalized_packages,
+                        load_id=load_id,
+                    )
+                ):
+                    job_client.complete_load(load_id)
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
         self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
@@ -460,10 +475,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
-        container = Container()
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
-            with container.injectable_context(
+            with Container().injectable_context(
                 LoadPackageStateInjectableContext(
                     storage=self.load_storage.normalized_packages,
                     load_id=load_id,

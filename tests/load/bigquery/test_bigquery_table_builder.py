@@ -33,6 +33,9 @@ from tests.load.pipeline.utils import (
 )
 from tests.load.utils import TABLE_UPDATE, sequence_generator, empty_schema
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 def test_configuration() -> None:
     os.environ["MYBG__CREDENTIALS__CLIENT_EMAIL"] = "1234"

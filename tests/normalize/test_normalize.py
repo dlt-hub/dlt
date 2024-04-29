@@ -1,15 +1,13 @@
 import pytest
 from fnmatch import fnmatch
 from typing import Dict, Iterator, List, Sequence, Tuple
-
-# from multiprocessing import get_start_method, Pool
-# from multiprocessing.dummy import Pool as ThreadPool
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from dlt.common import json
+from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
-from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
 from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
@@ -152,6 +150,7 @@ def test_normalize_filter_user_event(
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.user_load_v228_1"])
     _, load_files = expect_load_package(
         rasa_normalize.load_storage,
+        caps.preferred_loader_file_format,
         load_id,
         [
             "event",
@@ -178,7 +177,10 @@ def test_normalize_filter_bot_event(
         rasa_normalize, ["event.event.bot_load_metadata_2987398237498798"]
     )
     _, load_files = expect_load_package(
-        rasa_normalize.load_storage, load_id, ["event", "event_bot"]
+        rasa_normalize.load_storage,
+        caps.preferred_loader_file_format,
+        load_id,
+        ["event", "event_bot"],
     )
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_bot"], 0)
     assert lines == 1
@@ -193,7 +195,10 @@ def test_preserve_slot_complex_value_json_l(
 ) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
     _, load_files = expect_load_package(
-        rasa_normalize.load_storage, load_id, ["event", "event_slot"]
+        rasa_normalize.load_storage,
+        caps.preferred_loader_file_format,
+        load_id,
+        ["event", "event_slot"],
     )
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_slot"], 0)
     assert lines == 1
@@ -208,7 +213,10 @@ def test_preserve_slot_complex_value_insert(
 ) -> None:
     load_id = extract_and_normalize_cases(rasa_normalize, ["event.event.slot_session_metadata_1"])
     _, load_files = expect_load_package(
-        rasa_normalize.load_storage, load_id, ["event", "event_slot"]
+        rasa_normalize.load_storage,
+        caps.preferred_loader_file_format,
+        load_id,
+        ["event", "event_slot"],
     )
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event_slot"], 2)
     assert lines == 3
@@ -224,7 +232,9 @@ def test_normalize_many_events_insert(
         rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"]
     )
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+    _, load_files = expect_load_package(
+        rasa_normalize.load_storage, caps.preferred_loader_file_format, load_id, expected_tables
+    )
     # return first values line from event_user file
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event"], 4)
     # 2 lines header + 3 lines data
@@ -240,7 +250,9 @@ def test_normalize_many_events(
         rasa_normalize, ["event.event.many_load_2", "event.event.user_load_1"]
     )
     expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-    _, load_files = expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+    _, load_files = expect_load_package(
+        rasa_normalize.load_storage, caps.preferred_loader_file_format, load_id, expected_tables
+    )
     # return first values line from event_user file
     event_text, lines = get_line_from_file(rasa_normalize.load_storage, load_files["event"], 2)
     # 3 lines data
@@ -316,10 +328,19 @@ def test_normalize_many_packages(
         # expect event tables
         if schema.name == "event":
             expected_tables = EXPECTED_USER_TABLES_RASA_NORMALIZER + ["event_bot", "event_action"]
-            expect_load_package(rasa_normalize.load_storage, load_id, expected_tables)
+            expect_load_package(
+                rasa_normalize.load_storage,
+                caps.preferred_loader_file_format,
+                load_id,
+                expected_tables,
+            )
         if schema.name == "ethereum":
             expect_load_package(
-                rasa_normalize.load_storage, load_id, EXPECTED_ETH_TABLES, full_schema_update=False
+                rasa_normalize.load_storage,
+                caps.preferred_loader_file_format,
+                load_id,
+                EXPECTED_ETH_TABLES,
+                full_schema_update=False,
             )
     assert set(schemas) == set(["ethereum", "event"])
 
@@ -348,7 +369,9 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     doc = {"str": "text", "int": 1}
     extract_items(raw_normalize.normalize_storage, [doc], Schema("evolution"), "doc")
     load_id = normalize_pending(raw_normalize)
-    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
+    _, table_files = expect_load_package(
+        raw_normalize.load_storage, caps.preferred_loader_file_format, load_id, ["doc"]
+    )
     get_line_from_file(raw_normalize.load_storage, table_files["doc"], 0)
     assert len(table_files["doc"]) == 1
     schema = raw_normalize.schema_storage.load_schema("evolution")
@@ -360,7 +383,9 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     doc2 = {"str": "text", "int": 1, "bool": True}
     extract_items(raw_normalize.normalize_storage, [doc, doc2, doc], schema, "doc")
     load_id = normalize_pending(raw_normalize)
-    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
+    _, table_files = expect_load_package(
+        raw_normalize.load_storage, caps.preferred_loader_file_format, load_id, ["doc"]
+    )
     assert len(table_files["doc"]) == 1
     schema = raw_normalize.schema_storage.load_schema("evolution")
     doc_table = schema.get_table("doc")
@@ -378,7 +403,9 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     # extract_items(raw_normalize.normalize_storage, [doc3_2v, doc3_doc_v], schema, "doc")
     load_id = normalize_pending(raw_normalize)
 
-    _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc", "doc__comp"])
+    _, table_files = expect_load_package(
+        raw_normalize.load_storage, caps.preferred_loader_file_format, load_id, ["doc", "doc__comp"]
+    )
     assert len(table_files["doc"]) == 1
     assert len(table_files["doc__comp"]) == 1
     schema = raw_normalize.schema_storage.load_schema("evolution")
@@ -405,7 +432,10 @@ def test_normalize_twice_with_flatten(
 ) -> None:
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
     _, table_files = expect_load_package(
-        raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"]
+        raw_normalize.load_storage,
+        caps.preferred_loader_file_format,
+        load_id,
+        ["issues", "issues__labels", "issues__assignees"],
     )
     assert len(table_files["issues"]) == 1
     _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
@@ -425,6 +455,7 @@ def test_normalize_twice_with_flatten(
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
     _, table_files = expect_load_package(
         raw_normalize.load_storage,
+        caps.preferred_loader_file_format,
         load_id,
         ["issues", "issues__labels", "issues__assignees"],
         full_schema_update=False,
@@ -442,7 +473,7 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
     schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
     schema.set_schema_contract("freeze")
     raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
-    # will fail on contract violatiom
+    # will fail on contract violation
     with pytest.raises(NormalizeJobFailed):
         raw_normalize.run(None)
 
@@ -454,9 +485,26 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
     # subsequent run must succeed
     raw_normalize.run(None)
     _, table_files = expect_load_package(
-        raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"]
+        raw_normalize.load_storage,
+        raw_normalize.config.destination_capabilities.preferred_loader_file_format,
+        load_id,
+        ["issues", "issues__labels", "issues__assignees"],
     )
     assert len(table_files["issues"]) == 1
+
+
+def test_collect_metrics_on_exception(raw_normalize: Normalize) -> None:
+    load_id = extract_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
+    schema.set_schema_contract("freeze")
+    raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
+    # will fail on contract violation
+    with pytest.raises(NormalizeJobFailed) as job_ex:
+        raw_normalize.run(None)
+    # we excepted on a first row so nothing was written
+    # TODO: improve this test to write some rows in buffered writer
+    assert len(job_ex.value.writer_metrics) == 0
+    raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
 
 
 def test_group_worker_files() -> None:
@@ -530,7 +578,7 @@ def extract_items(
 ) -> str:
     extractor = ExtractStorage(normalize_storage.config)
     load_id = extractor.create_load_package(schema)
-    extractor.write_data_item("puae-jsonl", load_id, schema.name, table_name, items, None)
+    extractor.item_storages["object"].write_data_item(load_id, schema.name, table_name, items, None)
     extractor.close_writers(load_id)
     extractor.commit_new_load_package(load_id, schema)
     return load_id
@@ -541,7 +589,12 @@ def normalize_event_user(
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     expected_user_tables = expected_user_tables or EXPECTED_USER_TABLES_RASA_NORMALIZER
     load_id = extract_and_normalize_cases(normalize, [case])
-    return expect_load_package(normalize.load_storage, load_id, expected_user_tables)
+    return expect_load_package(
+        normalize.load_storage,
+        normalize.config.destination_capabilities.preferred_loader_file_format,
+        load_id,
+        expected_user_tables,
+    )
 
 
 def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
@@ -549,7 +602,7 @@ def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> s
     return normalize_pending(normalize)
 
 
-def normalize_pending(normalize: Normalize) -> str:
+def normalize_pending(normalize: Normalize, schema: Schema = None) -> str:
     # pool not required for map_single
     load_ids = normalize.normalize_storage.extracted_packages.list_packages()
     assert len(load_ids) == 1, "Only one package allowed or rewrite tests"
@@ -557,7 +610,7 @@ def normalize_pending(normalize: Normalize) -> str:
         normalize._step_info_start_load_id(load_id)
         normalize.load_storage.new_packages.create_package(load_id)
         # read schema from package
-        schema = normalize.normalize_storage.extracted_packages.load_schema(load_id)
+        schema = schema or normalize.normalize_storage.extracted_packages.load_schema(load_id)
         # get files
         schema_files = normalize.normalize_storage.extracted_packages.list_new_jobs(load_id)
         # normalize without pool
@@ -597,6 +650,7 @@ def load_or_create_schema(normalize: Normalize, schema_name: str) -> Schema:
 
 def expect_load_package(
     load_storage: LoadStorage,
+    file_format: TLoaderFileFormat,
     load_id: str,
     expected_tables: Sequence[str],
     full_schema_update: bool = True,
@@ -621,7 +675,7 @@ def expect_load_package(
             expected_table,
             "*",
             validate_components=False,
-            loader_file_format=load_storage.loader_file_format,
+            loader_file_format=file_format,
         )
         # files are in normalized/<load_id>/new_jobs
         file_path = load_storage.normalized_packages.get_job_file_path(
@@ -655,3 +709,40 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     event_schema = load_storage.normalized_packages.load_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
+
+
+def test_removal_of_normalizer_schema_section_and_add_seen_data(raw_normalize: Normalize) -> None:
+    extract_cases(
+        raw_normalize,
+        [
+            "event.event.user_load_1",
+        ],
+    )
+    load_ids = raw_normalize.normalize_storage.extracted_packages.list_packages()
+    assert len(load_ids) == 1
+    extracted_schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_ids[0])
+
+    # add some normalizer blocks
+    extracted_schema.tables["event"] = new_table("event")
+    extracted_schema.tables["event__parse_data__intent_ranking"] = new_table(
+        "event__parse_data__intent_ranking"
+    )
+    extracted_schema.tables["event__random_table"] = new_table("event__random_table")
+
+    # add x-normalizer info (and other block to control)
+    extracted_schema.tables["event"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
+    extracted_schema.tables["event"]["x-other-info"] = "blah"  # type: ignore
+    extracted_schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] = {"seen-data": True, "random-entry": 1234}  # type: ignore
+    extracted_schema.tables["event__random_table"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
+
+    normalize_pending(raw_normalize, extracted_schema)
+    schema = raw_normalize.schema_storage.load_schema("event")
+    # seen data gets added, schema settings get removed
+    assert schema.tables["event"]["x-normalizer"] == {"seen-data": True}  # type: ignore
+    assert schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] == {  # type: ignore
+        "seen-data": True,
+        "random-entry": 1234,
+    }
+    # no data seen here, so seen-data is not set and evolve settings stays until first data is seen
+    assert schema.tables["event__random_table"]["x-normalizer"] == {"evolve-columns-once": True}  # type: ignore
+    assert "x-other-info" in schema.tables["event"]

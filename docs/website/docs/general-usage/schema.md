@@ -64,6 +64,15 @@ The default naming convention:
 
 > 💡 Use simple, short small caps identifiers for everything!
 
+To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention, in "config.toml" as follows:
+```toml
+[schema]
+naming="direct"
+```
+:::caution
+Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
+:::
+
 The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).
@@ -213,7 +222,7 @@ and columns are inferred from data.
 ### Data type autodetectors
 
 You can define a set of functions that will be used to infer the data type of the column from a
-value. The functions are run from top to bottom on the lists. Look in `detections.py` to see what is
+value. The functions are run from top to bottom on the lists. Look in [`detections.py`](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/detections.py) to see what is
 available.
 
 ```yaml
@@ -222,6 +231,9 @@ settings:
     - timestamp
     - iso_timestamp
     - iso_date
+    - large_integer
+    - hexbytes_to_text
+    - wei_to_double
 ```
 
 ### Column hint rules

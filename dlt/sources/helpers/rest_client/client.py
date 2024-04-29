@@ -10,13 +10,13 @@ from typing import (
 )
 import copy
 from urllib.parse import urlparse
-
 from requests import Session as BaseSession  # noqa: I251
+from requests import Response, Request
 
-from dlt.common import logger
 from dlt.common import jsonpath
+from dlt.common import logger
+
 from dlt.sources.helpers.requests.retry import Client
-from dlt.sources.helpers.requests import Response, Request
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
@@ -135,9 +135,7 @@ class RESTClient:
 
         return self.session.send(prepared_request)
 
-    def request(
-        self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any
-    ) -> Response:
+    def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
         prepared_request = self._create_request(
             path=path,
             method=method,
@@ -145,14 +143,10 @@ class RESTClient:
         )
         return self._send_request(prepared_request)
 
-    def get(
-        self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any
-    ) -> Response:
+    def get(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
         return self.request(path, method="GET", params=params, **kwargs)
 
-    def post(
-        self, path: str, json: Optional[Dict[str, Any]] = None, **kwargs: Any
-    ) -> Response:
+    def post(self, path: str, json: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
         return self.request(path, method="POST", json=json, **kwargs)
 
     def paginate(
@@ -224,16 +218,12 @@ class RESTClient:
             paginator.update_request(request)
 
             # yield data with context
-            yield PageData(
-                data, request=request, response=response, paginator=paginator, auth=auth
-            )
+            yield PageData(data, request=request, response=response, paginator=paginator, auth=auth)
 
             if not paginator.has_next_page:
                 break
 
-    def extract_response(
-        self, response: Response, data_selector: jsonpath.TJsonPath
-    ) -> List[Any]:
+    def extract_response(self, response: Response, data_selector: jsonpath.TJsonPath) -> List[Any]:
         if data_selector:
             # we should compile data_selector
             data: Any = jsonpath.find_values(data_selector, response.json())
@@ -257,8 +247,6 @@ class RESTClient:
         """
         paginator = self.pagination_factory.create_paginator(response)
         if paginator is None:
-            raise ValueError(
-                f"No suitable paginator found for the response at {response.url}"
-            )
+            raise ValueError(f"No suitable paginator found for the response at {response.url}")
         logger.info(f"Detected paginator: {paginator.__class__.__name__}")
         return paginator

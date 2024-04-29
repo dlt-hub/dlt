@@ -1,9 +1,30 @@
+"""
+---
+title: Control nested MongoDB data
+description: Learn how control nested data
+keywords: [incremental loading, example]
+---
+
+In this example, you'll find a Python script that demonstrates how to control nested data using the `dlt` library.
+
+We'll learn how to:
+- [Adjust maximum nesting level in three ways:](../general-usage/source#reduce-the-nesting-level-of-generated-tables)
+  - Limit nesting levels with dlt decorator.
+  - Dynamic nesting level adjustment.
+  - Apply data type hints.
+- Work with [MongoDB](../dlt-ecosystem/verified-sources/mongodb) in Python and `dlt`.
+- Enable [incremental loading](../general-usage/incremental-loading) for efficient data extraction.
+"""
+
+# NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
+__source_name__ = "mongodb"
+
 from itertools import islice
 from typing import Any, Dict, Iterator, Optional
 
 from bson.decimal128 import Decimal128
 from bson.objectid import ObjectId
-from pendulum import _datetime
+from pendulum import _datetime  # noqa: I251
 from pymongo import MongoClient
 
 import dlt
@@ -103,6 +124,12 @@ if __name__ == "__main__":
     source_data = mongodb_collection(collection="movies", write_disposition="replace")
     load_info = pipeline.run(source_data)
     print(load_info)
+    tables = pipeline.last_trace.last_normalize_info.row_counts
+    tables.pop("_dlt_pipeline_state")
+    assert len(tables) == 7, pipeline.last_trace.last_normalize_info
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
 
     # The second method involves setting the max_table_nesting attribute directly
     # on the source data object.
@@ -118,6 +145,12 @@ if __name__ == "__main__":
     source_data.max_table_nesting = 0
     load_info = pipeline.run(source_data)
     print(load_info)
+    tables = pipeline.last_trace.last_normalize_info.row_counts
+    tables.pop("_dlt_pipeline_state")
+    assert len(tables) == 1, pipeline.last_trace.last_normalize_info
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
 
     # The third method involves applying data type hints to specific columns in the data.
     # In this case, we tell dlt that column 'cast' (containing a list of actors)
@@ -132,3 +165,9 @@ if __name__ == "__main__":
     source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
     load_info = pipeline.run(source_data)
     print(load_info)
+    tables = pipeline.last_trace.last_normalize_info.row_counts
+    tables.pop("_dlt_pipeline_state")
+    assert len(tables) == 6, pipeline.last_trace.last_normalize_info
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()

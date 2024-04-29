@@ -11,6 +11,19 @@
 
 // @ts-check
 const fs = require('fs');
+const path = require('path');
+
+
+function *walkSync(dir) {
+  const files = fs.readdirSync(dir, { withFileTypes: true });
+  for (const file of files) {
+    if (file.isDirectory()) {
+      yield* walkSync(path.join(dir, file.name));
+    } else {
+      yield path.join(dir, file.name);
+    }
+  }
+}
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
@@ -93,6 +106,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/mssql',
             'dlt-ecosystem/destinations/synapse',
+            'dlt-ecosystem/destinations/clickhouse',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
@@ -100,6 +114,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/athena',
             'dlt-ecosystem/destinations/weaviate',
             'dlt-ecosystem/destinations/qdrant',
+            'dlt-ecosystem/destinations/dremio',
             'dlt-ecosystem/destinations/destination',
             'dlt-ecosystem/destinations/motherduck'
           ]
@@ -158,6 +173,7 @@ const sidebars = {
           items: [
             'dlt-ecosystem/file-formats/jsonl',
             'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/csv',
             'dlt-ecosystem/file-formats/insert-format',
           ]
         },
@@ -220,6 +236,8 @@ const sidebars = {
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
             'walkthroughs/deploy-a-pipeline/deploy-with-kestra',
+            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
+            'walkthroughs/deploy-a-pipeline/deploy-with-prefect',
           ]
         },
         {
@@ -273,15 +291,6 @@ const sidebars = {
         keywords: ['examples'],
       },
       items: [
-        'examples/transformers/index',
-        'examples/incremental_loading/index',
-        'examples/connector_x_arrow/index',
-        'examples/chess_production/index',
-        'examples/nested_data/index',
-        'examples/qdrant_zendesk/index',
-        'examples/google_sheets/index',
-        'examples/pdf_to_weaviate/index',
-        'examples/custom_destination_bigquery/index'
       ],
     },
     {
@@ -298,6 +307,7 @@ const sidebars = {
         'reference/installation',
         'reference/command-line-interface',
         'reference/telemetry',
+        'reference/frequently-asked-questions',
         'general-usage/glossary',
       ],
     },
@@ -308,6 +318,19 @@ const sidebars = {
     // }
   ]
 };
+
+
+// insert examples
+for (const item of sidebars.tutorialSidebar) {
+  if (item.label === 'Code examples') {
+    for (let examplePath of walkSync("./docs_processed/examples")) {
+      examplePath = examplePath.replace("docs_processed/", "");
+      examplePath = examplePath.replace(".md", "");
+      item.items.push(examplePath);
+    }
+  }
+}
+
 
 // inject api reference if it exists
 if (fs.existsSync('./docs_processed/api_reference/sidebar.json')) {

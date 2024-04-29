@@ -43,14 +43,16 @@ def client() -> Iterator[PostgresClient]:
 
 
 PACKAGE_PARAMS = [
-    ("postgres", "1.1.3"),
-    ("postgres", "1.2.4"),
-    ("postgres", "1.3.2"),
-    ("postgres", "1.4.0"),
+    # ("postgres", "1.1.3"),
+    # ("postgres", "1.2.4"),
+    # ("postgres", "1.3.2"),
+    # ("postgres", "1.4.0"),
     ("postgres", "1.5.2"),
+    ("postgres", "1.6.13"),
     ("postgres", None),
-    ("snowflake", "1.4.0"),
+    # ("snowflake", "1.4.0"),
     ("snowflake", "1.5.2"),
+    ("snowflake", "1.6.13"),
     ("snowflake", None),
 ]
 PACKAGE_IDS = [

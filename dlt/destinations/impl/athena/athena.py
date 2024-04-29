@@ -31,6 +31,7 @@ from pyathena.formatter import (
 )
 
 from dlt.common import logger
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema, TSchemaTables, TTableSchema
@@ -108,7 +109,11 @@ class AthenaTypeMapper(TypeMapper):
             return "int" if table_format == "iceberg" else "smallint"
         elif precision <= 32:
             return "int"
-        return "bigint"
+        elif precision <= 64:
+            return "bigint"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into athena integer type"
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
@@ -236,7 +241,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
                 return DatabaseUndefinedRelation(ex)
             elif "SCHEMA_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
-            elif "Table not found" in str(ex):
+            elif "Table" in str(ex) and " not found" in str(ex):
                 return DatabaseUndefinedRelation(ex)
             elif "Database does not exist" in str(ex):
                 return DatabaseUndefinedRelation(ex)
@@ -362,7 +367,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             if is_iceberg:
                 sql.append(f"""CREATE TABLE {qualified_table_name}
                         ({columns})
-                        LOCATION '{location}'
+                        LOCATION '{location.rstrip('/')}'
                         TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
             elif table_format == "jsonl":
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}

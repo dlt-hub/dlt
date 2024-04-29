@@ -7,7 +7,6 @@ from typing import (
     Optional,
     Sequence,
     Set,
-    Tuple,
     Type,
     TypedDict,
     NewType,
@@ -18,7 +17,8 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder
+from dlt.common.typing import TSortOrder, TAnyDateTime
+from dlt.common.pendulum import pendulum
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -64,7 +64,6 @@ TColumnHint = Literal[
     "dedup_sort",
 ]
 """Known hints of a column used to declare hint regexes."""
-TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg", "parquet", "jsonl"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
@@ -86,7 +85,6 @@ COLUMN_HINTS: Set[TColumnHint] = set(
         "root_key",
     ]
 )
-WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
 class TColumnType(TypedDict, total=False):
@@ -153,6 +151,31 @@ class TRowFilters(TypedDict, total=True):
 
 class NormalizerInfo(TypedDict, total=True):
     new_table: bool
+
+
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
+
+
+WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
+MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
+
+DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
+"""Default values for validity column names used in `scd2` merge strategy."""
+
+
+class TWriteDispositionDict(TypedDict):
+    disposition: TWriteDisposition
+
+
+class TMergeDispositionDict(TWriteDispositionDict, total=False):
+    strategy: Optional[TLoaderMergeStrategy]
+    validity_column_names: Optional[List[str]]
+    active_record_timestamp: Optional[TAnyDateTime]
+    row_version_column_name: Optional[str]
+
+
+TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
 
 
 # TypedDict that defines properties of a table

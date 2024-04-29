@@ -7,18 +7,14 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.exceptions import (
-    DatabaseTerminalException,
-    DatabaseTransientException,
-    DatabaseUndefinedRelation,
-)
+from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
+from tests.utils import TEST_STORAGE_ROOT, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.pipeline.utils import destinations_configs
 
-DEFAULT_SUBSET = ["duckdb", "redshift", "postgres"]
+DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "mssql", "synapse"]
 
 
 @pytest.fixture
@@ -31,6 +27,7 @@ def client(request) -> Iterator[InsertValuesJobClient]:
     yield from yield_client_with_storage(request.param.destination)  # type: ignore[misc]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "client",
     destinations_configs(default_sql_configs=True, subset=DEFAULT_SUBSET),
@@ -41,20 +38,28 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
     user_table_name = prepare_table(client)
     canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
     # create insert
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\n"
+    writer_type = client.capabilities.insert_values_writer_type
+    if writer_type == "default":
+        insert_sql += "VALUES\n"
+        pre, post, sep = ("(", ")", ",\n")
+    elif writer_type == "select_union":
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
     insert_values = (
-        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
-        f" '{str(pendulum.now())}')"
+        pre
+        + f"'{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+        f" '{str(pendulum.now())}'"
+        + post
     )
     expect_load_file(client, file_storage, insert_sql + insert_values + ";", user_table_name)
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == 1
     # insert 100 more rows
-    query = insert_sql + (insert_values + ",\n") * 99 + insert_values + ";"
+    query = insert_sql + (insert_values + sep) * 99 + insert_values + ";"
     expect_load_file(client, file_storage, query, user_table_name)
     rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
     assert rows_count == 101
-    # insert null value
+    # insert null value (single-record insert has same syntax for both writer types)
     insert_sql_nc = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text)\nVALUES\n"
     insert_values_nc = (
         f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
@@ -73,21 +78,30 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
     ids=lambda x: x.name,
 )
 def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
-    # test expected dbiapi exceptions for supported destinations
-    import duckdb
-    from dlt.destinations.impl.postgres.sql_client import psycopg2
+    # test expected dbapi exceptions for supported destinations
+    dtype = client.config.destination_type
+    if dtype in ("postgres", "redshift"):
+        from dlt.destinations.impl.postgres.sql_client import psycopg2
 
-    TNotNullViolation = psycopg2.errors.NotNullViolation
-    TNumericValueOutOfRange = psycopg2.errors.NumericValueOutOfRange
-    TUndefinedColumn = psycopg2.errors.UndefinedColumn
-    TDatatypeMismatch = psycopg2.errors.DatatypeMismatch
-    if client.config.destination_type == "redshift":
-        # redshift does not know or psycopg does not recognize those correctly
-        TNotNullViolation = psycopg2.errors.InternalError_
-    if client.config.destination_type == "duckdb":
+        TNotNullViolation = psycopg2.errors.NotNullViolation
+        TNumericValueOutOfRange = psycopg2.errors.NumericValueOutOfRange
+        TUndefinedColumn = psycopg2.errors.UndefinedColumn
+        TDatatypeMismatch = psycopg2.errors.DatatypeMismatch
+        if dtype == "redshift":
+            # redshift does not know or psycopg does not recognize those correctly
+            TNotNullViolation = psycopg2.errors.InternalError_
+    elif dtype == "duckdb":
+        import duckdb
+
         TUndefinedColumn = duckdb.BinderException
         TNotNullViolation = duckdb.ConstraintException
         TNumericValueOutOfRange = TDatatypeMismatch = duckdb.ConversionException
+    elif dtype in ("mssql", "synapse"):
+        import pyodbc
+
+        TUndefinedColumn = pyodbc.ProgrammingError
+        TNotNullViolation = pyodbc.IntegrityError
+        TNumericValueOutOfRange = TDatatypeMismatch = pyodbc.DataError
 
     user_table_name = prepare_table(client)
     # insert into unknown column
@@ -107,7 +121,10 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
     assert type(exv.value.dbapi_exception) is TNotNullViolation
     # insert wrong type
     insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
-    insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', TRUE);"
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+        f" {client.capabilities.escape_literal(True)});"
+    )
     with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
     assert type(exv.value.dbapi_exception) is TDatatypeMismatch
@@ -122,7 +139,7 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
     )
     with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) in (TNumericValueOutOfRange,)
+    assert type(exv.value.dbapi_exception) == TNumericValueOutOfRange
     # numeric overflow on NUMERIC
     insert_sql = (
         "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
@@ -145,9 +162,10 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
     )
     with pytest.raises(DatabaseTerminalException) as exv:
         expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
-    assert type(exv.value.dbapi_exception) in (
-        TNumericValueOutOfRange,
-        psycopg2.errors.InternalError_,
+    assert (
+        type(exv.value.dbapi_exception) == psycopg2.errors.InternalError_
+        if dtype == "redshift"
+        else TNumericValueOutOfRange
     )
 
 
@@ -159,7 +177,13 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
 )
 def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     mocked_caps = client.sql_client.__class__.capabilities
-    insert_sql = prepare_insert_statement(10)
+    writer_type = client.capabilities.insert_values_writer_type
+    insert_sql = prepare_insert_statement(10, writer_type)
+
+    if writer_type == "default":
+        pre, post, sep = ("(", ")", ",\n")
+    elif writer_type == "select_union":
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
 
     # this guarantees that we execute inserts line by line
     with patch.object(mocked_caps, "max_query_length", 2), patch.object(
@@ -173,14 +197,19 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     for idx, call in enumerate(mocked_fragments.call_args_list):
         fragment: List[str] = call.args[0]
         # last elem of fragment is a data list, first element is id, and must end with ;\n
-        assert fragment[-1].startswith(f"'{idx}'")
-        assert fragment[-1].endswith(");")
+        start = pre + "'" + str(idx) + "'"
+        end = post + ";"
+        assert fragment[-1].startswith(start)
+        assert fragment[-1].endswith(end)
     assert_load_with_max_query(client, file_storage, 10, 2)
 
-    start_idx = insert_sql.find("S\n(")
-    idx = insert_sql.find("),\n", len(insert_sql) // 2)
+    if writer_type == "default":
+        start_idx = insert_sql.find("S\n" + pre)
+    elif writer_type == "select_union":
+        start_idx = insert_sql.find(pre)
+    idx = insert_sql.find(post + sep, len(insert_sql) // 2)
 
-    # set query length so it reads data until "," (followed by \n)
+    # set query length so it reads data until separator ("," or " UNION ALL") (followed by \n)
     query_length = (idx - start_idx - 1) * 2
     with patch.object(mocked_caps, "max_query_length", query_length), patch.object(
         client.sql_client, "execute_fragments"
@@ -197,11 +226,15 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     ) as mocked_fragments:
         user_table_name = prepare_table(client)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
-    # split in 2 on ','
+    # split in 2 on separator ("," or " UNION ALL")
     assert mocked_fragments.call_count == 2
 
     # so it reads till the last ;
-    query_length = (len(insert_sql) - start_idx - 3) * 2
+    if writer_type == "default":
+        offset = 3
+    elif writer_type == "select_union":
+        offset = 1
+    query_length = (len(insert_sql) - start_idx - offset) * 2
     with patch.object(mocked_caps, "max_query_length", query_length), patch.object(
         client.sql_client, "execute_fragments"
     ) as mocked_fragments:
@@ -221,31 +254,31 @@ def assert_load_with_max_query(
     mocked_caps = client.sql_client.__class__.capabilities
     with patch.object(mocked_caps, "max_query_length", max_query_length):
         user_table_name = prepare_table(client)
-        insert_sql = prepare_insert_statement(insert_lines)
+        insert_sql = prepare_insert_statement(
+            insert_lines, client.capabilities.insert_values_writer_type
+        )
         expect_load_file(client, file_storage, insert_sql, user_table_name)
-        rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {user_table_name}")[0][0]
+        canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+        rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
         assert rows_count == insert_lines
         # get all uniq ids in order
-        with client.sql_client.execute_query(
-            f"SELECT _dlt_id FROM {user_table_name} ORDER BY timestamp ASC;"
-        ) as c:
-            rows = list(c.fetchall())
-            v_ids = list(map(lambda i: i[0], rows))
+        rows = client.sql_client.execute_sql(
+            f"SELECT _dlt_id FROM {canonical_name} ORDER BY timestamp ASC;"
+        )
+        v_ids = list(map(lambda i: i[0], rows))
         assert list(map(str, range(0, insert_lines))) == v_ids
-    client.sql_client.execute_sql(f"DELETE FROM {user_table_name}")
+    client.sql_client.execute_sql(f"DELETE FROM {canonical_name}")
 
 
-def prepare_insert_statement(lines: int) -> str:
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\nVALUES\n"
-    insert_values = "('{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}')"
-    # ids = []
+def prepare_insert_statement(lines: int, writer_type: str = "default") -> str:
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp)\n"
+    if writer_type == "default":
+        insert_sql += "VALUES\n"
+        pre, post, sep = ("(", ")", ",\n")
+    elif writer_type == "select_union":
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
+    insert_values = pre + "'{}', '{}', '90238094809sajlkjxoiewjhduuiuehd', '{}'" + post
     for i in range(lines):
-        # id_ = uniq_id()
-        # ids.append(id_)
         insert_sql += insert_values.format(str(i), uniq_id(), str(pendulum.now().add(seconds=i)))
-        if i < 9:
-            insert_sql += ",\n"
-        else:
-            insert_sql += ";"
-    # print(insert_sql)
+        insert_sql += sep if i < 9 else ";"
     return insert_sql

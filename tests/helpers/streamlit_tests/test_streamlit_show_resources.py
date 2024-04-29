@@ -13,7 +13,7 @@ import pytest
 
 import dlt
 
-from streamlit.testing.v1 import AppTest  # type: ignore
+from streamlit.testing.v1 import AppTest  # type: ignore[import-not-found]
 
 from dlt.helpers.streamlit_app.utils import render_with_pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException

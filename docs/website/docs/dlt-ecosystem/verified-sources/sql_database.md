@@ -62,7 +62,7 @@ The database above doesn't require a password.
 The connection URL can be broken down into:
 
 ```py
-connection_url = connection_string = f"{drivername}://{username}:{password}@{host}:{port}{database}"
+connection_url = f"{drivername}://{username}:{password}@{host}:{port}/{database}"
 ```
 
 `drivername`: Indicates both the database system and driver used.
@@ -112,6 +112,14 @@ Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a
    ```toml
    sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
    ```
+
+1. For MSSQL destinations using Windows Authentication, you can modify your connection string to include `trusted_connection=yes`. This bypasses the need for specifying a username and password, which is particularly useful when SQL login credentials are not an option. Here’s how you can set it up:
+
+   ```toml
+   sources.sql_database.credentials="mssql://user:pw@my_host/my_database?trusted_connection=yes"
+   ```
+   
+   >Note: The (user:pw) may be included but will be ignored by the server if `trusted_connection=yes` is set.
 
 ### Initialize the verified source
 

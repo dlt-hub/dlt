@@ -4,7 +4,7 @@ from dlt.common.exceptions import MissingDependencyException
 try:
     import pandas
 except ModuleNotFoundError:
-    raise MissingDependencyException("DLT Pandas Helpers", ["pandas"])
+    raise MissingDependencyException("dlt Pandas Helpers", ["pandas"])
 
 
 def pandas_to_arrow(df: pandas.DataFrame) -> Any:

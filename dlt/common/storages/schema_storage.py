@@ -1,7 +1,8 @@
 import yaml
 from typing import Iterator, List, Mapping, Tuple, cast
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.configuration import with_config
 from dlt.common.configuration.accessors import config
 from dlt.common.schema.utils import to_pretty_json, to_pretty_yaml

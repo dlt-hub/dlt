@@ -7,7 +7,7 @@ keywords: [duckdb, destination, data warehouse]
 # DuckDB
 
 ## Install dlt with DuckDB
-**To install the DLT library with DuckDB dependencies, run:**
+**To install the dlt library with DuckDB dependencies, run:**
 ```sh
 pip install dlt[duckdb]
 ```
@@ -64,6 +64,17 @@ You can configure the following file formats to load data to duckdb:
 `duckdb` cannot COPY many parquet files to a single table from multiple threads. In this situation, `dlt` serializes the loads. Still, that may be faster than INSERT.
 :::
 * [jsonl](../file-formats/jsonl.md) **is supported but does not work if JSON fields are optional. The missing keys fail the COPY instead of being interpreted as NULL.**
+
+:::tip
+`duckdb` has [timestamp types](https://duckdb.org/docs/sql/data_types/timestamp.html) with resolutions from milliseconds to nanoseconds. However
+only microseconds resolution (the most common used) is time zone aware. `dlt` generates timestamps with timezones by default so loading parquet files
+with default settings will fail (`duckdb` does not coerce tz-aware timestamps to naive timestamps).
+Disable the timezones by changing `dlt` [parquet writer settings](../file-formats/parquet.md#writer-settings) as follows:
+```sh
+DATA_WRITER__TIMESTAMP_TIMEZONE=""
+```
+to disable tz adjustments.
+:::
 
 ## Supported column hints
 `duckdb` may create unique indexes for all columns with `unique` hints, but this behavior **is disabled by default** because it slows the loading down significantly.

@@ -1,5 +1,6 @@
 import posixpath
 import os
+from unittest import mock
 
 import pytest
 
@@ -7,13 +8,16 @@ from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.impl.filesystem.filesystem import (
-    LoadFilesystemJob,
     FilesystemDestinationClientConfiguration,
+    INIT_FILE_NAME,
 )
 
+from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
-from tests.utils import preserve_environ, autouse_test_storage
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
@@ -56,9 +60,15 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-
-    with perform_load(
-        dataset_name, NORMALIZED_FILES, write_disposition=write_disposition
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), perform_load(
+        dataset_name,
+        NORMALIZED_FILES,
+        write_disposition=write_disposition,
     ) as load_info:
         client, jobs, _, load_id = load_info
         layout = client.config.layout
@@ -80,6 +90,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
                     load_id=load_id,
                     file_id=job_info.file_id,
                     ext=job_info.file_format,
+                    **prepare_datetime_params(load_package_timestamp=timestamp),
                 ),
             )
 
@@ -93,17 +104,31 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
+
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), perform_load(
+        dataset_name,
+        NORMALIZED_FILES,
+        write_disposition="replace",
+    ) as load_info:
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
-
         # this path will be kept after replace
         job_2_load_1_path = posixpath.join(
             root_path,
-            LoadFilesystemJob.make_destination_filename(
-                layout, NORMALIZED_FILES[1], client.schema.name, load_id1
+            create_path(
+                layout,
+                NORMALIZED_FILES[1],
+                client.schema.name,
+                load_id1,
+                load_package_timestamp=timestamp,
+                extra_placeholders=client.config.extra_placeholders,
             ),
         )
 
@@ -115,8 +140,13 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             # this one we expect to be replaced with
             job_1_load_2_path = posixpath.join(
                 root_path,
-                LoadFilesystemJob.make_destination_filename(
-                    layout, NORMALIZED_FILES[0], client.schema.name, load_id2
+                create_path(
+                    layout,
+                    NORMALIZED_FILES[0],
+                    client.schema.name,
+                    load_id2,
+                    load_package_timestamp=timestamp,
+                    extra_placeholders=client.config.extra_placeholders,
                 ),
             )
 
@@ -126,8 +156,14 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
+                # remove internal paths
+                if "_dlt" in basedir:
+                    continue
                 for f in files:
+                    if f == INIT_FILE_NAME:
+                        continue
                     paths.append(posixpath.join(basedir, f))
+
             ls = set(paths)
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
@@ -141,19 +177,39 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
+    # also we would like to have reliable timestamp for this test so we patch it
+    timestamp = "2024-04-05T09:16:59.942779Z"
+    mocked_timestamp = {"state": {"created_at": timestamp}}
+    with mock.patch(
+        "dlt.current.load_package",
+        return_value=mocked_timestamp,
+    ), perform_load(
+        dataset_name,
+        NORMALIZED_FILES,
+        write_disposition="append",
+    ) as load_info:
         client, jobs1, root_path, load_id1 = load_info
         with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
             client, jobs2, root_path, load_id2 = load_info
             layout = client.config.layout
             expected_files = [
-                LoadFilesystemJob.make_destination_filename(
-                    layout, job.file_name(), client.schema.name, load_id1
+                create_path(
+                    layout,
+                    job.file_name(),
+                    client.schema.name,
+                    load_id1,
+                    load_package_timestamp=timestamp,
+                    extra_placeholders=client.config.extra_placeholders,
                 )
                 for job in jobs1
             ] + [
-                LoadFilesystemJob.make_destination_filename(
-                    layout, job.file_name(), client.schema.name, load_id2
+                create_path(
+                    layout,
+                    job.file_name(),
+                    client.schema.name,
+                    load_id2,
+                    load_package_timestamp=timestamp,
+                    extra_placeholders=client.config.extra_placeholders,
                 )
                 for job in jobs2
             ]
@@ -163,6 +219,11 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
+                # remove internal paths
+                if "_dlt" in basedir:
+                    continue
                 for f in files:
+                    if f == INIT_FILE_NAME:
+                        continue
                     paths.append(posixpath.join(basedir, f))
             assert list(sorted(paths)) == expected_files

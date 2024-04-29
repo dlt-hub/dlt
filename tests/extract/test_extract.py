@@ -11,12 +11,12 @@ from dlt.common.storages import (
 from dlt.common.storages.schema_storage import SchemaStorage
 
 from dlt.extract import DltResource, DltSource
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
 from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import make_hints
 
 from dlt.extract.items import TableNameMeta
-from tests.utils import clean_test_storage, TEST_STORAGE_ROOT
+from tests.utils import MockPipeline, clean_test_storage, TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
 
 
@@ -209,6 +209,71 @@ def test_extract_hints_table_variant(extract_step: Extract) -> None:
 
     source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
     extract_step.extract(source, 20, 1)
+
+
+def test_extract_metrics_on_exception_no_flush(extract_step: Extract) -> None:
+    @dlt.resource
+    def letters():
+        # extract 7 items
+        yield from "ABCDEFG"
+        # then fail
+        raise RuntimeError()
+        yield from "HI"
+
+    source = DltSource(dlt.Schema("letters"), "module", [letters])
+    with pytest.raises(ResourceExtractionError):
+        extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    # no jobs were created
+    assert len(step_info.load_packages[0].jobs["new_jobs"]) == 0
+    # make sure all writers are closed but not yet removed
+    current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
+    # get buffered writers
+    writers = extract_step.extract_storage.item_storages["object"].buffered_writers
+    assert len(writers) == 1
+    for name, writer in writers.items():
+        assert name.startswith(current_load_id)
+        assert writer._file is None
+
+
+def test_extract_metrics_on_exception_without_flush(extract_step: Extract) -> None:
+    @dlt.resource
+    def letters():
+        # extract 7 items
+        yield from "ABCDEFG"
+        # then fail
+        raise RuntimeError()
+        yield from "HI"
+
+    # flush buffer
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "4"
+    source = DltSource(dlt.Schema("letters"), "module", [letters])
+    with pytest.raises(ResourceExtractionError):
+        extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    # one job created because the file was flushed
+    jobs = step_info.load_packages[0].jobs["new_jobs"]
+    # print(jobs[0].job_file_info.job_id())
+    assert len(jobs) == 1
+    current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
+    # 7 items were extracted
+    assert (
+        step_info.metrics[current_load_id][0]["job_metrics"][
+            jobs[0].job_file_info.job_id()
+        ].items_count
+        == 4
+    )
+    # get buffered writers
+    writers = extract_step.extract_storage.item_storages["object"].buffered_writers
+    assert len(writers) == 1
+    for name, writer in writers.items():
+        assert name.startswith(current_load_id)
+        assert writer._file is None
+
+
+def test_extract_empty_metrics(extract_step: Extract) -> None:
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.load_packages == step_info.loads_ids == []
 
 
 # def test_extract_pipe_from_unknown_resource():
