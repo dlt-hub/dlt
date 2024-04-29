@@ -1,6 +1,5 @@
 import dataclasses
-import threading
-from typing import Any, ClassVar, Final, List
+from typing import Any, ClassVar, Final, List, Optional
 
 from dlt.version import __version__
 from dlt.common.configuration import configspec
@@ -23,7 +22,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     username: str = "motherduck"
     password: TSecretValue = None
     database: str = "my_db"
-    custom_user_agent: str = MOTHERDUCK_USER_AGENT
+    custom_user_agent: Optional[str] = MOTHERDUCK_USER_AGENT
 
     read_only: bool = False  # open database read/write
 
