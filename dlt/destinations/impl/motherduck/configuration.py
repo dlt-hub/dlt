@@ -16,53 +16,10 @@ MOTHERDUCK_USER_AGENT = f"dltHub_dlt@{__version__}"
 
 
 @configspec(init=False)
-class MotherDuckBaseCredentials(DuckDbBaseCredentials):
-    def _connect(self, read_only: bool) -> Any:
-        # TODO: Can this be done in sql client instead?
-        import duckdb
-
-        if not hasattr(self, "_conn_lock"):
-            self._conn_lock = threading.Lock()
-
-        # obtain a lock because duck releases the GIL and we have refcount concurrency
-        with self._conn_lock:
-            config = {}
-            if self.custom_user_agent and self.custom_user_agent != "":
-                config = {"custom_user_agent": self.custom_user_agent}
-
-            if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(
-                    database=self._conn_str(),
-                    read_only=read_only,
-                    config=config,
-                )
-                self._conn_owner = True
-                self._conn_borrows = 0
-
-            # track open connections to properly close it
-            self._conn_borrows += 1
-            # print(f"getting conn refcnt {self._conn_borrows} at {id(self)}")
-            return self._conn.cursor()
-
-    def borrow_conn(self, read_only: bool) -> Any:
-        from duckdb import HTTPException, InvalidInputException
-
-        try:
-            return self._connect(read_only)
-        except (InvalidInputException, HTTPException) as ext_ex:
-            if "Failed to download extension" in str(ext_ex) and "motherduck" in str(ext_ex):
-                from importlib.metadata import version as pkg_version
-
-                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from ext_ex
-
-            raise
-
-
-@configspec(init=False)
-class MotherDuckCredentials(MotherDuckBaseCredentials):
-    drivername: Final[str] = dataclasses.field(
+class MotherDuckCredentials(DuckDbBaseCredentials):
+    drivername: Final[str] = dataclasses.field(  # type: ignore
         default="md", init=False, repr=False, compare=False
-    )  # type: ignore
+    )
     username: str = "motherduck"
     password: TSecretValue = None
     database: str = "my_db"
@@ -80,6 +37,22 @@ class MotherDuckCredentials(MotherDuckBaseCredentials):
         if self.query and "token" in self.query:
             self.password = TSecretValue(self.query.pop("token"))
 
+    def borrow_conn(self, read_only: bool) -> Any:
+        from duckdb import HTTPException, InvalidInputException
+
+        if self.custom_user_agent and self.custom_user_agent != "":
+            self.conn_config = {"custom_user_agent": self.custom_user_agent}
+
+        try:
+            return super().borrow_conn(read_only)
+        except (InvalidInputException, HTTPException) as ext_ex:
+            if "Failed to download extension" in str(ext_ex) and "motherduck" in str(ext_ex):
+                from importlib.metadata import version as pkg_version
+
+                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from ext_ex
+
+            raise
+
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self._token_to_password()
@@ -93,9 +66,9 @@ class MotherDuckCredentials(MotherDuckBaseCredentials):
 
 @configspec
 class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(
+    destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="motherduck", init=False, repr=False, compare=False
-    )  # type: ignore
+    )
     credentials: MotherDuckCredentials = None
 
     create_indexes: bool = (
