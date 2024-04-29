@@ -331,21 +331,21 @@ def test_load_none_trace() -> None:
 
 def test_trace_telemetry() -> None:
     with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch(
-        "dlt.common.runtime.segment.before_send", _mock_segment_before_send
+        "dlt.common.runtime.anon_tracker.before_send", _mock_anon_tracker_before_send
     ):
         # os.environ["FAIL_PROB"] = "1.0"  # make it complete immediately
         start_test_telemetry()
 
-        SEGMENT_SENT_ITEMS.clear()
+        ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
         # default dummy fails all files
         load_info = dlt.pipeline().run(
             [1, 2, 3], table_name="data", destination="dummy", dataset_name="data_data"
         )
-        # we should have 4 segment items
-        assert len(SEGMENT_SENT_ITEMS) == 4
+        # we should have 4 tracker items
+        assert len(ANON_TRACKER_SENT_ITEMS) == 4
         expected_steps = ["extract", "normalize", "load", "run"]
-        for event, step in zip(SEGMENT_SENT_ITEMS, expected_steps):
+        for event, step in zip(ANON_TRACKER_SENT_ITEMS, expected_steps):
             assert event["event"] == f"pipeline_{step}"
             assert event["properties"]["success"] is True
             assert event["properties"]["destination_name"] == "dummy"
@@ -376,12 +376,12 @@ def test_trace_telemetry() -> None:
             raise NotImplementedError()
             yield
 
-        SEGMENT_SENT_ITEMS.clear()
+        ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
         with pytest.raises(PipelineStepFailed):
             dlt.pipeline().run(data, destination="dummy")
-        assert len(SEGMENT_SENT_ITEMS) == 2
-        event = SEGMENT_SENT_ITEMS[0]
+        assert len(ANON_TRACKER_SENT_ITEMS) == 2
+        event = ANON_TRACKER_SENT_ITEMS[0]
         assert event["event"] == "pipeline_extract"
         assert event["properties"]["success"] is False
         assert event["properties"]["destination_name"] == "dummy"
@@ -397,10 +397,10 @@ def test_trace_telemetry() -> None:
 
         # trace without destination and dataset
         p = dlt.pipeline(pipeline_name="fresh").drop()
-        SEGMENT_SENT_ITEMS.clear()
+        ANON_TRACKER_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
         p.extract([1, 2, 3], table_name="data")
-        event = SEGMENT_SENT_ITEMS[0]
+        event = ANON_TRACKER_SENT_ITEMS[0]
         assert event["event"] == "pipeline_extract"
         assert event["properties"]["success"] is True
         assert event["properties"]["destination_name"] is None
@@ -479,11 +479,11 @@ def _find_resolved_value(
     return next((v for v in resolved if v.key == key and v.sections == sections), None)
 
 
-SEGMENT_SENT_ITEMS = []
+ANON_TRACKER_SENT_ITEMS = []
 
 
-def _mock_segment_before_send(event: DictStrAny) -> DictStrAny:
-    SEGMENT_SENT_ITEMS.append(event)
+def _mock_anon_tracker_before_send(event: DictStrAny) -> DictStrAny:
+    ANON_TRACKER_SENT_ITEMS.append(event)
     return event
 
 

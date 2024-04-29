@@ -171,6 +171,7 @@ class BaseReferencePaginator(BasePaginator):
       2. `update_request` method to update the request object with the next
         page reference.
     """
+
     def __init__(self) -> None:
         super().__init__()
         self.__next_reference: Optional[str] = None
@@ -208,6 +209,7 @@ class BaseNextUrlPaginator(BaseReferencePaginator):
 
     See `HeaderLinkPaginator` and `JSONResponsePaginator` for examples.
     """
+
     def update_request(self, request: Request) -> None:
         # Handle relative URLs
         if self._next_reference:

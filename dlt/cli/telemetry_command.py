@@ -9,7 +9,7 @@ from dlt.cli import echo as fmt
 from dlt.cli.utils import get_telemetry_status
 from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.runtime.segment import get_anonymous_id
+from dlt.common.runtime.anon_tracker import get_anonymous_id
 
 DLT_TELEMETRY_DOCS_URL = "https://dlthub.com/docs/reference/telemetry"
 
