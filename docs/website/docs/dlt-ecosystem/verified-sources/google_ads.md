@@ -11,9 +11,9 @@ import Header from './_source-info-header.md';
 to display ads across Google's search results, websites, and other platforms.
 
 :::warning Alert!
-Please note that we were unable to conduct testing on the specified source due to difficulties
+Please note that we are unable to conduct regular testing on the specified source due to difficulties
 in obtaining the necessary credentials. We confired this source works at creation, and it is being used by the community.
-We anticipate that the source should operate smoothly over time given Google's best pratices in versioning apis, but it is not tested regularly by us.
+We anticipate that the source should operate smoothly over time given Google's best pratices in versioning apis.
 :::
 
 This Google Ads `dlt` verified source and
