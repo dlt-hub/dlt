@@ -7,9 +7,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
 
 from dlt.destinations.impl.duckdb.configuration import (
-    DUCK_DB_NAME,
     DuckDbClientConfiguration,
-    DuckDbCredentials,
     DEFAULT_DUCK_DB_NAME,
 )
 from dlt.destinations import duckdb
@@ -257,6 +255,7 @@ def test_external_duckdb_database() -> None:
     assert c.credentials._conn_owner is False
     assert hasattr(c.credentials, "_conn")
     conn.close()
+    assert not os.path.exists(":memory:")
 
 
 def test_default_duckdb_dataset_name() -> None:
