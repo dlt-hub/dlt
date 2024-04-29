@@ -5,6 +5,7 @@ import os
 from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse
 from dataclasses import dataclass
 
 import dlt
@@ -67,7 +68,9 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 # Filter out buckets not in all filesystem drivers
 WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
 WITH_GDRIVE_BUCKETS = [
-    bucket for bucket in WITH_GDRIVE_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+    bucket
+    for bucket in WITH_GDRIVE_BUCKETS
+    if (urlparse(bucket).scheme or "file") in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
