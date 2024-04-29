@@ -263,7 +263,9 @@ def test_in_memory_duckdb_database() -> None:
 
     # pass explicit in memory database
     conn = duckdb.connect(":memory:")
-    c = resolve_configuration(DuckDbClientConfiguration(credentials=conn))
+    c = resolve_configuration(
+        DuckDbClientConfiguration(credentials=conn)._bind_dataset_name(dataset_name="test_dataset")
+    )
     c.credentials.borrow_conn(read_only=False)
     assert c.credentials._conn_borrows == 1
     assert c.credentials._conn_owner is False
