@@ -12,9 +12,8 @@ to display ads across Google's search results, websites, and other platforms.
 
 :::warning Alert!
 Please note that we were unable to conduct testing on the specified source due to difficulties
-in obtaining the necessary credentials. While we have not yet verified its functionality,
-we anticipate that the source should operate smoothly once the correct credentials are
-provided.
+in obtaining the necessary credentials. We confired this source works at creation, and it is being used by the community.
+We anticipate that the source should operate smoothly over time given Google's best pratices in versioning apis, but it is not tested regularly by us.
 :::
 
 This Google Ads `dlt` verified source and
