@@ -24,9 +24,7 @@ def resource_state_info(
     sources_state = pipeline.state.get("sources") or {}
     schema = sources_state.get(schema_name, {})
     resource = schema.get("resources", {}).get(resource_name)
-    with st.expander("Resource state", expanded=(resource is None)):
-        if not resource:
-            st.info(f"{resource_name} is missing resource state")
-        else:
+    if resource:
+        with st.expander("Resource state", expanded=False):
             spec = yaml.safe_dump(resource)
             st.code(spec, language="yaml")
