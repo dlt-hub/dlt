@@ -22,6 +22,7 @@ from dlt.common.destination.reference import (
     WithStagingDataset,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination
+from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -87,6 +88,20 @@ R2_BUCKET_CONFIG = dict(
         endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
     ),
 )
+
+# interesting filesystem layouts for basic tests
+FILE_LAYOUT_CLASSIC = "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}"
+FILE_LAYOUT_MANY_TABLES_ONE_FOLDER = "{table_name}88{load_id}-u-{file_id}.{ext}"
+FILE_LAYOUT_TABLE_IN_MANY_FOLDERS = "{table_name}/{load_id}/{file_id}.{ext}"
+FILE_LAYOUT_TABLE_NOT_FIRST = "{schema_name}/{table_name}/{load_id}/{file_id}.{ext}"
+
+TEST_FILE_LAYOUTS = [
+    DEFAULT_FILE_LAYOUT,
+    FILE_LAYOUT_CLASSIC,
+    FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
+    FILE_LAYOUT_TABLE_IN_MANY_FOLDERS,
+    FILE_LAYOUT_TABLE_NOT_FIRST,
+]
 
 EXTRA_BUCKETS: List[Dict[str, Any]] = []
 if "r2" in ALL_FILESYSTEM_DRIVERS:

@@ -2,13 +2,21 @@ import pytest
 import datetime  # noqa: I251
 from typing import Iterator, Any
 
-import dlt
+import dlt, os
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info, load_table_counts
+from tests.pipeline.utils import load_table_counts
+from dlt.destinations.exceptions import CantExtractTablePrefix
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    TEST_FILE_LAYOUTS,
+    FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
+    FILE_LAYOUT_CLASSIC,
+    FILE_LAYOUT_TABLE_NOT_FIRST,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -188,3 +196,38 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
         "Athena cannot load TIME columns from parquet tables"
         in info.load_packages[0].jobs["failed_jobs"][0].failed_message
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
+def test_athena_file_layouts(destination_config: DestinationTestConfiguration, layout) -> None:
+    # test wether strange file layouts still work in all staging configs
+    pipeline = destination_config.setup_pipeline("athena_file_layout", full_refresh=True)
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+
+    resources = [
+        dlt.resource([1, 2, 3], name="items1"),
+        dlt.resource([1, 2, 3, 4, 5, 6, 7], name="items2"),
+    ]
+
+    # layouts that should not work should raise exception
+    if layout in [
+        FILE_LAYOUT_CLASSIC,  # table not in own folder
+        FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,  # table not in own folder
+        FILE_LAYOUT_TABLE_NOT_FIRST,  # table not the first variable
+    ]:
+        with pytest.raises(CantExtractTablePrefix):
+            pipeline.run(resources)
+        return
+
+    info = pipeline.run(resources)
+    assert_load_info(info)
+
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    assert table_counts == {"items1": 3, "items2": 7}
