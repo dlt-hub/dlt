@@ -12,6 +12,7 @@ from dlt.destinations.impl.duckdb.configuration import (
 )
 from dlt.destinations import duckdb
 
+from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckDbUsage
 from tests.load.pipeline.utils import drop_pipeline
 from tests.pipeline.utils import assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
@@ -50,6 +51,25 @@ def test_duckdb_open_conn_default() -> None:
         assert not hasattr(c.credentials, "_conn")
         # db file is created
         assert os.path.isfile(DEFAULT_DUCK_DB_NAME)
+    finally:
+        delete_quack_db()
+
+
+def test_duckdb_in_memory_mode_via_factory():
+    delete_quack_db()
+    try:
+        import duckdb
+
+        # Check if passing external duckdb connection works fine
+        db = duckdb.connect(":memory:")
+        dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(db))
+
+        # Check if passing :memory: to factory fails
+        with pytest.raises(InvalidInMemoryDuckDbUsage):
+            dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(":memory:"))
+
+        # FIXME: should we check when credentials passed to pipeline factory?
+        # dlt.pipeline(pipeline_name="booboo", destination="duckdb", credentials=":memory:")
     finally:
         delete_quack_db()
 
