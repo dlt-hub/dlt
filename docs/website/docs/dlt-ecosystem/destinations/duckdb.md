@@ -102,7 +102,8 @@ p = dlt.pipeline(
 )
 ```
 
-The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
+The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use.
+
 ```py
 import duckdb
 db = duckdb.connect()
@@ -116,15 +117,37 @@ p = dlt.pipeline(
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
+Dlt supports unique connection strings that trigger specific behaviors:
+
+* **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
+* **:memory:** creates an in-memory database. This may be useful for testing.
+
+Below you can see usage examples these special cases
+
+```py
+# in-memory duckdb instance :memory:
+pipeline_one = dlt.pipeline(
+  pipeline_name="in_memory_pipeline",
+  destination=dlt.destinations.duckdb(":memory:"),
+  dataset_name='chess_data',
+)
+
+# create duckdb database file in pipelne's directory :pipeline:
+# will create a database named pipeline_xyz.duckdb
+pipeline_one = dlt.pipeline(
+  pipeline_name="pipeline_xyz",
+  destination="duckdb",
+  credentials=":pipeline:",
+  dataset_name='chess_data',
+)
+```
+
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
 ```toml
 destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 ```
-The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
-A few special connection strings are supported:
-* **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
-* **:memory:** creates an in-memory database. This may be useful for testing.
+The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
 
 ### Additional configuration
