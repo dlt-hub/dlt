@@ -11,7 +11,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretValue
-from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckDbUsage
+from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
 try:
     from duckdb import DuckDBPyConnection
@@ -120,7 +120,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
 
     def on_resolved(self) -> None:
         if isinstance(self.database, str) and self.database == ":memory:":
-            raise InvalidInMemoryDuckDbUsage()
+            raise InvalidInMemoryDuckdbCredentials()
 
         # do not set any paths for external database
         if self.database == ":external:":

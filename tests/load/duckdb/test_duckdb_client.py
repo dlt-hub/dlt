@@ -12,7 +12,7 @@ from dlt.destinations.impl.duckdb.configuration import (
 )
 from dlt.destinations import duckdb
 
-from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckDbUsage
+from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.pipeline.utils import drop_pipeline
 from tests.pipeline.utils import assert_table
@@ -70,7 +70,7 @@ def test_duckdb_in_memory_mode_via_factory():
             p = dlt.pipeline(pipeline_name="booboo", destination="duckdb", credentials=":memory:")
             p.run([1, 2, 3])
 
-        assert isinstance(exc.value.exception, InvalidInMemoryDuckDbUsage)
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
 
         os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = ":memory:"
         with pytest.raises(PipelineStepFailed):
@@ -80,7 +80,7 @@ def test_duckdb_in_memory_mode_via_factory():
             )
             p.run([1, 2, 3])
 
-        assert isinstance(exc.value.exception, InvalidInMemoryDuckDbUsage)
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
     finally:
         delete_quack_db()
 

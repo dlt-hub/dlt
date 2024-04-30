@@ -1,7 +1,7 @@
 from dlt.common.destination.exceptions import DestinationTerminalException
 
 
-class InvalidInMemoryDuckDbUsage(DestinationTerminalException):
+class InvalidInMemoryDuckdbCredentials(DestinationTerminalException):
     def __init__(self) -> None:
         super().__init__(
             "To use in-memory instance of duckdb, "
