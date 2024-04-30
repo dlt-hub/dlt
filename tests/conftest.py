@@ -43,8 +43,9 @@ def pytest_configure(config):
     run_configuration.RunConfiguration.config_files_storage_path = os.path.join(
         test_storage_root, "config/"
     )
-    run_configuration.RunConfiguration.dlthub_telemetry_segment_write_key = (
-        "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
+    # always use CI track endpoint when running tests
+    run_configuration.RunConfiguration.dlthub_telemetry_endpoint = (
+        "https://telemetry-tracker.services4758.workers.dev"
     )
     delattr(run_configuration.RunConfiguration, "__init__")
     run_configuration.RunConfiguration = dataclasses.dataclass(  # type: ignore[misc]

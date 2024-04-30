@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.9"
+version = "0.4.10"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -79,8 +79,9 @@ adlfs = {version = ">=2022.4.0", optional = true}
 pyodbc = {version = "^4.0.39", optional = true}
 qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
 databricks-sql-connector = {version = ">=2.9.3,<3.0.0", optional = true}
-dbt-databricks = {version = "^1.7.3", optional = true}
-black = "23.9.1"
+dbt-databricks = {version = ">=1.7.3", optional = true}
+clickhouse-driver = { version = ">=0.2.7", optional = true }
+clickhouse-connect = { version = ">=0.7.7", optional = true }
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake", "dbt-athena-community", "dbt-databricks"]
@@ -104,6 +105,7 @@ mssql = ["pyodbc"]
 synapse = ["pyodbc", "adlfs", "pyarrow"]
 qdrant = ["qdrant-client"]
 databricks = ["databricks-sql-connector"]
+clickhouse = ["clickhouse-driver", "clickhouse-connect", "s3fs", "gcsfs", "adlfs", "pyarrow"]
 dremio = ["pyarrow"]
 
 [tool.poetry.scripts]
@@ -152,7 +154,7 @@ pyjwt = "^2.8.0"
 pytest-mock = "^3.14.0"
 
 [tool.poetry.group.pipeline]
-optional=true
+optional = true
 
 [tool.poetry.group.pipeline.dependencies]
 google-auth-oauthlib = "^1.0.0"
@@ -195,9 +197,9 @@ SQLAlchemy = ">=1.4.0"
 pymysql = "^1.1.0"
 pypdf2 = "^3.0.1"
 pydoc-markdown = "^4.8.2"
-connectorx="0.3.2"
-dbt-core=">=1.2.0"
-dbt-duckdb=">=1.2.0"
+connectorx = "0.3.2"
+dbt-core = ">=1.2.0"
+dbt-duckdb = ">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 

@@ -4,7 +4,9 @@ Required openai package to be installed, and an .env file with the open ai api k
 OPENAI_API_KEY="..."
 """
 import os
+import functools
 import argparse
+from typing import List
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -16,6 +18,7 @@ from utils import collect_markdown_files
 # constants
 BASE_DIR = "../website/docs"
 GPT_MODEL = "gpt-3.5-turbo-0125"
+MAX_CHUNK_SIZE = 14000  # make sure that this is below the context window size of the model to not have cut off files
 
 SYSTEM_PROMPT = """\
 You are a grammar checker. Every message you get will be a document that is to be grammarchecked and returned as such.
@@ -68,20 +71,60 @@ if __name__ == "__main__":
         with open(file_path, "r", encoding="utf-8") as f:
             doc = f.readlines()
 
-        client = OpenAI()
-        response = client.chat.completions.create(
-            model=GPT_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": "".join(doc)},
-            ],
-            temperature=0,
-        )
+        def get_chunk_length(chunk: List[str]) -> int:
+            count = 0
+            for line in chunk:
+                count += len(line)
+            return count
 
-        fixed_doc = response.choices[0].message.content
+        # cut file into sections
+        sections: List[List[str]] = []
+        current_section: List[str] = []
+        for line in doc:
+            if line.startswith("#"):
+                if current_section:
+                    sections.append(current_section)
+                current_section = [line]
+            else:
+                current_section.append(line)
+        sections.append(current_section)
+
+        # build chunks from sections
+        chunks: List[List[str]] = []
+        current_chunk: List[str] = []
+
+        for section in sections:
+            # we can extend the chunk if the size is small enough
+            if get_chunk_length(current_chunk + section) < MAX_CHUNK_SIZE:
+                current_chunk += section
+            # start a new one
+            else:
+                chunks.append(current_chunk)
+                current_chunk = section
+        chunks.append(current_chunk)
+
+        # sanity test, make sure we still have the full doc
+        assert doc == functools.reduce(lambda a, b: a + b, chunks)
+
+        fmt.note(f"Created {len(chunks)} chunks")
+
+        fixed_chunks: List[List[str]] = []
+        for chunk in chunks:
+            client = OpenAI()
+            response = client.chat.completions.create(
+                model=GPT_MODEL,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": "".join(chunk)},
+                ],
+                temperature=0,
+            )
+
+            fixed_chunks.append(response.choices[0].message.content)
 
         with open(file_path, "w", encoding="utf-8") as f:
-            f.writelines(fixed_doc)
+            for c in fixed_chunks:
+                f.writelines(c)
 
     if count == 0:
         fmt.warning("No files selected for grammar check.")

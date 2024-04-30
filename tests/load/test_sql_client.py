@@ -38,7 +38,9 @@ def client(request) -> Iterator[SqlJobClientBase]:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse", "dremio"]),
+    destinations_configs(
+        default_sql_configs=True, exclude=["mssql", "synapse", "dremio", "clickhouse"]
+    ),
     indirect=True,
     ids=lambda x: x.name,
 )
@@ -369,7 +371,7 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
             with client.sql_client.execute_query(f"DELETE FROM {qualified_name} WHERE 1=1"):
                 pass
         assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
-        if client.config.destination_type != "dremio":
+        if client.config.destination_type not in ["dremio", "clickhouse"]:
             with pytest.raises(DatabaseUndefinedRelation) as term_ex:
                 with client.sql_client.execute_query("DROP SCHEMA UNKNOWN"):
                     pass
@@ -630,18 +632,21 @@ def assert_load_id(sql_client: SqlClientBase[TNativeConn], load_id: str) -> None
 def prepare_temp_table(client: SqlJobClientBase) -> str:
     uniq_suffix = uniq_id()
     table_name = f"tmp_{uniq_suffix}"
-    iceberg_table_suffix = ""
+    ddl_suffix = ""
     coltype = "numeric"
     if client.config.destination_type == "athena":
-        iceberg_table_suffix = (
+        ddl_suffix = (
             f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
             " 'format'='parquet');"
         )
         coltype = "bigint"
         qualified_table_name = table_name
+    elif client.config.destination_type == "clickhouse":
+        ddl_suffix = "ENGINE = MergeTree() ORDER BY col"
+        qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     else:
         qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(
-        f"CREATE TABLE {qualified_table_name} (col {coltype}) {iceberg_table_suffix};"
+        f"CREATE TABLE {qualified_table_name} (col {coltype}) {ddl_suffix};"
     )
     return table_name

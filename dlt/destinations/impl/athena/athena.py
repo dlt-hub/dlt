@@ -315,7 +315,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # this will raise if the table prefix is not properly defined
         # we actually that {table_name} is first, no {schema_name} is allowed
         self.table_prefix_layout = path_utils.get_table_prefix_layout(
-            config.staging_config.layout, []
+            config.staging_config.layout,
+            supported_prefix_placeholders=[],
+            table_needs_own_folder=True,
         )
 
         sql_client = AthenaSQLClient(config.normalize_dataset_name(schema), config)

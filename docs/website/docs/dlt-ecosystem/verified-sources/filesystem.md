@@ -122,13 +122,15 @@ For more information, read the
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
 1. You can pass the bucket URL and glob pattern or use `config.toml`. For local filesystems, use
-   `file://` or skip the schema.
+   `file://` or skip the schema and provide the local path in a format native for your operating system.
 
    ```toml
    [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
-   bucket_url="~/Documents/csv_files/"
+   bucket_url='~\Documents\csv_files\'
    file_glob="*"
    ```
+   In the example above we use Windows path to current user's Documents folder. Mind that literal toml string (single quotes)
+   was used to conveniently use the backslashes without need to escape.
 
    For remote file systems you need to add the schema, it will be used to get the protocol being
    used:
@@ -143,6 +145,12 @@ For more information, read the
    :::caution
    For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
    :::
+
+### Use local file system paths
+You can use both native local file system paths and in form of `file:` uri. Absolute, relative and UNC Windows paths are supported.
+You can find relevant examples in [filesystem destination documentation](../destinations/filesystem.md#local-file-system) which follows
+the same rules to specify the `bucket_url`.
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -295,19 +303,20 @@ data. You can quickly build pipelines to:
 
 #### `FileItem` Fields:
 
-- `file_url` - Complete URL of the file; also the primary key (e.g. `file://`).
-- `file_name` - Name or relative path of the file from the bucket URL.
+- `file_url` - Complete URL of the file; also the primary key (e.g. `s3://bucket-name/path/file`).
+- `file_name` - Name of the file from the bucket URL.
+- `relative_path` - Set when doing `glob`, is a relative path to a `bucket_url` argument.
 - `mime_type` - File's mime type; sourced from the bucket provider or inferred from its extension.
 - `modification_date` - File's last modification time (format: `pendulum.DateTime`).
 - `size_in_bytes` - File size.
 - `file_content` - Content, provided upon request.
 
 :::info
-When using a nested or recursive glob pattern, `file_name` will include the file's path. For
+When using a nested or recursive glob pattern, `relative_path` will include the file's path relative to `bucket_url`. For
 instance, using the resource:
 `filesystem("az://dlt-ci-test-bucket/standard_source/samples", file_glob="met_csv/A801/*.csv")`
 will produce file names relative to the `/standard_source/samples` path, such as
-`met_csv/A801/A881_20230920.csv`.
+`met_csv/A801/A881_20230920.csv`. For local filesystems, POSIX paths (using "/" as separator) are returned.
 :::
 
 ### File Manipulation

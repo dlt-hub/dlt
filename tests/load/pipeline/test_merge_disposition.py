@@ -149,7 +149,8 @@ def github():
         with open(
             "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
         ) as f:
-            yield from json.load(f)
+            for item in json.load(f):
+                yield item
 
     return load_issues
 

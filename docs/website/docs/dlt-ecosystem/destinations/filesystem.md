@@ -174,7 +174,43 @@ If for any reason you want to have those files in a local folder, set up the `bu
 ```toml
 [destination.filesystem]
 bucket_url = "file:///absolute/path"  # three / for an absolute path
-# bucket_url = "file://relative/path" # two / for a relative path
+```
+
+`dlt` correctly handles the native local file paths. Indeed, using the `file://` schema may be not intuitive especially for Windows users.
+
+```toml
+[destination.filesystem]
+bucket_url = 'C:\a\b\c'
+```
+
+In the example above we specify `bucket_url` using **toml's literal strings** that do not require [escaping of backslashes](https://github.com/toml-lang/toml/blob/main/toml.md#string).
+
+```toml
+[destination.unc_destination]
+bucket_url = '\\localhost\c$\a\b\c'  # UNC equivalent of C:\a\b\c
+
+[destination.posix_destination]
+bucket_url = '/var/local/data'  # absolute POSIX style path
+
+[destination.relative_destination]
+bucket_url = '_storage/data'  # relative POSIX style path
+```
+
+In the examples above we define a few named filesystem destinations:
+* **unc_destination** demonstrates Windows UNC path in native form
+* **posix_destination** demonstrates native POSIX (Linux/Mac) absolute path
+* **relative_destination** demonstrates native POSIX (Linux/Mac) relative path. In this case  `filesystem` destination will store files in `$cwd/_storage/data` path
+where **$cwd** is your current working directory.
+
+`dlt` supports Windows [UNC paths with file:// scheme](https://en.wikipedia.org/wiki/File_URI_scheme). They can be specified using **host** or purely as **path**
+component.
+
+```toml
+[destination.unc_with_host]
+bucket_url="file://localhost/c$/a/b/c"
+
+[destination.unc_with_path]
+bucket_url="file:////localhost/c$/a/b/c"
 ```
 
 ## Write disposition
@@ -233,9 +269,14 @@ Keep in mind all values are lowercased.
 :::
 
 * `timestamp` - the current timestamp in Unix Timestamp format rounded to seconds
-* `timestamp_ms` - the current timestamp in Unix Timestamp format rounded to milliseconds
+* `timestamp_ms` - the current timestamp in Unix Timestamp format in milliseconds
 * `load_package_timestamp` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to seconds
-* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format rounded to milliseconds
+* `load_package_timestamp_ms` - timestamp from [load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) in Unix Timestamp format in milliseconds
+
+:::note
+Both `timestamp_ms` and `load_package_timestamp_ms` are in milliseconds (e.g., 12334455233), not fractional seconds to make sure millisecond precision without decimals.
+:::
+
 * Years
   * `YYYY` - 2024, 2025
   * `Y` - 2024, 2025
@@ -402,8 +443,5 @@ managed in the regular way by the final destination you have configured.
 
 You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables
 in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
-
-
-
 
 <!--@@@DLT_TUBA filesystem-->

@@ -1,4 +1,4 @@
-"""dltHub telemetry using Segment"""
+"""dltHub telemetry using using anonymous tracker"""
 
 # several code fragments come from https://github.com/RasaHQ/rasa/blob/main/rasa/telemetry.py
 import os
@@ -22,12 +22,12 @@ TEventCategory = Literal["pipeline", "command", "helper"]
 _THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
 _SESSION: requests.Session = None
 _WRITE_KEY: str = None
-_SEGMENT_REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
-_SEGMENT_ENDPOINT: str = None
-_SEGMENT_CONTEXT: TExecutionContext = None
+_REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
+_ANON_TRACKER_ENDPOINT: str = None
+_TRACKER_CONTEXT: TExecutionContext = None
 
 
-def init_segment(config: RunConfiguration) -> None:
+def init_anon_tracker(config: RunConfiguration) -> None:
     if config.dlthub_telemetry_endpoint is None:
         raise ValueError("dlthub_telemetry_endpoint not specified in RunConfiguration")
 
@@ -36,8 +36,8 @@ def init_segment(config: RunConfiguration) -> None:
             config.dlthub_telemetry_segment_write_key
         ), "dlthub_telemetry_segment_write_key not present in RunConfiguration"
 
-    global _WRITE_KEY, _SESSION, _SEGMENT_ENDPOINT
-    # create thread pool to send telemetry to segment
+    global _WRITE_KEY, _SESSION, _ANON_TRACKER_ENDPOINT
+    # create thread pool to send telemetry to anonymous tracker
     if not _SESSION:
         _SESSION = requests.Session()
         # flush pool on exit
@@ -47,19 +47,20 @@ def init_segment(config: RunConfiguration) -> None:
         key_bytes = (config.dlthub_telemetry_segment_write_key + ":").encode("ascii")
         _WRITE_KEY = base64.b64encode(key_bytes).decode("utf-8")
     # store endpoint
-    _SEGMENT_ENDPOINT = config.dlthub_telemetry_endpoint
-    # cache the segment context
+    _ANON_TRACKER_ENDPOINT = config.dlthub_telemetry_endpoint
+    # cache the tracker context
     _default_context_fields()
 
 
-def disable_segment() -> None:
+def disable_anon_tracker() -> None:
     _at_exit_cleanup()
+    atexit.unregister(_at_exit_cleanup)
 
 
 def track(event_category: TEventCategory, event_name: str, properties: DictStrAny) -> None:
     """Tracks a telemetry event.
 
-    The segment event name will be created as "{event_category}_{event_name}
+    The tracker event name will be created as "{event_category}_{event_name}
 
     Args:
         event_category: Category of the event: pipeline or cli
@@ -84,16 +85,17 @@ def before_send(event: DictStrAny) -> Optional[DictStrAny]:
 
 
 def _at_exit_cleanup() -> None:
-    global _SESSION, _WRITE_KEY, _SEGMENT_CONTEXT
+    global _SESSION, _WRITE_KEY, _TRACKER_CONTEXT, _ANON_TRACKER_ENDPOINT
     if _SESSION:
         _THREAD_POOL.stop(True)
         _SESSION.close()
         _SESSION = None
-        _WRITE_KEY = None
-        _SEGMENT_CONTEXT = None
+    _ANON_TRACKER_ENDPOINT = None
+    _WRITE_KEY = None
+    _TRACKER_CONTEXT = None
 
 
-def _segment_request_header(write_key: str) -> StrAny:
+def _tracker_request_header(write_key: str) -> StrAny:
     """Use a segment write key to create authentication headers for the segment API.
 
     Args:
@@ -124,8 +126,8 @@ def get_anonymous_id() -> str:
     return anonymous_id
 
 
-def _segment_request_payload(event_name: str, properties: StrAny, context: StrAny) -> DictStrAny:
-    """Compose a valid payload for the segment API.
+def _create_request_payload(event_name: str, properties: StrAny, context: StrAny) -> DictStrAny:
+    """Compose a valid payload for the tracker.
 
     Args:
         event_name: Name of the event.
@@ -133,7 +135,7 @@ def _segment_request_payload(event_name: str, properties: StrAny, context: StrAn
         context: Context information about the event.
 
     Returns:
-        Valid segment payload.
+        Valid tracker payload.
     """
     return {
         "anonymousId": get_anonymous_id(),
@@ -149,21 +151,21 @@ def _default_context_fields() -> TExecutionContext:
     Return:
         A new context containing information about the runtime environment.
     """
-    global _SEGMENT_CONTEXT
+    global _TRACKER_CONTEXT
 
-    if not _SEGMENT_CONTEXT:
+    if not _TRACKER_CONTEXT:
         # Make sure to update the example in docs/docs/telemetry/telemetry.mdx
         # if you change / add context
-        _SEGMENT_CONTEXT = get_execution_context()
+        _TRACKER_CONTEXT = get_execution_context()
 
     # avoid returning the cached dict --> caller could modify the dictionary...
     # usually we would use `lru_cache`, but that doesn't return a dict copy and
     # doesn't work on inner functions, so we need to roll our own caching...
-    return _SEGMENT_CONTEXT.copy()
+    return _TRACKER_CONTEXT.copy()
 
 
 def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
-    """Report the contents segment of an event to the /track Segment endpoint.
+    """Report the contents of an event to the tracker endpoint.
 
     Args:
         event_name: Name of the event.
@@ -171,37 +173,37 @@ def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
         context: Context information about the event.
     """
     # formulate payload and process in before send
-    payload = before_send(_segment_request_payload(event_name, properties, context))
+    payload = before_send(_create_request_payload(event_name, properties, context))
     # skip empty payloads
     if not payload:
         logger.debug("Skipping request to external service: payload was filtered out.")
         return
 
-    if _SEGMENT_ENDPOINT is None:
-        # If _SEGMENT_ENDPOINT is `None`, telemetry has not been enabled
+    if _ANON_TRACKER_ENDPOINT is None:
         logger.debug("Skipping request to external service: telemetry endpoint not set.")
         return
 
-    headers = _segment_request_header(_WRITE_KEY)
+    headers = _tracker_request_header(_WRITE_KEY)
 
     def _future_send() -> None:
         # import time
         # start_ts = time.time_ns()
         resp = _SESSION.post(
-            _SEGMENT_ENDPOINT, headers=headers, json=payload, timeout=_SEGMENT_REQUEST_TIMEOUT
+            _ANON_TRACKER_ENDPOINT, headers=headers, json=payload, timeout=_REQUEST_TIMEOUT
         )
         # end_ts = time.time_ns()
         # elapsed_time = (end_ts - start_ts) / 10e6
-        # print(f"SENDING TO Segment done: {elapsed_time}ms Status: {resp.status_code}")
+        # print(f"SENDING TO TRACKER done: {elapsed_time}ms Status: {resp.status_code}")
         # handle different failure cases
         if resp.status_code not in [200, 204]:
             logger.debug(
-                f"Segment telemetry request returned a {resp.status_code} response. "
-                f"Body: {resp.text}"
+                f"Tracker request returned a {resp.status_code} response. Body: {resp.text}"
             )
         else:
-            data = resp.json()
-            if not data.get("success"):
-                logger.debug(f"Segment telemetry request returned a failure. Response: {data}")
+            if resp.status_code == 200:
+                # parse the response if available
+                data = resp.json()
+                if not data.get("success"):
+                    logger.debug(f"Tracker telemetry request returned a failure. Response: {data}")
 
     _THREAD_POOL.thread_pool.submit(_future_send)

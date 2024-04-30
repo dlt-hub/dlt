@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import (
+    ensure_pendulum_datetime,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
+)
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
     InvalidFilesystemLayout,
@@ -91,8 +95,8 @@ def prepare_datetime_params(
     current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
         current_timestamp = ensure_pendulum_datetime(load_package_timestamp)
-        params["load_package_timestamp"] = str(int(current_timestamp.timestamp()))
-        params["load_package_timestamp_ms"] = current_timestamp.format("SSS")
+        params["load_package_timestamp"] = str(datetime_to_timestamp(current_timestamp))
+        params["load_package_timestamp_ms"] = str(datetime_to_timestamp_ms(current_timestamp))
 
     if not current_datetime:
         if current_timestamp:
@@ -102,8 +106,8 @@ def prepare_datetime_params(
             logger.info("current_datetime is not set, using pendulum.now()")
             current_datetime = pendulum.now()
 
-    params["timestamp"] = str(int(current_datetime.timestamp()))
-    params["timestamp_ms"] = current_datetime.format("SSS")
+    params["timestamp"] = str(datetime_to_timestamp(current_datetime))
+    params["timestamp_ms"] = str(datetime_to_timestamp_ms(current_datetime))
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
@@ -235,6 +239,7 @@ def create_path(
 def get_table_prefix_layout(
     layout: str,
     supported_prefix_placeholders: Sequence[str] = SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS,
+    table_needs_own_folder: bool = False,
 ) -> str:
     """get layout fragment that defines positions of the table, cutting other placeholders
     allowed `supported_prefix_placeholders` that may appear before table.
@@ -265,5 +270,9 @@ def get_table_prefix_layout(
     prefix = layout[: layout.index("{table_name}") + 13]
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
+    if prefix[-1] != "/" and table_needs_own_folder:
+        raise CantExtractTablePrefix(
+            layout, "Table requires it's own folder, please add a '/' after your {table_name}. "
+        )
 
     return prefix

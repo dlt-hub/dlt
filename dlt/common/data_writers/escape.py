@@ -150,10 +150,47 @@ def escape_databricks_literal(v: Any) -> Any:
         return _escape_extended(json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
     if isinstance(v, bytes):
         return f"X'{v.hex()}'"
-    if v is None:
-        return "NULL"
+    return "NULL" if v is None else str(v)
 
-    return str(v)
+
+# https://github.com/ClickHouse/ClickHouse/blob/master/docs/en/sql-reference/syntax.md#string
+CLICKHOUSE_ESCAPE_DICT = {
+    "'": "''",
+    "\\": "\\\\",
+    "\n": "\\n",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+    "\r": "\\r",
+    "\0": "\\0",
+    "\a": "\\a",
+    "\v": "\\v",
+}
+
+CLICKHOUSE_ESCAPE_RE = _make_sql_escape_re(CLICKHOUSE_ESCAPE_DICT)
+
+
+def escape_clickhouse_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(
+            v, prefix="'", escape_dict=CLICKHOUSE_ESCAPE_DICT, escape_re=CLICKHOUSE_ESCAPE_RE
+        )
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(
+            json.dumps(v),
+            prefix="'",
+            escape_dict=CLICKHOUSE_ESCAPE_DICT,
+            escape_re=CLICKHOUSE_ESCAPE_RE,
+        )
+    if isinstance(v, bytes):
+        return f"'{v.hex()}'"
+    return "NULL" if v is None else str(v)
+
+
+def escape_clickhouse_identifier(v: str) -> str:
+    return "`" + v.replace("`", "``").replace("\\", "\\\\") + "`"
 
 
 def format_datetime_literal(v: pendulum.DateTime, precision: int = 6, no_tz: bool = False) -> str:
@@ -176,3 +213,11 @@ def format_bigquery_datetime_literal(
     """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator."""
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#timestamp_literals
     return "TIMESTAMP " + format_datetime_literal(v, precision, no_tz)
+
+
+def format_clickhouse_datetime_literal(
+    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
+) -> str:
+    """Returns clickhouse compatibel function"""
+    datetime = format_datetime_literal(v, precision, True)
+    return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"

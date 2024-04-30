@@ -254,6 +254,18 @@ ALL_LAYOUTS = (  # type: ignore
         True,
         [],
     ),
+    (
+        "{Y}/{timestamp_ms}/{table_name}",
+        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table",
+        True,
+        [],
+    ),
+    (
+        "{Y}/{load_package_timestamp_ms}/{table_name}",
+        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table",
+        True,
+        [],
+    ),
     ("{load_id}/{ext}/{table_name}", "mocked-load-id/jsonl/mocked-table", True, []),
     ("{HH}/{mm}/{schema_name}", f"{frozen_datetime.format('HH/mm')}/schema-name", True, []),
     ("{type}/{bobo}/{table_name}", "one-for-all/is-name/mocked-table", True, []),

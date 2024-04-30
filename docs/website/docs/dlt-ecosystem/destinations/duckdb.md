@@ -83,20 +83,35 @@ to disable tz adjustments.
 
 By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
 
-The `duckdb` credentials do not require any secret values. You are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
+The `duckdb` credentials do not require any secret values. [You are free to pass the credentials and configuration explicitly](../../general-usage/destination.md#pass-explicit-credentials). For example:
 ```py
-# will load data to files/data.db database file
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
+# will load data to files/data.db (relative path) database file
+p = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.duckdb("files/data.db"),
+  dataset_name='chess_data',
+  full_refresh=False
+)
 
-# will load data to /var/local/database.duckdb
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="/var/local/database.duckdb")
+# will load data to /var/local/database.duckdb (absolute path)
+p = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.duckdb("/var/local/database.duckdb"),
+  dataset_name='chess_data',
+  full_refresh=False
+)
 ```
 
 The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
 ```py
 import duckdb
 db = duckdb.connect()
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)
+p = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.duckdb(db),
+  dataset_name='chess_data',
+  full_refresh=False,
+)
 ```
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).

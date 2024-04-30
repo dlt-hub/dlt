@@ -55,6 +55,8 @@ TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfi
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
+DEFAULT_FILE_LAYOUT = "{table_name}/{load_id}.{file_id}.{ext}"
+
 
 class StorageSchemaInfo(NamedTuple):
     version_hash: str
@@ -155,7 +157,7 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     as_staging: bool = False
     bucket_url: str = None
     # layout of the destination files
-    layout: str = "{table_name}/{load_id}.{file_id}.{ext}"
+    layout: str = DEFAULT_FILE_LAYOUT
 
 
 @configspec
@@ -353,13 +355,16 @@ class JobClientBase(ABC):
                         f'"{table["x-merge-strategy"]}" is not a valid merge strategy. '  # type: ignore[typeddict-item]
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                     )
-                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
-                    table, "merge_key"
+                if (
+                    table.get("x-merge-strategy") == "delete-insert"
+                    and not has_column_with_prop(table, "primary_key")
+                    and not has_column_with_prop(table, "merge_key")
                 ):
                     logger.warning(
-                        f"Table {table_name} has write_disposition set to merge, but no primary or"
-                        " merge keys defined. "
-                        + "dlt will fall back to append for this table."
+                        f"Table {table_name} has `write_disposition` set to `merge`"
+                        " and `merge_strategy` set to `delete-insert`, but no primary or"
+                        " merge keys defined."
+                        " dlt will fall back to `append` for this table."
                     )
             if has_column_with_prop(table, "hard_delete"):
                 if len(get_columns_names_with_prop(table, "hard_delete")) > 1:

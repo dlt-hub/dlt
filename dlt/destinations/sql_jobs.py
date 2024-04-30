@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 import yaml
 from dlt.common.logger import pretty_format_exception
 
-from dlt.common.pendulum import pendulum
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
@@ -13,6 +12,7 @@ from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
     get_validity_column_names,
+    get_active_record_timestamp,
     DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
@@ -22,10 +22,6 @@ from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.pipeline.current import load_package as current_load_package
-
-
-HIGH_TS = pendulum.datetime(9999, 12, 31)
-"""High timestamp used to indicate active records in `scd2` merge strategy."""
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -396,7 +392,7 @@ class SqlMergeJob(SqlBaseJob):
             unique_column: str = None
             root_key_column: str = None
 
-            if len(table_chain) == 1:
+            if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
                 key_table_clauses = cls.gen_key_table_clauses(
                     root_table_name, staging_root_table_name, key_clauses, for_delete=True
                 )
@@ -546,12 +542,20 @@ class SqlMergeJob(SqlBaseJob):
             current_load_package()["state"]["created_at"],
             caps.timestamp_precision,
         )
-        active_record_ts = format_datetime_literal(HIGH_TS, caps.timestamp_precision)
+        active_record_timestamp = get_active_record_timestamp(root_table)
+        if active_record_timestamp is None:
+            active_record_literal = "NULL"
+            is_active_clause = f"{to} IS NULL"
+        else:  # it's a datetime
+            active_record_literal = format_datetime_literal(
+                active_record_timestamp, caps.timestamp_precision
+            )
+            is_active_clause = f"{to} = {active_record_literal}"
 
         # retire updated and deleted records
         sql.append(f"""
-            UPDATE {root_table_name} SET {to} = {boundary_ts}
-            WHERE {to} = {active_record_ts}
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
+            WHERE {is_active_clause}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
 
@@ -560,7 +564,7 @@ class SqlMergeJob(SqlBaseJob):
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
-            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_ts} AS {to}
+            SELECT {col_str}, {boundary_ts} AS {from_}, {active_record_literal} AS {to}
             FROM {staging_root_table_name} AS s
             WHERE {hash_} NOT IN (SELECT {hash_} FROM {root_table_name});
         """)
@@ -592,7 +596,20 @@ class SqlMergeJob(SqlBaseJob):
                 sql.append(f"""
                     INSERT INTO {table_name}
                     SELECT *
-                    FROM {staging_table_name} AS s
-                    WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{unique_column} = s.{unique_column});
+                    FROM {staging_table_name}
+                    WHERE {unique_column} NOT IN (SELECT {unique_column} FROM {table_name});
                 """)
+
         return sql
+
+    @classmethod
+    def gen_update_table_prefix(cls, table_name: str) -> str:
+        return f"UPDATE {table_name} SET"
+
+    @classmethod
+    def requires_temp_table_for_delete(cls) -> bool:
+        """this could also be a capabitiy, but probably it is better stored here
+        this identifies destinations that can have a simplified method for merging single
+        table table chains
+        """
+        return False
