@@ -128,7 +128,7 @@ This destination accepts database connection strings in the format used by [duck
 Dlt supports unique connection strings that trigger specific behaviors for duckdb destination:
 
 * **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
-* **:memory:** creates an in-memory database. This may be useful for testing.
+* **:memory:** creates an in-memory database (this may be useful for testing).
 
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
