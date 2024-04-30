@@ -6,7 +6,12 @@ from typing import Any, Callable
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
-from dlt.common.runtime.segment import TEventCategory, init_segment, disable_segment, track
+from dlt.common.runtime.anon_tracker import (
+    TEventCategory,
+    init_anon_tracker,
+    disable_anon_tracker,
+    track,
+)
 
 _TELEMETRY_STARTED = False
 
@@ -25,7 +30,7 @@ def start_telemetry(config: RunConfiguration) -> None:
         init_sentry(config)
 
     if config.dlthub_telemetry:
-        init_segment(config)
+        init_anon_tracker(config)
 
     _TELEMETRY_STARTED = True
 
@@ -42,7 +47,7 @@ def stop_telemetry() -> None:
     except ImportError:
         pass
 
-    disable_segment()
+    disable_anon_tracker()
 
     _TELEMETRY_STARTED = False
 
