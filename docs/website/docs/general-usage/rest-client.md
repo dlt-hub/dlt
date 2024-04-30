@@ -1,22 +1,22 @@
 # Reading data from RESTful APIs
 
-RESTful APIs are a common way to interact with web services. They are based on the HTTP protocol and are used to read and write data from and to a web server. dlt provides a simple way to read data from RESTful APIs using two helper methods: [a wrapper around the `requests`](../reference/performance#using-the-built-in-requests-client) library and a `RESTClient` class.
+RESTful APIs are a common way to interact with web services. They are based on the HTTP protocol and are used to read and write data from and to a web server. dlt provides a simple way to read data from RESTful APIs using two helper methods: [a wrapper around the  Requests library](../reference/performance#using-the-built-in-requests-client) and a `RESTClient` class.
 
 :::tip
 There's also shorthand function to read from paginated APIs. Check out the [paginate()](#shortcut-for-paginating-api-responses) function.
 :::
 
 
-The `RESTClient` class offers a powerful interface for interacting with RESTful APIs, supporting features like
+The `RESTClient` class offers a powerful interface for interacting with RESTful APIs, including features like:
 - automatic pagination,
 - various authentication mechanisms,
 - customizable request/response handling.
 
-This guide demonstrates how to use the `RESTClient` class to read data APIs focusing on its `paginate()` method to fetch data from paginated API responses.
+This guide shows how to use the `RESTClient` class to read data APIs focusing on its `paginate()` method to fetch data from paginated API responses.
 
 ## Quick example
 
-Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is `https://api.github.com/repos/dlt-hub/dlt/issues`. The result is "paginated", meaning that the API returns a limited number of issues per page. The `paginate()` iterates over all pages and yields the results which are then processed by the pipeline.
+Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is https://api.github.com/repos/dlt-hub/dlt/issues. The result is "paginated", meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.
 
 ```py
 import dlt
@@ -48,10 +48,50 @@ print(load_info)
 
 Here's what the code does:
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the GitHub API (https://api.github.com).
-2. Issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues. Note that we do not explicitly specify the pagination parameters here; the `paginate()` method handles this automatically.
+2. Issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
 3. Here we specify the address of the endpoint we want to read from: `/repos/dlt-hub/dlt/issues`.
 4. We pass the parameters to the actual API call to control the data we get back. In this case, we ask for 100 issues per page (`"per_page": 100`), sorted by the last update date (`"sort": "updated"`) in descending order (`"direction": "desc"`).
-5. We yield the page from the resource function to the pipeline.
+5. We yield the page from the resource function to the pipeline. The `page` is an instance of the [`PageData`](#pagedata) and contains the data from the current page of the API response and some metadata.
+
+Note that we do not explicitly specify the pagination parameters in the example. The `paginate()` method handles pagination automatically: it detects the pagination mechanism used by the API from the response and paginates accordingly. What if you need to specify the pagination method and parameters explicitly? Let's see how to do that in a different example below.
+
+### Explicitly specifying pagination parameters
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+
+github_client = RESTClient(
+    base_url="https://pokeapi.co/api/v2",
+    paginator=JSONResponsePaginator(next_url_path="next")    # (1)
+    data_selector="results",                                 # (2)
+)
+
+@dlt.resource
+def get_pokemons():
+    for page in github_client.paginate(
+        "/pokemon",
+        params={
+            "limit": 100,                                    # (3)
+        },
+    ):
+        yield page
+
+pipeline = dlt.pipeline(
+    pipeline_name="get_pokemons",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+load_info = pipeline.run(get_pokemons)
+print(load_info)
+```
+
+In the example above:
+1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONResponsePaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
+2. In `data_selector` we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
+3. By default the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.
+
 
 ## Understanding the `RESTClient` Class
 
@@ -64,7 +104,7 @@ The `RESTClient` class is initialized with parameters that define its behavior f
 - `data_selector`: A [JSONPath selector](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for extracting data from the responses. This defines a way to extract the data from the response JSON. Only used when paginating.
 - `session`: An HTTP session for making requests. This is a custom session object that can be used to set up custom behavior for requests.
 
-## Making Basic Requests
+## Making basic requests
 
 To perform basic GET and POST requests, use the get() and post() methods respectively. This works similarly to the requests library:
 
@@ -73,7 +113,7 @@ client = RESTClient(base_url="https://api.example.com")
 response = client.get("/posts/1")
 ```
 
-## Paginating API Responses
+## Paginating API responses
 
 The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` instances for each page:
 
