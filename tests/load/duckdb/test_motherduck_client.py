@@ -77,3 +77,5 @@ def test_motherduck_connect_with_user_agent_string(
     assert "config" in connect_spy.call_args.kwargs
     if custom_user_agent:
         assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == custom_user_agent
+    else:
+        assert "custom_user_agent" not in connect_spy.call_args.kwargs["config"]
