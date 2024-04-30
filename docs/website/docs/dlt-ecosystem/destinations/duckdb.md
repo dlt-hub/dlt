@@ -108,10 +108,18 @@ The destination accepts a `duckdb` connection instance via `credentials`, so you
 import duckdb
 db = duckdb.connect()
 p = dlt.pipeline(
-  pipeline_name='chess',
+  pipeline_name="chess",
   destination=dlt.destinations.duckdb(db),
-  dataset_name='chess_data',
+  dataset_name="chess_data",
   full_refresh=False,
+)
+
+# Or if you would like to use in-memory duckdb instance
+db = duckdb.connect(":memory:")
+p = pipeline_one = dlt.pipeline(
+  pipeline_name="in_memory_pipeline",
+  destination=dlt.destinations.duckdb(db),
+  dataset_name="chess_data",
 )
 ```
 
@@ -122,25 +130,6 @@ Dlt supports unique connection strings that trigger specific behaviors for duckd
 * **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
 * **:memory:** creates an in-memory database. This may be useful for testing.
 
-Below you can see usage examples these special cases
-
-```py
-# in-memory duckdb instance :memory:
-pipeline_one = dlt.pipeline(
-  pipeline_name="in_memory_pipeline",
-  destination=dlt.destinations.duckdb(":memory:"),
-  dataset_name='chess_data',
-)
-
-# create duckdb database file in pipelne's directory :pipeline:
-# will create a database named pipeline_xyz.duckdb
-pipeline_one = dlt.pipeline(
-  pipeline_name="pipeline_xyz",
-  destination="duckdb",
-  credentials=":pipeline:",
-  dataset_name='chess_data',
-)
-```
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
 ```toml
