@@ -53,7 +53,7 @@ Here's what the code does:
 4. We pass the parameters to the actual API call to control the data we get back. In this case, we ask for 100 issues per page (`"per_page": 100`), sorted by the last update date (`"sort": "updated"`) in descending order (`"direction": "desc"`).
 5. We yield the page from the resource function to the pipeline. The `page` is an instance of the [`PageData`](#pagedata) and contains the data from the current page of the API response and some metadata.
 
-Note that we do not explicitly specify the pagination parameters in the example. The `paginate()` method handles pagination automatically: it detects the pagination mechanism used by the API from the response and paginates accordingly. What if you need to specify the pagination method and parameters explicitly? Let's see how to do that in a different example below.
+Note that we do not explicitly specify the pagination parameters in the example. The `paginate()` method handles pagination automatically: it detects the pagination mechanism used by the API from the response. What if you need to specify the pagination method and parameters explicitly? Let's see how to do that in a different example below.
 
 ### Explicitly specifying pagination parameters
 
