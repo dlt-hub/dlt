@@ -75,10 +75,12 @@ def test_motherduck_connect_with_user_agent_string(
     # check for the default user agent value
     connect_spy.assert_called()
     assert "config" in connect_spy.call_args.kwargs
-    # if it is not specified the we expect the default `MOTHERDUCK_USER_AGENT``
+    # If empty string "" was set then we should not include it
     if custom_user_agent == "":
         assert "custom_user_agent" not in connect_spy.call_args.kwargs["config"]
+    # if it is not specified the we expect the default `MOTHERDUCK_USER_AGENT``
     elif custom_user_agent is None:
         assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == MOTHERDUCK_USER_AGENT
+    # otherwise all other values should be present
     else:
         assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == custom_user_agent
