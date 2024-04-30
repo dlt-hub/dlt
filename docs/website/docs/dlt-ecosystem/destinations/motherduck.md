@@ -100,5 +100,5 @@ Use `duckdb 0.8.1` or above.
 
 ### Motherduck connection identifier
 We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
-associated with `dlt` integration. The connection identifier is `dltHub_dlt@DLT_VERSION`.
+associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
 <!--@@@DLT_TUBA motherduck-->
