@@ -117,7 +117,7 @@ p = dlt.pipeline(
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
-Dlt supports unique connection strings that trigger specific behaviors:
+Dlt supports unique connection strings that trigger specific behaviors for duckdb destination:
 
 * **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
 * **:memory:** creates an in-memory database. This may be useful for testing.
