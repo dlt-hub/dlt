@@ -3,7 +3,6 @@ import typing as t
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb import capabilities
-from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckDbUsage
 
 if t.TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
@@ -38,14 +37,11 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
 
         Args:
             credentials: Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
-                a path to a database file. Use `:memory:` to create an in-memory database or :pipeline: to create a duckdb
+                a path to a database file. Use :pipeline: to create a duckdb
                 in the working folder of the pipeline
             create_indexes: Should unique indexes be created, defaults to False
             **kwargs: Additional arguments passed to the destination config
         """
-        if isinstance(credentials, str) and credentials == ":memory:":
-            raise InvalidInMemoryDuckDbUsage()
-
         super().__init__(
             credentials=credentials,
             create_indexes=create_indexes,
