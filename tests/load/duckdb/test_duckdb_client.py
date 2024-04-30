@@ -259,16 +259,13 @@ def test_external_duckdb_database() -> None:
 
 
 def test_in_memory_duckdb_database() -> None:
-    import duckdb
-
     # pass explicit in memory database
-    conn = duckdb.connect(":memory:")
     c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=conn)._bind_dataset_name(dataset_name="test_dataset")
+        DuckDbClientConfiguration(credentials=":memory:")._bind_dataset_name(dataset_name="test_dataset")
     )
-    c.credentials.borrow_conn(read_only=False)
+    conn = c.credentials.borrow_conn(read_only=False)
     assert c.credentials._conn_borrows == 1
-    assert c.credentials._conn_owner is False
+    assert c.credentials._conn_owner
     conn.close()
     assert not os.path.exists(":memory:")
 
