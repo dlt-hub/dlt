@@ -52,7 +52,7 @@ def test_motherduck_configuration() -> None:
     assert config.password == "tok"
 
 
-@pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None])
+@pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None, ""])
 def test_motherduck_connect_with_user_agent_string(
     custom_user_agent: Optional[str], mocker: MockerFixture
 ) -> None:
@@ -64,8 +64,8 @@ def test_motherduck_connect_with_user_agent_string(
         MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
         sections=("destination", "motherduck"),
     )
-    if custom_user_agent:
-        config.credentials.custom_user_agent = custom_user_agent
+
+    config.credentials.custom_user_agent = custom_user_agent
 
     # connect
     con = config.credentials.borrow_conn(read_only=False)
@@ -75,7 +75,10 @@ def test_motherduck_connect_with_user_agent_string(
     # check for the default user agent value
     connect_spy.assert_called()
     assert "config" in connect_spy.call_args.kwargs
-    if custom_user_agent:
-        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == custom_user_agent
-    else:
+    # if it is not specified the we expect the default `MOTHERDUCK_USER_AGENT``
+    if custom_user_agent == "":
         assert "custom_user_agent" not in connect_spy.call_args.kwargs["config"]
+    elif custom_user_agent is None:
+        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == MOTHERDUCK_USER_AGENT
+    else:
+        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == custom_user_agent

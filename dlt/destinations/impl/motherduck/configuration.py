@@ -40,6 +40,11 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     def borrow_conn(self, read_only: bool) -> Any:
         from duckdb import HTTPException, InvalidInputException
 
+        # If it was explicitly set to None/null then we
+        # need to use the default value
+        if self.custom_user_agent is None:
+            self.custom_user_agent = MOTHERDUCK_USER_AGENT
+
         if self.custom_user_agent and self.custom_user_agent != "":
             self._conn_config = {"custom_user_agent": self.custom_user_agent}
 
