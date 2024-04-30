@@ -239,3 +239,30 @@ def test_open_compressed() -> None:
         content = f.read()
         assert isinstance(content, str)
         assert content == bstr.decode("utf-8")
+
+
+def test_hard_link() -> None:
+    storage = FileStorage(TEST_STORAGE_ROOT, file_type="b")
+    storage.save("file.b", b"data")
+    FileStorage.link_hard_with_fallback(
+        storage.make_full_path("file.b"), storage.make_full_path("file.b.2")
+    )
+    assert storage.load("file.b.2") == b"data"
+    storage.delete("file.b")
+    assert storage.load("file.b.2") == b"data"
+    storage.delete("file.b.2")
+
+
+def test_hard_link_fallback() -> None:
+    if not os.path.exists("/run/lock"):
+        pytest.skip("/run/lock not found - skipping link fallback")
+    with open("/run/lock/dlt.r", "wb") as f:
+        f.write(b"data")
+    storage = FileStorage(TEST_STORAGE_ROOT, file_type="b")
+    with pytest.raises(OSError):
+        os.link("/run/lock/dlt.r", storage.make_full_path("file.b.2"))
+    FileStorage.link_hard_with_fallback("/run/lock/dlt.r", storage.make_full_path("file.b.2"))
+    assert storage.load("file.b.2") == b"data"
+    os.unlink("/run/lock/dlt.r")
+    assert storage.load("file.b.2") == b"data"
+    storage.delete("file.b.2")

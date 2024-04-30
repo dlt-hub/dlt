@@ -172,12 +172,9 @@ class FileStorage:
         """Try to create a hardlink and fallback to copying when filesystem doesn't support links"""
         try:
             os.link(external_file_path, to_file_path)
-        except OSError as ex:
+        except OSError:
             # Fallback to copy when fs doesn't support links or attempting to make a cross-device link
-            if ex.errno in (errno.EPERM, errno.EXDEV, errno.EMLINK):
-                FileStorage.copy_atomic_to_file(external_file_path, to_file_path)
-            else:
-                raise
+            FileStorage.copy_atomic_to_file(external_file_path, to_file_path)
 
     def atomic_rename(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a path using os.rename which is atomic on POSIX, Windows and NFS v4.

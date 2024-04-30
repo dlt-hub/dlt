@@ -32,12 +32,14 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.typing import DictStrAny, StrAny
 
+
 def _initialize_sheets(
     credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials]
 ) -> Any:
     # Build the service object.
     service = build("sheets", "v4", credentials=credentials.to_native_credentials())
     return service
+
 
 @dlt.source
 def google_spreadsheet(
@@ -78,6 +80,7 @@ def google_spreadsheet(
         for name in sheet_names
     ]
 
+
 if __name__ == "__main__":
     pipeline = dlt.pipeline(destination="duckdb")
     # see example.secrets.toml to where to put credentials
@@ -100,4 +103,3 @@ if __name__ == "__main__":
 
     # make sure nothing failed
     load_info.raise_on_failed_jobs()
-
