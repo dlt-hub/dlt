@@ -113,7 +113,7 @@ def assert_sample_files(
 
                 # fieldnames below are not really correct but allow to load first 3 columns
                 # even if first row does not have header names
-                elements = list(DictReader(f, fieldnames=["A", "B", "C"]))  # type: ignore
+                elements = list(DictReader(f, fieldnames=["A", "B", "C"]))
                 assert len(elements) > 0
         if item["mime_type"] == "application/parquet":
             # verify it is a real parquet
