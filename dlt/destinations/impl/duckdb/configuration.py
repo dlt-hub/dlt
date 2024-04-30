@@ -2,7 +2,7 @@ import os
 import dataclasses
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Dict, Final, List, Optional, Tuple, Type, Union
+from typing import Any, ClassVar, Final, List, Optional, Tuple, Type, Union
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
