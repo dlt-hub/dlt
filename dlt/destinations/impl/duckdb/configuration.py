@@ -37,11 +37,15 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         if not hasattr(self, "_conn_lock"):
             self._conn_lock = threading.Lock()
 
+        config = {}
+        if hasattr(self, "_conn_config"):
+            config = self._conn_config
+
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
                 self._conn = duckdb.connect(
-                    database=self._conn_str(), read_only=read_only, config=self.conn_config
+                    database=self._conn_str(), read_only=read_only, config=config
                 )
                 self._conn_owner = True
                 self._conn_borrows = 0
@@ -84,14 +88,6 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 self.database = native_value
             else:
                 raise
-
-    @property
-    def conn_config(self) -> Dict[str, Any]:
-        return getattr(self, "_conn_config", {})
-
-    @conn_config.setter
-    def conn_config(self, new_config: Dict[str, Any]) -> None:
-        self._conn_config = new_config
 
     def _conn_str(self) -> str:
         return self.database

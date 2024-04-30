@@ -41,7 +41,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         from duckdb import HTTPException, InvalidInputException
 
         if self.custom_user_agent and self.custom_user_agent != "":
-            self.conn_config = {"custom_user_agent": self.custom_user_agent}
+            self._conn_config = {"custom_user_agent": self.custom_user_agent}
 
         try:
             return super().borrow_conn(read_only)
