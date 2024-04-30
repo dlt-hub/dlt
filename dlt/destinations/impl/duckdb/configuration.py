@@ -69,17 +69,9 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
             # check if database was passed as explicit connection
             import duckdb
 
-            # if in-memory mode has been requested
-            # then prepare duckdb connection so later
-            # it is configured appropriately
-            is_owner = False
-            if isinstance(native_value, str) and native_value == ":memory:":
-                native_value = duckdb.connect(native_value)
-                is_owner = True
-
             if isinstance(native_value, duckdb.DuckDBPyConnection):
                 self._conn = native_value
-                self._conn_owner = is_owner
+                self._conn_owner = False
                 self._conn_borrows = 0
                 self.database = ":external:"
                 self.__is_resolved__ = True

@@ -258,18 +258,6 @@ def test_external_duckdb_database() -> None:
     assert not os.path.exists(":memory:")
 
 
-def test_in_memory_duckdb_database() -> None:
-    # pass explicit in memory database
-    c = resolve_configuration(
-        DuckDbClientConfiguration(credentials=":memory:")._bind_dataset_name(dataset_name="test_dataset")
-    )
-    conn = c.credentials.borrow_conn(read_only=False)
-    assert c.credentials._conn_borrows == 1
-    assert c.credentials._conn_owner
-    conn.close()
-    assert not os.path.exists(":memory:")
-
-
 def test_default_duckdb_dataset_name() -> None:
     # Check if dataset_name does not collide with pipeline_name
     data = ["a", "b", "c"]
