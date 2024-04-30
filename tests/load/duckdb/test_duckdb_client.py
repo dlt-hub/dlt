@@ -13,6 +13,7 @@ from dlt.destinations.impl.duckdb.configuration import (
 from dlt.destinations import duckdb
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckDbUsage
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.pipeline.utils import drop_pipeline
 from tests.pipeline.utils import assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
@@ -65,11 +66,21 @@ def test_duckdb_in_memory_mode_via_factory():
         dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(db))
 
         # Check if passing :memory: to factory fails
-        with pytest.raises(InvalidInMemoryDuckDbUsage):
-            dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(":memory:"))
+        with pytest.raises(PipelineStepFailed) as exc:
+            p = dlt.pipeline(pipeline_name="booboo", destination="duckdb", credentials=":memory:")
+            p.run([1, 2, 3])
 
-        # FIXME: should we check when credentials passed to pipeline factory?
-        # dlt.pipeline(pipeline_name="booboo", destination="duckdb", credentials=":memory:")
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckDbUsage)
+
+        os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = ":memory:"
+        with pytest.raises(PipelineStepFailed):
+            p = dlt.pipeline(
+                pipeline_name="booboo",
+                destination="duckdb",
+            )
+            p.run([1, 2, 3])
+
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckDbUsage)
     finally:
         delete_quack_db()
 
