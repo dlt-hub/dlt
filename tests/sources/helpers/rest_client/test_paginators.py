@@ -7,6 +7,7 @@ from requests.models import Response, Request
 from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
     OffsetPaginator,
+    PageNumberPaginator,
     HeaderLinkPaginator,
     JSONResponsePaginator,
 )
@@ -177,7 +178,7 @@ class TestOffsetPaginator:
         paginator = OffsetPaginator(initial_offset=0, initial_limit=10)
         response = Mock(Response, json=lambda: {"total": 20})
         paginator.update_state(response)
-        assert paginator.offset == 10
+        assert paginator.current_value == 10
         assert paginator.has_next_page is True
 
         # Test for reaching the end
@@ -188,7 +189,7 @@ class TestOffsetPaginator:
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {"total": "20"})
         paginator.update_state(response)
-        assert paginator.offset == 10
+        assert paginator.current_value == 10
         assert paginator.has_next_page is True
 
     def test_update_state_with_invalid_total(self):
@@ -202,3 +203,47 @@ class TestOffsetPaginator:
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
             paginator.update_state(response)
+
+
+class TestPageNumberPaginator:
+    def test_update_state(self):
+        paginator = PageNumberPaginator(initial_page=1, total_pages_path="total_pages")
+        response = Mock(Response, json=lambda: {"total_pages": 3})
+        paginator.update_state(response)
+        assert paginator.current_value == 2
+        assert paginator.has_next_page is True
+
+        # Test for reaching the end
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
+    def test_update_state_with_string_total_pages(self):
+        paginator = PageNumberPaginator(1)
+        response = Mock(Response, json=lambda: {"total": "3"})
+        paginator.update_state(response)
+        assert paginator.current_value == 2
+        assert paginator.has_next_page is True
+
+    def test_update_state_with_invalid_total_pages(self):
+        paginator = PageNumberPaginator(1)
+        response = Mock(Response, json=lambda: {"total_pages": "invalid"})
+        with pytest.raises(ValueError):
+            paginator.update_state(response)
+
+    def test_update_state_without_total_pages(self):
+        paginator = PageNumberPaginator(1)
+        response = Mock(Response, json=lambda: {})
+        with pytest.raises(ValueError):
+            paginator.update_state(response)
+
+    def test_update_request(self):
+        paginator = PageNumberPaginator(initial_page=1, page_param="page")
+        request = Mock(Request)
+        response = Mock(Response, json=lambda: {"total": 3})
+        paginator.update_state(response)
+        request.params = {}
+        paginator.update_request(request)
+        assert request.params["page"] == 2
+        paginator.update_state(response)
+        paginator.update_request(request)
+        assert request.params["page"] == 3
