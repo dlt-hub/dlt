@@ -65,6 +65,12 @@ class SinglePagePaginator(BasePaginator):
 
 
 class BaseNumericPaginator(BasePaginator):
+    """A base paginator class for paginators that use a numeric parameter
+    for pagination, such as page number or offset.
+
+    See `PageNumberPaginator` and `OffsetPaginator` for examples.
+    """
+
     def __init__(
         self,
         param_name: str,
@@ -73,6 +79,17 @@ class BaseNumericPaginator(BasePaginator):
         value_step: int,
         error_message_items: str = "items",
     ):
+        """
+        Args:
+            param_name (str): The query parameter name for the numeric value.
+                For example, 'page'.
+            initial_value (int): The initial value of the numeric parameter.
+            total_path (jsonpath.TJsonPath): The JSONPath expression for the total
+                number of items.
+            value_step (int): The step size to increment the numeric parameter.
+            error_message_items (str): The name of the items in the error message.
+                Defaults to 'items'.
+        """
         super().__init__()
         self.param_name = param_name
         self.current_value = initial_value
