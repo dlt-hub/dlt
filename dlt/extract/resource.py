@@ -358,7 +358,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later
-                    yield i
                     if i is not None:
                         count += 1
                         # async gen yields awaitable so we must count one awaitable more
@@ -366,6 +365,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                         # new awaitable will be cancelled
                         if count == max_items + int(is_async_gen):
                             return
+                    yield i
             finally:
                 if inspect.isgenerator(gen):
                     gen.close()
