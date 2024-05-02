@@ -86,7 +86,7 @@ def test_duckdb_in_memory_mode_via_factory():
         with pytest.raises(PipelineStepFailed) as exc:
             p = dlt.pipeline(
                 pipeline_name="booboo",
-                destination=Destination.from_reference("duckdb", credentials=":memory:"),
+                destination=Destination.from_reference("duckdb", credentials=":memory:"),  # type: ignore[arg-type]
             )
             p.run([1, 2, 3], table_name="numbers")
 
