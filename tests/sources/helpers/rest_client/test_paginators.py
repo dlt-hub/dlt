@@ -204,6 +204,29 @@ class TestOffsetPaginator:
         with pytest.raises(ValueError):
             paginator.update_state(response)
 
+    def test_init_request(self):
+        paginator = OffsetPaginator(initial_offset=123, initial_limit=42)
+        request = Mock(Request)
+        request.params = {}
+
+        paginator.init_request(request)
+
+        assert request.params["offset"] == 123
+        assert request.params["limit"] == 42
+
+        response = Mock(Response, json=lambda: {"total": 200})
+
+        paginator.update_state(response)
+
+        # Test for the next request
+        next_request = Mock(spec=Request)
+        next_request.params = {}
+
+        paginator.update_request(next_request)
+
+        assert next_request.params["offset"] == 165
+        assert next_request.params["limit"] == 42
+
 
 class TestPageNumberPaginator:
     def test_update_state(self):

@@ -25,6 +25,18 @@ class BasePaginator(ABC):
         """
         return self._has_next_page
 
+    def init_request(self, request: Request) -> None:  # noqa: B027, optional override
+        """Initializes the request object with parameters for the first
+        pagination request.
+
+        This method can be overridden by subclasses to include specific
+        initialization logic.
+
+        Args:
+            request (Request): The request object to be initialized.
+        """
+        pass
+
     @abstractmethod
     def update_state(self, response: Response) -> None:
         """Updates the paginator's state based on the response from the API.
@@ -96,6 +108,12 @@ class BaseNumericPaginator(BasePaginator):
         self.total_path = jsonpath.compile_path(total_path)
         self.value_step = value_step
         self.error_message_items = error_message_items
+
+    def init_request(self, request: Request) -> None:
+        if request.params is None:
+            request.params = {}
+
+        request.params[self.param_name] = self.current_value
 
     def update_state(self, response: Response) -> None:
         response_json = response.json()
@@ -257,6 +275,10 @@ class OffsetPaginator(BaseNumericPaginator):
         )
         self.limit_param = limit_param
         self.limit = initial_limit
+
+    def init_request(self, request: Request) -> None:
+        super().init_request(request)
+        request.params[self.limit_param] = self.limit
 
     def update_request(self, request: Request) -> None:
         super().update_request(request)

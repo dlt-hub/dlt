@@ -1,10 +1,15 @@
 import os
+from typing import Optional
+
+import duckdb
 import pytest
 
+from pytest_mock import MockerFixture
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.resolve import resolve_configuration
 
 from dlt.destinations.impl.motherduck.configuration import (
+    MOTHERDUCK_USER_AGENT,
     MotherDuckCredentials,
     MotherDuckClientConfiguration,
 )
@@ -47,15 +52,35 @@ def test_motherduck_configuration() -> None:
     assert config.password == "tok"
 
 
-def test_motherduck_connect() -> None:
+@pytest.mark.parametrize("custom_user_agent", [MOTHERDUCK_USER_AGENT, "patates", None, ""])
+def test_motherduck_connect_with_user_agent_string(
+    custom_user_agent: Optional[str], mocker: MockerFixture
+) -> None:
     # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize
     os.environ["HOME"] = "/tmp"
 
+    connect_spy = mocker.spy(duckdb, "connect")
     config = resolve_configuration(
         MotherDuckClientConfiguration()._bind_dataset_name(dataset_name="test"),
         sections=("destination", "motherduck"),
     )
+
+    config.credentials.custom_user_agent = custom_user_agent
+
     # connect
     con = config.credentials.borrow_conn(read_only=False)
     con.sql("SHOW DATABASES")
     config.credentials.return_conn(con)
+
+    # check for the default user agent value
+    connect_spy.assert_called()
+    assert "config" in connect_spy.call_args.kwargs
+    # If empty string "" was set then we should not include it
+    if custom_user_agent == "":
+        assert "custom_user_agent" not in connect_spy.call_args.kwargs["config"]
+    # if it is not specified, we expect the default `MOTHERDUCK_USER_AGENT``
+    elif custom_user_agent is None:
+        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == MOTHERDUCK_USER_AGENT
+    # otherwise all other values should be present
+    else:
+        assert connect_spy.call_args.kwargs["config"]["custom_user_agent"] == custom_user_agent

@@ -2,16 +2,13 @@ import os
 import dataclasses
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Final, List, Optional, Tuple, TYPE_CHECKING, Type, Union
+from typing import Any, ClassVar, Dict, Final, List, Optional, Tuple, Type, Union
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import (
-    DestinationClientDwhWithStagingConfiguration,
-    DestinationClientStagingConfiguration,
-)
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretValue
 
 try:
@@ -40,10 +37,13 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         if not hasattr(self, "_conn_lock"):
             self._conn_lock = threading.Lock()
 
+        config = self._get_conn_config()
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(database=self._conn_str(), read_only=read_only)
+                self._conn = duckdb.connect(
+                    database=self._conn_str(), read_only=read_only, config=config
+                )
                 self._conn_owner = True
                 self._conn_borrows = 0
 
@@ -85,6 +85,9 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 self.database = native_value
             else:
                 raise
+
+    def _get_conn_config(self) -> Dict[str, Any]:
+        return {}
 
     def _conn_str(self) -> str:
         return self.database
