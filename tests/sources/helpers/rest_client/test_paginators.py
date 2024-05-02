@@ -210,8 +210,8 @@ class TestOffsetPaginator:
 
         paginator.init_request(request)
 
-        assert request.params['offset'] == 123
-        assert request.params['limit'] == 42
+        assert request.params["offset"] == 123
+        assert request.params["limit"] == 42
 
         response = Mock(Response, json=lambda: {"total": 200})
 
@@ -223,5 +223,5 @@ class TestOffsetPaginator:
 
         paginator.update_request(next_request)
 
-        assert next_request.params['offset'] == 165
-        assert next_request.params['limit'] == 42
+        assert next_request.params["offset"] == 165
+        assert next_request.params["limit"] == 42

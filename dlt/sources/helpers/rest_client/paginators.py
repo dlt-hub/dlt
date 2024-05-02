@@ -25,7 +25,7 @@ class BasePaginator(ABC):
         """
         return self._has_next_page
 
-    def init_request(self, request: Request) -> None:
+    def init_request(self, request: Request) -> None:  # noqa: B027, optional override
         """Initializes the request object with parameters for the first
         pagination request.
 
