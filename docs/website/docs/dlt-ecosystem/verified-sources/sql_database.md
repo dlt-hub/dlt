@@ -121,6 +121,16 @@ Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a
    
    >Note: The (user:pw) may be included but will be ignored by the server if `trusted_connection=yes` is set.
 
+1. To pass credentials with ODBC driver, you can modify your connection string as:
+
+   ```toml
+   sources.sql_database.credentials="mssql+pyodbc://<username>:<password>@<server_address>:<port>/<database>?driver=<driver_name>&TrustServerCertificate=<trust_cert>"
+
+   #For example
+   sources.sql_database.credentials="mssql+pyodbc://<username>:<password>@<server_address>:<port>/<database>?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes"
+   ```
+
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
