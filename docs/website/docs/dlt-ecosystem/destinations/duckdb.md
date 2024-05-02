@@ -106,6 +106,7 @@ The destination accepts a `duckdb` connection instance via `credentials`, so you
 
 ```py
 import duckdb
+
 db = duckdb.connect()
 p = dlt.pipeline(
   pipeline_name="chess",
@@ -115,10 +116,11 @@ p = dlt.pipeline(
 )
 
 # Or if you would like to use in-memory duckdb instance
-db = duckdb.connect(":memory:")
+from dlt.common.destination.reference import Destination
+
 p = pipeline_one = dlt.pipeline(
   pipeline_name="in_memory_pipeline",
-  destination=dlt.destinations.duckdb(db),
+  destination=Destination.from_reference("duckdb", credentials=duckdb.connect(":memory:")),
   dataset_name="chess_data",
 )
 ```
