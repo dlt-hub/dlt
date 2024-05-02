@@ -189,20 +189,29 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
             assert {r[0] for r in rows} == {"e", "f", "g"}
 
     # in both item modes there will be parallel execution
-    if resource_mode in ["both_async"]:
-        assert execution_order == ["one", "two", "one", "two", "one", "two"]
+    fifo_result = ["one", "one", "one", "two", "two", "two"]
+    round_robin_result = ["one", "two", "one", "two", "one", "two"]
+    # import ipdb;ipdb.set_trace()
+    if resource_mode == "both_async" and next_item_mode == "fifo":
+        assert execution_order == fifo_result
+    elif resource_mode == "both_async" and next_item_mode == "round_robin":
+        assert execution_order == round_robin_result
     # first the first resouce is exhausted, then the second
-    elif resource_mode in ["both_sync"] and next_item_mode == "fifo":
-        assert execution_order == ["one", "one", "one", "two", "two", "two"]
+    elif resource_mode == "both_sync" and next_item_mode == "fifo":
+        assert execution_order == fifo_result
     # round robin is executed in sync
-    elif resource_mode in ["both_sync"] and next_item_mode == "round_robin":
-        assert execution_order == ["one", "two", "one", "two", "one", "two"]
-    elif resource_mode in ["first_async"]:
-        assert execution_order == ["two", "two", "two", "one", "one", "one"]
-    elif resource_mode in ["second_async"]:
-        assert execution_order == ["one", "one", "one", "two", "two", "two"]
+    elif resource_mode == "both_sync" and next_item_mode == "round_robin":
+        assert execution_order == round_robin_result
+    elif resource_mode == "first_async" and next_item_mode == "fifo":
+        assert execution_order == fifo_result
+    elif resource_mode == "first_async" and next_item_mode == "round_robin":
+        assert execution_order == round_robin_result
+    elif resource_mode == "second_async" and next_item_mode == "fifo":
+        assert execution_order == fifo_result
+    elif resource_mode == "second_async" and next_item_mode == "round_robin":
+        assert execution_order == round_robin_result
     else:
-        raise AssertionError("Unknown combination")
+        raise AssertionError(f"Unknown combination [{resource_mode}, {next_item_mode}]")
 
 
 def test_limit_async_resource() -> None:
