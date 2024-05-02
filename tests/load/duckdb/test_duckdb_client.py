@@ -57,7 +57,7 @@ def test_duckdb_open_conn_default() -> None:
         delete_quack_db()
 
 
-def test_duckdb_in_memory_mode_via_factory():
+def test_duckdb_in_memory_mode_via_factory(preserve_environ):
     delete_quack_db()
     try:
         import duckdb
