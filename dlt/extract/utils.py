@@ -187,12 +187,13 @@ def wrap_async_iterator(
             while True:
                 if should_stop:
                     break
-                yield loop.run_until_complete(gen.__anext__())
+                yield loop.run_until_complete(gen.__anext__())  # type: ignore[arg-type]
         except StopAsyncIteration:
             should_stop = True
     except GeneratorExit:
         should_stop = True
-        gen.aclose()
+        if hasattr(gen, "aclose"):
+            gen.aclose()  # type: ignore[attr-defined]
 
 
 def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
