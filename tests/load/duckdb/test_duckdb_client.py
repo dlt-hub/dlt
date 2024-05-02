@@ -6,6 +6,7 @@ import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
 
+from dlt.common.destination.reference import Destination
 from dlt.destinations.impl.duckdb.configuration import (
     DuckDbClientConfiguration,
     DEFAULT_DUCK_DB_NAME,
@@ -79,6 +80,15 @@ def test_duckdb_in_memory_mode_via_factory():
                 destination="duckdb",
             )
             p.run([1, 2, 3])
+
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
+
+        with pytest.raises(PipelineStepFailed) as exc:
+            p = dlt.pipeline(
+                pipeline_name="booboo",
+                destination=Destination.from_reference("duckdb", credentials=":memory:"),
+            )
+            p.run([1, 2, 3], table_name="numbers")
 
         assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
     finally:
