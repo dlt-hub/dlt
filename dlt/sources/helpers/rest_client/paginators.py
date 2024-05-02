@@ -25,6 +25,18 @@ class BasePaginator(ABC):
         """
         return self._has_next_page
 
+    def init_request(self, request: Request) -> None:  # noqa: B027, optional override
+        """Initializes the request object with parameters for the first
+        pagination request.
+
+        This method can be overridden by subclasses to include specific
+        initialization logic.
+
+        Args:
+            request (Request): The request object to be initialized.
+        """
+        pass
+
     @abstractmethod
     def update_state(self, response: Response) -> None:
         """Updates the paginator's state based on the response from the API.
@@ -130,6 +142,14 @@ class OffsetPaginator(BasePaginator):
 
         self.offset = initial_offset
         self.limit = initial_limit
+
+    def init_request(self, request: Request) -> None:
+        """Initializes the request with the offset and limit query parameters."""
+        if request.params is None:
+            request.params = {}
+
+        request.params[self.offset_param] = self.offset
+        request.params[self.limit_param] = self.limit
 
     def update_state(self, response: Response) -> None:
         """Extracts the total count from the response and updates the offset."""
