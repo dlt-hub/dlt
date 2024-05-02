@@ -120,9 +120,7 @@ from dlt.common.destination.reference import Destination
 
 p = pipeline_one = dlt.pipeline(
   pipeline_name="in_memory_pipeline",
-  destination=Destination.from_reference(
-      "duckdb", credentials=duckdb.connect(":memory:")
-  ),
+  destination=dlt.destinations.duckdb(duckdb.connect(":memory:")),
   dataset_name="chess_data",
 )
 ```
