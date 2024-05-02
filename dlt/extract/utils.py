@@ -193,7 +193,7 @@ def wrap_async_iterator(
     except GeneratorExit:
         should_stop = True
         if hasattr(gen, "aclose"):
-            gen.aclose()  # type: ignore[attr-defined]
+            gen.aclose()
 
 
 def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
