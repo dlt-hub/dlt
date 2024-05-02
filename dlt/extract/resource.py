@@ -341,30 +341,28 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
-
+            nonlocal max_items
             # zero items should produce empty generator
             if max_items == 0:
                 return
 
             count = 0
-            is_async_gen = False
             if callable(gen):
                 gen = gen()  # type: ignore
 
             # wrap async gen already here
             if isinstance(gen, AsyncIterator):
                 gen = wrap_async_iterator(gen)
-                is_async_gen = True
 
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later
                     if i is not None:
-                        count += 1
                         # async gen yields awaitable so we must count one awaitable more
                         # so the previous one is evaluated and yielded.
                         # new awaitable will be cancelled
-                        if count == max_items + int(is_async_gen):
+                        if count == max_items:
                             return
+                        count += 1
                     yield i
             finally:
                 if inspect.isgenerator(gen):

@@ -180,39 +180,19 @@ def wrap_async_iterator(
     gen: AsyncIterator[TDataItems],
 ) -> Generator[Awaitable[TDataItems], None, None]:
     """Wraps an async generator into a list of awaitables"""
-    exhausted = False
-    busy = False
-
-    # creates an awaitable that will return the next item from the async generator
-    async def run() -> TDataItems:
-        nonlocal exhausted
-        try:
-            # if marked exhausted by the main thread and we are wrapping a generator
-            # we can close it here
-            if exhausted:
-                raise StopAsyncIteration()
-            item = await gen.__anext__()
-            return item
-        # on stop iteration mark as exhausted
-        # also called when futures are cancelled
-        except StopAsyncIteration:
-            exhausted = True
-            raise
-        finally:
-            nonlocal busy
-            busy = False
-
-    # this generator yields None while the async generator is not exhausted
+    loop = asyncio.get_event_loop()
+    should_stop = False
     try:
-        while not exhausted:
-            while busy:
-                yield None
-            busy = True
-            yield run()
-    # this gets called from the main thread when the wrapping generater is closed
+        try:
+            while True:
+                if should_stop:
+                    break
+                yield loop.run_until_complete(gen.__anext__())
+        except StopAsyncIteration:
+            should_stop = True
     except GeneratorExit:
-        # mark as exhausted
-        exhausted = True
+        should_stop = True
+        gen.aclose()
 
 
 def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
