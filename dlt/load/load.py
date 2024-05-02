@@ -488,10 +488,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self._step_info_start_load_id(load_id)
                 self.load_single_package(load_id, schema)
 
-        self._maybe_trancate_staging_dataset(schema)
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
-    def _maybe_trancate_staging_dataset(self, schema: Schema) -> None:
+    def maybe_trancate_staging_dataset(self, schema: Schema) -> None:
         """
         Truncate the staging dataset if one used,
         and configuration requests truncation.

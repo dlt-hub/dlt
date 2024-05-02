@@ -2182,3 +2182,6 @@ def test_staging_dataset_truncate() -> None:
             f"SELECT * FROM {pipeline.dataset_name}_staging.staging_cleared"
         ) as cur:
             assert len(cur.fetchall()) == 0
+
+        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
+            assert len(cur.fetchall()) == 3
