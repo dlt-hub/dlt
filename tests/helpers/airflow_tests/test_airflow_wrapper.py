@@ -384,7 +384,13 @@ def test_parallel_incremental():
     with mock.patch("dlt.helpers.airflow_helper.logger.warn") as warn_mock:
         dag_def = dag_parallel()
         dag_def.test()
-        warn_mock.assert_called_once()
+        warn_mock.assert_has_calls(
+            [
+                mock.call(
+                    "The resource resource2 in task mock_data_incremental_source_resource1-resource2 is using incremental loading and may modify the state. Resources that modify the state should not run in parallel within the single pipeline as the state will not be correctly merged. Please use 'serialize' or 'parallel-isolated' modes instead."
+                )
+            ]
+        )
 
 
 def test_parallel_isolated_run():
