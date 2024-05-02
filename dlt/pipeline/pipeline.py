@@ -519,7 +519,6 @@ class Pipeline(SupportsPipeline):
         *,
         workers: int = 20,
         raise_on_failed_jobs: bool = False,
-        truncate_staging: bool = True,
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
         # set destination and default dataset if provided (this is the reason we have state sync here)
@@ -557,9 +556,6 @@ class Pipeline(SupportsPipeline):
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
 
-            if self.staging is not None and truncate_staging:
-                self._truncate_staging(load_step)
-
             self.first_run = False
             return info
         except Exception as l_ex:
@@ -585,7 +581,6 @@ class Pipeline(SupportsPipeline):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-        truncate_staging: bool = True,
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -639,8 +634,6 @@ class Pipeline(SupportsPipeline):
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
-            truncate_staging (Optional[bool]): If True, the staging destination will be truncated after the load. Defaults to True.
-
         Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         Returns:
@@ -689,12 +682,7 @@ class Pipeline(SupportsPipeline):
                 schema_contract=schema_contract,
             )
             self.normalize(loader_file_format=loader_file_format)
-            return self.load(
-                destination,
-                dataset_name,
-                credentials=credentials,
-                truncate_staging=truncate_staging,
-            )
+            return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
 
@@ -1580,22 +1568,3 @@ class Pipeline(SupportsPipeline):
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
         return {"pipeline_name": self.pipeline_name}
-
-    def _truncate_staging(self, load_step: Load) -> None:
-        """Truncate staging destination.
-
-        Args:
-            load_step (Load): Finished load instance.
-        """
-        try:
-            with load_step.get_staging_destination_client(self.default_schema) as staging_client:
-                staging_client.initialize_storage(
-                    truncate_tables=set(self.default_schema.data_table_names())
-                )
-        except Exception as exc:
-            logger.warn(
-                (
-                    f"Staging destination truncate failed due to the following error: {exc}"
-                    " However, it doesn't affect the main destination data integrity."
-                )
-            )

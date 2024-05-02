@@ -488,7 +488,30 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self._step_info_start_load_id(load_id)
                 self.load_single_package(load_id, schema)
 
+        self._maybe_trancate_staging_dataset(schema)
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
+
+    def _maybe_trancate_staging_dataset(self, schema: Schema) -> None:
+        """
+        Truncate the staging dataset if one used,
+        and configuration requests truncation.
+
+        Args:
+            schema (Schema): Schema to use for the staging dataset.
+        """
+        try:
+            if self.config.truncate_staging_dataset:
+                with self.get_destination_client(schema) as client:
+                    if isinstance(client, WithStagingDataset):
+                        with client.with_staging_dataset():
+                            client.initialize_storage(truncate_tables=schema.data_table_names())
+        except Exception as exc:
+            logger.warn(
+                (
+                    f"Staging dataset truncate failed due to the following error: {exc}"
+                    " However, it didn't affect the data integrity."
+                )
+            )
 
     def get_step_info(
         self,

@@ -4,9 +4,9 @@ import itertools
 import logging
 import os
 import random
+import threading
 from time import sleep
 from typing import Any, Tuple, cast
-import threading
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
@@ -161,35 +161,6 @@ def test_file_format_resolution() -> None:
         )
         pipeline.config.restore_from_destination = False
         pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="insert_values")
-
-
-@pytest.mark.parametrize("truncate_staging", (True, False))
-def test_staging_truncate(truncate_staging) -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="test_staging_cleared",
-        destination="bigquery",
-        staging="filesystem",
-        full_refresh=True,
-    )
-    info = pipeline.run(
-        [{"field": 1}, {"field": 2}, {"field": 3}],
-        table_name="staging_cleared_resource",
-        truncate_staging=truncate_staging,
-    )
-    assert_load_info(info)
-
-    _, staging = pipeline._get_destination_clients(pipeline.default_schema)
-
-    if truncate_staging:
-        assert staging.list_table_files("staging_cleared_resource") == []  # type: ignore
-    else:
-        assert (
-            "staging_cleared_resource" in staging.list_table_files("staging_cleared_resource")[0]  # type: ignore
-        )
-
-    with pipeline.sql_client() as client:
-        with client.execute_query("SELECT * FROM staging_cleared_resource") as cur:
-            assert len(cur.fetchall()) == 3
 
 
 def test_invalid_dataset_name() -> None:
@@ -2190,3 +2161,24 @@ def test_yielding_empty_list_creates_table() -> None:
             rows = list(cur.fetchall())
             assert len(rows) == 1
             assert rows[0] == (1, None)
+
+
+def test_staging_dataset_truncate() -> None:
+    @dlt.resource(write_disposition="merge", merge_key="id")
+    def test_data():
+        yield [{"field": 1, "id": 1}, {"field": 2, "id": 2}, {"field": 3, "id": 3}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_cleared",
+        destination="duckdb",
+        full_refresh=True,
+    )
+
+    info = pipeline.run(test_data, table_name="staging_cleared")
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        with client.execute_query(
+            f"SELECT * FROM {pipeline.dataset_name}_staging.staging_cleared"
+        ) as cur:
+            assert len(cur.fetchall()) == 0
