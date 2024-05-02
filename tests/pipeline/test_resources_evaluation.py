@@ -191,7 +191,7 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
     # in both item modes there will be parallel execution
     fifo_result = ["one", "one", "one", "two", "two", "two"]
     round_robin_result = ["one", "two", "one", "two", "one", "two"]
-    # import ipdb;ipdb.set_trace()
+
     if resource_mode == "both_async" and next_item_mode == "fifo":
         assert execution_order == fifo_result
     elif resource_mode == "both_async" and next_item_mode == "round_robin":
