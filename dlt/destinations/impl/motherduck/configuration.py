@@ -1,6 +1,6 @@
 import dataclasses
 import sys
-from typing import Any, ClassVar, Final, List, Optional
+from typing import Any, ClassVar, Dict, Final, List, Optional
 
 from dlt.version import __version__
 from dlt.common.configuration import configspec
@@ -40,14 +40,6 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
     def borrow_conn(self, read_only: bool) -> Any:
         from duckdb import HTTPException, InvalidInputException
 
-        # If it was explicitly set to None/null then we
-        # need to use the default value
-        if self.custom_user_agent is None:
-            self.custom_user_agent = MOTHERDUCK_USER_AGENT
-
-        if self.custom_user_agent and self.custom_user_agent != "":
-            self._conn_config = {"custom_user_agent": self.custom_user_agent}
-
         try:
             return super().borrow_conn(read_only)
         except (InvalidInputException, HTTPException) as ext_ex:
@@ -67,6 +59,18 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         self._token_to_password()
         if not self.is_partial():
             self.resolve()
+
+    def _get_conn_config(self) -> Dict[str, Any]:
+        # If it was explicitly set to None/null then we
+        # need to use the default value
+        if self.custom_user_agent is None:
+            self.custom_user_agent = MOTHERDUCK_USER_AGENT
+
+        config = {}
+        if self.custom_user_agent and self.custom_user_agent != "":
+            config["custom_user_agent"] = self.custom_user_agent
+
+        return config
 
 
 @configspec

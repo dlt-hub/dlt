@@ -2,7 +2,7 @@ import os
 import dataclasses
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Final, List, Optional, Tuple, Type, Union
+from typing import Any, ClassVar, Dict, Final, List, Optional, Tuple, Type, Union
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
@@ -37,10 +37,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         if not hasattr(self, "_conn_lock"):
             self._conn_lock = threading.Lock()
 
-        config = {}
-        if hasattr(self, "_conn_config"):
-            config = self._conn_config
-
+        config = self._get_conn_config()
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
@@ -88,6 +85,9 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
                 self.database = native_value
             else:
                 raise
+
+    def _get_conn_config(self) -> Dict[str, Any]:
+        return {}
 
     def _conn_str(self) -> str:
         return self.database
