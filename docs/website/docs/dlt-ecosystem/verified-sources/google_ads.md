@@ -17,7 +17,7 @@ We anticipate that the source should operate smoothly over time given Google's b
 :::
 
 This Google Ads `dlt` verified source and
-[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_ads_pipeline.py.py)
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_ads_pipeline.py)
 loads data using the "Google Ads API" to the destination of your choice.
 
 Resources that can be loaded using this verified source are:
@@ -147,8 +147,8 @@ To get started with your data pipeline, follow these steps:
    ```
 
    [This command](../../reference/command-line-interface) will initialize
-   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics_pipeline.py)
-   with Google Analytics as the [source](../../general-usage/source) and
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_ads_pipeline.py)
+   with Google Ads as the [source](../../general-usage/source) and
    [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
@@ -180,7 +180,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 1. Next, for service account authentication:
 
    ```toml
-   [sources.google_analytics.credentials]
+   [sources.google_ads.credentials]
    project_id = "project_id" # please set me up!
    client_email = "client_email" # please set me up!
    private_key = "private_key" # please set me up!
@@ -189,15 +189,15 @@ For more information, read the guide on [how to add a verified source](../../wal
 1. From the ".json" that you
    [downloaded earlier](google_ads.md#grab-google-service-account-credentials),
    copy `project_id`, `private_key`,
-   and `client_email` under `[sources.google_analytics.credentials]`.
+   and `client_email` under `[sources.google_ads.credentials]`.
 
 1. Alternatively, if you're using OAuth credentials, replace the fields and values with those
-   you [grabbed for OAuth credentials](google_analytics.md#grab-google-oauth-credentials).
+   you [grabbed for OAuth credentials](google_ads.md#grab-google-oauth-credentials).
 
 1. The secrets.toml for OAuth authentication looks like:
 
    ```toml
-   [sources.google_analytics.credentials]
+   [sources.google_ads.credentials]
    client_id = "client_id" # please set me up!
    client_secret = "client_secret" # please set me up!
    refresh_token = "refresh_token" # please set me up!
