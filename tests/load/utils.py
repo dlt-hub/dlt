@@ -217,7 +217,7 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 force_iceberg=True,
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 extra_info="iceberg",
             )
