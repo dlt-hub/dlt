@@ -1,8 +1,9 @@
 import sys
+import queue
 from contextlib import contextmanager
 from subprocess import PIPE, CalledProcessError
 from threading import Thread
-from typing import Any, Generator, Iterator, List
+from typing import Any, Generator, Iterator, List, Tuple
 
 from dlt.common.runners.venv import Venv
 from dlt.common.runners.synth_pickle import decode_obj, decode_last_obj, encode_obj
@@ -22,6 +23,45 @@ def exec_to_stdout(f: AnyFun) -> Iterator[Any]:
     finally:
         if rv is not None:
             print(encode_obj(rv), flush=True)
+
+
+def iter_std(venv: Venv, command: str, *script_args: Any) -> Iterator[Tuple[int, str]]:
+    """Starts a process `command` with `script_args` in environment `venv` and returns iterator
+    of (filno, line) tuples where `fileno` is 1 for stdout and 2 for stderr. `line` is
+    a content of a line with stripped new line character.
+
+    Use -u in scripts_args for unbuffered python execution
+    """
+    with venv.start_command(
+        command, *script_args, stdout=PIPE, stderr=PIPE, bufsize=1, text=True
+    ) as process:
+        exit_code: int = None
+        q_: queue.Queue[Tuple[int, str]] = queue.Queue()
+
+        def _r_q(std_: int) -> None:
+            stream_ = process.stderr if std_ == 2 else process.stdout
+            for line in iter(stream_.readline, ""):
+                q_.put((std_, line[:-1] if line[-1] == "\n" else line))
+            # close queue
+            q_.put(None)
+
+        # read stderr with a thread, selectors do not work on windows
+        t_out = Thread(target=_r_q, args=(1,), daemon=True)
+        t_out.start()
+        t_err = Thread(target=_r_q, args=(2,), daemon=True)
+        t_err.start()
+        while line := q_.get():
+            yield line
+
+        # get exit code
+        exit_code = process.wait()
+        # wait till stderr is received
+        t_out.join()
+        t_err.join()
+
+        # we fail iterator if exit code is not 0
+        if exit_code != 0:
+            raise CalledProcessError(exit_code, command, output="", stderr="")
 
 
 def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:

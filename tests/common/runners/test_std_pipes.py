@@ -5,7 +5,7 @@ import pytest
 from dlt.common.exceptions import UnsupportedProcessStartMethodException
 
 from dlt.common.runners import TRunMetrics, Venv
-from dlt.common.runners.stdout import iter_stdout, iter_stdout_with_result
+from dlt.common.runners.stdout import iter_std, iter_stdout, iter_stdout_with_result
 from dlt.common.runners.synth_pickle import encode_obj, decode_obj, decode_last_obj
 
 from dlt.common.utils import digest128b
@@ -144,6 +144,19 @@ def test_iter_stdout_raises() -> None:
             assert len(line) == 1024 * 1024
             assert line == "b" * 1024 * 1024
         assert _i == 2
+
+
+def test_std_iter() -> None:
+    # even -> stdout, odd -> stderr
+    expected = [(1, "0"), (2, "1"), (1, "2"), (2, "3")]
+    with pytest.raises(CalledProcessError) as cpe:
+        for i, line in enumerate(
+            iter_std(
+                Venv.restore_current(), "python", "-u", "tests/common/scripts/stderr_counter.py"
+            )
+        ):
+            assert expected[i] == line
+    assert cpe.value.returncode == 1
 
 
 def test_stdout_encode_result() -> None:
