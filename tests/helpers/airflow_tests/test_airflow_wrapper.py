@@ -959,6 +959,6 @@ def test_run_callable() -> None:
             results = result.fetchall()
 
             assert len(results) == 3
-            
+
             for row in results:
                 assert row[1] == pendulum.tomorrow().format("YYYY-MM-DD")
