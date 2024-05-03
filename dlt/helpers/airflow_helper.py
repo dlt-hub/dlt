@@ -179,7 +179,10 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): The pipeline to run
-            data (Any): The data to run the pipeline with
+            data (Any):
+                The data to run the pipeline with. If a non-resource
+                callable given, it's called before the load to get
+                the data.
             table_name (str, optional): The name of the table to
                 which the data should be loaded within the `dataset`.
             write_disposition (TWriteDispositionConfig, optional): Same as
@@ -221,7 +224,10 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): The pipeline to run
-            data (Any): The data to run the pipeline with
+            data (Any):
+                The data to run the pipeline with. If a non-resource
+                callable given, it's called before the load to get
+                the data.
             table_name (str, optional): The name of the
                 table to which the data should be loaded
                 within the `dataset`.
@@ -271,6 +277,9 @@ class PipelineTasksGroup(TaskGroup):
                 )
 
         try:
+            if callable(data):
+                data = data()
+
             # retry with given policy on selected pipeline steps
             for attempt in self.retry_policy.copy(
                 retry=retry_if_exception(
@@ -338,7 +347,10 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): An instance of pipeline used to run the source
-            data (Any): Any data supported by `run` method of the pipeline
+            data (Any):
+                Any data supported by `run` method of the pipeline.
+                If a non-resource callable given, it's called before
+                the load to get the data.
             decompose (Literal["none", "serialize", "parallel"], optional):
                 A source decomposition strategy into Airflow tasks:
                     none - no decomposition, default value.

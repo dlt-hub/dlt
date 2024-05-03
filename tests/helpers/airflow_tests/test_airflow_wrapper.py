@@ -4,7 +4,7 @@ from unittest import mock
 from typing import List
 from airflow import DAG
 from airflow.decorators import dag
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, get_current_context
 from airflow.models import TaskInstance
 from airflow.utils.state import DagRunState
 from airflow.utils.types import DagRunType
@@ -917,3 +917,48 @@ def test_task_already_added():
     dag_def = dag_parallel()
     assert len(tasks_list) == 1
     dag_def.test()
+
+
+def callable_source():
+    @dlt.resource
+    def test_res():
+        context = get_current_context()
+        yield [
+            {"id": 1, "tomorrow": context["tomorrow_ds"]},
+            {"id": 2, "tomorrow": context["tomorrow_ds"]},
+            {"id": 3, "tomorrow": context["tomorrow_ds"]},
+        ]
+
+    return test_res
+
+
+def test_run_callable() -> None:
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "callable_dag.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_regular():
+        tasks = PipelineTasksGroup(
+            "callable_dag_group", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        call_dag = dlt.pipeline(
+            pipeline_name="callable_dag",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        tasks.run(call_dag, callable_source)
+
+    dag_def: DAG = dag_regular()
+    dag_def.test()
+
+    pipeline_dag = dlt.attach(pipeline_name="callable_dag")
+
+    with pipeline_dag.sql_client() as client:
+        with client.execute_query("SELECT * FROM test_res") as result:
+            results = result.fetchall()
+
+            assert len(results) == 3
+            
+            for row in results:
+                assert row[1] == pendulum.tomorrow().format("YYYY-MM-DD")
