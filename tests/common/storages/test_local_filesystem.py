@@ -223,7 +223,7 @@ def test_filesystem_decompress() -> None:
         with file_dict.open(mode="tr") as f:
             lines = f.readlines()
             assert len(lines) > 1
-            assert lines[0].startswith('"1200864931","2015-07-01 00:00:13"')  # type: ignore
+            assert lines[0].startswith('"1200864931","2015-07-01 00:00:13"')
         # read as uncompressed binary
         with file_dict.open(compression="enable") as f:
             assert f.read().startswith(b'"1200864931","2015-07-01 00:00:13"')
