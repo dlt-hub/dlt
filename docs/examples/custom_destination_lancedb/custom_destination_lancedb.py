@@ -19,9 +19,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Dict, Any
 
-import lancedb
-from lancedb.embeddings import get_registry
-from lancedb.pydantic import LanceModel, Vector
+import lancedb  # type: ignore
+from lancedb.embeddings import get_registry  # type: ignore
+from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
 from dlt.common.schema import TTableSchema
