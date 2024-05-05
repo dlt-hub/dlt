@@ -1,4 +1,3 @@
-import warnings
 import contextlib
 from copy import copy
 import makefun

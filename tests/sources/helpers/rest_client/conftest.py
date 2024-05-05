@@ -1,5 +1,5 @@
 import re
-from typing import NamedTuple, Callable, Pattern, List, Union, TYPE_CHECKING
+from typing import NamedTuple, Callable, Pattern, List, Union, TYPE_CHECKING, Dict, List, Any
 import base64
 
 from urllib.parse import urlsplit, urlunsplit
@@ -11,7 +11,7 @@ from dlt.common import json
 
 if TYPE_CHECKING:
     RequestCallback = Callable[
-        [requests_mock.Request, requests_mock.Context], Union[str, dict, list]
+        [requests_mock.Request, requests_mock.Context], Union[str, Dict[str, Any], List[Any]]
     ]
     ResponseSerializer = Callable[[requests_mock.Request, requests_mock.Context], str]
 else:

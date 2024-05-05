@@ -484,7 +484,10 @@ class SupportsStagingDestination:
         return True
 
 
-TDestinationReferenceArg = Union[str, "Destination", Callable[..., "Destination"], None]
+# TODO: type Destination properly
+TDestinationReferenceArg = Union[
+    str, "Destination[Any, Any]", Callable[..., "Destination[Any, Any]"], None
+]
 
 
 class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
