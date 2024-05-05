@@ -75,9 +75,7 @@ def get_spotify_access_token(client_id: str, client_secret: str) -> str:
     return auth_response.json()["access_token"]
 
 
-def fetch_show_episode_data(
-    show_id: str, access_token=None, params: Dict[str, Any] = None
-):
+def fetch_show_episode_data(show_id: str, access_token=None, params: Dict[str, Any] = None):
     """Fetch all shows data from Spotify API based on endpoint and params."""
     url = f"{BASE_SPOTIFY_URL}/shows/{show_id}/episodes"
     if params is None:
@@ -94,9 +92,7 @@ def fetch_show_episode_data(
 
 
 @dlt.source
-def spotify_shows(
-    client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value
-):
+def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
     access_token = get_spotify_access_token(client_id, client_secret)
     params = {"limit": 50}
     for show in fields(Shows):
