@@ -57,7 +57,7 @@ def test_pickle_encoder_none() -> None:
 def test_synth_pickler_unknown_types() -> None:
     # synth unknown tuple
     obj = decode_obj(
-        "LfDoYo19lgUOtTn0Ib6JgASVQAAAAAAAAACMH3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3RfcGlwZXOUjAxfVGVzdFBpY2tsZXiUk5SMA1hZWpRLe4aUgZQu"
+        "ITcR+B7x+XYsddD8ws1cgASVRAAAAAAAAACMI3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3Rfc3RkX3BpcGVzlIwMX1Rlc3RQaWNrbGV4lJOUjANYWVqUS3uGlIGULg=="
     )
     assert type(obj).__name__.endswith("_TestPicklex")
     # this is completely different type
@@ -65,7 +65,7 @@ def test_synth_pickler_unknown_types() -> None:
 
     # synth unknown class containing other unknown types
     obj = decode_obj(
-        "Koyo502yl4IKMqIxUTJFgASVbQAAAAAAAACMH3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3RfcGlwZXOUjApfVGVzdENsYXNzlJOUKYGUfZQojAJzMZRoAIwMX1Rlc3RQaWNrbGV4lJOUjAFZlEsXhpSBlIwCczKUjAFVlIwDX3MzlEsDdWIu"
+        "G5nqyni0vOTdqmmd58izgASVcQAAAAAAAACMI3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3Rfc3RkX3BpcGVzlIwKX1Rlc3RDbGFzc5STlCmBlH2UKIwCczGUaACMDF9UZXN0UGlja2xleJSTlIwBWZRLF4aUgZSMAnMylIwBVZSMA19zM5RLA3ViLg=="
     )
     assert type(obj).__name__.endswith("_TestClass")
     # tuple inside will be synthesized as well
@@ -73,7 +73,7 @@ def test_synth_pickler_unknown_types() -> None:
 
     # known class containing unknown types
     obj = decode_obj(
-        "PozhjHuf2oS7jPcRxKoagASVbQAAAAAAAACMH3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3RfcGlwZXOUjBJfVGVzdENsYXNzVW5rRmllbGSUk5QpgZR9lCiMAnMxlGgAjAxfVGVzdFBpY2tsZXiUk5SMAVmUSxeGlIGUjAJzMpSMAVWUdWIu"
+        "9Ob27Bf1H05E48gxbOJZgASVcQAAAAAAAACMI3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3Rfc3RkX3BpcGVzlIwSX1Rlc3RDbGFzc1Vua0ZpZWxklJOUKYGUfZQojAJzMZRoAIwMX1Rlc3RQaWNrbGV4lJOUjAFZlEsXhpSBlIwCczKUjAFVlHViLg=="
     )
     assert isinstance(obj, _TestClassUnkField)
     assert type(obj.s1).__name__.endswith("_TestPicklex")  # type: ignore[attr-defined]
