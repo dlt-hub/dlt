@@ -116,13 +116,29 @@ p = dlt.pipeline(
 )
 
 # Or if you would like to use in-memory duckdb instance
-from dlt.common.destination.reference import Destination
-
+db = duckdb.connect(":memory:")
 p = pipeline_one = dlt.pipeline(
   pipeline_name="in_memory_pipeline",
-  destination=dlt.destinations.duckdb(duckdb.connect(":memory:")),
+  destination=dlt.destinations.duckdb(db),
   dataset_name="chess_data",
 )
+```
+
+Once pipeline exits in-memory database will be lost and upon the next run you will have an empty database again
+check out by running the following query
+
+```py
+db = duckdb.connect(":memory:")
+df = db.sql("SELECT * FROM pg_tables").df()
+print(df)
+```
+
+Empty duckdb database
+
+```
+Empty DataFrame
+Columns: [schemaname, tablename, tableowner, tablespace, hasindexes, hasrules, hastriggers]
+Index: []
 ```
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
@@ -130,7 +146,6 @@ This destination accepts database connection strings in the format used by [duck
 Dlt supports unique connection strings that trigger specific behaviors for duckdb destination:
 
 * **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
-* **:memory:** creates an in-memory database (this may be useful for testing).
 
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
