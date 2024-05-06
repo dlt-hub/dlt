@@ -16,7 +16,7 @@ We'll learn how to:
 - Delegate the embeddings to LanceDB
 """
 
-import datetime
+import datetime  # noqa: I251
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -46,7 +46,7 @@ db_path = Path(DB_PATH)
 
 
 class EpisodeSchema(LanceModel):
-    id: str
+    id: str  # noqa: A003
     name: str
     description: str = embedding_model.SourceField()
     vector: Vector(embedding_model.ndims()) = embedding_model.VectorField()  # type: ignore[valid-type]
@@ -96,9 +96,7 @@ def fetch_show_episode_data(
 
 
 @dlt.source
-def spotify_shows(
-    client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value
-):
+def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
     access_token: str = get_spotify_access_token(client_id, client_secret)
     params: Dict[str, Any] = {"limit": 50}
     for show in fields(Shows):
