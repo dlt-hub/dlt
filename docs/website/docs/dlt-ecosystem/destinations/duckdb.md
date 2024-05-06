@@ -143,7 +143,7 @@ Index: []
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
-Dlt supports unique connection strings that trigger specific behaviors for duckdb destination:
+Dlt supports a unique connection string that trigger specific behavior for duckdb destination:
 
 * **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
 
