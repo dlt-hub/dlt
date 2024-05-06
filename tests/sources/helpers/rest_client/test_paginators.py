@@ -227,10 +227,21 @@ class TestOffsetPaginator:
         assert next_request.params["offset"] == 165
         assert next_request.params["limit"] == 42
 
+    def test_maximum_offset(self):
+        paginator = OffsetPaginator(offset=0, limit=50, maximum_offset=100, total_path=None)
+        response = Mock(Response, json=lambda: {"items": []})
+        paginator.update_state(response)  # Offset 0 to 50
+        assert paginator.current_value == 50
+        assert paginator.has_next_page is True
+
+        paginator.update_state(response)  # Offset 50 to 100
+        assert paginator.current_value == 100
+        assert paginator.has_next_page is False
+
 
 class TestPageNumberPaginator:
     def test_update_state(self):
-        paginator = PageNumberPaginator(initial_page=1, total_pages_path="total_pages")
+        paginator = PageNumberPaginator(initial_page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {"total_pages": 3})
         paginator.update_state(response)
         assert paginator.current_value == 2
@@ -270,3 +281,14 @@ class TestPageNumberPaginator:
         paginator.update_state(response)
         paginator.update_request(request)
         assert request.params["page"] == 3
+
+    def test_maximum_page(self):
+        paginator = PageNumberPaginator(initial_page=1, maximum_page=3, total_path=None)
+        response = Mock(Response, json=lambda: {"items": []})
+        paginator.update_state(response)  # Page 1
+        assert paginator.current_value == 2
+        assert paginator.has_next_page is True
+
+        paginator.update_state(response)  # Page 2
+        assert paginator.current_value == 3
+        assert paginator.has_next_page is False

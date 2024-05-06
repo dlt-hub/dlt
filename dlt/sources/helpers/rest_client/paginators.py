@@ -187,7 +187,7 @@ class PageNumberPaginator(RangePaginator):
         client = RESTClient(
             base_url="https://api.example.com",
             paginator=PageNumberPaginator(
-                total_pages_path="total_pages"
+                total_path="total_pages"
             )
         )
 
@@ -218,7 +218,7 @@ class PageNumberPaginator(RangePaginator):
         self,
         initial_page: int = 1,
         page_param: str = "page",
-        total_pages_path: jsonpath.TJsonPath = "total",
+        total_path: jsonpath.TJsonPath = "total",
         maximum_page: Optional[int] = None,
     ):
         """
@@ -226,7 +226,7 @@ class PageNumberPaginator(RangePaginator):
             initial_page (int): The initial page number.
             page_param (str): The query parameter name for the page number.
                 Defaults to 'page'.
-            total_pages_path (jsonpath.TJsonPath): The JSONPath expression for
+            total_path (jsonpath.TJsonPath): The JSONPath expression for
                 the total number of pages. Defaults to 'total'.
             maximum_page (int): The maximum page number. If provided, pagination
                 will stop once this page is reached or exceeded, even if more
@@ -236,7 +236,7 @@ class PageNumberPaginator(RangePaginator):
         super().__init__(
             param_name=page_param,
             initial_value=initial_page,
-            total_path=total_pages_path,
+            total_path=total_path,
             value_step=1,
             maximum_value=maximum_page,
             error_message_items="pages",
