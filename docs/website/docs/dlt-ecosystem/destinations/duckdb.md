@@ -143,11 +143,6 @@ Be careful! The in-memory instance of the database will be destroyed, once your 
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
-Dlt supports a unique connection string that triggers specific behavior for duckdb destination:
-
-* **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
-
-
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
 ```toml
 destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
@@ -155,6 +150,8 @@ destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
+Dlt supports a unique connection string that triggers specific behavior for duckdb destination:
+* **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
 
 ### Additional configuration
 Unique indexes may be created during loading if the following config value is set:
