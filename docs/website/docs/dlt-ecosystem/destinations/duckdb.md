@@ -136,7 +136,7 @@ print(db.sql("DESCRIBE;"))
 # └──────────┴───────────────┴─────────────────────┴──────────────────────┴───────────────────────┴───────────┘
 ```
 
-Once pipeline exits the in-memory instance of database will be destroyed.
+Once you python script exits the in-memory instance of database will be destroyed.
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
