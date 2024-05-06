@@ -89,6 +89,7 @@ class RangePaginator(BasePaginator):
         initial_value: int,
         total_path: jsonpath.TJsonPath,
         value_step: int,
+        maximum_value: Optional[int] = None,
         error_message_items: str = "items",
     ):
         """
@@ -97,7 +98,12 @@ class RangePaginator(BasePaginator):
                 For example, 'page'.
             initial_value (int): The initial value of the numeric parameter.
             total_path (jsonpath.TJsonPath): The JSONPath expression for the total
-                number of items.
+                number of items. For example, if the JSON response is
+                `{"items": [...], "total": 100}`, the `total_path` would be 'total'.
+            maximum_value (int): The maximum value for the numeric parameter.
+                If provided, pagination will stop once this value is reached
+                or exceeded, even if more data is available. This allows you
+                to limit the maximum range for pagination. Defaults to None.
             value_step (int): The step size to increment the numeric parameter.
             error_message_items (str): The name of the items in the error message.
                 Defaults to 'items'.
@@ -107,6 +113,7 @@ class RangePaginator(BasePaginator):
         self.current_value = initial_value
         self.total_path = jsonpath.compile_path(total_path)
         self.value_step = value_step
+        self.maximum_value = maximum_value
         self.error_message_items = error_message_items
 
     def init_request(self, request: Request) -> None:
@@ -129,7 +136,9 @@ class RangePaginator(BasePaginator):
 
         self.current_value += self.value_step
 
-        if self.current_value >= total:
+        if self.current_value >= total or (
+            self.maximum_value is not None and self.current_value >= self.maximum_value
+        ):
             self._has_next_page = False
 
     def _handle_missing_total(self, response_json: Dict[str, Any]) -> None:
@@ -190,6 +199,7 @@ class PageNumberPaginator(RangePaginator):
         initial_page: int = 1,
         page_param: str = "page",
         total_pages_path: jsonpath.TJsonPath = "total",
+        maximum_page: Optional[int] = None,
     ):
         """
         Args:
@@ -198,12 +208,17 @@ class PageNumberPaginator(RangePaginator):
                 Defaults to 'page'.
             total_pages_path (jsonpath.TJsonPath): The JSONPath expression for
                 the total number of pages. Defaults to 'total'.
+            maximum_page (int): The maximum page number. If provided, pagination
+                will stop once this page is reached or exceeded, even if more
+                data is available. This allows you to limit the maximum number
+                of pages for pagination. Defaults to None.
         """
         super().__init__(
             param_name=page_param,
             initial_value=initial_page,
             total_path=total_pages_path,
             value_step=1,
+            maximum_value=maximum_page,
             error_message_items="pages",
         )
 
@@ -253,6 +268,7 @@ class OffsetPaginator(RangePaginator):
         offset_param: str = "offset",
         limit_param: str = "limit",
         total_path: jsonpath.TJsonPath = "total",
+        maximum_offset: Optional[int] = None,
     ) -> None:
         """
         Args:
@@ -266,12 +282,17 @@ class OffsetPaginator(RangePaginator):
                 Defaults to 'limit'.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
                 the total number of items.
+            maximum_offset (int): The maximum offset value. If provided,
+                pagination will stop once this offset is reached or exceeded,
+                even if more data is available. This allows you to limit the
+                maximum range for pagination. Defaults to None.
         """
         super().__init__(
             param_name=offset_param,
             initial_value=initial_offset,
             total_path=total_path,
             value_step=initial_limit,
+            maximum_value=maximum_offset,
         )
         self.limit_param = limit_param
         self.limit = initial_limit
