@@ -81,7 +81,7 @@ def _init_logging(
         logger = logging.getLogger(logger_name)
         logger.propagate = False
         logger.setLevel(level)
-        # get or create logging handler
+        # get or create logging handler, we log to stderr by default
         handler = next(iter(logger.handlers), logging.StreamHandler())
         logger.addHandler(handler)
 
