@@ -35,14 +35,20 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema, TSchemaTables, TTableSchema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDisposition, TTableFormat
+from dlt.common.schema.typing import (
+    TTableSchema,
+    TColumnType,
+    TWriteDisposition,
+    TTableFormat,
+    TSortOrder,
+)
 from dlt.common.schema.utils import table_schema_has_type, get_table_format
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob, DoNothingFollowupJob, DoNothingJob
 from dlt.common.destination.reference import TLoadJobState, NewLoadJob, SupportsStagingDestination
 from dlt.common.storages import FileStorage
 from dlt.common.data_writers.escape import escape_bigquery_identifier
-from dlt.destinations.sql_jobs import SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 
 from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.exceptions import (
@@ -152,6 +158,64 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
 
         super(DefaultParameterFormatter, self).__init__(mappings=formatters, default=None)
         DLTAthenaFormatter._INSTANCE = self
+
+
+class AthenaMergeJob(SqlMergeJob):
+    @classmethod
+    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+        # reproducible name so we know which table to drop
+        with sql_client.with_staging_dataset(staging=True):
+            return sql_client.make_qualified_table_name(name_prefix)
+
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        # regular table because Athena does not support temporary tables
+        return f"CREATE TABLE {temp_table_name} AS {select_sql};"
+
+    @classmethod
+    def gen_insert_temp_table_sql(
+        cls,
+        table_name: str,
+        staging_root_table_name: str,
+        sql_client: SqlClientBase[Any],
+        primary_keys: Sequence[str],
+        unique_column: str,
+        dedup_sort: Tuple[str, TSortOrder] = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
+    ) -> Tuple[List[str], str]:
+        sql, temp_table_name = super().gen_insert_temp_table_sql(
+            table_name,
+            staging_root_table_name,
+            sql_client,
+            primary_keys,
+            unique_column,
+            dedup_sort,
+            condition,
+            condition_columns,
+        )
+        # DROP needs backtick as escape identifier
+        sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
+        return sql, temp_table_name
+
+    @classmethod
+    def gen_delete_temp_table_sql(
+        cls,
+        table_name: str,
+        unique_column: str,
+        key_table_clauses: Sequence[str],
+        sql_client: SqlClientBase[Any],
+    ) -> Tuple[List[str], str]:
+        sql, temp_table_name = super().gen_delete_temp_table_sql(
+            table_name, unique_column, key_table_clauses, sql_client
+        )
+        # DROP needs backtick as escape identifier
+        sql.insert(0, f"""DROP TABLE IF EXISTS {temp_table_name.replace('"', '`')};""")
+        return sql, temp_table_name
+
+    @classmethod
+    def requires_temp_table_for_delete(cls) -> bool:
+        return True
 
 
 class AthenaSQLClient(SqlClientBase[Connection]):
@@ -417,8 +481,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return super()._create_replace_followup_jobs(table_chain)
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        # fall back to append jobs for merge
-        return self._create_append_followup_jobs(table_chain)
+        return [AthenaMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:
         table_format = table.get("table_format")
