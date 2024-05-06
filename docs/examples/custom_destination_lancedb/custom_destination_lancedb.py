@@ -5,8 +5,10 @@ description: Learn how use the custom destination to load to LanceDB.
 keywords: [destination, credentials, example, lancedb, custom destination, vectorstore, AI, LLM]
 ---
 
-This example showcases a Python script that demonstrates the integration of LanceDB, an open-source vector database, as a custom destination within the dlt ecosystem.
-The script illustrates the implementation of a custom destination as well as the population of the LanceDB vector store with data from various sources.
+This example showcases a Python script that demonstrates the integration of LanceDB, an open-source vector database,
+as a custom destination within the dlt ecosystem.
+The script illustrates the implementation of a custom destination as well as the population of the LanceDB vector
+store with data from various sources.
 This highlights the seamless interoperability between dlt and LanceDB.
 
 We'll learn how to:
@@ -47,7 +49,7 @@ class EpisodeSchema(LanceModel):
     id: str
     name: str
     description: str = embedding_model.SourceField()
-    vector: Vector(embedding_model.ndims()) = embedding_model.VectorField()
+    vector: Vector(embedding_model.ndims()) = embedding_model.VectorField()  # type: ignore[valid-type]
     release_date: datetime.date
     href: str
 
@@ -72,7 +74,7 @@ def get_spotify_access_token(client_id: str, client_secret: str) -> str:
         },
     )
 
-    return auth_response.json()["access_token"]
+    return auth_response.json()["access_token"]  # type: ignore[no-any-return]
 
 
 def fetch_show_episode_data(
@@ -94,12 +96,14 @@ def fetch_show_episode_data(
 
 
 @dlt.source
-def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
+def spotify_shows(
+    client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value
+):
     access_token: str = get_spotify_access_token(client_id, client_secret)
     params: Dict[str, Any] = {"limit": 50}
     for show in fields(Shows):
         show_name: str = show.name
-        show_id: str = show.default
+        show_id: str = show.default  # type: ignore[assignment]
         yield dlt.resource(
             fetch_show_episode_data(show_id, access_token, params),
             name=show_name,
