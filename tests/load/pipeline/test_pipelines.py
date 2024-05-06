@@ -997,19 +997,13 @@ def test_pipeline_upfront_tables_two_loads(
     )
 
     with pipeline.sql_client() as client:
-        with client.execute_query(
-            f"SELECT * FROM {pipeline.dataset_name}_staging.table_1"
-        ) as cur:
+        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}_staging.table_1") as cur:
             assert len(cur.fetchall()) == 0
-        
-        with client.execute_query(
-            f"SELECT * FROM {pipeline.dataset_name}_staging.table_2"
-        ) as cur:
+
+        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}_staging.table_2") as cur:
             assert len(cur.fetchall()) == 0
-        
-        with client.execute_query(
-            f"SELECT * FROM {pipeline.dataset_name}_staging.table_3"
-        ) as cur:
+
+        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}_staging.table_3") as cur:
             assert len(cur.fetchall()) == 0
 
 
