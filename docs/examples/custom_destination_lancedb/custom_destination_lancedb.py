@@ -123,42 +123,43 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
     tbl.add(items)
 
 
-db = lancedb.connect(db_path, read_consistency_interval=datetime.timedelta(0))
+if __name__ == "__main__":
+    db = lancedb.connect(db_path, read_consistency_interval=datetime.timedelta(0))
 
-for show in fields(Shows):
-    db.drop_table(show.name, ignore_missing=True)
+    for show in fields(Shows):
+        db.drop_table(show.name, ignore_missing=True)
 
-pipeline = dlt.pipeline(
-    pipeline_name="spotify",
-    destination=lancedb_destination,
-    dataset_name="spotify_podcast_data",
-    progress="tqdm",
-)
+    pipeline = dlt.pipeline(
+        pipeline_name="spotify",
+        destination=lancedb_destination,
+        dataset_name="spotify_podcast_data",
+        progress="tqdm",
+    )
 
-load_info = pipeline.run(
-    spotify_shows(client_id=dlt.secrets.value, client_secret=dlt.secrets.value)
-)
+    load_info = pipeline.run(
+        spotify_shows(client_id=dlt.secrets.value, client_secret=dlt.secrets.value)
+    )
 
-row_counts = pipeline.last_trace.last_normalize_info
+    row_counts = pipeline.last_trace.last_normalize_info
 
-print(row_counts)
-print("------")
+    print(row_counts)
+    print("------")
 
-print(load_info)
+    print(load_info)
 
-print("------")
-print("------")
+    print("------")
+    print("------")
 
-# Showcase vector search capabilities over our dataset with lancedb.
-# Perform brute force search while we have small data.
-query = "French AI scientist with Lex, talking about AGI and Meta and Llama"
-table_to_query = "lex_fridman"
+    # Showcase vector search capabilities over our dataset with lancedb.
+    # Perform brute force search while we have small data.
+    query = "French AI scientist with Lex, talking about AGI and Meta and Llama"
+    table_to_query = "lex_fridman"
 
-print(f"Query: {query}")
-print(f"Querying table: {table_to_query}")
+    print(f"Query: {query}")
+    print(f"Querying table: {table_to_query}")
 
-tbl = db.open_table(table_to_query)
-tbl.checkout_latest()
+    tbl = db.open_table(table_to_query)
+    tbl.checkout_latest()
 
-results = tbl.search(query=query).to_list()
-print(results)
+    results = tbl.search(query=query).to_list()
+    print(results)
