@@ -11,8 +11,8 @@ from dlt.helpers.streamlit_app.blocks.show_data import show_data_button
 
 def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None:
     current_schema = pipeline.default_schema
-    if st.session_state["schema_name"]:
-        current_schema = pipeline.schemas[st.session_state["schema_name"]]
+    if schema_name := st.session_state.get("schema_name"):
+        current_schema = pipeline.schemas[schema_name]
 
     for table in tables:
         table_hints: List[str] = []
