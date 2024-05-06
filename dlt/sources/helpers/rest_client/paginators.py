@@ -87,9 +87,9 @@ class RangePaginator(BasePaginator):
         self,
         param_name: str,
         initial_value: int,
-        total_path: jsonpath.TJsonPath,
         value_step: int,
         maximum_value: Optional[int] = None,
+        total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
     ):
         """
@@ -97,23 +97,27 @@ class RangePaginator(BasePaginator):
             param_name (str): The query parameter name for the numeric value.
                 For example, 'page'.
             initial_value (int): The initial value of the numeric parameter.
-            total_path (jsonpath.TJsonPath): The JSONPath expression for the total
-                number of items. For example, if the JSON response is
-                `{"items": [...], "total": 100}`, the `total_path` would be 'total'.
-            maximum_value (int): The maximum value for the numeric parameter.
+            value_step (int): The step size to increment the numeric parameter.
+            maximum_value (int, optional): The maximum value for the numeric parameter.
                 If provided, pagination will stop once this value is reached
                 or exceeded, even if more data is available. This allows you
-                to limit the maximum range for pagination. Defaults to None.
-            value_step (int): The step size to increment the numeric parameter.
+                to limit the maximum range for pagination.
+                If not provided, `total_path` must be specified. Defaults to None.
+            total_path (jsonpath.TJsonPath, optional): The JSONPath expression
+                for the total number of items. For example, if the JSON response is
+                `{"items": [...], "total": 100}`, the `total_path` would be 'total'.
+                If not provided, `maximum_value` must be specified.
             error_message_items (str): The name of the items in the error message.
                 Defaults to 'items'.
         """
         super().__init__()
+        if total_path is None and maximum_value is None:
+            raise ValueError("Either `total_path` or `maximum_value` must be provided.")
         self.param_name = param_name
         self.current_value = initial_value
-        self.total_path = jsonpath.compile_path(total_path)
         self.value_step = value_step
         self.maximum_value = maximum_value
+        self.total_path = jsonpath.compile_path(total_path) if total_path else None
         self.error_message_items = error_message_items
 
     def init_request(self, request: Request) -> None:
@@ -123,20 +127,22 @@ class RangePaginator(BasePaginator):
         request.params[self.param_name] = self.current_value
 
     def update_state(self, response: Response) -> None:
-        response_json = response.json()
-        values = jsonpath.find_values(self.total_path, response_json)
-        total = values[0] if values else None
-        if total is None:
-            self._handle_missing_total(response_json)
+        total = None
+        if self.total_path:
+            response_json = response.json()
+            values = jsonpath.find_values(self.total_path, response_json)
+            total = values[0] if values else None
+            if total is None:
+                self._handle_missing_total(response_json)
 
-        try:
-            total = int(total)
-        except ValueError:
-            self._handle_invalid_total(total)
+            try:
+                total = int(total)
+            except ValueError:
+                self._handle_invalid_total(total)
 
         self.current_value += self.value_step
 
-        if self.current_value >= total or (
+        if (total is not None and self.current_value >= total) or (
             self.maximum_value is not None and self.current_value >= self.maximum_value
         ):
             self._has_next_page = False
