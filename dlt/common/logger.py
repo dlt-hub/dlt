@@ -1,4 +1,3 @@
-import sys
 import contextlib
 import logging
 import traceback

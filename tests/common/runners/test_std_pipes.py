@@ -17,6 +17,7 @@ class _TestPickler(NamedTuple):
 
 
 # this is our unknown NamedTuple
+# NOTE: do not remove commented out code
 # class _TestPicklex(NamedTuple):
 #     val_str: str
 #     val_int: int
