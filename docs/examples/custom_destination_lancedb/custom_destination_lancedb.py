@@ -17,7 +17,7 @@ We'll learn how to:
 import datetime
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import lancedb  # type: ignore
 from lancedb.embeddings import get_registry  # type: ignore
@@ -75,7 +75,9 @@ def get_spotify_access_token(client_id: str, client_secret: str) -> str:
     return auth_response.json()["access_token"]
 
 
-def fetch_show_episode_data(show_id: str, access_token=None, params: Dict[str, Any] = None):
+def fetch_show_episode_data(
+    show_id: str, access_token: Optional[str] = None, params: Dict[str, Any] = None
+):
     """Fetch all shows data from Spotify API based on endpoint and params."""
     url = f"{BASE_SPOTIFY_URL}/shows/{show_id}/episodes"
     if params is None:
@@ -93,11 +95,11 @@ def fetch_show_episode_data(show_id: str, access_token=None, params: Dict[str, A
 
 @dlt.source
 def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
-    access_token = get_spotify_access_token(client_id, client_secret)
-    params = {"limit": 50}
+    access_token: str = get_spotify_access_token(client_id, client_secret)
+    params: Dict[str, Any] = {"limit": 50}
     for show in fields(Shows):
-        show_name = show.name
-        show_id = show.default
+        show_name: str = show.name
+        show_id: str = show.default
         yield dlt.resource(
             fetch_show_episode_data(show_id, access_token, params),
             name=show_name,
