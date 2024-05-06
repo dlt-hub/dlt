@@ -198,6 +198,20 @@ class PageNumberPaginator(RangePaginator):
     Note that we pass the `size` parameter in the initial request to the API.
     The `PageNumberPaginator` will automatically increment the page number for
     each subsequent request until all items are fetched.
+
+    If the API does not provide the total number of pages, you can use the
+    `maximum_page` parameter to limit the number of pages to fetch. For example:
+
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=PageNumberPaginator(
+                maximum_page=5
+            )
+        )
+
+        ...
+
+    In this case, pagination will stop after fetching 5 pages of data.
     """
 
     def __init__(
@@ -265,6 +279,20 @@ class OffsetPaginator(RangePaginator):
     Note that we pass the `limit` parameter in the initial request to the API.
     The `OffsetPaginator` will automatically increment the offset for each
     subsequent request until all items are fetched.
+
+    If the API does not provide the total count of items, you can use the
+    `maximum_offset` parameter to limit the number of items to fetch. For example:
+
+        client = RESTClient(
+            base_url="https://api.example.com",
+            paginator=OffsetPaginator(
+                initial_limit=100,
+                maximum_offset=1000
+            )
+        )
+        ...
+
+    In this case, pagination will stop after fetching 1000 items.
     """
 
     def __init__(
