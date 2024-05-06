@@ -76,7 +76,7 @@ class SinglePagePaginator(BasePaginator):
         return
 
 
-class BaseNumericPaginator(BasePaginator):
+class RangePaginator(BasePaginator):
     """A base paginator class for paginators that use a numeric parameter
     for pagination, such as page number or offset.
 
@@ -151,7 +151,7 @@ class BaseNumericPaginator(BasePaginator):
         request.params[self.param_name] = self.current_value
 
 
-class PageNumberPaginator(BaseNumericPaginator):
+class PageNumberPaginator(RangePaginator):
     """A paginator that uses page number-based pagination strategy.
 
     For example, consider an API located at `https://api.example.com/items`
@@ -208,7 +208,7 @@ class PageNumberPaginator(BaseNumericPaginator):
         )
 
 
-class OffsetPaginator(BaseNumericPaginator):
+class OffsetPaginator(RangePaginator):
     """A paginator that uses offset-based pagination strategy.
 
     This paginator is useful for APIs where pagination is controlled
