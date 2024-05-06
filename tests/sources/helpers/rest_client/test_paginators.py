@@ -175,7 +175,7 @@ class TestSinglePagePaginator:
 
 class TestOffsetPaginator:
     def test_update_state(self):
-        paginator = OffsetPaginator(initial_offset=0, initial_limit=10)
+        paginator = OffsetPaginator(offset=0, limit=10)
         response = Mock(Response, json=lambda: {"total": 20})
         paginator.update_state(response)
         assert paginator.current_value == 10
@@ -205,7 +205,7 @@ class TestOffsetPaginator:
             paginator.update_state(response)
 
     def test_init_request(self):
-        paginator = OffsetPaginator(initial_offset=123, initial_limit=42)
+        paginator = OffsetPaginator(offset=123, limit=42)
         request = Mock(Request)
         request.params = {}
 

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse, urljoin
+import warnings
 
 from requests import Response, Request
 from dlt.common import jsonpath
@@ -208,7 +209,6 @@ class PageNumberPaginator(RangePaginator):
                 maximum_page=5
             )
         )
-
         ...
 
     In this case, pagination will stop after fetching 5 pages of data.
@@ -267,16 +267,15 @@ class OffsetPaginator(RangePaginator):
         client = RESTClient(
             base_url="https://api.example.com",
             paginator=OffsetPaginator(
-                initial_limit=100,
+                limit=100,
                 total_path="total"
             )
         )
         @dlt.resource
         def get_items():
-            for page in client.paginate("/items", params={"limit": 100}):
+            for page in client.paginate("/items"):
                 yield page
 
-    Note that we pass the `limit` parameter in the initial request to the API.
     The `OffsetPaginator` will automatically increment the offset for each
     subsequent request until all items are fetched.
 
@@ -286,7 +285,7 @@ class OffsetPaginator(RangePaginator):
         client = RESTClient(
             base_url="https://api.example.com",
             paginator=OffsetPaginator(
-                initial_limit=100,
+                limit=100,
                 maximum_offset=1000
             )
         )
@@ -297,18 +296,20 @@ class OffsetPaginator(RangePaginator):
 
     def __init__(
         self,
-        initial_limit: int,
-        initial_offset: int = 0,
+        limit: int,
+        offset: int = 0,
         offset_param: str = "offset",
         limit_param: str = "limit",
         total_path: jsonpath.TJsonPath = "total",
         maximum_offset: Optional[int] = None,
+        initial_limit: Optional[int] = None,
+        initial_offset: Optional[int] = None,
     ) -> None:
         """
         Args:
-            initial_limit (int): The maximum number of items to retrieve
+            limit (int): The maximum number of items to retrieve
                 in each request.
-            initial_offset (int): The offset for the first request.
+            offset (int): The offset for the first request.
                 Defaults to 0.
             offset_param (str): The query parameter name for the offset.
                 Defaults to 'offset'.
@@ -320,16 +321,34 @@ class OffsetPaginator(RangePaginator):
                 pagination will stop once this offset is reached or exceeded,
                 even if more data is available. This allows you to limit the
                 maximum range for pagination. Defaults to None.
+            initial_limit (int, optional): Deprecated, use `limit` instead.
+            initial_offset (int, optional): Deprecated, use `offset` instead.
         """
+        if initial_limit is not None:
+            warnings.warn(
+                "The 'initial_limit' argument is deprecated and will be removed in future versions."
+                " Use 'limit' instead.",
+                DeprecationWarning,
+            )
+            limit = initial_limit
+
+        if initial_offset is not None:
+            warnings.warn(
+                "The 'initial_offset' argument is deprecated and will be removed in future"
+                " versions. Use 'offset' instead.",
+                DeprecationWarning,
+            )
+            offset = initial_offset
+
         super().__init__(
             param_name=offset_param,
-            initial_value=initial_offset,
+            initial_value=offset,
             total_path=total_path,
-            value_step=initial_limit,
+            value_step=limit,
             maximum_value=maximum_offset,
         )
         self.limit_param = limit_param
-        self.limit = initial_limit
+        self.limit = limit
 
     def init_request(self, request: Request) -> None:
         super().init_request(request)
