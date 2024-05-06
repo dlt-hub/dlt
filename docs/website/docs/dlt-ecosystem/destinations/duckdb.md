@@ -125,6 +125,7 @@ p = pipeline_one = dlt.pipeline(
 
 print(db.sql("DESCRIBE;"))
 
+# Example output
 # ┌──────────┬───────────────┬─────────────────────┬──────────────────────┬───────────────────────┬───────────┐
 # │ database │    schema     │        name         │     column_names     │     column_types      │ temporary │
 # │ varchar  │    varchar    │       varchar       │      varchar[]       │       varchar[]       │  boolean  │
@@ -140,9 +141,9 @@ Once your python script exits the in-memory instance of database will be destroy
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
-Dlt supports a unique connection string that trigger specific behavior for duckdb destination:
+Dlt supports a unique connection string that triggers specific behavior for duckdb destination:
 
-* **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
+* **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
 
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
