@@ -557,7 +557,6 @@ class Pipeline(SupportsPipeline):
             info: LoadInfo = self._get_step_info(load_step)
 
             self.first_run = False
-            load_step.maybe_trancate_staging_dataset(self.default_schema)
             return info
         except Exception as l_ex:
             step_info = self._get_step_info(load_step)

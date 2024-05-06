@@ -2163,7 +2163,10 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-def test_staging_dataset_truncate() -> None:
+@pytest.mark.parametrize("truncate", (True,False))
+def test_staging_dataset_truncate(truncate) -> None:
+    dlt.config["truncate_staging_dataset"] = truncate
+
     @dlt.resource(write_disposition="merge", merge_key="id")
     def test_data():
         yield [{"field": 1, "id": 1}, {"field": 2, "id": 2}, {"field": 3, "id": 3}]
@@ -2181,7 +2184,10 @@ def test_staging_dataset_truncate() -> None:
         with client.execute_query(
             f"SELECT * FROM {pipeline.dataset_name}_staging.staging_cleared"
         ) as cur:
-            assert len(cur.fetchall()) == 0
+            if truncate:
+                assert len(cur.fetchall()) == 0
+            else:
+                assert len(cur.fetchall()) == 3
 
         with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
             assert len(cur.fetchall()) == 3

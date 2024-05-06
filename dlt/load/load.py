@@ -53,7 +53,7 @@ from dlt.load.exceptions import (
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
 )
-from dlt.load.utils import get_completed_table_chain, init_client
+from dlt.load.utils import _extend_tables_with_table_chain, get_completed_table_chain, init_client
 
 
 class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
@@ -348,6 +348,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
                 ):
                     job_client.complete_load(load_id)
+                    self._maybe_trancate_staging_dataset(schema, job_client)
+
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
         self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
@@ -490,20 +492,30 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
-    def maybe_trancate_staging_dataset(self, schema: Schema) -> None:
+    def _maybe_trancate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
         """
         Truncate the staging dataset if one used,
         and configuration requests truncation.
 
         Args:
             schema (Schema): Schema to use for the staging dataset.
+            job_client (JobClientBase):
+                Job client to use for the staging dataset.
         """
+        data_tables = schema.data_tables()
+        table_names = [tab["name"] for tab in data_tables]
+
+        tables = _extend_tables_with_table_chain(
+            schema, table_names, data_tables, job_client.should_load_data_to_staging_dataset
+        )
+
         try:
             if self.config.truncate_staging_dataset:
                 with self.get_destination_client(schema) as client:
                     if isinstance(client, WithStagingDataset):
                         with client.with_staging_dataset():
-                            client.initialize_storage(truncate_tables=schema.data_table_names())
+                            client.initialize_storage(truncate_tables=tables)
+
         except Exception as exc:
             logger.warn(
                 (

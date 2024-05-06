@@ -881,6 +881,8 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 def test_pipeline_upfront_tables_two_loads(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
+    dlt.config["truncate_staging_dataset"] = True
+
     if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
         pytest.skip(
             f"Destination {destination_config.name} does not support merge and thus"
@@ -993,6 +995,22 @@ def test_pipeline_upfront_tables_two_loads(
         pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
         is True
     )
+
+    with pipeline.sql_client() as client:
+        with client.execute_query(
+            f"SELECT * FROM {pipeline.dataset_name}_staging.table_1"
+        ) as cur:
+            assert len(cur.fetchall()) == 0
+        
+        with client.execute_query(
+            f"SELECT * FROM {pipeline.dataset_name}_staging.table_2"
+        ) as cur:
+            assert len(cur.fetchall()) == 0
+        
+        with client.execute_query(
+            f"SELECT * FROM {pipeline.dataset_name}_staging.table_3"
+        ) as cur:
+            assert len(cur.fetchall()) == 0
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")

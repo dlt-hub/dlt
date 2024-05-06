@@ -17,7 +17,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     _load_storage_config: LoadStorageConfiguration = None
     # if set to `True`, the staging dataset will be
     # truncated after loading the data
-    truncate_staging_dataset: bool = True
+    truncate_staging_dataset: bool = False
 
     def on_resolved(self) -> None:
         self.pool_type = "none" if self.workers == 1 else "thread"
