@@ -137,7 +137,9 @@ print(db.sql("DESCRIBE;"))
 # └──────────┴───────────────┴─────────────────────┴──────────────────────┴───────────────────────┴───────────┘
 ```
 
-Once your python script exits the in-memory instance of database will be destroyed.
+:::note
+Be careful! The in-memory instance of the database will be destroyed, once your Python script is finished.
+:::
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
