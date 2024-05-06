@@ -122,24 +122,21 @@ p = pipeline_one = dlt.pipeline(
   destination=dlt.destinations.duckdb(db),
   dataset_name="chess_data",
 )
+
+print(db.sql("DESCRIBE;"))
+
+# ┌──────────┬───────────────┬─────────────────────┬──────────────────────┬───────────────────────┬───────────┐
+# │ database │    schema     │        name         │     column_names     │     column_types      │ temporary │
+# │ varchar  │    varchar    │       varchar       │      varchar[]       │       varchar[]       │  boolean  │
+# ├──────────┼───────────────┼─────────────────────┼──────────────────────┼───────────────────────┼───────────┤
+# │ memory   │ chess_data    │ _dlt_loads          │ [load_id, schema_n…  │ [VARCHAR, VARCHAR, …  │ false     │
+# │ memory   │ chess_data    │ _dlt_pipeline_state │ [version, engine_v…  │ [BIGINT, BIGINT, VA…  │ false     │
+# │ memory   │ chess_data    │ _dlt_version        │ [version, engine_v…  │ [BIGINT, BIGINT, TI…  │ false     │
+# │ memory   │ chess_data    │ my_table            │ [a, _dlt_load_id, …  │ [BIGINT, VARCHAR, V…  │ false     │
+# └──────────┴───────────────┴─────────────────────┴──────────────────────┴───────────────────────┴───────────┘
 ```
 
-Once pipeline exits in-memory database will be lost and upon the next run you will have an empty database again
-check out by running the following query
-
-```py
-db = duckdb.connect(":memory:")
-df = db.sql("SELECT * FROM pg_tables").df()
-print(df)
-```
-
-Empty duckdb database
-
-```
-Empty DataFrame
-Columns: [schemaname, tablename, tableowner, tablespace, hasindexes, hasrules, hastriggers]
-Index: []
-```
+Once pipeline exits the in-memory instance of database will be destroyed.
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
