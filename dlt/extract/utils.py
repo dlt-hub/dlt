@@ -251,7 +251,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
     if callable(f):
         if inspect.isgeneratorfunction(inspect.unwrap(f)):
-            return wraps(f)(_gen_wrapper)  # type: ignore[arg-type]
+            return wraps(f)(_gen_wrapper)  # type: ignore[return-value]
         else:
 
             def _fun_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -260,7 +260,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
 
                 return _curry
 
-            return wraps(f)(_fun_wrapper)  # type: ignore[arg-type]
+            return wraps(f)(_fun_wrapper)  # type: ignore[return-value]
     return _gen_wrapper()  # type: ignore[return-value]
 
 

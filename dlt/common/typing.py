@@ -55,11 +55,13 @@ if TYPE_CHECKING:
     from typing import _TypedDict
 
     REPattern = _REPattern[str]
+    PathLike = os.PathLike[str]
 else:
     StrOrBytesPath = Any
     from typing import _TypedDictMeta as _TypedDict
 
     REPattern = _REPattern
+    PathLike = os.PathLike
 
 AnyType: TypeAlias = Any
 NoneType = type(None)
@@ -92,7 +94,7 @@ ConfigValue: None = None
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
-TFileOrPath = Union[str, os.PathLike, IO[Any]]
+TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
 
 
