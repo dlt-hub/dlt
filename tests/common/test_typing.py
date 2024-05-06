@@ -95,7 +95,7 @@ def test_is_callable_type() -> None:
     ANewType = NewType("ANewType", str)
 
     for callable_, t_ in zip(
-        [True, True, True, False, True, True, False, False, True, ANewType],
+        [True, True, True, False, True, True, False, False, True, False],
         [
             AsyncClass,
             NotAsyncClass,
