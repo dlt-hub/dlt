@@ -153,7 +153,7 @@ The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.
 Dlt supports a unique connection string that triggers specific behavior for duckdb destination:
 * **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
 
-Please see the code snippets below to showing how to use it
+Please see the code snippets below showing how to use it
 
 1. Via `config.toml`
 ```toml
