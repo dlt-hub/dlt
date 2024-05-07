@@ -996,12 +996,14 @@ def test_pipeline_upfront_tables_two_loads(
         is True
     )
 
-    client, _ = pipeline._get_destination_clients(schema)
+    job_client, _ = pipeline._get_destination_clients(schema)
 
-    if isinstance(client, WithStagingDataset):
+    if isinstance(job_client, WithStagingDataset):
         with pipeline.sql_client() as client:
             for i in range(1, 4):
-                if client.should_load_data_to_staging_dataset(f"table_{i}"):
+                if job_client.should_load_data_to_staging_dataset(
+                    pipeline.default_schema.tables[f"table_{i}"]
+                ):
                     with client.execute_query(
                         f"SELECT * FROM {pipeline.dataset_name}_staging.table_{i}"
                     ) as cur:
