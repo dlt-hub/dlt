@@ -181,8 +181,8 @@ class PipelineTasksGroup(TaskGroup):
             pipeline (Pipeline): The pipeline to run
             data (Any):
                 The data to run the pipeline with. If a non-resource
-                callable given, it's called before the load to get
-                the data.
+                callable given, it's called during the DAG execution,
+                right before the actual pipeline run
             table_name (str, optional): The name of the table to
                 which the data should be loaded within the `dataset`.
             write_disposition (TWriteDispositionConfig, optional): Same as
@@ -226,8 +226,8 @@ class PipelineTasksGroup(TaskGroup):
             pipeline (Pipeline): The pipeline to run
             data (Any):
                 The data to run the pipeline with. If a non-resource
-                callable given, it's called before the load to get
-                the data.
+                callable given, it's called during the DAG execution,
+                right before the actual pipeline run
             table_name (str, optional): The name of the
                 table to which the data should be loaded
                 within the `dataset`.
