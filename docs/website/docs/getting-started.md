@@ -98,7 +98,7 @@ pip install streamlit
 
 Now you should see the **users** table:
 
-![Streamlit Explore data](/img/streamlit1.png)
+![Streamlit Explore data](/img/streamlit-new.png)
 Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 
 :::tip
