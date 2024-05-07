@@ -10,6 +10,7 @@ from dlt.common import json, sleep
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
@@ -995,15 +996,16 @@ def test_pipeline_upfront_tables_two_loads(
         is True
     )
 
-    with pipeline.sql_client() as client:
-        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}_staging.table_1") as cur:
-            assert len(cur.fetchall()) == 0
+    client, _ = pipeline._get_destination_clients(schema)
 
-        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}_staging.table_2") as cur:
-            assert len(cur.fetchall()) == 0
-
-        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}_staging.table_3") as cur:
-            assert len(cur.fetchall()) == 0
+    if isinstance(client, WithStagingDataset):
+        with pipeline.sql_client() as client:
+            for i in range(1, 4):
+                if client.should_load_data_to_staging_dataset(f"table_{i}"):
+                    with client.execute_query(
+                        f"SELECT * FROM {pipeline.dataset_name}_staging.table_{i}"
+                    ) as cur:
+                        assert len(cur.fetchall()) == 0
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
