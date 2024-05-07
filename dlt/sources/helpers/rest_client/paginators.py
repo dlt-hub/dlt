@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse, urljoin
-import warnings
 
 from requests import Response, Request
 from dlt.common import jsonpath
@@ -302,8 +301,6 @@ class OffsetPaginator(RangePaginator):
         limit_param: str = "limit",
         total_path: jsonpath.TJsonPath = "total",
         maximum_offset: Optional[int] = None,
-        initial_limit: Optional[int] = None,
-        initial_offset: Optional[int] = None,
     ) -> None:
         """
         Args:
@@ -321,25 +318,7 @@ class OffsetPaginator(RangePaginator):
                 pagination will stop once this offset is reached or exceeded,
                 even if more data is available. This allows you to limit the
                 maximum range for pagination. Defaults to None.
-            initial_limit (int, optional): Deprecated, use `limit` instead.
-            initial_offset (int, optional): Deprecated, use `offset` instead.
         """
-        if initial_limit is not None:
-            warnings.warn(
-                "The 'initial_limit' argument is deprecated and will be removed in future versions."
-                " Use 'limit' instead.",
-                DeprecationWarning,
-            )
-            limit = initial_limit
-
-        if initial_offset is not None:
-            warnings.warn(
-                "The 'initial_offset' argument is deprecated and will be removed in future"
-                " versions. Use 'offset' instead.",
-                DeprecationWarning,
-            )
-            offset = initial_offset
-
         super().__init__(
             param_name=offset_param,
             initial_value=offset,
