@@ -1,7 +1,7 @@
 ---
 title: RESTClient
 description: Learn how to use the RESTClient class to interact with RESTful APIs
-keywords: [api, http, rest, request, extract, restclient, rest, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication, auth]
+keywords: [api, http, rest, request, extract, restclient, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication]
 ---
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
@@ -9,12 +9,14 @@ The `RESTClient` class offers an interface for interacting with RESTful APIs, in
 - various authentication mechanisms,
 - customizable request/response handling.
 
-This guide shows how to use the `RESTClient` class to read data APIs focusing on its `paginate()` method to fetch data from paginated API responses.
+This guide shows how to use the `RESTClient` class to read data from APIs, focusing on the `paginate()` method for fetching data from paginated API responses.
 
 ## Creating a RESTClient instance
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 
 client = RESTClient(
     base_url="https://api.example.com",
@@ -33,11 +35,11 @@ The `RESTClient` class is initialized with the following parameters:
 - `auth`: The authentication configuration. See the [Authentication](#authentication) section for more details.
 - `paginator`: A paginator instance for handling paginated responses. See the [Paginators](#paginators) below.
 - `data_selector`: A [JSONPath selector](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) for extracting data from the responses. This defines a way to extract the data from the response JSON. Only used when paginating.
-- `session`: An HTTP session for making requests. This is a custom session object that can be used to set up custom behavior for requests.
+- `session`: An optional session for making requests. This should be a [Requests session](https://requests.readthedocs.io/en/latest/api/#requests.Session) instance that can be used to set up custom request behavior for the client.
 
 ## Making basic requests
 
-To perform basic GET and POST requests, use the get() and post() methods respectively. This works similarly to the requests library:
+To perform basic GET and POST requests, use the `get()` and `post()` methods respectively. This is similar to how the `requests` library works:
 
 ```py
 client = RESTClient(base_url="https://api.example.com")
@@ -57,18 +59,14 @@ for page in client.paginate("/posts"):
 If `paginator` is not specified, the `paginate()` method will attempt to automatically detect the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
 :::
 
-### PageData
-
-Each `PageData` instance contains the data for a single page, along with context like the original request and response objects, allowing for detailed inspection. The `PageData` is a list-like object that contains the following attributes:
-
-- `request`: The original request object.
-- `response`: The response object.
-- `paginator`: The paginator object used to paginate the response.
-- `auth`: The authentication object used for the request.
-
 ### Selecting data from the response
 
-The `data_selector` parameter in the `RESTClient` constructor specifies a JSONPath selector for extracting data from the response.
+When paginating through API responses, the `RESTClient` tries to automatically extract the data from the response. Sometimes though you may need to explicitly
+specify how to extract the data from the response JSON.
+
+Use `data_selector` parameter of the `RESTClient` class or the `paginate()` method to tell the client how to extract the data.
+`data_selector` is a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) expression that points to the key in
+the JSON that contains the data to be extracted.
 
 For example, if the API response looks like this:
 
@@ -98,7 +96,16 @@ For a nested structure like this:
 }
 ```
 
-The `data_selector` should be set to `"results.posts"`. Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax).
+The `data_selector` needs to be set to `"results.posts"`. Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
+
+### PageData
+
+Each `PageData` instance contains the data for a single page, along with context such as the original request and response objects, allowing for detailed inspection.. The `PageData` is a list-like object that contains the following attributes:
+
+- `request`: The original request object.
+- `response`: The response object.
+- `paginator`: The paginator object used to paginate the response.
+- `auth`: The authentication object used for the request.
 
 ### Paginators
 
@@ -113,11 +120,11 @@ If the API uses a non-standard pagination, you can [implement a custom paginator
 
 #### JSONResponsePaginator
 
-`JSONResponsePaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSON path to locate the next page URL within the JSON response.
+`JSONResponsePaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSONPath to locate the next page URL within the JSON response.
 
 **Parameters:**
 
-- `next_url_path`: A JSON path string pointing to the key in the JSON response that contains the next page URL.
+- `next_url_path`: A JSONPath string pointing to the key in the JSON response that contains the next page URL.
 
 **Example:**
 
@@ -163,7 +170,7 @@ This paginator handles pagination based on a link to the next page in the respon
 - `links_next_key`: The relation type (rel) to identify the next page link within the Link header. Defaults to "next".
 
 Note: normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may
-need to specify when the API uses a different relation type.
+need to specify the paginator when the API uses a different relation type.
 
 #### OffsetPaginator
 
