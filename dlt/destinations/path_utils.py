@@ -75,6 +75,15 @@ STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
 
+def normalize_path_sep(pathlib: Any, path: str) -> str:
+    """Normalizes path in `path` separator to one used by `pathlib`"""
+    if pathlib.sep == "/":
+        return path.replace("\\", "/")
+    if pathlib.sep == "\\":
+        return path.replace("/", "\\")
+    return path
+
+
 def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
