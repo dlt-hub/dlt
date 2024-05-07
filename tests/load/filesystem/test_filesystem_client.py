@@ -67,7 +67,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
     ) as load_info:
         client, jobs, _, load_id = load_info
         layout = client.config.layout
-        dataset_path = posixpath.join(client.fs_path, client.config.dataset_name)
+        dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
 
         # Assert dataset dir exists
         assert client.fs_client.isdir(dataset_path)

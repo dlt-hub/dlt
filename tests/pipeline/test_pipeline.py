@@ -1,4 +1,5 @@
 import asyncio
+import pathlib
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
@@ -37,6 +38,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy
+from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
@@ -47,7 +49,7 @@ from dlt.pipeline.helpers import retry_load
 
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.common.configuration.utils import environment
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, skipifnotwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -2161,3 +2163,64 @@ def test_yielding_empty_list_creates_table() -> None:
             rows = list(cur.fetchall())
             assert len(rows) == 1
             assert rows[0] == (1, None)
+
+
+@skipifnotwindows
+def test_local_filesystem_destination() -> None:
+    # make it unc path
+    unc_path = "\\\\localhost\\" + os.path.abspath("_storage").replace(":", "$")
+    print(unc_path)
+
+    dataset_name = "mydata_" + uniq_id()
+
+    @dlt.resource
+    def stateful_resource():
+        dlt.current.source_state()["mark"] = 1
+        yield [1, 2, 3]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="local_files",
+        destination=dlt.destinations.filesystem(unc_path),
+        dataset_name=dataset_name,
+    )
+    info = pipeline.run(stateful_resource(), table_name="numbers", write_disposition="replace")
+    assert_load_info(info)
+
+    info = pipeline.run(stateful_resource(), table_name="numbers", write_disposition="replace")
+    assert_load_info(info)
+
+    pipeline = pipeline.drop()
+
+    # must be able to restore the schema and state
+    pipeline.sync_destination()
+    assert pipeline.state["sources"]["local_files"]["mark"] == 1
+    assert pipeline.default_schema.get_table("numbers") is not None
+
+    # check all the files, paths may get messed up in many different ways
+    # and data may land anywhere especially on Windows
+    expected_dataset = pathlib.Path("_storage").joinpath(dataset_name).resolve()
+    assert expected_dataset.exists()
+    assert expected_dataset.is_dir()
+
+    # count files in tables
+    assert expected_dataset.joinpath(INIT_FILE_NAME).is_file()
+    # one numbers table (replaced)
+    assert len(list(expected_dataset.joinpath("numbers").glob("*"))) == 1
+    # two loads + init
+    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 3
+    # one schema (dedup on hash)
+    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 2
+    # one state (not sent twice)
+    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 2
+
+    fs_client = pipeline._fs_client()
+    # all path formats we use must lead to "_storage" relative to tests
+    assert (
+        pathlib.Path(fs_client.dataset_path).resolve()
+        == pathlib.Path(unc_path).joinpath(dataset_name).resolve()
+    )
+    # same for client
+    assert len(fs_client.list_table_files("numbers")) == 1
+    assert len(fs_client.list_table_files("_dlt_loads")) == 2
+    assert len(fs_client.list_table_files("_dlt_version")) == 1
+    assert len(fs_client.list_table_files("_dlt_pipeline_state")) == 1

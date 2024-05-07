@@ -22,6 +22,7 @@ UNC_WSL_PATH = r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\ .dlt"
         (UNC_LOCAL_PATH, pathlib.PureWindowsPath(UNC_LOCAL_PATH).as_uri()),
         (UNC_WSL_PATH, pathlib.PureWindowsPath(UNC_WSL_PATH).as_uri()),
         (r"C:\hello", "file:///C:/hello"),
+        # (r"\\?\C:\hello", "file:///C:/hello"),
         (r"a\b $\b", "file:///" + pathlib.Path(r"a\\" + quote("b $") + r"\b").resolve().as_posix()),
         # same paths but with POSIX separators
         (
