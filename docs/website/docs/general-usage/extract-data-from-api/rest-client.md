@@ -66,7 +66,12 @@ Each `PageData` instance contains the data for a single page, along with context
 
 ### Paginators
 
-Paginators are used to handle paginated responses. The `RESTClient` class comes with built-in paginators for common pagination mechanisms.
+Paginators are used to handle paginated responses. The `RESTClient` class comes with built-in paginators for common pagination mechanisms:
+
+- [JSONResponsePaginator](#jsonresponsepaginator) - link to the next page is included in the JSON response.
+- [HeaderLinkPaginator](#headerlinkpaginator) - link to the next page is included in the response headers.
+- [OffsetPaginator](#offsetpaginator) - pagination based on offset and limit query parameters.
+- [JSONResponseCursorPaginator](#jsonresponsecursorpaginator) - pagination based on a cursor in the JSON response.
 
 #### JSONResponsePaginator
 

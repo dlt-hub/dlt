@@ -33,7 +33,7 @@ data = response.json()
 ...
 ```
 
-### Retry rules
+## Retry rules
 
 By default failing requests are retried up to 5 times with an exponentially increasing delay. That means the first retry will wait 1 second and the fifth retry will wait 16 seconds.
 
@@ -51,7 +51,7 @@ All standard HTTP server errors trigger a retry. This includes:
 
     When the remote server is unreachable, the connection is unexpectedly dropped or when the request takes longer than the configured `timeout`.
 
-### Customizing retry settings
+## Customizing retry settings
 
 Many requests settings can be added to the runtime section in your `config.toml`. For example:
 
