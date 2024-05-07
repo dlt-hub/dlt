@@ -137,6 +137,18 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/destination-tables',
+        {
+          type: 'category',
+          label: 'Extract data from an API',
+          link: {
+            type: 'doc',
+            id: 'general-usage/extract-data-from-api/overview',
+          },
+          items: [
+            'general-usage/extract-data-from-api/rest-client',
+            'general-usage/extract-data-from-api/requests',
+          ]
+        },
         'dlt-ecosystem/staging',
         'general-usage/state',
         'general-usage/incremental-loading',

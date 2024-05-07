@@ -1,24 +1,32 @@
-# Reading data from RESTful APIs
+---
+title: RESTClient
+description: Learn how to use the RESTClient class to interact with RESTful APIs
+keywords: [api, http, rest, request, extract, restclient, rest, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication, auth]
+---
 
-RESTful APIs are a common way to interact with web services. They are based on the HTTP protocol and are used to read and write data from and to a web server. dlt provides a simple way to read data from RESTful APIs using two helper methods: [a wrapper around the  Requests library](../reference/performance#using-the-built-in-requests-client) and a `RESTClient` class.
-
-:::tip
-There's also shorthand function to read from paginated APIs. Check out the [paginate()](#shortcut-for-paginating-api-responses) function.
-:::
-
-
-The `RESTClient` class offers a powerful interface for interacting with RESTful APIs, including features like:
+The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
 - automatic pagination,
 - various authentication mechanisms,
 - customizable request/response handling.
 
 This guide shows how to use the `RESTClient` class to read data APIs focusing on its `paginate()` method to fetch data from paginated API responses.
 
+## Creating a RESTClient instance
 
+```py
+from dlt.sources.helpers.rest_client import RESTClient
 
-## Understanding the `RESTClient` Class
+client = RESTClient(
+    base_url="https://api.example.com",
+    headers={"User-Agent": "MyApp/1.0"},
+    auth=BearerTokenAuth(token="your_access_token_here"),
+    paginator=JSONResponsePaginator(next_url_path="pagination.next"),
+    data_selector="data",
+    session=MyCustomSession()
+)
+```
 
-The `RESTClient` class is initialized with parameters that define its behavior for making API requests:
+The `RESTClient` class is initialized with the following parameters:
 
 - `base_url`: The root URL of the API. All requests will be made relative to this URL.
 - `headers`: Default headers to include in every request. This can be used to set common headers like `User-Agent` or other custom headers.
@@ -29,7 +37,7 @@ The `RESTClient` class is initialized with parameters that define its behavior f
 
 ## Making basic requests
 
-To perform basic GET and POST requests, use the `get()` and `post()` methods respectively. This works similarly to the Requests library:
+To perform basic GET and POST requests, use the get() and post() methods respectively. This works similarly to the requests library:
 
 ```py
 client = RESTClient(base_url="https://api.example.com")
@@ -55,41 +63,6 @@ Each `PageData` instance contains the data for a single page, along with context
 - `response`: The response object.
 - `paginator`: The paginator object used to paginate the response.
 - `auth`: The authentication object used for the request.
-
-### Selecting data for extraction
-
-When paginating, you can specify a `data_selector` parameter to extract the data from the response. This is useful when the data you need is nested within the response JSON. The `data_selector` is a [JSONPath](https://goessner.net/articles/JsonPath/) expression that points to the data you want to extract.
-
-For example, if the API response looks like this:
-
-```json
-{
-    "data": [
-        {"id": 1, "title": "Post 1"},
-        {"id": 2, "title": "Post 2"},
-        {"id": 3, "title": "Post 3"}
-    ]
-}
-```
-
-The `data_selector` to extract the `data` array would be `data`.
-
-For the case where the data is nested within the response, like in the JSON below:
-
-```json
-{
-    "_embedded": {
-        "items": [
-            {"id": 1, "name": "Product 1"},
-            {"id": 2, "name": "Product 2"},
-            {"id": 3, "name": "Product 3"}
-        ]
-    }
-    ...
-}
-```
-
-The `data_selector` to extract the `items` array would be `_embedded.items`.
 
 ### Paginators
 
@@ -214,7 +187,7 @@ client = RESTClient(
 )
 ```
 
-#### Implementing Custom Paginators
+### Implementing a custom paginator
 
 When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and `update_state` and `update_request` methods:
 
@@ -222,7 +195,7 @@ When working with APIs that use non-standard pagination schemes, or when you nee
 
 - `update_request(request: Request) -> None`: Before making the next API call in `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request, or modify the URL.
 
-##### Example: Creating a Query Parameter Paginator
+##### Example: creating a query parameter paginator
 
 Suppose an API uses query parameters for pagination, incrementing an page parameter for each subsequent page, without providing direct links to next pages in its responses. E.g. `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
 
@@ -271,7 +244,7 @@ The RESTClient supports various authentication strategies, such as bearer tokens
 
 The available authentication methods are defined in the `dlt.sources.helpers.rest_client.auth` module.
 
-### Bearer Token Authentication
+### Bearer token authentication
 
 Bearer Token Authentication (`BearerTokenAuth`) is an auth method where the client sends a token in the request's Authorization header (e.g. `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
 
@@ -294,7 +267,7 @@ for page in client.paginate("/protected/resource"):
     print(page)
 ```
 
-### API Key Authentication
+### API key authentication
 
 API Key Authentication (`ApiKeyAuth`) is an auth method where the client sends an API key in a custom header (e.g. `X-API-Key: <key>`, or as a query parameter).
 
@@ -318,7 +291,7 @@ client = RESTClient(base_url="https://api.example.com", auth=auth)
 response = client.get("/protected/resource")
 ```
 
-### HTTP Basic Authentication
+### HTTP basic authentication
 
 HTTP Basic Authentication is a simple authentication scheme built into the HTTP protocol. It sends a username and password encoded in the Authorization header.
 
@@ -339,7 +312,33 @@ client = RESTClient(base_url="https://api.example.com", auth=auth)
 response = client.get("/protected/resource")
 ```
 
-## Advanced Usage
+### Implementing custom authentication
+
+You can implement custom authentication by subclassing the `dlt.sources.helpers.rest_client.auth.AuthConfigBase` class and implementing the `__call__` method:
+
+```py
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
+
+class CustomAuth(AuthConfigBase):
+    def __init__(self, token):
+        self.token = token
+
+    def __call__(self, request):
+        # Modify the request object to include the necessary authentication headers
+        request.headers["Authorization"] = f"Custom {self.token}"
+        return request
+```
+
+Then, you can use your custom authentication class with the `RESTClient`:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    auth=CustomAuth(token="your_custom_token_here")
+)
+```
+
+## Advanced usage
 
 `RESTClient.paginate()` allows to specify a custom hook function that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
@@ -354,9 +353,9 @@ client.paginate("/posts", hooks={"response": [custom_response_handler]})
 
 The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for the enpoints that return a 404 status code when there are no items to paginate.
 
-## Shortcut for Paginating API Responses
+## Shortcut for paginating API responses
 
-The `paginate()` helper function provides a shorthand for paginating API responses. It takes the same parameters as the `RESTClient.paginate()` method but automatically creates a RESTClient instance with the specified base URL:
+The `paginate()` function provides a shorthand for paginating API responses. It takes the same parameters as the `RESTClient.paginate()` method but automatically creates a RESTClient instance with the specified base URL:
 
 ```py
 from dlt.sources.helpers.rest_client import paginate
