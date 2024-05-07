@@ -98,7 +98,7 @@ def get_unused_placeholders(
 
 def prepare_datetime_params(
     current_datetime: Optional[pendulum.DateTime] = None,
-    load_package_timestamp: Optional[str] = None,
+    load_package_timestamp: Optional[pendulum.DateTime] = None,
 ) -> Dict[str, str]:
     params: Dict[str, str] = {}
     current_timestamp: pendulum.DateTime = None
@@ -214,7 +214,7 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    load_package_timestamp: Optional[str] = None,
+    load_package_timestamp: Optional[pendulum.DateTime] = None,
     current_datetime: Optional[TCurrentDateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
