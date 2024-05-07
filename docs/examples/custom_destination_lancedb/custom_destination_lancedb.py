@@ -17,12 +17,13 @@ We'll learn how to:
 """
 
 import datetime  # noqa: I251
+import os
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 import lancedb  # type: ignore
-from lancedb.embeddings import get_registry  # type: ignore
+from lancedb.embeddings import get_registry, OpenAIEmbeddings  # type: ignore
 from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
@@ -32,15 +33,16 @@ from dlt.sources.helpers import requests
 
 
 BASE_SPOTIFY_URL = "https://api.spotify.com/v1"
+os.environ["SPOTIFY__CLIENT_ID"] = ""
+os.environ["SPOTIFY__CLIENT_SECRET"] = ""
+os.environ["OPENAI_API_KEY"] = ""
 
 DB_PATH = "spotify.db"
 
 # LanceDB global registry keeps track of text embedding callables implicitly.
-registry = get_registry()
+openai= get_registry().get("openai")
 
-embedding_model = registry.get("sentence-transformers").create(
-    name="multi-qa-mpnet-base-dot-v1", normalize=True, device="cpu"
-)
+embedding_model = openai.create()
 
 db_path = Path(DB_PATH)
 
@@ -133,7 +135,7 @@ if __name__ == "__main__":
         pipeline_name="spotify",
         destination=lancedb_destination,
         dataset_name="spotify_podcast_data",
-        progress="tqdm",
+        progress="log",
     )
 
     load_info = pipeline.run(
