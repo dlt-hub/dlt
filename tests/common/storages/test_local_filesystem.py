@@ -2,6 +2,7 @@ import os
 import pytest
 import pathlib
 from urllib.parse import quote
+from typing import Tuple
 
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.resolve import resolve_configuration
@@ -12,6 +13,7 @@ from tests.common.storages.utils import assert_sample_files, TEST_SAMPLE_FILES
 from tests.utils import skipifnotwindows, skipifwindows
 
 UNC_LOCAL_PATH = r"\\localhost\c$\tests\common\test.csv"
+UNC_LOCAL_EXT_PATH = r"\\?\UNC\localhost\c$\tests\common\test.csv"
 UNC_WSL_PATH = r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\ .dlt"
 
 
@@ -20,9 +22,10 @@ UNC_WSL_PATH = r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\ .dlt"
     "bucket_url,file_url",
     (
         (UNC_LOCAL_PATH, pathlib.PureWindowsPath(UNC_LOCAL_PATH).as_uri()),
+        (UNC_LOCAL_EXT_PATH, pathlib.PureWindowsPath(UNC_LOCAL_EXT_PATH).as_uri()),
         (UNC_WSL_PATH, pathlib.PureWindowsPath(UNC_WSL_PATH).as_uri()),
         (r"C:\hello", "file:///C:/hello"),
-        # (r"\\?\C:\hello", "file:///C:/hello"),
+        (r"\\?\C:\hello", "file://%3F/C%3A/hello"),
         (r"a\b $\b", "file:///" + pathlib.Path(r"a\\" + quote("b $") + r"\b").resolve().as_posix()),
         # same paths but with POSIX separators
         (
@@ -232,21 +235,31 @@ def test_filesystem_decompress() -> None:
 
 # create windows UNC paths, on POSIX systems they are not used
 WIN_ABS_PATH = os.path.abspath(TEST_SAMPLE_FILES)
+WIN_ABS_EXT_PATH = "\\\\?\\" + os.path.abspath(TEST_SAMPLE_FILES)
 WIN_UNC_PATH = "\\\\localhost\\" + WIN_ABS_PATH.replace(":", "$").lower()
+WIN_UNC_EXT_PATH = "\\\\?\\UNC\\localhost\\" + WIN_ABS_PATH.replace(":", "$").lower()
 
 
-@skipifnotwindows
-@pytest.mark.parametrize(
-    "bucket_url",
-    (
+if os.name == "nt":
+    windows_local_files: Tuple[str, ...] = (
         WIN_UNC_PATH,
         "file:///" + pathlib.Path(WIN_UNC_PATH).as_posix(),
         "file://localhost/" + pathlib.Path(WIN_ABS_PATH).as_posix().replace(":", "$"),
+        # WIN_UNC_EXT_PATH,
+        # "file:///" + pathlib.Path(WIN_UNC_EXT_PATH).as_posix(),
+        # "file://localhost/" + pathlib.Path(WIN_UNC_EXT_PATH).as_posix().replace(":", "$"),
         WIN_ABS_PATH,
-        "file:///" + pathlib.Path(WIN_ABS_PATH).as_posix(),
+        WIN_ABS_EXT_PATH,
+        pathlib.Path(WIN_ABS_PATH).as_uri(),
+        pathlib.Path(WIN_ABS_EXT_PATH).as_uri(),
         # r"\\wsl.localhost\Ubuntu-18.04\home\rudolfix\src\dlt\tests\common\storages\samples"
-    ),
-)
+    )
+else:
+    windows_local_files = ()
+
+
+@skipifnotwindows
+@pytest.mark.parametrize("bucket_url", windows_local_files)
 @pytest.mark.parametrize("load_content", [True, False])
 @pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
 def test_windows_unc_path(load_content: bool, bucket_url: str, glob_filter: str) -> None:

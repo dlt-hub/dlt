@@ -2165,12 +2165,18 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-@skipifnotwindows
-def test_local_filesystem_destination() -> None:
-    # make it unc path
-    unc_path = "\\\\localhost\\" + os.path.abspath("_storage").replace(":", "$")
-    print(unc_path)
+local_paths = [os.path.abspath("_storage"), "_storage"]
+if os.name == "nt":
+    local_paths += [
+        # UNC extended path
+        "\\\\?\\UNC\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+        # UNC path
+        "\\\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+    ]
 
+
+@pytest.mark.parametrize("local_path", local_paths)
+def test_local_filesystem_destination(local_path: str) -> None:
     dataset_name = "mydata_" + uniq_id()
 
     @dlt.resource
@@ -2180,7 +2186,7 @@ def test_local_filesystem_destination() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="local_files",
-        destination=dlt.destinations.filesystem(unc_path),
+        destination=dlt.destinations.filesystem(local_path),
         dataset_name=dataset_name,
     )
     info = pipeline.run(stateful_resource(), table_name="numbers", write_disposition="replace")
@@ -2217,7 +2223,7 @@ def test_local_filesystem_destination() -> None:
     # all path formats we use must lead to "_storage" relative to tests
     assert (
         pathlib.Path(fs_client.dataset_path).resolve()
-        == pathlib.Path(unc_path).joinpath(dataset_name).resolve()
+        == pathlib.Path(local_path).joinpath(dataset_name).resolve()
     )
     # same for client
     assert len(fs_client.list_table_files("numbers")) == 1

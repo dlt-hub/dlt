@@ -124,7 +124,6 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         super().__init__(schema, config)
         self.fs_client, fs_path = fsspec_from_config(config)
         self.is_local_filesystem = config.protocol == "file"
-        #
         self.bucket_path = (
             config.make_local_path(config.bucket_url) if self.is_local_filesystem else fs_path
         )
