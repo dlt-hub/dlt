@@ -1,13 +1,17 @@
-from typing import Any, List
+import asyncio
+import os
 import time
 import threading
 import random
 from itertools import product
 
-import dlt, asyncio, pytest, os
+import dlt
+import pytest
+
 from dlt.extract.exceptions import ResourceExtractionError
 
 
+@pytest.mark.asyncio
 def test_async_iterator_resource() -> None:
     # define an asynchronous iterator
     @dlt.resource()
@@ -41,6 +45,7 @@ def test_async_iterator_resource() -> None:
 #
 # async generators resource tests
 #
+@pytest.mark.asyncio
 def test_async_generator_resource() -> None:
     async def async_gen_table():
         for l_ in ["a", "b", "c"]:
@@ -70,6 +75,7 @@ def test_async_generator_resource() -> None:
             assert [r[0] for r in rows] == ["a", "b", "c", "d", "e", "f"]
 
 
+@pytest.mark.asyncio
 def test_async_generator_nested() -> None:
     def async_inner_table():
         async def _gen(idx):
@@ -124,6 +130,7 @@ def test_async_generator_transformer() -> None:
             assert {r[0] for r in rows} == {"at", "bt", "ct"}
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
 @pytest.mark.parametrize(
     "resource_mode", ["both_sync", "both_async", "first_async", "second_async"]
