@@ -36,7 +36,7 @@ Install dlt using `conda`:
 conda install -c conda-forge dlt
 ```
 
-The commands above installs (or upgrades) the core library, in the example below we
+The commands above install (or upgrade) the core library, in the example below we
 use DuckDB as a destination so let's add a `duckdb` dependency:
 
 ```sh
