@@ -507,7 +507,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         data_tables = schema.data_table_names()
         tables = _extend_tables_with_table_chain(
-            schema, data_tables, data_tables, job_client.should_load_data_to_staging_dataset  # type: ignore
+            schema, data_tables, data_tables, job_client.should_load_data_to_staging_dataset
         )
 
         try:
