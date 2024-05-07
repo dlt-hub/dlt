@@ -341,7 +341,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
-            nonlocal max_items
             # zero items should produce empty generator
             if max_items == 0:
                 return
