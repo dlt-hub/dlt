@@ -30,8 +30,19 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 
 dlt supports Python 3.8+.
 
-```bash
+**pip:**
+```sh
 pip install dlt
+```
+
+**pixi:**
+```sh
+pixi add dlt
+```
+
+**conda:**
+```sh
+conda install -c conda-forge dlt
 ```
 
 ## Quick Start
