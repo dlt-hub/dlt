@@ -53,7 +53,9 @@ for page in client.paginate("/posts"):
     print(page)
 ```
 
+:::tip
 If `paginator` is not specified, the `paginate()` method will attempt to automatically detect the pagination mechanism used by the API. If the API uses a standard pagination mechanism like having a `next` link in the response's headers or JSON body, the `paginate()` method will handle this automatically. Otherwise, you can specify a paginator object explicitly or implement a custom paginator.
+:::
 
 ### PageData
 
