@@ -64,6 +64,40 @@ Each `PageData` instance contains the data for a single page, along with context
 - `paginator`: The paginator object used to paginate the response.
 - `auth`: The authentication object used for the request.
 
+### Selecting data from the response
+
+The `data_selector` parameter in the `RESTClient` constructor specifies a JSONPath selector for extracting data from the response.
+
+For example, if the API response looks like this:
+
+```json
+{
+    "posts": [
+        {"id": 1, "title": "Post 1"},
+        {"id": 2, "title": "Post 2"},
+        {"id": 3, "title": "Post 3"}
+    ]
+}
+```
+
+The `data_selector` should be set to `"posts"` to extract the list of posts from the response.
+
+For a nested structure like this:
+
+```json
+{
+    "results": {
+        "posts": [
+            {"id": 1, "title": "Post 1"},
+            {"id": 2, "title": "Post 2"},
+            {"id": 3, "title": "Post 3"}
+        ]
+    }
+}
+```
+
+The `data_selector` should be set to `"results.posts"`. Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax).
+
 ### Paginators
 
 Paginators are used to handle paginated responses. The `RESTClient` class comes with built-in paginators for common pagination mechanisms:
