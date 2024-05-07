@@ -254,4 +254,4 @@ DLT_USE_JSON=simplejson
 
 ## Using the built in requests wrapper or RESTClient for API calls
 
-Instead of using Python Requests directly, you can use the built-in [requests wrapper](../general-usage/extract-data-from-api/requests) or [`RESTClient`](../general-usage/extract-data-from-api/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.
+Instead of using Python Requests directly, you can use the built-in [requests wrapper](../general-usage/http/requests) or [`RESTClient`](../general-usage/http/rest-client) for API calls. This will make your pipeline more resilient to intermittent network errors and other random glitches.

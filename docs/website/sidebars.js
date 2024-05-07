@@ -139,14 +139,14 @@ const sidebars = {
         'general-usage/destination-tables',
         {
           type: 'category',
-          label: 'Extract data from an API',
+          label: 'REST API helpers',
           link: {
             type: 'doc',
-            id: 'general-usage/extract-data-from-api/overview',
+            id: 'general-usage/http/overview',
           },
           items: [
-            'general-usage/extract-data-from-api/rest-client',
-            'general-usage/extract-data-from-api/requests',
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
           ]
         },
         'dlt-ecosystem/staging',
