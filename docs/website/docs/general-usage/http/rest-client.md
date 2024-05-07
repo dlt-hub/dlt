@@ -115,11 +115,11 @@ If the API uses a non-standard pagination, you can [implement a custom paginator
 
 `JSONResponsePaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSON path to locate the next page URL within the JSON response.
 
-##### Parameters:
+**Parameters:**
 
 - `next_url_path`: A JSON path string pointing to the key in the JSON response that contains the next page URL.
 
-###### Example:
+**Example:**
 
 Suppose the API response for `https://api.example.com/posts` looks like this:
 
@@ -158,17 +158,18 @@ def get_data():
 
 This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub).
 
-##### Parameters:
+**Parameters:**
 
 - `links_next_key`: The relation type (rel) to identify the next page link within the Link header. Defaults to "next".
 
-Note: normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may need to specify when the API uses a different relation type.
+Note: normally, you don't need to specify this paginator explicitly, as it is used automatically when the API returns a `Link` header. On rare occasions, you may
+need to specify when the API uses a different relation type.
 
 #### OffsetPaginator
 
 `OffsetPaginator` handles pagination based on an offset and limit in the query parameters. This works only if the API returns the total number of items in the response.
 
-##### Parameters:
+**Parameters:**
 
 - `initial_limit`: The maximum number of items to retrieve in each request.
 - `initial_offset`: The starting point for the first request. Defaults to `0`.
@@ -176,7 +177,7 @@ Note: normally, you don't need to specify this paginator explicitly, as it is us
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
 - `total_path`: A JSONPath expression pointing to the total number of items in the dataset, used to determine if more pages are available. Defaults to `"total"`.
 
-###### Example:
+**Example:**
 
 Assuming an API endpoint `https://api.example.com/items` supports pagination with `offset` and `limit` parameters.
 E.g. `https://api.example.com/items?offset=0&limit=100`, `https://api.example.com/items?offset=100&limit=100`, etc. And includes the total count in its responses, e.g.:
@@ -204,12 +205,12 @@ client = RESTClient(
 
 `JSONResponseCursorPaginator` handles pagination based on a cursor in the JSON response.
 
-##### Parameters:
+**Parameters:**
 
 - `cursor_path`: A JSONPath expression pointing to the cursor in the JSON response. This cursor is used to fetch subsequent pages. Defaults to `"cursors.next"`.
 - `cursor_param`: The query parameter used to send the cursor value in the next request. Defaults to `"after"`.
 
-###### Example:
+**Example:**
 
 Consider an API endpoint `https://api.example.com/data` returning a structure where a cursor to the next page is included in the response:
 
@@ -239,7 +240,7 @@ When working with APIs that use non-standard pagination schemes, or when you nee
 
 - `update_request(request: Request) -> None`: Before making the next API call in `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request, or modify the URL.
 
-##### Example: creating a query parameter paginator
+#### Example: creating a query parameter paginator
 
 Suppose an API uses query parameters for pagination, incrementing an page parameter for each subsequent page, without providing direct links to next pages in its responses. E.g. `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
 
@@ -273,7 +274,7 @@ from dlt.sources.helpers.rest_client import RESTClient
 
 client = RESTClient(
     base_url="https://api.example.com",
-    paginator=QueryParamPaginator(page_param="page", initial_page=1) # Or simply QueryParamPaginator()
+    paginator=QueryParamPaginator(page_param="page", initial_page=1)
 )
 
 @dlt.resource
@@ -298,11 +299,11 @@ For specific use cases, you can [implement custom authentication](#implementing-
 
 Bearer Token Authentication (`BearerTokenAuth`) is an auth method where the client sends a token in the request's Authorization header (e.g. `Authorization: Bearer <token>`). The server validates this token and grants access if the token is valid.
 
-#### Parameters:
+**Parameters:**
 
 - `token`: The bearer token to use for authentication.
 
-#### Example:
+**Example:**
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
@@ -321,13 +322,13 @@ for page in client.paginate("/protected/resource"):
 
 API Key Authentication (`ApiKeyAuth`) is an auth method where the client sends an API key in a custom header (e.g. `X-API-Key: <key>`, or as a query parameter).
 
-#### Parameters:
+**Parameters:**
 
 - `name`: The name of the header or query parameter to use for the API key.
 - `api_key`: The API key to use for authentication.
 - `location`: The location of the API key (`header` or `query`). Defaults to "header".
 
-#### Example:
+**Example:**
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
@@ -345,12 +346,12 @@ response = client.get("/protected/resource")
 
 HTTP Basic Authentication is a simple authentication scheme built into the HTTP protocol. It sends a username and password encoded in the Authorization header.
 
-#### Parameters:
+**Parameters:**
 
 - `username`: The username for basic authentication.
 - `password`: The password for basic authentication.
 
-#### Example:
+**Example:**
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
