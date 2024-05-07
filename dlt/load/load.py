@@ -505,7 +505,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if not isinstance(job_client, WithStagingDataset):
             return
 
-        data_tables = schema.data_tables_names()
+        data_tables = schema.data_table_names()
         tables = _extend_tables_with_table_chain(
             schema, data_tables, data_tables, job_client.should_load_data_to_staging_dataset  # type: ignore
         )
