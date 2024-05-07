@@ -1,6 +1,6 @@
 ---
-title: Extract data from an API
-description: Learn how to extract data from an API using dlt
+title: REST API helpers
+description: Use the dlt RESTClient to interact with RESTful APIs and paginate the results
 keywords: [api, http, rest, restful, requests, restclient, paginate, pagination, json]
 ---
 
