@@ -40,7 +40,7 @@ os.environ["OPENAI_API_KEY"] = ""
 DB_PATH = "spotify.db"
 
 # LanceDB global registry keeps track of text embedding callables implicitly.
-openai= get_registry().get("openai")
+openai = get_registry().get("openai")
 
 embedding_model = openai.create()
 
