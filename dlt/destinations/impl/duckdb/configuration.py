@@ -135,6 +135,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
                 is_default_path = maybe_is_default_path
                 self.database = maybe_database
 
+        # We need to check it here because the default `native_value` for duckdb is :memory:
+        # because if we do this check at the very beginning we will fail the default usecase
+        # when users just specify destination="duckdb" thus it is undesired behavior.
         if isinstance(self.database, str) and self.database == ":memory:":
             raise InvalidInMemoryDuckdbCredentials()
 

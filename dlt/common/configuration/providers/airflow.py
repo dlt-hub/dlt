@@ -15,7 +15,7 @@ class AirflowSecretsTomlProvider(VaultTomlProvider):
     def _look_vault(self, full_key: str, hint: type) -> str:
         """Get Airflow Variable with given `full_key`, return None if not found"""
         from airflow.models import Variable
-
+        return
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             return Variable.get(full_key, default_var=None)  # type: ignore
 
