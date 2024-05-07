@@ -24,27 +24,12 @@ Install dlt using `pip`:
 pip install -U dlt
 ```
 
-Install dlt using `pixi`:
-
-```sh
-pixi add dlt
-```
-
-Install dlt using `conda`:
-
-```sh
-conda install -c conda-forge dlt
-```
-
-The commands above install (or upgrade) the core library, in the example below we
+The command above installs (or upgrades) the core library, in the example below we
 use DuckDB as a destination so let's add a `duckdb` dependency:
 
 ```sh
 pip install "dlt[duckdb]"
 ```
-
-While the example uses `pip` for installation, users of other package managers
-should adapt the command accordingly to install the `duckdb` package.
 
 :::tip
 Use a clean virtual environment for your experiments! Here are [detailed instructions](reference/installation).
