@@ -1,4 +1,5 @@
 import posixpath
+import pathlib
 import os
 import base64
 from types import TracebackType
@@ -59,7 +60,7 @@ class LoadFilesystemJob(LoadJob):
             schema_name,
             load_id,
             current_datetime=config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             extra_placeholders=config.extra_placeholders,
         )
 
@@ -75,12 +76,21 @@ class LoadFilesystemJob(LoadJob):
         fs_client.put_file(local_path, item)
 
     def make_remote_path(self) -> str:
+        """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may string the trailing separator
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path,
             path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
         )
+
+    def make_remote_uri(self) -> str:
+        """Returns uri to the remote filesystem to which copy the file"""
+        remote_path = self.make_remote_path()
+        if self.is_local_filesystem:
+            return self.config.make_file_uri(remote_path)
+        else:
+            return f"{self.config.protocol}://{remote_path}"
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -94,7 +104,7 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self.make_remote_path()
+                file_name=self.file_name(), status="running", remote_path=self.make_remote_uri()
             )
             jobs.append(ref_job)
         return jobs
