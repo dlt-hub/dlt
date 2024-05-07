@@ -177,6 +177,7 @@ Consider an API endpoint `https://api.example.com/data` returning a structure wh
     "next": "cursor_string_for_next_page"
   }
 }
+```
 
 To paginate through responses from this API, use `JSONResponseCursorPaginator` with `cursor_path` set to "cursors.next":
 
