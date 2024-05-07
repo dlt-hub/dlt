@@ -73,6 +73,8 @@ Paginators are used to handle paginated responses. The `RESTClient` class comes 
 - [OffsetPaginator](#offsetpaginator) - pagination based on offset and limit query parameters.
 - [JSONResponseCursorPaginator](#jsonresponsecursorpaginator) - pagination based on a cursor in the JSON response.
 
+If the API uses a non-standard pagination, you can [implement a custom paginator](#implementing-a-custom-paginator) by subclassing the `BasePaginator` class.
+
 #### JSONResponsePaginator
 
 `JSONResponsePaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSON path to locate the next page URL within the JSON response.
@@ -248,7 +250,13 @@ def get_data():
 
 The RESTClient supports various authentication strategies, such as bearer tokens, API keys, and HTTP basic auth, configured through the `auth` parameter of both the `RESTClient` and the `paginate()` method.
 
-The available authentication methods are defined in the `dlt.sources.helpers.rest_client.auth` module.
+The available authentication methods are defined in the `dlt.sources.helpers.rest_client.auth` module:
+
+- [BearerTokenAuth](#bearer-token-authentication)
+- [APIKeyAuth](#api-key-authentication)
+- [HttpBasicAuth](#http-basic-authentication)
+
+For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class.
 
 ### Bearer token authentication
 
@@ -320,7 +328,7 @@ response = client.get("/protected/resource")
 
 ### Implementing custom authentication
 
-You can implement custom authentication by subclassing the `dlt.sources.helpers.rest_client.auth.AuthConfigBase` class and implementing the `__call__` method:
+You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
 ```py
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
