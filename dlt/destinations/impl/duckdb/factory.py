@@ -37,7 +37,7 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
 
         Args:
             credentials: Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
-                a path to a database file. Use `:memory:` to create an in-memory database or :pipeline: to create a duckdb
+                a path to a database file. Use :pipeline: to create a duckdb
                 in the working folder of the pipeline
             create_indexes: Should unique indexes be created, defaults to False
             **kwargs: Additional arguments passed to the destination config

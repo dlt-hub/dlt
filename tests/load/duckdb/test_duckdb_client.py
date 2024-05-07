@@ -6,14 +6,15 @@ import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.utils import get_resolved_traces
 
+from dlt.common.destination.reference import Destination
 from dlt.destinations.impl.duckdb.configuration import (
-    DUCK_DB_NAME,
     DuckDbClientConfiguration,
-    DuckDbCredentials,
     DEFAULT_DUCK_DB_NAME,
 )
 from dlt.destinations import duckdb
 
+from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.pipeline.utils import drop_pipeline
 from tests.pipeline.utils import assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
@@ -52,6 +53,44 @@ def test_duckdb_open_conn_default() -> None:
         assert not hasattr(c.credentials, "_conn")
         # db file is created
         assert os.path.isfile(DEFAULT_DUCK_DB_NAME)
+    finally:
+        delete_quack_db()
+
+
+def test_duckdb_in_memory_mode_via_factory(preserve_environ):
+    delete_quack_db()
+    try:
+        import duckdb
+
+        # Check if passing external duckdb connection works fine
+        db = duckdb.connect(":memory:")
+        dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(db))
+
+        # Check if passing :memory: to factory fails
+        with pytest.raises(PipelineStepFailed) as exc:
+            p = dlt.pipeline(pipeline_name="booboo", destination="duckdb", credentials=":memory:")
+            p.run([1, 2, 3])
+
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
+
+        os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = ":memory:"
+        with pytest.raises(PipelineStepFailed):
+            p = dlt.pipeline(
+                pipeline_name="booboo",
+                destination="duckdb",
+            )
+            p.run([1, 2, 3])
+
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
+
+        with pytest.raises(PipelineStepFailed) as exc:
+            p = dlt.pipeline(
+                pipeline_name="booboo",
+                destination=Destination.from_reference("duckdb", credentials=":memory:"),  # type: ignore[arg-type]
+            )
+            p.run([1, 2, 3], table_name="numbers")
+
+        assert isinstance(exc.value.exception, InvalidInMemoryDuckdbCredentials)
     finally:
         delete_quack_db()
 
@@ -257,6 +296,7 @@ def test_external_duckdb_database() -> None:
     assert c.credentials._conn_owner is False
     assert hasattr(c.credentials, "_conn")
     conn.close()
+    assert not os.path.exists(":memory:")
 
 
 def test_default_duckdb_dataset_name() -> None:

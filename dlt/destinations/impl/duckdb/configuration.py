@@ -1,15 +1,17 @@
 import os
 import dataclasses
 import threading
-from pathvalidate import is_valid_filepath
+
 from typing import Any, ClassVar, Dict, Final, List, Optional, Tuple, Type, Union
 
+from pathvalidate import is_valid_filepath
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretValue
+from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
 try:
     from duckdb import DuckDBPyConnection
@@ -117,6 +119,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         return self.database == ":pipeline:"
 
     def on_resolved(self) -> None:
+        if isinstance(self.database, str) and self.database == ":memory:":
+            raise InvalidInMemoryDuckdbCredentials()
+
         # do not set any paths for external database
         if self.database == ":external:":
             return
