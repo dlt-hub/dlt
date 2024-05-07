@@ -881,8 +881,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 def test_pipeline_upfront_tables_two_loads(
     destination_config: DestinationTestConfiguration, replace_strategy: str
 ) -> None:
-    dlt.config["truncate_staging_dataset"] = True
-
     if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
         pytest.skip(
             f"Destination {destination_config.name} does not support merge and thus"
@@ -891,6 +889,7 @@ def test_pipeline_upfront_tables_two_loads(
 
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    os.environ["TRUNCATE_STAGING_DATASET"] = "True"
 
     pipeline = destination_config.setup_pipeline(
         "test_pipeline_upfront_tables_two_loads",

@@ -502,11 +502,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             job_client (JobClientBase):
                 Job client to use for the staging dataset.
         """
-        data_tables = schema.data_tables()
-        table_names = [tab["name"] for tab in data_tables]
+        if not isinstance(job_client, WithStagingDataset):
+            return
 
+        data_tables = schema.data_tables_names()
         tables = _extend_tables_with_table_chain(
-            schema, table_names, data_tables, job_client.should_load_data_to_staging_dataset  # type: ignore
+            schema, data_tables, data_tables, job_client.should_load_data_to_staging_dataset  # type: ignore
         )
 
         try:
