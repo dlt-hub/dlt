@@ -64,7 +64,11 @@ def test_duckdb_in_memory_mode_via_factory(preserve_environ):
 
         # Check if passing external duckdb connection works fine
         db = duckdb.connect(":memory:")
-        dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(db))
+        p = dlt.pipeline(pipeline_name="booboo", destination=dlt.destinations.duckdb(db))
+        p.run()
+
+        p = dlt.pipeline(pipeline_name="normal-pipeline-with-duckdb", destination="duckdb")
+        p.run()
 
         # Check if passing :memory: to factory fails
         with pytest.raises(PipelineStepFailed) as exc:

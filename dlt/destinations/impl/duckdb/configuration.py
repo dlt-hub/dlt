@@ -119,9 +119,6 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         return self.database == ":pipeline:"
 
     def on_resolved(self) -> None:
-        if isinstance(self.database, str) and self.database == ":memory:":
-            raise InvalidInMemoryDuckdbCredentials()
-
         # do not set any paths for external database
         if self.database == ":external:":
             return
@@ -137,6 +134,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
                 # create database locally
                 is_default_path = maybe_is_default_path
                 self.database = maybe_database
+
+        if isinstance(self.database, str) and self.database == ":memory:":
+            raise InvalidInMemoryDuckdbCredentials()
 
         # always make database an abs path
         self.database = os.path.abspath(self.database)
