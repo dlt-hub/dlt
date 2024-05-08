@@ -1001,11 +1001,12 @@ def test_pipeline_upfront_tables_two_loads(
     if isinstance(job_client, WithStagingDataset):
         with pipeline.sql_client() as client:
             for i in range(1, 4):
-                if job_client.should_load_data_to_staging_dataset(
-                    pipeline.default_schema.tables[f"table_{i}"]
+                table_name = f"table_{i}"
+                with client.with_staging_dataset(
+                    job_client.should_load_data_to_staging_dataset(job_client.schema.tables[table_name])  # type: ignore[attr-defined]
                 ):
                     with client.execute_query(
-                        f"SELECT * FROM {pipeline.dataset_name}_staging.table_{i}"
+                        f"SELECT * FROM {client.make_qualified_table_name(table_name)}"
                     ) as cur:
                         assert len(cur.fetchall()) == 0
 

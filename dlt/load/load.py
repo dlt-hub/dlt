@@ -502,7 +502,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             job_client (JobClientBase):
                 Job client to use for the staging dataset.
         """
-        if not isinstance(job_client, WithStagingDataset):
+        if not (
+            isinstance(job_client, WithStagingDataset) and self.config.truncate_staging_dataset
+        ):
             return
 
         data_tables = schema.data_table_names()
@@ -511,11 +513,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
 
         try:
-            if self.config.truncate_staging_dataset:
-                with self.get_destination_client(schema) as client:
-                    if isinstance(client, WithStagingDataset):
-                        with client.with_staging_dataset():
-                            client.initialize_storage(truncate_tables=tables)
+            with self.get_destination_client(schema) as client:
+                with client.with_staging_dataset():
+                    client.initialize_storage(truncate_tables=tables)
 
         except Exception as exc:
             logger.warn(
