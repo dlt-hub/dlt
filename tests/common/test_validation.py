@@ -1,13 +1,31 @@
 from copy import deepcopy
+from typing_extensions import get_origin
 import pytest
 import yaml
-from typing import Callable, List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Sequence,
+    TypedDict,
+    TypeVar,
+    Optional,
+    Union,
+)
 
-from dlt.common import Decimal
+from dlt.common import Decimal, jsonpath
 from dlt.common.exceptions import DictValidationException
-from dlt.common.schema.typing import TStoredSchema, TColumnSchema
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TStoredSchema,
+    TColumnSchema,
+    TWriteDispositionConfig,
+)
 from dlt.common.schema.utils import simple_regex_validator
-from dlt.common.typing import DictStrStr, StrStr, TDataItem
+from dlt.common.typing import DictStrStr, StrStr, TDataItem, TSortOrder
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
 
@@ -51,6 +69,7 @@ class TTestRecord(TypedDict):
     f_seq_literal: Sequence[Optional[TLiteral]]
     f_optional_union: Optional[Union[TLiteral, TDict]]
     f_class: ClassTest
+    f_callable: Callable[[str], Any]
 
 
 TEST_COL: TColumnSchema = {"name": "col1", "data_type": "bigint", "nullable": False}
@@ -81,6 +100,7 @@ TEST_DOC: TTestRecord = {
     "f_seq_literal": ["uno", "dos", "tres"],
     "f_optional_union": {"field": "uno"},
     "f_class": SubClassTest(),
+    "f_callable": lambda x: x,
 }
 
 
@@ -247,6 +267,11 @@ def test_nested_union(test_doc: TTestRecord) -> None:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"
     assert e.value.value == {"field": "not valid"}
+    assert get_origin(e.value.expected_type) is Union
+    assert len(e.value.nested_exceptions) == 2
+    # TDict goes first because path is the deepest
+    assert e.value.nested_exceptions[0].expected_type is TDict
+    assert get_origin(e.value.nested_exceptions[1].expected_type) is Literal
 
     test_doc["f_optional_union"] = "dos"
     validate_dict(TTestRecord, test_doc, ".")
@@ -256,6 +281,77 @@ def test_nested_union(test_doc: TTestRecord) -> None:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"
     assert e.value.value == "blah"
+
+
+def test_typeddict_friendly_exceptions() -> None:
+    class IncrementalArgs(TypedDict, total=False):
+        cursor_path: str
+        initial_value: Optional[str]
+        primary_key: Optional[TTableHintTemplate[TColumnNames]]
+        end_value: Optional[str]
+        row_order: Optional[TSortOrder]
+
+    class IncrementalConfig(IncrementalArgs, total=False):
+        start_param: str
+        end_param: Optional[str]
+
+    class Endpoint(TypedDict, total=False):
+        path: Optional[str]
+        params: Optional[Dict[str, Any]]
+        json: Optional[Dict[str, Any]]
+        data_selector: Optional[jsonpath.TJsonPath]
+        incremental: Optional[IncrementalConfig]
+
+    class EndpointResource(TypedDict, total=False):
+        endpoint: Optional[Union[str, Endpoint]]
+        write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
+
+    valid_dict = {
+        "endpoint": {
+            "path": "/path",
+            "data_selector": jsonpath.compile_path("$"),
+            "incremental": {
+                "cursor_path": "$",
+                "start_param": "updated_at",
+            },
+        },
+        "write_disposition": {"disposition": "merge", "strategy": "scd2"},
+    }
+
+    # this will pass
+    validate_dict(EndpointResource, valid_dict, ".")
+    valid_dict_with_f = deepcopy(valid_dict)
+    valid_dict_with_f["write_disposition"] = lambda: "skip"  # type: ignore[assignment]
+    validate_dict(EndpointResource, valid_dict_with_f, ".")
+
+    # this is missing "disposition"
+    with pytest.raises(DictValidationException) as e:
+        wrong_dict = deepcopy(valid_dict)
+        wrong_dict["write_disposition"] = {"strategy": "scd2"}
+        validate_dict(EndpointResource, wrong_dict, ".")
+    print(e.value)
+    # Union of 3 types and callable
+    assert len(e.value.nested_exceptions) == 4
+
+    # this has wrong disposition string
+    with pytest.raises(DictValidationException) as e:
+        wrong_dict = deepcopy(valid_dict)
+        wrong_dict["write_disposition"] = "unknown"  # type: ignore[assignment]
+        validate_dict(EndpointResource, wrong_dict, ".")
+    print(e.value)
+    # Union of 3 types and callable
+    assert len(e.value.nested_exceptions) == 4
+
+    # this has wrong nested type
+    with pytest.raises(DictValidationException) as e:
+        wrong_dict = deepcopy(valid_dict)
+        wrong_dict["endpoint"]["incremental"]["start_param"] = 1
+        validate_dict(EndpointResource, wrong_dict, ".")
+    print(e.value)
+    # Endpoint and str
+    assert len(e.value.nested_exceptions) == 2
+    # Endpoint must be first: we descend deeply to validate
+    assert e.value.nested_exceptions[0].expected_type is Endpoint
 
 
 def test_no_name() -> None:
@@ -273,7 +369,7 @@ def test_no_name() -> None:
         validate_dict(TTestRecordNoName, test_item_2, path=".")
 
 
-def test_callable() -> None:
+def test_callable_in_union() -> None:
     class TTestRecordCallable(TypedDict):
         prop: TTableHintTemplate  # type: ignore
 
