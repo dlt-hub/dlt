@@ -197,13 +197,21 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_partition_by_date(destination_config: DestinationTestConfiguration) -> None:
+def test_bigquery_partition_by_date(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_date_column",
-        columns={"my_date_column": {"data_type": "date", "partition": True, "nullable": False}},
+        columns={
+            "my_date_column": {
+                "data_type": "date",
+                "partition": True,
+                "nullable": False,
+            }
+        },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.Date]]:
         for i in range(10):
@@ -232,13 +240,21 @@ def test_bigquery_partition_by_date(destination_config: DestinationTestConfigura
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_no_partition_by_date(destination_config: DestinationTestConfiguration) -> None:
+def test_bigquery_no_partition_by_date(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_date_column",
-        columns={"my_date_column": {"data_type": "date", "partition": False, "nullable": False}},
+        columns={
+            "my_date_column": {
+                "data_type": "date",
+                "partition": False,
+                "nullable": False,
+            }
+        },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.Date]]:
         for i in range(10):
@@ -267,14 +283,20 @@ def test_bigquery_no_partition_by_date(destination_config: DestinationTestConfig
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_partition_by_timestamp(destination_config: DestinationTestConfiguration) -> None:
+def test_bigquery_partition_by_timestamp(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
 
     @dlt.resource(
         write_disposition="merge",
         primary_key="my_timestamp_column",
         columns={
-            "my_timestamp_column": {"data_type": "timestamp", "partition": True, "nullable": False}
+            "my_timestamp_column": {
+                "data_type": "timestamp",
+                "partition": True,
+                "nullable": False,
+            }
         },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.DateTime]]:
@@ -313,7 +335,11 @@ def test_bigquery_no_partition_by_timestamp(
         write_disposition="merge",
         primary_key="my_timestamp_column",
         columns={
-            "my_timestamp_column": {"data_type": "timestamp", "partition": False, "nullable": False}
+            "my_timestamp_column": {
+                "data_type": "timestamp",
+                "partition": False,
+                "nullable": False,
+            }
         },
     )
     def demo_resource() -> Iterator[Dict[str, pendulum.DateTime]]:
@@ -343,7 +369,9 @@ def test_bigquery_no_partition_by_timestamp(
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_partition_by_integer(destination_config: DestinationTestConfiguration) -> None:
+def test_bigquery_partition_by_integer(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
 
     @dlt.resource(
@@ -376,7 +404,9 @@ def test_bigquery_partition_by_integer(destination_config: DestinationTestConfig
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_bigquery_no_partition_by_integer(destination_config: DestinationTestConfiguration) -> None:
+def test_bigquery_no_partition_by_integer(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
 
     @dlt.resource(
@@ -422,7 +452,10 @@ def test_adapter_no_hints_parsing() -> None:
 
 def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
     @dlt.resource(
-        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "bigint"}]
+        columns=[
+            {"name": "col1", "data_type": "bigint"},
+            {"name": "col2", "data_type": "bigint"},
+        ]
     )
     def some_data() -> Iterator[Dict[str, Any]]:
         yield from [{"col1": str(i), "col2": i} for i in range(3)]
@@ -443,7 +476,11 @@ def test_adapter_hints_parsing_partitioning() -> None:
 
     bigquery_adapter(some_data, partition="int_col")
     assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
+        "int_col": {
+            "name": "int_col",
+            "data_type": "bigint",
+            "x-bigquery-partition": True,
+        },
     }
 
 
@@ -458,7 +495,9 @@ def test_adapter_on_data() -> None:
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_partitioning(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_partitioning(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
     def no_hints() -> Iterator[Dict[str, int]]:
         yield from [{"col1": i} for i in range(10)]
@@ -578,7 +617,9 @@ def test_adapter_hints_parsing_round_half_even() -> None:
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_round_half_even(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_round_half_even(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
     def no_hints() -> Iterator[Dict[str, float]]:
         yield from [{"col1": float(i)} for i in range(10)]
@@ -623,13 +664,20 @@ def test_adapter_hints_parsing_clustering() -> None:
 
     bigquery_adapter(some_data, cluster="int_col")
     assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-cluster": True},
+        "int_col": {
+            "name": "int_col",
+            "data_type": "bigint",
+            "x-bigquery-cluster": True,
+        },
     }
 
 
 def test_adapter_hints_parsing_multiple_clustering() -> None:
     @dlt.resource(
-        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "text"}]
+        columns=[
+            {"name": "col1", "data_type": "bigint"},
+            {"name": "col2", "data_type": "text"},
+        ]
     )
     def some_data() -> Iterator[Dict[str, Any]]:
         yield from [{"col1": i, "col2": str(i)} for i in range(10)]
@@ -751,7 +799,9 @@ def test_adapter_hints_multiple_clustering(
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_clustering(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_clustering(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
     def no_hints() -> Iterator[Dict[str, str]]:
         yield from [{"col1": str(i)} for i in range(10)]
@@ -814,7 +864,9 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
         ),
     ):
         bigquery_adapter(
-            some_data, round_half_away_from_zero="double_col", round_half_even="double_col"
+            some_data,
+            round_half_away_from_zero="double_col",
+            round_half_even="double_col",
         )
 
 
@@ -834,7 +886,7 @@ def test_adapter_additional_table_hints_parsing_table_description() -> None:
     destinations_configs(default_sql_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_additional_table_hints_table_description_with_alter_table(
+def test_adapter_additional_table_hints_table_description(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
@@ -869,15 +921,55 @@ def test_adapter_additional_table_hints_table_description_with_alter_table(
         assert not no_hints_table.description
         assert hints_table.description == "Once upon a time a small table got hinted."
 
-    # run sources() again to make sure that table hints are ignored on alter table
+
+@pytest.mark.skip("Alter OPTION schema migrations not implemented yet.")
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_additional_table_hints_table_description_with_alter_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
+    def no_hints() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    hints = bigquery_adapter(
+        no_hints.with_name(new_name="hints"),
+        table_description="Once upon a time a small table got hinted.",
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
     mod_hints = bigquery_adapter(
         dlt.resource([{"col2": "ABC"}], name="hints"),
-        # this will be ignored
-        table_description="Once upon a time a small table got hinted.",
+        table_description="Once upon a time a small table got hinted twice.",
     )
     info = pipeline.run(mod_hints)
     info.raise_on_failed_jobs()
     assert pipeline.last_trace.last_normalize_info.row_counts["hints"] == 1
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        assert not no_hints_table.description
+        assert hints_table.description == "Once upon a time a small table got hinted twice."
 
 
 def test_adapter_additional_table_hints_parsing_table_expiration() -> None:
@@ -950,7 +1042,9 @@ def test_adapter_merge_behaviour(
 
     bigquery_adapter(hints, table_expiration_datetime="2030-01-01", cluster=["col1"])
     bigquery_adapter(
-        hints, table_description="A small table somewhere in the cosmos...", partition="col2"
+        hints,
+        table_description="A small table somewhere in the cosmos...",
+        partition="col2",
     )
 
     pipeline = destination_config.setup_pipeline(
