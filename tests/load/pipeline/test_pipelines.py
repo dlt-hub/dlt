@@ -1002,15 +1002,15 @@ def test_pipeline_upfront_tables_two_loads(
         with pipeline.sql_client() as client:
             for i in range(1, 4):
                 table_name = f"table_{i}"
-                with client.with_staging_dataset(
-                    job_client.should_load_data_to_staging_dataset(
-                        job_client.schema.tables[table_name]
-                    )
+
+                if job_client.should_load_data_to_staging_dataset(
+                    job_client.schema.tables[table_name]
                 ):
-                    with client.execute_query(
-                        f"SELECT * FROM {client.make_qualified_table_name(table_name)}"
-                    ) as cur:
-                        assert len(cur.fetchall()) == 0
+                    with client.with_staging_dataset():
+                        with client.execute_query(
+                            f"SELECT * FROM {client.make_qualified_table_name(table_name)}"
+                        ) as cur:
+                            assert len(cur.fetchall()) == 0
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
