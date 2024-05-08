@@ -21,7 +21,7 @@ from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 client = RESTClient(
     base_url="https://api.example.com",
     headers={"User-Agent": "MyApp/1.0"},
-    auth=BearerTokenAuth(token="your_access_token_here"),
+    auth=BearerTokenAuth(token="your_access_token_here"),  # type: ignore
     paginator=JSONResponsePaginator(next_url_path="pagination.next"),
     data_selector="data",
     session=MyCustomSession()
@@ -191,7 +191,7 @@ E.g. `https://api.example.com/items?offset=0&limit=100`, `https://api.example.co
 
 ```json
 {
-  "items": [...],
+  "items": ["one", "two", "three"],
   "total": 1000
 }
 ```
@@ -223,7 +223,7 @@ Consider an API endpoint `https://api.example.com/data` returning a structure wh
 
 ```json
 {
-  "items": [...],
+  "items": ["one", "two", "three"],
   "cursors": {
     "next": "cursor_string_for_next_page"
   }
@@ -318,7 +318,7 @@ from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 client = RESTClient(
     base_url="https://api.example.com",
-    auth=BearerTokenAuth(token="your_access_token_here")
+    auth=BearerTokenAuth(token="your_access_token_here")  # type: ignore
 )
 
 for page in client.paginate("/protected/resource"):
@@ -341,7 +341,7 @@ API Key Authentication (`ApiKeyAuth`) is an auth method where the client sends a
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import APIKeyAuth
 
-auth = APIKeyAuth(name="X-API-Key", api_key="your_api_key_here", location="header")
+auth = APIKeyAuth(name="X-API-Key", api_key="your_api_key_here", location="header")  # type: ignore
 
 # Create a RESTClient instance with API Key Authentication
 client = RESTClient(base_url="https://api.example.com", auth=auth)
@@ -364,7 +364,7 @@ HTTP Basic Authentication is a simple authentication scheme built into the HTTP 
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
-auth = HttpBasicAuth(username="your_username", password="your_password")
+auth = HttpBasicAuth(username="your_username", password="your_password")  # type: ignore
 client = RESTClient(base_url="https://api.example.com", auth=auth)
 
 response = client.get("/protected/resource")

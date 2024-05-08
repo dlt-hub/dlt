@@ -58,7 +58,7 @@ from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 
 github_client = RESTClient(
     base_url="https://pokeapi.co/api/v2",
-    paginator=JSONResponsePaginator(next_url_path="next")    # (1)
+    paginator=JSONResponsePaginator(next_url_path="next"),   # (1)
     data_selector="results",                                 # (2)
 )
 
