@@ -514,7 +514,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         try:
             with self.get_destination_client(schema) as client:
-                with client.with_staging_dataset():
+                with client.with_staging_dataset():  # type: ignore
                     client.initialize_storage(truncate_tables=tables)
 
         except Exception as exc:
