@@ -171,7 +171,7 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
-        on_before_run: Callable = None,
+        on_before_run: Callable[[], None] = None,
         **kwargs: Any,
     ) -> PythonOperator:
         """
@@ -182,8 +182,10 @@ class PipelineTasksGroup(TaskGroup):
             pipeline (Pipeline): The pipeline to run
             data (Any):
                 The data to run the pipeline with. If a non-resource
-                callable given, it's called during the DAG execution,
-                right before the actual pipeline run
+                callable given, it's evaluated during the DAG execution,
+                right before the actual pipeline run.
+                NOTE: If `on_before_run` is provided, first `on_before_run`
+                      is evaluated, and then callable `data`.
             table_name (str, optional): The name of the table to
                 which the data should be loaded within the `dataset`.
             write_disposition (TWriteDispositionConfig, optional): Same as
@@ -223,7 +225,7 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
-        on_before_run: Callable = None,
+        on_before_run: Callable[[], None] = None,
     ) -> None:
         """Run the given pipeline with the given data.
 
@@ -231,8 +233,10 @@ class PipelineTasksGroup(TaskGroup):
             pipeline (Pipeline): The pipeline to run
             data (Any):
                 The data to run the pipeline with. If a non-resource
-                callable given, it's called during the DAG execution,
-                right before the actual pipeline run
+                callable given, it's evaluated during the DAG execution,
+                right before the actual pipeline run.
+                NOTE: If `on_before_run` is provided, first `on_before_run`
+                      is evaluated, and then callable `data`.
             table_name (str, optional): The name of the
                 table to which the data should be loaded
                 within the `dataset`.
@@ -284,11 +288,11 @@ class PipelineTasksGroup(TaskGroup):
                 )
 
         try:
-            if callable(data):
-                data = data()
-
             if on_before_run is not None:
                 on_before_run()
+
+            if callable(data):
+                data = data()
 
             # retry with given policy on selected pipeline steps
             for attempt in self.retry_policy.copy(
@@ -344,7 +348,7 @@ class PipelineTasksGroup(TaskGroup):
         write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-        on_before_run: Callable = None,
+        on_before_run: Callable[[], None] = None,
         **kwargs: Any,
     ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
