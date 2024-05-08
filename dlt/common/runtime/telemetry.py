@@ -1,3 +1,4 @@
+import atexit
 import time
 import contextlib
 import inspect
@@ -12,6 +13,7 @@ from dlt.common.runtime.anon_tracker import (
     disable_anon_tracker,
     track,
 )
+from dlt.pipeline.platform import disable_platform_tracker, init_platform_tracker
 
 _TELEMETRY_STARTED = False
 
@@ -32,9 +34,13 @@ def start_telemetry(config: RunConfiguration) -> None:
     if config.dlthub_telemetry:
         init_anon_tracker(config)
 
+    if config.dlthub_dsn:
+        init_platform_tracker()
+
     _TELEMETRY_STARTED = True
 
 
+@atexit.register
 def stop_telemetry() -> None:
     global _TELEMETRY_STARTED
     if not _TELEMETRY_STARTED:
@@ -48,6 +54,7 @@ def stop_telemetry() -> None:
         pass
 
     disable_anon_tracker()
+    disable_platform_tracker()
 
     _TELEMETRY_STARTED = False
 
