@@ -191,7 +191,7 @@ E.g. `https://api.example.com/items?offset=0&limit=100`, `https://api.example.co
 
 ```json
 {
-  "items": [...],
+  "items": ["one", "two", "three"],
   "total": 1000
 }
 ```
@@ -223,7 +223,7 @@ Consider an API endpoint `https://api.example.com/data` returning a structure wh
 
 ```json
 {
-  "items": [...],
+  "items": ["one", "two", "three"],
   "cursors": {
     "next": "cursor_string_for_next_page"
   }
