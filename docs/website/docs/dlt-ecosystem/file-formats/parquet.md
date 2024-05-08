@@ -4,7 +4,7 @@ description: The parquet file format
 keywords: [parquet, file formats]
 ---
 
-# Parquet File Format
+# Parquet file format
 
 [Apache Parquet](https://en.wikipedia.org/wiki/Apache_Parquet) is a free and open-source column-oriented data storage format in the Apache Hadoop ecosystem. `dlt` is capable of storing data in this format when configured to do so.
 

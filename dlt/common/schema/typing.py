@@ -178,9 +178,6 @@ class TMergeDispositionDict(TWriteDispositionDict, total=False):
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
 
 
-# TypedDict that defines properties of a table
-
-
 class TTableSchema(TypedDict, total=False):
     """TypedDict that defines properties of a table"""
 

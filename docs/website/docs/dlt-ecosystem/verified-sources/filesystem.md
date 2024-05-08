@@ -151,6 +151,18 @@ You can use both native local file system paths and in form of `file:` uri. Abso
 You can find relevant examples in [filesystem destination documentation](../destinations/filesystem.md#local-file-system) which follows
 the same rules to specify the `bucket_url`.
 
+:::caution
+Windows supports paths up to 255 characters. When you access a path longer than 255 characters you'll see `FileNotFound` exception.
+
+ To go over this limit you can use [extended paths](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry).
+ **Note that Python glob does not work with extended UNC paths** so you will not be able to use them
+
+```toml
+[sources.filesystem]
+bucket_url = '\\?\C:\a\b\c'
+```
+:::
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by

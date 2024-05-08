@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, TypedDict
+from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, Type, TypedDict
 
 
 class ExceptionTrace(TypedDict, total=False):
@@ -94,11 +94,25 @@ class SignalReceivedException(KeyboardInterrupt, TerminalException):
 
 
 class DictValidationException(DltException):
-    def __init__(self, msg: str, path: str, field: str = None, value: Any = None) -> None:
+    def __init__(
+        self,
+        msg: str,
+        path: str,
+        expected_type: Type[Any] = None,
+        field: str = None,
+        value: Any = None,
+        nested_exceptions: List["DictValidationException"] = None,
+    ) -> None:
         self.path = path
+        self.expected_type = expected_type
         self.field = field
         self.value = value
+        self.nested_exceptions = nested_exceptions
+        self.msg = msg
         super().__init__(msg)
+
+    def __str__(self) -> str:
+        return f"In path {self.path}: " + self.msg
 
 
 class ArgumentsOverloadException(DltException):

@@ -1,12 +1,9 @@
 ---
-title: Configuration Providers
+title: Configuration providers
 description: Where dlt looks for config/secrets and in which order.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, provider]
 ---
-
-# Configuration Providers
-
 
 Configuration Providers in the context of the `dlt` library
 refer to different sources from which configuration values

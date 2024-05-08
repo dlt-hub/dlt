@@ -1,5 +1,5 @@
 ---
-title: Verified Sources
+title: Verified sources
 description: List of verified sources
 keywords: ['verified source']
 ---

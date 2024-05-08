@@ -204,6 +204,9 @@ class RESTClient:
             path=path, method=method, params=params, json=json, auth=auth, hooks=hooks
         )
 
+        if paginator:
+            paginator.init_request(request)
+
         while True:
             try:
                 response = self._send_request(request)

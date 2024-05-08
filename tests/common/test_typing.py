@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import (
+    Any,
+    Callable,
     ClassVar,
     Final,
     List,
@@ -35,6 +37,7 @@ from dlt.common.typing import (
     is_typeddict,
     is_union_type,
     is_annotated,
+    is_callable_type,
 )
 
 
@@ -63,6 +66,50 @@ TOptionalLi = Optional[TTestLi]
 TOptionalTyDi = Optional[TTestTyDi]
 
 TOptionalUnionLiTyDi = Optional[Union[TTestTyDi, TTestLi]]
+
+
+def test_is_callable_type() -> None:
+    class AsyncClass:
+        async def __call__(self):
+            pass
+
+    class NotAsyncClass:
+        def __call__(self):
+            pass
+
+    class ClassNoCall:
+        pass
+
+    class ClassBaseCall(NotAsyncClass):
+        pass
+
+    async def async_func():
+        pass
+
+    def non_async_func():
+        pass
+
+    CallableType = Callable[[Any], Any]
+
+    # new type is a callable and will be ignored
+    ANewType = NewType("ANewType", str)
+
+    for callable_, t_ in zip(
+        [True, True, True, False, True, True, False, False, True, False],
+        [
+            AsyncClass,
+            NotAsyncClass,
+            ClassBaseCall,
+            ClassNoCall,
+            async_func,
+            non_async_func,
+            Literal[1, 2, 3],
+            "A",
+            CallableType,
+            ANewType,
+        ],
+    ):
+        assert is_callable_type(t_) is callable_  # type: ignore[arg-type]
 
 
 def test_is_typeddict() -> None:

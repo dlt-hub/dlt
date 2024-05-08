@@ -137,6 +137,18 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/destination-tables',
+        {
+          type: 'category',
+          label: 'REST API helpers',
+          link: {
+            type: 'doc',
+            id: 'general-usage/http/overview',
+          },
+          items: [
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
+          ]
+        },
         'dlt-ecosystem/staging',
         'general-usage/state',
         'general-usage/incremental-loading',
