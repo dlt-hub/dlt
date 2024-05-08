@@ -205,7 +205,8 @@ class PageNumberPaginator(RangePaginator):
         client = RESTClient(
             base_url="https://api.example.com",
             paginator=PageNumberPaginator(
-                maximum_page=5
+                maximum_page=5,
+                total_path=None
             )
         )
         ...
@@ -285,7 +286,8 @@ class OffsetPaginator(RangePaginator):
             base_url="https://api.example.com",
             paginator=OffsetPaginator(
                 limit=100,
-                maximum_offset=1000
+                maximum_offset=1000,
+                total_path=None
             )
         )
         ...
