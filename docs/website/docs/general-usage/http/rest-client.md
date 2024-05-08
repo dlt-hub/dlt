@@ -114,6 +114,7 @@ Paginators are used to handle paginated responses. The `RESTClient` class comes 
 - [JSONResponsePaginator](#jsonresponsepaginator) - link to the next page is included in the JSON response.
 - [HeaderLinkPaginator](#headerlinkpaginator) - link to the next page is included in the response headers.
 - [OffsetPaginator](#offsetpaginator) - pagination based on offset and limit query parameters.
+- [PageNumberPaginator](#pagenumberpaginator) - pagination based on page numbers.
 - [JSONResponseCursorPaginator](#jsonresponsecursorpaginator) - pagination based on a cursor in the JSON response.
 
 If the API uses a non-standard pagination, you can [implement a custom paginator](#implementing-a-custom-paginator) by subclassing the `BasePaginator` class.
@@ -174,15 +175,16 @@ need to specify the paginator when the API uses a different relation type.
 
 #### OffsetPaginator
 
-`OffsetPaginator` handles pagination based on an offset and limit in the query parameters. This works only if the API returns the total number of items in the response.
+`OffsetPaginator` handles pagination based on an offset and limit in the query parameters.
 
 **Parameters:**
 
-- `initial_limit`: The maximum number of items to retrieve in each request.
-- `initial_offset`: The starting point for the first request. Defaults to `0`.
+- `limit`: The maximum number of items to retrieve in each request.
+- `offset`: The initial offset for the first request. Defaults to `0`.
 - `offset_param`: The name of the query parameter used to specify the offset. Defaults to `"offset"`.
 - `limit_param`: The name of the query parameter used to specify the limit. Defaults to `"limit"`.
-- `total_path`: A JSONPath expression pointing to the total number of items in the dataset, used to determine if more pages are available. Defaults to `"total"`.
+- `total_path`: A JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset`.
+- `maximum_offset`: Optional maximum offset value. Limits pagination even without total count.
 
 **Example:**
 
@@ -202,11 +204,73 @@ You can paginate through responses from this API using `OffsetPaginator`:
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=OffsetPaginator(
-        initial_limit=100,
+        limit=100,
         total_path="total"
     )
 )
 ```
+
+In a different scenario where the API does not provide the total count, you can use `maximum_offset` to limit the pagination:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=OffsetPaginator(
+        limit=100,
+        maximum_offset=1000,
+        total_path=None
+    )
+)
+```
+
+Note, that in this case, the `total_path` parameter is set explicitly to `None` to indicate that the API does not provide the total count.
+
+#### PageNumberPaginator
+
+`PageNumberPaginator` works by incrementing the page number for each request.
+
+**Parameters:**
+
+- `initial_page`: The starting page number. Defaults to `1`.
+- `page_param`: The query parameter name for the page number. Defaults to `"page"`.
+- `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`.
+- `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
+
+**Example:**
+
+Assuming an API endpoint `https://api.example.com/items` paginates by page numbers and provides a total page count in its responses, e.g.:
+
+```json
+{
+  "items": ["one", "two", "three"],
+  "total_pages": 10
+}
+```
+
+You can paginate through responses from this API using `PageNumberPaginator`:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=PageNumberPaginator(
+        total_path="total_pages"  # Uses the total page count from the API
+    )
+)
+```
+
+If the API does not provide the total number of pages:
+
+```py
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=PageNumberPaginator(
+        maximum_page=5,  # Stops after fetching 5 pages
+        total_path=None
+    )
+)
+```
+
+Note, that in the case above, the `total_path` parameter is set explicitly to `None` to indicate that the API does not provide the total count.
 
 #### JSONResponseCursorPaginator
 
