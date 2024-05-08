@@ -213,6 +213,20 @@ bucket_url="file://localhost/c$/a/b/c"
 bucket_url="file:////localhost/c$/a/b/c"
 ```
 
+:::caution
+Windows supports paths up to 255 characters. When you access a path longer than 255 characters you'll see `FileNotFound` exception.
+
+ To go over this limit you can use [extended paths](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry). `dlt` recognizes both regular and UNC extended paths
+
+```toml
+[destination.regular_extended]
+bucket_url = '\\?\C:\a\b\c'
+
+[destination.unc_extended]
+bucket_url='\\?\UNC\localhost\c$\a\b\c'
+```
+:::
+
 ## Write disposition
 The filesystem destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
