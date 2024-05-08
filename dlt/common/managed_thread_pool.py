@@ -1,6 +1,5 @@
 from typing import Optional
 
-import atexit
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -15,8 +14,6 @@ class ManagedThreadPool:
         self._thread_pool = ThreadPoolExecutor(
             self._max_workers, thread_name_prefix=self.thread_name_prefix
         )
-        # flush pool on exit
-        atexit.register(self.stop)
 
     @property
     def thread_pool(self) -> ThreadPoolExecutor:
@@ -28,4 +25,3 @@ class ManagedThreadPool:
         if self._thread_pool:
             self._thread_pool.shutdown(wait=wait)
             self._thread_pool = None
-            atexit.unregister(self.stop)

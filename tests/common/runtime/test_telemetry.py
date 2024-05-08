@@ -6,6 +6,8 @@ import logging
 import base64
 from unittest.mock import patch
 
+from pytest_mock import MockerFixture
+
 from dlt.common import logger
 from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.typing import DictStrAny, DictStrStr
@@ -30,7 +32,7 @@ class SentryLoggerConfiguration(RunConfiguration):
     sentry_dsn: str = (
         "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
     )
-    dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
+    # dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
 
 
 @configspec
@@ -133,17 +135,34 @@ def test_sentry_init(environment: DictStrStr) -> None:
 
 
 @pytest.mark.forked
-def test_track_anon_event() -> None:
+def test_track_anon_event(mocker: MockerFixture) -> None:
+    from dlt.sources.helpers import requests
+    from dlt.common.runtime import anon_tracker
+
     mock_github_env(os.environ)
     mock_pod_env(os.environ)
+    config = SentryLoggerConfiguration()
+
+    requests_post = mocker.spy(requests, "post")
 
     props = {"destination_name": "duckdb", "elapsed_time": 712.23123, "success": True}
     with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
-        start_test_telemetry(SentryLoggerConfiguration())
+        start_test_telemetry(config)
         track("pipeline", "run", props)
         # this will send stuff
         disable_anon_tracker()
+
     event = SENT_ITEMS[0]
+    # requests were really called
+    requests_post.assert_called_once_with(
+        config.dlthub_telemetry_endpoint,
+        headers=anon_tracker._tracker_request_header(None),
+        json=event,
+        timeout=anon_tracker._REQUEST_TIMEOUT,
+    )
+    # was actually delivered
+    assert requests_post.spy_return.status_code == 204
+
     assert event["anonymousId"] == get_anonymous_id()
     assert event["event"] == "pipeline_run"
     assert props.items() <= event["properties"].items()

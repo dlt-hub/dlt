@@ -1,3 +1,4 @@
+import atexit
 import time
 import contextlib
 import inspect
@@ -39,6 +40,7 @@ def start_telemetry(config: RunConfiguration) -> None:
     _TELEMETRY_STARTED = True
 
 
+@atexit.register
 def stop_telemetry() -> None:
     global _TELEMETRY_STARTED
     if not _TELEMETRY_STARTED:
