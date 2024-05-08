@@ -1,11 +1,9 @@
 ---
-title: Secrets and Configs
+title: Secrets and configs
 description: What are secrets and configs and how sources and destinations read them.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables]
 ---
-
-# Secrets and Configs
 
 Use secret and config values to pass access credentials and configure or fine-tune your pipelines without the need to modify your code.
 When done right you'll be able to run the same pipeline script during development and in production.

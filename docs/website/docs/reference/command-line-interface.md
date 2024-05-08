@@ -1,10 +1,8 @@
 ---
-title: Command Line Interface
-description: Command Line Interface (CLI) of dlt
+title: Command line interface
+description: Command line interface (CLI) of dlt
 keywords: [command line interface, cli, dlt init]
 ---
-
-# Command Line Interface
 
 ## `dlt init`
 

@@ -1,5 +1,5 @@
 ---
-title: Frequently Asked Questions
+title: Frequently asked questions
 description: Questions asked frequently by users in technical help or github issues
 keywords: [faq, usage information, technical help]
 ---
