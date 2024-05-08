@@ -1,10 +1,8 @@
 ---
-title: 🧪 Schema and Data Contracts
+title: 🧪 Schema and data contracts
 description: Controlling schema evolution and validating data
 keywords: [data contracts, schema, dlt schema, pydantic]
 ---
-
-## Schema and Data Contracts
 
 `dlt` will evolve the schema at the destination by following the structure and data types of the extracted data. There are several modes
 that you can use to control this automatic schema evolution, from the default modes where all changes to the schema are accepted to
