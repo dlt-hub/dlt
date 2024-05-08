@@ -10,7 +10,7 @@ from airflow.utils.state import DagRunState
 from airflow.utils.types import DagRunType
 
 import dlt
-from dlt.common import pendulum
+from dlt.common import logger, pendulum
 from dlt.common.utils import uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 
@@ -962,3 +962,36 @@ def test_run_callable() -> None:
 
             for row in results:
                 assert row[1] == pendulum.tomorrow().format("YYYY-MM-DD")
+
+
+def on_before_run():
+    context = get_current_context()
+    logger.info(f'on_before_run test: {context["tomorrow_ds"]}')
+
+
+def test_on_before_run() -> None:
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "callable_dag.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_regular():
+        tasks = PipelineTasksGroup(
+            "callable_dag_group", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        call_dag = dlt.pipeline(
+            pipeline_name="callable_dag",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        tasks.run(call_dag, mock_data_source, on_before_run=on_before_run)
+
+    dag_def: DAG = dag_regular()
+
+    with mock.patch("dlt.helpers.airflow_helper.logger.info") as logger_mock:
+        dag_def.test()
+        logger_mock.assert_has_calls(
+            [
+                mock.call(f'on_before_run test: {pendulum.tomorrow().format("YYYY-MM-DD")}'),
+            ]
+        )

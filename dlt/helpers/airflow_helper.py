@@ -171,6 +171,7 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
+        on_before_run: Callable = None,
         **kwargs: Any,
     ) -> PythonOperator:
         """
@@ -194,6 +195,8 @@ class PipelineTasksGroup(TaskGroup):
                 for the schema contract settings, this will replace
                 the schema contract settings for all tables in the schema.
             pipeline_name (str, optional): The name of the derived pipeline.
+            on_before_run (Callable, optional): A callable to be
+                executed right before the actual pipeline run.
 
         Returns:
             PythonOperator: Airflow task instance.
@@ -207,6 +210,7 @@ class PipelineTasksGroup(TaskGroup):
             loader_file_format=loader_file_format,
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
+            on_before_run=on_before_run,
         )
         return PythonOperator(task_id=self._task_name(pipeline, data), python_callable=f, **kwargs)
 
@@ -219,6 +223,7 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
+        on_before_run: Callable = None,
     ) -> None:
         """Run the given pipeline with the given data.
 
@@ -242,6 +247,8 @@ class PipelineTasksGroup(TaskGroup):
                 for all tables in the schema.
             pipeline_name (str, optional): The name of the
                 derived pipeline.
+            on_before_run (Callable, optional): A callable
+                to be executed right before the actual pipeline run.
         """
         # activate pipeline
         pipeline.activate()
@@ -279,6 +286,9 @@ class PipelineTasksGroup(TaskGroup):
         try:
             if callable(data):
                 data = data()
+
+            if on_before_run is not None:
+                on_before_run()
 
             # retry with given policy on selected pipeline steps
             for attempt in self.retry_policy.copy(
@@ -334,6 +344,7 @@ class PipelineTasksGroup(TaskGroup):
         write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
+        on_before_run: Callable = None,
         **kwargs: Any,
     ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
@@ -377,6 +388,8 @@ class PipelineTasksGroup(TaskGroup):
                 Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
             schema_contract (TSchemaContract, optional): On override for the schema contract settings,
                 this will replace the schema contract settings for all tables in the schema. Defaults to None.
+            on_before_run (Callable, optional):
+                A callable to be executed right before the actual pipeline run.
 
         Returns:
             Any: Airflow tasks created in order of creation.
@@ -403,6 +416,7 @@ class PipelineTasksGroup(TaskGroup):
                     loader_file_format=loader_file_format,
                     schema_contract=schema_contract,
                     pipeline_name=name,
+                    on_before_run=on_before_run,
                 )
                 return PythonOperator(
                     task_id=self._task_name(pipeline, data), python_callable=f, **kwargs
