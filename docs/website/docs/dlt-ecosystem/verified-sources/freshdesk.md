@@ -5,7 +5,11 @@ keywords: [freshdesk api, freshdesk verified source, freshdesk]
 ---
 import Header from './_source-info-header.md';
 
+
 # Freshdesk
+
+<Header/>
+
 
 [Freshdesk](https://www.freshworks.com/freshdesk/) is a cloud-based customer service software
 that provides businesses with tools for managing customer support via multiple channels including
@@ -35,6 +39,9 @@ To obtain your Freshdesk credentials, follow these steps:
 1. Log in to your Freshdesk account.
 1. Click on the profile icon to open "Profile Settings".
 1. Copy the API key displayed on the right side.
+
+> Note: The Freshdesk UI, which is described here, might change.
+The full guide is available at [this link.](https://support.freshdesk.com/en/support/solutions/articles/215517-how-to-find-your-api-key)
 
 ### Initialize the verified source
 
