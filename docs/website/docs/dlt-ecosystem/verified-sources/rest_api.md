@@ -75,7 +75,7 @@ github_token = "your_github_token"
 
 Let's take a look at the GitHub example in `rest_api_pipeline.py` file:
 
-```python
+```py
 def load_github() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_github",
@@ -157,7 +157,7 @@ Let's break down the configuration in more detail.
 :::tip
 Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE:
 
-```python
+```py
 from rest_api import RESTAPIConfig
 ```
 :::
@@ -294,7 +294,7 @@ These are the available paginator types:
 
 To specify the pagination configuration, you can use the `paginator` field in the endpoint configuration:
 
-```python
+```py
 {
     "path": "issues",
     "paginator": {
@@ -323,7 +323,7 @@ For example, if the API response looks like this:
 
 You can use the following endpoint configuration:
 
-```python
+```py
 {
     "path": "posts",
     "data_selector": "posts",
@@ -346,7 +346,7 @@ For a nested structure like this:
 
 You can use the following endpoint configuration:
 
-```python
+```py
 {
     "path": "posts",
     "data_selector": "results.posts",
@@ -364,7 +364,7 @@ Many APIs require authentication to access their endpoints. The REST API source 
 
 One of the most common method is token-based authentication. To authenticate with a token, you can use the `token` field in the `auth` configuration:
 
-```python
+```py
 {
     "client": {
         ...
@@ -439,7 +439,7 @@ To set up incremental loading for a resource, you can use two options:
 
 1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
 
-    ```python
+    ```py
     "<parameter_name>": {
         "type": "incremental",
         "cursor_path": "<path_to_cursor_field>",
@@ -449,7 +449,7 @@ To set up incremental loading for a resource, you can use two options:
 
     For example, in the `issues` resource configuration in the GitHub example, we have:
 
-    ```python
+    ```py
     "since": {
         "type": "incremental",
         "cursor_path": "updated_at",
@@ -461,7 +461,7 @@ To set up incremental loading for a resource, you can use two options:
 
 2. Specifying the `incremental` field in the [endpoint configuration](#endpoint-configuration):
 
-    ```python
+    ```py
     "incremental": {
         "start_param": "<parameter_name>",
         "end_param": "<parameter_name>",
