@@ -329,11 +329,11 @@ verified source.
 1. To load data related to support, chat and talk in incremental mode:
 
    ```py
-   pipeline = dlt.pipeline(
-      pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
-      destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-      full_refresh = False,
-      dataset_name="sample_zendesk_data"  # Use a custom name if desired
+    pipeline = dlt.pipeline(
+        pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dev_mode = False
+        dataset_name="sample_zendesk_data"  # Use a custom name if desired
    )
    data = zendesk_support(load_all=True, start_date=start_date)
    data_chat = zendesk_chat(start_date=start_date)
@@ -374,3 +374,6 @@ verified source.
    > data. This approach can be used with all incremental Zendesk sources.
 
 <!--@@@DLT_TUBA zendesk-->
+=======
+<!--@@@DLT_SNIPPET_START tuba::zendesk-->
+<!--@@@DLT_SNIPPET_END tuba::zendesk-->

@@ -20,7 +20,7 @@ def parallel_config_snippet() -> None:
 
     # this prevents process pool to run the initialization code again
     if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
-        pipeline = dlt.pipeline("parallel_load", destination="duckdb", full_refresh=True)
+        pipeline = dlt.pipeline("parallel_load", destination="duckdb", dev_mode=True)
         pipeline.extract(read_table(1000000))
 
         load_id = pipeline.list_extracted_load_packages()[0]
@@ -168,8 +168,8 @@ def parallel_pipelines_asyncio_snippet() -> None:
         return pipeline.run(gen_())
 
     # declare pipelines in main thread then run them "async"
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", dev_mode=True)
 
     async def _run_async():
         loop = asyncio.get_running_loop()

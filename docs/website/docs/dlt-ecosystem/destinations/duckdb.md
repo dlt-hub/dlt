@@ -90,7 +90,7 @@ p = dlt.pipeline(
   pipeline_name='chess',
   destination=dlt.destinations.duckdb("files/data.db"),
   dataset_name='chess_data',
-  full_refresh=False
+  dev_mode=False
 )
 
 # will load data to /var/local/database.duckdb (absolute path)
@@ -98,7 +98,7 @@ p = dlt.pipeline(
   pipeline_name='chess',
   destination=dlt.destinations.duckdb("/var/local/database.duckdb"),
   dataset_name='chess_data',
-  full_refresh=False
+  dev_mode=False
 )
 ```
 
@@ -112,7 +112,7 @@ p = dlt.pipeline(
   pipeline_name="chess",
   destination=dlt.destinations.duckdb(db),
   dataset_name="chess_data",
-  full_refresh=False,
+  dev_mode=False,
 )
 
 # Or if you would like to use in-memory duckdb instance
@@ -184,3 +184,12 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 <!--@@@DLT_TUBA duckdb-->
 
+=======
+- [Load data from Google Analytics to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-duckdb)
+- [Load data from Google Sheets to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-duckdb)
+- [Load data from Stripe to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-duckdb)
+- [Load data from Notion to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-duckdb)
+- [Load data from Chess.com to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-duckdb)
+- [Load data from HubSpot to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-duckdb)
+- [Load data from GitHub to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-duckdb)
+<!--@@@DLT_SNIPPET_END tuba::duckdb-->
