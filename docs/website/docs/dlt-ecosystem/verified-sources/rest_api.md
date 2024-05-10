@@ -514,9 +514,9 @@ To set up incremental loading for a resource, you can use two options:
 
     This configuration is more flexible and allows you to specify the start and end conditions for the incremental loading.
 
-## `rest_api_source()` function
+## Advanced configuration
 
-`rest_api_source` function takes the following arguments:
+`rest_api_source()` function creates the [dlt source](../../general-usage/source.md) and lets you configure the following parameters:
 
 - `config`: The REST API configuration dictionary.
 - `name`: An optional name for the source.
