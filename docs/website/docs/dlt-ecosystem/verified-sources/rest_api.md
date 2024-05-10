@@ -409,7 +409,7 @@ To specify the authentication configuration, use the `auth` field in the [client
     "client": {
         "auth": {
             "type": "bearer",
-            "token": dltd.secrets["your_api_token"],
+            "token": dlt.secrets["your_api_token"],
         },
         ...
     },
