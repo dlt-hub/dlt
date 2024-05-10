@@ -540,8 +540,8 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "sentry_dsn": None,
         "slack_incoming_hook": None,
         "dlthub_telemetry": True,
-        "dlthub_telemetry_segment_write_key": "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
-        "dlthub_telemetry_endpoint": "https://api.segment.io/v1/track",
+        "dlthub_telemetry_endpoint": "https://telemetry-tracker.services4758.workers.dev",
+        "dlthub_telemetry_segment_write_key": None,
         "log_format": "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}",
         "log_level": "WARNING",
         "request_timeout": 60,
@@ -570,6 +570,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
     assert c.keys() == expected_dict.keys()
     assert len(c) == len(expected_dict)
     assert c.items() == expected_dict.items()
+    # comparing list compares order
     assert list(c.values()) == list(expected_dict.values())
     for key in c:
         assert c[key] == expected_dict[key]

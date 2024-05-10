@@ -1,3 +1,4 @@
+import atexit
 import time
 import contextlib
 import inspect
@@ -6,7 +7,13 @@ from typing import Any, Callable
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
-from dlt.common.runtime.segment import TEventCategory, init_segment, disable_segment, track
+from dlt.common.runtime.anon_tracker import (
+    TEventCategory,
+    init_anon_tracker,
+    disable_anon_tracker,
+    track,
+)
+from dlt.pipeline.platform import disable_platform_tracker, init_platform_tracker
 
 _TELEMETRY_STARTED = False
 
@@ -25,11 +32,15 @@ def start_telemetry(config: RunConfiguration) -> None:
         init_sentry(config)
 
     if config.dlthub_telemetry:
-        init_segment(config)
+        init_anon_tracker(config)
+
+    if config.dlthub_dsn:
+        init_platform_tracker()
 
     _TELEMETRY_STARTED = True
 
 
+@atexit.register
 def stop_telemetry() -> None:
     global _TELEMETRY_STARTED
     if not _TELEMETRY_STARTED:
@@ -42,7 +53,8 @@ def stop_telemetry() -> None:
     except ImportError:
         pass
 
-    disable_segment()
+    disable_anon_tracker()
+    disable_platform_tracker()
 
     _TELEMETRY_STARTED = False
 

@@ -53,24 +53,51 @@ password = "<password>"
 host = "loader.database.windows.net"
 port = 1433
 connect_timeout = 15
+[destination.mssql.credentials.query]
+# trust self signed SSL certificates
+TrustServerCertificate="yes"
+# require SSL connection
+Encrypt="yes"
+# send large string as VARCHAR, not legacy TEXT
+LongAsMax="yes"
 ```
 
 You can also pass a SQLAlchemy-like database connection:
 ```toml
 # keep it at the top of your toml file! before any section starts
-destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15"
+destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
 ```
 
-To connect to an `mssql` server using Windows authentication, include `trusted_connection=yes` in the connection string. This method is useful when SQL logins aren't available, and you use Windows credentials.
+You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
+
+**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string. This method is useful when SQL logins aren't available, and you use Windows credentials.
 
 ```toml
 destination.mssql.credentials="mssql://username:password@loader.database.windows.net/dlt_data?trusted_connection=yes"
 ```
 > The username and password must be filled out with the appropriate login credentials or left untouched. Leaving these empty is not recommended.
 
-To pass credentials directly, you can use the `credentials` argument passed to `dlt.pipeline` or `pipeline.run` methods.
+**To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
+```toml
+destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?encrypt=no"
+```
+
+**To allow self signed SSL certificate** when you are getting `certificate verify failed:unable to get local issuer certificate`:
+```toml
+destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?TrustServerCertificate=yes"
+```
+
+***To use long strings (>8k) and avoid collation errors**:
+```toml
+destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?LongAsMax=yes"
+```
+
+**To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
 ```py
-pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15")
+pipeline = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15"),
+  dataset_name='chess_data')
 ```
 
 ## Write disposition

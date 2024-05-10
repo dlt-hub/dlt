@@ -7,7 +7,7 @@ from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.utils import digest128
 from dlt.common.runtime.exec_info import github_info
-from dlt.common.runtime.segment import track as dlthub_telemetry_track
+from dlt.common.runtime.anon_tracker import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
 

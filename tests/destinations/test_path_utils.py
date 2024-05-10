@@ -254,6 +254,18 @@ ALL_LAYOUTS = (  # type: ignore
         True,
         [],
     ),
+    (
+        "{Y}/{timestamp_ms}/{table_name}",
+        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table",
+        True,
+        [],
+    ),
+    (
+        "{Y}/{load_package_timestamp_ms}/{table_name}",
+        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table",
+        True,
+        [],
+    ),
     ("{load_id}/{ext}/{table_name}", "mocked-load-id/jsonl/mocked-table", True, []),
     ("{HH}/{mm}/{schema_name}", f"{frozen_datetime.format('HH/mm')}/schema-name", True, []),
     ("{type}/{bobo}/{table_name}", "one-for-all/is-name/mocked-table", True, []),
@@ -302,7 +314,7 @@ def test_layout_validity(
         return_value=job_info,
     )
 
-    now_timestamp = frozen_datetime.to_iso8601_string()
+    now_timestamp = frozen_datetime
     if is_valid:
         path = create_path(
             layout,
@@ -392,7 +404,7 @@ def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
-        load_package_timestamp=now.to_iso8601_string(),
+        load_package_timestamp=now,
         file_name=job_info.file_name(),
     )
 
@@ -413,7 +425,7 @@ def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
     timestamp = int(now.timestamp())
-    now_timestamp = now.to_iso8601_string()
+    now_timestamp = now
     calls = 0
 
     def current_datetime_callback():
@@ -496,7 +508,7 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     load_id, job_info = test_load
     now = pendulum.now()
     timestamp = int(now.timestamp())
-    now_timestamp = now.to_iso8601_string()
+    now_timestamp = now
     logger_spy = mocker.spy(logger, "info")
     ensure_pendulum_datetime_spy = mocker.spy(
         dlt.destinations.path_utils, "ensure_pendulum_datetime"
@@ -545,7 +557,7 @@ def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
     }
     now = pendulum.now()
     timestamp = int(now.timestamp())
-    now_timestamp = now.to_iso8601_string()
+    now_timestamp = now
     created_path = create_path(
         "{schema_name}/{table_name}/{callable_1}-{otter}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",

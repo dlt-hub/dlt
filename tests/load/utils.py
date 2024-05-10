@@ -5,6 +5,7 @@ import os
 from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse
 from dataclasses import dataclass
 
 import dlt
@@ -21,6 +22,7 @@ from dlt.common.destination.reference import (
     WithStagingDataset,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination
+from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -45,7 +47,7 @@ from tests.cases import (
     assert_all_data_types_row,
 )
 
-# bucket urls
+# Bucket urls.
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
@@ -67,7 +69,9 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 # Filter out buckets not in all filesystem drivers
 WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
 WITH_GDRIVE_BUCKETS = [
-    bucket for bucket in WITH_GDRIVE_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+    bucket
+    for bucket in WITH_GDRIVE_BUCKETS
+    if (urlparse(bucket).scheme or "file") in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
@@ -84,6 +88,20 @@ R2_BUCKET_CONFIG = dict(
         endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
     ),
 )
+
+# interesting filesystem layouts for basic tests
+FILE_LAYOUT_CLASSIC = "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}"
+FILE_LAYOUT_MANY_TABLES_ONE_FOLDER = "{table_name}88{load_id}-u-{file_id}.{ext}"
+FILE_LAYOUT_TABLE_IN_MANY_FOLDERS = "{table_name}/{load_id}/{file_id}.{ext}"
+FILE_LAYOUT_TABLE_NOT_FIRST = "{schema_name}/{table_name}/{load_id}/{file_id}.{ext}"
+
+TEST_FILE_LAYOUTS = [
+    DEFAULT_FILE_LAYOUT,
+    FILE_LAYOUT_CLASSIC,
+    FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
+    FILE_LAYOUT_TABLE_IN_MANY_FOLDERS,
+    FILE_LAYOUT_TABLE_NOT_FIRST,
+]
 
 EXTRA_BUCKETS: List[Dict[str, Any]] = []
 if "r2" in ALL_FILESYSTEM_DRIVERS:
@@ -178,12 +196,13 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
+            if destination
+            not in ("athena", "mssql", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
         ]
-        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
@@ -198,9 +217,14 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 force_iceberg=True,
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 extra_info="iceberg",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="clickhouse", file_format="jsonl", supports_dbt=False
             )
         ]
         destination_configs += [
@@ -318,6 +342,49 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=GCS_BUCKET,
+                extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
             ),
             DestinationTestConfiguration(
                 destination="dremio",

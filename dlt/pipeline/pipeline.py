@@ -141,7 +141,6 @@ from dlt.pipeline.state_sync import (
     mark_state_extracted,
     migrate_pipeline_state,
     state_resource,
-    state_doc,
     default_pipeline_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated

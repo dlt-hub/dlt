@@ -120,7 +120,7 @@ Once you have the connection URL, you can directly use it in your pipeline confi
 pipeline = dlt.pipeline(
     pipeline_name='chess',
     destination=dlt.destinations.synapse(
-        credentials=connection_url.render_as_string(hide_password=True)
+        credentials=connection_url.render_as_string(hide_password=False)
     ),
     dataset_name='chess_data'
 )

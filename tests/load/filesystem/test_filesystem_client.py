@@ -4,6 +4,7 @@ from unittest import mock
 
 import pytest
 
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
@@ -12,9 +13,11 @@ from dlt.destinations.impl.filesystem.filesystem import (
     INIT_FILE_NAME,
 )
 
+
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
+from tests.load.utils import TEST_FILE_LAYOUTS
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -35,13 +38,6 @@ NORMALIZED_FILES = [
     "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl",
 ]
 
-ALL_LAYOUTS = (
-    None,
-    "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # new default layout with schema
-    "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # classic layout
-    "{table_name}88{load_id}-u-{file_id}.{ext}",  # default layout with strange separators
-)
-
 
 def test_filesystem_destination_configuration() -> None:
     assert FilesystemDestinationClientConfiguration().fingerprint() == ""
@@ -51,7 +47,7 @@ def test_filesystem_destination_configuration() -> None:
 
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
-@pytest.mark.parametrize("layout", ALL_LAYOUTS)
+@pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, with_gdrive_buckets_env: str) -> None:
     """Test load is successful with an empty destination dataset"""
     if layout:
@@ -60,7 +56,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-    timestamp = "2024-04-05T09:16:59.942779Z"
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
         "dlt.current.load_package",
@@ -72,7 +68,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
     ) as load_info:
         client, jobs, _, load_id = load_info
         layout = client.config.layout
-        dataset_path = posixpath.join(client.fs_path, client.config.dataset_name)
+        dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
 
         # Assert dataset dir exists
         assert client.fs_client.isdir(dataset_path)
@@ -98,7 +94,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
             assert client.fs_client.isfile(destination_path)
 
 
-@pytest.mark.parametrize("layout", ALL_LAYOUTS)
+@pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_replace_write_disposition(layout: str, default_buckets_env: str) -> None:
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
@@ -107,7 +103,8 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    timestamp = "2024-04-05T09:16:59.942779Z"
+    # state is typed now
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
         "dlt.current.load_package",
@@ -168,7 +165,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
-@pytest.mark.parametrize("layout", ALL_LAYOUTS)
+@pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
     if layout:
@@ -178,7 +175,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # also we would like to have reliable timestamp for this test so we patch it
-    timestamp = "2024-04-05T09:16:59.942779Z"
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
         "dlt.current.load_package",

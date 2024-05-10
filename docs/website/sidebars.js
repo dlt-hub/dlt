@@ -69,6 +69,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/facebook_ads',
             'dlt-ecosystem/verified-sources/filesystem',
             'dlt-ecosystem/verified-sources/github',
+            'dlt-ecosystem/verified-sources/google_ads',
             'dlt-ecosystem/verified-sources/google_analytics',
             'dlt-ecosystem/verified-sources/google_sheets',
             'dlt-ecosystem/verified-sources/hubspot',
@@ -105,6 +106,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/mssql',
             'dlt-ecosystem/destinations/synapse',
+            'dlt-ecosystem/destinations/clickhouse',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
@@ -135,6 +137,18 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/destination-tables',
+        {
+          type: 'category',
+          label: 'REST API helpers',
+          link: {
+            type: 'doc',
+            id: 'general-usage/http/overview',
+          },
+          items: [
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
+          ]
+        },
         'dlt-ecosystem/staging',
         'general-usage/state',
         'general-usage/incremental-loading',

@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
 import yaml
 from dlt.common.logger import pretty_format_exception
 
-from dlt.common.pendulum import pendulum
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
@@ -198,14 +197,18 @@ class SqlMergeJob(SqlBaseJob):
 
     @classmethod
     def gen_delete_temp_table_sql(
-        cls, unique_column: str, key_table_clauses: Sequence[str], sql_client: SqlClientBase[Any]
+        cls,
+        table_name: str,
+        unique_column: str,
+        key_table_clauses: Sequence[str],
+        sql_client: SqlClientBase[Any],
     ) -> Tuple[List[str], str]:
         """Generate sql that creates delete temp table and inserts `unique_column` from root table for all records to delete. May return several statements.
 
         Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
-        temp_table_name = cls._new_temp_table_name("delete", sql_client)
+        temp_table_name = cls._new_temp_table_name("delete_" + table_name, sql_client)
         select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
         sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
@@ -282,6 +285,7 @@ class SqlMergeJob(SqlBaseJob):
     @classmethod
     def gen_insert_temp_table_sql(
         cls,
+        table_name: str,
         staging_root_table_name: str,
         sql_client: SqlClientBase[Any],
         primary_keys: Sequence[str],
@@ -290,7 +294,7 @@ class SqlMergeJob(SqlBaseJob):
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
-        temp_table_name = cls._new_temp_table_name("insert", sql_client)
+        temp_table_name = cls._new_temp_table_name("insert_" + table_name, sql_client)
         if len(primary_keys) > 0:
             # deduplicate
             select_sql = cls.gen_select_from_dedup_sql(
@@ -393,7 +397,7 @@ class SqlMergeJob(SqlBaseJob):
             unique_column: str = None
             root_key_column: str = None
 
-            if len(table_chain) == 1:
+            if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
                 key_table_clauses = cls.gen_key_table_clauses(
                     root_table_name, staging_root_table_name, key_clauses, for_delete=True
                 )
@@ -418,7 +422,9 @@ class SqlMergeJob(SqlBaseJob):
                 unique_column = escape_id(unique_columns[0])
                 # create temp table with unique identifier
                 create_delete_temp_table_sql, delete_temp_table_name = (
-                    cls.gen_delete_temp_table_sql(unique_column, key_table_clauses, sql_client)
+                    cls.gen_delete_temp_table_sql(
+                        root_table["name"], unique_column, key_table_clauses, sql_client
+                    )
                 )
                 sql.extend(create_delete_temp_table_sql)
 
@@ -471,6 +477,7 @@ class SqlMergeJob(SqlBaseJob):
                     create_insert_temp_table_sql,
                     insert_temp_table_name,
                 ) = cls.gen_insert_temp_table_sql(
+                    root_table["name"],
                     staging_root_table_name,
                     sql_client,
                     primary_keys,
@@ -555,7 +562,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # retire updated and deleted records
         sql.append(f"""
-            UPDATE {root_table_name} SET {to} = {boundary_ts}
+            {cls.gen_update_table_prefix(root_table_name)} {to} = {boundary_ts}
             WHERE {is_active_clause}
             AND {hash_} NOT IN (SELECT {hash_} FROM {staging_root_table_name});
         """)
@@ -597,7 +604,20 @@ class SqlMergeJob(SqlBaseJob):
                 sql.append(f"""
                     INSERT INTO {table_name}
                     SELECT *
-                    FROM {staging_table_name} AS s
-                    WHERE NOT EXISTS (SELECT 1 FROM {table_name} AS f WHERE f.{unique_column} = s.{unique_column});
+                    FROM {staging_table_name}
+                    WHERE {unique_column} NOT IN (SELECT {unique_column} FROM {table_name});
                 """)
+
         return sql
+
+    @classmethod
+    def gen_update_table_prefix(cls, table_name: str) -> str:
+        return f"UPDATE {table_name} SET"
+
+    @classmethod
+    def requires_temp_table_for_delete(cls) -> bool:
+        """Whether a temporary table is required to delete records.
+
+        Must be `True` for destinations that don't support correlated subqueries.
+        """
+        return False

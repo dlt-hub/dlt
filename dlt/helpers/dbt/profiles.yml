@@ -171,3 +171,16 @@ databricks:
       http_path: "{{ env_var('DLT__CREDENTIALS__HTTP_PATH') }}"
       token: "{{ env_var('DLT__CREDENTIALS__ACCESS_TOKEN') }}"
       threads: 4
+
+
+clickhouse:
+  target: analytics
+  outputs:
+    analytics:
+      type: clickhouse
+      schema: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      host: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT', 8443) | as_number }}"
+      secure: True

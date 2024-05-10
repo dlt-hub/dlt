@@ -83,21 +83,63 @@ to disable tz adjustments.
 
 By default, a DuckDB database will be created in the current working directory with a name `<pipeline_name>.duckdb` (`chess.duckdb` in the example above). After loading, it is available in `read/write` mode via `with pipeline.sql_client() as con:`, which is a wrapper over `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details.
 
-The `duckdb` credentials do not require any secret values. You are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
+The `duckdb` credentials do not require any secret values. [You are free to pass the credentials and configuration explicitly](../../general-usage/destination.md#pass-explicit-credentials). For example:
 ```py
-# will load data to files/data.db database file
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
+# will load data to files/data.db (relative path) database file
+p = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.duckdb("files/data.db"),
+  dataset_name='chess_data',
+  full_refresh=False
+)
 
-# will load data to /var/local/database.duckdb
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="/var/local/database.duckdb")
+# will load data to /var/local/database.duckdb (absolute path)
+p = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.duckdb("/var/local/database.duckdb"),
+  dataset_name='chess_data',
+  full_refresh=False
+)
 ```
 
-The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
+The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use.
+
 ```py
 import duckdb
+
 db = duckdb.connect()
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)
+p = dlt.pipeline(
+  pipeline_name="chess",
+  destination=dlt.destinations.duckdb(db),
+  dataset_name="chess_data",
+  full_refresh=False,
+)
+
+# Or if you would like to use in-memory duckdb instance
+db = duckdb.connect(":memory:")
+p = pipeline_one = dlt.pipeline(
+  pipeline_name="in_memory_pipeline",
+  destination=dlt.destinations.duckdb(db),
+  dataset_name="chess_data",
+)
+
+print(db.sql("DESCRIBE;"))
+
+# Example output
+# ┌──────────┬───────────────┬─────────────────────┬──────────────────────┬───────────────────────┬───────────┐
+# │ database │    schema     │        name         │     column_names     │     column_types      │ temporary │
+# │ varchar  │    varchar    │       varchar       │      varchar[]       │       varchar[]       │  boolean  │
+# ├──────────┼───────────────┼─────────────────────┼──────────────────────┼───────────────────────┼───────────┤
+# │ memory   │ chess_data    │ _dlt_loads          │ [load_id, schema_n…  │ [VARCHAR, VARCHAR, …  │ false     │
+# │ memory   │ chess_data    │ _dlt_pipeline_state │ [version, engine_v…  │ [BIGINT, BIGINT, VA…  │ false     │
+# │ memory   │ chess_data    │ _dlt_version        │ [version, engine_v…  │ [BIGINT, BIGINT, TI…  │ false     │
+# │ memory   │ chess_data    │ my_table            │ [a, _dlt_load_id, …  │ [BIGINT, VARCHAR, V…  │ false     │
+# └──────────┴───────────────┴─────────────────────┴──────────────────────┴───────────────────────┴───────────┘
 ```
+
+:::note
+Be careful! The in-memory instance of the database will be destroyed, once your Python script exits.
+:::
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
@@ -105,12 +147,27 @@ You can configure a DuckDB destination with [secret / config values](../../gener
 ```toml
 destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 ```
+
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 
-A few special connection strings are supported:
-* **:pipeline:** creates the database in the working directory of the pipeline with the name `quack.duckdb`.
-* **:memory:** creates an in-memory database. This may be useful for testing.
+Dlt supports a unique connection string that triggers specific behavior for duckdb destination:
+* **:pipeline:** creates the database in the working directory of the pipeline, naming it `quack.duckdb`.
 
+Please see the code snippets below showing how to use it
+
+1. Via `config.toml`
+```toml
+destination.duckdb.credentials=":pipeline:"
+```
+
+2. In Python code
+```py
+p = pipeline_one = dlt.pipeline(
+  pipeline_name="my_pipeline",
+  destination="duckdb",
+  credentials=":pipeline:",
+)
+```
 
 ### Additional configuration
 Unique indexes may be created during loading if the following config value is set:

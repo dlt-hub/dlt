@@ -1,24 +1,29 @@
 import dataclasses
-from typing import Any, ClassVar, Final, List
+import sys
+from typing import Any, ClassVar, Dict, Final, List, Optional
 
+from dlt.version import __version__
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
-from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 MOTHERDUCK_DRIVERNAME = "md"
+MOTHERDUCK_USER_AGENT = f"dlt/{__version__}({sys.platform})"
 
 
 @configspec(init=False)
 class MotherDuckCredentials(DuckDbBaseCredentials):
-    drivername: Final[str] = dataclasses.field(default="md", init=False, repr=False, compare=False)  # type: ignore
+    drivername: Final[str] = dataclasses.field(  # type: ignore
+        default="md", init=False, repr=False, compare=False
+    )
     username: str = "motherduck"
     password: TSecretValue = None
     database: str = "my_db"
+    custom_user_agent: Optional[str] = MOTHERDUCK_USER_AGENT
 
     read_only: bool = False  # open database read/write
 
@@ -55,10 +60,24 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         if not self.is_partial():
             self.resolve()
 
+    def _get_conn_config(self) -> Dict[str, Any]:
+        # If it was explicitly set to None/null then we
+        # need to use the default value
+        if self.custom_user_agent is None:
+            self.custom_user_agent = MOTHERDUCK_USER_AGENT
+
+        config = {}
+        if self.custom_user_agent and self.custom_user_agent != "":
+            config["custom_user_agent"] = self.custom_user_agent
+
+        return config
+
 
 @configspec
 class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="motherduck", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: Final[str] = dataclasses.field(  # type: ignore
+        default="motherduck", init=False, repr=False, compare=False
+    )
     credentials: MotherDuckCredentials = None
 
     create_indexes: bool = (

@@ -93,6 +93,7 @@ if __name__ == "__main__":
             sheet_names=range_names,
         )
     )
+
     print(load_info)
 
     row_counts = pipeline.last_trace.last_normalize_info.row_counts

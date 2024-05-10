@@ -65,9 +65,13 @@ You can also pass a database connection string similar to the one used by the `p
 destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
-To pass credentials directly, you can use the `credentials` argument passed to the `dlt.pipeline` or `pipeline.run` methods.
+To pass credentials directly, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
 ```py
-pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="postgresql://loader:<password>@localhost/dlt_data")
+pipeline = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.postgres("postgresql://loader:<password>@localhost/dlt_data"),
+  dataset_name='chess_data'
+)
 ```
 
 ## Write disposition

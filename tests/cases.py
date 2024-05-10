@@ -197,6 +197,7 @@ def assert_all_data_types_row(
     timestamp_precision: int = 6,
     schema: TTableSchemaColumns = None,
     expect_filtered_null_columns=False,
+    allow_string_binary: bool = False,
 ) -> None:
     # content must equal
     # print(db_row)
@@ -245,9 +246,14 @@ def assert_all_data_types_row(
                         db_mapping[binary_col]
                     )  # redshift returns binary as hex string
                 except ValueError:
-                    if not allow_base64_binary:
+                    if allow_string_binary:
+                        db_mapping[binary_col] = db_mapping[binary_col].encode("utf-8")
+                    elif allow_base64_binary:
+                        db_mapping[binary_col] = base64.b64decode(
+                            db_mapping[binary_col], validate=True
+                        )
+                    else:
                         raise
-                    db_mapping[binary_col] = base64.b64decode(db_mapping[binary_col], validate=True)
             else:
                 db_mapping[binary_col] = bytes(db_mapping[binary_col])
 
@@ -305,7 +311,7 @@ def arrow_table_all_data_types(
         "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz=tz, unit="us"),
         "bool": [random.choice([True, False]) for _ in range(num_rows)],
         "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [None],
-        "float_null": [round(random.uniform(0, 100), 5) for _ in range(num_rows - 1)] + [
+        "float_null": [round(random.uniform(0, 100), 4) for _ in range(num_rows - 1)] + [
             None
         ],  # decrease precision
         "null": pd.Series([None for _ in range(num_rows)]),

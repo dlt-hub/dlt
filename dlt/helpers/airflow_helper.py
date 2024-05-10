@@ -171,6 +171,7 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
+        on_before_run: Callable[[], None] = None,
         **kwargs: Any,
     ) -> PythonOperator:
         """
@@ -179,7 +180,12 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): The pipeline to run
-            data (Any): The data to run the pipeline with
+            data (Any):
+                The data to run the pipeline with. If a non-resource
+                callable given, it's evaluated during the DAG execution,
+                right before the actual pipeline run.
+                NOTE: If `on_before_run` is provided, first `on_before_run`
+                      is evaluated, and then callable `data`.
             table_name (str, optional): The name of the table to
                 which the data should be loaded within the `dataset`.
             write_disposition (TWriteDispositionConfig, optional): Same as
@@ -191,6 +197,8 @@ class PipelineTasksGroup(TaskGroup):
                 for the schema contract settings, this will replace
                 the schema contract settings for all tables in the schema.
             pipeline_name (str, optional): The name of the derived pipeline.
+            on_before_run (Callable, optional): A callable to be
+                executed right before the actual pipeline run.
 
         Returns:
             PythonOperator: Airflow task instance.
@@ -204,6 +212,7 @@ class PipelineTasksGroup(TaskGroup):
             loader_file_format=loader_file_format,
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
+            on_before_run=on_before_run,
         )
         return PythonOperator(task_id=self._task_name(pipeline, data), python_callable=f, **kwargs)
 
@@ -216,12 +225,18 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
+        on_before_run: Callable[[], None] = None,
     ) -> None:
         """Run the given pipeline with the given data.
 
         Args:
             pipeline (Pipeline): The pipeline to run
-            data (Any): The data to run the pipeline with
+            data (Any):
+                The data to run the pipeline with. If a non-resource
+                callable given, it's evaluated during the DAG execution,
+                right before the actual pipeline run.
+                NOTE: If `on_before_run` is provided, first `on_before_run`
+                      is evaluated, and then callable `data`.
             table_name (str, optional): The name of the
                 table to which the data should be loaded
                 within the `dataset`.
@@ -236,6 +251,8 @@ class PipelineTasksGroup(TaskGroup):
                 for all tables in the schema.
             pipeline_name (str, optional): The name of the
                 derived pipeline.
+            on_before_run (Callable, optional): A callable
+                to be executed right before the actual pipeline run.
         """
         # activate pipeline
         pipeline.activate()
@@ -271,6 +288,12 @@ class PipelineTasksGroup(TaskGroup):
                 )
 
         try:
+            if on_before_run is not None:
+                on_before_run()
+
+            if callable(data):
+                data = data()
+
             # retry with given policy on selected pipeline steps
             for attempt in self.retry_policy.copy(
                 retry=retry_if_exception(
@@ -325,6 +348,7 @@ class PipelineTasksGroup(TaskGroup):
         write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
+        on_before_run: Callable[[], None] = None,
         **kwargs: Any,
     ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
@@ -338,7 +362,10 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): An instance of pipeline used to run the source
-            data (Any): Any data supported by `run` method of the pipeline
+            data (Any):
+                Any data supported by `run` method of the pipeline.
+                If a non-resource callable given, it's called before
+                the load to get the data.
             decompose (Literal["none", "serialize", "parallel"], optional):
                 A source decomposition strategy into Airflow tasks:
                     none - no decomposition, default value.
@@ -365,6 +392,8 @@ class PipelineTasksGroup(TaskGroup):
                 Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
             schema_contract (TSchemaContract, optional): On override for the schema contract settings,
                 this will replace the schema contract settings for all tables in the schema. Defaults to None.
+            on_before_run (Callable, optional):
+                A callable to be executed right before the actual pipeline run.
 
         Returns:
             Any: Airflow tasks created in order of creation.
@@ -391,6 +420,7 @@ class PipelineTasksGroup(TaskGroup):
                     loader_file_format=loader_file_format,
                     schema_contract=schema_contract,
                     pipeline_name=name,
+                    on_before_run=on_before_run,
                 )
                 return PythonOperator(
                     task_id=self._task_name(pipeline, data), python_callable=f, **kwargs

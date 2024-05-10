@@ -15,8 +15,8 @@ class RunConfiguration(BaseConfiguration):
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
-    dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
-    dlthub_telemetry_endpoint: str = "https://api.segment.io/v1/track"
+    dlthub_telemetry_endpoint: Optional[str] = "https://telemetry.scalevector.ai"
+    dlthub_telemetry_segment_write_key: Optional[str] = None
     log_format: str = "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}"
     log_level: str = "WARNING"
     request_timeout: float = 60
