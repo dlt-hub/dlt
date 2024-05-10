@@ -128,33 +128,33 @@ In the `resources` folder, the following two Dagster resources are defined as 
 
     ```py
     class DltPipeline(ConfigurableResource):
-		# Initialize resource with pipeline details
-		pipeline_name: str
-		dataset_name: str
-		destination: str
+        # Initialize resource with pipeline details
+        pipeline_name: str
+        dataset_name: str
+        destination: str
 
-		def create_pipeline(self, resource_data, table_name):
-			"""
-			Creates and runs a dlt pipeline with specified data and table name.
+    def create_pipeline(self, resource_data, table_name):
+        """
+        Creates and runs a dlt pipeline with specified data and table name.
 
-			Args:
-				resource_data: The data to be processed by the pipeline.
-				table_name: The name of the table where data will be loaded.
+        Args:
+          resource_data: The data to be processed by the pipeline.
+          table_name: The name of the table where data will be loaded.
 
-			Returns:
-				The result of the pipeline execution.
-			"""
+        Returns:
+          The result of the pipeline execution.
+        """
 
-			# Configure the dlt pipeline with your destination details
-			pipeline = dlt.pipeline(
-				pipeline_name=self.pipeline_name,
-				destination=self.destination,
-				dataset_name=self.dataset_name
-			)
+        # Configure the dlt pipeline with your destination details
+        pipeline = dlt.pipeline(
+          pipeline_name=self.pipeline_name,
+          destination=self.destination,
+          dataset_name=self.dataset_name
+        )
 
-			# Run the pipeline with your parameters
-			load_info = pipeline.run(resource_data, table_name=table_name)
-			return load_info
+        # Run the pipeline with your parameters
+        load_info = pipeline.run(resource_data, table_name=table_name)
+        return load_info
     ```
 
 2. `LocalFileStorage`: Manages the local file storage, ensuring the storage directory exists and allowing data to be written to files within it. It will be later used in our Dagster assets to save images into the `charts` folder.
