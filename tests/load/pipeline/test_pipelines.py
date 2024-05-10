@@ -1015,8 +1015,9 @@ def test_pipeline_upfront_tables_two_loads(
                 ):
                     with client.with_staging_dataset():
                         tab_name = client.make_qualified_table_name(table_name)
-                        ind = tab_name.rfind('".')
+                        ind = tab_name.rfind(".") - 1
                         tab_name = tab_name[:ind] + "_staging" + tab_name[ind:]
+
                         with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
 
