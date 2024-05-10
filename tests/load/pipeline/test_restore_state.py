@@ -355,7 +355,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     # full refresh will not restore pipeline even if requested
     p._wipe_working_folder()
     p = destination_config.setup_pipeline(
-        pipeline_name=pipeline_name, dataset_name=dataset_name, full_refresh=True
+        pipeline_name=pipeline_name, dataset_name=dataset_name, dev_mode=True
     )
     p.run(loader_file_format=destination_config.file_format)
     assert p.default_schema_name is None

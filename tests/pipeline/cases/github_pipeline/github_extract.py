@@ -6,7 +6,7 @@ from github_pipeline import github  # type: ignore[import-not-found]
 
 if __name__ == "__main__":
     p = dlt.pipeline(
-        "dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False
+        "dlt_github_pipeline", destination="duckdb", dataset_name="github_3", dev_mode=False
     )
     github_source = github()
     if len(sys.argv) > 1:
