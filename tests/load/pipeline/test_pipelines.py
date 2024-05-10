@@ -1014,9 +1014,10 @@ def test_pipeline_upfront_tables_two_loads(
                     job_client.schema.tables[table_name]
                 ):
                     with client.with_staging_dataset():
-                        with client.execute_query(
-                            f"SELECT * FROM {client.make_qualified_table_name(table_name)}"
-                        ) as cur:
+                        tab_name = client.make_qualified_table_name(table_name)
+                        ind = tab_name.rfind('".')
+                        tab_name = tab_name[:ind] + "_staging" + tab_name[ind:]
+                        with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
 
 
