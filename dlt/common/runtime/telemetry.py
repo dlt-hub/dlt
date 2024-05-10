@@ -5,6 +5,7 @@ import inspect
 from typing import Any, Callable
 
 from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
 from dlt.common.runtime.anon_tracker import (
@@ -50,7 +51,7 @@ def stop_telemetry() -> None:
         from dlt.common.runtime.sentry import disable_sentry
 
         disable_sentry()
-    except ImportError:
+    except (MissingDependencyException, ImportError):
         pass
 
     disable_anon_tracker()
