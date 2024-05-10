@@ -30,6 +30,7 @@ from dlt.common.pipeline import (
     _get_matching_resources,
     StateInjectableContext,
     Container,
+    pipeline_state as current_pipeline_state,
 )
 from dlt.common.destination.reference import WithStagingDataset
 
@@ -43,6 +44,7 @@ from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.drop import drop_resources
 from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+from dlt.extract import DltSource
 
 if TYPE_CHECKING:
     from dlt.pipeline import Pipeline
@@ -175,3 +177,32 @@ def drop(
     state_only: bool = False,
 ) -> None:
     return DropCommand(pipeline, resources, schema_name, state_paths, drop_all, state_only)()
+
+
+def refresh_source(pipeline: "Pipeline", source: DltSource) -> Dict[str, Any]:
+    """Run the pipeline's refresh mode on the given source, updating the source's schema and state.
+
+    Returns:
+        The new load package state containing tables that need to be dropped/truncated.
+    """
+    pipeline_state, _ = current_pipeline_state(pipeline._container)
+    if pipeline.refresh is None or pipeline.first_run:
+        return {}
+    _resources_to_drop = (
+        list(source.resources.extracted) if pipeline.refresh != "drop_dataset" else []
+    )
+    drop_result = drop_resources(
+        source.schema,
+        pipeline_state,
+        resources=_resources_to_drop,
+        drop_all=pipeline.refresh == "drop_dataset",
+        state_paths="*" if pipeline.refresh == "drop_dataset" else [],
+    )
+    load_package_state = {}
+    if drop_result.dropped_tables:
+        key = "dropped_tables" if pipeline.refresh != "drop_data" else "truncated_tables"
+        load_package_state[key] = drop_result.dropped_tables
+    source.schema = drop_result.schema
+    if "sources" in drop_result.state:
+        pipeline_state["sources"] = drop_result.state["sources"]
+    return load_package_state

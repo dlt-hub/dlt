@@ -150,7 +150,7 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
 from dlt.common.storages.load_package import TLoadPackageState
-from dlt.pipeline.drop import drop_resources
+from dlt.pipeline.helpers import refresh_source
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -1096,25 +1096,6 @@ class Pipeline(SupportsPipeline):
     def _attach_pipeline(self) -> None:
         pass
 
-    def _refresh_source(self, source: DltSource) -> Tuple[Schema, TPipelineState, Dict[str, Any]]:
-        if self.refresh is None or self.first_run:
-            return source.schema, self.state, {}
-        _resources_to_drop = (
-            list(source.resources.extracted) if self.refresh != "drop_dataset" else []
-        )
-        drop_result = drop_resources(
-            source.schema,
-            self.state,
-            resources=_resources_to_drop,
-            drop_all=self.refresh == "drop_dataset",
-            state_paths="*" if self.refresh == "drop_dataset" else [],
-        )
-        load_package_state = {}
-        if drop_result.dropped_tables:
-            key = "dropped_tables" if self.refresh != "drop_data" else "truncated_tables"
-            load_package_state[key] = drop_result.dropped_tables
-        return drop_result.schema, drop_result.state, load_package_state
-
     def _extract_source(
         self,
         extract: Extract,
@@ -1143,12 +1124,7 @@ class Pipeline(SupportsPipeline):
 
         load_package_state_update = dict(load_package_state_update or {})
         if with_refresh:
-            new_schema, new_state, load_package_state = self._refresh_source(source)
-            load_package_state_update.update(load_package_state)
-            source.schema = new_schema
-            state, _ = current_pipeline_state(self._container)
-            if "sources" in new_state:
-                state["sources"] = new_state["sources"]
+            load_package_state_update.update(refresh_source(self, source))
 
         # extract into pipeline schema
         load_id = extract.extract(
