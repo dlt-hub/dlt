@@ -5,30 +5,44 @@ keywords: [rest api, restful api]
 ---
 import Header from './_source-info-header.md';
 
-# REST API Generic Source
-
 <Header/>
 
 This is a generic dlt source you can use to extract data from any REST API. It uses declarative configuration to define the API endpoints, their relationships, parameters, pagination, and authentication.
 
-## Setup Guide
+## Setup guide
 
 ### Initialize the verified source
 
-Enter the following command:
+Enter the following command in your terminal:
 
-   ```sh
-   dlt init rest_api duckdb
-   ```
+```sh
+dlt init rest_api duckdb
+```
 
-[dlt init](../../reference/command-line-interface) will initialize the pipeline example with REST API as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
+[dlt init](../../reference/command-line-interface) will initialize the pipeline examples for REST API as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-## Add credentials
+Running `dlt init` creates the following in the current folder:
+- `rest_api_pipeline.py` file with a sample pipelines definition:
+    - GitHub API example
+    - Pokemon API example
+- `.dlt` folder with:
+     - `secrets.toml` file to store your access tokens and other sensitive information
+     - `config.toml` file to store the configuration settings
+- `requirements.txt` file with the required dependencies
+
+Change the REST API source to your needs by modifying the `rest_api_pipeline.py` file. See the detailed [source configuration](#source-configuration) section below.
+
+:::note
+For the rest of the guide, we will use the [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28) and [Pokemon API](https://pokeapi.co/) as example sources.
+:::
+
+### Add credentials
 
 In the `.dlt` folder, you'll find a file called `secrets.toml`, where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
 
-The GitHub API requires an access token to be set in the `secrets.toml` file.
-Here is an example of how to set the token in the `secrets.toml` file:
+The GitHub API [requires an access token](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28) to access some of its endpoints and to increase the rate limit for the API calls. To get a GitHub token, follow the GitHub documentation on [managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+After you get the token, add it to the `secrets.toml` file:
 
 ```toml
 [sources.rest_api.github]
@@ -55,7 +69,9 @@ github_token = "your_github_token"
     dlt pipeline rest_api show
     ```
 
-## Source Configuration
+## Source configuration
+
+### Quick example
 
 Let's take a look at the GitHub example in `rest_api_pipeline.py` file:
 
@@ -123,66 +139,305 @@ def load_github() -> None:
     print(load_info)
 ```
 
-The declarative configuration is defined in the `github_config` dictionary. It contains the following key components:
+The declarative resource configuration is defined in the `github_config` dictionary. It contains the following key components:
 
 1. `client`: Defines the base URL and authentication method for the API. In this case it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
-2. `resource_defaults`: Contains default settings for all resources.
+2. `resource_defaults`: Contains default settings for all resources. In this example, we define that all resources:
+    - Have `id` as the [primary key](../../general-usage/resource#define-schema)
+    - Use the `merge` [write disposition](../../general-usage/incremental-loading#choosing-a-write-disposition) to merge the data with the existing data in the destination.
+    - Send a `per_page` query parameter with each request to 100 to get more results per page.
 
-3. `resources`: A list of resources to be loaded. In this example, we have two resources: `issues` and `issue_comments`. Which correspond to the GitHub API endpoints for issues and issue comments.
+3. `resources`: A list of resources to be loaded. In this example, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need a in issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
 
-Each resource has a name and an endpoint configuration. The endpoint configuration includes:
+Let's break down the configuration in more detail.
+
+### Configuration structure
+
+:::tip
+Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE:
+
+```python
+from rest_api import RESTAPIConfig
+```
+:::
+
+
+The configuration object passed to the REST API Generic Source has three main elements:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        ...
+    },
+    "resource_defaults": {
+        ...
+    },
+    "resources": [
+        ...
+    ],
+}
+```
+
+#### `client`
+
+`client` contains the configuration to connect to the API's endpoints. It includes the following fields:
+
+- `base_url` (str): The base URL of the API. This string is prepended to all endpoint paths. For example, if the base URL is `https://api.example.com/v1/`, and the endpoint path is `users`, the full URL will be `https://api.example.com/v1/users`.
+- `headers` (dict, optional): Additional headers to be sent with each request.
+- `auth` (optional): Authentication configuration. It can be a simple token, a `AuthConfigBase` object, or a more complex authentication method.
+- `paginator` (optional): Configuration for the default pagination to be used for resources that support pagination. See the [pagination](#pagination) section for more details.
+
+#### `resource_defaults` (optional)
+
+`resource_defaults` contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
+
+For example, you can set the primary key, write disposition, and other default settings here:
+
+```py
+config = {
+    "client": {
+        ...
+    },
+    "resource_defaults": {
+        "primary_key": "id",
+        "write_disposition": "merge",
+        "endpoint": {
+            "params": {
+                "per_page": 100,
+            },
+        },
+    },
+    "resources": [
+        "resource1",
+        "resource2": {
+            "name": "resource2_name",
+            "write_disposition": "append",
+            "endpoint": {
+                "params": {
+                    "param1": "value1",
+                },
+            },
+        },
+    ],
+}
+```
+
+Above, all resources will have `primary_key` set to `id`, `resource1` will have `write_disposition` set to `merge`, and `resource2` will override the default `write_disposition` with `append`.
+Both `resource1` and `resource2` will have the `per_page` parameter set to 100.
+
+#### `resources`
+
+This is a list of resource configurations that define the API endpoints to be loaded. Each resource configuration can be:
+- a dictionary with the [resource configuration](#resource-configuration).
+- a string. In this case, the string is used as the both as the endpoint path and the resource name, and the resource configuration is taken from the `resource_defaults` configuration if it exists.
+
+### Resource configuration
+
+A resource configuration has the following fields:
+
+- `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
+- `write_disposition`: The write disposition for the resource.
+- `primary_key`: The primary key for the resource.
+- `include_from_parent`: A list of fields from the parent resource to be included in the resource output.
+- `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
+
+### Endpoint configuration
+
+The endpoint configuration defines how to query the API endpoint. Quick example:
+
+```py
+{
+    "path": "issues",
+    "method": "GET",
+    "params": {
+        "sort": "updated",
+        "direction": "desc",
+        "state": "open",
+        "since": {
+            "type": "incremental",
+            "cursor_path": "updated_at",
+            "initial_value": "2024-01-25T11:21:28Z",
+        },
+    },
+    "data_selector": "results",
+}
+```
+
+The fields in the endpoint configuration are:
 
 - `path`: The path to the API endpoint.
 - `method`: The HTTP method to be used. Default is `GET`.
 - `params`: Query parameters to be sent with each request. For example, `sort` to order the results.
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
-- `paginator`: Configuration for paginating the results.
-- `data_selector`: A JSON path to select the data from the response.
+- `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
+- `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
 - `response_actions`: A list of actions that define how to process the response data.
 - `incremental`: Configuration for incremental loading.
 
-When you pass this configuration to the `rest_api_source` function, it creates a dlt source object that can be used with the pipeline.
+### Pagination
 
-`rest_api_source` function takes the following arguments:
+The REST API source will try to automatically handle pagination for you. This works by detecting the pagination details from the first API response.
 
-- `config`: The REST API configuration dictionary.
-- `name`: An optional name for the source.
-- `section`: An optional section name in the configuration file.
-- `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
-- `root_key` (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
-- `schema_contract`: Schema contract settings that will be applied to this resource.
-- `spec`: A specification of configuration and secret values required by the source.
+In some special cases, you may need to specify the pagination configuration explicitly.
 
-## Define Resource Relationships
+These are the available paginator types:
 
-When you have a resource that depends on another resource, you can define the relationship using the resolve field type.
+| Paginator type | String Alias | Description |
+| -------------- | ------------ | ----------- |
+| JSONResponsePaginator | `json_links` | The links to the next page are in the body (JSON) of the response. |
+| HeaderLinkPaginator | `header_links` | The links to the next page are in the response headers. |
+| OffsetPaginator | `offset` | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided. |
+| PageNumberPaginator | `page_number` | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided. |
+| JSONCursorPaginator | `json_cursor` | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON). |
+| SinglePagePaginator | `single_page` | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 
-In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource.
+To specify the pagination configuration, you can use the `paginator` field in the endpoint configuration:
 
 ```python
 {
-    "name": "issue_comments",
-    "endpoint": {
-        "path": "issues/{issue_number}/comments",
-        "params": {
-            "issue_number": {
-                "type": "resolve",
-                "resource": "issues",
-                "field": "number",
-            }
-        },
+    "path": "issues",
+    "paginator": {
+        "type": "json_links",
+        "next_url_path": "paging.next",
     },
-},
+}
+```
+### Data selection
+
+The `data_selector` field in the endpoint configuration allows you to specify a JSONPath to select the data from the response. By default, the source will try to detect locations of the data automatically.
+
+Use this field when you need to specify the location of the data in the response explicitly.
+
+For example, if the API response looks like this:
+
+```json
+{
+    "posts": [
+        {"id": 1, "title": "Post 1"},
+        {"id": 2, "title": "Post 2"},
+        {"id": 3, "title": "Post 3"}
+    ]
+}
+```
+
+You can use the following endpoint configuration:
+
+```python
+{
+    "path": "posts",
+    "data_selector": "posts",
+}
+```
+
+For a nested structure like this:
+
+```json
+{
+    "results": {
+        "posts": [
+            {"id": 1, "title": "Post 1"},
+            {"id": 2, "title": "Post 2"},
+            {"id": 3, "title": "Post 3"}
+        ]
+    }
+}
+```
+
+You can use the following endpoint configuration:
+
+```python
+{
+    "path": "posts",
+    "data_selector": "results.posts",
+}
+```
+
+Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
+
+
+### Authentication
+
+Many APIs require authentication to access their endpoints. The REST API source supports various authentication methods, such as token-based, query parameters, basic auth, etc.
+
+#### Quick example
+
+One of the most common method is token-based authentication. To authenticate with a token, you can use the `token` field in the `auth` configuration:
+
+```python
+{
+    "client": {
+        ...
+        "auth": {
+            "token": dltd.secrets["your_api_token"],
+        },
+        ...
+    },
+}
+```
+
+:::warning
+Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
+:::
+
+Available authentication methods:
+
+| Authentication type | Description |
+| ------------------- | ----------- |
+| BearTokenAuth | Bearer token authentication. |
+| HTTPBasicAuth | Basic HTTP authentication. |
+| APIKeyAuth | API key authentication with key defined in the query parameters or in the headers. |
+
+### Define resource relationships
+
+When you have a resource that depends on another resource, you can define the relationship using the resolve field type.
+
+In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource:
+
+```py
+{
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                ...
+            },
+        },
+        {
+            "name": "issue_comments",
+            "endpoint": {
+                "path": "issues/{issue_number}/comments",
+                "params": {
+                    "issue_number": {
+                        "type": "resolve",
+                        "resource": "issues",
+                        "field": "number",
+                    }
+                },
+            },
+        },
+    ],
+}
 ```
 
 This configuration tells the source to get issue numbers from the `issues` resource and use them to fetch comments for each issue.
 
-## Incremental Loading
+The syntax for the `resolve` field in parameter configuration is:
+
+```py
+"<parameter_name>": {
+    "type": "resolve",
+    "resource": "<parent_resource_name>",
+    "field": "<parent_resource_field_name>",
+}
+```
+
+## Incremental loading
 
 To set up incremental loading for a resource, you can use two options:
 
-1. Defining a special parameter in the `params` section of the endpoint configuration:
+1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
 
     ```python
     "<parameter_name>": {
@@ -204,7 +459,7 @@ To set up incremental loading for a resource, you can use two options:
 
     This configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter in subsequent requests.
 
-2. Specifying the `incremental` field in the endpoint configuration:
+2. Specifying the `incremental` field in the [endpoint configuration](#endpoint-configuration):
 
     ```python
     "incremental": {
@@ -218,3 +473,14 @@ To set up incremental loading for a resource, you can use two options:
 
     This configuration is more flexible and allows you to specify the start and end conditions for the incremental loading.
 
+## `rest_api_source()` function
+
+`rest_api_source` function takes the following arguments:
+
+- `config`: The REST API configuration dictionary.
+- `name`: An optional name for the source.
+- `section`: An optional section name in the configuration file.
+- `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+- `root_key` (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
+- `schema_contract`: Schema contract settings that will be applied to this resource.
+- `spec`: A specification of configuration and secret values required by the source.
