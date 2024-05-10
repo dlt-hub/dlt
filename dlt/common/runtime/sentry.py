@@ -8,7 +8,6 @@ try:
     from sentry_sdk.transport import HttpTransport
     from sentry_sdk.integrations.logging import LoggingIntegration
 except ModuleNotFoundError:
-    sentry_sdk = None
     raise MissingDependencyException(
         "sentry telemetry",
         ["sentry-sdk"],
@@ -54,8 +53,7 @@ def init_sentry(config: RunConfiguration) -> None:
 
 def disable_sentry() -> None:
     # init without parameters disables sentry
-    if sentry_sdk:
-        sentry_sdk.init()
+    sentry_sdk.init()
 
 
 def before_send(event: DictStrAny, _unused_hint: Optional[StrAny] = None) -> Optional[DictStrAny]:
