@@ -36,6 +36,8 @@ Change the REST API source to your needs by modifying the `rest_api_pipeline.py`
 For the rest of the guide, we will use the [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28) and [Pokemon API](https://pokeapi.co/) as example sources.
 :::
 
+This source is based on the [RESTClient class](../../general-usage/http/rest-client.md).
+
 ### Add credentials
 
 In the `.dlt` folder, you'll find a file called `secrets.toml`, where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
@@ -283,26 +285,38 @@ In some special cases, you may need to specify the pagination configuration expl
 
 These are the available paginator types:
 
-| Paginator type | String Alias | Description |
+| Paginator class | String Alias (`type`) | Description |
 | -------------- | ------------ | ----------- |
-| JSONResponsePaginator | `json_links` | The links to the next page are in the body (JSON) of the response. |
-| HeaderLinkPaginator | `header_links` | The links to the next page are in the response headers. |
-| OffsetPaginator | `offset` | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided. |
-| PageNumberPaginator | `page_number` | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided. |
-| JSONCursorPaginator | `json_cursor` | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON). |
+| [JSONResponsePaginator](../../general-usage/http/rest-client.md#jsonresponsepaginator) | `json_response` | The links to the next page are in the body (JSON) of the response. |
+| [HeaderLinkPaginator](../../general-usage/http/rest-client.md#headerlinkpaginator) | `header_link` | The links to the next page are in the response headers. |
+| [OffsetPaginator](../../general-usage/http/rest-client.md#offsetpaginator) | `offset` | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided. |
+| [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | `page_number` | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided. |
+| [JSONCursorPaginator](../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | `cursor` | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON). |
 | SinglePagePaginator | `single_page` | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 
-To specify the pagination configuration, you can use the `paginator` field in the endpoint configuration:
+To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may use either the paginator class or the string alias in the `type` field along with the required parameters.
 
 ```py
 {
-    "path": "issues",
+    ...
     "paginator": {
         "type": "json_links",
         "next_url_path": "paging.next",
-    },
+    }
 }
 ```
+
+Or using the paginator instance:
+
+```py
+{
+    ...
+    "paginator": JSONResponsePaginator(
+        next_url_path="paging.next"
+    ),
+}
+```
+
 ### Data selection
 
 The `data_selector` field in the endpoint configuration allows you to specify a JSONPath to select the data from the response. By default, the source will try to detect locations of the data automatically.
@@ -380,13 +394,40 @@ One of the most common method is token-based authentication. To authenticate wit
 Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
 :::
 
-Available authentication methods:
+Available authentication types:
 
-| Authentication type | Description |
-| ------------------- | ----------- |
-| BearTokenAuth | Bearer token authentication. |
-| HTTPBasicAuth | Basic HTTP authentication. |
-| APIKeyAuth | API key authentication with key defined in the query parameters or in the headers. |
+| Authentication class | String Alias (`type`) | Description |
+| ------------------- | ----------- | ----------- |
+| [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
+| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `api_key` | Basic HTTP authentication. |
+| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `http_basic` | API key authentication with key defined in the query parameters or in the headers. |
+
+To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
+
+```py
+{
+    "client": {
+        "auth": {
+            "type": "bearer",
+            "token": dltd.secrets["your_api_token"],
+        },
+        ...
+    },
+}
+```
+
+Alternatively, you can use the authentication class directly:
+
+```py
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
+config = {
+    "client": {
+        "auth": BearTokenAuth(dltd.secrets["your_api_token"]),
+    },
+    ...
+}
+```
 
 ### Define resource relationships
 
