@@ -109,3 +109,17 @@ You can install `dlt` in your virtual environment by running:
 ```sh
 pip install -U dlt
 ```
+
+## Install dlt via pixi and conda
+
+Install dlt using `pixi`:
+
+```sh
+pixi add dlt
+```
+
+Install dlt using `conda`:
+
+```sh
+conda install -c conda-forge dlt
+```
