@@ -19,7 +19,7 @@ Think about the word “date.” It can mean a fruit, a romantic outing, or a da
 
 > And here's a funny thing: some people, after eating an odd-tasting date (the fruit, of course), are so put off that they naively swear off going on romantic dates altogether. It's an overly exaggerated figurative way of looking at it, but it shows how one bad experience can color our view of something completely different. That's kind of what's happening with orchestration tools. If someone had a bad time with one tool, they might be overly critical towards another, even though it might be a totally different experience.
 
-So the context in terms of orchestration tools seems to be primarily defined by one thing - WHEN a specific tool was first introduced to the market (*aside from the obvious factors like the technical background of the person discussing these tools and their tendency to be a chronic complainer* 🙄). 
+So the context in terms of orchestration tools seems to be primarily defined by one thing - WHEN a specific tool was first introduced to the market (*aside from the obvious factors like the technical background of the person discussing these tools and their tendency to be a chronic complainer* 🙄).
 
 
 ---
@@ -125,39 +125,38 @@ This project is very minimal, including just what's needed to run Dagster locall
 In the `resources` folder, the following two Dagster resources are defined as classes:
 
 1. `DltPipeline`: This is our `dlt` object defined as a Dagster ConfigurableResource that creates and runs a `dlt` pipeline with the specified data and table name. It will later be used in our Dagster assets to load data into Snowflake.
-    
-    ```python
+
+    ```py
     class DltPipeline(ConfigurableResource):
 		# Initialize resource with pipeline details
 		pipeline_name: str
 		dataset_name: str
 		destination: str
-    
+
 		def create_pipeline(self, resource_data, table_name):
 			"""
 			Creates and runs a dlt pipeline with specified data and table name.
-		
+
 			Args:
 				resource_data: The data to be processed by the pipeline.
 				table_name: The name of the table where data will be loaded.
-		
+
 			Returns:
 				The result of the pipeline execution.
 			"""
-		
+
 			# Configure the dlt pipeline with your destination details
 			pipeline = dlt.pipeline(
 				pipeline_name=self.pipeline_name,
 				destination=self.destination,
 				dataset_name=self.dataset_name
 			)
-		
+
 			# Run the pipeline with your parameters
 			load_info = pipeline.run(resource_data, table_name=table_name)
 			return load_info
-		
     ```
-    
+
 2. `LocalFileStorage`: Manages the local file storage, ensuring the storage directory exists and allowing data to be written to files within it. It will be later used in our Dagster assets to save images into the `charts` folder.
 
 ### `dlt` Explained
@@ -167,14 +166,14 @@ In the dlt folder within dlt_dagster_snowflake_demo, necessary dlt resource
 ![dlt explained](https://storage.googleapis.com/dlt-blog-images/dlt_dagster_snowflake_demo_dlt.png)
 
 1. `hacker_news`: A `dlt` resource that yields stories related to specified orchestration tools from Hackernews. For each tool, it retrieves the top 5 stories that have at least one comment. The stories are then appended to the existing data.
-    
+
     Note that the `write_disposition` can also be set to `merge` or `replace`:
-    
+
     - The merge write disposition merges the new data from the resource with the existing data at the destination. It requires a `primary_key` to be specified for the resource. More details can be found here.
     - The replace write disposition replaces the data in the destination with the data from the resource. It deletes all the classes and objects and recreates the schema before loading the data.
-    
+
     More details can be found [here](https://dlthub.com/docs/general-usage/resource).
-    
+
 2. `comments`: A `dlt` transformer - a resource that receives data from another resource. It fetches comments for each story yielded by the `hacker_news` function.
 3. `hacker_news_full`: A `dlt` source that extracts data from the source location using one or more resource components, such as `hacker_news` and `comments`. To illustrate, if the source is a database, a resource corresponds to a table within that database.
 4. `google_trends`: A `dlt` resource that fetches Google Trends data for specified orchestration tools. It attempts to retrieve the data multiple times in case of failures or empty responses. The retrieved data is then appended to the existing data.
@@ -188,7 +187,7 @@ Alright, so once you've got your Dagster assets all materialized and data loaded
 
 ![sentiment counts](https://storage.googleapis.com/dlt-blog-images/blog-on-orchestrators-chart.png)
 
-I understand if you're scratching your head at first glance, but let me clear things up. Remember those sneaky issues I mentioned with Keboola and Luigi earlier? Well, I've masked their charts with the respective “culprits”. 
+I understand if you're scratching your head at first glance, but let me clear things up. Remember those sneaky issues I mentioned with Keboola and Luigi earlier? Well, I've masked their charts with the respective “culprits”.
 
 Now, onto the bars. Each trio of bars illustrates the count of negative, neutral, and positive comments on articles sourced from Hacker News that have at least one comment and were returned when searched for a specific orchestration tool, categorized accordingly by the specific data orchestration tool.
 
@@ -196,7 +195,7 @@ What's the big reveal? It seems like Hacker News readers tend to spread more pos
 
 And, as is often the case with utilizing LLMs, this data should be taken with a grain of salt. It's more of a whimsical exploration than a rigorous analysis. However, if you take a peek behind Kool Aid and Luigi, it's intriguing to note that articles related to them seem to attract a disproportionate amount of negativity. 😂
 
---- 
+---
 
 ## IF YOU'RE STILL HERE
 
