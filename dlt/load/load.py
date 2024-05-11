@@ -11,7 +11,7 @@ from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
-from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo, TRefreshMode
+from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_top_level_table
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
@@ -69,7 +69,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         config: LoaderConfiguration = config.value,
         initial_client_config: DestinationClientConfiguration = config.value,
         initial_staging_client_config: DestinationClientConfiguration = config.value,
-        refresh: Optional[TRefreshMode] = None,
     ) -> None:
         self.config = config
         self.collector = collector
@@ -81,7 +80,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._loaded_packages: List[LoadPackageInfo] = []
-        self.refresh = refresh
         super().__init__()
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
