@@ -383,7 +383,7 @@ One of the most common method is token-based authentication. To authenticate wit
     "client": {
         ...
         "auth": {
-            "token": dltd.secrets["your_api_token"],
+            "token": dlt.secrets["your_api_token"],
         },
         ...
     },
@@ -423,7 +423,7 @@ from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 config = {
     "client": {
-        "auth": BearTokenAuth(dltd.secrets["your_api_token"]),
+        "auth": BearTokenAuth(dlt.secrets["your_api_token"]),
     },
     ...
 }
