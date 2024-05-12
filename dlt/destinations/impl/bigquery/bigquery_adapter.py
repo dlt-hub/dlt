@@ -134,7 +134,7 @@ def bigquery_adapter(
             raise ValueError(
                 "`table_description` must be string representing BigQuery table description."
             )
-        additional_table_hints |= {TABLE_DESCRIPTION_HINT: table_description}  # type: ignore[operator]
+        additional_table_hints[TABLE_DESCRIPTION_HINT] = table_description
 
     if table_expiration_datetime:
         if not isinstance(table_expiration_datetime, str):
@@ -146,7 +146,7 @@ def bigquery_adapter(
             parsed_table_expiration_datetime = parser.parse(table_expiration_datetime).replace(
                 tzinfo=timezone.utc
             )
-            additional_table_hints |= {TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime}  # type: ignore[operator]
+            additional_table_hints[TABLE_EXPIRATION_HINT] = parsed_table_expiration_datetime
         except ValueError as e:
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
@@ -156,7 +156,7 @@ def bigquery_adapter(
                 "BigQuery streaming insert can only be used with `append` write_disposition, while "
                 f"the given resource has `{data.write_disposition}`."
             )
-        additional_table_hints |= {"x-insert-api": insert_api}  # type: ignore[operator]
+        additional_table_hints["x-insert-api"] = insert_api
 
     if column_hints or additional_table_hints:
         resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)

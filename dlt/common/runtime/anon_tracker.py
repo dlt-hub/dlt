@@ -2,29 +2,28 @@
 
 # several code fragments come from https://github.com/RasaHQ/rasa/blob/main/rasa/telemetry.py
 import os
-
-import atexit
 import base64
-import requests
 from typing import Literal, Optional
-from dlt.common.configuration.paths import get_dlt_data_dir
+from requests import Session
 
 from dlt.common import logger
 from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.configuration.specs import RunConfiguration
+from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
+
 from dlt.version import __version__
 
 TEventCategory = Literal["pipeline", "command", "helper"]
 
-_THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
-_SESSION: requests.Session = None
+_THREAD_POOL: ManagedThreadPool = None
 _WRITE_KEY: str = None
 _REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
 _ANON_TRACKER_ENDPOINT: str = None
 _TRACKER_CONTEXT: TExecutionContext = None
+requests: Session = None
 
 
 def init_anon_tracker(config: RunConfiguration) -> None:
@@ -36,12 +35,20 @@ def init_anon_tracker(config: RunConfiguration) -> None:
             config.dlthub_telemetry_segment_write_key
         ), "dlthub_telemetry_segment_write_key not present in RunConfiguration"
 
-    global _WRITE_KEY, _SESSION, _ANON_TRACKER_ENDPOINT
+    # lazily import requests to avoid binding config before initialization
+    global requests
+    from dlt.sources.helpers import requests as r_
+
+    requests = r_  # type: ignore[assignment]
+
+    global _WRITE_KEY, _ANON_TRACKER_ENDPOINT, _THREAD_POOL
+    # start the pool
     # create thread pool to send telemetry to anonymous tracker
-    if not _SESSION:
-        _SESSION = requests.Session()
-        # flush pool on exit
-        atexit.register(_at_exit_cleanup)
+    if _THREAD_POOL is None:
+        _THREAD_POOL = ManagedThreadPool("anon_tracker", 1)
+        # do not instantiate lazy: this happens in _future_send which may be triggered
+        # from a thread and also in parallel when many pipelines are run at once
+        _THREAD_POOL._create_thread_pool()
     # store write key if present
     if config.dlthub_telemetry_segment_write_key:
         key_bytes = (config.dlthub_telemetry_segment_write_key + ":").encode("ascii")
@@ -53,8 +60,13 @@ def init_anon_tracker(config: RunConfiguration) -> None:
 
 
 def disable_anon_tracker() -> None:
-    _at_exit_cleanup()
-    atexit.unregister(_at_exit_cleanup)
+    global _WRITE_KEY, _TRACKER_CONTEXT, _ANON_TRACKER_ENDPOINT, _THREAD_POOL
+    if _THREAD_POOL is not None:
+        _THREAD_POOL.stop(True)
+    _ANON_TRACKER_ENDPOINT = None
+    _WRITE_KEY = None
+    _TRACKER_CONTEXT = None
+    _THREAD_POOL = None
 
 
 def track(event_category: TEventCategory, event_name: str, properties: DictStrAny) -> None:
@@ -82,17 +94,6 @@ def track(event_category: TEventCategory, event_name: str, properties: DictStrAn
 def before_send(event: DictStrAny) -> Optional[DictStrAny]:
     """Called before sending event. Does nothing, patch this function in the module for custom behavior"""
     return event
-
-
-def _at_exit_cleanup() -> None:
-    global _SESSION, _WRITE_KEY, _TRACKER_CONTEXT, _ANON_TRACKER_ENDPOINT
-    if _SESSION:
-        _THREAD_POOL.stop(True)
-        _SESSION.close()
-        _SESSION = None
-    _ANON_TRACKER_ENDPOINT = None
-    _WRITE_KEY = None
-    _TRACKER_CONTEXT = None
 
 
 def _tracker_request_header(write_key: str) -> StrAny:
@@ -188,7 +189,7 @@ def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
     def _future_send() -> None:
         # import time
         # start_ts = time.time_ns()
-        resp = _SESSION.post(
+        resp = requests.post(
             _ANON_TRACKER_ENDPOINT, headers=headers, json=payload, timeout=_REQUEST_TIMEOUT
         )
         # end_ts = time.time_ns()

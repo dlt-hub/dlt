@@ -1,12 +1,11 @@
 ---
-title: Schema Evolution
+title: Schema evolution
 description: A small guide to elaborate on how schema evolution works
 keywords: [schema evolution, schema, dlt schema]
 ---
 
-# Schema evolution
-
 ## When to use schema evolution?
+
 Schema evolution is a best practice when ingesting most data. It’s simply a way to get data across a format barrier.
 
 It separates the technical challenge of “loading” data, from the business challenge of “curating” data. This enables us to have pipelines that are maintainable by different individuals at different stages.
@@ -14,11 +13,13 @@ It separates the technical challenge of “loading” data, from the business ch
 However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](https://dlthub.com/docs/general-usage/schema-contracts).
 
 ## Schema evolution with `dlt`
+
 `dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes.
 
 As the structure of data changes, such as the addition of new columns, changing data types, etc., `dlt` handles these schema changes, enabling you to adapt to changes without losing velocity.
 
 ## Inferring a schema from nested data
+
 The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into relational format, `dlt` flattens dictionaries and unpacks nested lists into sub-tables.
 
 We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that loads the following schema:

@@ -337,7 +337,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             return sql
 
         if generate_alter:
-            raise NotImplementedError("Update table options not yet implemented.")
+            logger.info(
+                f"Table options for {table_name} are not applied on ALTER TABLE. Make sure that you"
+                " set the table options ie. by using bigquery_adapter, before it is created."
+            )
         else:
             sql[0] += (
                 "\nOPTIONS ("

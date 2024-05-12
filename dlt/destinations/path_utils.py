@@ -75,6 +75,15 @@ STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
 
+def normalize_path_sep(pathlib: Any, path: str) -> str:
+    """Normalizes path in `path` separator to one used by `pathlib`"""
+    if pathlib.sep == "/":
+        return path.replace("\\", "/")
+    if pathlib.sep == "\\":
+        return path.replace("/", "\\")
+    return path
+
+
 def get_placeholders(layout: str) -> List[str]:
     return re.findall(r"\{(.*?)\}", layout)
 
@@ -89,7 +98,7 @@ def get_unused_placeholders(
 
 def prepare_datetime_params(
     current_datetime: Optional[pendulum.DateTime] = None,
-    load_package_timestamp: Optional[str] = None,
+    load_package_timestamp: Optional[pendulum.DateTime] = None,
 ) -> Dict[str, str]:
     params: Dict[str, str] = {}
     current_timestamp: pendulum.DateTime = None
@@ -205,7 +214,7 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    load_package_timestamp: Optional[str] = None,
+    load_package_timestamp: Optional[pendulum.DateTime] = None,
     current_datetime: Optional[TCurrentDateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:

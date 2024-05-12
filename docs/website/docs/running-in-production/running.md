@@ -168,8 +168,57 @@ As with any other configuration, you can use environment variables instead of th
 - `RUNTIME__LOG_LEVEL` to set the log level
 - `LOG_FORMAT` to set the log format
 
-`dlt` logs to a logger named **dlt**. Note: redirecting **dlt** log to other logs is not yet
-supported.
+`dlt` logs to a logger named **dlt**. `dlt` logger uses a regular python logger so you can configure the handlers 
+as per your requirement.
+
+For example, to put logs to the file:
+```py
+import logging
+
+# Create a logger
+logger = logging.getLogger('dlt')
+
+# Set the log level
+logger.setLevel(logging.INFO)
+
+# Create a file handler
+handler = logging.FileHandler('dlt.log')
+
+# Add the handler to the logger
+logger.addHandler(handler)
+```
+You can intercept logs by using [loguru](https://loguru.readthedocs.io/en/stable/api/logger.html). To do so, follow the instructions below:
+```py
+import logging
+import sys
+
+import dlt
+from loguru import logger
+
+
+class InterceptHandler(logging.Handler):
+
+    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    def emit(self, record):
+        # Get corresponding Loguru level if it exists.
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message.
+        frame, depth = sys._getframe(6), 6
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+logger_dlt = logging.getLogger("dlt")
+logger_dlt.addHandler(InterceptHandler())
+
+logger.add("dlt_loguru.log")
+```
 
 ## Handle exceptions, failed jobs and retry the pipeline
 

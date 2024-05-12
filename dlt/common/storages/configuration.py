@@ -168,5 +168,4 @@ class FilesystemConfiguration(BaseConfiguration):
         """
         p_ = pathlib.Path(local_path)
         p_ = p_.expanduser().resolve()
-        # return "file:///" + p_.as_posix().lstrip("/")
         return p_.as_uri()

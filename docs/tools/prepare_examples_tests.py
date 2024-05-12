@@ -10,6 +10,7 @@ EXAMPLES_DIR = "../examples"
 
 # settings
 SKIP_FOLDERS = ["archive", ".", "_", "local_cache"]
+SKIP_EXAMPLES = ["qdrant_zendesk"]
 
 # the entry point for the script
 MAIN_CLAUSE = 'if __name__ == "__main__":'
@@ -38,6 +39,9 @@ if __name__ == "__main__":
     for example in next(os.walk(EXAMPLES_DIR))[1]:
         # skip some
         if any(map(lambda skip: example.startswith(skip), SKIP_FOLDERS)):
+            continue
+
+        if example in SKIP_EXAMPLES:
             continue
 
         count += 1
