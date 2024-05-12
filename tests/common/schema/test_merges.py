@@ -215,7 +215,7 @@ def test_none_resets_on_merge_column() -> None:
 
     # leaves props with unknown defaults (assumes None is default)
     col_a = utils.merge_column(
-        col_a={"name": "col1", "x-prop": "prop"}, col_b={"name": "col1", "x-prop": None}
+        col_a={"name": "col1", "x-prop": "prop"}, col_b={"name": "col1", "x-prop": None}  # type: ignore[typeddict-unknown-key]
     )
     assert col_a == {"name": "col1", "x-prop": None}
 
