@@ -9,6 +9,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TColumnProp, TColumnSchema
+from dlt.common.schema import utils
 from dlt.common.typing import TDataItems
 
 from dlt.extract import DltResource, DltSource, Incremental
@@ -1314,6 +1316,7 @@ def test_apply_hints() -> None:
     assert empty_r.compute_table_schema()["columns"]["tags"] == {
         "data_type": "complex",
         "name": "tags",
+        "nullable": False,  # NOT NULL because `tags` do not define it
         "primary_key": True,
         "merge_key": True,
     }
@@ -1434,6 +1437,69 @@ def test_apply_hints_table_variants() -> None:
         empty.apply_hints(
             table_name="table_b", write_disposition=lambda ev: ev["wd"], create_table_variant=True
         )
+
+
+@pytest.mark.parametrize("key_prop", ("primary_key", "merge_key"))
+def test_apply_hints_keys(key_prop: TColumnProp) -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+
+    key_columns = ["id_1", "id_2"]
+
+    empty = DltResource.from_data(empty_gen)
+    # apply compound key
+    empty.apply_hints(**{key_prop: key_columns})  # type: ignore
+    table = empty.compute_table_schema()
+    actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
+    assert actual_keys == key_columns
+    # nullable is false
+    actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
+    assert actual_keys == key_columns
+
+    # apply new key
+    key_columns_2 = ["id_1", "id_3"]
+    empty.apply_hints(**{key_prop: key_columns_2})  # type: ignore
+    table = empty.compute_table_schema()
+    actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
+    assert actual_keys == key_columns_2
+    actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
+    assert actual_keys == key_columns_2
+
+    # if column is present for a key, it get merged and nullable should be preserved
+    id_2_col: TColumnSchema = {
+        "name": "id_2",
+        "data_type": "bigint",
+    }
+
+    empty.apply_hints(**{key_prop: key_columns}, columns=[id_2_col])  # type: ignore
+    table = empty.compute_table_schema()
+    actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
+    assert set(actual_keys) == set(key_columns)
+    # nullable not set in id_2_col so NOT NULL is set
+    actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
+    assert set(actual_keys) == set(key_columns)
+
+    id_2_col["nullable"] = True
+    empty.apply_hints(**{key_prop: key_columns}, columns=[id_2_col])  # type: ignore
+    table = empty.compute_table_schema()
+    actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
+    assert set(actual_keys) == set(key_columns)
+    # id_2 set to NULL
+    actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
+    assert set(actual_keys) == {"id_1"}
+
+    # apply key via schema
+    key_columns_3 = ["id_2", "id_1", "id_3"]
+    id_2_col[key_prop] = True
+
+    empty = DltResource.from_data(empty_gen)
+    empty.apply_hints(**{key_prop: key_columns_2}, columns=[id_2_col])  # type: ignore
+    table = empty.compute_table_schema()
+    # all 3 columns have the compound key. we do not prevent setting keys via schema
+    actual_keys = utils.get_columns_names_with_prop(table, key_prop, include_incomplete=True)
+    assert actual_keys == key_columns_3
+    actual_keys = utils.get_columns_names_with_prop(table, "nullable", include_incomplete=True)
+    assert actual_keys == key_columns_2
 
 
 def test_resource_no_template() -> None:

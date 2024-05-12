@@ -127,7 +127,7 @@ def has_default_column_prop_value(prop: str, value: Any) -> bool:
     if prop == "x-active-record-timestamp":
         # None is a valid value so it is not a default
         return False
-    return value is None
+    return value in (None, False)
 
 
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
@@ -484,8 +484,6 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
 def get_columns_names_with_prop(
     table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
 ) -> List[str]:
-    # column_prop: TColumnProp = hint_to_column_prop(hint_type)
-    # default = column_prop != "nullable"  # default is true, only for nullable false
     return [
         c["name"]
         for c in table["columns"].values()

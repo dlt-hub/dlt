@@ -820,7 +820,10 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         name=table_name,
         write_disposition="merge",
         primary_key="id",  # sort hints only have effect when a primary key is provided
-        columns={"sequence": {"dedup_sort": "desc"}, "id": {"dedup_sort": None}},
+        columns={
+            "sequence": {"dedup_sort": "desc", "nullable": False},
+            "val": {"dedup_sort": None},
+        },
     )
     def data_resource(data):
         yield data
@@ -848,7 +851,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # now test "asc" sorting
-    data_resource.apply_hints(columns={"sequence": {"dedup_sort": "asc"}})
+    data_resource.apply_hints(columns={"sequence": {"dedup_sort": "asc", "nullable": False}})
 
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -867,7 +870,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     table_name = "test_dedup_sort_hint_complex"
     data_resource.apply_hints(
         table_name=table_name,
-        columns={"sequence": {"dedup_sort": "desc"}},
+        columns={"sequence": {"dedup_sort": "desc", "nullable": False}},
     )
 
     # three records with same primary key
@@ -891,7 +894,10 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     table_name = "test_dedup_sort_hint_with_hard_delete"
     data_resource.apply_hints(
         table_name=table_name,
-        columns={"sequence": {"dedup_sort": "desc"}, "deleted": {"hard_delete": True}},
+        columns={
+            "sequence": {"dedup_sort": "desc", "nullable": False},
+            "deleted": {"hard_delete": True},
+        },
     )
 
     # three records with same primary key

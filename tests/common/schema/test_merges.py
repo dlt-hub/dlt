@@ -16,21 +16,22 @@ COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
     "foreign_key": True,
     "data_type": "text",
     "name": "test",
-    "x-special": True,
+    "x-special": "value",
     "x-special-int": 100,
     "nullable": False,
+    "x-special-bool-true": True,
     "x-special-bool": False,
     "prop": None,
 }
 
-COL_1_HINTS_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
+COL_1_HINTS_NO_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
     "foreign_key": True,
     "data_type": "text",
     "name": "test",
-    "x-special": True,
+    "x-special": "value",
     "x-special-int": 100,
     "nullable": False,
-    "x-special-bool": False,
+    "x-special-bool-true": True,
 }
 
 COL_2_HINTS: TColumnSchema = {"nullable": True, "name": "test_2", "primary_key": False}
@@ -46,7 +47,7 @@ COL_2_HINTS: TColumnSchema = {"nullable": True, "name": "test_2", "primary_key":
         ("nullable", True, True),
         ("nullable", False, False),
         ("nullable", None, True),
-        ("x-special", False, False),
+        ("x-special", False, True),
         ("x-special", True, False),
         ("x-special", None, True),
         ("unique", False, True),
@@ -90,7 +91,7 @@ def test_check_column_with_props(prop: str, value: Any, is_default: bool) -> Non
 def test_column_remove_defaults() -> None:
     clean = utils.remove_column_defaults(copy(COL_1_HINTS))
     # mind that nullable default is False and Nones will be removed
-    assert clean == COL_1_HINTS_DEFAULTS
+    assert clean == COL_1_HINTS_NO_DEFAULTS
     # check nullable True
     assert utils.remove_column_defaults(copy(COL_2_HINTS)) == {"name": "test_2"}
 
@@ -101,9 +102,11 @@ def test_column_add_defaults() -> None:
     assert full["unique"] is False
     # remove defaults from full
     clean = utils.remove_column_defaults(copy(full))
-    assert clean == COL_1_HINTS_DEFAULTS
+    assert clean == COL_1_HINTS_NO_DEFAULTS
     # prop is None and will be removed
     del full["prop"]  # type: ignore[typeddict-item]
+    # same for x-special-bool
+    del full["x-special-bool"]  # type: ignore[typeddict-item]
     assert utils.add_column_defaults(copy(clean)) == full
 
     # test incomplete
@@ -182,9 +185,10 @@ def test_merge_columns() -> None:
         "cluster": False,
         "foreign_key": True,
         "data_type": "text",
-        "x-special": True,
+        "x-special": "value",
         "x-special-int": 100,
         "x-special-bool": False,
+        "x-special-bool-true": True,
         "prop": None,
     }
 
@@ -196,9 +200,10 @@ def test_merge_columns() -> None:
         "cluster": False,
         "foreign_key": True,
         "data_type": "text",
-        "x-special": True,
+        "x-special": "value",
         "x-special-int": 100,
         "x-special-bool": False,
+        "x-special-bool-true": True,
         "prop": None,
         "primary_key": False,
     }
