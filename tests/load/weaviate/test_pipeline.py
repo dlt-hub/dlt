@@ -1,17 +1,17 @@
+import os
 import pytest
 from typing import Iterator
 
 import dlt
 from dlt.common import json
-from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.impl.weaviate import weaviate_adapter
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
-from dlt.pipeline.exceptions import PipelineStepFailed
 
+from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, drop_active_pipeline_data
 from tests.load.utils import sequence_generator
@@ -371,6 +371,8 @@ def test_empty_dataset_allowed() -> None:
 
 
 def test_vectorize_property_without_data() -> None:
+    # disable state sync to not restore schemas when we switch
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # we request to vectorize "content" but property with this name does not appear in the data
     # an incomplete column was created and it can't be created at destination
     dataset_name = "without_data_" + uniq_id()
@@ -392,8 +394,8 @@ def test_vectorize_property_without_data() -> None:
     assert isinstance(pipe_ex.value.__context__, PropertyNameConflict)
 
     # set the naming convention to case insensitive
-    # os.environ["SCHEMA__NAMING"] = "direct"
-    dlt.config["schema.naming"] = "dlt.destinations.impl.weaviate.ci_naming"
+    os.environ["SCHEMA__NAMING"] = "dlt.destinations.impl.weaviate.ci_naming"
+    # dlt.config["schema.naming"] = "dlt.destinations.impl.weaviate.ci_naming"
     # create new schema with changed naming convention
     p = p.drop()
     info = p.run(

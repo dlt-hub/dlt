@@ -363,7 +363,6 @@ def merge_columns(
         if is_complete_column(column_b):
             if column_a and not is_complete_column(column_a):
                 columns_a.pop(col_name)
-                column_a = None
         if column_a and merge_columns:
             column_b = merge_column(column_a, column_b)
         # set new or updated column
