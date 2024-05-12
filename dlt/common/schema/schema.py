@@ -446,7 +446,7 @@ class Schema:
             for column_name in table:
                 if column_name in row:
                     hint_value = table[column_name][column_prop]
-                    if not utils.has_default_column_hint_value(column_prop, hint_value):
+                    if not utils.has_default_column_prop_value(column_prop, hint_value):
                         rv_row[column_name] = row[column_name]
         except KeyError:
             for k, v in row.items():
@@ -702,7 +702,7 @@ class Schema:
         for hint in COLUMN_HINTS:
             column_prop = utils.hint_to_column_prop(hint)
             hint_value = self._infer_hint(hint, v, k)
-            if not utils.has_default_column_hint_value(column_prop, hint_value):
+            if not utils.has_default_column_prop_value(column_prop, hint_value):
                 column_schema[column_prop] = hint_value
 
         if is_variant:
