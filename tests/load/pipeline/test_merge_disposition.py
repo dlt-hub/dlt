@@ -807,6 +807,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
         info = p.run(r(), loader_file_format=destination_config.file_format)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, supports_merge=True),
@@ -819,7 +820,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         name=table_name,
         write_disposition="merge",
         primary_key="id",  # sort hints only have effect when a primary key is provided
-        columns={"sequence": {"dedup_sort": "desc"}},
+        columns={"sequence": {"dedup_sort": "desc"}, "id": {"dedup_sort": None}},
     )
     def data_resource(data):
         yield data

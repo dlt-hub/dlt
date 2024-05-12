@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 from copy import copy, deepcopy
 
@@ -35,14 +36,55 @@ COL_1_HINTS_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
 COL_2_HINTS: TColumnSchema = {"nullable": True, "name": "test_2", "primary_key": False}
 
 
-def test_check_column_defaults() -> None:
-    assert utils.has_default_column_hint_value("data_type", "text") is False
-    assert utils.has_default_column_hint_value("name", 123) is False
-    assert utils.has_default_column_hint_value("nullable", True) is True
-    assert utils.has_default_column_hint_value("nullable", False) is False
-    assert utils.has_default_column_hint_value("x-special", False) is False
-    assert utils.has_default_column_hint_value("unique", False) is True
-    assert utils.has_default_column_hint_value("unique", True) is False
+@pytest.mark.parametrize(
+    "prop,value,is_default",
+    (
+        ("data_type", "text", False),
+        ("data_type", None, True),
+        ("name", "xyz", False),
+        ("name", None, True),
+        ("nullable", True, True),
+        ("nullable", False, False),
+        ("nullable", None, True),
+        ("x-special", False, False),
+        ("x-special", True, False),
+        ("x-special", None, True),
+        ("unique", False, True),
+        ("unique", True, False),
+        ("dedup_sort", "asc", False),
+        ("dedup_sort", None, True),
+        ("x-active-record-timestamp", None, False),
+        ("x-active-record-timestamp", "2100-01-01", False),
+    ),
+)
+def test_check_column_with_props(prop: str, value: Any, is_default: bool) -> None:
+    # check default
+    assert utils.has_default_column_prop_value(prop, value) is is_default
+    # check if column with prop is found
+    if prop == "name" and is_default:
+        # do not check name not present
+        return
+    column: TColumnSchema = {"name": "column_a"}
+    column[prop] = value  # type: ignore[literal-required]
+    table = utils.new_table("test", columns=[column])
+    expected_columns = [column["name"]] if not is_default else []
+    expected_column = column["name"] if not is_default else None
+    assert (
+        utils.get_columns_names_with_prop(table, prop, include_incomplete=True) == expected_columns
+    )
+    assert (
+        utils.get_first_column_name_with_prop(table, prop, include_incomplete=True)
+        == expected_column
+    )
+    assert utils.has_column_with_prop(table, prop, include_incomplete=True) is not is_default
+    # if data_type is set, column is complete
+    if prop == "data_type" and not is_default:
+        assert (
+            utils.get_columns_names_with_prop(table, prop, include_incomplete=False)
+            == expected_columns
+        )
+    else:
+        assert utils.get_columns_names_with_prop(table, prop, include_incomplete=False) == []
 
 
 def test_column_remove_defaults() -> None:
