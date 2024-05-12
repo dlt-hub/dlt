@@ -175,6 +175,7 @@ class Extractor:
             computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
+            # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
             diff_table = utils.diff_table(existing_table, computed_table)
         else:
             diff_table = computed_table

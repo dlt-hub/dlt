@@ -392,7 +392,9 @@ class DltResourceHints:
             keys = [keys]
         for key in keys:
             if key in partial["columns"]:
-                merge_column(partial["columns"][key], {hint: True})  # type: ignore
+                # set nullable to False if not set
+                nullable = partial["columns"][key].get("nullable", False)
+                merge_column(partial["columns"][key], {hint: True, "nullable": nullable})  # type: ignore
             else:
                 partial["columns"][key] = new_column(key, nullable=False)
                 partial["columns"][key][hint] = True
