@@ -18,7 +18,7 @@ steps below.
 Imagine you want to analyze issues from a GitHub project locally.
 To achieve this, you need to write code that accomplishes the following:
 
-1. Build correct requests.
+1. Constructs a correct request.
 2. Authenticates your requests.
 3. Fetches and handles paginated issue data.
 4. Stores the data for analysis.
