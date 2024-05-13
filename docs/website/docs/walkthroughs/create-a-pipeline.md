@@ -154,7 +154,7 @@ This will open a Streamlit app that gives you an overview of the data loaded.
 
 With a functioning pipeline, consider exploring:
 
-- Learn more about our [rest client](https://dlthub.com/devel/general-usage/http/rest-client).
+- Our [rest client](https://dlthub.com/devel/general-usage/http/rest-client).
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
   the data is automatically loaded on a schedule.
 - Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in
