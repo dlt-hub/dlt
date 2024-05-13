@@ -65,6 +65,9 @@ class BasePaginator(ABC):
         """
         ...
 
+    def __str__(self) -> str:
+        return f"{type(self).__name__} at {id(self):x}"
+
 
 class SinglePagePaginator(BasePaginator):
     """A paginator for single-page API responses."""

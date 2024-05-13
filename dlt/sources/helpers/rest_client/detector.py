@@ -199,6 +199,12 @@ def single_page_detector(response: Response) -> Tuple[SinglePagePaginator, float
 
 class PaginatorFactory:
     def __init__(self, detectors: List[Callable[[Response], Tuple[BasePaginator, float]]] = None):
+        """`detectors` are functions taking Response as input and returning paginator instance and
+        detection score. Score value:
+        1.0 - perfect detection
+        0.0 - fallback detection
+        in between - partial detection, several paginator parameters are defaults
+        """
         if detectors is None:
             detectors = [
                 header_links_detector,
