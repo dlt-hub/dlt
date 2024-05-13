@@ -13,7 +13,7 @@ using the command `dlt init <source> <destination>` and tweaking the pipeline ac
 Please make sure you have [installed `dlt`](../reference/installation.md) before following the
 steps below.
 
-## Task Overview
+## Task overview
 
 Imagine you want to analyze issues from a GitHub project locally.
 To achieve this, you need to write code that accomplishes the following:
