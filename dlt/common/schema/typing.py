@@ -91,6 +91,7 @@ class TColumnType(TypedDict, total=False):
     data_type: Optional[TDataType]
     precision: Optional[int]
     scale: Optional[int]
+    partition: Optional[bool]
 
 
 class TColumnSchemaBase(TColumnType, total=False):

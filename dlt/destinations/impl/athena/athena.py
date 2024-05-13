@@ -418,7 +418,8 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         table = self.prepare_load_table(table_name, self.in_staging_mode)
         table_format = table.get("table_format")
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
-        columns = ", ".join([self._get_column_def_sql(c, table_format) for c in new_columns])
+        columns = ", ".join([self._get_column_def_sql(c, table_format) for c in new_columns if not c.get("partition")])
+        partition_by = [c for c in new_columns if c.get("partition")]
 
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name)
@@ -443,6 +444,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             else:
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
+                        {"PARTITIONED BY (" + partition_by[0]["name"] + " " + partition_by[0]["data_type"] + ")" if partition_by else ""}
                         STORED AS PARQUET
                         LOCATION '{location}';""")
         return sql
