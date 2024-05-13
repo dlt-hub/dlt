@@ -1005,7 +1005,7 @@ def test_pipeline_upfront_tables_two_loads(
 
     job_client, _ = pipeline._get_destination_clients(schema)
 
-    if isinstance(job_client, WithStagingDataset):
+    if destination_config.staging and isinstance(job_client, WithStagingDataset):
         with pipeline.sql_client() as client:
             for i in range(1, 4):
                 table_name = f"table_{i}"
