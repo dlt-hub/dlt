@@ -107,7 +107,8 @@ def spotify_shows(
             fetch_show_episode_data(show_id, access_token, params),
             name=show_name,
             write_disposition="merge",
-            primary_key="id",  # parallelized=True,
+            primary_key="id",
+            parallelized=True,
             max_table_nesting=0,
         )
 
