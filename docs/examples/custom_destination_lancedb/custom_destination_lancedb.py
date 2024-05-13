@@ -115,7 +115,7 @@ def spotify_shows(
 
 @dlt.destination(batch_size=250, name="lancedb")
 def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
-    db = lancedb.connect(db_path, read_consistency_interval=datetime.timedelta(0))
+    db = lancedb.connect(db_path)
     try:
         tbl = db.open_table(table["name"])
     except FileNotFoundError:
@@ -124,7 +124,7 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
 
 
 if __name__ == "__main__":
-    db = lancedb.connect(db_path, read_consistency_interval=datetime.timedelta(0))
+    db = lancedb.connect(db_path)
 
     for show in fields(Shows):
         db.drop_table(show.name, ignore_missing=True)
