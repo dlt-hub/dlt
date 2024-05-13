@@ -65,7 +65,7 @@ Below `api_secret_key` [will get its value](../general-usage/credentials/configu
 ```py
 @dlt.source
 def githubapi_source(api_secret_key=dlt.secrets.value):
-    return githubapi_my_repo_issues(api_secret_key=api_secret_key)
+    return githubapi_resource(api_secret_key=api_secret_key)
 ```
 
 Run the `githubapi.py` pipeline script to test that authentication headers look fine:
@@ -82,7 +82,7 @@ Your API key should be printed out to stdout along with some test data.
 >[!NOTE]
 > We will use dlt as an example project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
 
-Modify `githubapi_my_repo_issues` in `githubapi.py` to request issues data from your GitHub project's API:
+Modify `githubapi_resource` in `githubapi.py` to request issues data from your GitHub project's API:
 
 ```py
 from dlt.sources.helpers.rest_client import paginate
@@ -90,7 +90,7 @@ from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
 @dlt.resource(write_disposition="append")
-def githubapi_my_repo_issues(api_secret_key=dlt.secrets.value):
+def githubapi_resource(api_secret_key=dlt.secrets.value):
     url = "https://api.github.com/repos/dlt-hub/dlt/issues"
 
     for page in paginate(
@@ -135,7 +135,7 @@ if __name__=='__main__':
     )
 
     # print credentials by running the resource
-    data = list(githubapi_my_repo_issues())
+    data = list(githubapi_resource())
 
     # print the data yielded from resource
     print(data)
