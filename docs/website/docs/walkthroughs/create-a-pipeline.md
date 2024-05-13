@@ -64,7 +64,7 @@ Below `api_secret_key` [will get its value](../general-usage/credentials/configu
 
 ```py
 @dlt.source
-def githubapi_source(api_secret_key=dlt.secrets.value):
+def githubapi_source(api_secret_key: str = dlt.secrets.value):
     return githubapi_resource(api_secret_key=api_secret_key)
 ```
 
@@ -90,7 +90,7 @@ from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
 @dlt.resource(write_disposition="append")
-def githubapi_resource(api_secret_key=dlt.secrets.value):
+def githubapi_resource(api_secret_key: str = dlt.secrets.value):
     url = "https://api.github.com/repos/dlt-hub/dlt/issues"
 
     for page in paginate(
