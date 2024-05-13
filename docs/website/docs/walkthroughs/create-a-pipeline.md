@@ -23,6 +23,8 @@ To achieve this, you need to write code that accomplishes the following:
 3. Fetches and handles paginated issue data.
 4. Stores the data for analysis.
 
+This sounds complicated and it is indeed complicated, but we offer you our [rest client](https://dlthub.com/devel/general-usage/http/rest-client) which let's you put more focus on your data.
+
 
 ## 1. Initialize project
 
