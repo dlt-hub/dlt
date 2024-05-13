@@ -103,35 +103,18 @@ def githubapi_resource(api_secret_key=dlt.secrets.value):
         yield page
 ```
 
-Run the `githubapi.py` pipeline script to test that the API call works:
-
-```sh
-python3 githubapi.py
-```
-
-This should print out json data containig the issues in the GitHub project.
-
-Then, confirm the data is loaded
-
->[!NOTE]
-> Make sure you have `streamlit` installed `pip install streamlit`
-
-```sh
-dlt pipeline githubapi show
-```
-
 ## 4. Load the data
 
-Remove the `exit()` call from the `main` function in `githubapi.py`, so that running the
+Uncomment the commented out code in `main` function in `githubapi.py`, so that running the
 `python3 githubapi.py` command will now also run the pipeline:
 
 ```py
 if __name__=='__main__':
     # configure the pipeline with your destination details
     pipeline = dlt.pipeline(
-        pipeline_name='githubapi_repo_issues',
+        pipeline_name='githubapi',
         destination='duckdb',
-        dataset_name='repo_issues_data'
+        dataset_name='githubapi_data'
     )
 
     # print credentials by running the resource
@@ -147,13 +130,19 @@ if __name__=='__main__':
     print(load_info)
 ```
 
-Load your GitHub issues into DuckDB:
+
+Run the `githubapi.py` pipeline script to test that the API call works:
 
 ```sh
 python3 githubapi.py
 ```
 
-Then this command to see that the data loaded:
+This should print out json data containig the issues in the GitHub project.
+
+Then, confirm the data is loaded
+
+>[!NOTE]
+> Make sure you have `streamlit` installed `pip install streamlit`
 
 ```sh
 dlt pipeline githubapi show
