@@ -20,10 +20,10 @@ import datetime  # noqa: I251
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Optional, Dict, Any
 
 import lancedb  # type: ignore
-from lancedb.embeddings import get_registry, OpenAIEmbeddings  # type: ignore
+from lancedb.embeddings.registry import EmbeddingFunctionRegistry  # type: ignore
 from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
@@ -33,16 +33,19 @@ from dlt.sources.helpers import requests
 
 
 BASE_SPOTIFY_URL = "https://api.spotify.com/v1"
-os.environ["SPOTIFY__CLIENT_ID"] = ""
-os.environ["SPOTIFY__CLIENT_SECRET"] = ""
-os.environ["OPENAI_API_KEY"] = ""
 
+# Spotify client ID and secret. Get these from https://developer.spotify.com/.
+os.environ["CLIENT_ID"] = ""
+os.environ["CLIENT_SECRET"] = ""
+
+os.environ["COHERE_API_KEY"] = ""
+
+# Where would you like to store your embeddings?
 DB_PATH = "spotify.db"
 
 # LanceDB global registry keeps track of text embedding callables implicitly.
-openai = get_registry().get("openai")
-
-embedding_model = openai.create()
+cohere = EmbeddingFunctionRegistry
+func = EmbeddingFunctionRegistry.get_instance().get("cohere").create(max_retries=1)
 
 db_path = Path(DB_PATH)
 
@@ -50,8 +53,8 @@ db_path = Path(DB_PATH)
 class EpisodeSchema(LanceModel):
     id: str  # noqa: A003
     name: str
-    description: str = embedding_model.SourceField()
-    vector: Vector(embedding_model.ndims()) = embedding_model.VectorField()  # type: ignore[valid-type]
+    description: str = func.SourceField()
+    vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
     release_date: datetime.date
     href: str
 
@@ -98,7 +101,9 @@ def fetch_show_episode_data(
 
 
 @dlt.source
-def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
+def spotify_shows(
+    client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value
+):
     access_token: str = get_spotify_access_token(client_id, client_secret)
     params: Dict[str, Any] = {"limit": 50}
     for show in fields(Shows):
@@ -108,8 +113,7 @@ def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.s
             fetch_show_episode_data(show_id, access_token, params),
             name=show_name,
             write_disposition="merge",
-            primary_key="id",
-            parallelized=True,
+            primary_key="id",  # parallelized=True,
             max_table_nesting=0,
         )
 
@@ -121,7 +125,6 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
         tbl = db.open_table(table["name"])
     except FileNotFoundError:
         tbl = db.create_table(table["name"], schema=EpisodeSchema)
-    tbl.checkout_latest()
     tbl.add(items)
 
 
@@ -139,7 +142,7 @@ if __name__ == "__main__":
     )
 
     load_info = pipeline.run(
-        spotify_shows(client_id=dlt.secrets.value, client_secret=dlt.secrets.value)
+        spotify_shows(client_id=dlt.secrets.value, client_secret=dlt.secrets.value),
     )
 
     row_counts = pipeline.last_trace.last_normalize_info
@@ -161,7 +164,6 @@ if __name__ == "__main__":
     print(f"Querying table: {table_to_query}")
 
     tbl = db.open_table(table_to_query)
-    tbl.checkout_latest()
 
     results = tbl.search(query=query).to_list()
-    print(results)
+    assert results
