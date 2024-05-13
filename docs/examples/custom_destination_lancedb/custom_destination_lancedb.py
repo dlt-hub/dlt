@@ -101,9 +101,7 @@ def fetch_show_episode_data(
 
 
 @dlt.source
-def spotify_shows(
-    client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value
-):
+def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
     access_token: str = get_spotify_access_token(client_id, client_secret)
     params: Dict[str, Any] = {"limit": 50}
     for show in fields(Shows):
