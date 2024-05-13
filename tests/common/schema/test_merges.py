@@ -220,6 +220,69 @@ def test_none_resets_on_merge_column() -> None:
     assert col_a == {"name": "col1", "x-prop": None}
 
 
+def test_merge_columns() -> None:
+    columns = utils.merge_columns({"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS})
+    # new columns added ad the end
+    assert list(columns.keys()) == ["test", "test_2"]
+    assert columns["test"] == COL_1_HINTS
+    assert columns["test_2"] == COL_2_HINTS
+
+    # replace test with new test
+    columns = utils.merge_columns(
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=False
+    )
+    assert list(columns.keys()) == ["test"]
+    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+
+    # merge
+    columns = utils.merge_columns(
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=True
+    )
+    assert list(columns.keys()) == ["test"]
+    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+
+
+def test_merge_incomplete_columns() -> None:
+    incomplete_col_1 = deepcopy(COL_1_HINTS)
+    del incomplete_col_1["data_type"]
+    incomplete_col_1_nd = deepcopy(COL_1_HINTS_NO_DEFAULTS)
+    del incomplete_col_1_nd["data_type"]
+    complete_col_2 = deepcopy(COL_2_HINTS)
+    complete_col_2["data_type"] = "text"
+
+    # new incomplete added
+    columns = utils.merge_columns({"test": deepcopy(incomplete_col_1)}, {"test_2": COL_2_HINTS})
+    # new columns added ad the end
+    assert list(columns.keys()) == ["test", "test_2"]
+    assert columns["test"] == incomplete_col_1
+    assert columns["test_2"] == COL_2_HINTS
+
+    # incomplete merged with complete goes at the end
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
+        {"test": COL_1_HINTS_NO_DEFAULTS},
+    )
+    assert list(columns.keys()) == ["test_2", "test"]
+    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+    assert columns["test_2"] == COL_2_HINTS
+
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
+        {"test": COL_1_HINTS_NO_DEFAULTS},
+        merge_columns=True,
+    )
+    assert list(columns.keys()) == ["test_2", "test"]
+    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+
+    # incomplete with incomplete
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS}, {"test": incomplete_col_1_nd}
+    )
+    assert list(columns.keys()) == ["test", "test_2"]
+    assert columns["test"] == incomplete_col_1_nd
+    assert columns["test_2"] == COL_2_HINTS
+
+
 def test_diff_tables() -> None:
     table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
