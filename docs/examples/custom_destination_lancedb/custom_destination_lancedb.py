@@ -79,7 +79,9 @@ def fetch_show_episode_data(
     show_id: str, access_token: Optional[str] = None, params: Dict[str, Any] = None
 ):
     """Fetch all shows data from Spotify API based on endpoint and params."""
-    url = f"https://api.spotify.com/v1/shows/{show_id}/episodes"
+    spotify_base_api_url = "https://api.spotify.com/v1"
+
+    url = f"{spotify_base_api_url}/shows/{show_id}/episodes"
     if params is None:
         params = {}
     headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
