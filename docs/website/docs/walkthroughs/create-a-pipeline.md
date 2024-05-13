@@ -46,7 +46,7 @@ Install the dependencies necessary for DuckDB:
 pip install -r requirements.txt
 ```
 
-## 2. Obtain and Add API credentials from GitHub
+## 2. Obtain and add API credentials from GitHub
 
 You will need to [sign in](https://github.com/login) to your github account and create your access token via [Personal access tokens page](https://github.com/settings/tokens).
 
