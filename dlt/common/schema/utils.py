@@ -115,23 +115,26 @@ def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema:
     return stored_schema
 
 
-def has_default_column_hint_value(hint: str, value: Any) -> bool:
-    """Checks if `value` is a default for `hint`. Only known column hints (COLUMN_HINTS) are checked"""
+def has_default_column_prop_value(prop: str, value: Any) -> bool:
+    """Checks if `value` is a default for `prop`."""
     # remove all boolean hints that are False, except "nullable" which is removed when it is True
-    if hint in COLUMN_HINTS and value is False:
-        return True
-    if hint == "nullable" and value is True:
-        return True
-    return False
+    # TODO: merge column props and hints
+    if prop in COLUMN_HINTS:
+        return value in (False, None)
+    # TODO: type all the hints including default value so those exceptions may be removed
+    if prop == "nullable":
+        return value in (True, None)
+    if prop == "x-active-record-timestamp":
+        # None is a valid value so it is not a default
+        return False
+    return value in (None, False)
 
 
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
     """Removes default values from `column_schema` in place, returns the input for chaining"""
     # remove hints with default values
     for h in list(column_schema.keys()):
-        if has_default_column_hint_value(h, column_schema[h]):  # type: ignore
-            del column_schema[h]  # type: ignore
-        elif column_schema[h] is None:  # type: ignore
+        if has_default_column_prop_value(h, column_schema[h]):  # type: ignore
             del column_schema[h]  # type: ignore
     return column_schema
 
@@ -481,12 +484,11 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
 def get_columns_names_with_prop(
     table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
 ) -> List[str]:
-    # column_prop: TColumnProp = hint_to_column_prop(hint_type)
-    # default = column_prop != "nullable"  # default is true, only for nullable false
     return [
         c["name"]
         for c in table["columns"].values()
-        if (bool(c.get(column_prop, False)) or c.get(column_prop, False) is None)
+        if column_prop in c
+        and not has_default_column_prop_value(column_prop, c[column_prop])  # type: ignore[literal-required]
         and (include_incomplete or is_complete_column(c))
     ]
 
