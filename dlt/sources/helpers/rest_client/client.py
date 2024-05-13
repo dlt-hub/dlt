@@ -13,16 +13,15 @@ from urllib.parse import urlparse
 from requests import Session as BaseSession  # noqa: I251
 from requests import Response, Request
 
-from dlt.common import jsonpath
-from dlt.common import logger
+from dlt.common import jsonpath, logger
 
 from dlt.sources.helpers.requests.retry import Client
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
 from .auth import AuthConfigBase
-from .detector import PaginatorFactory, find_records
-from .exceptions import IgnoreResponseException
+from .detector import PaginatorFactory, find_response_page_data
+from .exceptions import IgnoreResponseException, PaginatorNotFound
 
 from .utils import join_url
 
@@ -232,8 +231,28 @@ class RESTClient:
             data: Any = jsonpath.find_values(data_selector, response.json())
             # extract if single item selected
             data = data[0] if isinstance(data, list) and len(data) == 1 else data
+            if isinstance(data, list):
+                length_info = f" with length {len(data)}"
+            else:
+                length_info = ""
+            logger.info(
+                f"Extracted data of type {type(data).__name__} from path"
+                f" {data_selector}{length_info}"
+            )
         else:
-            data = find_records(response.json())
+            path, data = find_response_page_data(response.json())
+            # if list is detected, it is probably a paged data
+            if isinstance(data, list):
+                # store it to reuse on next response
+                self.data_selector = ".".join(path)
+                logger.info(
+                    f"Detected page data at path: {self.data_selector} type: list length:"
+                    f" {len(data)}"
+                )
+            else:
+                logger.info(
+                    f"Detected single page data at path: {path} type: {type(data).__name__}"
+                )
         # wrap single pages into lists
         if not isinstance(data, list):
             data = [data]
@@ -248,8 +267,20 @@ class RESTClient:
         Returns:
             BasePaginator: The paginator instance that was detected.
         """
-        paginator = self.pagination_factory.create_paginator(response)
+        paginator, score = self.pagination_factory.create_paginator(response)
         if paginator is None:
-            raise ValueError(f"No suitable paginator found for the response at {response.url}")
-        logger.info(f"Detected paginator: {paginator.__class__.__name__}")
+            raise PaginatorNotFound(
+                f"No suitable paginator found for the response at {response.url}"
+            )
+        if score == 1.0:
+            logger.info(f"Detected paginator: {paginator}")
+        elif score == 0.0:
+            logger.warning(
+                f"Fallback paginator used: {paginator}. Please provide right paginator manually."
+            )
+        else:
+            logger.warning(
+                "Please verify the paginator settings. We strongly suggest to use explicit"
+                " instance of the paginator as some settings may not be guessed correctly."
+            )
         return paginator
