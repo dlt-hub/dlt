@@ -19,11 +19,11 @@ from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
     DEFAULT_MERGE_STRATEGY,
     merge_column,
+    merge_columns,
     new_column,
     new_table,
 )
 from dlt.common.typing import TDataItem
-from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -276,7 +276,7 @@ class DltResourceHints:
                     # normalize columns
                     columns = ensure_table_schema_columns(columns)
                     # this updates all columns with defaults
-                    t["columns"] = update_dict_nested(t["columns"], columns)
+                    t["columns"] = merge_columns(t["columns"], columns, merge_columns=True)
                 else:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)

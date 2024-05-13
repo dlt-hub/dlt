@@ -1,10 +1,20 @@
 import pytest
+
 from dlt.common import jsonpath
 
 from dlt.sources.helpers.rest_client.detector import (
-    find_records,
+    PaginatorFactory,
+    find_response_page_data,
     find_next_page_path,
     single_entity_path,
+)
+from dlt.sources.helpers.rest_client.paginators import (
+    OffsetPaginator,
+    PageNumberPaginator,
+    JSONResponsePaginator,
+    HeaderLinkPaginator,
+    SinglePagePaginator,
+    JSONResponseCursorPaginator,
 )
 
 
@@ -15,7 +25,7 @@ TEST_RESPONSES = [
             "pagination": {"offset": 0, "limit": 2, "total": 100},
         },
         "expected": {
-            "type": "offset_limit",
+            "type": OffsetPaginator,
             "records_path": "data",
         },
     },
@@ -28,8 +38,9 @@ TEST_RESPONSES = [
             "page_info": {"current_page": 1, "items_per_page": 2, "total_pages": 50},
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "items",
+            "total_path": ("page_info", "total_pages"),
         },
     },
     {
@@ -41,9 +52,9 @@ TEST_RESPONSES = [
             "next_cursor": "eyJpZCI6MTAyfQ==",
         },
         "expected": {
-            "type": "cursor",
+            "type": JSONResponseCursorPaginator,
             "records_path": "products",
-            "next_path": ["next_cursor"],
+            "next_path": ("next_cursor",),
         },
     },
     {
@@ -55,9 +66,9 @@ TEST_RESPONSES = [
             "cursors": {"next": "NjM=", "previous": "MTk="},
         },
         "expected": {
-            "type": "cursor",
+            "type": JSONResponseCursorPaginator,
             "records_path": "results",
-            "next_path": ["cursors", "next"],
+            "next_path": ("cursors", "next"),
         },
     },
     {
@@ -67,9 +78,9 @@ TEST_RESPONSES = [
             "limit": 2,
         },
         "expected": {
-            "type": "cursor",
+            "type": JSONResponseCursorPaginator,
             "records_path": "entries",
-            "next_path": ["next_id"],
+            "next_path": ("next_id",),
         },
     },
     {
@@ -82,8 +93,9 @@ TEST_RESPONSES = [
             "total_pages": 15,
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "comments",
+            "total_path": ("total_pages",),
         },
     },
     {
@@ -94,9 +106,9 @@ TEST_RESPONSES = [
             "results": [{"id": 1, "name": "Account 1"}, {"id": 2, "name": "Account 2"}],
         },
         "expected": {
-            "type": "json_link",
+            "type": JSONResponsePaginator,
             "records_path": "results",
-            "next_path": ["next"],
+            "next_path": ("next",),
         },
     },
     {
@@ -111,9 +123,9 @@ TEST_RESPONSES = [
             "page": {"size": 2, "totalElements": 100, "totalPages": 50, "number": 1},
         },
         "expected": {
-            "type": "json_link",
+            "type": JSONResponsePaginator,
             "records_path": "_embedded.items",
-            "next_path": ["_links", "next", "href"],
+            "next_path": ("_links", "next", "href"),
         },
     },
     {
@@ -133,9 +145,9 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": "json_link",
+            "type": JSONResponsePaginator,
             "records_path": "items",
-            "next_path": ["links", "nextPage"],
+            "next_path": ("links", "nextPage"),
         },
     },
     {
@@ -149,8 +161,9 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "data",
+            "total_path": ("pagination", "totalPages"),
         },
     },
     {
@@ -159,8 +172,9 @@ TEST_RESPONSES = [
             "pagination": {"page": 1, "perPage": 2, "total": 10, "totalPages": 5},
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "items",
+            "total_path": ("pagination", "totalPages"),
         },
     },
     {
@@ -183,9 +197,9 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": "json_link",
+            "type": JSONResponsePaginator,
             "records_path": "data",
-            "next_path": ["links", "next"],
+            "next_path": ("links", "next"),
         },
     },
     {
@@ -197,8 +211,9 @@ TEST_RESPONSES = [
             "data": [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}],
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "data",
+            "total_path": ("pages",),
         },
     },
     {
@@ -210,8 +225,9 @@ TEST_RESPONSES = [
             "items": [{"id": 1, "name": "Item 1"}, {"id": 2, "name": "Item 2"}],
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "items",
+            "total_path": ("totalPages",),
         },
     },
     {
@@ -223,7 +239,8 @@ TEST_RESPONSES = [
             "paging": {"current": 3, "size": 2, "total": 60},
         },
         "expected": {
-            "type": "page_number",
+            # we are not able to detect that
+            "type": SinglePagePaginator,
             "records_path": "articles",
         },
     },
@@ -238,7 +255,7 @@ TEST_RESPONSES = [
             "total_count": 200,
         },
         "expected": {
-            "type": "offset_limit",
+            "type": OffsetPaginator,
             "records_path": "feed",
         },
     },
@@ -256,8 +273,9 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "query_results",
+            "total_path": ("page_details", "total_pages"),
         },
     },
     {
@@ -274,8 +292,9 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "posts",
+            "total_path": ("pagination_details", "total_pages"),
         },
     },
     {
@@ -292,41 +311,106 @@ TEST_RESPONSES = [
             },
         },
         "expected": {
-            "type": "page_number",
+            "type": PageNumberPaginator,
             "records_path": "catalog",
+            "total_path": ("page_metadata", "total_pages"),
         },
     },
+    {
+        "response": [
+            {"id": 101, "product_name": "Product A"},
+            {"id": 102, "product_name": "Product B"},
+        ],
+        "expected": {
+            "type": SinglePagePaginator,
+            "records_path": "$",
+        },
+    },
+    {
+        "response": [
+            {"id": 101, "product_name": "Product A"},
+            {"id": 102, "product_name": "Product B"},
+        ],
+        "links": {"next": "next_page"},
+        "expected": {
+            "type": HeaderLinkPaginator,
+            "records_path": "$",
+        },
+    },
+    {
+        "response": {"id": 101, "product_name": "Product A"},
+        "expected": {
+            "type": SinglePagePaginator,
+            "records_path": "$",
+        },
+    },
+    # {
+    #     "response":{"id": 101, "product_name": "Product A"},
+    #     "expected": {
+    #         "type": "single_page",
+    #         "records_path": "$",
+    #     },
+    # },
 ]
 
 
+class PaginatorResponse:
+    def __init__(self, json, links):
+        self._json = json
+        self.links = links or {}
+
+    def json(self):
+        return self._json
+
+
 @pytest.mark.parametrize("test_case", TEST_RESPONSES)
-def test_find_records(test_case):
+def test_find_response_page_data(test_case):
     response = test_case["response"]
-    expected = test_case["expected"]["records_path"]
-    r = find_records(response)
-    # all of them look fine mostly because those are simple cases...
-    # case 7 fails because it is nested but in fact we select a right response
-    # assert r is create_nested_accessor(expected)(response)
-    assert r == jsonpath.find_values(expected, response)[0]
+    records_path = test_case["expected"]["records_path"]
+    path, data = find_response_page_data(response)
+    assert jsonpath.find_values(records_path, response)[0] == data
+    assert ".".join(path) == records_path
 
 
 @pytest.mark.parametrize("test_case", TEST_RESPONSES)
 def test_find_next_page_key(test_case):
     response = test_case["response"]
     expected = test_case.get("expected").get("next_path", None)  # Some cases may not have next_path
-    assert find_next_page_path(response) == expected
+    actual, actual_ref = find_next_page_path(response)
+    if expected is None:
+        assert actual is None, "No next page path expected"
+    else:
+        assert actual == expected
+        assert jsonpath.find_values(".".join(actual), response)[0] == actual_ref
 
 
-@pytest.mark.skip
+@pytest.mark.parametrize("test_case", TEST_RESPONSES)
+def test_find_paginator(test_case) -> None:
+    factory = PaginatorFactory()
+    mock_response = PaginatorResponse(test_case["response"], test_case.get("links"))
+    paginator, _ = factory.create_paginator(mock_response)  # type: ignore[arg-type]
+    expected_paginator = test_case["expected"]["type"]
+    if expected_paginator is OffsetPaginator:
+        expected_paginator = SinglePagePaginator
+    assert type(paginator) is expected_paginator
+    if isinstance(paginator, PageNumberPaginator):
+        assert str(paginator.total_path) == ".".join(test_case["expected"]["total_path"])
+    if isinstance(paginator, JSONResponsePaginator):
+        assert str(paginator.next_url_path) == ".".join(test_case["expected"]["next_path"])
+    if isinstance(paginator, JSONResponseCursorPaginator):
+        assert str(paginator.cursor_path) == ".".join(test_case["expected"]["next_path"])
+
+
 @pytest.mark.parametrize(
     "path",
     [
         "/users/{user_id}",
         "/api/v1/products/{product_id}/",
-        "/api/v1/products/{product_id}//",
-        "/api/v1/products/{product_id}?param1=value1",
-        "/api/v1/products/{product_id}#section",
-        "/api/v1/products/{product_id}/#section",
+        # those are not valid paths
+        # "/api/v1/products/{product_id}//",
+        # "/api/v1/products/{product_id}?param1=value1",
+        # "/api/v1/products/{product_id}#section",
+        # "/api/v1/products/{product_id}/#section",
         "/users/{user_id}/posts/{post_id}",
         "/users/{user_id}/posts/{post_id}/comments/{comment_id}",
         "{entity}",

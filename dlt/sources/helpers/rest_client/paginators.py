@@ -65,6 +65,9 @@ class BasePaginator(ABC):
         """
         ...
 
+    def __str__(self) -> str:
+        return f"{type(self).__name__} at {id(self):x}"
+
 
 class SinglePagePaginator(BasePaginator):
     """A paginator for single-page API responses."""
@@ -216,7 +219,7 @@ class PageNumberPaginator(RangePaginator):
 
     def __init__(
         self,
-        initial_page: int = 1,
+        initial_page: int = 0,
         page_param: str = "page",
         total_path: jsonpath.TJsonPath = "total",
         maximum_page: Optional[int] = None,
@@ -242,6 +245,13 @@ class PageNumberPaginator(RangePaginator):
             value_step=1,
             maximum_value=maximum_page,
             error_message_items="pages",
+        )
+
+    def __str__(self) -> str:
+        return (
+            super().__str__()
+            + f": current page: {self.current_value} page_param: {self.param_name} total_path:"
+            f" {self.total_path} maximum_value: {self.maximum_value}"
         )
 
 
@@ -342,6 +352,14 @@ class OffsetPaginator(RangePaginator):
     def update_request(self, request: Request) -> None:
         super().update_request(request)
         request.params[self.limit_param] = self.limit
+
+    def __str__(self) -> str:
+        return (
+            super().__str__()
+            + f": current offset: {self.current_value} offset_param: {self.param_name} limit:"
+            f" {self.value_step} total_path: {self.total_path} maximum_value:"
+            f" {self.maximum_value}"
+        )
 
 
 class BaseReferencePaginator(BasePaginator):
@@ -451,6 +469,9 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
         """Extracts the next page URL from the 'Link' header in the response."""
         self._next_reference = response.links.get(self.links_next_key, {}).get("url")
 
+    def __str__(self) -> str:
+        return super().__str__() + f": links_next_key: {self.links_next_key}"
+
 
 class JSONResponsePaginator(BaseNextUrlPaginator):
     """Locates the next page URL within the JSON response body. The key
@@ -504,6 +525,9 @@ class JSONResponsePaginator(BaseNextUrlPaginator):
         values = jsonpath.find_values(self.next_url_path, response.json())
         self._next_reference = values[0] if values else None
 
+    def __str__(self) -> str:
+        return super().__str__() + f": next_url_path: {self.next_url_path}"
+
 
 class JSONResponseCursorPaginator(BaseReferencePaginator):
     """Uses a cursor parameter for pagination, with the cursor value found in
@@ -548,7 +572,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
     def __init__(
         self,
         cursor_path: jsonpath.TJsonPath = "cursors.next",
-        cursor_param: str = "after",
+        cursor_param: str = "cursor",
     ):
         """
         Args:
@@ -572,3 +596,9 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
             request.params = {}
 
         request.params[self.cursor_param] = self._next_reference
+
+    def __str__(self) -> str:
+        return (
+            super().__str__()
+            + f": cursor_path: {self.cursor_path} cursor_param: {self.cursor_param}"
+        )

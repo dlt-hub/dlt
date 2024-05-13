@@ -283,29 +283,33 @@ def test_nested_union(test_doc: TTestRecord) -> None:
     assert e.value.value == "blah"
 
 
+class IncrementalArgs(TypedDict, total=False):
+    cursor_path: str
+    initial_value: Optional[str]
+    primary_key: Optional[TTableHintTemplate[TColumnNames]]
+    end_value: Optional[str]
+    row_order: Optional[TSortOrder]
+
+
+class IncrementalConfig(IncrementalArgs, total=False):
+    start_param: str
+    end_param: Optional[str]
+
+
+class Endpoint(TypedDict, total=False):
+    path: Optional[str]
+    params: Optional[Dict[str, Any]]
+    json: Optional[Dict[str, Any]]
+    data_selector: Optional[jsonpath.TJsonPath]
+    incremental: Optional[IncrementalConfig]
+
+
+class EndpointResource(TypedDict, total=False):
+    endpoint: Optional[Union[str, Endpoint]]
+    write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
+
+
 def test_typeddict_friendly_exceptions() -> None:
-    class IncrementalArgs(TypedDict, total=False):
-        cursor_path: str
-        initial_value: Optional[str]
-        primary_key: Optional[TTableHintTemplate[TColumnNames]]
-        end_value: Optional[str]
-        row_order: Optional[TSortOrder]
-
-    class IncrementalConfig(IncrementalArgs, total=False):
-        start_param: str
-        end_param: Optional[str]
-
-    class Endpoint(TypedDict, total=False):
-        path: Optional[str]
-        params: Optional[Dict[str, Any]]
-        json: Optional[Dict[str, Any]]
-        data_selector: Optional[jsonpath.TJsonPath]
-        incremental: Optional[IncrementalConfig]
-
-    class EndpointResource(TypedDict, total=False):
-        endpoint: Optional[Union[str, Endpoint]]
-        write_disposition: Optional[TTableHintTemplate[TWriteDispositionConfig]]
-
     valid_dict = {
         "endpoint": {
             "path": "/path",

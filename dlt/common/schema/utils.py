@@ -33,6 +33,7 @@ from dlt.common.schema.typing import (
     TColumnProp,
     TTableFormat,
     TColumnHint,
+    TTableSchemaColumns,
     TTypeDetectionFunc,
     TTypeDetections,
     TWriteDisposition,
@@ -137,34 +138,6 @@ def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
         if has_default_column_prop_value(h, column_schema[h]):  # type: ignore
             del column_schema[h]  # type: ignore
     return column_schema
-
-
-def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
-    """Adds default boolean hints to column"""
-    return {
-        **{
-            "nullable": True,
-            "partition": False,
-            "cluster": False,
-            "unique": False,
-            "sort": False,
-            "primary_key": False,
-            "foreign_key": False,
-            "root_key": False,
-            "merge_key": False,
-        },
-        **column,
-    }
-
-
-# def add_complete_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
-#     """Adds default hints to `column` if it is completed, otherwise preserves `column` content intact
-
-#        Always returns a shallow copy of `column`
-#     """
-#     if is_complete_column(column):
-#         return add_column_defaults(column)
-#     return copy(column)  # type: ignore
 
 
 def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, Sequence[str]]:
@@ -366,6 +339,37 @@ def merge_column(
     return col_a
 
 
+def merge_columns(
+    columns_a: TTableSchemaColumns,
+    columns_b: TTableSchemaColumns,
+    merge_columns: bool = False,
+    columns_partial: bool = True,
+) -> TTableSchemaColumns:
+    """Merges `columns_a` with `columns_b`. `columns_a` is modified in place.
+
+    * new columns are added
+    * if `merge_columns` is False, updated columns are replaced from `columns_b`
+    * if `merge_columns` is True, updated columns are merged with `merge_column`
+    * if `columns_partial` is True, both columns sets are considered incomplete. In that case hints like `primary_key` or `merge_key` are merged
+    * if `columns_partial` is False, hints like `primary_key` and `merge_key` are dropped from `columns_a` and replaced from `columns_b`
+    * incomplete columns in `columns_a` that got completed in `columns_b` are removed to preserve order
+    """
+    if columns_partial is False:
+        raise NotImplementedError("columns_partial must be False for merge_columns")
+
+    # remove incomplete columns in table that are complete in diff table
+    for col_name, column_b in columns_b.items():
+        column_a = columns_a.get(col_name)
+        if is_complete_column(column_b):
+            if column_a and not is_complete_column(column_a):
+                columns_a.pop(col_name)
+        if column_a and merge_columns:
+            column_b = merge_column(column_a, column_b)
+        # set new or updated column
+        columns_a[col_name] = column_b
+    return columns_a
+
+
 def diff_table(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTableSchema:
     """Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
     The name is always present in returned partial.
@@ -373,7 +377,7 @@ def diff_table(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTable
     If any columns are returned they contain full data (not diffs of columns)
 
     Raises SchemaException if tables cannot be merged
-    * when columns with the same name  have different data types
+    * when columns with the same name have different data types
     * when table links to different parent tables
     """
     table_name = tab_a["name"]
@@ -455,15 +459,7 @@ def merge_table(table: TTableSchema, partial_table: TPartialTableSchema) -> TPar
             table["name"], "name", table["name"], partial_table["name"]
         )
     diff = diff_table(table, partial_table)
-    # remove incomplete columns in table that are complete in diff table
-    for col_name, column in diff["columns"].items():
-        if is_complete_column(column):
-            table_column = table["columns"].get(col_name)
-            if table_column and not is_complete_column(table_column):
-                table["columns"].pop(col_name)
-    # add new columns when all checks passed
-    table["columns"].update(diff["columns"])
-    updated_columns = table["columns"]
+    updated_columns = merge_columns(table["columns"], diff["columns"])
     table.update(diff)
     table["columns"] = updated_columns
 
