@@ -233,6 +233,8 @@ class PageNumberPaginator(RangePaginator):
                 data is available. This allows you to limit the maximum number
                 of pages for pagination. Defaults to None.
         """
+        if total_path is None and maximum_page is None:
+            raise ValueError("Either `total_path` or `maximum_page` must be provided.")
         super().__init__(
             param_name=page_param,
             initial_value=initial_page,
@@ -321,6 +323,8 @@ class OffsetPaginator(RangePaginator):
                 even if more data is available. This allows you to limit the
                 maximum range for pagination. Defaults to None.
         """
+        if total_path is None and maximum_offset is None:
+            raise ValueError("Either `total_path` or `maximum_offset` must be provided.")
         super().__init__(
             param_name=offset_param,
             initial_value=offset,
