@@ -1,29 +1,28 @@
 ---
 title: Create a pipeline
 description: How to create a pipeline
-keywords: [how to, create a pipeline]
+keywords: [how to, create a pipeline, rest client]
 ---
 
 # Create a pipeline
 
-Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) using the
-our rest API client to DuckDB from scratch. The same steps can be repeated for any source and
-destination of your choice—use `dlt init <source> <destination>` and then build the pipeline for
-that API instead.
+This guide walks you through creating a pipeline that utilizes our REST API client to connect to DuckDB.
+Although this example uses DuckDB, you can adapt the steps to any source and destination by
+using the command `dlt init <source> <destination>` and tweaking the pipeline accordingly.
 
 Please make sure you have [installed `dlt`](../reference/installation.md) before following the
 steps below.
 
+## Task Overview
 
-## Task
-Let's suppose you have a github project and would like to download all issues to analyze them in
-your local machine, thus you need to write some code which does the following things:
+Imagine you want to analyze issues from a GitHub project locally.
+To achieve this, you need to write code that accomplishes the following:
 
-1. Authenticates requests,
-2. Fetches and paginates over the issues,
-3. Saves the data somewhere.
+1. Build correct requests.
+1. Authenticates your requests.
+2. Fetches and handles paginated issue data.
+3. Stores the data for analysis.
 
-With this in mind let's continue.
 
 ## 1. Initialize project
 
@@ -56,6 +55,8 @@ Copy your new access token over to `.dlt/secrets.toml`:
 api_secret_key = '<api key value>'
 ```
 
+This token will be used by `githubapi_source()` to authenticate requests.
+
 The **secret name** corresponds to the **argument name** in the source function.
 Below `api_secret_key` [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `githubapi_source()` is called.
 
@@ -75,11 +76,11 @@ Your API key should be printed out to stdout along with some test data.
 
 ## 3. Request project issues from then GitHub API
 
-Replace the definition of the `githubapi_resource` function definition in the `githubapi.py`
-pipeline script with a call to the GitHub API:
 
 >[!NOTE]
 > We will use dlt as an example project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
+
+Modify `repo_issues_resource` in `githubapi.py` to request issues data from your GitHub project's API:
 
 ```py
 from dlt.sources.helpers.rest_client import paginate
@@ -106,7 +107,16 @@ Run the `githubapi.py` pipeline script to test that the API call works:
 python3 githubapi.py
 ```
 
-This should print out the weather in New York City right now.
+This should print out json data containig the issues in the GitHub project.
+
+Then, confirm the data is loaded
+
+>[!NOTE]
+> Make sure you have `streamlit` installed `pip install streamlit`
+
+```sh
+dlt pipeline githubapi show
+```
 
 ## 4. Load the data
 
@@ -135,7 +145,7 @@ if __name__=='__main__':
     print(load_info)
 ```
 
-Run the `githubapi.py` pipeline script to load data into DuckDB:
+Load your GitHub issues into DuckDB:
 
 ```sh
 python3 githubapi.py
@@ -151,7 +161,7 @@ This will open a Streamlit app that gives you an overview of the data loaded.
 
 ## 5. Next steps
 
-Now that you have a working pipeline, you have options for what to learn next:
+With a functioning pipeline, consider exploring:
 
 - Learn more about our [rest client](https://dlthub.com/devel/general-usage/http/rest-client).
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
