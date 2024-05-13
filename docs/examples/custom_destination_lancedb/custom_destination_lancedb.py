@@ -145,21 +145,10 @@ if __name__ == "__main__":
 
     row_counts = pipeline.last_trace.last_normalize_info
 
-    print(row_counts)
-    print("------")
-
-    print(load_info)
-
-    print("------")
-    print("------")
-
     # Showcase vector search capabilities over our dataset with lancedb.
     # Perform brute force search while we have small data.
     query = "French AI scientist with Lex, talking about AGI and Meta and Llama"
     table_to_query = "lex_fridman"
-
-    print(f"Query: {query}")
-    print(f"Querying table: {table_to_query}")
 
     tbl = db.open_table(table_to_query)
 
