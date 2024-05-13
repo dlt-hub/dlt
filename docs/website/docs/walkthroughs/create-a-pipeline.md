@@ -115,12 +115,11 @@ Remove the `exit()` call from the `main` function in `githubapi.py`, so that run
 
 ```py
 if __name__=='__main__':
-
     # configure the pipeline with your destination details
     pipeline = dlt.pipeline(
-        pipeline_name='githubapi_issues',
+        pipeline_name='githubapi_repo_issues',
         destination='duckdb',
-        dataset_name='githubapi_issues_data'
+        dataset_name='repo_issues_data'
     )
 
     # print credentials by running the resource
