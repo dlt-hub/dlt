@@ -11,6 +11,8 @@ The script illustrates the implementation of a custom destination as well as the
 store with data from various sources.
 This highlights the seamless interoperability between dlt and LanceDB.
 
+You can get a Spotify client ID and secret from https://developer.spotify.com/.
+
 We'll learn how to:
 - Use the [custom destination](../dlt-ecosystem/destinations/destination.md)
 - Delegate the embeddings to LanceDB
@@ -32,22 +34,13 @@ from dlt.common.typing import TDataItems
 from dlt.sources.helpers import requests
 
 
-BASE_SPOTIFY_URL = "https://api.spotify.com/v1"
-
-# Spotify client ID and secret. Get these from https://developer.spotify.com/.
-os.environ["CLIENT_ID"] = ""
-os.environ["CLIENT_SECRET"] = ""
-
-os.environ["COHERE_API_KEY"] = ""
-
-# Where would you like to store your embeddings?
-DB_PATH = "spotify.db"
+os.environ["COHERE_API_KEY"] = dlt.secrets.get("cohere.api_key")
 
 # LanceDB global registry keeps track of text embedding callables implicitly.
 cohere = EmbeddingFunctionRegistry
 func = EmbeddingFunctionRegistry.get_instance().get("cohere").create(max_retries=1)
 
-db_path = Path(DB_PATH)
+db_path = Path(dlt.config.get("lancedb.db_path"))
 
 
 class EpisodeSchema(LanceModel):
@@ -86,7 +79,7 @@ def fetch_show_episode_data(
     show_id: str, access_token: Optional[str] = None, params: Dict[str, Any] = None
 ):
     """Fetch all shows data from Spotify API based on endpoint and params."""
-    url = f"{BASE_SPOTIFY_URL}/shows/{show_id}/episodes"
+    url = f"https://api.spotify.com/v1/shows/{show_id}/episodes"
     if params is None:
         params = {}
     headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
@@ -101,7 +94,10 @@ def fetch_show_episode_data(
 
 
 @dlt.source
-def spotify_shows(client_id: str = dlt.secrets.value, client_secret: str = dlt.secrets.value):
+def spotify_shows(
+    client_id: str = dlt.secrets.value,
+    client_secret: str = dlt.secrets.value,
+):
     access_token: str = get_spotify_access_token(client_id, client_secret)
     params: Dict[str, Any] = {"limit": 50}
     for show in fields(Shows):
