@@ -384,6 +384,16 @@ class PostBodyPaginator(BasePaginator):
 
         # Add the cursor to the request body
         request.json["cursor"] = self.cursor
+       
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator= PostBodyPaginator()
+)
+
+@dlt.resource
+def get_data():
+    for page in client.paginate("/data"):
+        yield page
 ```
 
 ## Authentication
