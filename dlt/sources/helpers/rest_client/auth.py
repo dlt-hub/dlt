@@ -43,6 +43,8 @@ class AuthConfigBase(AuthBase, CredentialsConfiguration):
 
 @configspec
 class BearerTokenAuth(AuthConfigBase):
+    """Uses `token` for Bearer authentication in "Authorization" header."""
+
     token: TSecretStrValue = None
 
     def parse_native_representation(self, value: Any) -> None:
@@ -62,6 +64,8 @@ class BearerTokenAuth(AuthConfigBase):
 
 @configspec
 class APIKeyAuth(AuthConfigBase):
+    """Uses provided `api_key` to create authorization data in the specified `location` (query, param, header, cookie) under specified `name`"""
+
     name: str = "Authorization"
     api_key: TSecretStrValue = None
     location: TApiKeyLocation = "header"
@@ -88,6 +92,8 @@ class APIKeyAuth(AuthConfigBase):
 
 @configspec
 class HttpBasicAuth(AuthConfigBase):
+    """Uses HTTP basic authentication"""
+
     username: str = None
     password: TSecretStrValue = None
 

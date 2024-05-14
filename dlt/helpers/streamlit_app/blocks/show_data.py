@@ -1,5 +1,3 @@
-from typing import List
-
 import dlt
 import streamlit as st
 
