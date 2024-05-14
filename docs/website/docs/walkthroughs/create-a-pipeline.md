@@ -147,7 +147,7 @@ Then, confirm the data is loaded with printing `load_info` object.
 
 Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
 
-:::warning
+:::info
 Make sure you have `streamlit` installed `pip install streamlit`
 :::
 
