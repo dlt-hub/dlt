@@ -150,9 +150,9 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 ## Using pagination helper
 
-In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` provides a helper function `paginate` that simplifies this process. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
+In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has the built-in [REST client](../general-usage/http/rest-client.md) that simplifies API requests. We'll pick the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
 
-Let's rewrite the previous example using the `paginate` helper:
+Here's how the updated script looks:
 
 ```py
 import dlt
@@ -190,6 +190,12 @@ print(row_counts)
 print("------")
 print(load_info)
 ```
+
+Let's zoom in on the changes:
+
+1. The `while` loop that handled pagination is replaced with reading pages from the `paginate()` generator.
+2. `paginate()` takes the URL of the API endpoint and optional parameters. In this case, we pass the `since` parameter to get only issues updated after the last pipeline run.
+3. We're not explicitly setting up pagination, `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../general-usage/http/rest-client.md#paginating-api-responses).
 
 ## Next steps
 

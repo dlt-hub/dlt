@@ -141,13 +141,14 @@ For the next step we'd want to get the [number of repository clones](https://doc
 Let's handle this by changing our `fetch_github_data()` first:
 
 ```py
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
 def fetch_github_data(endpoint, params={}, access_token=None):
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
     url = f"{BASE_GITHUB_URL}/{endpoint}"
     return paginate(
         url,
         params=params,
-        headers=headers,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,
     )
 
 
@@ -200,28 +201,7 @@ access_token = "ghp_A...3aRY"
 Now we can run the script and it will load the data from the `traffic/clones` endpoint:
 
 ```py
-import dlt
-from dlt.sources.helpers import requests
-
-BASE_GITHUB_URL = "https://api.github.com/repos/dlt-hub/dlt"
-
-
-def fetch_github_data(endpoint, params={}, access_token=None):
-    """Fetch data from GitHub API based on endpoint and params."""
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-
-    url = f"{BASE_GITHUB_URL}/{endpoint}"
-
-    while True:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        yield response.json()
-
-        # get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
-
+...
 
 @dlt.source
 def github_source(
@@ -258,19 +238,12 @@ BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
 
 def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
     """Fetch data from GitHub API based on repo_name, endpoint, and params."""
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-
     url = BASE_GITHUB_URL.format(repo_name=repo_name) + f"/{endpoint}"
-
-    while True:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    return paginate(
+        url,
+        params=params,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,
+    )
 
 
 @dlt.source
@@ -318,5 +291,6 @@ Interested in learning more? Here are some suggestions:
     - [Pass config and credentials into your sources and resources](../general-usage/credentials).
     - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
+    - [Use REST API client helpers](../general-usage/http/rest-client.md) to simplify working with REST APIs.
 3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
 4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios
