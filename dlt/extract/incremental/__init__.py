@@ -212,6 +212,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         merged.resource_name = self.resource_name
         if other.resource_name:
             merged.resource_name = other.resource_name
+        # also pass if resolved
+        merged.__is_resolved__ = other.__is_resolved__
+        merged.__exception__ = other.__exception__
         return merged  # type: ignore
 
     def copy(self) -> "Incremental[TCursorValue]":
@@ -438,7 +441,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def __str__(self) -> str:
         return (
             f"Incremental at {id(self)} for resource {self.resource_name} with cursor path:"
-            f" {self.cursor_path} initial {self.initial_value} lv_func {self.last_value_func}"
+            f" {self.cursor_path} initial {self.initial_value} - {self.end_value} lv_func"
+            f" {self.last_value_func}"
         )
 
     def _get_transformer(self, items: TDataItems) -> IncrementalTransform:
@@ -569,10 +573,16 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                 new_incremental.__orig_class__ = p.annotation  # type: ignore
 
             # set the incremental only if not yet set or if it was passed explicitly
+            # NOTE: if new incremental is resolved, it was passed via config injection
             # NOTE: the _incremental may be also set by applying hints to the resource see `set_template` in `DltResource`
-            if (new_incremental and p.name in bound_args.arguments) or not self._incremental:
+            if (
+                new_incremental
+                and p.name in bound_args.arguments
+                and not new_incremental.is_resolved()
+            ) or not self._incremental:
                 self._incremental = new_incremental
-            self._incremental.resolve()
+            if not self._incremental.is_resolved():
+                self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
             if self._resource_name:
                 # rebind internal _incremental from wrapper that already holds

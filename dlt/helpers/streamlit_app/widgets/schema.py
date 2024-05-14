@@ -16,6 +16,6 @@ def schema_picker(pipeline: dlt.Pipeline) -> None:
         )
         schema = pipeline.schemas.get(selected_schema_name)
 
-    st.session_state["schema"] = schema
     if schema:
+        st.session_state["schema_name"] = schema.name
         st.subheader(f"Schema: {schema.name}")

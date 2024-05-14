@@ -95,7 +95,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         table = schema.tables.get(table_name)
         if table:
             column = table["columns"].get(field_name)
-        if column is None:
+        if column is None or "data_type" not in column:
             data_type = schema.get_preferred_type(field_name)
         else:
             data_type = column["data_type"]

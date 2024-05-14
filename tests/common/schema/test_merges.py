@@ -1,3 +1,4 @@
+from typing import Any
 import pytest
 from copy import copy, deepcopy
 
@@ -7,7 +8,7 @@ from dlt.common.schema.exceptions import (
     CannotCoerceNullException,
     TablePropertiesConflictException,
 )
-from dlt.common.schema.typing import TStoredSchema, TTableSchema, TColumnSchema
+from dlt.common.schema.typing import TColumnSchemaBase, TStoredSchema, TTableSchema, TColumnSchema
 
 
 COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
@@ -15,59 +16,100 @@ COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
     "foreign_key": True,
     "data_type": "text",
     "name": "test",
-    "x-special": True,
+    "x-special": "value",
     "x-special-int": 100,
     "nullable": False,
+    "x-special-bool-true": True,
     "x-special-bool": False,
     "prop": None,
 }
 
-COL_1_HINTS_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
+COL_1_HINTS_NO_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
     "foreign_key": True,
     "data_type": "text",
     "name": "test",
-    "x-special": True,
+    "x-special": "value",
     "x-special-int": 100,
     "nullable": False,
-    "x-special-bool": False,
+    "x-special-bool-true": True,
 }
 
 COL_2_HINTS: TColumnSchema = {"nullable": True, "name": "test_2", "primary_key": False}
 
 
-def test_check_column_defaults() -> None:
-    assert utils.has_default_column_hint_value("data_type", "text") is False
-    assert utils.has_default_column_hint_value("name", 123) is False
-    assert utils.has_default_column_hint_value("nullable", True) is True
-    assert utils.has_default_column_hint_value("nullable", False) is False
-    assert utils.has_default_column_hint_value("x-special", False) is False
-    assert utils.has_default_column_hint_value("unique", False) is True
-    assert utils.has_default_column_hint_value("unique", True) is False
+@pytest.mark.parametrize(
+    "prop,value,is_default",
+    (
+        ("data_type", "text", False),
+        ("data_type", None, True),
+        ("name", "xyz", False),
+        ("name", None, True),
+        ("nullable", True, True),
+        ("nullable", False, False),
+        ("nullable", None, True),
+        ("x-special", False, True),
+        ("x-special", True, False),
+        ("x-special", None, True),
+        ("unique", False, True),
+        ("unique", True, False),
+        ("dedup_sort", "asc", False),
+        ("dedup_sort", None, True),
+        ("x-active-record-timestamp", None, False),
+        ("x-active-record-timestamp", "2100-01-01", False),
+    ),
+)
+def test_check_column_with_props(prop: str, value: Any, is_default: bool) -> None:
+    # check default
+    assert utils.has_default_column_prop_value(prop, value) is is_default
+    # check if column with prop is found
+    if prop == "name" and is_default:
+        # do not check name not present
+        return
+    column: TColumnSchema = {"name": "column_a"}
+    column[prop] = value  # type: ignore[literal-required]
+    table = utils.new_table("test", columns=[column])
+    expected_columns = [column["name"]] if not is_default else []
+    expected_column = column["name"] if not is_default else None
+    assert (
+        utils.get_columns_names_with_prop(table, prop, include_incomplete=True) == expected_columns
+    )
+    assert (
+        utils.get_first_column_name_with_prop(table, prop, include_incomplete=True)
+        == expected_column
+    )
+    assert utils.has_column_with_prop(table, prop, include_incomplete=True) is not is_default
+    # if data_type is set, column is complete
+    if prop == "data_type" and not is_default:
+        assert (
+            utils.get_columns_names_with_prop(table, prop, include_incomplete=False)
+            == expected_columns
+        )
+    else:
+        assert utils.get_columns_names_with_prop(table, prop, include_incomplete=False) == []
 
 
 def test_column_remove_defaults() -> None:
     clean = utils.remove_column_defaults(copy(COL_1_HINTS))
     # mind that nullable default is False and Nones will be removed
-    assert clean == COL_1_HINTS_DEFAULTS
+    assert clean == COL_1_HINTS_NO_DEFAULTS
     # check nullable True
     assert utils.remove_column_defaults(copy(COL_2_HINTS)) == {"name": "test_2"}
 
 
-def test_column_add_defaults() -> None:
-    # test complete column
-    full = utils.add_column_defaults(copy(COL_1_HINTS))
-    assert full["unique"] is False
-    # remove defaults from full
-    clean = utils.remove_column_defaults(copy(full))
-    assert clean == COL_1_HINTS_DEFAULTS
-    # prop is None and will be removed
-    del full["prop"]  # type: ignore[typeddict-item]
-    assert utils.add_column_defaults(copy(clean)) == full
-
-    # test incomplete
-    complete_full = utils.add_column_defaults(copy(COL_2_HINTS))
-    # defaults are added
-    assert complete_full["unique"] is False
+# def test_column_add_defaults() -> None:
+#     # test complete column
+#     full = add_column_defaults(copy(COL_1_HINTS))
+#     assert full["unique"] is False
+#     # remove defaults from full
+#     clean = utils.remove_column_defaults(copy(full))
+#     assert clean == COL_1_HINTS_DEFAULTS
+#     # prop is None and will be removed
+#     del full["prop"]  # type: ignore[typeddict-item]
+#     assert add_column_defaults(copy(clean)) == full
+#     # test incomplete
+#     complete_full = add_column_defaults(copy(COL_2_HINTS))
+#     # defaults are added
+#     assert complete_full["unique"] is False
 
 
 def test_remove_defaults_stored_schema() -> None:
@@ -130,7 +172,7 @@ def test_new_incomplete_column() -> None:
     assert "merge_key" not in incomplete_col
 
 
-def test_merge_columns() -> None:
+def test_merge_column() -> None:
     # tab_b overrides non default
     col_a = utils.merge_column(copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=False)
     # nullable is False - tab_b has it as default and those are not merged
@@ -140,9 +182,10 @@ def test_merge_columns() -> None:
         "cluster": False,
         "foreign_key": True,
         "data_type": "text",
-        "x-special": True,
+        "x-special": "value",
         "x-special-int": 100,
         "x-special-bool": False,
+        "x-special-bool-true": True,
         "prop": None,
     }
 
@@ -154,12 +197,90 @@ def test_merge_columns() -> None:
         "cluster": False,
         "foreign_key": True,
         "data_type": "text",
-        "x-special": True,
+        "x-special": "value",
         "x-special-int": 100,
         "x-special-bool": False,
+        "x-special-bool-true": True,
         "prop": None,
         "primary_key": False,
     }
+
+
+def test_none_resets_on_merge_column() -> None:
+    # pops hints with known defaults that are not None (TODO)
+    col_a = utils.merge_column(
+        col_a={"name": "col1", "primary_key": True}, col_b={"name": "col1", "primary_key": None}
+    )
+    assert col_a == {"name": "col1", "primary_key": None}
+
+    # leaves props with unknown defaults (assumes None is default)
+    col_a = utils.merge_column(
+        col_a={"name": "col1", "x-prop": "prop"}, col_b={"name": "col1", "x-prop": None}  # type: ignore[typeddict-unknown-key]
+    )
+    assert col_a == {"name": "col1", "x-prop": None}
+
+
+def test_merge_columns() -> None:
+    columns = utils.merge_columns({"test": deepcopy(COL_1_HINTS)}, {"test_2": COL_2_HINTS})
+    # new columns added ad the end
+    assert list(columns.keys()) == ["test", "test_2"]
+    assert columns["test"] == COL_1_HINTS
+    assert columns["test_2"] == COL_2_HINTS
+
+    # replace test with new test
+    columns = utils.merge_columns(
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=False
+    )
+    assert list(columns.keys()) == ["test"]
+    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+
+    # merge
+    columns = utils.merge_columns(
+        {"test": deepcopy(COL_1_HINTS)}, {"test": COL_1_HINTS_NO_DEFAULTS}, merge_columns=True
+    )
+    assert list(columns.keys()) == ["test"]
+    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+
+
+def test_merge_incomplete_columns() -> None:
+    incomplete_col_1 = deepcopy(COL_1_HINTS)
+    del incomplete_col_1["data_type"]
+    incomplete_col_1_nd = deepcopy(COL_1_HINTS_NO_DEFAULTS)
+    del incomplete_col_1_nd["data_type"]
+    complete_col_2 = deepcopy(COL_2_HINTS)
+    complete_col_2["data_type"] = "text"
+
+    # new incomplete added
+    columns = utils.merge_columns({"test": deepcopy(incomplete_col_1)}, {"test_2": COL_2_HINTS})
+    # new columns added ad the end
+    assert list(columns.keys()) == ["test", "test_2"]
+    assert columns["test"] == incomplete_col_1
+    assert columns["test_2"] == COL_2_HINTS
+
+    # incomplete merged with complete goes at the end
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
+        {"test": COL_1_HINTS_NO_DEFAULTS},
+    )
+    assert list(columns.keys()) == ["test_2", "test"]
+    assert columns["test"] == COL_1_HINTS_NO_DEFAULTS
+    assert columns["test_2"] == COL_2_HINTS
+
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS},
+        {"test": COL_1_HINTS_NO_DEFAULTS},
+        merge_columns=True,
+    )
+    assert list(columns.keys()) == ["test_2", "test"]
+    assert columns["test"] == utils.merge_column(deepcopy(COL_1_HINTS), COL_1_HINTS_NO_DEFAULTS)
+
+    # incomplete with incomplete
+    columns = utils.merge_columns(
+        {"test": deepcopy(incomplete_col_1), "test_2": COL_2_HINTS}, {"test": incomplete_col_1_nd}
+    )
+    assert list(columns.keys()) == ["test", "test_2"]
+    assert columns["test"] == incomplete_col_1_nd
+    assert columns["test_2"] == COL_2_HINTS
 
 
 def test_diff_tables() -> None:
@@ -318,3 +439,21 @@ def test_merge_tables_incomplete_columns() -> None:
     assert list(partial["columns"].keys()) == ["test_2"]
     # incomplete -> incomplete stays in place
     assert list(table["columns"].keys()) == ["test_2", "test"]
+
+
+# def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
+#     """Adds default boolean hints to column"""
+#     return {
+#         **{
+#             "nullable": True,
+#             "partition": False,
+#             "cluster": False,
+#             "unique": False,
+#             "sort": False,
+#             "primary_key": False,
+#             "foreign_key": False,
+#             "root_key": False,
+#             "merge_key": False,
+#         },
+#         **column,
+#     }

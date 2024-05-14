@@ -1,19 +1,19 @@
 from typing import Optional
 
-import atexit
 from concurrent.futures import ThreadPoolExecutor
 
 
 class ManagedThreadPool:
-    def __init__(self, max_workers: int = 1) -> None:
+    def __init__(self, thread_name_prefix: str, max_workers: int = 1) -> None:
+        self.thread_name_prefix = thread_name_prefix
         self._max_workers = max_workers
         self._thread_pool: Optional[ThreadPoolExecutor] = None
 
     def _create_thread_pool(self) -> None:
         assert not self._thread_pool, "Thread pool already created"
-        self._thread_pool = ThreadPoolExecutor(self._max_workers)
-        # flush pool on exit
-        atexit.register(self.stop)
+        self._thread_pool = ThreadPoolExecutor(
+            self._max_workers, thread_name_prefix=self.thread_name_prefix
+        )
 
     @property
     def thread_pool(self) -> ThreadPoolExecutor:

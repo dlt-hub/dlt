@@ -852,7 +852,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         expected_completed_jobs += 1
     # add iceberg copy jobs
     if destination_config.force_iceberg:
-        expected_completed_jobs += 4
+        expected_completed_jobs += 3 if destination_config.supports_merge else 4
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
     with pipeline.sql_client() as sql_client:

@@ -74,6 +74,34 @@ You can create and pass partial credentials and `dlt` will fill the missing data
 Please read how to use [various built in credentials types](credentials/config_specs.md).
 :::
 
+### Configure multiple destinations in a pipeline
+To configure multiple destinations within a pipeline, you need to provide the credentials for each destination in the "secrets.toml" file. This example demonstrates how to configure a BigQuery destination named `destination_one`:
+
+```toml
+[destination.destination_one]
+location = "US"
+[destination.destination_one.credentials]
+project_id = "please set me up!"
+private_key = "please set me up!"
+client_email = "please set me up!"
+```
+
+You can then use this destination in your pipeline as follows: 
+```py
+import dlt
+from dlt.common.destination import Destination
+
+# Configure the pipeline to use the "destination_one" BigQuery destination
+pipeline = dlt.pipeline(
+    pipeline_name='pipeline',
+    destination=Destination.from_reference(
+        "bigquery",
+        destination_name="destination_one"
+    ),
+    dataset_name='dataset_name'
+)
+```
+Similarly, you can assign multiple destinations to the same or different drivers.
 
 ## Access a destination
 When loading data, `dlt` will access the destination in two cases:

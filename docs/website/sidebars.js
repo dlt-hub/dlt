@@ -68,6 +68,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/chess',
             'dlt-ecosystem/verified-sources/facebook_ads',
             'dlt-ecosystem/verified-sources/filesystem',
+            'dlt-ecosystem/verified-sources/freshdesk',
             'dlt-ecosystem/verified-sources/github',
             'dlt-ecosystem/verified-sources/google_ads',
             'dlt-ecosystem/verified-sources/google_analytics',
@@ -137,6 +138,18 @@ const sidebars = {
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/destination-tables',
+        {
+          type: 'category',
+          label: 'REST API helpers',
+          link: {
+            type: 'doc',
+            id: 'general-usage/http/overview',
+          },
+          items: [
+            'general-usage/http/rest-client',
+            'general-usage/http/requests',
+          ]
+        },
         'dlt-ecosystem/staging',
         'general-usage/state',
         'general-usage/incremental-loading',

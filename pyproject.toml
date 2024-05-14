@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.10"
+version = "0.4.11"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -122,7 +122,7 @@ sqlfluff = "^2.3.2"
 types-deprecated = "^1.2.9.2"
 pytest-console-scripts = "^1.4.1"
 pytest = "^7.0.0"
-mypy = "^1.6.1"
+mypy = "^1.10.0"
 flake8 = "^5.0.0"
 bandit = "^1.7.0"
 black = "^23.7.0"

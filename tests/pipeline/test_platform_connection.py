@@ -1,16 +1,20 @@
-import dlt
 import os
-import time
+import pytest
 import requests_mock
+
+import dlt
+
+from tests.utils import start_test_telemetry, stop_telemetry
 
 TRACE_URL_SUFFIX = "/trace"
 STATE_URL_SUFFIX = "/state"
 
 
+@pytest.mark.forked
 def test_platform_connection() -> None:
     mock_platform_url = "http://platform.com/endpoint"
-
     os.environ["RUNTIME__DLTHUB_DSN"] = mock_platform_url
+    start_test_telemetry()
 
     trace_url = mock_platform_url + TRACE_URL_SUFFIX
     state_url = mock_platform_url + STATE_URL_SUFFIX
@@ -42,11 +46,13 @@ def test_platform_connection() -> None:
         m.put(mock_platform_url, json={}, status_code=200)
         p.run([my_source(), my_source_2()])
 
-        # sleep a bit and find trace in mock requests
-        time.sleep(2)
+        # this will flush all telemetry queues
+        stop_telemetry()
 
         trace_result = None
         state_result = None
+
+        # mock tracks all calls
         for call in m.request_history:
             if call.url == trace_url:
                 assert not trace_result, "Multiple calls to trace endpoint"

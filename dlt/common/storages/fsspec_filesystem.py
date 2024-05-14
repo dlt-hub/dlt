@@ -199,7 +199,7 @@ class FileItemDict(DictStrAny):
         mode: str = "rb",
         compression: Literal["auto", "disable", "enable"] = "auto",
         **kwargs: Any,
-    ) -> Union[GzipFile, IO[Any]]:
+    ) -> IO[Any]:
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using
@@ -226,7 +226,6 @@ class FileItemDict(DictStrAny):
             raise ValueError("""The argument `compression` must have one of the following values:
                 "auto", "enable", "disable".""")
 
-        opened_file: Union[IO[Any], GzipFile]
         # if the user has already extracted the content, we use it so there is no need to
         # download the file again.
         if "file_content" in self:
@@ -247,15 +246,14 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
-            if "local" in self.fsspec.protocol:
+            if "file" in self.fsspec.protocol:
                 # use native local file path to open file:// uris
                 file_url = self.local_file_path
             else:
                 file_url = self["file_url"]
-            opened_file = self.fsspec.open(
+            return self.fsspec.open(  # type: ignore[no-any-return]
                 file_url, mode=mode, compression=compression_arg, **kwargs
             )
-        return opened_file
 
     def read_bytes(self) -> bytes:
         """Read the file content.
@@ -267,7 +265,7 @@ class FileItemDict(DictStrAny):
             return self["file_content"]  # type: ignore
         else:
             with self.open(mode="rb", compression="disable") as f:
-                return f.read()
+                return f.read()  # type: ignore[no-any-return]
 
 
 def guess_mime_type(file_name: str) -> Sequence[str]:
@@ -292,7 +290,7 @@ def glob_files(
     Returns:
         Iterable[FileItem]: The list of files.
     """
-    is_local_fs = "local" in fs_client.protocol
+    is_local_fs = "file" in fs_client.protocol
     if is_local_fs and FilesystemConfiguration.is_local_path(bucket_url):
         bucket_url = FilesystemConfiguration.make_file_uri(bucket_url)
         bucket_url_parsed = urlparse(bucket_url)

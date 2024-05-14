@@ -24,7 +24,8 @@ Install dlt using `pip`:
 pip install -U dlt
 ```
 
-The command above installs (or upgrades) the library core, in the example below we use DuckDB as a destination so let's add a `duckdb` dependency:
+The command above installs (or upgrades) the core library, in the example below we
+use DuckDB as a destination so let's add a `duckdb` dependency:
 
 ```sh
 pip install "dlt[duckdb]"
@@ -82,7 +83,7 @@ pip install streamlit
 
 Now you should see the **users** table:
 
-![Streamlit Explore data](/img/streamlit1.png)
+![Streamlit Explore data](/img/streamlit-new.png)
 Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 
 :::tip

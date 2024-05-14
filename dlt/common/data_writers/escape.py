@@ -210,7 +210,10 @@ def format_datetime_literal(v: pendulum.DateTime, precision: int = 6, no_tz: boo
 def format_bigquery_datetime_literal(
     v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
 ) -> str:
-    """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator."""
+    """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator.
+
+    Also works for Presto-based engines.
+    """
     # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#timestamp_literals
     return "TIMESTAMP " + format_datetime_literal(v, precision, no_tz)
 

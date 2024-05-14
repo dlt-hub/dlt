@@ -87,7 +87,7 @@ athena_work_group="my_workgroup"
 The `athena` destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
-- `merge` - falls back to `append`.
+- `merge` - falls back to `append` (unless you're using [iceberg](#iceberg-data-tables) tables).
 
 ## Data loading
 
@@ -136,6 +136,13 @@ force_iceberg = "True"
 ```
 
 For every table created as an iceberg table, the Athena destination will create a regular Athena table in the staging dataset of both the filesystem and the Athena glue catalog, and then copy all data into the final iceberg table that lives with the non-iceberg tables in the same dataset on both the filesystem and the glue catalog. Switching from iceberg to regular table or vice versa is not supported.
+
+#### `merge` support
+The `merge` write disposition is supported for Athena when using iceberg tables.
+
+> Note that:
+> 1. there is a risk of tables ending up in inconsistent state in case a pipeline run fails mid flight, because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`, 
+> 2. `dlt` creates additional helper tables called `insert_<table name>` and `delete_<table name>` in the staging schema to work around Athena's lack of temporary tables.
 
 ### dbt support
 

@@ -104,7 +104,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py -m "not forked"
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
         shell: cmd
@@ -117,7 +117,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run pipeline tests with pyarrow but no pandas installed
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow
+          poetry run pytest tests/pipeline/test_pipeline_extra.py -k arrow  -m "not forked"
         if: runner.os == 'Windows'
         name: Run pipeline tests with pyarrow but no pandas installed Windows
         shell: cmd
@@ -130,7 +130,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run extract and pipeline tests Linux/MAC
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations  -m "not forked"
         if: runner.os == 'Windows'
         name: Run extract tests Windows
         shell: cmd

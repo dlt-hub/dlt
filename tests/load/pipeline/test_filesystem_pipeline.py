@@ -83,7 +83,7 @@ def test_pipeline_csv_filesystem_destination(item_type: TestDataItemFormat) -> N
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
 
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
@@ -110,7 +110,7 @@ def test_csv_options(item_type: TestDataItemFormat) -> None:
     os.environ["NORMALIZE__DATA_WRITER__DELIMITER"] = "|"
     os.environ["NORMALIZE__DATA_WRITER__INCLUDE_HEADER"] = "False"
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
         destination="filesystem",
@@ -139,7 +139,7 @@ def test_csv_quoting_style(item_type: TestDataItemFormat) -> None:
     os.environ["NORMALIZE__DATA_WRITER__QUOTING"] = "quote_all"
     os.environ["NORMALIZE__DATA_WRITER__INCLUDE_HEADER"] = "False"
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
         destination="filesystem",
@@ -170,7 +170,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     import pyarrow.parquet as pq  # Module is evaluated by other tests
 
     # store locally
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
     pipeline = dlt.pipeline(
         pipeline_name="parquet_test_" + uniq_id(),
         destination="filesystem",
@@ -264,7 +264,7 @@ def test_filesystem_destination_extended_layout_placeholders(
         "hiphip": counter("Hurraaaa"),
     }
     now = pendulum.now()
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "file://_storage"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
 
     # the reason why we are patching pendulum.from_timestamp is that

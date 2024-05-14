@@ -140,7 +140,7 @@ def test_instantiation() -> None:
 
     # test decorator
     calls = []
-    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)  # type: ignore
+    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations

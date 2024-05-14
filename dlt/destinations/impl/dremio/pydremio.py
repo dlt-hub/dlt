@@ -242,7 +242,7 @@ class CookieMiddleware(flight.ClientMiddleware):
     def received_headers(self, headers: Mapping[str, str]) -> None:
         for key in headers:
             if key.lower() == "set-cookie":
-                cookie = SimpleCookie()  # type: ignore
+                cookie = SimpleCookie()
                 for item in headers.get(key):
                     cookie.load(item)
 

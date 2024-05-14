@@ -6,6 +6,11 @@ from fsspec import AbstractFileSystem
 class FSClientBase(ABC):
     fs_client: AbstractFileSystem
 
+    @property
+    @abstractmethod
+    def dataset_path(self) -> str:
+        pass
+
     @abstractmethod
     def get_table_dir(self, table_name: str) -> str:
         """returns directory for given table"""
