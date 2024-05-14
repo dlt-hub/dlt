@@ -96,22 +96,22 @@ We will use GitHub’s API as an example. #
 We will link to examples also in this [Colab tutorial demo](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=SCr8ACUtyfBN&forceEdit=true&sandboxMode=true)
 
 
-1. Collect your api url and endpoints:
+1. Collect your api url and endpoints, [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=bKthJGV6Mg6C):
     - An URL is the base of the request, for example: `https://api.github.com/`.
     - An endpoint is the path of an individual resource such as:
         - `/repos/{OWNER}/{REPO}/issues`;
         - or  `/repos/{OWNER}/{REPO}/issues/{issue_number}/comments` which would require the issue number from the above endpoint;
         - or `/users/{username}/starred` etc.
-2. Identify the authentication methods:
+2. Identify the authentication methods, [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=mViSDre8McI7):
     - GitHub uses bearer tokens for auth, but we can also skip it for public endpoints https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28.
 3. Identify if you have any dependent request patterns such as first get ids in a list, then use id for requesting details.
-
-   For GitHub, we might do the below or any other chained requests:
+   For GitHub, we might do the below or any other dependent requests. [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=vw7JJ0BlpFyh):
       1. Get all repos of an org `https://api.github.com/orgs/{org}/repos`.
       2. Then get all contributors `https://api.github.com/repos/{owner}/{repo}/contributors`.
-4. How does pagination work? Is there any? Do we know the exact pattern?
+
+4. How does pagination work? Is there any? Do we know the exact pattern? [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=rqqJhUoCB9F3)
     - On GitHub, we have consistent [pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28) between endpoints that looks like this `link_header = response.headers.get('Link', None)`.
-5. Identify the necessary information for incremental loading:
+5. Identify the necessary information for incremental loading, [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=fsd_SPZD7nBj):
     - Will any endpoints be loaded incrementally?
     - What columns will you use for incremental extraction and loading?
     - GitHub example: We can extract new issues by requesting issues after a particular time: `https://api.github.com/repos/{repo_owner}/{repo_name}/issues?since={since}`.
@@ -119,9 +119,9 @@ We will link to examples also in this [Colab tutorial demo](https://colab.resear
 ### Configuration Checklist: Checking responses during development
 
 1. Data path:
-    - You could print the source and see what is yielded.
+    - You could print the source and see what is yielded. [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=oJ9uWLb8ZYto&line=6&uniqifier=1)
 2. Unless you had full documentation at point 4 (which we did), you likely need to still figure out some details on how pagination works.
-    1. To do that, we suggest using `curl` or a second python script to do a request and inspect the response. This gives you flexibility to try anything.
+    1. To do that, we suggest using `curl` or a second python script to do a request and inspect the response. This gives you flexibility to try anything. [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=tFZ3SrZIMTKH)
     2. Or you could print the source as above - but if there is metadata in headers etc, you might miss it.
 
 ### Applying the configuration
@@ -139,7 +139,7 @@ If you are using a narrow screen, scroll the snippet below to look for the numbe
 ```py
 # This source has 2 resources:
 # - issues: Parent resource, retrieves issues incl. issue number
-# - issues_comments: Child resource which needs the issue number
+# - issues_comments: Child resource which needs the issue number from parent.
 
 import os
 from rest_api import RESTAPIConfig
