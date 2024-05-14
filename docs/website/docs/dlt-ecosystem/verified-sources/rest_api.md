@@ -78,12 +78,15 @@ github_token = "your_github_token"
 Let's take a look at the GitHub example in `rest_api_pipeline.py` file:
 
 ```py
-def load_github() -> None:
+from rest_api import RESTAPIConfig, rest_api_resources
+
+@dlt.source
+def github_source(github_token=dlt.secrets.value):
     github_config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
             "auth": {
-                "token": dlt.secrets["github_token"],
+                "token": github_token,
             },
         },
         "resource_defaults": {
@@ -129,15 +132,16 @@ def load_github() -> None:
         ],
     }
 
-    github_source = rest_api_source(github_config)
+    yield from rest_api_resources(config)
 
+def load_github() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="rest_api_github",
         destination="duckdb",
         dataset_name="rest_api_data",
     )
 
-    load_info = pipeline.run(github_source)
+    load_info = pipeline.run(github_source())
     print(load_info)
 ```
 
