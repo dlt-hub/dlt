@@ -364,6 +364,7 @@ Some APIs use POST requests for pagination, where the next page is fetched by se
 
 ```py
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
+from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.requests import Response, Request
 
 class PostBodyPaginator(BasePaginator):
