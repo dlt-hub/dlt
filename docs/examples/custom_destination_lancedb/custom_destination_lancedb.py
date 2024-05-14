@@ -147,8 +147,6 @@ if __name__ == "__main__":
     row_counts = pipeline.last_trace.last_normalize_info
     print(row_counts)
 
-    row_counts = pipeline.last_trace.last_normalize_info
-
     # Showcase vector search capabilities over our dataset with lancedb.
     # Perform brute force search while we have small data.
     query = "French AI scientist with Lex, talking about AGI and Meta and Llama"
