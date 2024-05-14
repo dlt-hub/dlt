@@ -299,6 +299,7 @@ These are the available paginators:
 | [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | `page_number` | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided. |
 | [JSONCursorPaginator](../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | `cursor` | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON). |
 | SinglePagePaginator | `single_page` | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
+| `None` | `auto` | Explicitly specify that the source should automatically detect the pagination method. |
 
 To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may use either the paginator class or the string alias in the `type` field along with the required parameters.
 
@@ -322,6 +323,8 @@ Or using the paginator instance:
     ),
 }
 ```
+
+This is useful when you're [implementing and using a custom paginator](../../general-usage/http/rest-client.md#custom-paginator).
 
 ### Data selection
 
