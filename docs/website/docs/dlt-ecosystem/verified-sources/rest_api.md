@@ -7,7 +7,7 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-This is a generic dlt source you can use to extract data from any REST API. It uses declarative configuration to define the API endpoints, their relationships, parameters, pagination, and authentication.
+This is a generic dlt source you can use to extract data from any REST API. It uses [declarative configuration](#source-configuration) to define the API endpoints, their [relationships](#define-resource-relationships), how to handle [pagination](#pagination), and [authentication](#authentication).
 
 ## Setup guide
 
@@ -62,14 +62,14 @@ github_token = "your_github_token"
 2. Run the pipeline:
 
    ```sh
-    python rest_api_pipeline.py
-    ```
+   python rest_api_pipeline.py
+   ```
 
 3. Verify that everything loaded correctly by using the following command:
 
-    ```sh
-    dlt pipeline rest_api show
-    ```
+   ```sh
+   dlt pipeline rest_api show
+   ```
 
 ## Source configuration
 
@@ -79,12 +79,6 @@ Let's take a look at the GitHub example in `rest_api_pipeline.py` file:
 
 ```py
 def load_github() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="rest_api_github",
-        destination="duckdb",
-        dataset_name="rest_api_data",
-    )
-
     github_config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
@@ -137,6 +131,12 @@ def load_github() -> None:
 
     github_source = rest_api_source(github_config)
 
+    pipeline = dlt.pipeline(
+        pipeline_name="rest_api_github",
+        destination="duckdb",
+        dataset_name="rest_api_data",
+    )
+
     load_info = pipeline.run(github_source)
     print(load_info)
 ```
@@ -145,19 +145,19 @@ The declarative resource configuration is defined in the `github_config` diction
 
 1. `client`: Defines the base URL and authentication method for the API. In this case it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
-2. `resource_defaults`: Contains default settings for all resources. In this example, we define that all resources:
+2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
     - Have `id` as the [primary key](../../general-usage/resource#define-schema)
     - Use the `merge` [write disposition](../../general-usage/incremental-loading#choosing-a-write-disposition) to merge the data with the existing data in the destination.
     - Send a `per_page` query parameter with each request to 100 to get more results per page.
 
-3. `resources`: A list of resources to be loaded. In this example, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need a in issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
+3. `resources`: A list of [resources](#resource-configuration) to be loaded. Here, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need a in issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
 
 Let's break down the configuration in more detail.
 
 ### Configuration structure
 
 :::tip
-Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE:
+Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE and use it to define the configuration object.
 
 ```py
 from rest_api import RESTAPIConfig
@@ -192,7 +192,7 @@ config: RESTAPIConfig = {
 
 #### `resource_defaults` (optional)
 
-`resource_defaults` contains the default values to configure the dlt resources. This configuration is applied to all resources unless overridden by the resource-specific configuration.
+`resource_defaults` contains the default values to [configure the dlt resources](#resource-configuration). This configuration is applied to all resources unless overridden by the resource-specific configuration.
 
 For example, you can set the primary key, write disposition, and other default settings here:
 
@@ -236,13 +236,15 @@ This is a list of resource configurations that define the API endpoints to be lo
 
 ### Resource configuration
 
-A resource configuration has the following fields:
+A resource configuration is used to define a [dlt resource](../../general-usage/resource.md) for the data to be loaded from an API endpoint. It contains the following key fields:
 
 - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
 - `write_disposition`: The write disposition for the resource.
 - `primary_key`: The primary key for the resource.
-- `include_from_parent`: A list of fields from the parent resource to be included in the resource output.
+- `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
 - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
+
+You can also pass additional resource parameters that will be used to configure the dlt resource. See [dlt resource API reference](../../api_reference/extract/decorators.md#resource) for more details.
 
 ### Endpoint configuration
 
@@ -283,7 +285,11 @@ The REST API source will try to automatically handle pagination for you. This wo
 
 In some special cases, you may need to specify the pagination configuration explicitly.
 
-These are the available paginator types:
+:::note
+Currently pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../general-usage/http/rest-client.md#custom-paginator).
+:::
+
+These are the available paginators:
 
 | Paginator class | String Alias (`type`) | Description |
 | -------------- | ------------ | ----------- |
@@ -457,6 +463,7 @@ In the GitHub example, the `issue_comments` resource depends on the `issues` res
                     }
                 },
             },
+            "include_from_parent": ["id"],
         },
     ],
 }
@@ -473,6 +480,22 @@ The syntax for the `resolve` field in parameter configuration is:
     "field": "<parent_resource_field_name>",
 }
 ```
+
+#### Include fields from the parent resource
+
+You can include data from the parent resource in the child resource by using the `include_from_parent` field in the resource configuration. For example:
+
+```py
+{
+    "name": "issue_comments",
+    "endpoint": {
+        ...
+    },
+    "include_from_parent": ["id", "title", "created_at"],
+}
+```
+
+This will include the `id`, `title`, and `created_at` fields from the `issues` resource in the `issue_comments` resource data. The name of the included fields will be prefixed with the parent resource name and an underscore (`_`) like so: `_issues_id`, `_issues_title`, `_issues_created_at`.
 
 ## Incremental loading
 
