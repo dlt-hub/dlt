@@ -58,7 +58,7 @@ Credits:
 - **dlt’s REST API Source** is a Python dictionary-first declarative source builder, that has enhanced flexibility, supports callable passes, native config validations via python dictionaries, and composability directly in your scripts. It enables generating sources dynamically during runtime, enabling straightforward, manual or automated workflows for adapting sources to changes.
 - **dlt’s REST API Client** is the low-level abstraction that powers the REST API Source. You can use it in your imperative code for more automation and brevity, if you do not wish to use the higher level declarative interface.
 
-## Useful for those who frequently build new pipelines
+### Useful for those who frequently build new pipelines
 
 If you are on a team with 2-3 pipelines that never change much you likely won’t see much benefit from our latest tool.
 What we observe from early feedback a declarative extractor is great at is enabling easier work at scale.
@@ -77,7 +77,7 @@ In some cases, we might not have the information upfront, so we will show you ho
 
 Depending on how you learn better, you can either watch the videos that our community members made, or follow the walkthrough below.
 
-## Video walkthroughs
+## **Video walkthroughs**
 
 In these videos, you will learn at a leisurely pace how to use the new interface.
 [playlist link.](https://www.youtube.com/playlist?list=PLpTgUMBCn15rs2NkB4ise780UxLKImZTh)
