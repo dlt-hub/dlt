@@ -18,25 +18,26 @@ We'll learn how to:
 - Delegate the embeddings to LanceDB
 """
 
-import datetime  # noqa: I251
+import datetime
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 
-import lancedb  # type: ignore
-from lancedb.embeddings.registry import EmbeddingFunctionRegistry  # type: ignore
-from lancedb.pydantic import LanceModel, Vector  # type: ignore
+import lancedb  # type: ignore[import-untyped]
+from lancedb.embeddings.registry import EmbeddingFunctionRegistry  # type: ignore[import-untyped]
+from lancedb.pydantic import LanceModel, Vector  # type: ignore[import-untyped]
 
 import dlt
+from dlt.common.configuration import configspec
 from dlt.common.schema import TTableSchema
-from dlt.common.typing import TDataItems
+from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
+from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
 
 os.environ["COHERE_API_KEY"] = dlt.secrets.get("cohere.api_key")
 
-# LanceDB global registry keeps track of text embedding callables implicitly.
 cohere = EmbeddingFunctionRegistry
 func = EmbeddingFunctionRegistry.get_instance().get("cohere").create(max_retries=1)
 
@@ -44,7 +45,7 @@ db_path = Path(dlt.config.get("lancedb.db_path"))
 
 
 class EpisodeSchema(LanceModel):
-    id: str  # noqa: A003
+    id: str
     name: str
     description: str = func.SourceField()
     vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
@@ -60,53 +61,47 @@ class Shows:
     lex_fridman: str = "2MAi0BvDc6GTFvKFPXnkCL"
 
 
-def get_spotify_access_token(client_id: str, client_secret: str) -> str:
-    auth_url = "https://accounts.spotify.com/api/token"
+@configspec
+class SpotifyAuth(AuthConfigBase):
+    client_id: str = None
+    client_secret: TSecretStrValue = None
 
-    auth_response = requests.post(
-        auth_url,
-        {
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret,
-        },
-    )
+    def __call__(self, request) -> Any:
+        if not hasattr(self, "access_token"):
+            self.access_token = self._get_access_token()
+        request.headers["Authorization"] = f"Bearer {self.access_token}"
+        return request
 
-    return auth_response.json()["access_token"]  # type: ignore[no-any-return]
-
-
-def fetch_show_episode_data(
-    show_id: str, access_token: Optional[str] = None, params: Dict[str, Any] = None
-):
-    """Fetch all shows data from Spotify API based on endpoint and params."""
-    spotify_base_api_url = "https://api.spotify.com/v1"
-
-    url = f"{spotify_base_api_url}/shows/{show_id}/episodes"
-    if params is None:
-        params = {}
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-    while True:
-        response_ = requests.get(url, params=params, headers=headers)
-        response_.raise_for_status()
-        response = response_.json()
-        yield response["items"]
-        if not response or "next" not in response or response["next"] is None:
-            break
-        url = response["next"]
+    def _get_access_token(self) -> Any:
+        auth_url = "https://accounts.spotify.com/api/token"
+        auth_response = requests.post(
+            auth_url,
+            {
+                "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            },
+        )
+        return auth_response.json()["access_token"]
 
 
 @dlt.source
 def spotify_shows(
-    client_id: str = dlt.secrets.value,
+    client_id: str = dlt.config.value,
     client_secret: str = dlt.secrets.value,
 ):
-    access_token: str = get_spotify_access_token(client_id, client_secret)
-    params: Dict[str, Any] = {"limit": 50}
+    spotify_base_api_url = "https://api.spotify.com/v1"
+    client = RESTClient(
+        base_url=spotify_base_api_url,
+        auth=SpotifyAuth(client_id=client_id, client_secret=client_secret),  # type: ignore[arg-type]
+    )
+
     for show in fields(Shows):
-        show_name: str = show.name
-        show_id: str = show.default  # type: ignore[assignment]
+        show_name = show.name
+        show_id = show.default
+        url = f"/shows/{show_id}/episodes"
         yield dlt.resource(
-            fetch_show_episode_data(show_id, access_token, params),
+            client.paginate(url, params={"limit": 50}),
             name=show_name,
             write_disposition="merge",
             primary_key="id",
@@ -138,17 +133,13 @@ if __name__ == "__main__":
         progress="log",
     )
 
-    load_info = pipeline.run(
-        spotify_shows(client_id=dlt.secrets.value, client_secret=dlt.secrets.value),
-    )
+    load_info = pipeline.run(spotify_shows())
     load_info.raise_on_failed_jobs()
     print(load_info)
 
     row_counts = pipeline.last_trace.last_normalize_info
     print(row_counts)
 
-    # Showcase vector search capabilities over our dataset with lancedb.
-    # Perform brute force search while we have small data.
     query = "French AI scientist with Lex, talking about AGI and Meta and Llama"
     table_to_query = "lex_fridman"
 
