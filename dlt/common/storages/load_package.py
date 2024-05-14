@@ -308,7 +308,6 @@ class PackageStorage:
     LOAD_PACKAGE_STATE_FILE_NAME = (  # internal state of the load package, will not be synced to the destination
         "load_package_state.json"
     )
-    DROPPED_TABLES_FILE_NAME = "dropped_tables.json"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
