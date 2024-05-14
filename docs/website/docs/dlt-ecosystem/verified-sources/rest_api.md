@@ -440,7 +440,7 @@ config = {
 
 ### Define resource relationships
 
-When you have a resource that depends on another resource, you can define the relationship using the resolve field type.
+When you have a resource that depends on another resource, you can define the relationship using the `resolve` configuration. With it you link a path parameter in the child resource to a field in the parent resource's data.
 
 In the GitHub example, the `issue_comments` resource depends on the `issues` resource. The `issue_number` parameter in the `issue_comments` endpoint configuration is resolved from the `number` field of the `issues` resource:
 
@@ -472,7 +472,21 @@ In the GitHub example, the `issue_comments` resource depends on the `issues` res
 }
 ```
 
-This configuration tells the source to get issue numbers from the `issues` resource and use them to fetch comments for each issue.
+This configuration tells the source to get issue numbers from the `issues` resource and use them to fetch comments for each issue. So if the `issues` resource yields the following data:
+
+```json
+[
+    {"id": 1, "number": 123},
+    {"id": 2, "number": 124},
+    {"id": 3, "number": 125}
+]
+```
+
+The `issue_comments` resource will make requests to the following endpoints:
+
+- `issues/123/comments`
+- `issues/124/comments`
+- `issues/125/comments`
 
 The syntax for the `resolve` field in parameter configuration is:
 
@@ -483,6 +497,8 @@ The syntax for the `resolve` field in parameter configuration is:
     "field": "<parent_resource_field_name>",
 }
 ```
+
+Under the hood, dlt handles this by using a [transformer resource](../../general-usage/resource.md#process-resources-with-dlttransformer).
 
 #### Include fields from the parent resource
 
