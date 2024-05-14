@@ -388,7 +388,7 @@ class PostBodyPaginator(BasePaginator):
        
 client = RESTClient(
     base_url="https://api.example.com",
-    paginator= PostBodyPaginator()
+    paginator=PostBodyPaginator()
 )
 
 @dlt.resource
