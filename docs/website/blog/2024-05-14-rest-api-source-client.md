@@ -1,7 +1,7 @@
 ---
 slug: rest-api-source-client
 title: "Announcing: REST API Source toolkit from dltHub - A Python-only high level approach to pipelines"
-image:  https://storage.googleapis.com/dlt-blog-images/martin_salo_tweet.png
+image:  https://storage.googleapis.com/dlt-blog-images/rest-img.png
 authors:
   name: Adrian Brudaru
   title: Open source Data Engineer
@@ -12,12 +12,12 @@ tags: [full code etl, yes code etl, etl, python elt]
 
 ## What is the REST API Source toolkit?
 :::tip
-** tl;dr: You are probably familiar with REST APIs.
+tl;dr: You are probably familiar with REST APIs.
 
 - Our new **REST API Source** is a short, declarative configuration driven way of creating sources.
 - Our new **REST API Client** is a collection of Python helpers used by the above source, which you can also use as a standalone, config-free, imperative high level abstraction for building pipelines.
 
-Want to skip to docs? links at the [bottom of the post](#next-steps) **
+Want to skip to docs? links at the [bottom of the post](#next-steps)
 :::
 
 ### Why REST configuration pipeline? Obviously, we need one!
@@ -130,6 +130,7 @@ Here’s what a configured example could look like
 4. Pagination
 5. Incremental configuration
 6. Dependent resource (child) configuration
+
 If you are using a narrow screen, scroll the snippet below to look for the numbers designating each component `(n)`
 
 ```python
