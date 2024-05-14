@@ -1,0 +1,236 @@
+---
+slug: rest-api-source-client
+title: "Announcing: REST API Source toolkit from dltHub - A Python-only high level approach to pipelines"
+image:  https://storage.googleapis.com/dlt-blog-images/martin_salo_tweet.png
+authors:
+  name: Adrian Brudaru
+  title: Open source Data Engineer
+  url: https://github.com/adrianbr
+  image_url: https://avatars.githubusercontent.com/u/5762770?v=4
+tags: [full code etl, yes code etl, etl, python elt]
+---
+
+## What is the REST API Source toolkit?
+:::tip
+** tl;dr: You are probably familiar with REST APIs.
+
+- Our new **REST API Source** is a short, declarative configuration driven way of creating sources.
+- Our new **REST API Client** is a collection of Python helpers used by the above source, which you can also use as a standalone, config-free, imperative high level abstraction for building pipelines.
+
+Want to skip to docs? links at the [bottom of the post](#next-steps)
+:::
+
+### Why REST configuration pipeline? Obviously, we need one!
+
+But of course! Why repeat write all this code for requests and loading, when we could write it once and re-use it with different apis with different configs?
+
+Once you have built a few pipelines from REST APIs, you can recognise we could, instead of writing code, write configuration.
+
+**We can call such an obvious next step in ETL tools a “[focal point](https://en.wikipedia.org/wiki/Focal_point_(game_theory))” of “[convergent evolution](https://en.wikipedia.org/wiki/Convergent_evolution)”.**
+
+And if you’ve been in a few larger more mature companies, you will see a variety of home-grown solutions that look similar. You might also have seen such solutions as commercial products or offerings.
+
+### But ours will be better…
+
+So far we have seen many REST API configurators and products -  they suffer from predictable flaws
+
+- Local homebrewed flavors are local for a reason: They aren’t suitable for the broad audience. And often if you ask the users/beneficiaries of these frameworks, they will sometimes argue that they aren’t suitable for anyone at all.
+- Commercial products are yet another data product that doesn’t plug into your stack, brings black boxes and removes autonomy, so they simply aren’t an acceptable solution in many cases.
+
+So how can dlt do better?
+
+Because it can keep the best of both worlds: the autonomy of a library, the quality of a commercial product.
+
+As you will see further, we created not just a standalone “configuration-based source builder” but we also expose the REST API client used enabling its use directly in code.
+
+## Hey community, you made us do it!
+
+The push for this is coming from you, the community. While we had considered the concept before, there were many things dlt needed before creating a new way to build pipelines. A declarative extractor after all, would not make dlt easier to adopt, because a declarative approach requires more upfront knowledge.
+
+Credits:
+
+- So, thank you Alex Butler for building a first version of this and donating it to us back in August ‘23  https://github.com/dlt-hub/dlt-init-openapi/pull/2.
+- And thank you Francesco Mucio and Willi Müller for re-opening the topic, and creating video [tutorials](https://www.youtube.com/playlist?list=PLpTgUMBCn15rs2NkB4ise780UxLKImZTh).
+- And last but not least, thank you to dlt team’s Anton Burnashev (also known for [gspread](https://github.com/burnash/gspread) library) for building it out!
+
+## The outcome? Two Python-only interfaces, one declarative, one imperative.
+
+- **dlt’s REST API Source is a Python dictionary-first declarative source builder,** that has enhanced flexibility**,** supports callable passes, native config validations via python dictionaries, and composability directly in your scripts. It enables generating sources dynamically during runtime, enabling straightforward, manual or automated workflows for adapting sources to changes.
+- **dlt’s REST API client** is the low level abstraction that powers the **REST API Source.** You can use it in your imperative code for more automation and brevity, if you do not wish to use the higher level declarative interface.
+
+## Useful for those who frequently build new pipelines
+
+If you are on a team with 2-3 pipelines that never change much you likely won’t see much benefit from our latest tool. What we observe from early feedback a declarative extractor is great at is enabling easier work at scale. We heard excitement about the **REST API Source** from:  ****
+
+- companies with many pipelines that frequently create new pipelines,
+- data platform teams,
+- freelancers and agencies,
+- folks who want to generate pipelines with LLMs and need a simple interface.
+
+## How to use the REST API Source?
+
+Since this is a declarative interface, we can’t make things up as we go along, and instead need to understand what we want to do upfront and declare that.
+
+In some cases, we might not have the information upfront, so we will show you how to get that info during your development workflow.
+
+Depending on how you learn better, you can either watch the videos that our community members made, or follow the walkthrough below.
+
+## **Video walkthroughs:**
+
+In these videos, you will learn at a leisurely pace how to use the new interface.
+[playlist link](https://www.youtube.com/playlist?list=PLpTgUMBCn15rs2NkB4ise780UxLKImZTh)
+<iframe width="560" height="315" src="https://www.youtube.com/embed/-ejqquY_u20?si=q41I76swYwFpWVSf" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+## Workflow walkthrough: Step by step.
+
+If you prefer to do things at your own pace, try the workflow walkthrough, which will show you the workflow of using the declarative interface.
+
+In the example below, we will show how to create an API integration with 2 endpoints. One of these is a child resource, using the data from the parent endpoint to make a new request.
+
+### Configuration Checklist: **Before getting started**
+
+We will use GitHub’s API as an example.
+
+1. Collect your api url and endpoints
+    - an url is the base of the request, for example: `https://api.github.com/`
+    - an endpoint is the path of an individual resource such as:
+        - `/repos/{OWNER}/{REPO}/issues`
+        - or  `/repos/{OWNER}/{REPO}/issues/{issue_number}/comments` which would require the issue number from the above endpoint
+        - or `/users/{username}/starred` etc.
+2. Identify the authentication methods
+    - Github uses bearer tokens for auth, but we can also skip it for public endpoints https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28
+3. Identify if you have any dependent request patterns such as first get ids in a list, then use id for requesting details.
+    1. for github we might do the below or any other chained requests.
+        1. get all repos of an org [`https://api.github.com/orgs/{org}/repos`](https://api.github.com/orgs/%7Borg%7D/repos)
+        2. then get all contributors [`https://api.github.com/repos/{owner}/{repo}/contributors`](https://api.github.com/repos/%7Bowner%7D/%7Brepo%7D/contributors)
+4. How does pagination work? is there any? do we know the exact pattern?
+    - On github we have consistent [pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28) between endpoints that looks like this `link_header = response.headers.get('Link', None)`
+5. Identify the necessary information for incremental loading
+    - Will any endpoints be loaded incrementally?
+    - What columns will you use for incremental extraction and loading?
+    - github example: we can extract new issues by requesting issues after a particular time: `https://api.github.com/repos/{repo_owner}/{repo_name}/issues?since={since}`
+
+### Configuration Checklist: Checking responses during **development**
+
+1. Data path
+    - You could print the source and see what is yielded
+2. Unless you had full documentation at point 4 (which we did), you likely need to still figure out some details on how pagination works.
+    1. To do that we suggest using curl or a second python script to do a request and inspect the response. This gives you flexibility to try anything.
+    2. Or you could print the source as above - but if there is metadata in headers etc, you might miss it.
+
+## Applying the configuration
+
+Here’s what a configured example could look like
+
+1. Base Url and endpoints
+2. Authentication
+3. Chained request
+4. Pagination
+5. Incremental configuration
+6. Dependent resource (child) configuration
+
+```python
+# This source has 2 resources:
+# - issues: Parent resource, retrieves issues incl issue number.
+# - issues_comments: child resource which needs the issue number
+
+import os
+from rest_api import RESTAPIConfig
+
+github_config: RESTAPIConfig = {
+    "client": {
+        "base_url": "https://api.github.com/repos/dlt-hub/dlt/",      #(1)
+        # Optional auth for improving rate limits                     #(2)
+        # "auth": {
+        #   "token": os.environ.get('GITHUB_TOKEN', userdata.get('GITHUB_TOKEN')),
+        # },
+    },
+			# The paginator is autodetected, but we can pass it explicitly  #(4)
+      #  "paginator": {
+      #  "type": "header_link",
+      #  "next_url_path": "paging.link",
+      #  }
+    # we can declare generic settings in one place
+    # our data is stateful so we load it incrementally by merging on id.
+    "resource_defaults": {
+        "primary_key": "id",                                          #(5)
+        "write_disposition": "merge",                                 #(5)
+        # these are request params specific to github
+        "endpoint": {
+            "params": {
+                "per_page": 10,
+            },
+        },
+    },
+    "resources": [
+	    # This is the first issue
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",                                     #(1)
+                "params": {
+                      "sort": "updated",
+                      "direction": "desc",
+                      "state": "open",
+                      "since": {
+                            "type": "incremental",
+                            "cursor_path": "updated_at",
+                            "initial_value": "2024-01-25T11:21:28Z",
+                        },
+                }
+            },
+        },
+        # Configuration for fetching comments on issues              #(3)
+        # This is a child resource - as in, it needs something from another.
+        {
+            "name": "issue_comments",
+            "endpoint": {
+                "path": "issues/{issue_number}/comments",            #(1)
+                # For child resources, you can use values from the parent resource for params.
+                "params": {
+                    "issue_number": {
+                        # Use type "resolve" to define child endpoint wich should be resolved
+                        "type": "resolve",
+                        # Parent endpoint
+                        "resource": "issues",
+                        # The specific field in the issues resource to use for resolution
+                        "field": "number",
+                    }
+                },
+            },
+            # A list of fields, from the parent resource, which will be included in the child resource output.
+            "include_from_parent": ["id"],
+        },
+    ],
+}
+```
+
+## And that’s a wrap - what else should you know?
+
+- As we mentioned, there’s also a REST client - an imperative way to use the same abstractions, for example the auto-paginator - check out this runnable snippet
+
+    ```python
+    from dlt.sources.helpers.rest_client import RESTClient
+
+    # Initialize the RESTClient with the Pokémon API base URL
+    client = RESTClient(base_url="https://pokeapi.co/api/v2")
+
+    # Define a function to fetch and paginate through Pokémon data
+    def fetch_pokemon():
+        # Using the paginate method to automatically handle pagination
+        for page in client.paginate("/pokemon"):
+                print(page)
+    # Call the function to start fetching data
+    fetch_pokemon()
+    ```
+
+- We are going to generate a bunch of sources from openapi specs - stay tuned for an update in a couple of weeks.
+
+## Next steps:
+
+- Read more about the
+    - [REST API Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api) and
+    - **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client),**
+    - **and the related [API helpers](https://dlthub.com/devel/general-usage/http/overview) and** [request](https://dlthub.com/docs/general-usage/http/requests)s helper.
+- [Join our community](https://dlthub.com/community) and give us feedback!
+- Want to share back your work? See this page for instructions: [https://dlthub.notion.site/dltHub-Community-Sources-Snippets-7a7f7ddb39334743b1ba3debbdfb8d7f](https://www.notion.so/7a7f7ddb39334743b1ba3debbdfb8d7f?pvs=21)
