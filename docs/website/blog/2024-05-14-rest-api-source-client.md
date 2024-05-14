@@ -17,7 +17,7 @@ tags: [full code etl, yes code etl, etl, python elt]
 - Our new **REST API Source** is a short, declarative configuration driven way of creating sources.
 - Our new **REST API Client** is a collection of Python helpers used by the above source, which you can also use as a standalone, config-free, imperative high level abstraction for building pipelines.
 
-Want to skip to docs? links at the [bottom of the post](#next-steps)
+Want to skip to docs? links at the [bottom of the post](#next-steps) **
 :::
 
 ### Why REST configuration pipeline? Obviously, we need one!
@@ -28,7 +28,7 @@ Once you have built a few pipelines from REST APIs, you can recognise we could, 
 
 **We can call such an obvious next step in ETL tools a “[focal point](https://en.wikipedia.org/wiki/Focal_point_(game_theory))” of “[convergent evolution](https://en.wikipedia.org/wiki/Convergent_evolution)”.**
 
-And if you’ve been in a few larger more mature companies, you will see a variety of home-grown solutions that look similar. You might also have seen such solutions as commercial products or offerings.
+And if you’ve been in a few larger more mature companies, you will have seen a variety of home-grown solutions that look similar. You might also have seen such solutions as commercial products or offerings.
 
 ### But ours will be better…
 
@@ -60,7 +60,9 @@ Credits:
 
 ## Useful for those who frequently build new pipelines
 
-If you are on a team with 2-3 pipelines that never change much you likely won’t see much benefit from our latest tool. What we observe from early feedback a declarative extractor is great at is enabling easier work at scale. We heard excitement about the **REST API Source** from:  ****
+If you are on a team with 2-3 pipelines that never change much you likely won’t see much benefit from our latest tool.
+What we observe from early feedback a declarative extractor is great at is enabling easier work at scale.
+We heard excitement about the **REST API Source** from:
 
 - companies with many pipelines that frequently create new pipelines,
 - data platform teams,
@@ -128,6 +130,7 @@ Here’s what a configured example could look like
 4. Pagination
 5. Incremental configuration
 6. Dependent resource (child) configuration
+If you are using a narrow screen, scroll the snippet below to look for the numbers designating each component `(n)`
 
 ```python
 # This source has 2 resources:
@@ -145,7 +148,7 @@ github_config: RESTAPIConfig = {
         #   "token": os.environ.get('GITHUB_TOKEN', userdata.get('GITHUB_TOKEN')),
         # },
     },
-			# The paginator is autodetected, but we can pass it explicitly  #(4)
+      # The paginator is autodetected, but we can pass it explicitly  #(4)
       #  "paginator": {
       #  "type": "header_link",
       #  "next_url_path": "paging.link",
@@ -233,4 +236,4 @@ github_config: RESTAPIConfig = {
     - **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client),**
     - **and the related [API helpers](https://dlthub.com/devel/general-usage/http/overview) and** [request](https://dlthub.com/docs/general-usage/http/requests)s helper.
 - [Join our community](https://dlthub.com/community) and give us feedback!
-- Want to share back your work? See this page for instructions: [https://dlthub.notion.site/dltHub-Community-Sources-Snippets-7a7f7ddb39334743b1ba3debbdfb8d7f](https://www.notion.so/7a7f7ddb39334743b1ba3debbdfb8d7f?pvs=21)
+- Want to share back your work? See this page for instructions: [dltHub-Community-Sources-Snippets](https://www.notion.so/7a7f7ddb39334743b1ba3debbdfb8d7f?pvs=21)
