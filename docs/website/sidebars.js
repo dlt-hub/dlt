@@ -83,6 +83,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/notion',
             'dlt-ecosystem/verified-sources/personio',
             'dlt-ecosystem/verified-sources/pipedrive',
+            'dlt-ecosystem/verified-sources/rest_api',
             'dlt-ecosystem/verified-sources/salesforce',
             'dlt-ecosystem/verified-sources/scrapy',
             'dlt-ecosystem/verified-sources/shopify',
