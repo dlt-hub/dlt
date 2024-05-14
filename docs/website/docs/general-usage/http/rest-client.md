@@ -311,7 +311,7 @@ When working with APIs that use non-standard pagination schemes, or when you nee
 
 - `update_request(request: Request) -> None`: Before making the next API call in `RESTClient.paginate` method, `update_request` is used to modify the request with the necessary parameters to fetch the next page (based on the current state of the paginator). For example, you can add query parameters to the request, or modify the URL.
 
-#### Example: creating a query parameter paginator
+#### Example 1: creating a query parameter paginator
 
 Suppose an API uses query parameters for pagination, incrementing an page parameter for each subsequent page, without providing direct links to next pages in its responses. E.g. `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
 
@@ -346,6 +346,49 @@ from dlt.sources.helpers.rest_client import RESTClient
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=QueryParamPaginator(page_param="page", initial_page=1)
+)
+
+@dlt.resource
+def get_data():
+    for page in client.paginate("/data"):
+        yield page
+```
+
+:::tip
+[`PageNumberPaginator`](#pagenumberpaginator) that ships with dlt does the same thing, but with more flexibility and error handling. This example is meant to demonstrate how to implement a custom paginator. For most use cases, you should use the [built-in paginators](#paginators).
+:::
+
+#### Example 2: creating a paginator for POST requests
+
+Some APIs use POST requests for pagination, where the next page is fetched by sending a POST request with a cursor or other parameters in the request body. This is frequently used in "search" API endpoints or other endpoints with big payloads. Here's how you could implement a paginator for a case like this:
+
+```py
+from dlt.sources.helpers.rest_client.paginators import BasePaginator
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.requests import Response, Request
+
+class PostBodyPaginator(BasePaginator):
+    def __init__(self):
+        super().__init__()
+        self.cursor = None
+
+    def update_state(self, response: Response) -> None:
+        # Assuming the API returns an empty list when no more data is available
+        if not response.json():
+            self._has_next_page = False
+        else:
+            self.cursor = response.json().get("next_page_cursor")
+
+    def update_request(self, request: Request) -> None:
+        if request.json is None:
+            request.json = {}
+
+        # Add the cursor to the request body
+        request.json["cursor"] = self.cursor
+       
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=PostBodyPaginator()
 )
 
 @dlt.resource
