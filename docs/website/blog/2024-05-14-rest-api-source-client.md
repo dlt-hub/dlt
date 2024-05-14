@@ -91,7 +91,10 @@ In the example below, we will show how to create an API integration with 2 endpo
 
 ### Configuration Checklist: Before getting started
 
-We will use GitHub’s API as an example.
+We will use GitHub’s API as an example. #
+
+We will link to examples also in this [Colab tutorial demo](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=SCr8ACUtyfBN&forceEdit=true&sandboxMode=true)
+
 
 1. Collect your api url and endpoints:
     - An URL is the base of the request, for example: `https://api.github.com/`.
