@@ -227,10 +227,9 @@ github_config: RESTAPIConfig = {
 - We are going to generate a bunch of sources from OpenAPI specs — stay tuned for an update in a couple of weeks!
 
 ## Next steps:
-
-- Read more about the related [API helpers](https://dlthub.com/devel/general-usage/http/overview):
-    - [REST API Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api),
-    - [RESTClient](https://dlthub.com/docs/general-usage/http/rest-client),
-    - and [requests](https://dlthub.com/docs/general-usage/http/requests) helper.
-- [Join our community](https://dlthub.com/community) and give us feedback!
-- Want to share back your work? See this page for instructions: [dltHub Community: Sources & Snippets.](https://www.notion.so/7a7f7ddb39334743b1ba3debbdfb8d7f?pvs=21)
+- Share back your work! Instructions: **[dltHub-Community-Sources-Snippets](https://www.notion.so/7a7f7ddb39334743b1ba3debbdfb8d7f?pvs=21)**
+- Read more about the
+    - **[REST API Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api)** and
+    - **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client),**
+    - and the related **[API helpers](https://dlthub.com/devel/general-usage/http/overview)** and **[requests](https://dlthub.com/docs/general-usage/http/requests)** helper.
+- **[Join our community](https://dlthub.com/community)** and give us feedback!
