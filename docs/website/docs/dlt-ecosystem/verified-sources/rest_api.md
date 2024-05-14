@@ -272,12 +272,12 @@ The fields in the endpoint configuration are:
 
 - `path`: The path to the API endpoint.
 - `method`: The HTTP method to be used. Default is `GET`.
-- `params`: Query parameters to be sent with each request. For example, `sort` to order the results.
+- `params`: Query parameters to be sent with each request. For example, `sort` to order the results or `since` to specify [incremental loading](#incremental-loading). This is also used to define [resource relationships](#define-resource-relationships).
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
 - `response_actions`: A list of actions that define how to process the response data.
-- `incremental`: Configuration for incremental loading.
+- `incremental`: Configuration for [incremental loading](#incremental-loading).
 
 ### Pagination
 
@@ -518,7 +518,10 @@ This will include the `id`, `title`, and `created_at` fields from the `issues` r
 
 ## Incremental loading
 
-To set up incremental loading for a resource, you can use two options:
+Some APIs provide a way to fetch only new or changed data (most often by using a timestamp field like `updated_at`, `created_at`, or incremental IDs).
+This is called [incremental loading](../../general-usage/incremental-loading.md) and is very useful as it allows you to reduce the load time and the amount of data transferred.
+
+When the API endpoint supports incremental loading, you can configure the source to load only the new or changed data using these two methods:
 
 1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
 
@@ -555,6 +558,8 @@ To set up incremental loading for a resource, you can use two options:
     ```
 
     This configuration is more flexible and allows you to specify the start and end conditions for the incremental loading.
+
+See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
 ## Advanced configuration
 
