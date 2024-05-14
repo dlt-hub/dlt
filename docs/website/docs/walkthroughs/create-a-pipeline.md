@@ -6,11 +6,12 @@ keywords: [how to, create a pipeline, rest client]
 
 # Create a pipeline
 
-This guide walks you through creating a pipeline that utilizes our REST API client to connect to DuckDB.
+This guide walks you through creating a pipeline that utilizes our [REST API Client](../general-usage/http/rest-client)
+to connect to [DuckDB](../dlt-ecosystem/destinations/duckdb).
 Although this example uses DuckDB, you can adapt the steps to any source and destination by
-using the command `dlt init <source> <destination>` and tweaking the pipeline accordingly.
+using the [command](../reference/command-line-interface#dlt-init) `dlt init <source> <destination>` and tweaking the pipeline accordingly.
 
-Please make sure you have [installed `dlt`](../reference/installation.md) before following the
+Please make sure you have [installed `dlt`](../reference/installation) before following the
 steps below.
 
 ## Task overview
@@ -23,7 +24,9 @@ To achieve this, you need to write code that accomplishes the following:
 3. Fetches and handles paginated issue data.
 4. Stores the data for analysis.
 
-This sounds complicated and it is indeed complicated, but we offer you our [rest client](https://dlthub.com/devel/general-usage/http/rest-client) which let's you put more focus on your data.
+This sounds complicated, and it is indeed complicated,
+but we offer you our [REST API Client,](../general-usage/http/rest-client)
+which lets you put more focus on your data.
 
 
 ## 1. Initialize project
@@ -31,13 +34,13 @@ This sounds complicated and it is indeed complicated, but we offer you our [rest
 Create a new empty directory for your `dlt` project by running:
 
 ```sh
-mkdir githubapi_duckdb && cd githubapi_duckdb
+mkdir github_api_duckdb && cd github_api_duckdb
 ```
 
 Start a `dlt` project with a pipeline template that loads data to DuckDB by running:
 
 ```sh
-dlt init githubapi duckdb
+dlt init github_api duckdb
 ```
 
 Install the dependencies necessary for DuckDB:
@@ -48,7 +51,7 @@ pip install -r requirements.txt
 
 ## 2. Obtain and add API credentials from GitHub
 
-You will need to [sign in](https://github.com/login) to your github account and create your access token via [Personal access tokens page](https://github.com/settings/tokens).
+You will need to [sign in](https://github.com/login) to your GitHub account and create your access token via [Personal access tokens page](https://github.com/settings/tokens).
 
 Copy your new access token over to `.dlt/secrets.toml`:
 
@@ -57,21 +60,22 @@ Copy your new access token over to `.dlt/secrets.toml`:
 api_secret_key = '<api key value>'
 ```
 
-This token will be used by `githubapi_source()` to authenticate requests.
+This token will be used by `github_api_source()` to authenticate requests.
 
 The **secret name** corresponds to the **argument name** in the source function.
-Below `api_secret_key` [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `githubapi_source()` is called.
+Below `api_secret_key` [will get its value](../general-usage/credentials/configuration#allow-dlt-to-pass-the-config-and-secrets-automatically)
+from `secrets.toml` when `github_api_source()` is called.
 
 ```py
 @dlt.source
-def githubapi_source(api_secret_key: str = dlt.secrets.value):
-    return githubapi_resource(api_secret_key=api_secret_key)
+def github_api_source(api_secret_key: str = dlt.secrets.value):
+    return github_api_resource(api_secret_key=api_secret_key)
 ```
 
-Run the `githubapi.py` pipeline script to test that authentication headers look fine:
+Run the `github_api.py` pipeline script to test that authentication headers look fine:
 
 ```sh
-python3 githubapi.py
+python github_api.py
 ```
 
 Your API key should be printed out to stdout along with some test data.
@@ -79,18 +83,19 @@ Your API key should be printed out to stdout along with some test data.
 ## 3. Request project issues from then GitHub API
 
 
->[!NOTE]
-> We will use dlt as an example project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
+:::tip
+We will use `dlt` as an example project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
+:::
 
-Modify `githubapi_resource` in `githubapi.py` to request issues data from your GitHub project's API:
+Modify `github_api_resource` in `github_api.py` to request issues data from your GitHub project's API:
 
 ```py
 from dlt.sources.helpers.rest_client import paginate
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-@dlt.resource(write_disposition="append")
-def githubapi_resource(api_secret_key: str = dlt.secrets.value):
+@dlt.resource(write_disposition="replace")
+def github_api_resource(api_secret_key: str = dlt.secrets.value):
     url = "https://api.github.com/repos/dlt-hub/dlt/issues"
 
     for page in paginate(
@@ -99,53 +104,55 @@ def githubapi_resource(api_secret_key: str = dlt.secrets.value):
         paginator=HeaderLinkPaginator(),
         params={"state": "open"}
     ):
-        print(page)
         yield page
 ```
 
 ## 4. Load the data
 
-Uncomment the commented out code in `main` function in `githubapi.py`, so that running the
-`python3 githubapi.py` command will now also run the pipeline:
+Uncomment the commented out code in `main` function in `github_api.py`, so that running the
+`python github_api.py` command will now also run the pipeline:
 
 ```py
 if __name__=='__main__':
     # configure the pipeline with your destination details
     pipeline = dlt.pipeline(
-        pipeline_name='githubapi',
+        pipeline_name='github_api_pipeline',
         destination='duckdb',
-        dataset_name='githubapi_data'
+        dataset_name='github_api_data'
     )
 
     # print credentials by running the resource
-    data = list(githubapi_resource())
+    data = list(github_api_resource())
 
     # print the data yielded from resource
     print(data)
 
     # run the pipeline with your parameters
-    load_info = pipeline.run(githubapi_source())
+    load_info = pipeline.run(github_api_source())
 
     # pretty print the information on data that was loaded
     print(load_info)
 ```
 
 
-Run the `githubapi.py` pipeline script to test that the API call works:
+Run the `github_api.py` pipeline script to test that the API call works:
 
 ```sh
-python3 githubapi.py
+python github_api.py
 ```
 
 This should print out json data containig the issues in the GitHub project.
 
-Then, confirm the data is loaded
+Then, confirm the data is loaded with printing `load_info` object.
 
->[!NOTE]
-> Make sure you have `streamlit` installed `pip install streamlit`
+Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
+
+:::warning
+Make sure you have `streamlit` installed `pip install streamlit`
+:::
 
 ```sh
-dlt pipeline githubapi show
+dlt pipeline github_api_pipeline show
 ```
 
 This will open a Streamlit app that gives you an overview of the data loaded.
@@ -154,15 +161,15 @@ This will open a Streamlit app that gives you an overview of the data loaded.
 
 With a functioning pipeline, consider exploring:
 
-- Our [rest client](https://dlthub.com/devel/general-usage/http/rest-client).
+- Our [REST Client](../general-usage/http/rest-client).
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
   the data is automatically loaded on a schedule.
 - Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in
   Pandas DataFrames.
-- Learn how to [run](../running-in-production/running.md),
-  [monitor](../running-in-production/monitoring.md), and
-  [alert](../running-in-production/alerting.md) when you put your pipeline in production.
+- Learn how to [run](../running-in-production/running),
+  [monitor](../running-in-production/monitoring), and
+  [alert](../running-in-production/alerting) when you put your pipeline in production.
 - Try loading data to a different destination like
-  [Google BigQuery](../dlt-ecosystem/destinations/bigquery.md),
-  [Amazon Redshift](../dlt-ecosystem/destinations/redshift.md), or
-  [Postgres](../dlt-ecosystem/destinations/postgres.md).
+  [Google BigQuery](../dlt-ecosystem/destinations/bigquery),
+  [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or
+  [Postgres](../dlt-ecosystem/destinations/postgres).
