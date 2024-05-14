@@ -82,7 +82,7 @@ from rest_api import RESTAPIConfig, rest_api_resources
 
 @dlt.source
 def github_source(github_token=dlt.secrets.value):
-    github_config: RESTAPIConfig = {
+    config: RESTAPIConfig = {
         "client": {
             "base_url": "https://api.github.com/repos/dlt-hub/dlt/",
             "auth": {
@@ -145,7 +145,7 @@ def load_github() -> None:
     print(load_info)
 ```
 
-The declarative resource configuration is defined in the `github_config` dictionary. It contains the following key components:
+The declarative resource configuration is defined in the `config` dictionary. It contains the following key components:
 
 1. `client`: Defines the base URL and authentication method for the API. In this case it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
