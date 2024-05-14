@@ -376,7 +376,7 @@ class PostBodyPaginator(BasePaginator):
         if not response.json():
             self._has_next_page = False
         else:
-            self.cursor = response.json().get("cursor")
+            self.cursor = response.json().get("next_page_cursor")
 
     def update_request(self, request: Request) -> None:
         if request.json is None:
