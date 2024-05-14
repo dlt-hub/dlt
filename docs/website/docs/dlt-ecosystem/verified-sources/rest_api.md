@@ -301,7 +301,7 @@ These are the available paginators:
 | SinglePagePaginator | `single_page` | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
 | `None` | `auto` | Explicitly specify that the source should automatically detect the pagination method. |
 
-To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may use either the paginator class or the string alias in the `type` field along with the required parameters.
+To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use the paginator instance directly:
 
 ```py
 {
