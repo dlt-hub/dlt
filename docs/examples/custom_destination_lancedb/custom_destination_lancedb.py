@@ -18,7 +18,7 @@ We'll learn how to:
 - Delegate the embeddings to LanceDB
 """
 
-import datetime
+import datetime  # noqa: I251
 import os
 from dataclasses import dataclass, fields
 from pathlib import Path
@@ -45,7 +45,7 @@ db_path = Path(dlt.config.get("lancedb.db_path"))
 
 
 class EpisodeSchema(LanceModel):
-    id: str
+    id: str  # noqa: A003
     name: str
     description: str = func.SourceField()
     vector: Vector(func.ndims()) = func.VectorField()  # type: ignore[valid-type]
