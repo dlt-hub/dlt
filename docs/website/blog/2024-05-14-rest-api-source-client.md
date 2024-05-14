@@ -80,7 +80,7 @@ Depending on how you learn better, you can either watch the videos that our comm
 ## **Video walkthroughs**
 
 In these videos, you will learn at a leisurely pace how to use the new interface.
-[playlist link.](https://www.youtube.com/playlist?list=PLpTgUMBCn15rs2NkB4ise780UxLKImZTh)
+[Playlist link.](https://www.youtube.com/playlist?list=PLpTgUMBCn15rs2NkB4ise780UxLKImZTh)
 <iframe width="560" height="315" src="https://www.youtube.com/embed/-ejqquY_u20?si=q41I76swYwFpWVSf" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## Workflow walkthrough: Step by step
@@ -91,27 +91,27 @@ In the example below, we will show how to create an API integration with 2 endpo
 
 ### Configuration Checklist: Before getting started
 
-We will use GitHub’s API as an example. #
+In the following, we will use the GitHub API as an example.
 
-We will link to examples also in this [Colab tutorial demo](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=SCr8ACUtyfBN&forceEdit=true&sandboxMode=true)
+We will also provide links to examples from this [Google Colab tutorial.](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=SCr8ACUtyfBN&forceEdit=true&sandboxMode=true)
 
 
-1. Collect your api url and endpoints, [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=bKthJGV6Mg6C):
+1. Collect your api url and endpoints, [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=bKthJGV6Mg6C):
     - An URL is the base of the request, for example: `https://api.github.com/`.
     - An endpoint is the path of an individual resource such as:
         - `/repos/{OWNER}/{REPO}/issues`;
         - or  `/repos/{OWNER}/{REPO}/issues/{issue_number}/comments` which would require the issue number from the above endpoint;
         - or `/users/{username}/starred` etc.
-2. Identify the authentication methods, [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=mViSDre8McI7):
+2. Identify the authentication methods, [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=mViSDre8McI7):
     - GitHub uses bearer tokens for auth, but we can also skip it for public endpoints https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api?apiVersion=2022-11-28.
 3. Identify if you have any dependent request patterns such as first get ids in a list, then use id for requesting details.
-   For GitHub, we might do the below or any other dependent requests. [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=vw7JJ0BlpFyh):
+   For GitHub, we might do the below or any other dependent requests. [Colab example.](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=vw7JJ0BlpFyh):
       1. Get all repos of an org `https://api.github.com/orgs/{org}/repos`.
       2. Then get all contributors `https://api.github.com/repos/{owner}/{repo}/contributors`.
 
-4. How does pagination work? Is there any? Do we know the exact pattern? [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=rqqJhUoCB9F3)
+4. How does pagination work? Is there any? Do we know the exact pattern? [Colab example.](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=rqqJhUoCB9F3)
     - On GitHub, we have consistent [pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api?apiVersion=2022-11-28) between endpoints that looks like this `link_header = response.headers.get('Link', None)`.
-5. Identify the necessary information for incremental loading, [colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=fsd_SPZD7nBj):
+5. Identify the necessary information for incremental loading, [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=fsd_SPZD7nBj):
     - Will any endpoints be loaded incrementally?
     - What columns will you use for incremental extraction and loading?
     - GitHub example: We can extract new issues by requesting issues after a particular time: `https://api.github.com/repos/{repo_owner}/{repo_name}/issues?since={since}`.
@@ -119,9 +119,9 @@ We will link to examples also in this [Colab tutorial demo](https://colab.resear
 ### Configuration Checklist: Checking responses during development
 
 1. Data path:
-    - You could print the source and see what is yielded. [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=oJ9uWLb8ZYto&line=6&uniqifier=1)
+    - You could print the source and see what is yielded. [Colab example.](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=oJ9uWLb8ZYto&line=6&uniqifier=1)
 2. Unless you had full documentation at point 4 (which we did), you likely need to still figure out some details on how pagination works.
-    1. To do that, we suggest using `curl` or a second python script to do a request and inspect the response. This gives you flexibility to try anything. [Colab example](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=tFZ3SrZIMTKH)
+    1. To do that, we suggest using `curl` or a second python script to do a request and inspect the response. This gives you flexibility to try anything. [Colab example.](https://colab.research.google.com/drive/1qnzIM2N4iUL8AOX1oBUypzwoM3Hj5hhG#scrollTo=tFZ3SrZIMTKH)
     2. Or you could print the source as above - but if there is metadata in headers etc, you might miss it.
 
 ### Applying the configuration
@@ -224,15 +224,15 @@ github_config: RESTAPIConfig = {
 
     # Using the paginate method to automatically handle pagination
     for page in client.paginate("/pokemon"):
-            print(page)
+        print(page)
     ```
 
 - We are going to generate a bunch of sources from OpenAPI specs — stay tuned for an update in a couple of weeks!
 
-## Next steps:
+## Next steps
 - Share back your work! Instructions: **[dltHub-Community-Sources-Snippets](https://www.notion.so/7a7f7ddb39334743b1ba3debbdfb8d7f?pvs=21)**
 - Read more about the
     - **[REST API Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api)** and
-    - **[RESTClient](https://dlthub.com/docs/general-usage/http/rest-client),**
+    - **[REST API Client](https://dlthub.com/docs/general-usage/http/rest-client),**
     - and the related **[API helpers](https://dlthub.com/devel/general-usage/http/overview)** and **[requests](https://dlthub.com/docs/general-usage/http/requests)** helper.
 - **[Join our community](https://dlthub.com/community)** and give us feedback!
