@@ -82,7 +82,7 @@ Your API key should be printed out to stdout along with some test data.
 
 
 :::tip
-We will use `dlt` as an example project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
+We will use `dlt` repository as an example GitHub project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
 :::
 
 Modify `github_api_resource` in `github_api.py` to request issues data from your GitHub project's API:
