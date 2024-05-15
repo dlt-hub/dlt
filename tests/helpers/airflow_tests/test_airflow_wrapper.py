@@ -387,7 +387,11 @@ def test_parallel_incremental():
         warn_mock.assert_has_calls(
             [
                 mock.call(
-                    "The resource resource2 in task mock_data_incremental_source_resource1-resource2 is using incremental loading and may modify the state. Resources that modify the state should not run in parallel within the single pipeline as the state will not be correctly merged. Please use 'serialize' or 'parallel-isolated' modes instead."
+                    "The resource resource2 in task"
+                    " mock_data_incremental_source_resource1-resource2 is using incremental loading"
+                    " and may modify the state. Resources that modify the state should not run in"
+                    " parallel within the single pipeline as the state will not be correctly"
+                    " merged. Please use 'serialize' or 'parallel-isolated' modes instead."
                 )
             ]
         )

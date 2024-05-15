@@ -1013,20 +1013,8 @@ def test_pipeline_upfront_tables_two_loads(
                 if job_client.should_load_data_to_staging_dataset(
                     job_client.schema.tables[table_name]
                 ):
-                    with client.with_staging_dataset():
+                    with client.with_staging_dataset(staging=True):
                         tab_name = client.make_qualified_table_name(table_name)
-                        if destination_config.destination == "clickhouse":
-                            ind = tab_name.rfind("___")
-                        else:
-                            ind = tab_name.rfind(".") - 1
-
-                        if destination_config.destination == "snowflake":
-                            suffix = "_STAGING"
-                        else:
-                            suffix = "_staging"
-
-                        tab_name = tab_name[:ind] + suffix + tab_name[ind:]
-
                         with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
 

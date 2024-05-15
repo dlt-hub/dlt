@@ -519,10 +519,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         except Exception as exc:
             logger.warn(
-                (
-                    f"Staging dataset truncate failed due to the following error: {exc}"
-                    " However, it didn't affect the data integrity."
-                )
+                f"Staging dataset truncate failed due to the following error: {exc}"
+                " However, it didn't affect the data integrity."
             )
 
     def get_step_info(
