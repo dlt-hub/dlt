@@ -143,7 +143,7 @@ python github_api.py
 
 This should print out json data containig the issues in the GitHub project.
 
-Then, confirm the data is loaded with printing `load_info` object.
+It also prints `load_info` object.
 
 Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
 
