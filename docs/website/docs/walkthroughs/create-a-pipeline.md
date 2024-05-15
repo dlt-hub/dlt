@@ -141,7 +141,7 @@ Run the `github_api.py` pipeline script to test that the API call works:
 python github_api.py
 ```
 
-This should print out json data containig the issues in the GitHub project.
+This should print out JSON data containing the issues in the GitHub project.
 
 It also prints `load_info` object.
 
