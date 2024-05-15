@@ -1254,12 +1254,7 @@ def test_pipeline_source_state_activation() -> None:
 def test_extract_add_tables() -> None:
     # we extract and make sure that tables are added to schema
     s = airtable_emojis()
-    assert list(s.resources.keys()) == [
-        "💰Budget",
-        "📆 Schedule",
-        "🦚Peacock",
-        "🦚WidePeacock",
-    ]
+    assert list(s.resources.keys()) == ["💰Budget", "📆 Schedule", "🦚Peacock", "🦚WidePeacock"]
     assert s.resources["🦚Peacock"].compute_table_schema()["resource"] == "🦚Peacock"
     # only name will be normalized
     assert s.resources["🦚Peacock"].compute_table_schema()["name"] == "🦚Peacock"
@@ -1673,11 +1668,7 @@ def test_pipeline_list_packages() -> None:
     assert len(load_ids) == 1
     # two new packages: for emojis schema and emojis_2
     pipeline.extract(
-        [
-            airtable_emojis(),
-            airtable_emojis(),
-            airtable_emojis().clone(with_name="emojis_2"),
-        ]
+        [airtable_emojis(), airtable_emojis(), airtable_emojis().clone(with_name="emojis_2")]
     )
     load_ids = pipeline.list_extracted_load_packages()
     assert len(load_ids) == 3
