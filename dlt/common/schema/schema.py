@@ -297,11 +297,12 @@ class Schema:
         existing_table: TTableSchema = self._schema_tables.get(table_name, None)
 
         # table is new when not yet exist or
-        is_dlt_table = not table_name.startswith("_dlt")
-        is_new_table = (not existing_table or self.is_new_table(table_name)) and is_dlt_table
+        is_dlt_table = table_name.startswith("_dlt")
+        should_raise = raise_on_freeze and not is_dlt_table
+        is_new_table = not existing_table or self.is_new_table(table_name)
         # check case where we have a new table
         if is_new_table and schema_contract["tables"] != "evolve":
-            if (raise_on_freeze and schema_contract["tables"] == "freeze") and not is_dlt_table:
+            if should_raise and schema_contract["tables"] == "freeze":
                 raise DataValidationError(
                     self.name,
                     table_name,

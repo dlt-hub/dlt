@@ -2285,6 +2285,24 @@ def test_pipeline_with_frozen_schema_contract() -> None:
         {"id": 101, "name": "sub item 102"},
     ]
 
+    # with pipeline.sql_client() as c:
+    #     c.execute_sql("CREATE SCHEMA frozen_schema_contract_dataset")
+    #     c.execute_sql(
+    #         "CREATE TABLE frozen_schema_contract_dataset.test_items "
+    #         "(id INTEGER PRIMARY KEY, name VARCHAR)"
+    #     )
+
+    pipeline.run(
+        data,
+        table_name="test_items",
+    )
+
+    with pipeline.sql_client() as c:
+        c.execute_sql("DROP TABLE _dlt_loads")
+        c.execute_sql("DROP TABLE _dlt_version")
+        c.execute_sql("DROP TABLE _dlt_pipeline_state")
+        c.execute_sql("TRUNCATE TABLE test_items")
+
     pipeline.run(
         data,
         table_name="test_items",
@@ -2296,7 +2314,10 @@ def test_pipeline_with_frozen_schema_contract() -> None:
         pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]
     )
 
-    assert len(table_counts) == 3
-    assert table_counts["_dlt_loads"] == 1
-    assert table_counts["_dlt_version"] == 1
-    assert table_counts["_dlt_pipeline_state"] == 1
+    assert len(table_counts) == 4
+    assert set(table_counts.keys()) == {
+        "test_items",
+        "_dlt_loads",
+        "_dlt_version",
+        "_dlt_pipeline_state",
+    }
