@@ -2314,3 +2314,4 @@ def test_pipeline_with_frozen_schema_contract() -> None:
         "_dlt_version",
         "_dlt_pipeline_state",
     }
+    assert table_counts["test_items"] == 2
