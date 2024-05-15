@@ -212,7 +212,10 @@ github_config: RESTAPIConfig = {
 }
 ```
 
+To get this template in a file, follow the instructions on the [source docs](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api).
+
 ## And that’s a wrap — what else should you know?
+
 
 - As we mentioned, there’s also a **REST Client** - an imperative way to use the same abstractions, for example, the auto-paginator - check out this runnable snippet:
 
