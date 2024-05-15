@@ -1006,8 +1006,8 @@ def test_pipeline_upfront_tables_two_loads(
     job_client, _ = pipeline._get_destination_clients(schema)
 
     if destination_config.staging and isinstance(job_client, WithStagingDataset):
-        with pipeline.sql_client() as client:
-            for i in range(1, 4):
+        for i in range(1, 4):
+            with pipeline.sql_client() as client:
                 table_name = f"table_{i}"
 
                 if job_client.should_load_data_to_staging_dataset(
@@ -1020,7 +1020,12 @@ def test_pipeline_upfront_tables_two_loads(
                         else:
                             ind = tab_name.rfind(".") - 1
 
-                        tab_name = tab_name[:ind] + "_staging" + tab_name[ind:]
+                        if destination_config.destination == "snowflake":
+                            suffix = "_STAGING"
+                        else:
+                            suffix = "_staging"
+
+                        tab_name = tab_name[:ind] + suffix + tab_name[ind:]
 
                         with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
