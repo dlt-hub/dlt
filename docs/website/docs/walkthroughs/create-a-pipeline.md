@@ -6,7 +6,7 @@ keywords: [how to, create a pipeline, rest client]
 
 # Create a pipeline
 
-This guide walks you through creating a pipeline that utilizes our [REST API Client](../general-usage/http/rest-client)
+This guide walks you through creating a pipeline that uses our [REST API Client](../general-usage/http/rest-client)
 to connect to [DuckDB](../dlt-ecosystem/destinations/duckdb).
 Although this example uses DuckDB, you can adapt the steps to any source and destination by
 using the [command](../reference/command-line-interface#dlt-init) `dlt init <source> <destination>` and tweaking the pipeline accordingly.
