@@ -55,7 +55,10 @@ class BufferedDataWriter(Generic[TWriter]):
         self.closed_files: List[DataWriterMetrics] = []  # all fully processed files
         # buffered items must be less than max items in file
         self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
+        # Explicitly configured max size supersedes destination limit
         self.file_max_bytes = file_max_bytes
+        if self.file_max_bytes is None and _caps:
+            self.file_max_bytes = _caps.recommended_file_size
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
         self.open = (
