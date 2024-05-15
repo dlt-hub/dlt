@@ -24,9 +24,7 @@ To achieve this, you need to write code that accomplishes the following:
 3. Fetches and handles paginated issue data.
 4. Stores the data for analysis.
 
-This sounds complicated, and it is indeed complicated,
-but we offer you our [REST API Client,](../general-usage/http/rest-client)
-which lets you put more focus on your data.
+This may sound complicated, but dlt provides a [REST API Client](../general-usage/http/rest-client) that allows you to focus more on your data rather than on managing API interactions.
 
 
 ## 1. Initialize project
