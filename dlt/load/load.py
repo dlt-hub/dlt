@@ -53,7 +53,7 @@ from dlt.load.exceptions import (
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
 )
-from dlt.load.utils import get_completed_table_chain, init_client
+from dlt.load.utils import _extend_tables_with_table_chain, get_completed_table_chain, init_client
 
 
 class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
@@ -348,6 +348,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
                 ):
                     job_client.complete_load(load_id)
+                    self._maybe_trancate_staging_dataset(schema, job_client)
+
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
         self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
@@ -489,6 +491,37 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
+
+    def _maybe_trancate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
+        """
+        Truncate the staging dataset if one used,
+        and configuration requests truncation.
+
+        Args:
+            schema (Schema): Schema to use for the staging dataset.
+            job_client (JobClientBase):
+                Job client to use for the staging dataset.
+        """
+        if not (
+            isinstance(job_client, WithStagingDataset) and self.config.truncate_staging_dataset
+        ):
+            return
+
+        data_tables = schema.data_table_names()
+        tables = _extend_tables_with_table_chain(
+            schema, data_tables, data_tables, job_client.should_load_data_to_staging_dataset
+        )
+
+        try:
+            with self.get_destination_client(schema) as client:
+                with client.with_staging_dataset():  # type: ignore
+                    client.initialize_storage(truncate_tables=tables)
+
+        except Exception as exc:
+            logger.warn(
+                f"Staging dataset truncate failed due to the following error: {exc}"
+                " However, it didn't affect the data integrity."
+            )
 
     def get_step_info(
         self,

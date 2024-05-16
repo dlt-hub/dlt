@@ -108,6 +108,12 @@ behind. In `config.toml`:
 load.delete_completed_jobs=true
 ```
 
+Also, by default, `dlt` leaves data in staging dataset, used during merge and replace load for deduplication. In order to clear it, put the following line in `config.toml`:
+
+```toml
+load.truncate_staging_dataset=true
+```
+
 ## Using slack to send messages
 
 `dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via
