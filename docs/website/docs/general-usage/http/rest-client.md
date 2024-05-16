@@ -589,7 +589,7 @@ def response_hook(response, **kwargs):
 
 for page in client.paginate(
     "/posts",
-    auth=BearerTokenAuth(token="your_access_token")
+    auth=BearerTokenAuth(token="your_access_token"),
     hooks={"response": [response_hook]}
 ):
     print(page)
