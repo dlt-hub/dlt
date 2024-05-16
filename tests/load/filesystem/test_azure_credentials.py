@@ -1,5 +1,6 @@
 from typing import Dict
 from urllib.parse import parse_qs
+from uuid import uuid4
 
 import pytest
 
@@ -15,6 +16,7 @@ from dlt.common.configuration.specs import (
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.common.configuration.utils import environment
 from tests.utils import preserve_environ, autouse_test_storage
+from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -130,13 +132,19 @@ def test_azure_filesystem_configuration_service_principal(environment: Dict[str,
     environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
     environment["CREDENTIALS__AZURE_CLIENT_ID"] = "fake_client_id"
     environment["CREDENTIALS__AZURE_CLIENT_SECRET"] = "asdsadas"
-    environment["CREDENTIALS__AZURE_TENANT_ID"] = "fake_tenant_id"
+    environment["CREDENTIALS__AZURE_TENANT_ID"] = str(uuid4())
 
     config = FilesystemConfiguration(bucket_url="az://my-bucket")
 
     resolved_config = resolve_configuration(config)
 
     assert isinstance(resolved_config.credentials, AzureServicePrincipalCredentialsWithoutDefaults)
+
+    fs, bucket = fsspec_from_config(resolved_config)
+
+    assert fs.tenant_id == environment["CREDENTIALS__AZURE_TENANT_ID"]
+    assert fs.client_id == environment["CREDENTIALS__AZURE_CLIENT_ID"]
+    assert fs.client_secret == environment["CREDENTIALS__AZURE_CLIENT_SECRET"]
 
 
 def test_azure_filesystem_configuration_sas_token(environment: Dict[str, str]) -> None:
@@ -150,3 +158,8 @@ def test_azure_filesystem_configuration_sas_token(environment: Dict[str, str]) -
     resolved_config = resolve_configuration(config)
 
     assert isinstance(resolved_config.credentials, AzureCredentialsWithoutDefaults)
+
+    fs, bucket = fsspec_from_config(resolved_config)
+
+    assert fs.sas_token == "?" + environment["CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"]
+    assert fs.account_name == environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"]

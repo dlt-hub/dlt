@@ -7,10 +7,6 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
-from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
-from dlt import version
-
-import fsspec
 
 
 @configspec
