@@ -576,3 +576,18 @@ See the [incremental loading](../../general-usage/incremental-loading.md#increme
 - `root_key` (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 - `schema_contract`: Schema contract settings that will be applied to this resource.
 - `spec`: A specification of configuration and secret values required by the source.
+
+## Troubleshooting
+
+If you encounter any issues while setting up or running the pipeline, check the following:
+
+- Make sure you have the correct access token and other credentials in the `secrets.toml` file.
+- Check the API documentation for the correct endpoint paths and query parameters.
+- Verify the configuration settings in the `rest_api_pipeline.py` file.
+- Enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) to see detailed information about the HTTP requests:
+
+```bash
+RUNTIME__LOG_LEVEL=INFO python my_script.py
+```
+
+`rest_api` source uses the [RESTClient](../../general-usage/http/rest-client.md) class to make HTTP requests. You can refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for guidance on debugging HTTP requests.
