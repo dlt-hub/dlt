@@ -128,7 +128,7 @@ To reorder the columns in your dataset, follow these steps:
 1.	Modify Export Schema: Adjust the column order as desired in the export schema.
 1.	Sync Import Schema: Ensure that these changes are mirrored in the import schema to maintain consistency.
 1.	Delete Dataset: Remove the existing dataset to prepare for the reload.
-1.	Reload Data: Reload the data. The dataset should now reflect the new column order as specified in the import yaml.
+1.	Reload Data: Reload the data. The dataset should now reflect the new column order as specified in the import YAML.
 
 These steps ensure that the column order in your dataset matches your specifications.
 
