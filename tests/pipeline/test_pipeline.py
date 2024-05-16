@@ -2280,21 +2280,18 @@ def test_pipeline_with_frozen_schema_contract() -> None:
         destination="duckdb",
     )
 
+    # Create a database schema with table
+    with pipeline.sql_client() as c:
+        dataset = c.fully_qualified_dataset_name()
+        table = f"{c.fully_qualified_dataset_name()}.test_items"
+        conn = c.open_connection()
+        conn.sql(f"CREATE SCHEMA {dataset}")
+        conn.sql(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, name VARCHAR)")
+
     data = [
         {"id": 101, "name": "sub item 101"},
         {"id": 101, "name": "sub item 102"},
     ]
-
-    pipeline.run(
-        data,
-        table_name="test_items",
-    )
-
-    with pipeline.sql_client() as c:
-        c.execute_sql("DROP TABLE _dlt_loads")
-        c.execute_sql("DROP TABLE _dlt_version")
-        c.execute_sql("DROP TABLE _dlt_pipeline_state")
-        c.execute_sql("TRUNCATE TABLE test_items")
 
     pipeline.run(
         data,

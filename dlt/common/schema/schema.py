@@ -297,7 +297,7 @@ class Schema:
         existing_table: TTableSchema = self._schema_tables.get(table_name, None)
 
         # table is new when not yet exist or
-        is_dlt_table = table_name.startswith("_dlt")
+        is_dlt_table = table_name.startswith(self._dlt_tables_prefix)
         should_raise = raise_on_freeze and not is_dlt_table
         is_new_table = not existing_table or self.is_new_table(table_name)
         # check case where we have a new table
