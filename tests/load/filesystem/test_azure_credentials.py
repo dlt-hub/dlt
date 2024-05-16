@@ -6,7 +6,12 @@ import pytest
 from dlt.common import pendulum
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.configuration import resolve_configuration, ConfigFieldMissingException
-from dlt.common.configuration.specs import AzureCredentials
+from dlt.common.configuration.specs import (
+    AzureCredentials,
+    AzureServicePrincipalCredentials,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+    AzureCredentialsWithoutDefaults,
+)
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.common.configuration.utils import environment
 from tests.utils import preserve_environ, autouse_test_storage
@@ -95,3 +100,53 @@ def test_azure_credentials_from_default(environment: Dict[str, str]) -> None:
         "sas_token": None,
         "anon": False,
     }
+
+
+def test_azure_service_principal_credentials(environment: Dict[str, str]) -> None:
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_CLIENT_ID"] = "fake_client_id"
+    environment["CREDENTIALS__AZURE_CLIENT_SECRET"] = "fake_client_secret"
+    environment["CREDENTIALS__AZURE_TENANT_ID"] = "fake_tenant_id"
+
+    config = resolve_configuration(AzureServicePrincipalCredentials())
+
+    assert config.azure_client_id == environment["CREDENTIALS__AZURE_CLIENT_ID"]
+    assert config.azure_client_secret == environment["CREDENTIALS__AZURE_CLIENT_SECRET"]
+    assert config.azure_tenant_id == environment["CREDENTIALS__AZURE_TENANT_ID"]
+
+    assert config.to_adlfs_credentials() == {
+        "account_name": environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"],
+        "client_id": environment["CREDENTIALS__AZURE_CLIENT_ID"],
+        "client_secret": environment["CREDENTIALS__AZURE_CLIENT_SECRET"],
+        "tenant_id": environment["CREDENTIALS__AZURE_TENANT_ID"],
+    }
+
+
+from dlt.common.storages.configuration import FilesystemConfiguration
+
+
+def test_azure_filesystem_configuration_service_principal(environment: Dict[str, str]) -> None:
+    """Filesystem config resolves correct credentials type"""
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_CLIENT_ID"] = "fake_client_id"
+    environment["CREDENTIALS__AZURE_CLIENT_SECRET"] = "asdsadas"
+    environment["CREDENTIALS__AZURE_TENANT_ID"] = "fake_tenant_id"
+
+    config = FilesystemConfiguration(bucket_url="az://my-bucket")
+
+    resolved_config = resolve_configuration(config)
+
+    assert isinstance(resolved_config.credentials, AzureServicePrincipalCredentialsWithoutDefaults)
+
+
+def test_azure_filesystem_configuration_sas_token(environment: Dict[str, str]) -> None:
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"] = (
+        "sp=rwdlacx&se=2021-01-01T00:00:00Z&sv=2019-12-12&sr=c&sig=1234567890"
+    )
+
+    config = FilesystemConfiguration(bucket_url="az://my-bucket")
+
+    resolved_config = resolve_configuration(config)
+
+    assert isinstance(resolved_config.credentials, AzureCredentialsWithoutDefaults)

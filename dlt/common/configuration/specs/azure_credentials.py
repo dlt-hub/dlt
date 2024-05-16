@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
@@ -51,6 +51,22 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
 
 
 @configspec
+class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
+    azure_storage_account_name: str = None
+    azure_tenant_id: str = None
+    azure_client_id: str = None
+    azure_client_secret: TSecretStrValue = None
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        return dict(
+            account_name=self.azure_storage_account_name,
+            tenant_id=self.azure_tenant_id,
+            client_id=self.azure_client_id,
+            client_secret=self.azure_client_secret,
+        )
+
+
+@configspec
 class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
     def on_partial(self) -> None:
         from azure.identity import DefaultAzureCredential
@@ -67,3 +83,31 @@ class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
         if self.has_default_credentials():
             base_kwargs["anon"] = False
         return base_kwargs
+
+
+@configspec
+class AzureServicePrincipalCredentials(
+    AzureServicePrincipalCredentialsWithoutDefaults, CredentialsWithDefault
+):
+    def on_partial(self) -> None:
+        from azure.identity import DefaultAzureCredential
+
+        self._set_default_credentials(DefaultAzureCredential())
+        if self.azure_storage_account_name:
+            self.resolve()
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        base_kwargs = super().to_adlfs_credentials()
+        if self.has_default_credentials():
+            base_kwargs["anon"] = False
+        return base_kwargs
+
+
+AnyAzureCredentials = Union[
+    # Credentials without defaults come first because union types are attempted in order
+    # and explicit config should supersede system defaults
+    AzureCredentialsWithoutDefaults,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+    AzureCredentials,
+    AzureServicePrincipalCredentials,
+]
