@@ -150,7 +150,13 @@ Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Ob
 #### Azure Blob Storage
 Run `pip install dlt[az]` which will install the `adlfs` package to interface with Azure Blob Storage.
 
-Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials:
+Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials.
+
+Two forms of Azure credentials are supported:
+
+##### SAS token credentials
+
+Supply storage account name and either sas token or storage account key
 
 ```toml
 [destination.filesystem]
@@ -167,6 +173,20 @@ azure_storage_sas_token = "sas_token" # please set me up!
 If you have the correct Azure credentials set up on your machine (e.g. via azure cli),
 you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and `dlt` will fall back to the available default.
 Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
+
+##### Service principal credentials
+
+Supply a client ID, client secret and a tenant ID for a service principal authorized to access your container
+
+```toml
+[destination.filesystem]
+bucket_url = "az://[your_container name]" # replace with your container name
+
+[destination.filesystem.credentials]
+azure_client_id = "client_id" # please set me up!
+azure_client_secret = "client_secret
+azure_tenant_id = "tenant_id" # please set me up!
+```
 
 #### Local file system
 If for any reason you want to have those files in a local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
