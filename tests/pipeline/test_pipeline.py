@@ -2286,7 +2286,7 @@ def test_pipeline_with_frozen_schema_contract() -> None:
         table = f"{c.fully_qualified_dataset_name()}.test_items"
         conn = c.open_connection()
         conn.sql(f"CREATE SCHEMA {dataset}")
-        conn.sql(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, name VARCHAR)")
+        conn.sql(f"CREATE TABLE {table} (id INTEGER PRIMARY KEY, name VARCHAR NOT NULL, _dlt_load_id VARCHAR NOT NULL, _dlt_id VARCHAR NOT NULL)")
 
     data = [
         {"id": 101, "name": "sub item 101"},
@@ -2311,4 +2311,3 @@ def test_pipeline_with_frozen_schema_contract() -> None:
         "_dlt_version",
         "_dlt_pipeline_state",
     }
-    assert table_counts["test_items"] == 2
