@@ -5,9 +5,9 @@ import itertools
 import logging
 import os
 import random
+import threading
 from time import sleep
 from typing import Any, Tuple, cast
-import threading
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
@@ -2230,3 +2230,33 @@ def test_local_filesystem_destination(local_path: str) -> None:
     assert len(fs_client.list_table_files("_dlt_loads")) == 2
     assert len(fs_client.list_table_files("_dlt_version")) == 1
     assert len(fs_client.list_table_files("_dlt_pipeline_state")) == 1
+
+
+@pytest.mark.parametrize("truncate", (True, False))
+def test_staging_dataset_truncate(truncate) -> None:
+    dlt.config["truncate_staging_dataset"] = truncate
+
+    @dlt.resource(write_disposition="merge", merge_key="id")
+    def test_data():
+        yield [{"field": 1, "id": 1}, {"field": 2, "id": 2}, {"field": 3, "id": 3}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_cleared",
+        destination="duckdb",
+        full_refresh=True,
+    )
+
+    info = pipeline.run(test_data, table_name="staging_cleared")
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        with client.execute_query(
+            f"SELECT * FROM {pipeline.dataset_name}_staging.staging_cleared"
+        ) as cur:
+            if truncate:
+                assert len(cur.fetchall()) == 0
+            else:
+                assert len(cur.fetchall()) == 3
+
+        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
+            assert len(cur.fetchall()) == 3

@@ -1,5 +1,5 @@
 import os
-from typing import Type
+from typing import Type, Optional
 
 from dlt.common.data_writers.buffered import BufferedDataWriter
 from dlt.common.data_writers.writers import TWriter, ALL_WRITERS
@@ -18,8 +18,8 @@ ALL_ARROW_WRITERS = [
 def get_writer(
     writer: Type[TWriter],
     buffer_max_items: int = 10,
-    file_max_items: int = 10,
-    file_max_bytes: int = None,
+    file_max_items: Optional[int] = 10,
+    file_max_bytes: Optional[int] = None,
     disable_compression: bool = False,
     caps: DestinationCapabilitiesContext = None,
 ) -> BufferedDataWriter[TWriter]:
