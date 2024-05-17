@@ -567,16 +567,13 @@ def resource(
                     compat_wrapper(actual_resource_name, conf_f, sig, *args, **kwargs),
                     incremental,
                 )
-            except InvalidResourceDataTypeFunctionNotAGenerator as gen_ex:
+            except InvalidResourceDataTypeFunctionNotAGenerator:
                 # we allow an edge case: resource can return another resource
-                try:
-                    # actually call the function to see if it contains DltResource
-                    data_ = conf_f(*args, **kwargs)
-                    if not isinstance(data_, DltResource):
-                        raise
-                    r = data_  # type: ignore[assignment]
-                except Exception:
-                    raise gen_ex from None
+                # actually call the function to see if it contains DltResource
+                data_ = conf_f(*args, **kwargs)
+                if not isinstance(data_, DltResource):
+                    raise
+                r = data_  # type: ignore[assignment]
             # consider transformer arguments bound
             r._args_bound = True
             # keep explicit args passed

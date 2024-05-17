@@ -181,7 +181,7 @@ class MsSqlClient(InsertValuesJobClient):
             if c.get(h, False) is True
         )
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
