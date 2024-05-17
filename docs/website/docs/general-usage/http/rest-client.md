@@ -555,7 +555,7 @@ Debugging `paginate()` is trickier because it's a generator function that yields
 
 1. Enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) to see detailed information about the HTTP requests:
 
-```bash
+```sh
 RUNTIME__LOG_LEVEL=INFO python my_script.py
 ```
 
@@ -589,7 +589,7 @@ def response_hook(response, **kwargs):
 
 for page in client.paginate(
     "/posts",
-    auth=BearerTokenAuth(token="your_access_token")
+    auth=BearerTokenAuth(token="your_access_token"),
     hooks={"response": [response_hook]}
 ):
     print(page)

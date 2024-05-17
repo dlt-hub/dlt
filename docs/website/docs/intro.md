@@ -32,6 +32,10 @@ The library will create or update tables, infer data types, and handle nested da
 ]}>
   <TabItem value="api">
 
+:::tip
+Looking to use a REST API as a source? Explore our new [REST API generic source](dlt-ecosystem/verified-sources/rest_api) for a declarative way to load data.
+:::
+
 <!--@@@DLT_SNIPPET api-->
 
 
