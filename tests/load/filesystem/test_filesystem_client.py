@@ -1,19 +1,24 @@
 import posixpath
 import os
 from unittest import mock
+from typing import Iterator, Tuple, cast
 
 import pytest
+
+import dlt
 
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.impl.filesystem.filesystem import (
+    FilesystemClient,
     FilesystemDestinationClientConfiguration,
     INIT_FILE_NAME,
 )
 
 
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
+from tests.cases import arrow_table_all_data_types
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 from tests.load.utils import TEST_FILE_LAYOUTS
@@ -222,3 +227,112 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                         continue
                     paths.append(posixpath.join(basedir, f))
             assert list(sorted(paths)) == expected_files
+
+
+@pytest.fixture()
+def filesystem_client(default_buckets_env: str) -> Iterator[Tuple[FilesystemClient, str]]:
+    """Returns tuple of `FilesystemClient` instance and remote directory string.
+
+    Remote directory is removed on teardown.
+    """
+    # setup
+    client = cast(FilesystemClient, dlt.pipeline(destination="filesystem").destination_client())
+    remote_dir = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] + "/tmp_dir"
+
+    yield (client, remote_dir)
+
+    # teardown
+    if client.fs_client.exists(remote_dir):
+        client.fs_client.rm(remote_dir, recursive=True)
+
+
+def test_write_delta_table(filesystem_client) -> None:
+    if os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"].startswith("memory://"):
+        pytest.skip(
+            "`deltalake` library does not support `memory` protocol (write works, read doesn't)"
+        )
+
+    import pyarrow as pa
+    from deltalake import DeltaTable
+
+    client, remote_dir = filesystem_client
+    client = cast(FilesystemClient, client)
+
+    with pytest.raises(Exception):
+        # bug in `delta-rs` causes error when writing big decimal values
+        # https://github.com/delta-io/delta-rs/issues/2510
+        # if this test fails, the bug has been fixed and we should remove this
+        # note from the docs:
+        client._write_delta_table(
+            remote_dir + "/corrupt_delta_table",
+            arrow_table_all_data_types("arrow-table", include_decimal_default_precision=True)[0],
+            write_disposition="append",
+        )
+
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table", include_decimal_default_precision=False, num_rows=2
+    )[0]
+
+    # first write should create Delta table with same shape as input Arrow table
+    client._write_delta_table(remote_dir, arrow_table, write_disposition="append")
+    dt = DeltaTable(remote_dir, storage_options=client._deltalake_storage_options)
+    assert dt.version() == 0
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (arrow_table.num_rows, arrow_table.num_columns)
+
+    # table contents should be different because "time" column has type `string`
+    # in Delta table, but type `time` in Arrow source table
+    assert not dt_arrow_table.equals(arrow_table)
+    casted_cols = ("null", "time", "decimal_arrow_max_precision")
+    assert dt_arrow_table.drop_columns(casted_cols).equals(arrow_table.drop_columns(casted_cols))
+
+    # another `append` should create a new table version with twice the number of rows
+    client._write_delta_table(remote_dir, arrow_table, write_disposition="append")
+    dt = DeltaTable(remote_dir, storage_options=client._deltalake_storage_options)
+    assert dt.version() == 1
+    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
+
+    # the `replace` write disposition should trigger a "logical delete"
+    client._write_delta_table(remote_dir, arrow_table, write_disposition="replace")
+    dt = DeltaTable(remote_dir, storage_options=client._deltalake_storage_options)
+    assert dt.version() == 2
+    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows, arrow_table.num_columns)
+
+    # the previous table version should still exist
+    dt.load_version(1)
+    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
+
+    # `merge` should resolve to `append` bevavior
+    client._write_delta_table(remote_dir, arrow_table, write_disposition="merge")
+    dt = DeltaTable(remote_dir, storage_options=client._deltalake_storage_options)
+    assert dt.version() == 3
+    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
+
+    # add column in source table
+    evolved_arrow_table = arrow_table.append_column(
+        "new", pa.array([1 for _ in range(arrow_table.num_rows)])
+    )
+    assert (
+        evolved_arrow_table.num_columns == arrow_table.num_columns + 1
+    )  # ensure column was appendend
+
+    # new column should be propagated to Delta table (schema evolution is supported)
+    client._write_delta_table(remote_dir, evolved_arrow_table, write_disposition="append")
+    dt = DeltaTable(remote_dir, storage_options=client._deltalake_storage_options)
+    assert dt.version() == 4
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (arrow_table.num_rows * 3, evolved_arrow_table.num_columns)
+    assert "new" in dt_arrow_table.schema.names
+    assert dt_arrow_table.column("new").to_pylist() == [1, 1, None, None, None, None]
+
+    # providing a subset of columns should lead to missing columns being null-filled
+    client._write_delta_table(remote_dir, arrow_table, write_disposition="append")
+    dt = DeltaTable(remote_dir, storage_options=client._deltalake_storage_options)
+    assert dt.version() == 5
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (arrow_table.num_rows * 4, evolved_arrow_table.num_columns)
+    assert dt_arrow_table.column("new").to_pylist() == [None, None, 1, 1, None, None, None, None]
+
+    with pytest.raises(ValueError):
+        # unsupported value for `write_disposition` should raise ValueError
+        client._write_delta_table(remote_dir, arrow_table, write_disposition="foo")

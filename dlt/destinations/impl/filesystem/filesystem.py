@@ -1,18 +1,19 @@
 import posixpath
 import os
 import base64
+import pyarrow as pa
+
+from deltalake import write_deltalake
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set, Iterator, Optional, Tuple, cast
+from typing import ClassVar, List, Type, Iterable, Dict, Iterator, Optional, Tuple, cast, Callable
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
-from dlt.common import json, pendulum
-from dlt.common.typing import DictStrAny
-
-import re
 
 import dlt
-from dlt.common import logger, time
+from dlt.common import logger, time, json, pendulum
+from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -42,51 +43,54 @@ FILENAME_SEPARATOR = "__"
 class LoadFilesystemJob(LoadJob):
     def __init__(
         self,
+        client: "FilesystemClient",
         local_path: str,
-        dataset_path: str,
-        *,
-        config: FilesystemDestinationClientConfiguration,
-        schema_name: str,
         load_id: str,
+        table: TTableSchema,
     ) -> None:
+        self.client = client
+        self.table = table
+
         file_name = FileStorage.get_file_name_from_file_path(local_path)
-        self.config = config
-        self.dataset_path = dataset_path
-        self.destination_file_name = path_utils.create_path(
-            config.layout,
-            file_name,
-            schema_name,
-            load_id,
-            current_datetime=config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
-            extra_placeholders=config.extra_placeholders,
-        )
-
         super().__init__(file_name)
-        fs_client, _ = fsspec_from_config(config)
-        self.destination_file_name = path_utils.create_path(
-            config.layout,
-            file_name,
-            schema_name,
-            load_id,
-            current_datetime=config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
-            extra_placeholders=config.extra_placeholders,
-        )
 
-        # We would like to avoid failing for local filesystem where
-        # deeply nested directory will not exist before writing a file.
-        # It `auto_mkdir` is disabled by default in fsspec so we made some
-        # trade offs between different options and decided on this.
-        item = self.make_remote_path()
-        if self.config.protocol == "file":
-            fs_client.makedirs(posixpath.dirname(item), exist_ok=True)
-        fs_client.put_file(local_path, item)
+        if table["table_format"] == "delta":
+            import pyarrow.parquet as pq
+
+            client._write_delta_table(
+                path=self.make_remote_path(),
+                table=pq.read_table(local_path),
+                write_disposition=table["write_disposition"],
+            )
+        else:
+            self.destination_file_name = path_utils.create_path(
+                client.config.layout,
+                file_name,
+                client.schema.name,
+                load_id,
+                current_datetime=client.config.current_datetime,
+                load_package_timestamp=dlt.current.load_package()["state"]["created_at"],  # type: ignore
+                extra_placeholders=client.config.extra_placeholders,
+            )
+            # We would like to avoid failing for local filesystem where
+            # deeply nested directory will not exist before writing a file.
+            # It `auto_mkdir` is disabled by default in fsspec so we made some
+            # trade offs between different options and decided on this.
+            # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
+            remote_path = self.make_remote_path()
+            if client.config.protocol == "file":
+                client.fs_client.makedirs(posixpath.dirname(remote_path), exist_ok=True)
+            client.fs_client.put_file(local_path, remote_path)
 
     def make_remote_path(self) -> str:
-        return (
-            f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
-        )
+        if self.table["table_format"] == "delta":
+            # directory path
+            return self.client.get_remote_table_dir(self.table["name"])
+        else:
+            # file path
+            return (
+                f"{self.client.config.protocol}://{posixpath.join(self.client.dataset_path, self.destination_file_name)}"
+            )
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -215,6 +219,10 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         """Gets directories where table data is stored."""
         return [self.get_table_dir(t) for t in table_names]
 
+    def get_remote_table_dir(self, table_name: str) -> str:
+        """Returns remote path to table directory, including storage protocol."""
+        return self.config.protocol + "://" + self.get_table_dir(table_name)
+
     def list_table_files(self, table_name: str) -> List[str]:
         """gets list of files associated with one table"""
         table_dir = self.get_table_dir(table_name)
@@ -245,13 +253,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             return DoNothingJob(file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
-        return cls(
-            file_path,
-            self.dataset_path,
-            config=self.config,
-            schema_name=self.schema.name,
-            load_id=load_id,
-        )
+        return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
@@ -429,3 +431,95 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)
+
+    def _write_delta_table(
+        self, path: str, table: pa.Table, write_disposition: TWriteDisposition
+    ) -> None:
+        """Writes in-memory Arrow table to on-disk Delta table."""
+
+        def adjust_arrow_schema(
+            schema: pa.Schema,
+            type_map: Dict[Callable[[pa.DataType], bool], Callable[..., pa.DataType]],
+        ) -> pa.Schema:
+            """Returns adjusted Arrow schema.
+
+            Replaces data types for fields matching a type check in `type_map`.
+            Type check functions in `type_map` are assumed to be mutually exclusive, i.e.
+            a data type does not match more than one type check function.
+            """
+            for i, e in enumerate(schema.types):
+                for type_check, cast_type in type_map.items():
+                    if type_check(e):
+                        adjusted_field = schema.field(i).with_type(cast_type)
+                        schema = schema.set(i, adjusted_field)
+                        break  # if type matches type check, do not do other type checks
+            return schema
+
+        def ensure_delta_compatible_arrow_table(table: pa.table) -> pa.Table:
+            """Returns Arrow table compatible with Delta table format.
+
+            Casts table schema to replace data types not supported by Delta.
+            """
+            ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP = {
+                # maps type check function to type factory function
+                pa.types.is_null: pa.string(),
+                pa.types.is_time: pa.string(),
+                pa.types.is_decimal256: (
+                    pa.string()
+                ),  # pyarrow does not allow downcasting to decimal128
+            }
+            adjusted_schema = adjust_arrow_schema(
+                table.schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP
+            )
+            return table.cast(adjusted_schema)
+
+        def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
+            """Translates dlt write disposition to Delta write mode."""
+            if write_disposition in ("append", "merge"):  # `merge` disposition resolves to `append`
+                return "append"
+            elif write_disposition == "replace":
+                return "overwrite"
+            else:
+                raise ValueError(
+                    "`write_disposition` must be `append`, `replace`, or `merge`,"
+                    f" but `{write_disposition}` was provided."
+                )
+
+        # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
+        # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500
+        # is released
+        write_deltalake(  # type: ignore[call-overload]
+            table_or_uri=path,
+            data=ensure_delta_compatible_arrow_table(table),
+            mode=get_delta_write_mode(write_disposition),
+            schema_mode="merge",  # enable schema evolution (adding new columns)
+            storage_options=self._deltalake_storage_options,
+            engine="rust",  # `merge` schema mode requires `rust` engine
+        )
+
+    @property
+    def _deltalake_storage_options(self) -> Dict[str, str]:
+        """Returns dict that can be passed as `storage_options` in `deltalake` library."""
+        # TODO: implement method properly and remove hard-coded values.
+        # `delta-rs` does not currently (version 0.17.4) support `gdrive` protocol
+        storage_options = None
+        if self.config.protocol == "s3":
+            from dlt.common.configuration.specs import AwsCredentials
+
+            assert isinstance(self.config.credentials, AwsCredentials)
+            storage_options = self.config.credentials.to_session_credentials()
+            storage_options["AWS_REGION"] = self.config.credentials.region_name
+            # https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/#enable-unsafe-writes-in-s3-opt-in
+            storage_options["AWS_S3_ALLOW_UNSAFE_RENAME"] = "true"
+        elif self.config.protocol == "gs":
+            from dlt.common.configuration.specs import GcpServiceAccountCredentials
+
+            assert isinstance(self.config.credentials, GcpServiceAccountCredentials)
+            gcs_creds = self.config.credentials.to_gcs_credentials()
+            gcs_creds["token"]["private_key_id"] = "921837921798379812"
+            storage_options = {"GOOGLE_SERVICE_ACCOUNT_KEY": json.dumps(gcs_creds["token"])}
+        else:
+            storage_options = {  # `delta-rs` requires string values
+                k: str(v) for k, v in self.fs_client.storage_options.items()
+            }
+        return storage_options

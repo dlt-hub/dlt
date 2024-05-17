@@ -309,8 +309,12 @@ class JobClientBase(ABC):
         """Finds and restores already started loading job identified by `file_path` if destination supports it."""
         pass
 
+    def can_do_logical_replace(self, table: TTableSchema) -> bool:
+        """Returns True if `replace` can be done without physically deleting data."""
+        return table["table_format"] == "delta"
+
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
-        return table["write_disposition"] == "replace"
+        return table["write_disposition"] == "replace" and not self.can_do_logical_replace(table)
 
     def create_table_chain_completed_followup_jobs(
         self, table_chain: Sequence[TTableSchema]

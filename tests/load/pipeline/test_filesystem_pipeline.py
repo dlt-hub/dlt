@@ -16,7 +16,7 @@ from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
-from tests.cases import arrow_table_all_data_types
+from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
@@ -25,7 +25,7 @@ from tests.load.pipeline.utils import (
     DestinationTestConfiguration,
 )
 
-from tests.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
 
 
 skip_if_not_active("filesystem")
@@ -214,6 +214,92 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     with open(other_data_files[0], "rb") as f:
         table = pq.read_table(f)
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
+
+
+def test_pipeline_delta_filesystem_destination(default_buckets_env: str) -> None:
+    # _write_delta_table function is unit tested elsewhere
+    # this test asserts resource/pipeline configuration is properly handled
+    if os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"].startswith("memory://"):
+        pytest.skip(
+            "`deltalake` library does not support `memory` protocol (write works, read doesn't)"
+        )
+
+    def reset_pipeline(pipeline: dlt.Pipeline) -> None:
+        pipeline.drop()
+        with pipeline.destination_client() as client:
+            client.drop_storage()
+
+    p = dlt.pipeline(pipeline_name="delta", destination="filesystem", full_refresh=True)
+
+    # create resource that yields rows with all data types
+    column_schemas, data_types = table_update_and_row()
+
+    @dlt.resource(table_name="data_types", columns=column_schemas, table_format="delta")
+    def r():
+        nonlocal data_types
+        yield [data_types] * 10
+
+    # run pipeline, this should create Delta table
+    info = p.run(r())
+    assert_load_info(info)
+
+    # `delta` table format should use `parquet` file format
+    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
+    assert job.endswith(".parquet")
+
+    # 10 rows should be loaded to the Delta table and the content of the first
+    # row should match expected values
+    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    assert len(rows) == 10
+    assert_all_data_types_row(rows[0], schema=column_schemas)
+
+    # another run should append rows to the table
+    info = p.run(r())
+    assert_load_info(info)
+    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    assert len(rows) == 20
+
+    # ensure write disposition is handled
+    info = p.run(r(), write_disposition="replace")
+    assert_load_info(info)
+    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    assert len(rows) == 10
+
+    # resolves to `append` behavior
+    info = p.run(r(), write_disposition="merge")
+    assert_load_info(info)
+    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    assert len(rows) == 20
+
+    # test custom layout handling
+    reset_pipeline(p)
+    fs = filesystem(layout="{schema_name}/foo/{table_name}/{load_id}.{file_id}.{ext}")
+    p._set_destinations(destination=fs)
+
+    info = p.run(r())
+    assert_load_info(info)
+    assert p._fs_client().get_table_dir("data_types").endswith("delta/foo/data_types")
+    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    assert len(rows) == 10
+
+    @dlt.resource(table_name="simple_table", table_format="delta")
+    def r2():
+        yield [1, 2, 3]
+
+    @dlt.source
+    def s():
+        return [r(), r2()]
+
+    reset_pipeline(p)
+    info = p.run(s())
+    assert_load_info(info)
+
+    # provided loader file format should be overridden if it's not `parquet`
+    reset_pipeline(p)
+    info = p.run(r(), loader_file_format="csv")
+    assert_load_info(info)
+    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
+    assert job.endswith(".parquet")
 
 
 TEST_LAYOUTS = (

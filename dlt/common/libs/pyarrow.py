@@ -37,6 +37,8 @@ except ModuleNotFoundError:
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
+ARROW_DECIMAL_MAX_PRECISION = 76
+
 
 def get_py_arrow_datatype(
     column: TColumnType,
