@@ -141,8 +141,15 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
             if self.authenticator == "oauth":
-                conn_params["token"] = self.login_token()
-                conn_params["host"] = self._hostname
+                conn_params = dict(
+                    self.query or {},
+                    token=self.login_token(),
+                    host=self._hostname,
+                    account=self.host,
+                    authenticator = "oauth",
+                    database=self.database,
+                    warehouse=self.warehouse,
+                )
 
         return conn_params
 
