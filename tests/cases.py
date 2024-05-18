@@ -387,6 +387,8 @@ def prepare_shuffled_tables() -> Tuple[Any, Any, Any]:
     table, _, _ = arrow_table_all_data_types(
         "arrow-table",
         include_json=False,
+        include_decimal_default_precision=False,
+        include_decimal_arrow_max_precision=False,
         include_not_normalized_name=False,
         tz="Europe/Berlin",
         num_rows=5432,
