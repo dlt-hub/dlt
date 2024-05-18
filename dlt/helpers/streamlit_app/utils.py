@@ -61,7 +61,7 @@ def query_data(
     schema_name: str = None,
     chunk_size: Optional[int] = None,
 ) -> pd.DataFrame:
-    query_maker = query_using_cache(pipeline, ttl=600)
+    query_maker = query_using_cache(pipeline, ttl=60)
     return query_maker(query, schema_name, chunk_size=chunk_size)
 
 

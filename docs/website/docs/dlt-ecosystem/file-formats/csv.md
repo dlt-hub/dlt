@@ -4,7 +4,7 @@ description: The csv file format
 keywords: [csv, file formats]
 ---
 
-# CSV File Format
+# CSV file format
 
 **csv** is the most basic file format to store tabular data, where all the values are strings and are separated by a delimiter (typically comma).
 `dlt` uses it for specific use cases - mostly for the performance and compatibility reasons.

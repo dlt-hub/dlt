@@ -1,6 +1,6 @@
 """
 ---
-title: Similarity Searching with Qdrant
+title: Similarity searching with Qdrant
 description: Learn how to use the dlt source, Zendesk and dlt destination, Qdrant to conduct a similarity search on your tickets data.
 keywords: [similarity search, example]
 ---

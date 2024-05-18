@@ -8,7 +8,6 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.utils import update_dict_nested
 from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
@@ -176,6 +175,7 @@ class Extractor:
             computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
+            # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
             diff_table = utils.diff_table(existing_table, computed_table)
         else:
             diff_table = computed_table
@@ -340,7 +340,9 @@ class ArrowExtractor(Extractor):
                     " differences when loading. Change log level to INFO for more details."
                 )
 
-            update_dict_nested(arrow_table["columns"], computed_table["columns"])
+            utils.merge_columns(
+                arrow_table["columns"], computed_table["columns"], merge_columns=True
+            )
         return arrow_table
 
     def _compute_and_update_table(

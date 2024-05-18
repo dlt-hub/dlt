@@ -554,6 +554,7 @@ class Pipeline(SupportsPipeline):
             with signals.delayed_signals():
                 runner.run_pool(load_step.config, load_step)
             info: LoadInfo = self._get_step_info(load_step)
+
             self.first_run = False
             return info
         except Exception as l_ex:

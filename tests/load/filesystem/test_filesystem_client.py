@@ -7,6 +7,7 @@ import pytest
 
 import dlt
 
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
@@ -60,7 +61,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-    timestamp = "2024-04-05T09:16:59.942779Z"
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
         "dlt.current.load_package",
@@ -72,7 +73,7 @@ def test_successful_load(write_disposition: str, layout: str, with_gdrive_bucket
     ) as load_info:
         client, jobs, _, load_id = load_info
         layout = client.config.layout
-        dataset_path = posixpath.join(client.fs_path, client.config.dataset_name)
+        dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
 
         # Assert dataset dir exists
         assert client.fs_client.isdir(dataset_path)
@@ -107,7 +108,8 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
 
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
-    timestamp = "2024-04-05T09:16:59.942779Z"
+    # state is typed now
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
         "dlt.current.load_package",
@@ -178,7 +180,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # also we would like to have reliable timestamp for this test so we patch it
-    timestamp = "2024-04-05T09:16:59.942779Z"
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with mock.patch(
         "dlt.current.load_package",
