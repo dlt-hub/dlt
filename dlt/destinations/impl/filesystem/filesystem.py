@@ -2,9 +2,7 @@ import posixpath
 import pathlib
 import os
 import base64
-import pyarrow as pa
 
-from deltalake import write_deltalake
 from types import TracebackType
 from typing import ClassVar, List, Type, Iterable, Dict, Iterator, Optional, Tuple, cast, Callable
 from fsspec import AbstractFileSystem
@@ -465,9 +463,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return self._get_stored_schema_by_hash_or_newest(version_hash)
 
     def _write_delta_table(
-        self, path: str, table: pa.Table, write_disposition: TWriteDisposition
+        self, path: str, table: "pa.Table", write_disposition: TWriteDisposition  # type: ignore[name-defined] # noqa
     ) -> None:
         """Writes in-memory Arrow table to on-disk Delta table."""
+        import pyarrow as pa
+        from deltalake import write_deltalake
 
         def adjust_arrow_schema(
             schema: pa.Schema,
