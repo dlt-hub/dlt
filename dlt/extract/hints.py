@@ -159,7 +159,7 @@ class DltResourceHints:
 
     @property
     def table_format(self) -> TTableHintTemplate[TTableFormat]:
-        return self._hints.get("table_format")
+        return None if self._hints is None else self._hints.get("table_format")
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
