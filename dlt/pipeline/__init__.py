@@ -72,6 +72,8 @@ def pipeline(
         dev_mode (bool, optional): When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset.
         The datasets are identified by `dataset_name_` + datetime suffix. Use this setting whenever you experiment with your data to be sure you start fresh on each run. Defaults to False.
 
+        refresh (str | TRefreshMode): One of `drop_dataset`, `drop_tables` or `drop_data`. Set this to fully or partially delete and reset the schema, state and destination dataset when running the pipeline.
+
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
         In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
 
