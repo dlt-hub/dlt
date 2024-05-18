@@ -106,14 +106,6 @@ class LoadFilesystemJob(LoadJob):
         else:
             return f"{self.client.config.protocol}://{remote_path}"
 
-    def make_remote_uri(self) -> str:
-        """Returns uri to the remote filesystem to which copy the file"""
-        remote_path = self.make_remote_path()
-        if self.is_local_filesystem:
-            return self.config.make_file_uri(remote_path)
-        else:
-            return f"{self.config.protocol}://{remote_path}"
-
     def state(self) -> TLoadJobState:
         return "completed"
 
