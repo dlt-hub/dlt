@@ -92,6 +92,28 @@ experimenting a lot. If you want that each time the pipeline resets its state an
 new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. Each time the
 pipeline is created, `dlt` adds datetime-based suffix to the dataset name.
 
+## Refresh pipeline data and state
+
+You can use the `refresh` argument of `dlt.pipeline` to fully or partially reset the destination
+dataset and pipeline state when running the pipeline. This is useful if you need to reload all
+data from the beginning or remove/re-create tables in the destination.
+
+This involves dropping or wiping data from tables and fully or partially wiping the pipeline state.
+
+There are three possible refresh modes that can be used. The `refresh` argument should have one of these string values:
+
+* `drop_dataset`
+  All tables listed in the pipeline's schema will be dropped and all source state is wiped.
+  The tables are deleted both from pipeline's schema and from the destination database.
+  In practice this is like running the pipeline again for the first time.
+* `drop_tables`
+  Only tables belonging to the resources selected for the current run are dropped. State belonging to those resources is deleted as well.
+  The tables are deleted both from pipeline's schema and from the destination database.
+  This is useful when you want to reload only a subset of the data or re-create particular tables.
+* `drop_data`
+  Same as `drop_tables` but instead of dropping tables the data is deleted from them (i.e. by `TRUNCATE <table_name>` in sql destinations). Resource state for corresponding resources is also wiped.
+  The schema remains unmodified in this case.
+
 ## Display the loading progress
 
 You can add a progress monitor to the pipeline. Typically, its role is to visually assure user that
