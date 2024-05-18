@@ -9451,7 +9451,7 @@ cli = ["cron-descriptor", "pipdeptree"]
 clickhouse = ["adlfs", "clickhouse-connect", "clickhouse-driver", "gcsfs", "pyarrow", "s3fs"]
 databricks = ["databricks-sql-connector"]
 dbt = ["dbt-athena-community", "dbt-bigquery", "dbt-core", "dbt-databricks", "dbt-duckdb", "dbt-redshift", "dbt-snowflake"]
-deltalake = ["deltalake"]
+deltalake = ["deltalake", "pyarrow"]
 dremio = ["pyarrow"]
 duckdb = ["duckdb", "duckdb"]
 filesystem = ["botocore", "s3fs"]
@@ -9471,4 +9471,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "c7543bae3d842ab238e58157e5528c81b82a341c321c70cced184ca909a1e193"
+content-hash = "370ae654fadf0de91d7d6958b5d282adc15ef119366badef5a28932cb085151a"

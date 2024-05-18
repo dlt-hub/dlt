@@ -108,7 +108,7 @@ qdrant = ["qdrant-client"]
 databricks = ["databricks-sql-connector"]
 clickhouse = ["clickhouse-driver", "clickhouse-connect", "s3fs", "gcsfs", "adlfs", "pyarrow"]
 dremio = ["pyarrow"]
-deltalake = ["deltalake"]
+deltalake = ["deltalake", "pyarrow"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
