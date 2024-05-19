@@ -272,7 +272,10 @@ def test_write_delta_table(filesystem_client) -> None:
         )
 
     arrow_table = arrow_table_all_data_types(
-        "arrow-table", include_decimal_default_precision=False, num_rows=2
+        "arrow-table",
+        include_decimal_default_precision=False,
+        include_decimal_arrow_max_precision=True,
+        num_rows=2,
     )[0]
 
     # first write should create Delta table with same shape as input Arrow table
