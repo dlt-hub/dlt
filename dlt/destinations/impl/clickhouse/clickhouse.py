@@ -7,14 +7,15 @@ from urllib.parse import urlparse
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
+import dlt
 from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
     GcpCredentials,
     AwsCredentialsWithoutDefaults,
-    HMACCredentials,
 )
+from dlt.destinations.exceptions import DestinationTransientException
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
@@ -33,7 +34,7 @@ from dlt.common.schema.typing import (
     TColumnSchemaBase,
 )
 from dlt.common.storages import FileStorage
-from dlt.destinations.exceptions import DestinationTransientException, LoadJobTerminalException
+from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
@@ -208,15 +209,13 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                 access_key_id = staging_credentials.aws_access_key_id
                 secret_access_key = staging_credentials.aws_secret_access_key
             elif isinstance(staging_credentials, GcpCredentials):
-                # Defer to the provided HMAC Credentials.
-                access_key_id = client.credentials.gcp_access_key_id  # type: ignore
-                secret_access_key = client.credentials.gcp_secret_access_key  # type: ignore
+                access_key_id = client.credentials.gcp_access_key_id
+                secret_access_key = client.credentials.gcp_secret_access_key
                 if not access_key_id or not secret_access_key:
                     raise DestinationTransientException(
-                        "You have tried loading from gcs with clickhouse. "
-                        "Please provide valid HMAC credentials as outlined in "
-                        "the dlthub docs:\n"
-                        "https://dlthub.com/devel/dlt-ecosystem/destinations/clickhouse#using-google-cloud-storage-as-a-staging-area."
+                        "You have tried loading from gcs with clickhouse. Please provide valid"
+                        " 'gcp_access_key_id' and 'gcp_secret_access_key' to connect to gcs as"
+                        " outlined in the dlthub docs."
                     )
 
             auth = "NOSIGN"
