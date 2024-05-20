@@ -201,19 +201,23 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            if not isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                raise DestinationTransientException(
-                    "Staging data to S3 or Google Cloud Storage requires providing AWS-style HMAC access keys, even if using a "
-                    "non-AWS storage provider. Please make sure to configure your destination with an `aws_access_key_id` and `aws_secret_access_key`. "
-                    "See https://dlthub.com/docs/general-usage/destination#pass-explicit-parameters-and-a-name-to-a-destination "
-                    "for documentation on how to set up your destination with the required access keys."
-                )  # TODO: Point exception message to relevant doc section.
-
             # get auth and bucket url
             bucket_http_url = convert_storage_to_http_scheme(bucket_url)
+            access_key_id: str = None
+            secret_access_key: str = None
+            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                access_key_id = staging_credentials.aws_access_key_id
+                secret_access_key = staging_credentials.aws_secret_access_key
+            elif isinstance(staging_credentials, GcpCredentials):
+                access_key_id = client.credentials.gcp_access_key_id
+                secret_access_key = client.credentials.gcp_secret_access_key
+                if not access_key_id or not secret_access_key:
+                    raise DestinationTransientException(
+                        "You have tried loading from gcs with clickhouse. Please provide valid"
+                        " 'gcp_access_key_id' and 'gcp_secret_access_key' to connect to gcs as"
+                        " outlined in the dlthub docs."
+                    )
 
-            access_key_id = staging_credentials.aws_access_key_id
-            secret_access_key = staging_credentials.aws_secret_access_key
             auth = "NOSIGN"
             if access_key_id and secret_access_key:
                 auth = f"'{access_key_id}','{secret_access_key}'"
