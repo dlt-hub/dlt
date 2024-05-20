@@ -38,10 +38,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
-    gcp_access_key_id: Optional[str] = None
-    """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
-    gcp_secret_access_key: Optional[str] = None
-    """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
