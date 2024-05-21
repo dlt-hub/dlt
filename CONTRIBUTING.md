@@ -54,7 +54,7 @@ On the release day, **devel** branch is merged into **master**. All releases of 
 
 ### Branch naming rules
 
-We are using the following branch naming pattern (all lowercase and dashes, no underscores):
+We want to make sure that our git history explains in a human readable way what has been changed with which Branch or PR. To this end, we are using the following branch naming pattern (all lowercase and dashes, no underscores):
 
 ```sh
 {category}/{ticket-id}-description-of-the-branch
@@ -73,7 +73,7 @@ feat/4922-add-avro-support
 
 #### Ticket Numbers
 
-We encourage you to attach your branches to a ticket, if none exists, create one an explain what you are doing. For feat and fix branches, tickets are mandatory, for exp and test branches encouraged and for blogs and cos branches optional.
+We encourage you to attach your branches to a ticket, if none exists, create one an explain what you are doing. For feat and fix branches, tickets are mandatory, for exp and test branches encouraged and for blogs and docs branches optional.
 
 
 ### Submitting a hotfix
