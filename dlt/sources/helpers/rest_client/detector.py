@@ -1,5 +1,6 @@
 import re
-from typing import List, Dict, Any, Tuple, Union, Optional, Callable, Iterable
+from pathlib import PurePosixPath
+from typing import List, Dict, Any, Tuple, Union, Callable, Iterable
 from urllib.parse import urlparse
 
 from requests import Response
@@ -46,7 +47,10 @@ TOTAL_PAGES_KEYS = frozenset(["^total_pages$", "^pages$", "^totalpages$"])
 
 def single_entity_path(path: str) -> bool:
     """Checks if path ends with path param indicating that single object is returned"""
-    return re.search(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}/?$", path) is not None
+    # get last path segment
+    name = PurePosixPath(path).name
+    # alphabet for a name taken from https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.0.3.md#fixed-fields-6
+    return re.search(r"\{([a-zA-Z0-9\.\-_]+)\}", name) is not None
 
 
 def matches_any_pattern(key: str, patterns: Iterable[str]) -> bool:
