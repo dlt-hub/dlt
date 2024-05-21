@@ -74,7 +74,8 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(users)
 ```
 
-The result will be the same, but the table is implicitly named `users` based on the resource name.
+The result will be the same, note that we do not explicitly pass `table_name="users"` to `pipeline.run`, 
+and the table is implicitly named `users` based on the resource name (e.g. `users()` decorated with `@dlt.resource`).
 
 :::note
 
