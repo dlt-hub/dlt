@@ -74,8 +74,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(users)
 ```
 
-The result will be the same, note that we do not explicitly pass `table_name="users"` to `pipeline.run`, 
-and the table is implicitly named `users` based on the resource name (e.g. `users()` decorated with `@dlt.resource`).
+The result will be the same; note that we do not explicitly pass `table_name="users"` to `pipeline.run`, and the table is implicitly named `users` based on the resource name (e.g., `users()` decorated with `@dlt.resource`).
 
 :::note
 
@@ -118,9 +117,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 ```
 
-Running this pipeline will create two tables in the destination, `users` and `users__pets`. The
-`users` table will contain the top level data, and the `users__pets` table will contain the child
-data. Here is what the tables may look like:
+Running this pipeline will create two tables in the destination, `users` and `users__pets`. The `users` table will contain the top-level data, and the `users__pets` table will contain the child data. Here is what the tables may look like:
 
 **mydata.users**
 
@@ -142,21 +139,14 @@ creating and linking children and parent tables.
 
 This is how it works:
 
-1. Each row in all (top level and child) data tables created by `dlt` contains UNIQUE column named
-   `_dlt_id`.
-1. Each child table contains FOREIGN KEY column `_dlt_parent_id` linking to a particular row
-   (`_dlt_id`) of a parent table.
-1. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in
-   `_dlt_list_idx`.
-1. For tables that are loaded with the `merge` write disposition, we add a ROOT KEY column
-   `_dlt_root_id`, which links child table to a row in top level table.
-
+1. Each row in all (top level and child) data tables created by `dlt` contains a `UNIQUE` column named `_dlt_id`.
+1. Each child table contains a `FOREIGN KEY` column `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table.
+1. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in `_dlt_list_idx`.
+1. For tables that are loaded with the `merge` write disposition, we add a root key column `_dlt_root_id`, which links the child table to a row in the top-level table.
 
 :::note
 
-If you define your own primary key in a child table, it will be used to link to parent table
-and the `_dlt_parent_id` and `_dlt_list_idx` will not be added. `_dlt_id` is always added even in
-case the primary key or other unique columns are defined.
+If you define your own primary key in a child table, it will be used to link to the parent table, and the `_dlt_parent_id` and `_dlt_list_idx` will not be added. `_dlt_id` is always added even if the primary key or other unique columns are defined.
 
 :::
 
@@ -165,17 +155,15 @@ case the primary key or other unique columns are defined.
 During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ### Variant columns
-If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (ie json file) with a filed with name **answer** and your data contains boolean values, you will get get a column with name **answer** of type **BOOLEAN** in your destination. If for some reason, on next load you get integer value and string value in **answer**, the inconsistent data will go to **answer__v_bigint** and **answer__v_text** columns respectively.
-The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of data type stored in the variant.
-
+If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., JSON file) with a field with name `answer` and your data contains boolean values, you will get a column with name `answer` of type `BOOLEAN` in your destination. If for some reason, on the next load, you get integer and string values in `answer`, the inconsistent data will go to `answer__v_bigint` and `answer__v_text` columns respectively.
+The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of the data type stored in the variant.
 
 ## Load Packages and Load IDs
 
 Each execution of the pipeline generates one or more load packages. A load package typically contains data retrieved from
 all the [resources](glossary.md#resource) of a particular [source](glossary.md#source).
 These packages are uniquely identified by a `load_id`. The `load_id` of a particular package is added to the top data tables
-(referenced as `_dlt_load_id` column in the example above) and to the special `_dlt_loads` table with a status 0
-(when the load process is fully completed).
+(referenced as `_dlt_load_id` column in the example above) and to the special `_dlt_loads` table with a status of 0 (when the load process is fully completed).
 
 To illustrate this, let's load more data into the same destination:
 
@@ -190,8 +178,7 @@ data = [
 ```
 
 The rest of the pipeline definition remains the same. Running this pipeline will create a new load
-package with a new `load_id` and add the data to the existing tables. The `users` table will now
-look like this:
+package with a new `load_id` and add the data to the existing tables. The `users` table will now look like this:
 
 **mydata.users**
 
@@ -211,12 +198,12 @@ The `_dlt_loads` table will look like this:
 | **1234563456.12345** | quick_start | 0 | 2023-09-12 16:46:03.10662+00 | aOEb...Qekd/58= |
 
 The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them.
-Many destinations do not support distributed and long-running transactions (e.g. Amazon Redshift).
+Many destinations do not support distributed and long-running transactions (e.g., Amazon Redshift).
 In that case, the user may see the partially loaded data. It is possible to filter such data out: any
 row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify
 and delete data for packages that never got completed.
 
-For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g.
+For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g.,
 no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab
 of the [Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md#exploring-the-data)
 mentioned above.
@@ -232,8 +219,7 @@ Data lineage can be super relevant for architectures like the
 [data vault architecture](https://www.data-vault.co.uk/what-is-data-vault/) or when troubleshooting.
 The data vault architecture is a data warehouse that large organizations use when representing the
 same process across multiple systems, which adds data lineage requirements. Using the pipeline name
-and `load_id` provided out of the box by `dlt`, you are able to identify the source and time of
-data.
+and `load_id` provided out of the box by `dlt`, you are able to identify the source and time of data.
 
 You can [save](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace)
 complete lineage info for a particular `load_id` including a list of loaded files, error messages
@@ -243,11 +229,7 @@ problems.
 ## Staging dataset
 
 So far we've been using the `append` write disposition in our example pipeline. This means that
-each time we run the pipeline, the data is appended to the existing tables. When you use [the
-merge write disposition](incremental-loading.md), dlt creates a staging database schema for
-staging data. This schema is named `<dataset_name>_staging` and contains the same tables as the
-destination schema. When you run the pipeline, the data from the staging tables is loaded into the
-destination tables in a single atomic transaction.
+each time we run the pipeline, the data is appended to the existing tables. When you use the [merge write disposition](incremental-loading.md), dlt creates a staging database schema for staging data. This schema is named `<dataset_name>_staging` and contains the same tables as the destination schema. When you run the pipeline, the data from the staging tables is loaded into the destination tables in a single atomic transaction.
 
 Let's illustrate this with an example. We change our pipeline to use the `merge` write disposition:
 
@@ -271,8 +253,7 @@ load_info = pipeline.run(users)
 ```
 
 Running this pipeline will create a schema in the destination database with the name `mydata_staging`.
-If you inspect the tables in this schema, you will find `mydata_staging.users` table identical to the
-`mydata.users` table in the previous example.
+If you inspect the tables in this schema, you will find the `mydata_staging.users` table identical to the`mydata.users` table in the previous example.
 
 Here is what the tables may look like after running the pipeline:
 
@@ -291,8 +272,7 @@ Here is what the tables may look like after running the pipeline:
 | 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
 | 3 | Charlie | h8lehZEvT3fASQ | 1234563456.12345 |
 
-Notice that the `mydata.users` table now contains the data from both the previous pipeline run and
-the current one.
+Notice that the `mydata.users` table now contains the data from both the previous pipeline run and the current one.
 
 ## Versioned datasets
 
