@@ -542,7 +542,7 @@ from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 client = RESTClient(base_url="https://api.example.com")
-response = client.get("/posts", auth=BearerTokenAuth(token="your_access_token"))
+response = client.get("/posts", auth=BearerTokenAuth(token="your_access_token"))  # type: ignore
 
 print(response.status_code)
 print(response.headers)
@@ -589,7 +589,7 @@ def response_hook(response, **kwargs):
 
 for page in client.paginate(
     "/posts",
-    auth=BearerTokenAuth(token="your_access_token"),
+    auth=BearerTokenAuth(token="your_access_token"),  # type: ignore
     hooks={"response": [response_hook]}
 ):
     print(page)
