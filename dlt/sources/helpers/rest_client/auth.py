@@ -1,4 +1,5 @@
 import math
+from abc import abstractmethod
 from base64 import b64encode
 from typing import (
     TYPE_CHECKING,
@@ -155,7 +156,7 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     def __init__(
         self,
         access_token_url: str,
-        access_token_request_data,
+        access_token_request_data: Dict[str, Any],
         client_id: TSecretStrValue,
         client_secret: TSecretStrValue,
         access_token: TSecretStrValue = None,
@@ -178,21 +179,34 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     def is_token_expired(self) -> bool:
         return pendulum.now() >= self.token_expiry
 
-    def obtain_token(self) -> None:
-        authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
+    @abstractmethod
+    def build_access_token_request(self) -> Dict[str, Any]:
+        pass
 
-        response = requests.post(
-            url=self.access_token_url,
-            headers={
-                "Authorization": f"Basic {authentication}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            data=self.access_token_request_data,
-        )
+    def obtain_token(self) -> None:
+        response = requests.post(**self.build_access_token_request())
         response.raise_for_status()
         self.access_token = response.json()["access_token"]
         expires_in = response.json().get("expires_in", self.default_token_expiration)
         self.token_expiry = pendulum.now().add(seconds=expires_in)
+
+
+class OAuth2Zoom(OAuth2ImplicitFlow):
+    def build_access_token_request(self) -> Dict[str, Any]:
+        """
+        This b64-encoded access token request is specific to Zoom.
+        Many other APIs implement OAuth2 differently
+        """
+        authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
+
+        return {
+            "url": self.access_token_url,
+            "headers": {
+                "Authorization": f"Basic {authentication}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            "data": self.access_token_request_data,
+        }
 
 
 @configspec
