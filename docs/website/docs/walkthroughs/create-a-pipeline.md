@@ -100,7 +100,7 @@ def github_api_resource(api_secret_key: str = dlt.secrets.value):
 
     for page in paginate(
         url,
-        auth=BearerTokenAuth(api_secret_key),
+        auth=BearerTokenAuth(api_secret_key), # type: ignore
         paginator=HeaderLinkPaginator(),
         params={"state": "open"}
     ):
