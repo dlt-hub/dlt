@@ -539,7 +539,7 @@ class CombinedAuth(AuthConfigBase):
         request.headers["Authorization"] = f"Bearer {self.client_secret}"
         request.prepare_url(request.url, {"client_id": self.client_id})
         return request
-
+```
 
 Then, you can use your custom authentication class with the `RESTClient`:
 
