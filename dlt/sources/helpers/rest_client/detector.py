@@ -25,6 +25,7 @@ RECORD_KEY_PATTERNS = frozenset(
         "payload",
         "content",
         "objects",
+        "values",
     ]
 )
 
