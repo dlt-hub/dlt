@@ -534,7 +534,6 @@ When the API endpoint supports incremental loading, you can configure the source
 1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
 
     ```py
-    
     ({
         "<parameter_name>": {
             "type": "incremental",
