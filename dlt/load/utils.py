@@ -30,7 +30,10 @@ def get_completed_table_chain(
     # returns ordered list of tables from parent to child leaf tables
     table_chain: List[TTableSchema] = []
     # allow for jobless tables for those write disposition
-    skip_jobless_table = top_merged_table["write_disposition"] not in ("replace", "merge")
+    skip_jobless_table = top_merged_table["write_disposition"] not in (
+        "replace",
+        "merge",
+    )
 
     # make sure all the jobs for the table chain is completed
     for table in map(
@@ -157,7 +160,7 @@ def _init_dataset_and_update_schema(
             logger.info(
                 f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
             )
-            job_client.drop_tables(*drop_table_names, replace_schema=False)
+            job_client.drop_tables(*drop_table_names, replace_schema=True)
 
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
@@ -193,7 +196,10 @@ def _extend_tables_with_table_chain(
         # for replace and merge write dispositions we should include tables
         # without jobs in the table chain, because child tables may need
         # processing due to changes in the root table
-        skip_jobless_table = top_job_table["write_disposition"] not in ("replace", "merge")
+        skip_jobless_table = top_job_table["write_disposition"] not in (
+            "replace",
+            "merge",
+        )
         for table in map(
             lambda t: fill_hints_from_parent_and_clone_table(schema.tables, t),
             get_child_tables(schema.tables, top_job_table["name"]),
