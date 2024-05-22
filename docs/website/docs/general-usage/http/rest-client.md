@@ -1,10 +1,18 @@
 ---
 title: RESTClient
 description: Learn how to use the RESTClient class to interact with RESTful APIs
-keywords: [api, http, rest, request, extract, restclient, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication, reverse etl, json path, openapi, swagger]
+keywords:
+  [
+    api, http, rest, request, extract, restclient, client,
+    pagination, json, response, data_selector, session, auth,
+    paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator,
+    jsonresponsecursorpaginator, queryparampaginator, bearer, token,
+    authentication, reverse etl, json path, openapi, swagger
+  ]
 ---
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
+
 - automatic pagination,
 - various authentication mechanisms,
 - customizable request/response handling.
@@ -72,11 +80,11 @@ For example, if the API response looks like this:
 
 ```json
 {
-    "posts": [
-        {"id": 1, "title": "Post 1"},
-        {"id": 2, "title": "Post 2"},
-        {"id": 3, "title": "Post 3"}
-    ]
+  "posts": [
+    { "id": 1, "title": "Post 1" },
+    { "id": 2, "title": "Post 2" },
+    { "id": 3, "title": "Post 3" }
+  ]
 }
 ```
 
@@ -86,13 +94,13 @@ For a nested structure like this:
 
 ```json
 {
-    "results": {
-        "posts": [
-            {"id": 1, "title": "Post 1"},
-            {"id": 2, "title": "Post 2"},
-            {"id": 3, "title": "Post 3"}
-        ]
-    }
+  "results": {
+    "posts": [
+      { "id": 1, "title": "Post 1" },
+      { "id": 2, "title": "Post 2" },
+      { "id": 3, "title": "Post 3" }
+    ]
+  }
 }
 ```
 
@@ -133,14 +141,14 @@ Suppose the API response for `https://api.example.com/posts` looks like this:
 
 ```json
 {
-    "data": [
-        {"id": 1, "title": "Post 1"},
-        {"id": 2, "title": "Post 2"},
-        {"id": 3, "title": "Post 3"}
-    ],
-    "pagination": {
-        "next": "https://api.example.com/posts?page=2"
-    }
+  "data": [
+    { "id": 1, "title": "Post 1" },
+    { "id": 2, "title": "Post 2" },
+    { "id": 3, "title": "Post 3" }
+  ],
+  "pagination": {
+    "next": "https://api.example.com/posts?page=2"
+  }
 }
 ```
 
@@ -160,7 +168,6 @@ def get_data():
     for page in client.paginate("/posts"):
         yield page
 ```
-
 
 #### HeaderLinkPaginator
 
@@ -536,11 +543,78 @@ def custom_response_handler(response):
 client.paginate("/posts", hooks={"response": [custom_response_handler]})
 ```
 
+The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for the enpoints that return a 404 status code when there are no items to paginate.
+
 ### Incremental loading
 
-TODO
+It is often needed to load only the new data based on some incremental property be it timestamp, date and time, integer identifier or a cursor value.
+Fortunately our `RESTClient` allows you to elegantly express this behavior.
 
-The handler function may raise `IgnoreResponseException` to exit the pagination loop early. This is useful for the enpoints that return a 404 status code when there are no items to paginate.
+Let's use our example response json and we want to load new posts as they appear without complete reload of data.
+
+```json
+{
+  "data": [
+    { "id": 1, "title": "Post 1", "created_at": "2010-08-21T17:11:27-0400" },
+    { "id": 2, "title": "Post 2", "created_at": "2010-09-21T17:11:27-0400" },
+    { "id": 3, "title": "Post 3", "created_at": "2010-10-21T17:11:27-0400" }
+  ],
+  "pagination": {
+    "next": "https://api.example.com/posts?page=2"
+  }
+}
+```
+
+To achive our objective we need to use `endpoint.params` by adding the incremental type.
+In the following examples we use `id` - primary key and `created_at` - creation datetime.
+
+**Incremental loading by id**
+
+```py
+source_config: RESTAPIConfig = {
+    "resources": [
+        {
+            "name": "get_posts_list",
+            "table_name": "posts",
+            "endpoint": {
+                "data_selector": "$.data",
+                "path": "/posts",
+                "params": {
+                    "post_id": {
+                        "type": "incremental",
+                        "cursor_path": "id",
+                        "initial_value": 1,
+                    }
+                },
+            },
+        }
+    ]
+}
+```
+
+**Incremental loading by creation data**
+
+```py
+source_config: RESTAPIConfig = {
+    "resources": [
+        {
+            "name": "get_posts_list",
+            "table_name": "posts",
+            "endpoint": {
+                "data_selector": "$.data",
+                "path": "/posts",
+                "params": {
+                    "creation_date": {
+                        "type": "incremental",
+                        "cursor_path": "created_at",
+                        "initial_value": "2010-08-21T17:11:27-0400",
+                    }
+                },
+            },
+        }
+    ]
+}
+```
 
 ## Shortcut for paginating API responses
 
@@ -584,7 +658,7 @@ RUNTIME__LOG_LEVEL=INFO python my_script.py
 ```
 
 2. Use the [`PageData`](#pagedata) instance to inspect the [request](https://docs.python-requests.org/en/latest/api/#requests.Request)
-and [response](https://docs.python-requests.org/en/latest/api/#requests.Response) objects:
+   and [response](https://docs.python-requests.org/en/latest/api/#requests.Response) objects:
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
