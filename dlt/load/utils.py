@@ -160,7 +160,7 @@ def _init_dataset_and_update_schema(
             logger.info(
                 f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
             )
-            job_client.drop_tables(*drop_table_names, replace_schema=True)
+            job_client.drop_tables(*drop_table_names, delete_schema=True)
 
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
