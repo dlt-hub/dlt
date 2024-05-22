@@ -29,7 +29,7 @@ def mock_sleep() -> Iterator[mock.MagicMock]:
 
 
 def test_default_session_retry_settings() -> None:
-    retry: Retrying = Client().session.request.retry  # type: ignore
+    retry: Retrying = Client().session.send.retry  # type: ignore
     assert retry.stop.max_attempt_number == 5  # type: ignore
     assert isinstance(retry.retry, retry_any)
     retries = retry.retry.retries
@@ -51,7 +51,7 @@ def test_custom_session_retry_settings(respect_retry_after_header: bool) -> None
         respect_retry_after_header=False,
     ).session
 
-    retry: Retrying = session.request.retry  # type: ignore
+    retry: Retrying = session.send.retry  # type: ignore
     assert retry.stop.max_attempt_number == 14  # type: ignore
     assert isinstance(retry.retry, retry_any)
     retries = retry.retry.retries
@@ -206,7 +206,7 @@ def test_init_default_client(existing_session: bool) -> None:
 
     session = default_client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]
-    retry = session.request.retry  # type: ignore[attr-defined]
+    retry = session.send.retry  # type: ignore[attr-defined]
     assert retry.wait.multiplier == cfg["RUNTIME__REQUEST_BACKOFF_FACTOR"]
     assert retry.stop.max_attempt_number == cfg["RUNTIME__REQUEST_MAX_ATTEMPTS"]
     assert retry.wait.max == cfg["RUNTIME__REQUEST_MAX_RETRY_DELAY"]
@@ -226,7 +226,7 @@ def test_client_instance_with_config(existing_session: bool) -> None:
 
     session = client.session
     assert session.timeout == cfg["RUNTIME__REQUEST_TIMEOUT"]
-    retry = session.request.retry  # type: ignore[attr-defined]
+    retry = session.send.retry  # type: ignore[attr-defined]
     assert retry.wait.multiplier == cfg["RUNTIME__REQUEST_BACKOFF_FACTOR"]
     assert retry.stop.max_attempt_number == cfg["RUNTIME__REQUEST_MAX_ATTEMPTS"]
     assert retry.wait.max == cfg["RUNTIME__REQUEST_MAX_RETRY_DELAY"]
