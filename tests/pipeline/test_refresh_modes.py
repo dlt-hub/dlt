@@ -100,7 +100,7 @@ def test_refresh_drop_dataset():
     pipeline = dlt.pipeline(
         "refresh_full_test",
         destination="duckdb",
-        refresh="drop_dataset",
+        refresh="drop_sources",
         dataset_name="refresh_full_test",
     )
 
@@ -150,7 +150,7 @@ def test_existing_schema_hash():
     pipeline = dlt.pipeline(
         "refresh_full_test",
         destination="duckdb",
-        refresh="drop_dataset",
+        refresh="drop_sources",
         dataset_name="refresh_full_test",
     )
 
@@ -189,7 +189,7 @@ def test_refresh_drop_tables():
     pipeline = dlt.pipeline(
         "refresh_full_test",
         destination="duckdb",
-        refresh="drop_tables",
+        refresh="drop_resources",
         dataset_name="refresh_full_test",
     )
 
@@ -340,7 +340,7 @@ def test_refresh_drop_dataset_multiple_sources():
     pipeline = dlt.pipeline(
         "refresh_full_test_2",
         destination="duckdb",
-        refresh="drop_dataset",
+        refresh="drop_sources",
         dataset_name="refresh_full_test",
     )
 

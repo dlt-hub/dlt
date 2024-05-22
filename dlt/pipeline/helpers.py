@@ -189,14 +189,14 @@ def refresh_source(pipeline: "Pipeline", source: DltSource) -> Dict[str, Any]:
     if pipeline.refresh is None or pipeline.first_run:
         return {}
     _resources_to_drop = (
-        list(source.resources.extracted) if pipeline.refresh != "drop_dataset" else []
+        list(source.resources.extracted) if pipeline.refresh != "drop_sources" else []
     )
     drop_result = drop_resources(
         source.schema,
         pipeline_state,
         resources=_resources_to_drop,
-        drop_all=pipeline.refresh == "drop_dataset",
-        state_paths="*" if pipeline.refresh == "drop_dataset" else [],
+        drop_all=pipeline.refresh == "drop_sources",
+        state_paths="*" if pipeline.refresh == "drop_sources" else [],
         sources=source.name,
     )
     load_package_state = {}

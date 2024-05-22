@@ -72,7 +72,11 @@ def pipeline(
         dev_mode (bool, optional): When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset.
         The datasets are identified by `dataset_name_` + datetime suffix. Use this setting whenever you experiment with your data to be sure you start fresh on each run. Defaults to False.
 
-        refresh (str | TRefreshMode): One of `drop_dataset`, `drop_tables` or `drop_data`. Set this to fully or partially delete and reset the schema, state and destination dataset when running the pipeline.
+        refresh (str | TRefreshMode): Fully or partially reset sources during pipeline run. When set here the refresh is applied on each run of the pipeline.
+            To apply refresh only once you can pass it to `pipeline.run` or `extract` instead. The following refresh modes are supported:
+            * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+            * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+            * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
 
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
         In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.

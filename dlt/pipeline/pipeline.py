@@ -646,6 +646,11 @@ class Pipeline(SupportsPipeline):
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
+            refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
+                * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+                * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+                * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
+
         Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         Returns:
