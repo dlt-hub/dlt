@@ -63,11 +63,12 @@ def test_custom_session_retry_settings(respect_retry_after_header: bool) -> None
 def test_retry_on_status_all_fails(mock_sleep: mock.MagicMock) -> None:
     session = Client().session
     url = "https://example.com/data"
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
+    m.register_uri("GET", url, status_code=503)
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, status_code=503)
-        with pytest.raises(requests.HTTPError):
-            session.get(url)
+    with pytest.raises(requests.HTTPError):
+        session.get(url)
 
     assert m.call_count == RunConfiguration.request_max_attempts
 
@@ -76,6 +77,8 @@ def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
     """Test successful request after 2 retries"""
     session = Client().session
     url = "https://example.com/data"
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
 
     responses = [
         dict(text="error", status_code=503),
@@ -83,9 +86,8 @@ def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
         dict(text="error", status_code=200),
     ]
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, responses)
-        resp = session.get(url)
+    m.register_uri("GET", url, responses)
+    resp = session.get(url)
 
     assert resp.status_code == 200
     assert m.call_count == 3
@@ -94,11 +96,12 @@ def test_retry_on_status_success_after_2(mock_sleep: mock.MagicMock) -> None:
 def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) -> None:
     url = "https://example.com/data"
     session = Client(raise_for_status=False).session
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, status_code=503)
-        response = session.get(url)
-        assert response.status_code == 503
+    m.register_uri("GET", url, status_code=503)
+    response = session.get(url)
+    assert response.status_code == 503
 
     assert m.call_count == RunConfiguration.request_max_attempts
 
@@ -106,18 +109,19 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
 def test_hooks_with_raise_for_statue() -> None:
     url = "https://example.com/data"
     session = Client(raise_for_status=True).session
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
 
     def _no_content(resp: requests.Response, *args, **kwargs) -> requests.Response:
         resp.status_code = 204
         resp._content = b"[]"
         return resp
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, status_code=503)
-        response = session.get(url, hooks={"response": _no_content})
-        # we simulate empty response
-        assert response.status_code == 204
-        assert response.json() == []
+    m.register_uri("GET", url, status_code=503)
+    response = session.get(url, hooks={"response": _no_content})
+    # we simulate empty response
+    assert response.status_code == 204
+    assert response.json() == []
 
     assert m.call_count == 1
 
@@ -130,12 +134,13 @@ def test_retry_on_exception_all_fails(
     exception_class: Type[Exception], mock_sleep: mock.MagicMock
 ) -> None:
     session = Client().session
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
     url = "https://example.com/data"
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, exc=exception_class)
-        with pytest.raises(exception_class):
-            session.get(url)
+    m.register_uri("GET", url, exc=exception_class)
+    with pytest.raises(exception_class):
+        session.get(url)
 
     assert m.call_count == RunConfiguration.request_max_attempts
 
@@ -145,12 +150,13 @@ def test_retry_on_custom_condition(mock_sleep: mock.MagicMock) -> None:
         return response.text == "error"
 
     session = Client(retry_condition=retry_on).session
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
     url = "https://example.com/data"
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, text="error")
-        response = session.get(url)
-        assert response.content == b"error"
+    m.register_uri("GET", url, text="error")
+    response = session.get(url)
+    assert response.content == b"error"
 
     assert m.call_count == RunConfiguration.request_max_attempts
 
@@ -160,12 +166,12 @@ def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -
         return response.text == "error"
 
     session = Client(retry_condition=retry_on).session
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
     url = "https://example.com/data"
-    responses = [dict(text="error"), dict(text="error"), dict(text="success")]
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, responses)
-        resp = session.get(url)
+    m.register_uri("GET", url, [dict(text="error"), dict(text="error"), dict(text="success")])
+    resp = session.get(url)
 
     assert resp.text == "success"
     assert m.call_count == 3
@@ -174,14 +180,16 @@ def test_retry_on_custom_condition_success_after_2(mock_sleep: mock.MagicMock) -
 def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
     session = Client(request_backoff_factor=0).session
     url = "https://example.com/data"
+    m = requests_mock.Adapter()
+    session.mount("https://", m)
+    m.register_uri("GET", url, text="error")
     responses = [
         dict(text="error", headers={"retry-after": "4"}, status_code=429),
         dict(text="success"),
     ]
 
-    with requests_mock.mock(session=session) as m:
-        m.get(url, responses)
-        session.get(url)
+    m.register_uri("GET", url, responses)
+    session.get(url)
 
     mock_sleep.assert_called_once()
     assert 4 <= mock_sleep.call_args[0][0] <= 5  # Adds jitter up to 1s
