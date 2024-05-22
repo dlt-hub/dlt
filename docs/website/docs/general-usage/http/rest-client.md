@@ -1,7 +1,7 @@
 ---
 title: RESTClient
 description: Learn how to use the RESTClient class to interact with RESTful APIs
-keywords: [api, http, rest, request, extract, restclient, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication]
+keywords: [api, http, rest, request, extract, restclient, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication, reverse etl, json path, openapi, swagger]
 ---
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
