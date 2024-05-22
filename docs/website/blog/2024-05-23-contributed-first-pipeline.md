@@ -10,11 +10,15 @@ authors:
 tags: [data ingestion, python sdk, ETL, python data pipelines, Open Source, Developer Tools]
 ---
 
-Hello, I'm Aman Gupta. Over the past eight years, I have navigated the structured world of civil engineering, but recently, I have found myself captivated by data engineering. This newfound interest has led me to explore part-time data engineering gigs, sparked by a workshop hosted by **`dlt`** in November 2022, facilitated by my former mentor and co-founder of **`dlt`**, Adrian Brudaru.
+Hello, I'm Aman Gupta. Over the past eight years, I have navigated the structured world of civil engineering, but recently, I have found myself captivated by data engineering. Initially, I knew how to stack bricks and build structural pipelines. But this newfound interest has helped me build data pipelines, and most of all, it was sparked by a workshop hosted by **dlt.**
 
-They offered me a part-time job, and I began with tasks such as testing pipelines and documentation for **`dlt`**. At that time, contributing to dlt’s verified sources seemed like a high-hanging fruit. Yet, as I immersed myself deeper into the field, I started working on thrilling projects. These ranged from deploying pipelines in serverless environments on Google Cloud to tackling complex topics like incremental loading and schema evolution.
+:::info
+dlt (data loading tool) is an open-source library that you can add to your Python scripts to load data from various and often messy data sources into well-structured, live datasets.
+:::
 
-An opportunity arose when a client needed data migration from FreshDesk to BigQuery. I crafted a basic pipeline version, initially designed to support my use case. Upon presenting my basic pipeline to the dlt team, Alena Astrakhatseva, a team member, generously offered to review it and refine it into a community-verified source.
+The `dlt` workshop took place in November 2022, co-hosted by Adrian Brudaru, my former mentor and co-founder of `dlt`.
+
+An opportunity arose when another client needed data migration from FreshDesk to BigQuery. I crafted a basic pipeline version, initially designed to support my use case. Upon presenting my basic pipeline to the dlt team, Alena Astrakhatseva, a team member, generously offered to review it and refine it into a community-verified source.
 
 ![image](https://storage.googleapis.com/dlt-blog-images/blog_my_first_data_pipeline.png)
 
@@ -45,7 +49,7 @@ class FreshdeskClient:
         pass
 ```
 
-To further make the pipeline effective, I developed resources that could handle incremental data loading. This involved creating [resources](https://dlthub.com/docs/general-usage/resource) that used **`dlt`**'s incremental functionality to fetch only new or updated data:
+To further make the pipeline effective, I developed dlt [resources](https://dlthub.com/docs/general-usage/resource) that could handle incremental data loading. This involved creating resources that used **`dlt`**'s incremental functionality to fetch only new or updated data:
 
 ```py
 def incremental_resource(
@@ -78,8 +82,9 @@ With the steps defined above, I was able to load the data from Freshdesk to BigQ
 1. Made incremental requests to this client based on the “updated_at” field in the response.
 1. Ran the pipeline using the Python script.
 
-To read the full documentation, [please refer to this.](https://dlthub.com/docs/dlt-ecosystem/verified-sources/freshdesk)
 
 While my journey from civil engineering to data engineering was initially intimidating, it has proved to be a profound learning experience. Writing a pipeline with **`dlt`** mirrors the simplicity of a GET request: you request data, yield it, and it flows from the source to its destination. Now, I help other clients integrate **`dlt`** to streamline their data workflows, which has been an invaluable part of my professional growth.
 
-In conclusion, diving into data engineering has not only expanded my technical skill set but has also provided a new lens through which I view challenges and solutions. For those interested in the detailed workings of these pipelines, I encourage exploring **`dlt's`** [GitHub repository](https://github.com/dlt-hub/verified-sources) or diving into the documentation.
+In conclusion, diving into data engineering has expanded my technical skill set and provided a new lens through which I view challenges and solutions. As for me, the lens view mainly was concrete and steel a couple of years back, which has now begun to notice the pipelines of the data world. 
+
+Data engineering has proved both challenging, satisfying and a good carrier option for me till now. For those interested in the detailed workings of these pipelines, I encourage exploring dlt's [GitHub repository](https://github.com/dlt-hub/verified-sources) or diving into the [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/freshdesk).
