@@ -9,13 +9,15 @@ from dlt.destinations.sql_client import DBApiCursor
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 from dlt.common.typing import DictStrAny
+from dlt.common.pipeline import pipeline_state as current_pipeline_state
 
 from tests.utils import clean_test_storage, preserve_environ
 from tests.pipeline.utils import assert_load_info
 
 
-def assert_state_is_wiped(state: DictStrAny) -> None:
-    assert list(state.keys()) == ["resources"]
+def assert_source_state_is_wiped(state: DictStrAny) -> None:
+    # Keys contains only "resources" or is empty
+    assert list(state.keys()) == ["resources"] or not state
     for value in state["resources"].values():
         assert not value
 
@@ -48,7 +50,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
             # Check state is cleared for this resource
             assert not resource_state("some_data_1")
             if drop_dataset:
-                assert_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.state())
             # Second dataset without name column to test tables are re-created
             yield {"id": 3}
             yield {"id": 4}
@@ -64,7 +66,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
         else:
             assert not resource_state("some_data_2")
             if drop_dataset:
-                assert_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.state())
             yield {"id": 7}
             yield {"id": 8}
 
@@ -78,7 +80,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
         else:
             assert not resource_state("some_data_3")
             if drop_dataset:
-                assert_state_is_wiped(dlt.state())
+                assert_source_state_is_wiped(dlt.state())
             yield {"id": 11}
             yield {"id": 12}
 
@@ -138,7 +140,7 @@ def test_refresh_drop_dataset():
         destination_state = load_pipeline_state_from_destination(
             pipeline.pipeline_name, dest_client  # type: ignore[arg-type]
         )
-    assert_state_is_wiped(destination_state["sources"]["refresh_source"])
+    assert_source_state_is_wiped(destination_state["sources"]["refresh_source"])
 
 
 def test_existing_schema_hash():
@@ -289,3 +291,93 @@ def test_refresh_drop_data_only():
     assert not source_state["resources"]["some_data_1"]
     assert not source_state["resources"]["some_data_2"]
     assert source_state["resources"]["some_data_3"] == {"run1_1": "value1_1"}
+
+
+def test_refresh_drop_dataset_multiple_sources():
+    """
+    Ensure only state and tables for currently selected source is dropped
+    """
+
+    @dlt.source
+    def refresh_source_2(first_run=True):
+        @dlt.resource
+        def source_2_data_1():
+            pipeline_state, _ = current_pipeline_state(pipeline._container)
+            if first_run:
+                dlt.state()["source_2_key_1"] = "source_2_value_1"
+                resource_state("source_2_data_1")["run1_1"] = "value1_1"
+                yield {"product": "apple", "price": 1}
+                yield {"product": "banana", "price": 2}
+            else:
+                # First source should not have state wiped
+                assert (
+                    pipeline_state["sources"]["refresh_source"]["source_key_1"] == "source_value_1"
+                )
+                assert pipeline_state["sources"]["refresh_source"]["resources"]["some_data_1"] == {
+                    "run1_1": "value1_1",
+                    "run1_2": "value1_2",
+                }
+                # Source state is wiped
+                assert_source_state_is_wiped(dlt.state())
+                yield {"product": "orange"}
+                yield {"product": "pear"}
+
+        @dlt.resource
+        def source_2_data_2():
+            if first_run:
+                dlt.state()["source_2_key_2"] = "source_2_value_2"
+                resource_state("source_2_data_2")["run1_1"] = "value1_1"
+                yield {"product": "carrot", "price": 3}
+                yield {"product": "potato", "price": 4}
+            else:
+                assert_source_state_is_wiped(dlt.state())
+                yield {"product": "cabbage"}
+                yield {"product": "lettuce"}
+
+        yield source_2_data_1
+        yield source_2_data_2
+
+    pipeline = dlt.pipeline(
+        "refresh_full_test_2",
+        destination="duckdb",
+        refresh="drop_dataset",
+        dataset_name="refresh_full_test",
+    )
+
+    # Run both sources
+    info = pipeline.run(
+        [refresh_source(first_run=True, drop_dataset=True), refresh_source_2(first_run=True)]
+    )
+    assert_load_info(info, 2)
+    # breakpoint()
+    info = pipeline.run(refresh_source_2(first_run=False).with_resources("source_2_data_1"))
+    assert_load_info(info, 2)
+
+    # Check source 1 schema still has all tables
+    table_names = set(
+        t["name"] for t in pipeline.schemas["refresh_source"].data_tables(include_incomplete=True)
+    )
+    assert table_names == {"some_data_1", "some_data_2", "some_data_3", "some_data_4"}
+
+    # Source 2 has only the selected tables
+    table_names = set(
+        t["name"] for t in pipeline.schemas["refresh_source_2"].data_tables(include_incomplete=True)
+    )
+    assert table_names == {"source_2_data_1"}
+
+    # Destination still has tables from source 1
+    with pipeline.sql_client() as client:
+        result = client.execute_sql("SELECT id, name FROM some_data_1 ORDER BY id")
+        assert result == [(1, "John"), (2, "Jane")]
+
+    # First table from source1 exists, with only first column
+    with pipeline.sql_client() as client:
+        with client.execute_query("SELECT * FROM source_2_data_1 ORDER BY product") as cursor:
+            assert_only_table_columns(cursor, ["product"])
+            result = column_values(cursor, "product")
+            assert result == ["orange", "pear"]
+
+    # Second table from source 2 is gone
+    with pytest.raises(DatabaseUndefinedRelation):
+        with pipeline.sql_client() as client:
+            result = client.execute_sql("SELECT * FROM source_2_data_2")

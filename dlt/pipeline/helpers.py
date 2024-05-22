@@ -197,6 +197,7 @@ def refresh_source(pipeline: "Pipeline", source: DltSource) -> Dict[str, Any]:
         resources=_resources_to_drop,
         drop_all=pipeline.refresh == "drop_dataset",
         state_paths="*" if pipeline.refresh == "drop_dataset" else [],
+        sources=source.name,
     )
     load_package_state = {}
     if drop_result.dropped_tables:
