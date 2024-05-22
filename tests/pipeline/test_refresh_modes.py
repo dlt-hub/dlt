@@ -36,7 +36,7 @@ def column_values(cursor: DBApiCursor, column_name: str) -> List[Any]:
 
 
 @dlt.source
-def refresh_source(first_run: bool = True, drop_dataset: bool = False):
+def refresh_source(first_run: bool = True, drop_sources: bool = False):
     @dlt.resource
     def some_data_1():
         if first_run:
@@ -49,7 +49,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
         else:
             # Check state is cleared for this resource
             assert not resource_state("some_data_1")
-            if drop_dataset:
+            if drop_sources:
                 assert_source_state_is_wiped(dlt.state())
             # Second dataset without name column to test tables are re-created
             yield {"id": 3}
@@ -65,7 +65,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
             yield {"id": 6, "name": "Jill"}
         else:
             assert not resource_state("some_data_2")
-            if drop_dataset:
+            if drop_sources:
                 assert_source_state_is_wiped(dlt.state())
             yield {"id": 7}
             yield {"id": 8}
@@ -79,7 +79,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
             yield {"id": 10, "name": "Jill"}
         else:
             assert not resource_state("some_data_3")
-            if drop_dataset:
+            if drop_sources:
                 assert_source_state_is_wiped(dlt.state())
             yield {"id": 11}
             yield {"id": 12}
@@ -94,7 +94,7 @@ def refresh_source(first_run: bool = True, drop_dataset: bool = False):
     yield some_data_4
 
 
-def test_refresh_drop_dataset():
+def test_refresh_drop_sources():
 
     # First run pipeline with load to destination so tables are created
     pipeline = dlt.pipeline(
@@ -104,12 +104,12 @@ def test_refresh_drop_dataset():
         dataset_name="refresh_full_test",
     )
 
-    info = pipeline.run(refresh_source(first_run=True, drop_dataset=True))
+    info = pipeline.run(refresh_source(first_run=True, drop_sources=True))
     assert_load_info(info)
 
     # Second run of pipeline with only selected resources
     info = pipeline.run(
-        refresh_source(first_run=False, drop_dataset=True).with_resources(
+        refresh_source(first_run=False, drop_sources=True).with_resources(
             "some_data_1", "some_data_2"
         )
     )
@@ -154,13 +154,13 @@ def test_existing_schema_hash():
         dataset_name="refresh_full_test",
     )
 
-    info = pipeline.run(refresh_source(first_run=True, drop_dataset=True))
+    info = pipeline.run(refresh_source(first_run=True, drop_sources=True))
     assert_load_info(info)
     first_schema_hash = pipeline.default_schema.version_hash
 
     # Second run with all tables dropped and only some tables re-created
     info = pipeline.run(
-        refresh_source(first_run=False, drop_dataset=True).with_resources(
+        refresh_source(first_run=False, drop_sources=True).with_resources(
             "some_data_1", "some_data_2"
         )
     )
@@ -173,7 +173,7 @@ def test_existing_schema_hash():
 
     # Run again with all tables to ensure they are re-created
     # The new schema in this case should match the schema of the first run exactly
-    info = pipeline.run(refresh_source(first_run=True, drop_dataset=True))
+    info = pipeline.run(refresh_source(first_run=True, drop_sources=True))
     # Check table 3 was re-created
     with pipeline.sql_client() as client:
         result = client.execute_sql("SELECT id, name FROM some_data_3 ORDER BY id")
@@ -293,7 +293,7 @@ def test_refresh_drop_data_only():
     assert source_state["resources"]["some_data_3"] == {"run1_1": "value1_1"}
 
 
-def test_refresh_drop_dataset_multiple_sources():
+def test_refresh_drop_sources_multiple_sources():
     """
     Ensure only state and tables for currently selected source is dropped
     """
@@ -346,7 +346,7 @@ def test_refresh_drop_dataset_multiple_sources():
 
     # Run both sources
     info = pipeline.run(
-        [refresh_source(first_run=True, drop_dataset=True), refresh_source_2(first_run=True)]
+        [refresh_source(first_run=True, drop_sources=True), refresh_source_2(first_run=True)]
     )
     assert_load_info(info, 2)
     # breakpoint()
@@ -381,3 +381,58 @@ def test_refresh_drop_dataset_multiple_sources():
     with pytest.raises(DatabaseUndefinedRelation):
         with pipeline.sql_client() as client:
             result = client.execute_sql("SELECT * FROM source_2_data_2")
+
+
+def test_refresh_argument_to_run():
+    pipeline = dlt.pipeline(
+        "refresh_full_test",
+        destination="duckdb",
+        dataset_name="refresh_full_test",
+    )
+
+    info = pipeline.run(refresh_source(first_run=True))
+    assert_load_info(info)
+
+    info = pipeline.run(
+        refresh_source(first_run=False).with_resources("some_data_3"),
+        refresh="drop_sources",
+    )
+    assert_load_info(info)
+
+    # Check local schema to confirm refresh was at all applied
+    tables = set(t["name"] for t in pipeline.default_schema.data_tables())
+    assert tables == {"some_data_3"}
+
+    # Run again without refresh to confirm refresh option doesn't persist on pipeline
+    info = pipeline.run(refresh_source(first_run=False).with_resources("some_data_2"))
+    assert_load_info(info)
+
+    # Nothing is dropped
+    tables = set(t["name"] for t in pipeline.default_schema.data_tables())
+    assert tables == {"some_data_2", "some_data_3"}
+
+
+def test_refresh_argument_to_extract():
+    pipeline = dlt.pipeline(
+        "refresh_full_test",
+        destination="duckdb",
+        dataset_name="refresh_full_test",
+    )
+
+    info = pipeline.run(refresh_source(first_run=True))
+    assert_load_info(info)
+
+    pipeline.extract(
+        refresh_source(first_run=False).with_resources("some_data_3"),
+        refresh="drop_sources",
+    )
+
+    tables = set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True))
+    # All other data tables removed
+    assert tables == {"some_data_3", "some_data_4"}
+
+    # Run again without refresh to confirm refresh option doesn't persist on pipeline
+    pipeline.extract(refresh_source(first_run=False).with_resources("some_data_2"))
+
+    tables = set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True))
+    assert tables == {"some_data_2", "some_data_3", "some_data_4"}

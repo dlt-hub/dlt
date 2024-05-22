@@ -412,6 +412,7 @@ class Pipeline(SupportsPipeline):
         max_parallel_items: int = None,
         workers: int = None,
         schema_contract: TSchemaContract = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
 
@@ -440,7 +441,11 @@ class Pipeline(SupportsPipeline):
                         raise SourceExhausted(source.name)
 
                     self._extract_source(
-                        extract_step, source, max_parallel_items, workers, with_refresh=True
+                        extract_step,
+                        source,
+                        max_parallel_items,
+                        workers,
+                        refresh=refresh or self.refresh,
                     )
                 # extract state
                 state: TPipelineStateDoc = None
@@ -593,6 +598,7 @@ class Pipeline(SupportsPipeline):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -697,6 +703,7 @@ class Pipeline(SupportsPipeline):
                 primary_key=primary_key,
                 schema=schema,
                 schema_contract=schema_contract,
+                refresh=refresh or self.refresh,
             )
             self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
@@ -1106,7 +1113,7 @@ class Pipeline(SupportsPipeline):
         source: DltSource,
         max_parallel_items: int,
         workers: int,
-        with_refresh: bool = False,
+        refresh: Optional[TRefreshMode] = None,
         load_package_state_update: Optional[Dict[str, Any]] = None,
     ) -> str:
         # discover the existing pipeline schema
@@ -1127,8 +1134,8 @@ class Pipeline(SupportsPipeline):
             pass
 
         load_package_state_update = dict(load_package_state_update or {})
-        if with_refresh:
-            load_package_state_update.update(refresh_source(self, source))
+        if refresh:
+            load_package_state_update.update(refresh_source(self, source, refresh))
 
         # extract into pipeline schema
         load_id = extract.extract(
