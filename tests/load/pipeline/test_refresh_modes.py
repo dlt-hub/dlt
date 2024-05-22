@@ -6,7 +6,6 @@ import dlt
 from dlt.common.pipeline import resource_state
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.sql_client import DBApiCursor
-from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 from dlt.common.typing import DictStrAny
 from dlt.common.pipeline import pipeline_state as current_pipeline_state
@@ -252,6 +251,8 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
 
     # Second run of pipeline with only selected resources
     # Mock wrap sql client to capture all queries executed
+    from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+
     with mock.patch.object(
         DuckDbSqlClient, "execute_query", side_effect=DuckDbSqlClient.execute_query, autospec=True
     ) as mock_execute_query:
