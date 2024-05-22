@@ -201,7 +201,6 @@ class TestRESTClient:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
 
-
         auth_list = [
             CustomAuthConfigBase("test-token"),
             CustomAuthAuthBase("test-token"),
