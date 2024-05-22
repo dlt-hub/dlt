@@ -508,11 +508,13 @@ response = client.get("/protected/resource")
 
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
+**Custom bearer auth:**
+
 ```py
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
 class CustomAuth(AuthConfigBase):
-    def __init__(self, token):
+    def __init__(self, token: str):
         self.token = token
 
     def __call__(self, request):
@@ -520,6 +522,24 @@ class CustomAuth(AuthConfigBase):
         request.headers["Authorization"] = f"Custom {self.token}"
         return request
 ```
+
+**Custom combined auth:**
+Sometimes you need to pass authentication parameters via headers as well as query params
+
+```py
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
+
+class CombinedAuth(AuthConfigBase):
+    def __init__(self, client_id: str, client_secret: str):
+        self.client_id = client_id
+        self.client_secret = client_secret
+
+    def __call__(self, request):
+        # Modify the request object to include the necessary authentication headers and request params
+        request.headers["Authorization"] = f"Bearer {self.client_secret}"
+        request.prepare_url(request.url, {"client_id": self.client_id})
+        return request
+
 
 Then, you can use your custom authentication class with the `RESTClient`:
 
@@ -550,7 +570,7 @@ The handler function may raise `IgnoreResponseException` to exit the pagination 
 It is often needed to load only the new data based on some incremental property be it timestamp, date and time, integer identifier or a cursor value.
 Fortunately our `RESTClient` allows you to elegantly express this behavior.
 
-Let's use our example response json and we want to load new posts as they appear without complete reload of data.
+Let's use our slightly modified example response json and we want to load new posts as they appear without complete reload of data.
 
 ```json
 {
@@ -558,10 +578,7 @@ Let's use our example response json and we want to load new posts as they appear
     { "id": 1, "title": "Post 1", "created_at": "2010-08-21T17:11:27-0400" },
     { "id": 2, "title": "Post 2", "created_at": "2010-09-21T17:11:27-0400" },
     { "id": 3, "title": "Post 3", "created_at": "2010-10-21T17:11:27-0400" }
-  ],
-  "pagination": {
-    "next": "https://api.example.com/posts?page=2"
-  }
+  ]
 }
 ```
 
@@ -592,7 +609,7 @@ source_config: RESTAPIConfig = {
 }
 ```
 
-**Incremental loading by creation data**
+**Incremental loading by creation date**
 
 ```py
 source_config: RESTAPIConfig = {
