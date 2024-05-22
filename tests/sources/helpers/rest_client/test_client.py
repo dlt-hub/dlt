@@ -1,8 +1,9 @@
 import os
 import pytest
 from typing import Any, cast
+from dlt.common import logger
 from dlt.common.typing import TSecretStrValue
-from dlt.sources.helpers.requests import Response, Request
+from dlt.sources.helpers.requests import Client, Response, Request
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
@@ -183,3 +184,16 @@ class TestRESTClient:
         )
 
         assert_pagination(list(pages_iter))
+
+    def test_custom_session_client(self, mocker):
+        mocked_warning = mocker.patch.object(logger, "warning")
+        RESTClient(
+            base_url="https://api.example.com",
+            headers={"Accept": "application/json"},
+            session=Client(raise_for_status=True).session,
+        )
+        assert (
+            mocked_warning.call_args[0][0]
+            == "The session provided has raise_for_status enabled. This may cause unexpected"
+            " behavior."
+        )

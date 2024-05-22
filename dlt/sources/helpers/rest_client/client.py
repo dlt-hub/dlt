@@ -80,8 +80,7 @@ class RESTClient:
         self.auth = auth
 
         if session:
-            self._validate_session_raise_for_status(session)
-            self.session = session
+            self.session = _warn_session_raise_for_status(session)
         else:
             self.session = Client(raise_for_status=False).session
 
@@ -89,15 +88,6 @@ class RESTClient:
         self.pagination_factory = paginator_factory or PaginatorFactory()
 
         self.data_selector = data_selector
-
-    def _validate_session_raise_for_status(self, session: BaseSession) -> None:
-        # dlt.sources.helpers.requests.session.Session
-        # has raise_for_status=True by default
-        if getattr(self.session, "raise_for_status", False):
-            logger.warning(
-                "The session provided has raise_for_status enabled. "
-                "This may cause unexpected behavior."
-            )
 
     def _create_request(
         self,
@@ -296,3 +286,11 @@ class RESTClient:
                 " instance of the paginator as some settings may not be guessed correctly."
             )
         return paginator
+
+
+def _warn_session_raise_for_status(session: BaseSession) -> BaseSession:
+    if getattr(session, "raise_for_status", False):
+        logger.warning(
+            "The session provided has raise_for_status enabled. This may cause unexpected behavior."
+        )
+    return session
