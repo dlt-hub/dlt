@@ -385,7 +385,7 @@ class PostBodyPaginator(BasePaginator):
 
         # Add the cursor to the request body
         request.json["cursor"] = self.cursor
-       
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=PostBodyPaginator()
@@ -526,5 +526,71 @@ The `paginate()` function provides a shorthand for paginating API responses. It 
 from dlt.sources.helpers.rest_client import paginate
 
 for page in paginate("https://api.example.com/posts"):
+    print(page)
+```
+
+## Troubleshooting
+
+### `RESTClient.get()` and `RESTClient.post()` methods
+
+These methods work similarly to the [get()](https://docs.python-requests.org/en/latest/api/#requests.get) and [post()](https://docs.python-requests.org/en/latest/api/#requests.post) functions
+from the Requests library. They return a [Response](https://docs.python-requests.org/en/latest/api/#requests.Response) object that contains the response data.
+You can inspect the `Response` object to get the `response.status_code`, `response.headers`, and `response.content`. For example:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
+client = RESTClient(base_url="https://api.example.com")
+response = client.get("/posts", auth=BearerTokenAuth(token="your_access_token"))  # type: ignore
+
+print(response.status_code)
+print(response.headers)
+print(response.content)
+```
+
+### `RESTClient.paginate()`
+
+Debugging `paginate()` is trickier because it's a generator function that yields [`PageData`](#pagedata) objects. Here's several ways to debug the `paginate()` method:
+
+1. Enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) to see detailed information about the HTTP requests:
+
+```sh
+RUNTIME__LOG_LEVEL=INFO python my_script.py
+```
+
+2. Use the [`PageData`](#pagedata) instance to inspect the [request](https://docs.python-requests.org/en/latest/api/#requests.Request)
+and [response](https://docs.python-requests.org/en/latest/api/#requests.Response) objects:
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+
+client = RESTClient(
+    base_url="https://api.example.com",
+    paginator=JSONResponsePaginator(next_url_path="pagination.next")
+)
+
+for page in client.paginate("/posts"):
+    print(page.request)
+    print(page.response)
+```
+
+3. Use the `hooks` parameter to add custom response handlers to the `paginate()` method:
+
+```py
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
+def response_hook(response, **kwargs):
+    print(response.status_code)
+    print(f"Content: {response.content}")
+    print(f"Request: {response.request.body}")
+    # Or import pdb; pdb.set_trace() to debug
+
+for page in client.paginate(
+    "/posts",
+    auth=BearerTokenAuth(token="your_access_token"),  # type: ignore
+    hooks={"response": [response_hook]}
+):
     print(page)
 ```

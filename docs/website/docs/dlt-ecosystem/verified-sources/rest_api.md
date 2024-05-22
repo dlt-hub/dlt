@@ -174,13 +174,13 @@ The configuration object passed to the REST API Generic Source has three main el
 ```py
 config: RESTAPIConfig = {
     "client": {
-        # ...
+        ...
     },
     "resource_defaults": {
-        # ...
+        ...
     },
     "resources": [
-        # ...
+        ...
     ],
 }
 ```
@@ -203,9 +203,7 @@ For example, you can set the primary key, write disposition, and other default s
 ```py
 config = {
     "client": {
-        "api_key": "your_api_key_here",
-        "base_url": "https://api.example.com",
-        # Add other client configurations here
+        # ...
     },
     "resource_defaults": {
         "primary_key": "id",
@@ -219,14 +217,16 @@ config = {
     "resources": [
         "resource1",
         {
-            "name": "resource2_name",
-            "write_disposition": "append",
-            "endpoint": {
-                "params": {
-                    "param1": "value1",
+            "resource2": {
+                "name": "resource2_name",
+                "write_disposition": "append",
+                "endpoint": {
+                    "params": {
+                        "param1": "value1",
+                    },
                 },
-            },
-        },
+            }
+        }
     ],
 }
 ```
@@ -497,15 +497,15 @@ The `issue_comments` resource will make requests to the following endpoints:
 The syntax for the `resolve` field in parameter configuration is:
 
 ```py
-({
-    "{parameter_name}" : 
-    {
+{
+    "<parameter_name>": {
         "type": "resolve",
-        "resource": "{parent_resource_name}",
-        "field": "{parent_resource_field_name}",
+        "resource": "<parent_resource_name>",
+        "field": "<parent_resource_field_name>",
     }
-})
+}
 ```
+
 Under the hood, dlt handles this by using a [transformer resource](../../general-usage/resource.md#process-resources-with-dlttransformer).
 
 #### Include fields from the parent resource
@@ -516,7 +516,7 @@ You can include data from the parent resource in the child resource by using the
 {
     "name": "issue_comments",
     "endpoint": {
-        # ...
+        ...
     },
     "include_from_parent": ["id", "title", "created_at"],
 }
@@ -534,25 +534,25 @@ When the API endpoint supports incremental loading, you can configure the source
 1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
 
     ```py
-    ({
+    {
         "<parameter_name>": {
             "type": "incremental",
             "cursor_path": "<path_to_cursor_field>",
             "initial_value": "<initial_value>",
-        }
-    })
+        },
+    }
     ```
 
     For example, in the `issues` resource configuration in the GitHub example, we have:
 
     ```py
-    ({
+    {
         "since": {
             "type": "incremental",
             "cursor_path": "updated_at",
             "initial_value": "2024-01-25T11:21:28Z",
-        }
-    })
+        },
+    }
     ```
 
     This configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter in subsequent requests.
@@ -560,7 +560,7 @@ When the API endpoint supports incremental loading, you can configure the source
 2. Specifying the `incremental` field in the [endpoint configuration](#endpoint-configuration):
 
     ```py
-    ({
+    {
         "incremental": {
             "start_param": "<parameter_name>",
             "end_param": "<parameter_name>",
@@ -568,7 +568,7 @@ When the API endpoint supports incremental loading, you can configure the source
             "initial_value": "<initial_value>",
             "end_value": "<end_value>",
         }
-    })
+    }
     ```
 
     This configuration is more flexible and allows you to specify the start and end conditions for the incremental loading.

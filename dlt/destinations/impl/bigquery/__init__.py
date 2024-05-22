@@ -12,6 +12,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["jsonl", "parquet"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
+    # BQ limit is 4GB but leave a large headroom since buffered writer does not preemptively check size
+    caps.recommended_file_size = int(1024 * 1024 * 1024)
     caps.escape_identifier = escape_bigquery_identifier
     caps.escape_literal = None
     caps.format_datetime_literal = format_bigquery_datetime_literal
