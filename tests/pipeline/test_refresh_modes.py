@@ -248,6 +248,8 @@ def test_refresh_drop_data_only():
     info = pipeline.run(refresh_source(first_run=True), write_disposition="append")
     assert_load_info(info)
 
+    first_schema_hash = pipeline.default_schema.version_hash
+
     # Second run of pipeline with only selected resources
     # Mock wrap sql client to capture all queries executed
     with mock.patch.object(
@@ -257,6 +259,11 @@ def test_refresh_drop_data_only():
             refresh_source(first_run=False).with_resources("some_data_1", "some_data_2"),
             write_disposition="append",
         )
+
+    assert_load_info(info)
+
+    # Schema should not be mutated
+    assert pipeline.default_schema.version_hash == first_schema_hash
 
     all_queries = [k[0][1] for k in mock_execute_query.call_args_list]
     assert all_queries

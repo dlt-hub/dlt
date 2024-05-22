@@ -204,7 +204,8 @@ def refresh_source(
     if drop_result.dropped_tables:
         key = "dropped_tables" if refresh != "drop_data" else "truncated_tables"
         load_package_state[key] = drop_result.dropped_tables
-    source.schema = drop_result.schema
+    if refresh != "drop_data":  # drop_data is only data wipe, keep original schema
+        source.schema = drop_result.schema
     if "sources" in drop_result.state:
         pipeline_state["sources"] = drop_result.state["sources"]
     return load_package_state
