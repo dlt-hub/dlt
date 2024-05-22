@@ -80,7 +80,7 @@ For example, if the API response looks like this:
 }
 ```
 
-The `data_selector` should be set to `"posts"` to extract the list of posts from the response.
+The `data_selector` should be set to `"posts"` or `"$.posts"` to extract the list of posts from the response.
 
 For a nested structure like this:
 
@@ -96,7 +96,7 @@ For a nested structure like this:
 }
 ```
 
-The `data_selector` needs to be set to `"results.posts"`. Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
+The `data_selector` needs to be set to `"results.posts"` or `"$.results.posts"`. Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to learn how to write selectors.
 
 ### PageData
 
@@ -430,6 +430,26 @@ client = RESTClient(
 
 for page in client.paginate("/protected/resource"):
     print(page)
+```
+
+## Common resource defaults
+
+In `RESTAPIConfig` you can provide via `resource_defaults` which will then be applied to all requests
+
+```py
+my_params = {
+    "from_year": 2018,
+    "end_year": 2024,
+}
+
+source_config: RESTAPIConfig = {
+    "client": {...},
+    "resource_defaults": {
+        "endpoint": {
+            "params": my_params,
+        }
+    }
+}
 ```
 
 ### API key authentication
