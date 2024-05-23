@@ -161,5 +161,54 @@ aws_data_catalog="awsdatacatalog"
 You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is used by default
 
+
+## Athena adapter
+
+You can use the `athena_adapter` to add partitioning to Athena tables. This is currently only supported for Iceberg tables.
+
+Here is how you use it:
+
+```py
+from datetime import date
+
+import dlt
+from dlt.destinations.impl.athena.athena_adapter import athena_partition, athena_adapter
+
+data_items = [
+    (1, "A", date(2021, 1, 1)),
+    (2, "A", date(2021, 1, 2)),
+    (3, "A", date(2021, 1, 3)),
+    (4, "A", date(2021, 2, 1)),
+    (5, "A", date(2021, 2, 2)),
+    (6, "B", date(2021, 1, 1)),
+    (7, "B", date(2021, 1, 2)),
+    (8, "B", date(2021, 1, 3)),
+    (9, "B", date(2021, 2, 1)),
+    (10, "B", date(2021, 3, 2)),
+]
+
+@dlt.resource(table_format="iceberg")
+def partitioned_data():
+    yield [{"id": i, "category": c, "created_at": d} for i, c, d in data_items]
+
+
+# Add partitioning hints to the table
+athena_adapter(
+    partitioned_table,
+    partition=[
+        # Partition per category and month
+        "category",
+        athena_partition.month("created_at"),
+    ],
+)
+
+
+pipeline = dlt.pipeline("athena_example")
+pipeline.run(partitioned_data)
+```
+
+See the AWS Athena documentation for more information on [available partitioning options](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-creating-tables.html#querying-iceberg-creating-tables-query-editor).
+
+
 <!--@@@DLT_TUBA athena-->
 
