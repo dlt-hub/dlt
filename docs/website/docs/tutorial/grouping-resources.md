@@ -26,7 +26,7 @@ def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     for page in paginate(
-        "https://api.github.com/repos/dlt-hub/dlt/comments"
+        "https://api.github.com/repos/dlt-hub/dlt/comments",
         params={"per_page": 100}
     ):
         yield page
@@ -55,7 +55,7 @@ def get_issues(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     for page in paginate(
-        "https://api.github.com/repos/dlt-hub/dlt/issues"
+        "https://api.github.com/repos/dlt-hub/dlt/issues",
         params={
             "since": updated_at.last_value,
             "per_page": 100,
@@ -76,7 +76,7 @@ def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     for page in paginate(
-        "https://api.github.com/repos/dlt-hub/dlt/comments"
+        "https://api.github.com/repos/dlt-hub/dlt/comments",
         params={
             "since": updated_at.last_value,
             "per_page": 100,
