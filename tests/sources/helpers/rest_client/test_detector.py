@@ -406,16 +406,20 @@ def test_find_paginator(test_case) -> None:
     [
         "/users/{user_id}",
         "/api/v1/products/{product_id}/",
-        # those are not valid paths
-        # "/api/v1/products/{product_id}//",
-        # "/api/v1/products/{product_id}?param1=value1",
-        # "/api/v1/products/{product_id}#section",
-        # "/api/v1/products/{product_id}/#section",
+        "/api/v1/products/{product_id}//",
+        "/api/v1/products/{product_id}?param1=value1",
+        "/api/v1/products/{product_id}#section",
+        "/api/v1/products/{product_id}.json",
+        "/api/v1/products/{product_id}.json/",
+        "/api/v1/products/{product_id}_data",
+        "/api/v1/products/{product_id}_data?param=true",
         "/users/{user_id}/posts/{post_id}",
         "/users/{user_id}/posts/{post_id}/comments/{comment_id}",
         "{entity}",
         "/{entity}",
         "/{user_123}",
+        "/users/{user-id}",
+        "/users/{123}",
     ],
 )
 def test_single_entity_path_valid(path):
@@ -430,8 +434,7 @@ def test_single_entity_path_valid(path):
         "/users/{user_id}/details",
         "/",
         "/{}",
-        "/users/{123}",
-        "/users/{user-id}",
+        "/api/v1/products/{product_id}/#section",
         "/users/{user id}",
         "/users/{user_id}/{",  # Invalid ending
     ],
