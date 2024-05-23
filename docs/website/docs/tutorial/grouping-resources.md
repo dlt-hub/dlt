@@ -14,6 +14,9 @@ This tutorial continues the [previous](load-data-from-an-api) part. We'll use th
 In the previous tutorial, we loaded issues from the GitHub API. Now we'll prepare to load comments from the API as well. Here's a sample [dlt resource](../general-usage/resource) that does that:
 
 ```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
 @dlt.resource(
     table_name="comments",
     write_disposition="merge",
@@ -22,17 +25,11 @@ In the previous tutorial, we loaded issues from the GitHub API. Now we'll prepar
 def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    url = "https://api.github.com/repos/dlt-hub/dlt/comments?per_page=100"
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/comments",
+        params={"per_page": 100}
+    ):
+        yield page
 ```
 
 We can load this resource separately from the issues resource, however loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
@@ -47,7 +44,7 @@ def github_source():
 
 ```py
 import dlt
-from dlt.sources.helpers import requests
+from dlt.sources.helpers.rest_client import paginate
 
 @dlt.resource(
     table_name="issues",
@@ -57,21 +54,17 @@ from dlt.sources.helpers import requests
 def get_issues(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    url = (
-        "https://api.github.com/repos/dlt-hub/dlt/issues"
-        f"?since={updated_at.last_value}&per_page=100"
-        "&sort=updated&directions=desc&state=open"
-    )
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/issues",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+            "sort": "updated",
+            "directions": "desc",
+            "state": "open",
+        }
+    ):
+        yield page
 
 
 @dlt.resource(
@@ -82,20 +75,14 @@ def get_issues(
 def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    url = (
-        "https://api.github.com/repos/dlt-hub/dlt/comments"
-        "?per_page=100"
-    )
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/comments",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+        }
+    ):
+        yield page
 
 
 @dlt.source
@@ -124,18 +111,8 @@ from dlt.sources.helpers import requests
 BASE_GITHUB_URL = "https://api.github.com/repos/dlt-hub/dlt"
 
 def fetch_github_data(endpoint, params={}):
-    """Fetch data from GitHub API based on endpoint and params."""
     url = f"{BASE_GITHUB_URL}/{endpoint}"
-
-    while True:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    return paginate(url, params=params)
 
 @dlt.source
 def github_source():
@@ -164,21 +141,16 @@ For the next step we'd want to get the [number of repository clones](https://doc
 Let's handle this by changing our `fetch_github_data()` first:
 
 ```py
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+
 def fetch_github_data(endpoint, params={}, access_token=None):
-    """Fetch data from GitHub API based on endpoint and params."""
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-
     url = f"{BASE_GITHUB_URL}/{endpoint}"
+    return paginate(
+        url,
+        params=params,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,
+    )
 
-    while True:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
 
 @dlt.source
 def github_source(access_token):
@@ -229,28 +201,7 @@ access_token = "ghp_A...3aRY"
 Now we can run the script and it will load the data from the `traffic/clones` endpoint:
 
 ```py
-import dlt
-from dlt.sources.helpers import requests
-
-BASE_GITHUB_URL = "https://api.github.com/repos/dlt-hub/dlt"
-
-
-def fetch_github_data(endpoint, params={}, access_token=None):
-    """Fetch data from GitHub API based on endpoint and params."""
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-
-    url = f"{BASE_GITHUB_URL}/{endpoint}"
-
-    while True:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        yield response.json()
-
-        # get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
-
+...
 
 @dlt.source
 def github_source(
@@ -287,19 +238,12 @@ BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
 
 def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
     """Fetch data from GitHub API based on repo_name, endpoint, and params."""
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-
     url = BASE_GITHUB_URL.format(repo_name=repo_name) + f"/{endpoint}"
-
-    while True:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    return paginate(
+        url,
+        params=params,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,
+    )
 
 
 @dlt.source
@@ -347,5 +291,6 @@ Interested in learning more? Here are some suggestions:
     - [Pass config and credentials into your sources and resources](../general-usage/credentials).
     - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
+    - [Use REST API client helpers](../general-usage/http/rest-client.md) to simplify working with REST APIs.
 3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
 4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios
