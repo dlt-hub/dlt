@@ -1,4 +1,4 @@
-from typing import Iterator, Type
+from typing import Any, Dict, Iterator, List, Type
 from unittest import mock
 import os
 import random
@@ -183,7 +183,7 @@ def test_wait_retry_after_int(mock_sleep: mock.MagicMock) -> None:
     m = requests_mock.Adapter()
     session.mount("https://", m)
     m.register_uri("GET", url, text="error")
-    responses = [
+    responses: List[Dict[str, Any]] = [
         dict(text="error", headers={"retry-after": "4"}, status_code=429),
         dict(text="success"),
     ]
