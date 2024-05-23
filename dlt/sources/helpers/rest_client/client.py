@@ -80,7 +80,9 @@ class RESTClient:
         self.auth = auth
 
         if session:
-            self.session = _warn_session_raise_for_status(session)
+            # dlt.sources.helpers.requests.session.Session
+            # has raise_for_status=True by default
+            self.session = _warn_if_raise_for_status_and_return(session)
         else:
             self.session = Client(raise_for_status=False).session
 
@@ -288,7 +290,8 @@ class RESTClient:
         return paginator
 
 
-def _warn_session_raise_for_status(session: BaseSession) -> BaseSession:
+def _warn_if_raise_for_status_and_return(session: BaseSession) -> BaseSession:
+    """A generic function to warn if the session has raise_for_status enabled."""
     if getattr(session, "raise_for_status", False):
         logger.warning(
             "The session provided has raise_for_status enabled. This may cause unexpected behavior."
