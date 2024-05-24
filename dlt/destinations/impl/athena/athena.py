@@ -11,6 +11,7 @@ from typing import (
     Callable,
     Iterable,
     Type,
+    cast,
 )
 from copy import deepcopy
 import re
@@ -404,10 +405,15 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
 
-    def _iceberg_partition_clause(self, partition_hints: Optional[List[str]]) -> str:
+    def _iceberg_partition_clause(self, partition_hints: Optional[Dict[str, str]]) -> str:
         if not partition_hints:
             return ""
-        return f"PARTITIONED BY ({', '.join(partition_hints)})"
+        formatted_strings = []
+        for column_name, template in partition_hints.items():
+            formatted_strings.append(
+                template.format(column_name=self.sql_client.escape_ddl_identifier(column_name))
+            )
+        return f"PARTITIONED BY ({', '.join(formatted_strings)})"
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -435,7 +441,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
         else:
             if is_iceberg:
-                partition_clause = self._iceberg_partition_clause(table.get(PARTITION_HINT))
+                partition_clause = self._iceberg_partition_clause(
+                    cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
+                )
                 sql.append(
                     f"""CREATE TABLE {qualified_table_name}
                         ({columns})

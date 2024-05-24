@@ -57,9 +57,7 @@ def test_iceberg_partition_hints():
         )[0]
 
     # Partition clause is generated with original order
-    expected_clause = (
-        "PARTITIONED BY (category, month(created_at), bucket(10, product_id), truncate(2, name))"
-    )
+    expected_clause = "PARTITIONED BY (`category`, month(`created_at`), bucket(10, `product_id`), truncate(2, `name`))"
     assert expected_clause in sql_partitioned
 
     # No partition clause otherwise
