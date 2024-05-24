@@ -184,7 +184,7 @@ bucket_url = "az://[your_container name]" # replace with your container name
 
 [destination.filesystem.credentials]
 azure_client_id = "client_id" # please set me up!
-azure_client_secret = "client_secret
+azure_client_secret = "client_secret"
 azure_tenant_id = "tenant_id" # please set me up!
 ```
 
