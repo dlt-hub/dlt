@@ -166,7 +166,18 @@ You can choose the following file formats:
 
 You can use the `athena_adapter` to add partitioning to Athena tables. This is currently only supported for Iceberg tables.
 
-Here is how you use it:
+Iceberg tables support a few transformation functions for partitioning. Info on all supported functions in the [AWS documentation](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-creating-tables.html#querying-iceberg-creating-tables-query-editor).
+
+Use the `athena_partition` helper to generate the partitioning hints for these functions:
+
+* `athena_partition.year(column_name: str)`: Partition by year of date/datetime column.
+* `athena_partition.month(column_name: str)`: Partition by month of date/datetime column.
+* `athena_partition.day(column_name: str)`: Partition by day of date/datetime column.
+* `athena_partition.hour(column_name: str)`: Partition by hour of date/datetime column.
+* `athena_partition.bucket(n: int, column_name: str)`: Partition by hashed value to `n` buckets
+* `athena_partition.truncate(length: int, column_name: str)`: Partition by truncated value to `length` (or width for numbers)
+
+Here is an example of how to use the adapter to partition a table:
 
 ```py
 from datetime import date
@@ -206,9 +217,6 @@ athena_adapter(
 pipeline = dlt.pipeline("athena_example")
 pipeline.run(partitioned_data)
 ```
-
-See the AWS Athena documentation for more information on [available partitioning options](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-creating-tables.html#querying-iceberg-creating-tables-query-editor).
-
 
 <!--@@@DLT_TUBA athena-->
 
