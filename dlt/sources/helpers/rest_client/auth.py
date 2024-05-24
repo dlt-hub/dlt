@@ -148,7 +148,7 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     """
     This class implements OAuth2 implicit flow which does not require the end user to
     give permission to the app to access their information. This is often used for
-    server-to-server authentication.
+    server-to-server authorization.
     The client obtains a temporary access token from the authorization service.
     With the access token, the client can access resource services
     """
