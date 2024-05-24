@@ -179,34 +179,25 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     def is_token_expired(self) -> bool:
         return pendulum.now() >= self.token_expiry
 
+    def obtain_token(self) -> None:
+        response = requests.post(**self.build_access_token_request())
+        response.raise_for_status()
+        response_json = response.json()
+        self.access_token = self.parse_access_token(response_json)
+        expires_in_seconds = self.parse_expiration_in_seconds(response_json)
+        self.token_expiry = pendulum.now().add(seconds=expires_in_seconds)
+
     @abstractmethod
     def build_access_token_request(self) -> Dict[str, Any]:
         pass
 
-    def obtain_token(self) -> None:
-        response = requests.post(**self.build_access_token_request())
-        response.raise_for_status()
-        self.access_token = response.json()["access_token"]
-        expires_in = response.json().get("expires_in", self.default_token_expiration)
-        self.token_expiry = pendulum.now().add(seconds=expires_in)
+    @abstractmethod
+    def parse_expiration_in_seconds(self, response_json: Any) -> int:
+        pass
 
-
-class OAuth2Zoom(OAuth2ImplicitFlow):
-    def build_access_token_request(self) -> Dict[str, Any]:
-        """
-        This b64-encoded access token request is specific to Zoom.
-        Many other APIs implement OAuth2 differently
-        """
-        authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
-
-        return {
-            "url": self.access_token_url,
-            "headers": {
-                "Authorization": f"Basic {authentication}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            "data": self.access_token_request_data,
-        }
+    @abstractmethod
+    def parse_access_token(self, response_json: Any) -> TSecretStrValue:
+        pass
 
 
 @configspec
