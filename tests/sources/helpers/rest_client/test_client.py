@@ -34,6 +34,7 @@ def rest_client() -> RESTClient:
     return RESTClient(
         base_url="https://api.example.com",
         headers={"Accept": "application/json"},
+        session=Client().session,
     )
 
 
