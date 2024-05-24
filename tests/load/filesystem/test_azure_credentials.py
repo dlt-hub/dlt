@@ -29,18 +29,20 @@ if "az" not in ALL_FILESYSTEM_DRIVERS:
 
 @pytest.fixture
 def az_service_principal_config() -> Optional[FilesystemConfiguration]:
-    """FS config with alternate azure credentials format if available in environment"""
+    """FS config with alternate azure credentials format if available in environment
+
+    Working credentials of this type may be created as an app in Entra, which has
+    R/W/E access to the bucket (via ACL of particular container)
+
+    """
     credentials = AzureServicePrincipalCredentialsWithoutDefaults(
         azure_tenant_id=dlt.config.get("tests.az_sp_tenant_id", str),
         azure_client_id=dlt.config.get("tests.az_sp_client_id", str),
         azure_client_secret=dlt.config.get("tests.az_sp_client_secret", str),  # type: ignore[arg-type]
         azure_storage_account_name=dlt.config.get("tests.az_sp_storage_account_name", str),
     )
-    try:
-        credentials = resolve_configuration(credentials)
-    except ConfigFieldMissingException:
-        pytest.skip("Azure service principal credentials not available in environment")
-        return None
+    #
+    credentials = resolve_configuration(credentials, sections=("destination", "fsazureprincipal"))
     cfg = FilesystemConfiguration(bucket_url=AZ_BUCKET, credentials=credentials)
 
     return resolve_configuration(cfg)
@@ -192,7 +194,8 @@ def test_azure_service_principal_fs_operations(
 
     fn = uuid4().hex
     # Try some file ops to see if the credentials work
-    fs.touch(f"{bucket}/{fn}")
-    files = fs.ls(bucket)
-    assert f"{bucket}/{fn}" in files
-    fs.delete(f"{bucket}/{fn}")
+    fs.touch(f"{bucket}/{fn}/{fn}")
+    files = fs.ls(f"{bucket}/{fn}")
+    assert f"{bucket}/{fn}/{fn}" in files
+    fs.delete(f"{bucket}/{fn}/{fn}")
+    fs.rmdir(f"{bucket}/{fn}")
