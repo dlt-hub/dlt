@@ -359,6 +359,11 @@ Please note:
 
 The filesystem destination configuration supports advanced layout customization and the inclusion of additional placeholders. This can be done through `config.toml` or programmatically when initializing via a factory method.
 
+To set using environment variables:
+```sh
+export DESTINATION__FILESYSTEM__KWARGS = '{"auto_mkdir": true/false}'
+```
+
 :::tip
 For handling deeply nested layouts, consider enabling automatic directory creation for the local filesystem destination. This can be done by setting `kwargs = '{"auto_mkdir": true}'` to facilitate the creation of directories automatically.
 :::
@@ -371,6 +376,8 @@ To configure the layout and placeholders using `config.toml`, use the following 
 layout = "{table_name}/{test_placeholder}/{YYYY}-{MM}-{DD}/{ddd}/{mm}/{load_id}.{file_id}.{ext}"
 extra_placeholders = { "test_placeholder" = "test_value" }
 current_datetime="2024-04-14T00:00:00"
+# for automatic directory creation in the local filesystem 
+kwargs = '{"auto_mkdir": true}'
 ```
 
 :::note
