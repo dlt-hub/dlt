@@ -70,12 +70,11 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 
 You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
 
-**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string. This method is useful when SQL logins aren't available, and you use Windows credentials.
+**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 
 ```toml
-destination.mssql.credentials="mssql://username:password@loader.database.windows.net/dlt_data?trusted_connection=yes"
+destination.mssql.credentials="mssql://loader.database.windows.net/dlt_data?trusted_connection=yes"
 ```
-> The username and password must be filled out with the appropriate login credentials or left untouched. Leaving these empty is not recommended.
 
 **To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
 ```toml
