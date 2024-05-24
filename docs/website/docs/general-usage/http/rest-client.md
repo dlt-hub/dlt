@@ -407,7 +407,7 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
 
-For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthConfigBase` class.
+For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthBase` class from the Requests library.
 
 ### Bearer token authentication
 
@@ -479,12 +479,12 @@ response = client.get("/protected/resource")
 
 ### Implementing custom authentication
 
-You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
+You can implement custom authentication by subclassing the `AuthBase` class and implementing the `__call__` method:
 
 ```py
-from dlt.sources.helpers.rest_client.auth import AuthConfigBase
+from requests.auth import AuthBase
 
-class CustomAuth(AuthConfigBase):
+class CustomAuth(AuthBase):
     def __init__(self, token):
         self.token = token
 
