@@ -501,10 +501,12 @@ The syntax for the `resolve` field in parameter configuration is:
     "<parameter_name>": {
         "type": "resolve",
         "resource": "<parent_resource_name>",
-        "field": "<parent_resource_field_name>",
+        "field": "<parent_resource_field_name_or_jsonpath>",
     }
 }
 ```
+
+The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
 Under the hood, dlt handles this by using a [transformer resource](../../general-usage/resource.md#process-resources-with-dlttransformer).
 
