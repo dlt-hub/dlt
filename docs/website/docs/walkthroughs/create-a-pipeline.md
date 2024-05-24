@@ -1,31 +1,46 @@
 ---
 title: Create a pipeline
 description: How to create a pipeline
-keywords: [how to, create a pipeline]
+keywords: [how to, create a pipeline, rest client]
 ---
 
 # Create a pipeline
 
-Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from the
-WeatherAPI.com API to DuckDB from scratch. The same steps can be repeated for any source and
-destination of your choice—use `dlt init <source> <destination>` and then build the pipeline for
-that API instead.
+This guide walks you through creating a pipeline that uses our [REST API Client](../general-usage/http/rest-client)
+to connect to [DuckDB](../dlt-ecosystem/destinations/duckdb).
+:::tip 
+We're using DuckDB as a destination here, but you can adapt the steps to any [source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/) and [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/) by
+using the [command](../reference/command-line-interface#dlt-init) `dlt init <source> <destination>` and tweaking the pipeline accordingly.
+:::
 
-Please make sure you have [installed `dlt`](../reference/installation.md) before following the
+Please make sure you have [installed `dlt`](../reference/installation) before following the
 steps below.
+
+## Task overview
+
+Imagine you want to analyze issues from a GitHub project locally.
+To achieve this, you need to write code that accomplishes the following:
+
+1. Constructs a correct request.
+2. Authenticates your request.
+3. Fetches and handles paginated issue data.
+4. Stores the data for analysis.
+
+This may sound complicated, but dlt provides a [REST API Client](../general-usage/http/rest-client) that allows you to focus more on your data rather than on managing API interactions.
+
 
 ## 1. Initialize project
 
 Create a new empty directory for your `dlt` project by running:
 
 ```sh
-mkdir weatherapi_duckdb && cd weatherapi_duckdb
+mkdir github_api_duckdb && cd github_api_duckdb
 ```
 
 Start a `dlt` project with a pipeline template that loads data to DuckDB by running:
 
 ```sh
-dlt init weatherapi duckdb
+dlt init github_api duckdb
 ```
 
 Install the dependencies necessary for DuckDB:
@@ -34,114 +49,127 @@ Install the dependencies necessary for DuckDB:
 pip install -r requirements.txt
 ```
 
-## 2. Add WeatherAPI.com API credentials
+## 2. Obtain and add API credentials from GitHub
 
-You will need to [sign up for the WeatherAPI.com API](https://www.weatherapi.com/signup.aspx).
+You will need to [sign in](https://github.com/login) to your GitHub account and create your access token via [Personal access tokens page](https://github.com/settings/tokens).
 
-Once you do this, you should see your `API Key` at the top of your
-[user page](https://www.weatherapi.com/my/).
-
-Copy the value of the API key into `.dlt/secrets.toml`:
+Copy your new access token over to `.dlt/secrets.toml`:
 
 ```toml
 [sources]
 api_secret_key = '<api key value>'
 ```
-The **secret name** corresponds to the **argument name** in the source function. Below `api_secret_key` [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `weatherapi_source()` is called.
+
+This token will be used by `github_api_source()` to authenticate requests.
+
+The **secret name** corresponds to the **argument name** in the source function.
+Below `api_secret_key` [will get its value](../general-usage/credentials/configuration#allow-dlt-to-pass-the-config-and-secrets-automatically)
+from `secrets.toml` when `github_api_source()` is called.
+
 ```py
 @dlt.source
-def weatherapi_source(api_secret_key=dlt.secrets.value):
-  ...
+def github_api_source(api_secret_key: str = dlt.secrets.value):
+    return github_api_resource(api_secret_key=api_secret_key)
 ```
 
-Run the `weatherapi.py` pipeline script to test that authentication headers look fine:
+Run the `github_api.py` pipeline script to test that authentication headers look fine:
 
 ```sh
-python3 weatherapi.py
+python github_api.py
 ```
 
 Your API key should be printed out to stdout along with some test data.
 
-## 3. Request data from the WeatherAPI.com API
+## 3. Request project issues from then GitHub API
 
-Replace the definition of the `weatherapi_resource` function definition in the `weatherapi.py`
-pipeline script with a call to the WeatherAPI.com API:
+
+:::tip
+We will use `dlt` repository as an example GitHub project https://github.com/dlt-hub/dlt, feel free to replace it with your own repository.
+:::
+
+Modify `github_api_resource` in `github_api.py` to request issues data from your GitHub project's API:
 
 ```py
-@dlt.resource(write_disposition="append")
-def weatherapi_resource(api_secret_key=dlt.secrets.value):
-    url = "https://api.weatherapi.com/v1/current.json"
-    params = {
-        "q": "NYC",
-        "key": api_secret_key
-    }
-    response = requests.get(url, params=params)
-    response.raise_for_status()
-    yield response.json()
+from dlt.sources.helpers.rest_client import paginate
+from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
+
+@dlt.resource(write_disposition="replace")
+def github_api_resource(api_secret_key: str = dlt.secrets.value):
+    url = "https://api.github.com/repos/dlt-hub/dlt/issues"
+
+    for page in paginate(
+        url,
+        auth=BearerTokenAuth(api_secret_key), # type: ignore
+        paginator=HeaderLinkPaginator(),
+        params={"state": "open"}
+    ):
+        yield page
 ```
-
-Run the `weatherapi.py` pipeline script to test that the API call works:
-
-```sh
-python3 weatherapi.py
-```
-
-This should print out the weather in New York City right now.
 
 ## 4. Load the data
 
-Remove the `exit()` call from the `main` function in `weatherapi.py`, so that running the
-`python3 weatherapi.py` command will now also run the pipeline:
+Uncomment the commented out code in `main` function in `github_api.py`, so that running the
+`python github_api.py` command will now also run the pipeline:
 
 ```py
 if __name__=='__main__':
-
     # configure the pipeline with your destination details
     pipeline = dlt.pipeline(
-        pipeline_name='weatherapi',
+        pipeline_name='github_api_pipeline',
         destination='duckdb',
-        dataset_name='weatherapi_data'
+        dataset_name='github_api_data'
     )
 
     # print credentials by running the resource
-    data = list(weatherapi_resource())
+    data = list(github_api_resource())
 
     # print the data yielded from resource
     print(data)
 
     # run the pipeline with your parameters
-    load_info = pipeline.run(weatherapi_source())
+    load_info = pipeline.run(github_api_source())
 
     # pretty print the information on data that was loaded
     print(load_info)
 ```
 
-Run the `weatherapi.py` pipeline script to load data into DuckDB:
+
+Run the `github_api.py` pipeline script to test that the API call works:
 
 ```sh
-python3 weatherapi.py
+python github_api.py
 ```
 
-Then this command to see that the data loaded:
+This should print out JSON data containing the issues in the GitHub project.
+
+It also prints `load_info` object.
+
+Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
+
+:::info
+Make sure you have `streamlit` installed `pip install streamlit`
+:::
 
 ```sh
-dlt pipeline weatherapi show
+dlt pipeline github_api_pipeline show
 ```
 
 This will open a Streamlit app that gives you an overview of the data loaded.
 
 ## 5. Next steps
 
-Now that you have a working pipeline, you have options for what to learn next:
+With a functioning pipeline, consider exploring:
 
+- Our [REST Client](../general-usage/http/rest-client).
 - [Deploy this pipeline with GitHub Actions](deploy-a-pipeline/deploy-with-github-actions), so that
   the data is automatically loaded on a schedule.
 - Transform the [loaded data](../dlt-ecosystem/transformations) with dbt or in
   Pandas DataFrames.
-- Learn how to [run](../running-in-production/running.md),
-  [monitor](../running-in-production/monitoring.md), and
-  [alert](../running-in-production/alerting.md) when you put your pipeline in production.
+- Learn how to [run](../running-in-production/running),
+  [monitor](../running-in-production/monitoring), and
+  [alert](../running-in-production/alerting) when you put your pipeline in production.
 - Try loading data to a different destination like
-  [Google BigQuery](../dlt-ecosystem/destinations/bigquery.md),
-  [Amazon Redshift](../dlt-ecosystem/destinations/redshift.md), or
-  [Postgres](../dlt-ecosystem/destinations/postgres.md).
+  [Google BigQuery](../dlt-ecosystem/destinations/bigquery),
+  [Amazon Redshift](../dlt-ecosystem/destinations/redshift), or
+  [Postgres](../dlt-ecosystem/destinations/postgres).

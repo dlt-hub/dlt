@@ -282,7 +282,7 @@ The fields in the endpoint configuration are:
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
-- `response_actions`: A list of actions that define how to process the response data.
+- `response_actions`: A list of actions that define how to process the response data. See the [response actions](#response-actions) section for more details.
 - `incremental`: Configuration for [incremental loading](#incremental-loading).
 
 ### Pagination
@@ -414,8 +414,8 @@ Available authentication types:
 | Authentication class | String Alias (`type`) | Description |
 | ------------------- | ----------- | ----------- |
 | [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
-| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `api_key` | Basic HTTP authentication. |
-| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `http_basic` | API key authentication with key defined in the query parameters or in the headers. |
+| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
+| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
 
 To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 
@@ -586,3 +586,33 @@ See the [incremental loading](../../general-usage/incremental-loading.md#increme
 - `root_key` (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 - `schema_contract`: Schema contract settings that will be applied to this resource.
 - `spec`: A specification of configuration and secret values required by the source.
+
+### Response actions
+
+The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses from the API based on status codes or content substrings. This is useful for handling edge cases like ignoring responses on specific conditions.
+
+:::caution Experimental Feature
+This is an experimental feature and may change in future releases.
+:::
+
+#### Example
+
+```py
+{
+    "path": "issues",
+    "response_actions": [
+        {"status_code": 404, "action": "ignore"},
+        {"content": "Not found", "action": "ignore"},
+        {"status_code": 200, "content": "some text", "action": "ignore"},
+    ],
+}
+```
+
+In this example, the source will ignore responses with a status code of 404, responses with the content "Not found", and responses with a status code of 200 _and_ content "some text".
+
+**Fields:**
+
+- `status_code` (int, optional): The HTTP status code to match.
+- `content` (str, optional): A substring to search for in the response content.
+- `action` (str): The action to take when the condition is met. Currently supported actions:
+  - `ignore`: Ignore the response.
