@@ -191,13 +191,11 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     def build_access_token_request(self) -> Dict[str, Any]:
         pass
 
-    @abstractmethod
     def parse_expiration_in_seconds(self, response_json: Any) -> int:
-        pass
+        return int(response_json.get("expires_in", self.default_token_expiration))
 
-    @abstractmethod
     def parse_access_token(self, response_json: Any) -> TSecretStrValue:
-        pass
+        return str(response_json.get("access_token"))
 
 
 @configspec
