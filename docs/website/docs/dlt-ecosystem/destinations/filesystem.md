@@ -6,7 +6,7 @@ The Filesystem destination stores data in remote file systems and bucket storage
 ## Install dlt with filesystem
 **To install the dlt library with filesystem dependencies:**
 ```sh
-pip install dlt[filesystem]
+pip install "dlt[filesystem]"
 ```
 
 This installs `s3fs` and `botocore` packages.
@@ -125,7 +125,7 @@ client_kwargs = '{"verify": "public.crt"}'
 ```
 
 #### Google Storage
-Run `pip install dlt[gs]` which will install the `gcfs` package.
+Run `pip install "dlt[gs]"` which will install the `gcfs` package.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
 You'll see AWS credentials by default.
@@ -148,7 +148,7 @@ if you have default google cloud credentials in your environment (i.e. on cloud 
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
 #### Azure Blob Storage
-Run `pip install dlt[az]` which will install the `adlfs` package to interface with Azure Blob Storage.
+Run `pip install "dlt[az]"` which will install the `adlfs` package to interface with Azure Blob Storage.
 
 Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials:
 
