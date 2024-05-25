@@ -155,7 +155,6 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
 
     def __init__(
         self,
-        access_token_url: str,
         access_token_request_data: Dict[str, Any],
         client_id: TSecretStrValue,
         client_secret: TSecretStrValue,
@@ -163,7 +162,6 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     ) -> None:
         super().__init__()
         self.access_token_request_data = access_token_request_data
-        self.access_token_url = access_token_url
         self.client_id = client_id
         self.client_secret = client_secret
         self.default_token_expiration = default_token_expiration
