@@ -159,10 +159,9 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
         access_token_request_data: Dict[str, Any],
         client_id: TSecretStrValue,
         client_secret: TSecretStrValue,
-        access_token: TSecretStrValue = None,
         default_token_expiration: int = 3600,
     ) -> None:
-        super().__init__(access_token)
+        super().__init__()
         self.access_token_request_data = access_token_request_data
         self.access_token_url = access_token_url
         self.client_id = client_id
@@ -183,7 +182,7 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
         response = requests.post(**self.build_access_token_request())
         response.raise_for_status()
         response_json = response.json()
-        self.access_token = self.parse_access_token(response_json)
+        self.parse_native_representation(self.parse_access_token(response_json))
         expires_in_seconds = self.parse_expiration_in_seconds(response_json)
         self.token_expiry = pendulum.now().add(seconds=expires_in_seconds)
 
@@ -194,7 +193,7 @@ class OAuth2ImplicitFlow(OAuth2AuthBase):
     def parse_expiration_in_seconds(self, response_json: Any) -> int:
         return int(response_json.get("expires_in", self.default_token_expiration))
 
-    def parse_access_token(self, response_json: Any) -> TSecretStrValue:
+    def parse_access_token(self, response_json: Any) -> str:
         return str(response_json.get("access_token"))
 
 
