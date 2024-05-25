@@ -169,6 +169,7 @@ class TestRESTClient:
             auth_endpoint="https://api.example.com/oauth/token",
             scopes=["read", "write"],
             headers={"Content-Type": "application/json"},
+            session=Client().session,
         )
 
         response = rest_client.get(

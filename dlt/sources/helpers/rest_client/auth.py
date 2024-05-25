@@ -1,4 +1,5 @@
 from base64 import b64encode
+import dataclasses
 import math
 from typing import (
     List,
@@ -12,12 +13,13 @@ from typing import (
     Iterable,
     TYPE_CHECKING,
 )
+from typing_extensions import Annotated
 from requests.auth import AuthBase
-from requests import PreparedRequest  # noqa: I251
+from requests import PreparedRequest, Session as BaseSession  # noqa: I251
 
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.configuration.specs.base_configuration import configspec
+from dlt.common.configuration.specs.base_configuration import configspec, NotResolved
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.pendulum import pendulum
@@ -142,7 +144,9 @@ class OAuth2AuthBase(AuthConfigBase):
 class OAuthJWTAuth(BearerTokenAuth):
     """This is a form of Bearer auth, actually there's not standard way to declare it in openAPI"""
 
-    format: Final[Literal["JWT"]] = "JWT"  # noqa: A003
+    format: Final[Literal["JWT"]] = dataclasses.field(  # noqa: A003
+        default="JWT", init=False, repr=False, compare=False
+    )
     client_id: str = None
     private_key: TSecretStrValue = None
     auth_endpoint: str = None
@@ -150,11 +154,15 @@ class OAuthJWTAuth(BearerTokenAuth):
     headers: Optional[Dict[str, str]] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     default_token_expiration: int = 3600
+    session: Annotated[BaseSession, NotResolved()] = None
 
     def __post_init__(self) -> None:
         self.scopes = self.scopes if isinstance(self.scopes, str) else " ".join(self.scopes)
         self.token = None
         self.token_expiry: Optional[pendulum.DateTime] = None
+        # use default system session is not specified
+        if self.session is None:
+            self.session = requests.client.session
 
     def __call__(self, r: PreparedRequest) -> PreparedRequest:
         if self.token is None or self.is_token_expired():
@@ -179,7 +187,7 @@ class OAuthJWTAuth(BearerTokenAuth):
 
         logger.debug(f"Obtaining token from {self.auth_endpoint}")
 
-        response = requests.post(self.auth_endpoint, headers=self.headers, data=data)
+        response = self.session.post(self.auth_endpoint, headers=self.headers, data=data)
         response.raise_for_status()
 
         token_response = response.json()
