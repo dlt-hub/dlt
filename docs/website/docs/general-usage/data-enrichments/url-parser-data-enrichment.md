@@ -231,7 +231,7 @@ need to register to use this service neither get an API key.
    [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
 
    ```sh
-   pip install dlt[duckdb]
+   pip install "dlt[duckdb]"
    ```
 
 1. Run the pipeline with the following command:
