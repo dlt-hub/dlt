@@ -12,11 +12,12 @@ from typing import (
     Optional,
     Type,
     Union,
-    TYPE_CHECKING,
 )
+from typing_extensions import Annotated
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolved
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
@@ -917,6 +918,58 @@ def test_is_valid_hint() -> None:
     assert is_valid_hint(Wei) is True
     # any class type, except deriving from BaseConfiguration is wrong type
     assert is_valid_hint(ConfigFieldMissingException) is False
+    # but final and annotated types are not ok because they are not resolved
+    assert is_valid_hint(Final[ConfigFieldMissingException]) is True  # type: ignore[arg-type]
+    assert is_valid_hint(Annotated[ConfigFieldMissingException, NotResolved()]) is True  # type: ignore[arg-type]
+    assert is_valid_hint(Annotated[ConfigFieldMissingException, "REQ"]) is False  # type: ignore[arg-type]
+
+
+def test_is_not_resolved_hint() -> None:
+    assert is_hint_not_resolved(Final[ConfigFieldMissingException]) is True
+    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved()]) is True
+    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved(True)]) is True
+    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved(False)]) is False
+    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, "REQ"]) is False
+    assert is_hint_not_resolved(str) is False
+
+
+def test_not_resolved_hint() -> None:
+    class SentinelClass:
+        pass
+
+    @configspec
+    class OptionalNotResolveConfiguration(BaseConfiguration):
+        trace: Final[Optional[SentinelClass]] = None
+        traces: Annotated[Optional[List[SentinelClass]], NotResolved()] = None
+
+    c = resolve.resolve_configuration(OptionalNotResolveConfiguration())
+    assert c.trace is None
+    assert c.traces is None
+
+    s1 = SentinelClass()
+    s2 = SentinelClass()
+
+    c = resolve.resolve_configuration(OptionalNotResolveConfiguration(s1, [s2]))
+    assert c.trace is s1
+    assert c.traces[0] is s2
+
+    @configspec
+    class NotResolveConfiguration(BaseConfiguration):
+        trace: Final[SentinelClass] = None
+        traces: Annotated[List[SentinelClass], NotResolved()] = None
+
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(NotResolveConfiguration())
+
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(NotResolveConfiguration(trace=s1))
+
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(NotResolveConfiguration(traces=[s2]))
+
+    c2 = resolve.resolve_configuration(NotResolveConfiguration(s1, [s2]))
+    assert c2.trace is s1
+    assert c2.traces[0] is s2
 
 
 def test_configspec_auto_base_config_derivation() -> None:
