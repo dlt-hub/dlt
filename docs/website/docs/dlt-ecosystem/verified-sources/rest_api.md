@@ -416,6 +416,7 @@ Available authentication types:
 | [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
 | [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
 | [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
+| [OAuth2ImplicitFlow](../../general-usage/http/rest-client.md#oauth20-authorization) | `oauth2` | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
 
 To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 

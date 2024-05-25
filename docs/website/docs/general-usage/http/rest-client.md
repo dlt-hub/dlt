@@ -406,8 +406,11 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [BearerTokenAuth](#bearer-token-authentication)
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
+- [OAuth2ImplicitFlow](#oauth20-authorization)
 
 For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthBase` class from the Requests library.
+For specific flavors of OAuth 2.0 you can [implement custom OAuth 2.0](#oauth2-authorization)
+by subclassing `OAuth2ImplicitFlow`.
 
 ### Bearer token authentication
 
@@ -476,6 +479,54 @@ client = RESTClient(base_url="https://api.example.com", auth=auth)
 
 response = client.get("/protected/resource")
 ```
+
+### OAuth 2.0 authorization
+
+OAuth 2.0 is a common protocol for authorization. We have implemented two-legged authorization employed for server-to-server authorization because the end user (resource owner) does not need to grant approval.
+The REST client acts as the OAuth client which obtains a temporary access token from the authorization server. This access token is then sent to the resource server to access protected content.
+
+Unfortunately, most OAuth 2.0 implementations vary and thus you need to subclass `OAuth2ImplicitFlow` and implement `obtain_token()` to suite the requirements of the specific authorization server you want to interact with.
+
+**Parameters:**
+
+- `access_token_request_data`: A dictionary with data required by the autorization server. Includes typically a key `grant_type`.
+- `client_id`: Client credential to obtain authorization. Usually issued via a developer portal.
+- `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
+- `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
+
+**Example:**
+
+```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.auth import OAuth2ImplicitFlow
+
+class OAuth2Zoom(OAuth2ImplicitFlow):
+    def build_access_token_request(self) -> Dict[str, Any]:
+        authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
+        return {
+            "url": "https://zoom.us/oauth/token",
+            "headers": {
+                "Authorization": f"Basic {authentication}",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            "data": self.access_token_request_data,
+        }
+
+
+auth = OAuth2Zoom(
+          access_token_request_data={
+              "grant_type": "account_credentials",
+              "account_id": dlt.secrets["sources.zoom.account_id"],
+          },
+          client_id=dlt.secrets["sources.zoom.client_id"],
+          client_secret=dlt.secrets["sources.zoom.client_secret"],
+)
+client = RESTClient(base_url="https://api.zoom.us/v2", auth=auth)
+
+response = client.get("/users")
+```
+
+
 
 ### Implementing custom authentication
 
