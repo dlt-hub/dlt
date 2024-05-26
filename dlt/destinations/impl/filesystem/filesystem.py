@@ -1,5 +1,4 @@
 import posixpath
-import pathlib
 import os
 import base64
 
@@ -7,6 +6,7 @@ from types import TracebackType
 from typing import ClassVar, List, Type, Iterable, Dict, Iterator, Optional, Tuple, cast, Callable
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
+from pathlib import Path
 
 import dlt
 from dlt.common import logger, time, json, pendulum
@@ -19,6 +19,7 @@ from dlt.common.destination.reference import (
     NewLoadJob,
     TLoadJobState,
     LoadJob,
+    DirectoryLoadJob,
     JobClientBase,
     FollowupJob,
     WithStagingDataset,
@@ -56,53 +57,33 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
 
-        if table["table_format"] == "delta":
-            import pyarrow.parquet as pq
-
-            client._write_delta_table(
-                path=self.make_remote_uri(),
-                table=pq.read_table(local_path),
-                write_disposition=table["write_disposition"],
-            )
-        else:
-            self.destination_file_name = path_utils.create_path(
-                client.config.layout,
-                file_name,
-                client.schema.name,
-                load_id,
-                current_datetime=client.config.current_datetime,
-                load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
-                extra_placeholders=client.config.extra_placeholders,
-            )
-            # We would like to avoid failing for local filesystem where
-            # deeply nested directory will not exist before writing a file.
-            # It `auto_mkdir` is disabled by default in fsspec so we made some
-            # trade offs between different options and decided on this.
-            # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
-            remote_path = self.make_remote_path()
-            if self.is_local_filesystem:
-                client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
-            client.fs_client.put_file(local_path, remote_path)
+        self.destination_file_name = path_utils.create_path(
+            client.config.layout,
+            file_name,
+            client.schema.name,
+            load_id,
+            current_datetime=client.config.current_datetime,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
+            extra_placeholders=client.config.extra_placeholders,
+        )
+        # We would like to avoid failing for local filesystem where
+        # deeply nested directory will not exist before writing a file.
+        # It `auto_mkdir` is disabled by default in fsspec so we made some
+        # trade offs between different options and decided on this.
+        # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
+        remote_path = self.make_remote_path()
+        if self.is_local_filesystem:
+            client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
+        client.fs_client.put_file(local_path, remote_path)
 
     def make_remote_path(self) -> str:
         """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
-        if self.table["table_format"] == "delta":  # directory path
-            return self.client.get_table_dir(self.table["name"])
-        else:  # file path
-            # path.join does not normalize separators and available
-            # normalization functions are very invasive and may string the trailing separator
-            return self.pathlib.join(  # type: ignore[no-any-return]
-                self.client.dataset_path,
-                path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
-            )
-
-    def make_remote_uri(self) -> str:
-        """Returns uri to the remote filesystem to which copy the file"""
-        remote_path = self.make_remote_path()
-        if self.is_local_filesystem:
-            return self.client.config.make_file_uri(remote_path)
-        else:
-            return f"{self.client.config.protocol}://{remote_path}"
+        # path.join does not normalize separators and available
+        # normalization functions are very invasive and may string the trailing separator
+        return self.pathlib.join(  # type: ignore[no-any-return]
+            self.client.dataset_path,
+            path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
+        )
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -111,12 +92,51 @@ class LoadFilesystemJob(LoadJob):
         raise NotImplementedError()
 
 
+class DeltaLoadFilesystemJob(DirectoryLoadJob):
+    def __init__(
+        self,
+        client: "FilesystemClient",
+        local_path: str,
+        table: TTableSchema,
+    ) -> None:
+        self.client = client
+        self.local_path = local_path
+        self.table = table
+
+        super().__init__(dir_name=Path(local_path).name)
+
+        self.write()
+
+    def write(self) -> None:
+        import pyarrow.parquet as pq
+        from dlt.destinations.impl.filesystem.utils import (
+            write_delta_table,
+            _deltalake_storage_options,
+        )
+
+        write_delta_table(
+            path=self.client.make_remote_uri(self.make_remote_path()),
+            table=pq.read_table(self.local_path),
+            write_disposition=self.table["write_disposition"],
+            storage_options=_deltalake_storage_options(self.client),
+        )
+
+    def make_remote_path(self) -> str:
+        # directory path, not file path
+        return self.client.get_table_dir(self.table["name"])
+
+    def state(self) -> TLoadJobState:
+        return "completed"
+
+
 class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self.make_remote_uri()
+                file_name=self.file_name(),
+                status="running",
+                remote_path=self.client.make_remote_uri(self.make_remote_path()),
             )
             jobs.append(ref_job)
         return jobs
@@ -287,6 +307,20 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
+
+    def start_dir_load(self, table: TTableSchema, dir_path: str, load_id: str) -> DirectoryLoadJob:
+        if table["table_format"] == "delta":
+            cls = DeltaLoadFilesystemJob
+        else:
+            raise ValueError("`table` is not compatible with `DirectoryLoadJob`.")
+        return cls(self, dir_path, table)
+
+    def make_remote_uri(self, remote_path: str) -> str:
+        """Returns uri to the remote filesystem to which copy the file"""
+        if self.is_local_filesystem:
+            return self.config.make_file_uri(remote_path)
+        else:
+            return f"{self.config.protocol}://{remote_path}"
 
     def __enter__(self) -> "FilesystemClient":
         return self
@@ -461,97 +495,3 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)
-
-    def _write_delta_table(
-        self, path: str, table: "pa.Table", write_disposition: TWriteDisposition  # type: ignore[name-defined] # noqa
-    ) -> None:
-        """Writes in-memory Arrow table to on-disk Delta table."""
-        import pyarrow as pa
-        from deltalake import write_deltalake
-
-        def adjust_arrow_schema(
-            schema: pa.Schema,
-            type_map: Dict[Callable[[pa.DataType], bool], Callable[..., pa.DataType]],
-        ) -> pa.Schema:
-            """Returns adjusted Arrow schema.
-
-            Replaces data types for fields matching a type check in `type_map`.
-            Type check functions in `type_map` are assumed to be mutually exclusive, i.e.
-            a data type does not match more than one type check function.
-            """
-            for i, e in enumerate(schema.types):
-                for type_check, cast_type in type_map.items():
-                    if type_check(e):
-                        adjusted_field = schema.field(i).with_type(cast_type)
-                        schema = schema.set(i, adjusted_field)
-                        break  # if type matches type check, do not do other type checks
-            return schema
-
-        def ensure_delta_compatible_arrow_table(table: pa.table) -> pa.Table:
-            """Returns Arrow table compatible with Delta table format.
-
-            Casts table schema to replace data types not supported by Delta.
-            """
-            ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP = {
-                # maps type check function to type factory function
-                pa.types.is_null: pa.string(),
-                pa.types.is_time: pa.string(),
-                pa.types.is_decimal256: (
-                    pa.string()
-                ),  # pyarrow does not allow downcasting to decimal128
-            }
-            adjusted_schema = adjust_arrow_schema(
-                table.schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP
-            )
-            return table.cast(adjusted_schema)
-
-        def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
-            """Translates dlt write disposition to Delta write mode."""
-            if write_disposition in ("append", "merge"):  # `merge` disposition resolves to `append`
-                return "append"
-            elif write_disposition == "replace":
-                return "overwrite"
-            else:
-                raise ValueError(
-                    "`write_disposition` must be `append`, `replace`, or `merge`,"
-                    f" but `{write_disposition}` was provided."
-                )
-
-        # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
-        # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500
-        # is released
-        write_deltalake(  # type: ignore[call-overload]
-            table_or_uri=path,
-            data=ensure_delta_compatible_arrow_table(table),
-            mode=get_delta_write_mode(write_disposition),
-            schema_mode="merge",  # enable schema evolution (adding new columns)
-            storage_options=self._deltalake_storage_options,
-            engine="rust",  # `merge` schema mode requires `rust` engine
-        )
-
-    @property
-    def _deltalake_storage_options(self) -> Dict[str, str]:
-        """Returns dict that can be passed as `storage_options` in `deltalake` library."""
-        # TODO: implement method properly and remove hard-coded values.
-        # `delta-rs` does not currently (version 0.17.4) support `gdrive` protocol
-        storage_options = None
-        if self.config.protocol == "s3":
-            from dlt.common.configuration.specs import AwsCredentials
-
-            assert isinstance(self.config.credentials, AwsCredentials)
-            storage_options = self.config.credentials.to_session_credentials()
-            storage_options["AWS_REGION"] = self.config.credentials.region_name
-            # https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/#enable-unsafe-writes-in-s3-opt-in
-            storage_options["AWS_S3_ALLOW_UNSAFE_RENAME"] = "true"
-        elif self.config.protocol == "gs":
-            from dlt.common.configuration.specs import GcpServiceAccountCredentials
-
-            assert isinstance(self.config.credentials, GcpServiceAccountCredentials)
-            gcs_creds = self.config.credentials.to_gcs_credentials()
-            gcs_creds["token"]["private_key_id"] = "921837921798379812"
-            storage_options = {"GOOGLE_SERVICE_ACCOUNT_KEY": json.dumps(gcs_creds["token"])}
-        else:
-            storage_options = {  # `delta-rs` requires string values
-                k: str(v) for k, v in self.fs_client.storage_options.items()
-            }
-        return storage_options

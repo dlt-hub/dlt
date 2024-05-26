@@ -399,6 +399,25 @@ def pq_stream_with_new_columns(
             yield tbl
 
 
+def adjust_arrow_schema(
+    schema: pyarrow.Schema,
+    type_map: Dict[Callable[[pyarrow.DataType], bool], Callable[..., pyarrow.DataType]],
+) -> pyarrow.Schema:
+    """Returns adjusted Arrow schema.
+
+    Replaces data types for fields matching a type check in `type_map`.
+    Type check functions in `type_map` are assumed to be mutually exclusive, i.e.
+    a data type does not match more than one type check function.
+    """
+    for i, e in enumerate(schema.types):
+        for type_check, cast_type in type_map.items():
+            if type_check(e):
+                adjusted_field = schema.field(i).with_type(cast_type)
+                schema = schema.set(i, adjusted_field)
+                break  # if type matches type check, do not do other type checks
+    return schema
+
+
 class NameNormalizationClash(ValueError):
     def __init__(self, reason: str) -> None:
         msg = f"Arrow column name clash after input data normalization. {reason}"

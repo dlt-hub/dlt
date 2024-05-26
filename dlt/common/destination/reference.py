@@ -214,6 +214,20 @@ class LoadJob:
         pass
 
 
+class DirectoryLoadJob:
+    """Job that loads a directory of files in a single transaction."""
+
+    def __init__(self, dir_name: str) -> None:
+        self._dir_name = dir_name
+
+    def dir_name(self) -> str:
+        """Returns name of directory containing the job files."""
+        return self._dir_name
+
+    def job_id(self) -> str:
+        return "hacked_job_id"
+
+
 class NewLoadJob(LoadJob):
     """Adds a trait that allows to save new job file"""
 

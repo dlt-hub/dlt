@@ -1,3 +1,4 @@
+import os
 from typing import List, Dict, Set, Any
 from abc import abstractmethod
 
@@ -7,14 +8,17 @@ from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
-from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
-from dlt.common.schema.utils import has_table_seen_data
-from dlt.common.storages import (
-    NormalizeStorage,
-    LoadStorage,
+from dlt.common.schema.typing import (
+    TSchemaEvolutionMode,
+    TTableSchemaColumns,
+    TSchemaContractDict,
+    TTableSchema,
 )
+from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.storages.load_package import ParsedLoadJobFileName, PackageStorage
+from dlt.common.storages.load_storage import LoadItemStorage
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
@@ -177,6 +181,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     #   will be useful if we implement bad data sending to a table
                     # we skip write when discovering schema for empty file
                     if not skip_write:
+                        self._ensure_subfolder(schema.get_table(table_name))
                         self.item_storage.write_data_item(
                             self.load_id, schema_name, table_name, row, columns
                         )
@@ -184,6 +189,18 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 pass
             signals.raise_if_signalled()
         return schema_update
+
+    def _ensure_subfolder(self, table: TTableSchema) -> None:
+        """Creates subfolder if `table` needs `DirectoryLoadJob`.
+
+        Does nothing if subfolder already exists.
+        """
+        if table.get("table_format") == "delta":
+            assert isinstance(self.item_storage, LoadItemStorage)
+            self.item_storage.package_storage.storage.create_folder(
+                os.path.join(self.load_id, PackageStorage.NEW_JOBS_FOLDER, table["name"]),
+                exists_ok=True,
+            )
 
     def __call__(
         self,

@@ -166,13 +166,14 @@ def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, Li
             and p.default_schema.get_table(table_name).get("table_format") == "delta"
         ):
             from deltalake import DeltaTable
+            from dlt.destinations.impl.filesystem.utils import _deltalake_storage_options
 
             assert isinstance(client, FilesystemClient)
             table_dir = client.get_table_dir(table_name)
             remote_table_dir = f"{client.config.protocol}://{table_dir}"
             dt = DeltaTable(
                 remote_table_dir,
-                storage_options=client._deltalake_storage_options,
+                storage_options=_deltalake_storage_options(client),
             )
             result[table_name] = dt.to_pyarrow_table().to_pylist()
         else:

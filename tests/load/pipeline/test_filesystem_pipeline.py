@@ -216,13 +216,24 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
-def test_pipeline_delta_filesystem_destination(default_buckets_env: str) -> None:
+@pytest.mark.parametrize("multiple_files", (False, True))
+def test_pipeline_delta_filesystem_destination(
+    default_buckets_env: str,
+    multiple_files: bool,
+) -> None:
     # _write_delta_table function is unit tested elsewhere
     # this test asserts resource/pipeline configuration is properly handled
-    if os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"].startswith("memory://"):
+    if default_buckets_env.startswith("memory://"):
         pytest.skip(
             "`deltalake` library does not support `memory` protocol (write works, read doesn't)"
         )
+    if multiple_files:
+        if not default_buckets_env == "_storage":
+            pytest.skip(
+                "Only test loading from multiples files on `file` protocol to limit test load."
+            )
+        # ensure multiple files are created for single load
+        os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
 
     def reset_pipeline(pipeline: dlt.Pipeline) -> None:
         pipeline.drop()
