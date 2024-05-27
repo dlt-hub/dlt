@@ -374,6 +374,3 @@ verified source.
    > data. This approach can be used with all incremental Zendesk sources.
 
 <!--@@@DLT_TUBA zendesk-->
-=======
-<!--@@@DLT_SNIPPET_START tuba::zendesk-->
-<!--@@@DLT_SNIPPET_END tuba::zendesk-->
