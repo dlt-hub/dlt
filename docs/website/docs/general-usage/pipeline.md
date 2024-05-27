@@ -109,6 +109,7 @@ The `refresh` argument should have one of the following string values to decide 
 
   :::caution
   This erases schema history for the selected sources and only the latest version is stored
+  ::::
 
 * `drop_resources`
   Limits the refresh to the resources being processed in `pipeline.run` or `pipeline.extract` (.e.g by using `source.with_resources(...)`).
@@ -119,6 +120,7 @@ The `refresh` argument should have one of the following string values to decide 
 
   :::caution
   This erases schema history for all affected schemas and only the latest schema version is stored
+  ::::
 
 * `drop_data`
   Same as `drop_resources` but instead of dropping tables from schema only the data is deleted from them (i.e. by `TRUNCATE <table_name>` in sql destinations). Resource state for selected resources is also wiped.
