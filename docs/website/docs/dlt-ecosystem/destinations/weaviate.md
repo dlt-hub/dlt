@@ -14,7 +14,7 @@ This destination helps you load data into Weaviate from [dlt resources](../../ge
 1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
 ```sh
-pip install dlt[weaviate]
+pip install "dlt[weaviate]"
 ```
 
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:

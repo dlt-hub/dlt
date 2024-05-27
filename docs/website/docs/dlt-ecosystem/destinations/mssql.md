@@ -9,7 +9,7 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 ## Install dlt with MS SQL
 **To install the dlt library with MS SQL dependencies, use:**
 ```sh
-pip install dlt[mssql]
+pip install "dlt[mssql]"
 ```
 
 ## Setup guide
@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ```
 or run:
 ```sh
-pip install dlt[mssql]
+pip install "dlt[mssql]"
 ```
 This will install `dlt` with the `mssql` extra, which contains all the dependencies required by the SQL server client.
 

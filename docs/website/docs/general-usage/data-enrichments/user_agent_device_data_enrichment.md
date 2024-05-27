@@ -284,7 +284,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
 
    ```sh
-   pip install dlt[duckdb]
+   pip install "dlt[duckdb]"
    ```
 
 1. Run the pipeline with the following command:

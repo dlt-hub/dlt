@@ -60,7 +60,9 @@ def resource(url: str):
 # dlt bigquery custom destination
 # we can use the dlt provided credentials class
 # to retrieve the gcp credentials from the secrets
-@dlt.destination(name="bigquery", loader_file_format="parquet", batch_size=0, naming_convention="snake_case")
+@dlt.destination(
+    name="bigquery", loader_file_format="parquet", batch_size=0, naming_convention="snake_case"
+)
 def bigquery_insert(
     items, table=BIGQUERY_TABLE_ID, credentials: GcpServiceAccountCredentials = dlt.secrets.value
 ) -> None:

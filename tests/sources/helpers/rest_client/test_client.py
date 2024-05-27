@@ -1,9 +1,10 @@
 import os
 import pytest
 from typing import Any, cast
+from requests import PreparedRequest, Request
 from requests.auth import AuthBase
 from dlt.common.typing import TSecretStrValue
-from dlt.sources.helpers.requests import Response, Request
+from dlt.sources.helpers.requests import Response
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
@@ -189,7 +190,7 @@ class TestRESTClient:
             def __init__(self, token: str):
                 self.token = token
 
-            def __call__(self, request: Request) -> Request:
+            def __call__(self, request: PreparedRequest) -> PreparedRequest:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
 
@@ -197,7 +198,7 @@ class TestRESTClient:
             def __init__(self, token: str):
                 self.token = token
 
-            def __call__(self, request: Request) -> Request:
+            def __call__(self, request: PreparedRequest) -> PreparedRequest:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
 
