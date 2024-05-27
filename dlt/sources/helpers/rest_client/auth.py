@@ -40,7 +40,11 @@ class AuthConfigBase(AuthBase, CredentialsConfiguration):
     configurable via env variables or toml files
     """
 
-    pass
+    def __bool__(self) -> bool:
+        # This is needed to avoid AuthConfigBase-derived classes
+        # which do not implement CredentialsConfiguration interface
+        # to be evaluated as False in requests.sessions.Session.prepare_request()
+        return True
 
 
 @configspec
