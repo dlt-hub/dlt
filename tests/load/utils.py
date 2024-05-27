@@ -574,8 +574,8 @@ def yield_client(
     destination = Destination.from_reference(destination_type)
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
-    dest_config = destination.spec()  # type: ignore[assignment]
-    dest_config.dataset_name = dataset_name  # type: ignore[misc]
+    dest_config = destination.spec()  # type: ignore
+    dest_config.dataset_name = dataset_name
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
@@ -597,7 +597,7 @@ def yield_client(
         staging_config = DestinationClientStagingConfiguration(
             bucket_url=AWS_BUCKET,
         )._bind_dataset_name(dataset_name=dest_config.dataset_name)
-        staging_config.destination_type = "filesystem"  # type: ignore[misc]
+        staging_config.destination_type = "filesystem"
         staging_config.resolve()
         dest_config.staging_config = staging_config  # type: ignore[attr-defined]
 
