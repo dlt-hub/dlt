@@ -1,8 +1,10 @@
 import os
 import pytest
 from typing import Any, cast
+from requests import PreparedRequest, Request
+from requests.auth import AuthBase
 from dlt.common.typing import TSecretStrValue
-from dlt.sources.helpers.requests import Response, Request
+from dlt.sources.helpers.requests import Response
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
@@ -57,7 +59,6 @@ class TestRESTClient:
         for page in rest_client.paginate(
             "/posts",
             paginator=JSONResponsePaginator(next_url_path="next_page"),
-            auth=AuthConfigBase(),
         ):
             # response that produced data
             assert isinstance(page.response, Response)
@@ -183,3 +184,44 @@ class TestRESTClient:
         )
 
         assert_pagination(list(pages_iter))
+
+    def test_custom_auth_success(self, rest_client: RESTClient):
+        class CustomAuthConfigBase(AuthConfigBase):
+            def __init__(self, token: str):
+                self.token = token
+
+            def __call__(self, request: PreparedRequest) -> PreparedRequest:
+                request.headers["Authorization"] = f"Bearer {self.token}"
+                return request
+
+        class CustomAuthAuthBase(AuthBase):
+            def __init__(self, token: str):
+                self.token = token
+
+            def __call__(self, request: PreparedRequest) -> PreparedRequest:
+                request.headers["Authorization"] = f"Bearer {self.token}"
+                return request
+
+        auth_list = [
+            CustomAuthConfigBase("test-token"),
+            CustomAuthAuthBase("test-token"),
+        ]
+
+        for auth in auth_list:
+            response = rest_client.get(
+                "/protected/posts/bearer-token",
+                auth=auth,
+            )
+
+            assert response.status_code == 200
+            assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
+
+            pages_iter = rest_client.paginate(
+                "/protected/posts/bearer-token",
+                auth=auth,
+            )
+
+            pages_list = list(pages_iter)
+            assert_pagination(pages_list)
+
+            assert pages_list[0].response.request.headers["Authorization"] == "Bearer test-token"
