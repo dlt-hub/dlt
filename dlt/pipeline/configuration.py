@@ -32,9 +32,7 @@ class PipelineConfiguration(BaseConfiguration):
     progress: Optional[str] = None
     runtime: RunConfiguration = None
     refresh: Optional[TRefreshMode] = None
-    """Refresh mode for the pipeline, use with care. `full` completely wipes pipeline state and data before each run.
-    `replace` wipes only state and data from the resources selected to run. Default is `None` which means no refresh.
-    """
+    """Refresh mode for the pipeline to fully or partially reset a source during run. See docstring of `dlt.pipeline` for more details."""
 
     def on_resolved(self) -> None:
         if not self.pipeline_name:
