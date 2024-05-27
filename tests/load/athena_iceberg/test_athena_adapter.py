@@ -3,7 +3,9 @@ import pytest
 import dlt
 from dlt.destinations import filesystem
 from dlt.destinations.impl.athena.athena_adapter import athena_adapter, athena_partition
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def test_iceberg_partition_hints():
@@ -57,7 +59,10 @@ def test_iceberg_partition_hints():
         )[0]
 
     # Partition clause is generated with original order
-    expected_clause = "PARTITIONED BY (`category`, month(`created_at`), bucket(10, `product_id`), truncate(2, `name`))"
+    expected_clause = (
+        "PARTITIONED BY (`category`, month(`created_at`), bucket(10, `product_id`), truncate(2,"
+        " `name`))"
+    )
     assert expected_clause in sql_partitioned
 
     # No partition clause otherwise

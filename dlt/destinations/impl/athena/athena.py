@@ -403,7 +403,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(hive_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
+        return (
+            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
+        )
 
     def _iceberg_partition_clause(self, partition_hints: Optional[Dict[str, str]]) -> str:
         if not partition_hints:
@@ -444,27 +446,21 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 partition_clause = self._iceberg_partition_clause(
                     cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
                 )
-                sql.append(
-                    f"""CREATE TABLE {qualified_table_name}
+                sql.append(f"""CREATE TABLE {qualified_table_name}
                         ({columns})
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
-                        TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');"""
-                )
+                        TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
             elif table_format == "jsonl":
-                sql.append(
-                    f"""CREATE EXTERNAL TABLE {qualified_table_name}
+                sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
                         ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-                        LOCATION '{location}';"""
-                )
+                        LOCATION '{location}';""")
             else:
-                sql.append(
-                    f"""CREATE EXTERNAL TABLE {qualified_table_name}
+                sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})
                         STORED AS PARQUET
-                        LOCATION '{location}';"""
-                )
+                        LOCATION '{location}';""")
         return sql
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:

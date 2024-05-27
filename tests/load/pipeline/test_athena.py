@@ -279,7 +279,8 @@ def test_athena_partitioned_iceberg_table(destination_config: DestinationTestCon
         partition_keys = {r[0] for r in rows}
 
         data_rows = sql_client.execute_sql(
-            f"SELECT id, category, created_at FROM {sql_client.make_qualified_table_name('partitioned_table')}"
+            "SELECT id, category, created_at FROM"
+            f" {sql_client.make_qualified_table_name('partitioned_table')}"
         )
         # data_rows = [(i, c, d.toisoformat()) for i, c, d in data_rows]
 
