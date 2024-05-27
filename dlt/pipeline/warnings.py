@@ -22,14 +22,14 @@ def credentials_argument_deprecated(
     )
 
 
-def full_refresh_argument_deprecated(caller_name: str, full_refresh: bool) -> None:
+def full_refresh_argument_deprecated(caller_name: str, full_refresh: t.Optional[bool]) -> None:
     """full_refresh argument is replaced with dev_mode"""
-    if not full_refresh:
+    if full_refresh is None:
         return
 
     warnings.warn(
         f"The `full_refresh` argument to {caller_name} is deprecated and will be removed in a"
-        " future version. Use `dev_mode=True` instead which will have the same effect.",
+        f" future version. Use `dev_mode={full_refresh}` instead which will have the same effect.",
         Dlt04DeprecationWarning,
         stacklevel=2,
     )
