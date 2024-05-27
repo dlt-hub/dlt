@@ -1,4 +1,3 @@
-import contextlib
 from copy import deepcopy
 from typing import (
     Callable,
@@ -6,36 +5,15 @@ from typing import (
     Iterable,
     Optional,
     Any,
-    List,
     Dict,
     Union,
-    TypedDict,
     TYPE_CHECKING,
 )
-from itertools import chain
 
-from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
+from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
-from dlt.common.schema.utils import (
-    group_tables_by_resource,
-    compile_simple_regexes,
-    compile_simple_regex,
-)
 from dlt.common.schema.typing import TSimpleRegex
-from dlt.common.typing import REPattern
-from dlt.common.pipeline import (
-    reset_resource_state,
-    _sources_state,
-    _delete_source_state_keys,
-    _get_matching_resources,
-    StateInjectableContext,
-    Container,
-    pipeline_state as current_pipeline_state,
-    TRefreshMode,
-)
-from dlt.common.destination.reference import WithStagingDataset
-
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 from dlt.pipeline.exceptions import (
     PipelineNeverRan,
     PipelineStepFailed,
@@ -44,7 +22,6 @@ from dlt.pipeline.exceptions import (
 from dlt.pipeline.state_sync import force_state_extract
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.drop import drop_resources
-from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
 from dlt.extract import DltSource
 
 if TYPE_CHECKING:
