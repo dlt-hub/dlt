@@ -180,6 +180,7 @@ def destinations_configs(
     file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
+    force_iceberg: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
@@ -494,6 +495,11 @@ def destinations_configs(
     destination_configs = [
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
+
+    if force_iceberg is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.force_iceberg is force_iceberg
+        ]
 
     return destination_configs
 
