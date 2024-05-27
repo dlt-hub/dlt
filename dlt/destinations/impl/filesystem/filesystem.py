@@ -171,6 +171,14 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
 
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        self.truncate_tables(list(tables))
+        if not delete_schema:
+            return
+        # Delete all stored schemas
+        for filename, _ in self._iter_stored_schema_files():
+            self._delete_file(filename)
+
     def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate table with given name"""
         table_dirs = set(self.get_table_dirs(table_names))
@@ -180,18 +188,22 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
                 # print(f"DEL {table_file}")
                 try:
-                    # NOTE: must use rm_file to get errors on delete
-                    self.fs_client.rm_file(table_file)
-                except NotImplementedError:
-                    # not all filesystem implement the above
-                    self.fs_client.rm(table_file)
-                    if self.fs_client.exists(table_file):
-                        raise FileExistsError(table_file)
+                    self._delete_file(table_file)
                 except FileNotFoundError:
                     logger.info(
                         f"Directory or path to truncate tables {table_names} does not exist but"
                         " it should have been created previously!"
                     )
+
+    def _delete_file(self, file_path: str) -> None:
+        try:
+            # NOTE: must use rm_file to get errors on delete
+            self.fs_client.rm_file(file_path)
+        except NotImplementedError:
+            # not all filesystems implement the above
+            self.fs_client.rm(file_path)
+            if self.fs_client.exists(file_path):
+                raise FileExistsError(file_path)
 
     def update_stored_schema(
         self,
@@ -401,6 +413,13 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             f"{self.schema.name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
         )
 
+    def _iter_stored_schema_files(self) -> Iterator[Tuple[str, List[str]]]:
+        """Iterator over all schema files matching the current schema name"""
+        for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
+            if fileparts[0] == self.schema.name:
+                continue
+            yield filepath, fileparts
+
     def _get_stored_schema_by_hash_or_newest(
         self, version_hash: str = None
     ) -> Optional[StorageSchemaInfo]:
@@ -409,12 +428,8 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # find newest schema for pipeline or by version hash
         selected_path = None
         newest_load_id = "0"
-        for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
-            if (
-                not version_hash
-                and fileparts[0] == self.schema.name
-                and fileparts[1] > newest_load_id
-            ):
+        for filepath, fileparts in self._iter_stored_schema_files():
+            if not version_hash and fileparts[1] > newest_load_id:
                 newest_load_id = fileparts[1]
                 selected_path = filepath
             elif fileparts[2] == version_hash:
