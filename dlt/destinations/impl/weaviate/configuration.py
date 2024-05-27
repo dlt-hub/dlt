@@ -27,7 +27,9 @@ class WeaviateCredentials(CredentialsConfiguration):
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore
     # make it optional so empty dataset is allowed
-    dataset_name: Annotated[Optional[str], NotResolved()] = None
+    dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     batch_size: int = 100
     batch_workers: int = 1

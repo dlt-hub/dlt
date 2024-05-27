@@ -188,7 +188,6 @@ class TestRESTClient:
 
         assert_pagination(list(pages_iter))
 
-
     def test_custom_session_client(self, mocker):
         mocked_warning = mocker.patch.object(logger, "warning")
         RESTClient(
@@ -201,7 +200,6 @@ class TestRESTClient:
             == "The session provided has raise_for_status enabled. This may cause unexpected"
             " behavior."
         )
-
 
     def test_custom_auth_success(self, rest_client: RESTClient):
         class CustomAuthConfigBase(AuthConfigBase):
