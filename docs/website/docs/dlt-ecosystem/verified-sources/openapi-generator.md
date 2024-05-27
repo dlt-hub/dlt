@@ -71,7 +71,7 @@ $ dlt pipeline pokemon_pipeline show
 
 ## What will be created?
 
-When you run the `init` command above, the following files will be generated:
+When you run the `dlt-init-openapi` command above, the following files will be generated:
 
 ```text
 pokemon_pipeline/
@@ -88,9 +88,11 @@ pokemon_pipeline/
 └── requirements.txt    # the pip requirements for your pipeline
 ```
 
-> If you re-generate your pipeline, you will be prompted to continue if this folder exists. If you select yes, all generated files will be overwritten. All other files you may have created will remain in this folder.
+:::warning
+If you re-generate your pipeline, you will be prompted to continue if this folder exists. If you select yes, all generated files will be overwritten. All other files you may have created will remain in this folder. In non-interactive mode you will not be asked, and the generated files will be overwritten.
+:::
 
-## A closer look at your rest_api dictionary in pokemon/__init__.py
+## A closer look at your `rest_api` dictionary in `pokemon/__init__.py`
 
 This file contains the configuration dictionary for the [dlt rest_api](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api) source which is the main result of running this generator. For our Pokemon example, we have used an OpenAPI 3 spec that works out of the box. The result of this dictionary depends on the quality of the spec you are using, whether the API you are querying actually adheres to this spec, and whether our heuristics manage to find the right values. You can edit this file to adapt the behavior of the dlt rest_api accordingly. Please read our [dlt rest_api](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api) docs to learn how to do this and play with our detailed [Google Colab example](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing#scrollTo=LHGxzf1Ev_yr).
 
