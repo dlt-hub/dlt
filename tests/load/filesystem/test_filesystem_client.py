@@ -1,6 +1,7 @@
 import posixpath
 import os
 from unittest import mock
+from pathlib import Path
 
 import pytest
 
@@ -117,16 +118,18 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
         # this path will be kept after replace
-        job_2_load_1_path = posixpath.join(
-            root_path,
-            create_path(
-                layout,
-                NORMALIZED_FILES[1],
-                client.schema.name,
-                load_id1,
-                load_package_timestamp=timestamp,
-                extra_placeholders=client.config.extra_placeholders,
-            ),
+        job_2_load_1_path = Path(
+            posixpath.join(
+                root_path,
+                create_path(
+                    layout,
+                    NORMALIZED_FILES[1],
+                    client.schema.name,
+                    load_id1,
+                    load_package_timestamp=timestamp,
+                    extra_placeholders=client.config.extra_placeholders,
+                ),
+            )
         )
 
         with perform_load(
@@ -135,16 +138,18 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             client, _, root_path, load_id2 = load_info
 
             # this one we expect to be replaced with
-            job_1_load_2_path = posixpath.join(
-                root_path,
-                create_path(
-                    layout,
-                    NORMALIZED_FILES[0],
-                    client.schema.name,
-                    load_id2,
-                    load_package_timestamp=timestamp,
-                    extra_placeholders=client.config.extra_placeholders,
-                ),
+            job_1_load_2_path = Path(
+                posixpath.join(
+                    root_path,
+                    create_path(
+                        layout,
+                        NORMALIZED_FILES[0],
+                        client.schema.name,
+                        load_id2,
+                        load_package_timestamp=timestamp,
+                        extra_placeholders=client.config.extra_placeholders,
+                    ),
+                )
             )
 
             # First file from load1 remains, second file is replaced by load2
@@ -159,7 +164,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 for f in files:
                     if f == INIT_FILE_NAME:
                         continue
-                    paths.append(posixpath.join(basedir, f))
+                    paths.append(Path(posixpath.join(basedir, f)))
 
             ls = set(paths)
             assert ls == {job_2_load_1_path, job_1_load_2_path}
@@ -210,7 +215,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                 )
                 for job in jobs2
             ]
-            expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
+            expected_files = sorted([Path(posixpath.join(root_path, fn)) for fn in expected_files])  # type: ignore[misc]
 
             paths = []
             for basedir, _dirs, files in client.fs_client.walk(
@@ -222,5 +227,5 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
                 for f in files:
                     if f == INIT_FILE_NAME:
                         continue
-                    paths.append(posixpath.join(basedir, f))
+                    paths.append(Path(posixpath.join(basedir, f)))
             assert list(sorted(paths)) == expected_files

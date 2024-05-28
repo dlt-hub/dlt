@@ -18,8 +18,8 @@ from typing import (
     Any,
     TypeVar,
     Generic,
-    Final,
 )
+from typing_extensions import Annotated
 import datetime  # noqa: 251
 from copy import deepcopy
 import inspect
@@ -35,7 +35,7 @@ from dlt.common.schema.utils import (
     has_column_with_prop,
     get_first_column_name_with_prop,
 )
-from dlt.common.configuration import configspec, resolve_configuration, known_sections
+from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -78,7 +78,7 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_type: Final[str] = dataclasses.field(
+    destination_type: Annotated[str, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )  # which destination to load data to
     credentials: Optional[CredentialsConfiguration] = None
@@ -103,11 +103,11 @@ class DestinationClientConfiguration(BaseConfiguration):
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
-    dataset_name: Final[str] = dataclasses.field(
+    dataset_name: Annotated[str, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
-    )  # dataset must be final so it is not configurable
+    )  # dataset cannot be resolved
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
-    default_schema_name: Final[Optional[str]] = dataclasses.field(
+    default_schema_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
     """name of default schema to be used to name effective dataset to load data to"""
@@ -121,8 +121,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         This method is intended to be used internally.
         """
-        self.dataset_name = dataset_name  # type: ignore[misc]
-        self.default_schema_name = default_schema_name  # type: ignore[misc]
+        self.dataset_name = dataset_name
+        self.default_schema_name = default_schema_name
         return self
 
     def normalize_dataset_name(self, schema: Schema) -> str:

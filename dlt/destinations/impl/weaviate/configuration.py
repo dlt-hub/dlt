@@ -1,8 +1,9 @@
 import dataclasses
 from typing import Dict, Literal, Optional, Final
+from typing_extensions import Annotated
 from urllib.parse import urlparse
 
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.utils import digest128
@@ -26,7 +27,9 @@ class WeaviateCredentials(CredentialsConfiguration):
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore
     # make it optional so empty dataset is allowed
-    dataset_name: Optional[str] = None  # type: ignore[misc]
+    dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     batch_size: int = 100
     batch_workers: int = 1
