@@ -14,10 +14,15 @@ def test_clickhouse_gcs_s3_compatibility() -> None:
     def dummy_data() -> Generator[Dict[str, int], None, None]:
         yield {"field1": 1, "field2": 2}
 
+    gcp_bucket = filesystem(
+        GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp"
+    )
 
-    gcp_bucket = filesystem(GCS_BUCKET.replace("gs://", "s3://"), destination_name="filesystem_s3_gcs_comp")
-
-    pipe = dlt.pipeline(pipeline_name="gcs_s3_compatibility", destination="clickhouse", staging=gcp_bucket,
-                        full_refresh=True, )
+    pipe = dlt.pipeline(
+        pipeline_name="gcs_s3_compatibility",
+        destination="clickhouse",
+        staging=gcp_bucket,
+        full_refresh=True,
+    )
     pack = pipe.run([dummy_data])
     assert_load_info(pack)
