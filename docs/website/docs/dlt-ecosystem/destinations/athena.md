@@ -11,7 +11,7 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 ## Install dlt with Athena
 **To install the dlt library with Athena dependencies:**
 ```sh
-pip install dlt[athena]
+pip install "dlt[athena]"
 ```
 
 ## Setup Guide
@@ -30,7 +30,7 @@ First, install dependencies by running:
 ```sh
 pip install -r requirements.txt
 ```
-or with `pip install dlt[athena]`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
+or with `pip install "dlt[athena]"`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
 
 :::caution
 
@@ -160,6 +160,63 @@ aws_data_catalog="awsdatacatalog"
 ## Supported file formats
 You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is used by default
+
+
+## Athena adapter
+
+You can use the `athena_adapter` to add partitioning to Athena tables. This is currently only supported for Iceberg tables.
+
+Iceberg tables support a few transformation functions for partitioning. Info on all supported functions in the [AWS documentation](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-creating-tables.html#querying-iceberg-creating-tables-query-editor).
+
+Use the `athena_partition` helper to generate the partitioning hints for these functions:
+
+* `athena_partition.year(column_name: str)`: Partition by year of date/datetime column.
+* `athena_partition.month(column_name: str)`: Partition by month of date/datetime column.
+* `athena_partition.day(column_name: str)`: Partition by day of date/datetime column.
+* `athena_partition.hour(column_name: str)`: Partition by hour of date/datetime column.
+* `athena_partition.bucket(n: int, column_name: str)`: Partition by hashed value to `n` buckets
+* `athena_partition.truncate(length: int, column_name: str)`: Partition by truncated value to `length` (or width for numbers)
+
+Here is an example of how to use the adapter to partition a table:
+
+```py
+from datetime import date
+
+import dlt
+from dlt.destinations.impl.athena.athena_adapter import athena_partition, athena_adapter
+
+data_items = [
+    (1, "A", date(2021, 1, 1)),
+    (2, "A", date(2021, 1, 2)),
+    (3, "A", date(2021, 1, 3)),
+    (4, "A", date(2021, 2, 1)),
+    (5, "A", date(2021, 2, 2)),
+    (6, "B", date(2021, 1, 1)),
+    (7, "B", date(2021, 1, 2)),
+    (8, "B", date(2021, 1, 3)),
+    (9, "B", date(2021, 2, 1)),
+    (10, "B", date(2021, 3, 2)),
+]
+
+@dlt.resource(table_format="iceberg")
+def partitioned_data():
+    yield [{"id": i, "category": c, "created_at": d} for i, c, d in data_items]
+
+
+# Add partitioning hints to the table
+athena_adapter(
+    partitioned_table,
+    partition=[
+        # Partition per category and month
+        "category",
+        athena_partition.month("created_at"),
+    ],
+)
+
+
+pipeline = dlt.pipeline("athena_example")
+pipeline.run(partitioned_data)
+```
 
 <!--@@@DLT_TUBA athena-->
 

@@ -2,6 +2,7 @@ import os
 import pytest
 import time
 from typing import Iterator, Type
+from uuid import uuid4
 
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
 from dlt.common.data_writers.writers import (
@@ -11,7 +12,7 @@ from dlt.common.data_writers.writers import (
     JsonlWriter,
     ALL_WRITERS,
 )
-from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.common.destination.capabilities import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.file_storage import FileStorage
 
@@ -330,3 +331,38 @@ def test_special_write_rotates(disable_compression: bool, writer_type: Type[Data
         metrics = writer.import_file(
             "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
         )
+
+
+@pytest.mark.parametrize(
+    "disable_compression", [True, False], ids=["no_compression", "compression"]
+)
+@pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
+def test_rotation_on_destination_caps_recommended_file_size(
+    disable_compression: bool, writer_type: Type[DataWriter]
+) -> None:
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.recommended_file_size = int(250 * 1024)
+    columns = {"id": new_column("id", "text")}
+    with get_writer(
+        writer_type,
+        disable_compression=disable_compression,
+        buffer_max_items=100,
+        file_max_items=None,
+        file_max_bytes=None,
+        caps=caps,
+    ) as writer:
+        for i in range(8):
+            # Data chunk approximately 40kb serialized
+            items = [{"id": str(uuid4())} for _ in range(1000)]
+            writer.write_data_item(items, columns)
+            if i < 5:
+                assert not writer.closed_files
+
+            if i > 5:
+                # We should have written atleast 250kb by now and have rotated the file
+                assert len(writer.closed_files) == 1
+
+    # Check the files that were written are all within the recommended size + 1 chunk
+    assert len(writer.closed_files) == 2
+    for file in writer.closed_files:
+        assert file.file_size < caps.recommended_file_size + 1024 * 50

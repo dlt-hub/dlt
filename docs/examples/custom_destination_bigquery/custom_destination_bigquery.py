@@ -8,10 +8,10 @@ keywords: [destination, credentials, example, bigquery, custom destination]
 In this example, you'll find a Python script that demonstrates how to load to BigQuery with the custom destination.
 
 We'll learn how to:
-- Use [built-in credentials](../general-usage/credentials/config_specs#gcp-credentials)
-- Use the [custom destination](../dlt-ecosystem/destinations/destination.md)
-- Use pyarrow tables to create complex column types on BigQuery
-- Use BigQuery `autodetect=True` for schema inference from parquet files
+- Use [built-in credentials.](../general-usage/credentials/config_specs#gcp-credentials)
+- Use the [custom destination.](../dlt-ecosystem/destinations/destination.md)
+- Use pyarrow tables to create complex column types on BigQuery.
+- Use BigQuery `autodetect=True` for schema inference from parquet files.
 
 """
 
@@ -60,7 +60,9 @@ def resource(url: str):
 # dlt bigquery custom destination
 # we can use the dlt provided credentials class
 # to retrieve the gcp credentials from the secrets
-@dlt.destination(name="bigquery", loader_file_format="parquet", batch_size=0, naming_convention="snake_case")
+@dlt.destination(
+    name="bigquery", loader_file_format="parquet", batch_size=0, naming_convention="snake_case"
+)
 def bigquery_insert(
     items, table=BIGQUERY_TABLE_ID, credentials: GcpServiceAccountCredentials = dlt.secrets.value
 ) -> None:

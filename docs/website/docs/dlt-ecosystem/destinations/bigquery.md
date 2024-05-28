@@ -11,7 +11,7 @@ keywords: [bigquery, destination, data warehouse]
 **To install the dlt library with BigQuery dependencies:**
 
 ```sh
-pip install dlt[bigquery]
+pip install "dlt[bigquery]"
 ```
 
 ## Setup Guide

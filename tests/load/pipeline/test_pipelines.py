@@ -10,6 +10,7 @@ from dlt.common import json, sleep
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
 from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
@@ -896,6 +897,7 @@ def test_pipeline_upfront_tables_two_loads(
 
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    os.environ["TRUNCATE_STAGING_DATASET"] = "True"
 
     pipeline = destination_config.setup_pipeline(
         "test_pipeline_upfront_tables_two_loads",
@@ -1000,6 +1002,21 @@ def test_pipeline_upfront_tables_two_loads(
         pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
         is True
     )
+
+    job_client, _ = pipeline._get_destination_clients(schema)
+
+    if destination_config.staging and isinstance(job_client, WithStagingDataset):
+        for i in range(1, 4):
+            with pipeline.sql_client() as client:
+                table_name = f"table_{i}"
+
+                if job_client.should_load_data_to_staging_dataset(
+                    job_client.schema.tables[table_name]
+                ):
+                    with client.with_staging_dataset(staging=True):
+                        tab_name = client.make_qualified_table_name(table_name)
+                        with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
+                            assert len(cur.fetchall()) == 0
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")

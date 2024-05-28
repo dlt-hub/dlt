@@ -10,8 +10,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
     AwsCredentials,
     GcpOAuthCredentials,
-    AzureCredentials,
-    AzureCredentialsWithoutDefaults,
+    AnyAzureCredentials,
     BaseConfiguration,
 )
 from dlt.common.typing import DictStrAny
@@ -49,7 +48,7 @@ class LoadStorageConfiguration(BaseConfiguration):
 
 
 FileSystemCredentials = Union[
-    AwsCredentials, GcpServiceAccountCredentials, AzureCredentials, GcpOAuthCredentials
+    AwsCredentials, GcpServiceAccountCredentials, AnyAzureCredentials, GcpOAuthCredentials
 ]
 
 
@@ -70,9 +69,9 @@ class FilesystemConfiguration(BaseConfiguration):
         "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "gdrive": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "s3": AwsCredentials,
-        "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
-        "abfs": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
-        "adl": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
+        "az": AnyAzureCredentials,
+        "abfs": AnyAzureCredentials,
+        "adl": AnyAzureCredentials,
     }
 
     bucket_url: str = None

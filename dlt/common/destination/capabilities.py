@@ -29,6 +29,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     preferred_loader_file_format: TLoaderFileFormat = None
     supported_loader_file_formats: Sequence[TLoaderFileFormat] = None
+    recommended_file_size: Optional[int] = None
+    """Recommended file size in bytes when writing extract/load files"""
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
     supported_staging_file_formats: Sequence[TLoaderFileFormat] = None
     escape_identifier: Callable[[str], str] = None
