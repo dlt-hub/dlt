@@ -208,15 +208,6 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 access_key_id = staging_credentials.aws_access_key_id
                 secret_access_key = staging_credentials.aws_secret_access_key
-            elif isinstance(staging_credentials, GcpCredentials):
-                access_key_id = client.credentials.gcp_access_key_id
-                secret_access_key = client.credentials.gcp_secret_access_key
-                if not access_key_id or not secret_access_key:
-                    raise DestinationTransientException(
-                        "You have tried loading from gcs with clickhouse. Please provide valid"
-                        " 'gcp_access_key_id' and 'gcp_secret_access_key' to connect to gcs as"
-                        " outlined in the dlthub docs."
-                    )
 
             auth = "NOSIGN"
             if access_key_id and secret_access_key:
