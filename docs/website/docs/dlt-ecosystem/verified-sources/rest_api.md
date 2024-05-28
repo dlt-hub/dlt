@@ -621,15 +621,37 @@ In this example, the source will ignore responses with a status code of 404, res
 
 ## Troubleshooting
 
-If you encounter any issues while setting up or running the pipeline, check the following:
-
-- Make sure you have the correct access token and other credentials in the `secrets.toml` file.
-- Check the API documentation for the correct endpoint paths and query parameters.
-- Verify the configuration settings in the `rest_api_pipeline.py` file.
-- Enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) to see detailed information about the HTTP requests:
+If you encounter any issues while running the pipeline, make sure to enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) to see detailed information about the pipeline execution:
 
 ```bash
 RUNTIME__LOG_LEVEL=INFO python my_script.py
 ```
 
+This will show you some details about the HTTP requests as well.
+
+### Configuration issues
+
+#### Getting wrong data or no data
+
+If you're getting incorrect data, check the `data_selector` field in the [endpoint configuration](#endpoint-configuration). Make sure the JSONPath is correct and points to the right data in the response. `rest_api` tries to auto-detect the data location, but it may not always work correctly. See the [data selection](#data-selection) section for more details.
+
+#### Not getting enough data or incorrect pagination
+
+Check the `paginator` field in the configuration. When not explicitly specified, the source tries to auto-detect the pagination method. If auto-detection fails, or the system is unsure, a warning is logged. For production environments, we recommend to specify an explicit paginator in the configuration. See the [pagination](#pagination) section for more details. Some APIs may have non-standard pagination methods, and you may need to implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+
+#### Getting HTTP 404 errors
+
+Some API may return 404 errors for resources that do not exist or have no data. You can handle these responses by using the [response actions](#response-actions) configuration with the `ignore` action.
+
+### Authentication issues
+
+401 (Unauthorized) errors. This may indicate that:
+
+- your authorization credentials are incorrect. Verify your credentials in the `secrets.toml`. Refer to [Secret and configs](../../general-usage/credentials/configuration#understanding-the-exceptions) for more information.
+- the authentication type is not correct. Check the API documentation for the correct authentication method. See the [authentication](#authentication) section for more details. For some APIs, you may need to implement a [custom authentication method](../../general-usage/http/rest-client.md#custom-authentication).
+
+### General guidelines
+
 `rest_api` source uses the [RESTClient](../../general-usage/http/rest-client.md) class to make HTTP requests. You can refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for guidance on debugging HTTP requests.
+
+If you're still having issues, feel free to ask for help in our [Slack community](https://dlthub.com/community).
