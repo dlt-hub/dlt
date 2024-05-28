@@ -1,6 +1,6 @@
 ---
 slug: contributed-first-pipeline
-title: "How I contributed my first data pipeline to the open source."
+title: "How I Contributed My First Open Source Data Pipeline"
 image:  https://storage.googleapis.com/dlt-blog-images/blog_my_first_data_pipeline.png
 authors:
   name: Aman Gupta
