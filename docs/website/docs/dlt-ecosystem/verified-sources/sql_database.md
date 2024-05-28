@@ -179,7 +179,7 @@ pipeline = dlt.pipeline(
 def _double_as_decimal_adapter(table: sa.Table) -> None:
     """Return double as double, not decimals, this is mysql thing"""
     for column in table.columns.values():
-        if isinstance(column.type, sa.Double):
+        if isinstance(column.type, sa.Double):  # type: ignore
             column.type.asdecimal = False
 
 sql_alchemy_source = sql_database(
