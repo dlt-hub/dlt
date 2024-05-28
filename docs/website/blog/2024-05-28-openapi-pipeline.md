@@ -18,17 +18,18 @@ We are thrilled to announce the launch of our groundbreaking pipeline generator 
 
 We call it the `dlt-init-openapi`, or OpenAPI Source.
 
-Just point our pipeline generator to an OpenAPI spec, select your endpoints, and you're done!
+Just point it to an OpenAPI spec, select your endpoints, and you're done!
 
 ### What's OpenAPI again?
 
-OpenAPI is the world's most widely used API description standard.
-In 2021 an information-security company named Assetnote scanned the web and unearthed 200,000 public
-OpenAPI files. Modern API frameworks like FastAPI generate such specifications automatically.
+[OpenAPI](https://www.openapis.org/) is the world's most widely used API description standard.
+In 2021 an information-security company named Assetnote scanned the web and unearthed [200,000 public
+OpenAPI files](https://www.assetnote.io/resources/research/contextual-content-discovery-youve-forgotten-about-the-api-endpoints). Modern API frameworks like FastAPI generate such specifications automatically.
 
 ## How does it work?
 
-**A pipeline is a series of datapoints or decisions about how to extract and load the data**, expressed as code or config.
+**A pipeline is a series of datapoints or decisions about how to extract and load the data**, expressed as code or config. I say decisions because building a pipeline can be boiled down to inspecting a documentation or response and deciding how to write the code.
+
 Our tool does its best to pick out the necessary details and detect the rest to generate the complete pipeline for you.
 
 The information required for taking those decisions comes from:
