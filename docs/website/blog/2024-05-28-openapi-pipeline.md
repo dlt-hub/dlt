@@ -60,7 +60,7 @@ If we took an LLM-first approach, the errors would compound and put the burden b
 We are however considering using LLM-assists for the things that the algorithmic approach can't detect. Another avenue could be generating the OpenAPI spec from website docs.
 So we are eager to get feedback from you on what works and what needs work, enabling us to improve it.
 
-## Try it out now:
+## Try it out now!
 
 **Video Walkthrough:**
 <iframe width="560" height="315" src="https://www.youtube.com/embed/b99qv9je12Q?si=veVVSlHkKQxDX3FX" title="OpenAPI tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
