@@ -43,7 +43,7 @@ file_max_bytes=1000000
 # @@@DLT_SNIPPET_START extract_workers_toml
 # for all sources and resources being extracted
 [extract]
-worker=1
+workers=1
 
 # for all resources in the zendesk_support source
 [sources.zendesk_support.extract]

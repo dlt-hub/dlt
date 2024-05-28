@@ -203,7 +203,7 @@ For example, you can set the primary key, write disposition, and other default s
 ```py
 config = {
     "client": {
-        ...
+        # ...
     },
     "resource_defaults": {
         "primary_key": "id",
@@ -216,15 +216,17 @@ config = {
     },
     "resources": [
         "resource1",
-        "resource2": {
-            "name": "resource2_name",
-            "write_disposition": "append",
-            "endpoint": {
-                "params": {
-                    "param1": "value1",
+        {
+            "resource2": {
+                "name": "resource2_name",
+                "write_disposition": "append",
+                "endpoint": {
+                    "params": {
+                        "param1": "value1",
+                    },
                 },
-            },
-        },
+            }
+        }
     ],
 }
 ```
@@ -280,7 +282,7 @@ The fields in the endpoint configuration are:
 - `json`: The JSON payload to be sent with the request (for POST and PUT requests).
 - `paginator`: Pagination configuration for the endpoint. See the [pagination](#pagination) section for more details.
 - `data_selector`: A JSONPath to select the data from the response. See the [data selection](#data-selection) section for more details.
-- `response_actions`: A list of actions that define how to process the response data.
+- `response_actions`: A list of actions that define how to process the response data. See the [response actions](#response-actions) section for more details.
 - `incremental`: Configuration for [incremental loading](#incremental-loading).
 
 ### Pagination
@@ -309,7 +311,7 @@ To specify the pagination configuration, use the `paginator` field in the [clien
 
 ```py
 {
-    ...
+    # ...
     "paginator": {
         "type": "json_links",
         "next_url_path": "paging.next",
@@ -321,7 +323,7 @@ Or using the paginator instance:
 
 ```py
 {
-    ...
+    # ...
     "paginator": JSONResponsePaginator(
         next_url_path="paging.next"
     ),
@@ -394,11 +396,11 @@ One of the most common method is token-based authentication. To authenticate wit
 ```py
 {
     "client": {
-        ...
+        # ...
         "auth": {
             "token": dlt.secrets["your_api_token"],
         },
-        ...
+        # ...
     },
 }
 ```
@@ -412,8 +414,8 @@ Available authentication types:
 | Authentication class | String Alias (`type`) | Description |
 | ------------------- | ----------- | ----------- |
 | [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
-| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `api_key` | Basic HTTP authentication. |
-| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `http_basic` | API key authentication with key defined in the query parameters or in the headers. |
+| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
+| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
 
 To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 
@@ -424,7 +426,7 @@ To specify the authentication configuration, use the `auth` field in the [client
             "type": "bearer",
             "token": dlt.secrets["your_api_token"],
         },
-        ...
+        # ...
     },
 }
 ```
@@ -438,7 +440,7 @@ config = {
     "client": {
         "auth": BearTokenAuth(dlt.secrets["your_api_token"]),
     },
-    ...
+    # ...
 }
 ```
 
@@ -455,7 +457,7 @@ In the GitHub example, the `issue_comments` resource depends on the `issues` res
             "name": "issues",
             "endpoint": {
                 "path": "issues",
-                ...
+                # ...
             },
         },
         {
@@ -495,12 +497,16 @@ The `issue_comments` resource will make requests to the following endpoints:
 The syntax for the `resolve` field in parameter configuration is:
 
 ```py
-"<parameter_name>": {
-    "type": "resolve",
-    "resource": "<parent_resource_name>",
-    "field": "<parent_resource_field_name>",
+{
+    "<parameter_name>": {
+        "type": "resolve",
+        "resource": "<parent_resource_name>",
+        "field": "<parent_resource_field_name_or_jsonpath>",
+    }
 }
 ```
+
+The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
 Under the hood, dlt handles this by using a [transformer resource](../../general-usage/resource.md#process-resources-with-dlttransformer).
 
@@ -530,21 +536,25 @@ When the API endpoint supports incremental loading, you can configure the source
 1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
 
     ```py
-    "<parameter_name>": {
-        "type": "incremental",
-        "cursor_path": "<path_to_cursor_field>",
-        "initial_value": "<initial_value>",
-    },
+    {
+        "<parameter_name>": {
+            "type": "incremental",
+            "cursor_path": "<path_to_cursor_field>",
+            "initial_value": "<initial_value>",
+        },
+    }
     ```
 
     For example, in the `issues` resource configuration in the GitHub example, we have:
 
     ```py
-    "since": {
-        "type": "incremental",
-        "cursor_path": "updated_at",
-        "initial_value": "2024-01-25T11:21:28Z",
-    },
+    {
+        "since": {
+            "type": "incremental",
+            "cursor_path": "updated_at",
+            "initial_value": "2024-01-25T11:21:28Z",
+        },
+    }
     ```
 
     This configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter in subsequent requests.
@@ -552,13 +562,15 @@ When the API endpoint supports incremental loading, you can configure the source
 2. Specifying the `incremental` field in the [endpoint configuration](#endpoint-configuration):
 
     ```py
-    "incremental": {
-        "start_param": "<parameter_name>",
-        "end_param": "<parameter_name>",
-        "cursor_path": "<path_to_cursor_field>",
-        "initial_value": "<initial_value>",
-        "end_value": "<end_value>",
-    },
+    {
+        "incremental": {
+            "start_param": "<parameter_name>",
+            "end_param": "<parameter_name>",
+            "cursor_path": "<path_to_cursor_field>",
+            "initial_value": "<initial_value>",
+            "end_value": "<end_value>",
+        }
+    }
     ```
 
     This configuration is more flexible and allows you to specify the start and end conditions for the incremental loading.
@@ -576,3 +588,33 @@ See the [incremental loading](../../general-usage/incremental-loading.md#increme
 - `root_key` (bool): Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge. Defaults to False.
 - `schema_contract`: Schema contract settings that will be applied to this resource.
 - `spec`: A specification of configuration and secret values required by the source.
+
+### Response actions
+
+The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses from the API based on status codes or content substrings. This is useful for handling edge cases like ignoring responses on specific conditions.
+
+:::caution Experimental Feature
+This is an experimental feature and may change in future releases.
+:::
+
+#### Example
+
+```py
+{
+    "path": "issues",
+    "response_actions": [
+        {"status_code": 404, "action": "ignore"},
+        {"content": "Not found", "action": "ignore"},
+        {"status_code": 200, "content": "some text", "action": "ignore"},
+    ],
+}
+```
+
+In this example, the source will ignore responses with a status code of 404, responses with the content "Not found", and responses with a status code of 200 _and_ content "some text".
+
+**Fields:**
+
+- `status_code` (int, optional): The HTTP status code to match.
+- `content` (str, optional): A substring to search for in the response content.
+- `action` (str): The action to take when the condition is met. Currently supported actions:
+  - `ignore`: Ignore the response.

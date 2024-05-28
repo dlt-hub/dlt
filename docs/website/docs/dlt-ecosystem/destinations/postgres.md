@@ -9,7 +9,7 @@ keywords: [postgres, destination, data warehouse]
 ## Install dlt with PostgreSQL
 **To install the dlt library with PostgreSQL dependencies, run:**
 ```sh
-pip install dlt[postgres]
+pip install "dlt[postgres]"
 ```
 
 ## Setup Guide

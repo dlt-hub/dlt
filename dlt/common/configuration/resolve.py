@@ -8,7 +8,6 @@ from dlt.common.typing import (
     StrAny,
     TSecretValue,
     get_all_types_of_class_in_union,
-    is_final_type,
     is_optional_type,
     is_union_type,
 )
@@ -21,6 +20,7 @@ from dlt.common.configuration.specs.base_configuration import (
     is_context_inner_hint,
     is_base_configuration_inner_hint,
     is_valid_hint,
+    is_hint_not_resolved,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs.exceptions import NativeValueError
@@ -194,7 +194,7 @@ def _resolve_config_fields(
         if explicit_values:
             explicit_value = explicit_values.get(key)
         else:
-            if is_final_type(hint):
+            if is_hint_not_resolved(hint):
                 # for final fields default value is like explicit
                 explicit_value = default_value
             else:
@@ -258,7 +258,7 @@ def _resolve_config_fields(
             unresolved_fields[key] = traces
         # set resolved value in config
         if default_value != current_value:
-            if not is_final_type(hint):
+            if not is_hint_not_resolved(hint):
                 # ignore final types
                 setattr(config, key, current_value)
 

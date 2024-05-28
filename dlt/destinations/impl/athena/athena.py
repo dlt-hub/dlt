@@ -11,6 +11,7 @@ from typing import (
     Callable,
     Iterable,
     Type,
+    cast,
 )
 from copy import deepcopy
 import re
@@ -69,6 +70,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
+from dlt.destinations.impl.athena.athena_adapter import PARTITION_HINT
 
 
 class AthenaTypeMapper(TypeMapper):
@@ -405,6 +407,16 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
         )
 
+    def _iceberg_partition_clause(self, partition_hints: Optional[Dict[str, str]]) -> str:
+        if not partition_hints:
+            return ""
+        formatted_strings = []
+        for column_name, template in partition_hints.items():
+            formatted_strings.append(
+                template.format(column_name=self.sql_client.escape_ddl_identifier(column_name))
+            )
+        return f"PARTITIONED BY ({', '.join(formatted_strings)})"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -431,8 +443,12 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
         else:
             if is_iceberg:
+                partition_clause = self._iceberg_partition_clause(
+                    cast(Optional[Dict[str, str]], table.get(PARTITION_HINT))
+                )
                 sql.append(f"""CREATE TABLE {qualified_table_name}
                         ({columns})
+                        {partition_clause}
                         LOCATION '{location.rstrip('/')}'
                         TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
             elif table_format == "jsonl":

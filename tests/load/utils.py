@@ -180,6 +180,7 @@ def destinations_configs(
     file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
+    force_iceberg: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
@@ -481,6 +482,11 @@ def destinations_configs(
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
+    if force_iceberg is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.force_iceberg is force_iceberg
+        ]
+
     return destination_configs
 
 
@@ -560,8 +566,8 @@ def yield_client(
     destination = Destination.from_reference(destination_type)
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
-    dest_config = destination.spec()  # type: ignore[assignment]
-    dest_config.dataset_name = dataset_name  # type: ignore[misc]
+    dest_config = destination.spec()  # type: ignore
+    dest_config.dataset_name = dataset_name
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
@@ -583,7 +589,7 @@ def yield_client(
         staging_config = DestinationClientStagingConfiguration(
             bucket_url=AWS_BUCKET,
         )._bind_dataset_name(dataset_name=dest_config.dataset_name)
-        staging_config.destination_type = "filesystem"  # type: ignore[misc]
+        staging_config.destination_type = "filesystem"
         staging_config.resolve()
         dest_config.staging_config = staging_config  # type: ignore[attr-defined]
 
