@@ -7,7 +7,7 @@ authors:
   title: Open source Data Engineer
   url: https://github.com/adrianbr
   image_url: https://avatars.githubusercontent.com/u/5762770?v=4
-tags: [full code etl, yes code etl, etl, python elt]
+tags: [openapi, pipeline generation, rest-api]
 ---
 
 # Welcome to the Future of Data Pipelines, now.
@@ -62,14 +62,16 @@ So we are eager to get feedback from you on what works and what needs work, enab
 
 ## Try it out now:
 
-**[Tool and Code repo](https://github.com/dlt-hub/dlt-init-openapi)**
-
-**[Colab demo.](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing)**
-
 **Video Walkthrough:**
 <iframe width="560" height="315" src="https://www.youtube.com/embed/b99qv9je12Q?si=veVVSlHkKQxDX3FX" title="OpenAPI tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
-**[Specs repository you can generate from](https://github.com/dlt-hub/openapi-specs)**
+**[Colab demo.](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing)**
+
+**[Docs.](https://dlthub.com/docs/dlt-ecosystem/verified-sources/openapi-generator)**
+
+**[Tool and Code repo.](https://github.com/dlt-hub/dlt-init-openapi)**
+
+**[Specs repository you can generate from.](https://github.com/dlt-hub/openapi-specs)**
 
 ## Next steps
 
