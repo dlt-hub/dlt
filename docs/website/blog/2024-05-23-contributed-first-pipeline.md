@@ -1,6 +1,6 @@
 ---
 slug: contributed-first-pipeline
-title: "How I contributed my first data pipeline to the open source."
+title: "How I Contributed to My First Open Source Data Pipeline"
 image:  https://storage.googleapis.com/dlt-blog-images/blog_my_first_data_pipeline.png
 authors:
   name: Aman Gupta
@@ -78,13 +78,13 @@ def incremental_resource(
 With the steps defined above, I was able to load the data from Freshdesk to BigQuery and use the pipeline in production. Here’s a summary of the steps I followed:
 
 1. Created a Freshdesk API token with sufficient privileges.
-1. Created an API client to make requests to the Freshdesk API with rate limit and pagination.
-1. Made incremental requests to this client based on the “updated_at” field in the response.
-1. Ran the pipeline using the Python script.
+2. Created an API client to make requests to the Freshdesk API with rate limit and pagination.
+3. Made incremental requests to this client based on the “updated_at” field in the response.
+4. Ran the pipeline using the Python script.
 
 
 While my journey from civil engineering to data engineering was initially intimidating, it has proved to be a profound learning experience. Writing a pipeline with **`dlt`** mirrors the simplicity of a GET request: you request data, yield it, and it flows from the source to its destination. Now, I help other clients integrate **`dlt`** to streamline their data workflows, which has been an invaluable part of my professional growth.
 
 In conclusion, diving into data engineering has expanded my technical skill set and provided a new lens through which I view challenges and solutions. As for me, the lens view mainly was concrete and steel a couple of years back, which has now begun to notice the pipelines of the data world. 
 
-Data engineering has proved both challenging, satisfying and a good carrier option for me till now. For those interested in the detailed workings of these pipelines, I encourage exploring dlt's [GitHub repository](https://github.com/dlt-hub/verified-sources) or diving into the [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/freshdesk).
+Data engineering has proved both challenging, satisfying, and a good career option for me till now. For those interested in the detailed workings of these pipelines, I encourage exploring dlt's [GitHub repository](https://github.com/dlt-hub/verified-sources) or diving into the [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/freshdesk).
