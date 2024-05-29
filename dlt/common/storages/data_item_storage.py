@@ -1,11 +1,10 @@
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Sequence
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItems
-from dlt.common.storages.load_package import PackageStorage
 from dlt.common.data_writers import (
     BufferedDataWriter,
     DataWriter,
