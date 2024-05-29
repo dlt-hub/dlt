@@ -362,8 +362,9 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
         )
 
     # generate 4 loads from 2 pipelines, store load ids
-    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test")
-    p2 = destination_config.setup_pipeline("p2", dataset_name="layout_test")
+    dataset_name = "layout_test_" + uniq_id()
+    p1 = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
+    p2 = destination_config.setup_pipeline("p2", dataset_name=dataset_name)
     c1 = cast(FilesystemClient, p1.destination_client())
     c2 = cast(FilesystemClient, p2.destination_client())
 

@@ -176,8 +176,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if not delete_schema:
             return
         # Delete all stored schemas
-        for filename, _ in self._iter_stored_schema_files():
-            self._delete_file(filename)
+        for filename, fileparts in self._iter_stored_schema_files():
+            if fileparts[0] == self.schema.name:
+                self._delete_file(filename)
 
     def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate table with given name"""
@@ -414,10 +415,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         )
 
     def _iter_stored_schema_files(self) -> Iterator[Tuple[str, List[str]]]:
-        """Iterator over all schema files matching the current schema name"""
+        """Iterator over all stored schema files"""
         for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
-            if fileparts[0] == self.schema.name:
-                yield filepath, fileparts
+            yield filepath, fileparts
 
     def _get_stored_schema_by_hash_or_newest(
         self, version_hash: str = None
@@ -428,7 +428,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         selected_path = None
         newest_load_id = "0"
         for filepath, fileparts in self._iter_stored_schema_files():
-            if not version_hash and fileparts[1] > newest_load_id:
+            if (
+                not version_hash
+                and fileparts[0] == self.schema.name
+                and fileparts[1] > newest_load_id
+            ):
                 newest_load_id = fileparts[1]
                 selected_path = filepath
             elif fileparts[2] == version_hash:
