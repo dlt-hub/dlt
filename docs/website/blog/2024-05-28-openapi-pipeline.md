@@ -16,7 +16,7 @@ Dear dltHub Community,
 
 We are thrilled to announce the launch of our groundbreaking pipeline generator tool.
 
-We call it the `dlt-init-openapi`.
+We call it `dlt-init-openapi`.
 
 Just point it to an OpenAPI spec, select your endpoints, and you're done!
 
