@@ -10,7 +10,7 @@ authors:
 tags: [openapi, pipeline generation, rest-api]
 ---
 
-# The Future of Data Pipelines starts **now**.
+# The Future of Data Pipelines starts now.
 
 Dear dltHub Community,
 
@@ -52,9 +52,9 @@ Once a pipeline is created, it is a **fully configurable instance of the REST AP
 So if anything did not go smoothly, you can make the final tweaks.
 You can learn how to adjust the generated pipeline by reading our [REST API Source documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api).
 
-### Are we using LLMS?
+### Are we using LLMS under the hood?
 
-No. Maybe later.
+No. This is a potential future enhancement, so maybe later.
 
 The pipelines are generated algorithmically with deterministic outcomes. This way, we have more control over the quality of the decisions.
 
@@ -79,7 +79,7 @@ So we are eager to get feedback from you on what works and what needs work, enab
 ## Next steps: Feedback, discussion and sharing.
 
 Solving data engineering headaches in the open source is a team sport.
-We got this far with your feedback and help, and are counting on your continuous usage and engagement
+We got this far with your feedback and help (especially on [REST API source](https://dlthub.com/docs/blog/rest-api-source-client)), and are counting on your continuous usage and engagement
 to steer our pushing of what's possible into uncharted, but needed directions.
 
 So here's our call to action:
