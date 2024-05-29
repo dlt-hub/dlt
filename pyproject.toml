@@ -1,9 +1,9 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.11"
+version = "0.4.12"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
-maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
+maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
 readme = "README.md"
 license = "Apache-2.0"
 homepage = "https://github.com/dlt-hub"
@@ -13,6 +13,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",]
@@ -57,10 +58,12 @@ psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_i
 grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
 pyarrow = {version = ">=12.0.0", optional = true}
-duckdb = [
-    {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},
-    {version = ">=0.10.0,<0.11.0", python = ">=3.12", optional = true}
-]
+duckdb = {version = ">=0.6.1,<0.11", optional = true}
+# keep per-python version dependency as a reference
+# duckdb = [
+#     {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},
+#     {version = ">=0.10.0,<0.11.0", python = ">=3.12", optional = true}
+# ]
 dbt-core = {version = ">=1.2.0", optional = true}
 dbt-redshift = {version = ">=1.2.0", optional = true}
 dbt-bigquery = {version = ">=1.2.0", optional = true}

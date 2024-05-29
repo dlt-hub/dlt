@@ -12,7 +12,7 @@ keywords: [Databricks, destination, data warehouse]
 ## Install dlt with Databricks
 **To install the dlt library with Databricks dependencies:**
 ```sh
-pip install dlt[databricks]
+pip install "dlt[databricks]"
 ```
 
 ## Set up your Databricks workspace
