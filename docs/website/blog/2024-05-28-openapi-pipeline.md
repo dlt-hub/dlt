@@ -23,7 +23,7 @@ Just point it to an OpenAPI spec, select your endpoints, and you're done!
 
 ### What's OpenAPI again?
 
-[OpenAPI](https://www.openapis.org/) is the world's most widely used API description standard.
+[OpenAPI](https://www.openapis.org/) is the world's most widely used API description standard. You may have heard about swagger docs? those are docs generated from the spec.
 In 2021 an information-security company named Assetnote scanned the web and unearthed [200,000 public
 OpenAPI files](https://www.assetnote.io/resources/research/contextual-content-discovery-youve-forgotten-about-the-api-endpoints).
 Modern API frameworks like [FastAPI](https://pypi.org/project/fastapi/) generate such specifications automatically.
@@ -35,9 +35,9 @@ Modern API frameworks like [FastAPI](https://pypi.org/project/fastapi/) generate
 Our tool does its best to pick out the necessary details and detect the rest to generate the complete pipeline for you.
 
 The information required for taking those decisions comes from:
-- The OpenAPI Spec (endpoints, auth)
-- The dlt REST API Source which attempts to detect pagination
-- The dlt OpenAPI Source which attempts to detect incremental logic and dependent requests.
+- The OpenAPI [Spec](https://github.com/dlt-hub/openapi-specs) (endpoints, auth)
+- The dlt [REST API Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/rest_api) which attempts to detect pagination
+- The [dlt init OpenAPI generator](https://dlthub.com/docs/dlt-ecosystem/verified-sources/openapi-generator) which attempts to detect incremental logic and dependent requests.
 
 ### How well does it work?
 
@@ -66,15 +66,20 @@ So we are eager to get feedback from you on what works and what needs work, enab
 ## Try it out now!
 
 **Video Walkthrough:**
-<iframe width="100%" height="auto" src="https://www.youtube.com/embed/b99qv9je12Q?si=veVVSlHkKQxDX3FX" title="OpenAPI tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+<div style="position: relative; overflow: hidden; padding-top: 56.25%; height: 0;">
+    <iframe src="https://www.youtube.com/embed/b99qv9je12Q" title="OpenAPI tutorial" frameborder="0" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+</div>
 
-**[Colab demo.](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing)**
 
-**[Docs.](https://dlthub.com/docs/dlt-ecosystem/verified-sources/openapi-generator)**
+**[Colab demo](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing)** - Load data from Stripe API to DuckDB using dlt and OpenAPI
 
-**[Tool and Code repo.](https://github.com/dlt-hub/dlt-init-openapi)**
+**[Docs](https://dlthub.com/docs/dlt-ecosystem/verified-sources/openapi-generator)** for `dlt-init-openapi`
+
+dlt init openapi **[code repo.](https://github.com/dlt-hub/dlt-init-openapi)**
 
 **[Specs repository you can generate from.](https://github.com/dlt-hub/openapi-specs)**
+
+Showcase your pipeline in the community sources **[here](https://www.notion.so/dlthub/dltHub-Community-Sources-Snippets-7a7f7ddb39334743b1ba3debbdfb8d7f)
 
 ## Next steps: Feedback, discussion and sharing.
 
