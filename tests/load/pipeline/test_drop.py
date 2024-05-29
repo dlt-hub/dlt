@@ -207,7 +207,7 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
 
     with mock.patch.object(
         pipeline.destination.client_class,
-        "drop_resources",
+        "drop_tables",
         autospec=True,
         side_effect=RuntimeError("Oh no!"),
     ):
