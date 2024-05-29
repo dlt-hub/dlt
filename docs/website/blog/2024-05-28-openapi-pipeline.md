@@ -10,21 +10,23 @@ authors:
 tags: [openapi, pipeline generation, rest-api]
 ---
 
-# Welcome to the Future of Data Pipelines, now.
+# The Future of Data Pipelines starts **now**.
 
 Dear dltHub Community,
 
 We are thrilled to announce the launch of our groundbreaking pipeline generator tool.
 
-We call it the `dlt-init-openapi`, or OpenAPI Source.
+We call it the `dlt-init-openapi`.
 
 Just point it to an OpenAPI spec, select your endpoints, and you're done!
+
 
 ### What's OpenAPI again?
 
 [OpenAPI](https://www.openapis.org/) is the world's most widely used API description standard.
 In 2021 an information-security company named Assetnote scanned the web and unearthed [200,000 public
-OpenAPI files](https://www.assetnote.io/resources/research/contextual-content-discovery-youve-forgotten-about-the-api-endpoints). Modern API frameworks like FastAPI generate such specifications automatically.
+OpenAPI files](https://www.assetnote.io/resources/research/contextual-content-discovery-youve-forgotten-about-the-api-endpoints).
+Modern API frameworks like [FastAPI](https://pypi.org/project/fastapi/) generate such specifications automatically.
 
 ## How does it work?
 
@@ -74,11 +76,17 @@ So we are eager to get feedback from you on what works and what needs work, enab
 
 **[Specs repository you can generate from.](https://github.com/dlt-hub/openapi-specs)**
 
-## Next steps
+## Next steps: Feedback, discussion and sharing.
 
-We're excited to see how you will use our new pipeline generator and we are eager for your feeedback. **[Join our community!](https://dlthub.com/community)**
+Solving data engineering headaches in the open source is a team sport.
+We got this far with your feedback and help, and are counting on your continuous usage and engagement
+to steer our pushing of what's possible into uncharted, but needed directions.
 
-Got an OpenAPI spec? **[Add it to our specs repository](https://github.com/dlt-hub/openapi-specs)** so others may use it. If the spec doesn't work, please note that in the PR and we will use it for R&D.
+So here's our call to action:
+
+- We're excited to see how you will use our new pipeline generator and we are
+eager for your feedback. **[Join our community and let us know how we can improve dlt-init-openapi](https://dlthub.com/community)**
+- Got an OpenAPI spec? **[Add it to our specs repository](https://github.com/dlt-hub/openapi-specs)** so others may use it. If the spec doesn't work, please note that in the PR and we will use it for R&D.
 
 *Thank you for being part of our community and for building the future of ETL together!*
 
