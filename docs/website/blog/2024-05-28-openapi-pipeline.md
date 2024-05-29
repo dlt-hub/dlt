@@ -7,7 +7,7 @@ authors:
   title: Open source Data Engineer
   url: https://github.com/adrianbr
   image_url: https://avatars.githubusercontent.com/u/5762770?v=4
-tags: [openapi, pipeline generation, rest-api]
+tags: [openapi]
 ---
 
 # The Future of Data Pipelines starts now.
