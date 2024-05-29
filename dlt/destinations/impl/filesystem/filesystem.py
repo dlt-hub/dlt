@@ -417,8 +417,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         """Iterator over all schema files matching the current schema name"""
         for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
             if fileparts[0] == self.schema.name:
-                continue
-            yield filepath, fileparts
+                yield filepath, fileparts
 
     def _get_stored_schema_by_hash_or_newest(
         self, version_hash: str = None
