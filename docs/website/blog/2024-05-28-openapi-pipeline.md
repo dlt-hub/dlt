@@ -66,9 +66,8 @@ So we are eager to get feedback from you on what works and what needs work, enab
 ## Try it out now!
 
 **Video Walkthrough:**
-<div style="position: relative; overflow: hidden; padding-top: 56.25%; height: 0;">
-    <iframe src="https://www.youtube.com/embed/b99qv9je12Q" title="OpenAPI tutorial" frameborder="0" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-</div>
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/b99qv9je12Q?si=veVVSlHkKQxDX3FX" title="OpenAPI tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 
 **[Colab demo](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI?usp=sharing)** - Load data from Stripe API to DuckDB using dlt and OpenAPI
