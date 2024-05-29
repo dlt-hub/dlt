@@ -3,23 +3,21 @@ import os
 import base64
 
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Dict, Iterator, Optional, Tuple, cast, Callable
+from typing import ClassVar, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
-from pathlib import Path
 
 import dlt
 from dlt.common import logger, time, json, pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage, fsspec_from_config
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
     TLoadJobState,
     LoadJob,
-    DirectoryLoadJob,
     JobClientBase,
     FollowupJob,
     WithStagingDataset,
@@ -27,9 +25,10 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     DoNothingJob,
+    DoNothingFollowupJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
@@ -92,31 +91,36 @@ class LoadFilesystemJob(LoadJob):
         raise NotImplementedError()
 
 
-class DeltaLoadFilesystemJob(DirectoryLoadJob):
+class DeltaLoadFilesystemJob(NewReferenceJob):
     def __init__(
         self,
         client: "FilesystemClient",
-        local_path: str,
         table: TTableSchema,
+        table_jobs: Sequence[LoadJobInfo],
     ) -> None:
         self.client = client
-        self.local_path = local_path
         self.table = table
+        self.table_jobs = table_jobs
 
-        super().__init__(dir_name=Path(local_path).name)
+        ref_file_name = ParsedLoadJobFileName(
+            table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
+        ).file_name()
+        super().__init__(file_name=ref_file_name, status="running")
 
         self.write()
 
     def write(self) -> None:
-        import pyarrow.parquet as pq
+        import pyarrow.dataset as ds
         from dlt.destinations.impl.filesystem.utils import (
             write_delta_table,
             _deltalake_storage_options,
         )
 
+        file_paths = [job.file_path for job in self.table_jobs]
+
         write_delta_table(
             path=self.client.make_remote_uri(self.make_remote_path()),
-            table=pq.read_table(self.local_path),
+            data=ds.dataset(file_paths),
             write_disposition=self.table["write_disposition"],
             storage_options=_deltalake_storage_options(self.client),
         )
@@ -301,19 +305,14 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging:
             return DoNothingJob(file_path)
+        if table["table_format"] == "delta":
+            return DoNothingFollowupJob(file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
-
-    def start_dir_load(self, table: TTableSchema, dir_path: str, load_id: str) -> DirectoryLoadJob:
-        if table["table_format"] == "delta":
-            cls = DeltaLoadFilesystemJob
-        else:
-            raise ValueError("`table` is not compatible with `DirectoryLoadJob`.")
-        return cls(self, dir_path, table)
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""
@@ -495,3 +494,14 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)
+
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[TTableSchema],
+        table_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[NewLoadJob]:
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_jobs)
+        table_format = table_chain[0]["table_format"]
+        if table_format == "delta":
+            jobs.append(DeltaLoadFilesystemJob(self, table_chain[0], table_jobs))
+        return jobs

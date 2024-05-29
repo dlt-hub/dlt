@@ -34,22 +34,10 @@ class LoadItemStorage(DataItemStorage):
     def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
         # implements DataItemStorage._get_data_item_path_template
         file_name = PackageStorage.build_job_file_name(table_name, "%s")
-        subfolder = self._get_data_item_subfolder(load_id, table_name)
         file_path = self.package_storage.get_job_file_path(
-            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name, subfolder
+            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
         )
         return self.package_storage.storage.make_full_path(file_path)
-
-    def _get_data_item_subfolder(self, load_id: str, table_name: str) -> Optional[str]:
-        """Returns name of subfolder for `table_name`.
-
-        Returns None if subfolder is not used.
-        """
-        subfolder = self.package_storage.get_job_folder_path(
-            load_id, PackageStorage.NEW_JOBS_FOLDER, table_name
-        )
-        subfolder_exists = self.package_storage.storage.has_folder(subfolder)
-        return table_name if subfolder_exists else None
 
 
 class LoadStorage(VersionedStorage):
@@ -107,20 +95,19 @@ class LoadStorage(VersionedStorage):
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""
-        file_jobs = self.normalized_packages.list_new_jobs(load_id, root_only=True)
-        dir_jobs = self.normalized_packages.list_new_dir_jobs(load_id)
+        new_jobs = self.normalized_packages.list_new_jobs(load_id)
         # make sure all jobs have supported writers
         wrong_job = next(
             (
                 j
-                for j in file_jobs
+                for j in new_jobs
                 if ParsedLoadJobFileName.parse(j).file_format not in self.supported_job_file_formats
             ),
             None,
         )
         if wrong_job is not None:
             raise JobFileFormatUnsupported(load_id, self.supported_job_file_formats, wrong_job)
-        return file_jobs + dir_jobs  # type: ignore[no-any-return, operator]
+        return new_jobs
 
     def commit_new_load_package(self, load_id: str) -> None:
         self.storage.rename_tree(

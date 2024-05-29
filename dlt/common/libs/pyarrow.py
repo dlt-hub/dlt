@@ -28,6 +28,7 @@ try:
     import pyarrow
     import pyarrow.parquet
     import pyarrow.compute
+    import pyarrow.dataset
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
@@ -397,6 +398,10 @@ def pq_stream_with_new_columns(
                 else:
                     tbl = tbl.add_column(idx, field, gen_(tbl))
             yield tbl
+
+
+def ensure_arrow_table(data: Union[pyarrow.Table, pyarrow.dataset.Dataset]) -> pyarrow.Table:
+    return data.to_table() if isinstance(data, pyarrow.dataset.Dataset) else data
 
 
 def adjust_arrow_schema(

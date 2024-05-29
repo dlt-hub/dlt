@@ -1,4 +1,4 @@
-from typing import List, Set, Iterable, Callable, Union
+from typing import List, Set, Iterable, Callable
 
 from dlt.common import logger
 from dlt.common.storages.load_package import LoadJobInfo, PackageStorage
@@ -8,7 +8,7 @@ from dlt.common.schema.utils import (
     get_top_level_table,
     has_table_seen_data,
 )
-from dlt.common.storages.load_package import ParsedLoadJobFileName, ParsedLoadJobDirectoryName
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.destination.reference import (
@@ -62,7 +62,7 @@ def get_completed_table_chain(
 def init_client(
     job_client: JobClientBase,
     schema: Schema,
-    new_jobs: Iterable[Union[ParsedLoadJobFileName, ParsedLoadJobDirectoryName]],
+    new_jobs: Iterable[ParsedLoadJobFileName],
     expected_update: TSchemaTables,
     truncate_filter: Callable[[TTableSchema], bool],
     load_staging_filter: Callable[[TTableSchema], bool],

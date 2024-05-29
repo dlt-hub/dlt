@@ -1,7 +1,7 @@
 import contextlib
 from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple, Union, Iterator, Iterable, get_args
+from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable
 from concurrent.futures import Executor
 import os
 
@@ -17,12 +17,8 @@ from dlt.common.pipeline import (
     WithStepInfo,
 )
 from dlt.common.schema.utils import get_top_level_table
-from dlt.common.storages.load_storage import LoadPackageInfo, TJobState
-from dlt.common.storages.load_package import (
-    LoadPackageStateInjectableContext,
-    ParsedLoadJobFileName,
-    ParsedLoadJobDirectoryName,
-)
+from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.logger import pretty_format_exception
@@ -30,7 +26,6 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.configuration.container import Container
 from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     FollowupJob,
@@ -132,10 +127,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     @staticmethod
     @workermethod
-    def w_spool_job(self: "Load", job_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
+    def w_spool_job(
+        self: "Load", file_path: str, load_id: str, schema: Schema
+    ) -> Optional[LoadJob]:
         job: LoadJob = None
         try:
-            is_staging_destination_job = self.is_staging_destination_job(job_path)
+            is_staging_destination_job = self.is_staging_destination_job(file_path)
             job_client = self.get_destination_client(schema)
 
             # if we have a staging destination and the file is not a reference, send to staging
@@ -144,23 +141,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if is_staging_destination_job
                 else job_client
             ) as client:
-                job_info = (
-                    ParsedLoadJobFileName.parse(job_path)
-                    if self.is_file_job(job_path)
-                    else ParsedLoadJobDirectoryName.parse(job_path)
-                )
-                if isinstance(job_info, ParsedLoadJobFileName):
-                    if job_info.file_format not in self.load_storage.supported_job_file_formats:
-                        raise LoadClientUnsupportedFileFormats(
-                            job_info.file_format,
-                            self.capabilities.supported_loader_file_formats,
-                            job_path,
-                        )
-                logger.info(f"Will load file {job_path} with table name {job_info.table_name}")  # type: ignore[attr-defined]
-                table = client.prepare_load_table(job_info.table_name)  # type: ignore[attr-defined]
+                job_info = ParsedLoadJobFileName.parse(file_path)
+                if job_info.file_format not in self.load_storage.supported_job_file_formats:
+                    raise LoadClientUnsupportedFileFormats(
+                        job_info.file_format,
+                        self.capabilities.supported_loader_file_formats,
+                        file_path,
+                    )
+                logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+                table = client.prepare_load_table(job_info.table_name)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(
-                        job_info.table_name, table["write_disposition"], job_path  # type: ignore[attr-defined]
+                        job_info.table_name, table["write_disposition"], file_path
                     )
 
                 if is_staging_destination_job:
@@ -175,29 +167,26 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     ) and job_client.should_load_data_to_staging_dataset(table)
 
                 with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                    start_job_load = client.start_file_load
-                    if table["table_format"] == "delta":
-                        start_job_load = client.start_dir_load  # type: ignore[attr-defined]
-                    job = start_job_load(
+                    job = client.start_file_load(
                         table,
-                        self.load_storage.normalized_packages.storage.make_full_path(job_path),
+                        self.load_storage.normalized_packages.storage.make_full_path(file_path),
                         load_id,
                     )
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
-            logger.exception(f"Terminal problem when adding job {job_path}")
-            job = EmptyLoadJob.from_file_path(job_path, "failed", pretty_format_exception())
+            logger.exception(f"Terminal problem when adding job {file_path}")
+            job = EmptyLoadJob.from_file_path(file_path, "failed", pretty_format_exception())
         except (DestinationTransientException, Exception):
             # return no job so file stays in new jobs (root) folder
-            logger.exception(f"Temporary problem when adding job {job_path}")
-            job = EmptyLoadJob.from_file_path(job_path, "retry", pretty_format_exception())
+            logger.exception(f"Temporary problem when adding job {file_path}")
+            job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
         if job is None:
             raise DestinationTerminalException(
-                f"Destination could not create a job for file {job_path}. Typically the file"
+                f"Destination could not create a job for file {file_path}. Typically the file"
                 " extension could not be associated with job type and that indicates an error in"
                 " the code."
             )
-        self.load_storage.normalized_packages.start_job(load_id, job)
+        self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 
     def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
@@ -243,22 +232,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         return len(jobs), jobs
 
-    # def get_new_jobs_info(self, load_id: str) -> Union[List[ParsedLoadJobFileName], List[ParsedLoadJobDirectoryName]]:
-    def get_new_jobs_info(
-        self, load_id: str
-    ) -> List[Union[ParsedLoadJobFileName, ParsedLoadJobDirectoryName]]:
+    def get_new_jobs_info(self, load_id: str) -> List[ParsedLoadJobFileName]:
         return [
-            (
-                ParsedLoadJobFileName.parse(job)
-                if self.is_file_job(job)
-                else ParsedLoadJobDirectoryName.parse(job)
-            )
-            for job in self.load_storage.list_new_jobs(load_id)
+            ParsedLoadJobFileName.parse(job_file)
+            for job_file in self.load_storage.list_new_jobs(load_id)
         ]
-
-    @staticmethod
-    def is_file_job(job_path: str) -> bool:
-        return job_path.endswith(get_args(TLoaderFileFormat))
 
     def create_followup_jobs(
         self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
@@ -278,8 +256,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if table_chain := get_completed_table_chain(
                     schema, all_jobs, top_job_table, starting_job.job_file_info().job_id()
                 ):
+                    table_jobs = [
+                        job
+                        for job in all_jobs
+                        if job.job_file_info.table_name == top_job_table["name"]
+                    ]
                     if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
-                        table_chain
+                        table_chain, table_jobs
                     ):
                         jobs = jobs + follow_up_jobs
             jobs = jobs + starting_job.create_followup_jobs(state)
@@ -327,7 +310,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
                 # try to get exception message from job
                 failed_message = job.exception()
-                self.load_storage.normalized_packages.fail_job(load_id, job, failed_message)
+                self.load_storage.normalized_packages.fail_job(
+                    load_id, job.file_name(), failed_message
+                )
                 logger.error(
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
@@ -336,7 +321,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # try to get exception message from job
                 retry_message = job.exception()
                 # move back to new folder to try again
-                self.load_storage.normalized_packages.retry_job(load_id, job)
+                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
                 logger.warning(
                     f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
                 )
@@ -345,7 +330,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 _schedule_followup_jobs(self.create_followup_jobs(load_id, state, job, schema))
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
-                self.load_storage.normalized_packages.complete_job(load_id, job)
+                self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
                 logger.info(f"Job for {job.job_id()} completed in load {load_id}")
 
             if state in ["failed", "completed"]:

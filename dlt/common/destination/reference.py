@@ -49,6 +49,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -214,20 +215,6 @@ class LoadJob:
         pass
 
 
-class DirectoryLoadJob:
-    """Job that loads a directory of files in a single transaction."""
-
-    def __init__(self, dir_name: str) -> None:
-        self._dir_name = dir_name
-
-    def dir_name(self) -> str:
-        """Returns name of directory containing the job files."""
-        return self._dir_name
-
-    def job_id(self) -> str:
-        return "hacked_job_id"
-
-
 class NewLoadJob(LoadJob):
     """Adds a trait that allows to save new job file"""
 
@@ -331,7 +318,9 @@ class JobClientBase(ABC):
         return table["write_disposition"] == "replace" and not self.can_do_logical_replace(table)
 
     def create_table_chain_completed_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self,
+        table_chain: Sequence[TTableSchema],
+        table_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []

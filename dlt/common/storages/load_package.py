@@ -22,7 +22,6 @@ from typing import (
     Any,
     Tuple,
     TypedDict,
-    Union,
 )
 from typing_extensions import NotRequired
 
@@ -137,7 +136,7 @@ TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborte
 
 
 class ParsedLoadJobFileName(NamedTuple):
-    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retired, extension
+    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retried, extension
     and a 5 bytes random string to make job file name unique.
     The job id does not contain retry count and is immutable during loading of the data
     """
@@ -176,15 +175,6 @@ class ParsedLoadJobFileName(NamedTuple):
 
     def __str__(self) -> str:
         return self.job_id()
-
-
-class ParsedLoadJobDirectoryName(NamedTuple):
-    table_name: str
-
-    @staticmethod
-    def parse(dir_name: str) -> "ParsedLoadJobDirectoryName":
-        table_name = Path(dir_name).name
-        return ParsedLoadJobDirectoryName(table_name=table_name)
 
 
 class LoadJobInfo(NamedTuple):
@@ -326,18 +316,11 @@ class PackageStorage:
     def get_package_path(self, load_id: str) -> str:
         return load_id
 
-    def get_job_folder_path(
-        self, load_id: str, folder: TJobState, subfolder: Optional[str] = None
-    ) -> str:
-        if subfolder is None:
-            return os.path.join(self.get_package_path(load_id), folder)
-        else:
-            return os.path.join(self.get_package_path(load_id), folder, subfolder)
+    def get_job_folder_path(self, load_id: str, folder: TJobState) -> str:
+        return os.path.join(self.get_package_path(load_id), folder)
 
-    def get_job_file_path(
-        self, load_id: str, folder: TJobState, file_name: str, subfolder: Optional[str] = None
-    ) -> str:
-        return os.path.join(self.get_job_folder_path(load_id, folder, subfolder), file_name)
+    def get_job_file_path(self, load_id: str, folder: TJobState, file_name: str) -> str:
+        return os.path.join(self.get_job_folder_path(load_id, folder), file_name)
 
     def list_packages(self) -> Sequence[str]:
         """Lists all load ids in storage, earliest first
@@ -348,17 +331,11 @@ class PackageStorage:
         # start from the oldest packages
         return sorted(loads)
 
-    def list_new_jobs(self, load_id: str, root_only: bool = False) -> Sequence[str]:
-        root_dir = self.get_job_folder_path(load_id, PackageStorage.NEW_JOBS_FOLDER)
-        if root_only:
-            return self.storage.list_folder_files(root_dir)
-        sub_dirs = self.storage.list_folder_dirs(root_dir)
-        dirs = [root_dir] + sub_dirs
-        return [file for dir_ in dirs for file in self.storage.list_folder_files(dir_)]
-
-    def list_new_dir_jobs(self, load_id: str) -> Sequence[str]:
-        root_dir = self.get_job_folder_path(load_id, PackageStorage.NEW_JOBS_FOLDER)
-        return self.storage.list_folder_dirs(root_dir)
+    def list_new_jobs(self, load_id: str) -> Sequence[str]:
+        new_jobs = self.storage.list_folder_files(
+            self.get_job_folder_path(load_id, PackageStorage.NEW_JOBS_FOLDER)
+        )
+        return new_jobs
 
     def list_started_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(
@@ -405,19 +382,17 @@ class PackageStorage:
         """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
         self.storage.atomic_import(job_file_path, self.get_job_folder_path(load_id, job_state))
 
-    def start_job(self, load_id: str, job: Union["LoadJob", "DirectoryLoadJob"]) -> str:  # type: ignore[name-defined] # noqa: F821
+    def start_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(
-            load_id, PackageStorage.NEW_JOBS_FOLDER, PackageStorage.STARTED_JOBS_FOLDER, job
+            load_id, PackageStorage.NEW_JOBS_FOLDER, PackageStorage.STARTED_JOBS_FOLDER, file_name
         )
 
-    def fail_job(
-        self, load_id: str, job: Union["LoadJob", "DirectoryLoadJob"], failed_message: Optional[str]  # type: ignore[name-defined] # noqa: F821
-    ) -> str:
+    def fail_job(self, load_id: str, file_name: str, failed_message: Optional[str]) -> str:
         # save the exception to failed jobs
         if failed_message:
             self.storage.save(
                 self.get_job_file_path(
-                    load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + ".exception"
                 ),
                 failed_message,
             )
@@ -426,30 +401,28 @@ class PackageStorage:
             load_id,
             PackageStorage.STARTED_JOBS_FOLDER,
             PackageStorage.FAILED_JOBS_FOLDER,
-            job.file_name(),
+            file_name,
         )
 
-    def retry_job(self, load_id: str, job: Union["LoadJob", "DirectoryLoadJob"]) -> str:  # type: ignore[name-defined] # noqa: F821
+    def retry_job(self, load_id: str, file_name: str) -> str:
         # when retrying job we must increase the retry count
-        source_fn = ParsedLoadJobFileName.parse(job.file_name())
+        source_fn = ParsedLoadJobFileName.parse(file_name)
         dest_fn = source_fn.with_retry()
         # move it directly to new file name
         return self._move_job(
             load_id,
             PackageStorage.STARTED_JOBS_FOLDER,
             PackageStorage.NEW_JOBS_FOLDER,
-            job.file_name(),
+            file_name,
             dest_fn.file_name(),
         )
 
-    def complete_job(
-        self, load_id: str, job: Union["LoadJob", "DirectoryLoadJob"]  # type: ignore[name-defined] # noqa: F821
-    ) -> str:
+    def complete_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(
             load_id,
             PackageStorage.STARTED_JOBS_FOLDER,
             PackageStorage.COMPLETED_JOBS_FOLDER,
-            job,
+            file_name,
         )
 
     #
@@ -628,25 +601,15 @@ class PackageStorage:
         load_id: str,
         source_folder: TJobState,
         dest_folder: TJobState,
-        job: Union["LoadJob", "DirectoryLoadJob"],  # type: ignore[name-defined] # noqa: F821
+        file_name: str,
         new_file_name: str = None,
     ) -> str:
-        from dlt.common.destination.reference import LoadJob, DirectoryLoadJob
-
+        # ensure we move file names, not paths
+        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         load_path = self.get_package_path(load_id)
-
-        if isinstance(job, LoadJob):
-            source_name = job.file_name()
-            # ensure we move file names, not paths
-            assert source_name == FileStorage.get_file_name_from_file_path(source_name)
-            dest_name = new_file_name or source_name
-        elif isinstance(job, DirectoryLoadJob):
-            source_name = job.dir_name()
-            dest_name = job.dir_name()
-
-        source_path = os.path.join(load_path, source_folder, source_name)
-        dest_path = os.path.join(load_path, dest_folder, dest_name)
-        self.storage.atomic_rename(source_path, dest_path)
+        dest_path = os.path.join(load_path, dest_folder, new_file_name or file_name)
+        self.storage.atomic_rename(os.path.join(load_path, source_folder, file_name), dest_path)
+        # print(f"{join(load_path, source_folder, file_name)} -> {dest_path}")
         return self.storage.make_full_path(dest_path)
 
     def _load_schema(self, load_id: str) -> DictStrAny:

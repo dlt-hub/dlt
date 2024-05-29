@@ -255,8 +255,8 @@ def test_pipeline_delta_filesystem_destination(
     assert_load_info(info)
 
     # `delta` table format should use `parquet` file format
-    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith(".parquet")
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in completed_jobs])
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
@@ -313,8 +313,8 @@ def test_pipeline_delta_filesystem_destination(
     reset_pipeline(p)
     info = p.run(r(), loader_file_format="csv")
     assert_load_info(info)
-    job = info.load_packages[0].jobs["completed_jobs"][0].file_path
-    assert job.endswith(".parquet")
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in completed_jobs])
 
 
 TEST_LAYOUTS = (

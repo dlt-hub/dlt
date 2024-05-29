@@ -1,9 +1,9 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 
 import pyarrow as pa
 
 from dlt.common.json import json
-from dlt.common.libs.pyarrow import adjust_arrow_schema
+from dlt.common.libs.pyarrow import ensure_arrow_table, adjust_arrow_schema
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
@@ -38,12 +38,14 @@ def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
 
 def write_delta_table(
     path: str,
-    table: pa.Table,
+    data: Union[pa.Table, pa.dataset.Dataset],
     write_disposition: TWriteDisposition,
     storage_options: Optional[Dict[str, str]] = None,
 ) -> None:
     """Writes in-memory Arrow table to on-disk Delta table."""
     from deltalake import write_deltalake
+
+    table = ensure_arrow_table(data)
 
     # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
     # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500

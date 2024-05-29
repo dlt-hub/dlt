@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from dlt.common.data_writers import TDataItemFormat, DataWriterMetrics, DataWriter, FileWriterSpec
 from dlt.common.schema import Schema
@@ -24,22 +24,10 @@ class ExtractorItemStorage(DataItemStorage):
 
     def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
         file_name = PackageStorage.build_job_file_name(table_name, "%s")
-        subfolder = self._get_data_item_subfolder(load_id, table_name)
         file_path = self.package_storage.get_job_file_path(
-            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name, subfolder
+            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
         )
         return self.package_storage.storage.make_full_path(file_path)
-
-    def _get_data_item_subfolder(self, load_id: str, table_name: str) -> Optional[str]:
-        """Returns name of subfolder for `table_name`.
-
-        Returns None if subfolder is not used.
-        """
-        subfolder = self.package_storage.get_job_folder_path(
-            load_id, PackageStorage.NEW_JOBS_FOLDER, table_name
-        )
-        subfolder_exists = self.package_storage.storage.has_folder(subfolder)
-        return table_name if subfolder_exists else None
 
 
 class ExtractStorage(NormalizeStorage):
