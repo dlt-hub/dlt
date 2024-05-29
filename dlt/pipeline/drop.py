@@ -105,7 +105,8 @@ def drop_resources(
     resources = list(resources)
     if isinstance(sources, str):
         sources = [sources]
-    sources = list(sources)
+    if sources is not None:
+        sources = list(sources)
     if isinstance(state_paths, str):
         state_paths = [state_paths]
 
