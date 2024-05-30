@@ -1,4 +1,5 @@
-from typing import ClassVar, List, Any, cast, Union, Tuple
+from types import TracebackType
+from typing import ClassVar, List, Any, cast, Union, Tuple, Iterable, Type, Optional
 
 import lancedb
 import pyarrow as pa
@@ -10,8 +11,8 @@ from numpy import ndarray
 from pyarrow import Array, ChunkedArray
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (JobClientBase, WithStateSync, )
-from dlt.common.schema import Schema
+from dlt.common.destination.reference import (JobClientBase, WithStateSync, LoadJob, StorageSchemaInfo, StateInfo, )
+from dlt.common.schema import Schema, TTableSchema
 from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 
@@ -87,3 +88,47 @@ class LanceDBClient(JobClientBase, WithStateSync):
             A LanceDB query builder.
         """
         return self.db_client.open_table(self.make_qualified_table_name(table_name)).search(query=query)
+
+
+    def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
+        pass
+
+
+    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+        pass
+
+
+    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+        pass
+
+
+    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+        pass
+
+
+    def __enter__(self) -> "JobClientBase":
+        pass
+
+
+    def complete_load(self, load_id: str) -> None:
+        pass
+
+
+    def restore_file_load(self, file_path: str) -> LoadJob:
+        pass
+
+
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        pass
+
+
+    def drop_storage(self) -> None:
+        pass
+
+
+    def is_storage_initialized(self) -> bool:
+        pass
+
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        pass
