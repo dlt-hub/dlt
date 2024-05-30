@@ -243,15 +243,15 @@ def test_pipeline_delta_filesystem_destination(
     p = dlt.pipeline(pipeline_name="delta", destination="filesystem", full_refresh=True)
 
     # create resource that yields rows with all data types
-    column_schemas, data_types = table_update_and_row()
+    column_schemas, row = table_update_and_row()
 
-    @dlt.resource(table_name="data_types", columns=column_schemas, table_format="delta")
-    def r():
-        nonlocal data_types
-        yield [data_types] * 10
+    @dlt.resource(columns=column_schemas, table_format="delta")
+    def data_types():
+        nonlocal row
+        yield [row] * 10
 
     # run pipeline, this should create Delta table
-    info = p.run(r())
+    info = p.run(data_types())
     assert_load_info(info)
 
     # `delta` table format should use `parquet` file format
@@ -265,19 +265,19 @@ def test_pipeline_delta_filesystem_destination(
     assert_all_data_types_row(rows[0], schema=column_schemas)
 
     # another run should append rows to the table
-    info = p.run(r())
+    info = p.run(data_types())
     assert_load_info(info)
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 20
 
     # ensure write disposition is handled
-    info = p.run(r(), write_disposition="replace")
+    info = p.run(data_types(), write_disposition="replace")
     assert_load_info(info)
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
     # resolves to `append` behavior
-    info = p.run(r(), write_disposition="merge")
+    info = p.run(data_types(), write_disposition="merge")
     assert_load_info(info)
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 20
@@ -287,7 +287,7 @@ def test_pipeline_delta_filesystem_destination(
     fs = filesystem(layout="{schema_name}/foo/{table_name}/{load_id}.{file_id}.{ext}")
     p._set_destinations(destination=fs)
 
-    info = p.run(r())
+    info = p.run(data_types())
     assert_load_info(info)
     assert Path(p._fs_client().get_table_dir("data_types")).parts[-3:] == (
         "delta",
@@ -297,13 +297,75 @@ def test_pipeline_delta_filesystem_destination(
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
-    @dlt.resource(table_name="simple_table", table_format="delta")
-    def r2():
+    @dlt.resource(table_format="delta")
+    def complex_table():
+        yield [
+            {
+                "foo": 1,
+                "child": [{"bar": True, "grandchild": [1, 2]}, {"bar": True, "grandchild": [1]}],
+            },
+            {
+                "foo": 2,
+                "child": [
+                    {"bar": False, "grandchild": [1, 3]},
+                ],
+            },
+        ]
+
+    # test child table handling
+    reset_pipeline(p)
+    info = p.run(complex_table())
+    assert_load_info(info)
+    rows_dict = load_tables_to_dicts(
+        p,
+        "complex_table",
+        "complex_table__child",
+        "complex_table__child__grandchild",
+        exclude_system_cols=True,
+    )
+    # assert row counts
+    assert len(rows_dict["complex_table"]) == 2
+    assert len(rows_dict["complex_table__child"]) == 3
+    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+    # assert column names
+    assert rows_dict["complex_table"][0].keys() == {"foo"}
+    assert rows_dict["complex_table__child"][0].keys() == {"bar"}
+    assert rows_dict["complex_table__child__grandchild"][0].keys() == {"value"}
+
+    # test write disposition handling with child tables
+    info = p.run(complex_table())
+    assert_load_info(info)
+    rows_dict = load_tables_to_dicts(
+        p,
+        "complex_table",
+        "complex_table__child",
+        "complex_table__child__grandchild",
+        exclude_system_cols=True,
+    )
+    assert len(rows_dict["complex_table"]) == 2 * 2
+    assert len(rows_dict["complex_table__child"]) == 3 * 2
+    assert len(rows_dict["complex_table__child__grandchild"]) == 5 * 2
+
+    info = p.run(complex_table(), write_disposition="replace")
+    assert_load_info(info)
+    rows_dict = load_tables_to_dicts(
+        p,
+        "complex_table",
+        "complex_table__child",
+        "complex_table__child__grandchild",
+        exclude_system_cols=True,
+    )
+    assert len(rows_dict["complex_table"]) == 2
+    assert len(rows_dict["complex_table__child"]) == 3
+    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+
+    @dlt.resource(table_format="delta")
+    def simple_table():
         yield [1, 2, 3]
 
     @dlt.source
     def s():
-        return [r(), r2()]
+        return [data_types(), simple_table()]
 
     reset_pipeline(p)
     info = p.run(s())
@@ -311,7 +373,7 @@ def test_pipeline_delta_filesystem_destination(
 
     # provided loader file format should be overridden if it's not `parquet`
     reset_pipeline(p)
-    info = p.run(r(), loader_file_format="csv")
+    info = p.run(data_types(), loader_file_format="csv")
     assert_load_info(info)
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
     assert all([job.file_path.endswith((".parquet", ".reference")) for job in completed_jobs])

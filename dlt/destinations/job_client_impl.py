@@ -243,10 +243,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
-        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_jobs)
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "append":
             jobs.extend(self._create_append_followup_jobs(table_chain))

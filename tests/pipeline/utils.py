@@ -1,5 +1,4 @@
-import posixpath
-from typing import Any, Dict, List, Tuple, Callable, Sequence
+from typing import Any, Dict, List, Callable, Sequence
 import pytest
 import random
 from os import environ
@@ -8,14 +7,11 @@ import io
 import dlt
 from dlt.common import json, sleep
 from dlt.common.pipeline import LoadInfo
-from dlt.common.schema.typing import LOADS_TABLE_NAME
+from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
-from dlt.pipeline.exceptions import SqlClientNotAvailable
-from dlt.common.storages import FileStorage
 
-from tests.utils import TEST_STORAGE_ROOT
 
 PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
 
@@ -163,7 +159,7 @@ def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, Li
     for table_name in table_names:
         if (
             table_name in p.default_schema.data_table_names()
-            and p.default_schema.get_table(table_name).get("table_format") == "delta"
+            and get_table_format(p.default_schema.tables, table_name) == "delta"
         ):
             from deltalake import DeltaTable
             from dlt.destinations.impl.filesystem.utils import _deltalake_storage_options

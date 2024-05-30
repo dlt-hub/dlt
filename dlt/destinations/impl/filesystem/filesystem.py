@@ -498,10 +498,21 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
-        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_jobs)
+        def get_table_jobs(
+            table_jobs: Sequence[LoadJobInfo], table_name: str
+        ) -> Sequence[LoadJobInfo]:
+            return [job for job in table_jobs if job.job_file_info.table_name == table_name]
+
+        assert table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
         table_format = table_chain[0]["table_format"]
         if table_format == "delta":
-            jobs.append(DeltaLoadFilesystemJob(self, table_chain[0], table_jobs))
+            delta_jobs = [
+                DeltaLoadFilesystemJob(self, table, get_table_jobs(table_chain_jobs, table["name"]))
+                for table in table_chain
+            ]
+            jobs.extend(delta_jobs)
+
         return jobs
