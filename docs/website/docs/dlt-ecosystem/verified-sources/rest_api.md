@@ -623,13 +623,61 @@ In this example, the source will ignore responses with a status code of 404, res
 
 If you encounter issues while running the pipeline, enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) for detailed information about the execution:
 
-```bash
+```sh
 RUNTIME__LOG_LEVEL=INFO python my_script.py
 ```
 
 This also provides details on the HTTP requests.
 
 ### Configuration issues
+
+#### Getting validation errors
+
+When you running the pipeline and getting a `DictValidationException`, it means that the [source configuration](#source-configuration) is incorrect. The error message provides details on the issue including the path to the field and the expected type.
+
+For example, if you have a source configuration like this:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "params": {             # <- Wrong: this should be inside
+                "sort": "updated",  #    the endpoint field below
+            },
+            "endpoint": {
+                "path": "issues",
+                # "params": {       # <- Correct configuration
+                #     "sort": "updated",
+                # },
+            },
+        },
+        # ...
+    ],
+}
+```
+
+You will get an error like this:
+
+```sh
+dlt.common.exceptions.DictValidationException: In path .: field 'resources[0]'
+expects the following types: str, EndpointResource. Provided value {'name': 'issues', 'params': {'sort': 'updated'},
+'endpoint': {'path': 'issues', ... }} with type 'dict' is invalid with the following errors:
+For EndpointResource: In path ./resources[0]: following fields are unexpected {'params'}
+```
+
+It means that in the first resource configuration (`resources[0]`), the `params` field should be inside the `endpoint` field.
+
+:::tip
+Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE and use it to define the configuration object.
+
+```py
+from rest_api import RESTAPIConfig
+```
+:::
 
 #### Getting wrong data or no data
 
@@ -652,6 +700,6 @@ If experiencing 401 (Unauthorized) errors, this could indicate:
 
 ### General guidelines
 
-The `rest_api` source uses the [RESTClient](../../general-upage/http/rest-client.md) class for HTTP requests. Refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for debugging tips.
+The `rest_api` source uses the [RESTClient](../../general-usage/http/rest-client.md) class for HTTP requests. Refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for debugging tips.
 
 For further assistance, join our [Slack community](https://dlthub.com/community). We're here to help!
