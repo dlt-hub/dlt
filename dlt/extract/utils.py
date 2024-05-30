@@ -212,9 +212,6 @@ def wrap_async_iterator(
     except GeneratorExit:
         # mark as exhausted
         exhausted = True
-        # and close generator
-        if hasattr(gen, "aclose"):
-            asyncio.get_event_loop().run_until_complete(gen.aclose())
 
 
 def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
