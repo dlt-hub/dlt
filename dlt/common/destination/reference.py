@@ -312,7 +312,7 @@ class JobClientBase(ABC):
 
     def can_do_logical_replace(self, table: TTableSchema) -> bool:
         """Returns True if `replace` can be done without physically deleting data."""
-        return table["table_format"] == "delta"
+        return table.get("table_format") == "delta"
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
         return table["write_disposition"] == "replace" and not self.can_do_logical_replace(table)

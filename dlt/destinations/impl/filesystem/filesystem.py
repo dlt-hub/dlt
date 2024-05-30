@@ -305,7 +305,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging:
             return DoNothingJob(file_path)
-        if table["table_format"] == "delta":
+        if table.get("table_format") == "delta":
             return DoNothingFollowupJob(file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
@@ -507,7 +507,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         assert table_chain_jobs is not None
         jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
-        table_format = table_chain[0]["table_format"]
+        table_format = table_chain[0].get("table_format")
         if table_format == "delta":
             delta_jobs = [
                 DeltaLoadFilesystemJob(self, table, get_table_jobs(table_chain_jobs, table["name"]))
