@@ -6,12 +6,14 @@ from typing import (
     Any,
     TypeVar,
     Iterable,
+    Union,
     cast,
 )
 import copy
 from urllib.parse import urlparse
 from requests import Session as BaseSession  # noqa: I251
 from requests import Response, Request
+from requests.auth import AuthBase
 
 from dlt.common import jsonpath, logger
 
@@ -41,7 +43,7 @@ class PageData(List[_T]):
         request: Request,
         response: Response,
         paginator: BasePaginator,
-        auth: AuthConfigBase,
+        auth: AuthBase,
     ):
         super().__init__(__iterable)
         self.request = request
@@ -57,7 +59,7 @@ class RESTClient:
     Args:
         base_url (str): The base URL of the API to make requests to.
         headers (Optional[Dict[str, str]]): Default headers to include in all requests.
-        auth (Optional[AuthConfigBase]): Authentication configuration for all requests.
+        auth (Optional[AuthBase]): Authentication configuration for all requests.
         paginator (Optional[BasePaginator]): Default paginator for handling paginated responses.
         data_selector (Optional[jsonpath.TJsonPath]): JSONPath selector for extracting data from responses.
         session (BaseSession): HTTP session for making requests.
@@ -69,7 +71,7 @@ class RESTClient:
         self,
         base_url: str,
         headers: Optional[Dict[str, str]] = None,
-        auth: Optional[AuthConfigBase] = None,
+        auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
         data_selector: Optional[jsonpath.TJsonPath] = None,
         session: BaseSession = None,
@@ -80,8 +82,9 @@ class RESTClient:
         self.auth = auth
 
         if session:
-            self._validate_session_raise_for_status(session)
-            self.session = session
+            # dlt.sources.helpers.requests.session.Session
+            # has raise_for_status=True by default
+            self.session = _warn_if_raise_for_status_and_return(session)
         else:
             self.session = Client(raise_for_status=False).session
 
@@ -90,22 +93,13 @@ class RESTClient:
 
         self.data_selector = data_selector
 
-    def _validate_session_raise_for_status(self, session: BaseSession) -> None:
-        # dlt.sources.helpers.requests.session.Session
-        # has raise_for_status=True by default
-        if getattr(self.session, "raise_for_status", False):
-            logger.warning(
-                "The session provided has raise_for_status enabled. "
-                "This may cause unexpected behavior."
-            )
-
     def _create_request(
         self,
         path: str,
         method: HTTPMethod,
         params: Dict[str, Any],
         json: Optional[Dict[str, Any]] = None,
-        auth: Optional[AuthConfigBase] = None,
+        auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
     ) -> Request:
         parsed_url = urlparse(path)
@@ -154,7 +148,7 @@ class RESTClient:
         method: HTTPMethodBasic = "GET",
         params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
-        auth: Optional[AuthConfigBase] = None,
+        auth: Optional[AuthBase] = None,
         paginator: Optional[BasePaginator] = None,
         data_selector: Optional[jsonpath.TJsonPath] = None,
         hooks: Optional[Hooks] = None,
@@ -166,7 +160,7 @@ class RESTClient:
             method (HTTPMethodBasic): HTTP method for the request, defaults to 'get'.
             params (Optional[Dict[str, Any]]): URL parameters for the request.
             json (Optional[Dict[str, Any]]): JSON payload for the request.
-            auth (Optional[AuthConfigBase]): Authentication configuration for the request.
+            auth (Optional[AuthBase): Authentication configuration for the request.
             paginator (Optional[BasePaginator]): Paginator instance for handling
                 pagination logic.
             data_selector (Optional[jsonpath.TJsonPath]): JSONPath selector for
@@ -296,3 +290,12 @@ class RESTClient:
                 " instance of the paginator as some settings may not be guessed correctly."
             )
         return paginator
+
+
+def _warn_if_raise_for_status_and_return(session: BaseSession) -> BaseSession:
+    """A generic function to warn if the session has raise_for_status enabled."""
+    if getattr(session, "raise_for_status", False):
+        logger.warning(
+            "The session provided has raise_for_status enabled. This may cause unexpected behavior."
+        )
+    return session

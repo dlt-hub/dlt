@@ -12,10 +12,7 @@ from dlt.common import logger
 from dlt.common import json, pendulum
 from dlt.common.configuration import resolve
 from dlt.common.configuration.inject import with_config
-from dlt.common.configuration.specs import (
-    AzureCredentials,
-    AzureCredentialsWithoutDefaults,
-)
+from dlt.common.configuration.specs import AnyAzureCredentials
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import custom_environ, uniq_id
@@ -43,10 +40,7 @@ def test_filesystem_configuration() -> None:
     config = FilesystemConfiguration(bucket_url="az://root")
     assert config.protocol == "az"
     # print(config.resolve_credentials_type())
-    assert (
-        config.resolve_credentials_type()
-        == Union[AzureCredentialsWithoutDefaults, AzureCredentials]
-    )
+    assert config.resolve_credentials_type() == AnyAzureCredentials
     assert dict(config) == {
         "read_only": False,
         "bucket_url": "az://root",

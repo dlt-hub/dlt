@@ -402,7 +402,7 @@ def test_filesystem_destination_extended_layout_placeholders(
 
         for file in files:
             if ".jsonl" in file:
-                expected_files.add(posixpath.join(basedir, file))
+                expected_files.add(Path(posixpath.join(basedir, file)))
 
     for load_package in load_info.load_packages:
         for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
@@ -422,7 +422,7 @@ def test_filesystem_destination_extended_layout_placeholders(
             full_path = posixpath.join(client.dataset_path, path)  # type: ignore[attr-defined]
             assert client.fs_client.exists(full_path)  # type: ignore[attr-defined]
             if ".jsonl" in full_path:
-                known_files.add(full_path)
+                known_files.add(Path(full_path))
 
     assert expected_files == known_files
     assert known_files
