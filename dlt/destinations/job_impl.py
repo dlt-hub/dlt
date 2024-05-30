@@ -41,10 +41,10 @@ class EmptyLoadJob(EmptyLoadJobWithoutFollowup, FollowupJob):
 
 
 class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
-    def _save_text_file(self, data: Optional[str]) -> None:
+    def _save_text_file(self, data: str) -> None:
         temp_file = os.path.join(tempfile.gettempdir(), self._file_name)
         with open(temp_file, "w", encoding="utf-8") as f:
-            f.write("" if data is None else data)
+            f.write(data)
         self._new_file_path = temp_file
 
     def new_file_path(self) -> str:

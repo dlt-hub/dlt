@@ -105,7 +105,11 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         ref_file_name = ParsedLoadJobFileName(
             table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
         ).file_name()
-        super().__init__(file_name=ref_file_name, status="running")
+        super().__init__(
+            file_name=ref_file_name,
+            status="running",
+            remote_path=self.client.make_remote_uri(self.make_remote_path()),
+        )
 
         self.write()
 
