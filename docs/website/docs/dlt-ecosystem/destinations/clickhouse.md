@@ -175,7 +175,7 @@ pipeline = dlt.pipeline(
 )
 ```
 
-### Using S3-Compatible Storage as a Staging Area
+### Using Google Cloud or S3-Compatible Storage as a Staging Area
 
 dlt supports using S3-compatible storage services, including Google Cloud Storage (GCS), as a staging area when loading data into ClickHouse.
 This is handled automatically by
