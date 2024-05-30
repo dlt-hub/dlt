@@ -124,6 +124,38 @@ def test_async_generator_transformer() -> None:
             assert {r[0] for r in rows} == {"at", "bt", "ct"}
 
 
+@pytest.mark.parametrize("parallelized", [True, False])
+def test_parallel_execution_timing(parallelized: bool) -> None:
+    """verify that tasks are actually run async"""
+
+    @dlt.resource(table_name="table1", parallelized=parallelized)
+    def r1():
+        for l_ in ["a", "b", "c"]:
+            time.sleep(1)
+            yield {"letter": l_}
+
+    @dlt.resource(table_name="table2", parallelized=parallelized)
+    def r2():
+        for l_ in ["a", "b", "c"]:
+            time.sleep(1)
+            yield {"letter": l_}
+
+    @dlt.source
+    def source():
+        return [r1(), r2()]
+
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+
+    start_time = time.time()
+    pipeline_1.extract(source())
+    elapsed = time.time() - start_time
+
+    if parallelized:
+        assert elapsed > 3 and elapsed < 4
+    else:
+        assert elapsed > 6 and elapsed < 7
+
+
 @pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
 @pytest.mark.parametrize(
     "resource_mode", ["both_sync", "both_async", "first_async", "second_async"]

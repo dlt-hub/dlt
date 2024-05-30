@@ -191,8 +191,7 @@ def wrap_async_iterator(
             # we can close it here
             if exhausted:
                 raise StopAsyncIteration()
-            item = await gen.__anext__()
-            return item
+            return await gen.__anext__()
         # on stop iteration mark as exhausted
         # also called when futures are cancelled
         except StopAsyncIteration:
@@ -213,6 +212,9 @@ def wrap_async_iterator(
     except GeneratorExit:
         # mark as exhausted
         exhausted = True
+        # and close generator
+        if hasattr(gen, "aclose"):
+            asyncio.get_event_loop().run_until_complete(gen.aclose())
 
 
 def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
