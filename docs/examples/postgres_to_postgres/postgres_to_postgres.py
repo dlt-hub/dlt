@@ -49,6 +49,7 @@ here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), th
 import argparse
 import os
 from datetime import datetime
+from typing import Literal, List
 
 import connectorx as cx
 import duckdb
@@ -81,10 +82,10 @@ def read_sql_x_chunked(conn_str: str, query: str, chunk_size: int = CHUNKSIZE):
 @dlt.source(max_table_nesting=0)
 def pg_resource_chunked(
     table_name: str,
-    primary_key: list[str],
+    primary_key: List[str],
     schema_name: str,
     order_date: str,
-    load_type: str = "merge",
+    load_type:  Literal["skip", "append", "replace", "merge"] = "merge",
     columns: str = "*",
     credentials: ConnectionStringCredentials = dlt.secrets[
         "sources.postgres.credentials"
@@ -204,8 +205,8 @@ if __name__ == "__main__":
 
     # 3. load
     print("##################################### START LOAD ########")
-    info = pipeline.load()
-    print(info)
+    load_info = pipeline.load()
+    print(load_info)
     print(f"--Time elapsed: {datetime.now() - startTime}")
 
     if load_type == "replace":
@@ -222,7 +223,7 @@ if __name__ == "__main__":
                      where table_schema like '{target_schema_name}%'
                      and table_schema NOT LIKE '%_staging'
                      order by table_schema desc"""
-        ).fetchone()[0]  # type: ignore
+        ).fetchone()[0]
         print(f"timestamped_schema: {timestamped_schema}")
 
         target_credentials = ConnectionStringCredentials(dlt.secrets["destination.postgres.credentials"])
