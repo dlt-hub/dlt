@@ -24,7 +24,7 @@ We'll learn:
 - How to work with `ConnectionStringCredentials` spec.
 
 
-Be aware that you need to define the database credentials in `.dlt/secrets.toml` or dlt ENVs and adjust the tables names ("table_1" and "table_2"):
+Be aware that you need to define the database credentials in `.dlt/secrets.toml` or dlt ENVs and adjust the tables names ("table_1" and "table_2").
 
 Install `dlt` with `duckdb` as extra, also `connectorx`, Postgres adapter and progress bar tool:
 
@@ -41,7 +41,7 @@ python postgres_to_postgres.py --replace
 Attention: There were problems with data type TIME that includes nano seconds. More details in
 [Slack](https://dlthub-community.slack.com/archives/C04DQA7JJN6/p1711579390028279?thread_ts=1711477727.553279&cid=C04DQA7JJN60)
 
-As well as with installing DuckDB (see [issue
+As well as with installing DuckDB extension (see [issue
 here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), that's why I manually installed the `postgres_scanner.duckdb_extension` in my Dockerfile to load the data into Postgres.
 :::
 """
@@ -61,7 +61,6 @@ from dlt.sources.credentials import ConnectionStringCredentials
 CHUNKSIZE = int(
     os.getenv("CHUNKSIZE", 1000000)
 )  # 1 mio rows works well with 1GiB RAM memory (if no parallelism)
-load_type:  Literal["skip", "append", "replace", "merge"]
 
 
 def read_sql_x_chunked(conn_str: str, query: str, chunk_size: int = CHUNKSIZE):
@@ -162,7 +161,7 @@ if __name__ == "__main__":
                 table["pk"],
                 table["schema_name"],
                 table["order_date"],
-                load_type=load_type,
+                load_type=load_type,  # ignore: type
                 columns=table["columns"],
             )
         )
