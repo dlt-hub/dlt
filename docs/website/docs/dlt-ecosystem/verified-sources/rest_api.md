@@ -618,3 +618,88 @@ In this example, the source will ignore responses with a status code of 404, res
 - `content` (str, optional): A substring to search for in the response content.
 - `action` (str): The action to take when the condition is met. Currently supported actions:
   - `ignore`: Ignore the response.
+
+## Troubleshooting
+
+If you encounter issues while running the pipeline, enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) for detailed information about the execution:
+
+```sh
+RUNTIME__LOG_LEVEL=INFO python my_script.py
+```
+
+This also provides details on the HTTP requests.
+
+### Configuration issues
+
+#### Getting validation errors
+
+When you running the pipeline and getting a `DictValidationException`, it means that the [source configuration](#source-configuration) is incorrect. The error message provides details on the issue including the path to the field and the expected type.
+
+For example, if you have a source configuration like this:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "params": {             # <- Wrong: this should be inside
+                "sort": "updated",  #    the endpoint field below
+            },
+            "endpoint": {
+                "path": "issues",
+                # "params": {       # <- Correct configuration
+                #     "sort": "updated",
+                # },
+            },
+        },
+        # ...
+    ],
+}
+```
+
+You will get an error like this:
+
+```sh
+dlt.common.exceptions.DictValidationException: In path .: field 'resources[0]'
+expects the following types: str, EndpointResource. Provided value {'name': 'issues', 'params': {'sort': 'updated'},
+'endpoint': {'path': 'issues', ... }} with type 'dict' is invalid with the following errors:
+For EndpointResource: In path ./resources[0]: following fields are unexpected {'params'}
+```
+
+It means that in the first resource configuration (`resources[0]`), the `params` field should be inside the `endpoint` field.
+
+:::tip
+Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE and use it to define the configuration object.
+
+```py
+from rest_api import RESTAPIConfig
+```
+:::
+
+#### Getting wrong data or no data
+
+If incorrect data is received from an endpoint, check the `data_selector` field in the [endpoint configuration](#endpoint-configuration). Ensure the JSONPath is accurate and points to the correct data in the response body. `rest_api` attempts to auto-detect the data location, which may not always succeed. See the [data selection](#data-selection) section for more details.
+
+#### Getting insufficient data or incorrect pagination
+
+Check the `paginator` field in the configuration. When not explicitly specified, the source tries to auto-detect the pagination method. If auto-detection fails, or the system is unsure, a warning is logged. For production environments, we recommend to specify an explicit paginator in the configuration. See the [pagination](#pagination) section for more details. Some APIs may have non-standard pagination methods, and you may need to implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+
+#### Getting HTTP 404 errors
+
+Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](#response-actions).
+
+### Authentication issues
+
+If experiencing 401 (Unauthorized) errors, this could indicate:
+
+- Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../general-usage/credentials/configuration#understanding-the-exceptions) for more information.
+- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../general-usage/http/rest-client.md#custom-authentication) may be required.
+
+### General guidelines
+
+The `rest_api` source uses the [RESTClient](../../general-usage/http/rest-client.md) class for HTTP requests. Refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for debugging tips.
+
+For further assistance, join our [Slack community](https://dlthub.com/community). We're here to help!
