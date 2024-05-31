@@ -61,6 +61,7 @@ from dlt.sources.credentials import ConnectionStringCredentials
 CHUNKSIZE = int(
     os.getenv("CHUNKSIZE", 1000000)
 )  # 1 mio rows works well with 1GiB RAM memory (if no parallelism)
+load_type:  Literal["skip", "append", "replace", "merge"]
 
 
 def read_sql_x_chunked(conn_str: str, query: str, chunk_size: int = CHUNKSIZE):
@@ -146,7 +147,7 @@ if __name__ == "__main__":
     ]
 
     if args.replace:
-        load_type = "replace"
+        load_type  = "replace"
     else:
         # default is delta load
         load_type = "merge"
