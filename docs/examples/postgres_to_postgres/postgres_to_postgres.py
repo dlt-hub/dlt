@@ -1,7 +1,7 @@
 """
 ---
-title: Load from Postgres to Postgres with ConnectorX & Arrow export as Parquet, normalizing and exporting as DuckDB, and attaching it to Postgres
-description: Load data fast from Postgres to Postgres with ConnectorX and DuckDB for bigger Postgres tables (GBs)
+title: Load from Postgres to Postgres faster
+description: Load data fast from Postgres to Postgres with ConnectorX & Arrow export as Parquet, normalizing and exporting as DuckDB, and attaching it to Postgres for bigger Postgres tables (GBs)
 keywords: [connector x, pyarrow, zero copy, duckdb, postgres, initial load]
 ---
 
