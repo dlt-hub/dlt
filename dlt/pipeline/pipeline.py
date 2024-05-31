@@ -639,38 +639,10 @@ class Pipeline(SupportsPipeline):
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
 
-        def ensure_loader_file_format(
-            data: Any, loader_file_format: TLoaderFileFormat
-        ) -> TLoaderFileFormat:
-            """Returns loader file format compatible with `data`."""
-            if loader_file_format == "parquet":
-                return "parquet"
-
-            # use `parquet` loader file format if any of the resources has
-            # `delta` table format
-            delta_table_format = False
-            if isinstance(data, DltResource):
-                delta_table_format = data.table_format == "delta"
-            elif isinstance(data, DltSource):
-                delta_table_format = any(
-                    [r.table_format == "delta" for r in data.resources.values()]
-                )
-            if delta_table_format:
-                if loader_file_format is not None:
-                    logger.warning(
-                        "`loader_file_format` must be `parquet` when `table_format` "
-                        f"is `delta`. The provided value `{loader_file_format}` "
-                        "will be ignored."
-                    )
-                return "parquet"
-            return loader_file_format
-
         signals.raise_if_signalled()
         self.activate()
         self._set_destinations(destination=destination, staging=staging)
         self._set_dataset_name(dataset_name)
-
-        loader_file_format = ensure_loader_file_format(data, loader_file_format)
 
         credentials_argument_deprecated("pipeline.run", credentials, self.destination)
 

@@ -12,9 +12,9 @@ from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
@@ -371,12 +371,13 @@ def test_pipeline_delta_filesystem_destination(
     info = p.run(s())
     assert_load_info(info)
 
-    # provided loader file format should be overridden if it's not `parquet`
+    # pipeline should fail in `normalize` step when `loader_file_format` is
+    # provided and it's not `parquet`
     reset_pipeline(p)
-    info = p.run(data_types(), loader_file_format="csv")
-    assert_load_info(info)
-    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in completed_jobs])
+    p.run(data_types(), loader_file_format="parquet")  # okay
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(data_types(), loader_file_format="csv")  # not okay
+    assert pip_ex.value.step == "normalize"
 
 
 TEST_LAYOUTS = (
