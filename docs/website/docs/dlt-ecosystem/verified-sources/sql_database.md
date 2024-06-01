@@ -411,22 +411,22 @@ Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a
 **To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 
 ```toml
-destination.mssql.credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+sources.sql_database.credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 ```
 
 **To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
 ```toml
-destination.mssql.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?encrypt=no&driver=ODBC+Driver+17+for+SQL+Server"
+sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?encrypt=no&driver=ODBC+Driver+17+for+SQL+Server"
 ```
 
 **To allow self signed SSL certificate** when you are getting `certificate verify failed:unable to get local issuer certificate`:
 ```toml
-destination.mssql.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?TrustServerCertificate=yes&driver=ODBC+Driver+17+for+SQL+Server"
+sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?TrustServerCertificate=yes&driver=ODBC+Driver+17+for+SQL+Server"
 ```
 
 ***To use long strings (>8k) and avoid collation errors**:
 ```toml
-destination.mssql.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?LongAsMax=yes&driver=ODBC+Driver+17+for+SQL+Server"
+sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?LongAsMax=yes&driver=ODBC+Driver+17+for+SQL+Server"
 ```
 
 ## Customizations
