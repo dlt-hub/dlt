@@ -27,6 +27,7 @@ from typing import (
     IO,
     Iterator,
     Generator,
+    NamedTuple,
 )
 
 from typing_extensions import (
@@ -88,15 +89,35 @@ TDataItems: TypeAlias = Union[TDataItem, List[TDataItem]]
 "A single data item or a list as extracted from the data source"
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
-
-ConfigValue: None = None
-"""value of type None indicating argument that may be injected by config provider"""
-
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
+
+
+class ConfigValueSentinel(NamedTuple):
+    """Class to create singleton sentinel for config and secret injected value"""
+
+    default_literal: str
+    default_type: AnyType
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+    def __repr__(self) -> str:
+        if self.default_literal == "dlt.config.value":
+            inst_ = "ConfigValue"
+        else:
+            inst_ = "SecretValue"
+        return f"{inst_}({self.default_literal}) awaiting injection"
+
+
+ConfigValue: None = ConfigValueSentinel("dlt.config.value", AnyType)  # type: ignore[assignment]
+"""Config value indicating argument that may be injected by config provider. Evaluates to None when type checking"""
+
+SecretValue: None = ConfigValueSentinel("dlt.secrets.value", TSecretValue)  # type: ignore[assignment]
+"""Secret value indicating argument that may be injected by config provider. Evaluates to None when type checking"""
 
 
 @runtime_checkable
@@ -157,6 +178,10 @@ def extract_type_if_modifier(t: Type[Any]) -> Optional[Type[Any]]:
     return None
 
 
+def extract_supertype(t: Type[Any]) -> Optional[Type[Any]]:
+    return getattr(t, "__supertype__", None)  # type: ignore[no-any-return]
+
+
 def is_union_type(hint: Type[Any]) -> bool:
     # We need to handle UnionType because with Python>=3.10
     # new Optional syntax was introduced which treats Optionals
@@ -172,8 +197,8 @@ def is_union_type(hint: Type[Any]) -> bool:
     if origin is Union or origin is UnionType:
         return True
 
-    if hint := extract_type_if_modifier(hint):
-        return is_union_type(hint)
+    if inner_t := extract_type_if_modifier(hint):
+        return is_union_type(inner_t)
 
     return False
 
@@ -184,8 +209,13 @@ def is_optional_type(t: Type[Any]) -> bool:
     if is_union and type(None) in get_args(t):
         return True
 
-    if t := extract_type_if_modifier(t):
-        return is_optional_type(t)
+    if inner_t := extract_type_if_modifier(t):
+        if is_optional_type(inner_t):
+            return True
+        else:
+            t = inner_t
+    if super_t := extract_supertype(t):
+        return is_optional_type(super_t)
 
     return False
 
@@ -203,24 +233,37 @@ def extract_union_types(t: Type[Any], no_none: bool = False) -> List[Any]:
 def is_literal_type(hint: Type[Any]) -> bool:
     if get_origin(hint) is Literal:
         return True
-    if hint := extract_type_if_modifier(hint):
-        return is_literal_type(hint)
+    if inner_t := extract_type_if_modifier(hint):
+        if is_literal_type(inner_t):
+            return True
+        else:
+            hint = inner_t
+    if super_t := extract_supertype(hint):
+        return is_literal_type(super_t)
+    if is_union_type(hint) and is_optional_type(hint):
+        return is_literal_type(get_args(hint)[0])
+
     return False
 
 
 def is_newtype_type(t: Type[Any]) -> bool:
     if hasattr(t, "__supertype__"):
         return True
-    if t := extract_type_if_modifier(t):
-        return is_newtype_type(t)
+    if inner_t := extract_type_if_modifier(t):
+        if is_newtype_type(inner_t):
+            return True
+        else:
+            t = inner_t
+    if is_union_type(t) and is_optional_type(t):
+        return is_newtype_type(get_args(t)[0])
     return False
 
 
 def is_typeddict(t: Type[Any]) -> bool:
     if isinstance(t, _TypedDict):
         return True
-    if t := extract_type_if_modifier(t):
-        return is_typeddict(t)
+    if inner_t := extract_type_if_modifier(t):
+        return is_typeddict(inner_t)
     return False
 
 
@@ -257,7 +300,8 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
     """
     if maybe_modified := extract_type_if_modifier(hint):
         return extract_inner_type(maybe_modified, preserve_new_types)
-    if is_optional_type(hint):
+    # make sure we deal with optional directly
+    if is_union_type(hint) and is_optional_type(hint):
         return extract_inner_type(get_args(hint)[0], preserve_new_types)
     if is_literal_type(hint):
         # assume that all literals are of the same type

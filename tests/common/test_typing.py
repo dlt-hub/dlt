@@ -138,6 +138,9 @@ def test_is_literal() -> None:
     assert is_literal_type(Final[TTestLi]) is True  # type: ignore[arg-type]
     assert is_literal_type("a") is False  # type: ignore[arg-type]
     assert is_literal_type(List[str]) is False
+    NT1 = NewType("NT1", Optional[TTestLi])  # type: ignore[valid-newtype]
+    assert is_literal_type(NT1) is True
+    assert is_literal_type(NewType("NT2", NT1)) is True
 
 
 def test_optional() -> None:
@@ -151,6 +154,11 @@ def test_optional() -> None:
     assert is_optional_type(Final[Annotated[Union[str, int], None]]) is False  # type: ignore[arg-type]
     assert is_optional_type(Annotated[Union[str, int], type(None)]) is False  # type: ignore[arg-type]
     assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
+    NT1 = NewType("NT1", Optional[str])  # type: ignore[valid-newtype]
+    assert is_optional_type(NT1) is True
+    assert is_optional_type(ClassVar[NT1]) is True  # type: ignore[arg-type]
+    assert is_optional_type(NewType("NT2", NT1)) is True
+    assert is_optional_type(NewType("NT2", Annotated[NT1, 1])) is True
     assert is_optional_type(TTestTyDi) is False
     assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
     assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]  # type: ignore[arg-type]
@@ -173,6 +181,7 @@ def test_is_newtype() -> None:
     assert is_newtype_type(ClassVar[NT1]) is True  # type: ignore[arg-type]
     assert is_newtype_type(TypeVar("TV1", bound=str)) is False  # type: ignore[arg-type]
     assert is_newtype_type(1) is False  # type: ignore[arg-type]
+    assert is_newtype_type(Optional[NT1]) is True  # type: ignore[arg-type]
 
 
 def test_is_annotated() -> None:
@@ -195,6 +204,7 @@ def test_extract_inner_type() -> None:
     assert extract_inner_type(NTL2, preserve_new_types=True) is NTL2
     l_2 = Literal[NTL2(1.238), NTL2(2.343)]  # type: ignore[valid-type]
     assert extract_inner_type(l_2) is float  # type: ignore[arg-type]
+    assert extract_inner_type(NewType("NT1", Optional[str])) is str
 
 
 def test_get_config_if_union() -> None:
