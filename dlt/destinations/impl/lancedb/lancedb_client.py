@@ -1,52 +1,52 @@
+import uuid
 from types import TracebackType
-from typing import ClassVar, List, Any, cast, Union, Tuple, Iterable, Type, Optional
+from typing import ClassVar, List, Any, cast, Union, Tuple, Iterable, Type, Optional, Dict, Sequence
 
 import lancedb
 import pyarrow as pa
 from lancedb import DBConnection
 from lancedb.common import DATA
-from lancedb.embeddings import EmbeddingFunctionRegistry
+from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction
 from lancedb.pydantic import LanceModel
 from lancedb.query import LanceQueryBuilder
 from numpy import ndarray
 from pyarrow import Array, ChunkedArray
 
-from dlt.common import logger
+from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (JobClientBase, WithStateSync, LoadJob, StorageSchemaInfo, StateInfo, )
-from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns, TColumnSchema
-from dlt.common.schema.typing import TColumnType
+from dlt.common.destination.reference import (JobClientBase, WithStateSync, LoadJob, StorageSchemaInfo, StateInfo,
+                                              TLoadJobState, )
+from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.storages import FileStorage
+from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
-from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
+from dlt.destinations.job_impl import EmptyLoadJob
 
 
-class LanceDBTypeMapper(TypeMapper):
-    sct_to_unbound_dbt = {
-        pa.string(): "text",
-        pa.int64(): "int",
-        pa.float64(): "number",
-        pa.bool_(): "boolean",
-        pa.date64(): "date",
-        pa.binary(): "blob",
-        pa.decimal128(): "text",
-    }
-
-    sct_to_dbt = {}
-
-    dbt_to_sct = {
-        "text": pa.string(),
-        "int": pa.int64(),
-        "number": pa.float64(),
-        "boolean": pa.bool_(),
-        "date": pa.date64(),
-        "blob": pa.binary(),
-    }
+TLanceModel = Type[LanceModel]
 
 
-class EmptySchema(LanceModel):
+class NullSchema(LanceModel):
     pass
 
+
+class VersionSchema(LanceModel):
+    version_hash: str
+    schema_name: str
+    version: int
+    engine_version: int
+    inserted_at: str
+    schema: str
+
+
+class LoadsSchema(LanceModel):
+    load_id: str
+    schema_name: str
+    status: int
+    inserted_at: str
 
 
 class LanceDBClient(JobClientBase, WithStateSync):
@@ -62,8 +62,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.db_client: DBConnection = lancedb.connect(**(dict(self.config.credentials)), **(dict(self.config.options)))
         self.registry = EmbeddingFunctionRegistry.get_instance()
         # We let dlt handles retries.
-        self.model_func = self.registry.get(self.config.provider).create(name=self.config.embedding_model, max_retries=1)
-        self.type_mapper = LanceDBTypeMapper(self.capabilities)
+        self.model_func: TextEmbeddingFunction = self.registry.get(self.config.provider).create(name=self.config.embedding_model, max_retries=1)
 
 
     @property
@@ -85,7 +84,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return cast(pa.Schema, self.db_client[table_name].schema)
 
 
-    def create_table(self, table_name: str, schema: Union[pa.Schema, LanceModel]) -> None:
+    def _create_table(self, table_name: str, schema: Union[pa.Schema, LanceModel]) -> None:
         """Create a LanceDB Table from the provided LanceModel or PyArrow schema.
 
         Args:
@@ -180,7 +179,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 if not self._table_exists(fq_table_name):
                     continue
                 self.db_client.drop_table(fq_table_name)
-                self.create_table(table_name=fq_table_name, schema=self.get_table_schema(fq_table_name))
+                self._create_table(table_name=fq_table_name, schema=self.get_table_schema(fq_table_name))
 
 
     def is_storage_initialized(self) -> bool:
@@ -189,7 +188,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     def _create_sentinel_table(self) -> None:
         """Create an empty table to indicate that the storage is initialized."""
-        self.create_table(schema=cast(LanceModel, EmptySchema), table_name=self.sentinel_table)
+        self._create_table(schema=cast(LanceModel, NullSchema), table_name=self.sentinel_table)
 
 
     def _delete_sentinel_table(self) -> None:
@@ -200,141 +199,209 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None, ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
-
-        try:
-            stored_schema = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
-        except LanceDBSchemaNotFound:
-            stored_schema = None
-
-        if stored_schema is None:
+        schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
+        if schema_info is None:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} "
-                        "not found in storage. Upgrading schema.")
+                        "not found in the storage. upgrading")
             self._execute_schema_update(only_tables)
         else:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} "
-                        f"found in storage, no upgrade required")
-
+                        f"inserted at {schema_info.inserted_at} found "
+                        "in storage, no upgrade required")
         return applied_update
 
 
-    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
-        for table_name in only_tables or self.schema.tables:
-            if table_exists := self._table_exists(self._make_qualified_table_name(table_name)):
-                # Get existing columns
-                exists, existing_columns = self.get_table_columns(table_name)
-
-                # Detect new columns to add
-                new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
-
-                logger.info(f"Found {len(new_columns)} new columns for table {table_name}")
-
-                # Add the new columns
-                for column_name, column_schema in new_columns.items():
-                    self.add_table_column(table_name, column_name, column_schema)
-            else:
-                # Create table if it doesn't exist
-                table_schema = self.schema.get_table(table_name)
-                self.create_table(table_name, table_schema)
-
-        # Persist updated schema version
-        self._update_schema_version_in_storage(self.schema)
+    def _update_schema_in_storage(self, schema: Schema) -> None:
+        properties = {'version_hash': schema.stored_version_hash, 'schema_name': schema.name, 'version': schema.version, 'engine_version': schema.ENGINE_VERSION, 'inserted_at': str(pendulum.now()),
+                      'schema': json.dumps(schema.to_dict())}
+        version_table_name = self._make_qualified_table_name(self.schema.version_table_name)
+        self._create_record(properties, VersionSchema, version_table_name)
 
 
-    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
-        for table_name in only_tables or self.schema.tables:
-            table_exists = self.table_exists(table_name)
+    def _create_record(self, record: DictStrAny, lancedb_model: TLanceModel, table_name: str) -> None:
+        """Inserts a record into a LanceDB table without a vector.
 
-            if table_exists:
-                # Get existing columns
-                existing_columns = self.get_table_columns(table_name)
-
-                # Detect new columns to add
-                new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
-
-                logger.info(f"Found {len(new_columns)} new columns for table {table_name}")
-
-                # Add the new columns
-                for column_name, column_schema in new_columns.items():
-                    self.add_table_column(table_name, column_name, column_schema)
-            else:
-                # Create table if it doesn't exist
-                table_schema = self.schema.get_table(table_name)
-                self.create_table(table_name, table_schema)
-
-        # Persist updated schema version
-        self._update_schema_version_in_storage(self.schema)
-
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_schema: TTableSchemaColumns = {}
-
+        Args:
+            record (DictStrAny): The data to be inserted as payload.
+            table_name (str): The name of the table to insert the record into.
+            lancedb_model (LanceModel): Pydantic model to map data onto.
+        """
         try:
-            table_arrow_schema: pa.Schema = self.get_table_schema(self._make_qualified_table_name(table_name))
+            tbl = self.db_client.open_table(self._make_qualified_table_name(table_name))
         except FileNotFoundError:
-            return False, table_schema
+            tbl = self.db_client.create_table(self._make_qualified_table_name(table_name))
         except Exception:
             raise
 
-        # Convert PyArrow schema to dlt table schema.
-        for prop in table_arrow_schema["properties"]:
-            schema_c: TColumnSchema = {"name": self.schema.naming.normalize_identifier(prop["name"]), **self._from_db_type(prop["dataType"][0], None, None), }
-            table_schema[prop["name"]] = schema_c
-        return True, table_schema
+        tbl.add(lancedb_model(**record))
+
+
+    def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+        for table_name in only_tables or self.schema.tables:
+            exists = self._table_exists(self._make_qualified_table_name(table_name))
+            if not exists:
+                self._create_table(self._make_qualified_table_name(table_name), schema=cast(LanceModel, NullSchema))
+        self._update_schema_in_storage(self.schema)
 
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
-        """
-        Loads compressed state from destination storage.
-
-        Retrieves the matching stored state a completed load ID. It searches
-        for state records in blocks of 10, sorted by descending `_dlt_load_id` which is
-        guaranteed to increase over time.
-        For each state record found, it looks for a
-        corresponding successful load record.
-        If a matching successful load is found, the
-        state is returned.
-
-        Args:
-            pipeline_name (str): The name of the pipeline to retrieve state for.
-
-        Returns:
-            Optional[StateInfo]: The state matching a successful load, or None if no
-            matching state is found.
-        """
-        pass
+        """Loads compressed state from destination storage by finding a load ID that was completed."""
+        while True:
+            try:
+                state_table_name = self._make_qualified_table_name(self.schema.state_table_name)
+                state_records = self.db_client[state_table_name].search(query_type="fts").where(f"pipeline_name = {pipeline_name}").limit(10).to_list()
+                if len(state_records) == 0:
+                    return None
+                for state in state_records:
+                    load_id = state["_dlt_load_id"]
+                    loads_table_name = self._make_qualified_table_name(self.schema.loads_table_name)
+                    load_records = self.db_client[loads_table_name].search(query_type="fts").where(f"load_id = {load_id}").to_list()
+                    if len(load_records) > 0:
+                        state["dlt_load_id"] = state.pop("_dlt_load_id")
+                        return StateInfo(**state)
+            except Exception as e:
+                logger.warning(str(e))
+                return None
 
 
-    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        pass
+    def get_stored_schema_by_hash(self, schema_hash: str) -> StorageSchemaInfo:
+        try:
+            table_name = self._make_qualified_table_name(self.schema.version_table_name)
+            response = self.db_client[table_name].search(query_type="fts").where(f"version_hash = {schema_hash}").limit(1)
+            record = response.to_list()[0]
+            return StorageSchemaInfo(**record)
+        except Exception as e:
+            logger.warning(str(e))
+            return None
 
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
-        pass
+        """Retrieves newest schema from destination storage."""
+        try:
+            version_table_name = self._make_qualified_table_name(self.schema.version_table_name)
+            response = self.db_client[version_table_name].search(query_type="fts").where(f"schema_name = {self.schema.name}").limit(1)
+            record = response.to_list()[0]
+            return StorageSchemaInfo(**record)
+        except Exception as e:
+            logger.warning(str(e))
+            return None
 
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
 
 
-    def __enter__(self) -> "JobClientBase":
+    def __enter__(self) -> "LanceDBClient":
         pass
 
 
     def complete_load(self, load_id: str) -> None:
-        pass
+        properties = {"load_id": load_id, "schema_name": self.schema.name, "status": 0, "inserted_at": str(pendulum.now()), }
+        loads_table_name = self._make_qualified_table_name(self.schema.loads_table_name)
+        self._create_record(properties, LoadsSchema, loads_table_name)
 
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        pass
+        return EmptyLoadJob.from_file_path(file_path, "completed")
 
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        pass
+        return LoadLanceDBJob(table, file_path, db_client=self.db_client, client_config=self.config, table_name=self._make_qualified_table_name(table["name"]), model_func=self.model_func)
 
 
     def _table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
 
 
-    def _from_db_type(self, wt_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
-        return self.type_mapper.from_db_type(wt_t, precision, scale)
+class LoadLanceDBJob(LoadJob):
+    def __init__(self, table_schema: TTableSchema, local_path: str, db_client: DBConnection, client_config: LanceDBClientConfiguration, table_name: str, model_func: TextEmbeddingFunction) -> None:
+        file_name = FileStorage.get_file_name_from_file_path(local_path)
+        super().__init__(file_name)
+        self.config = client_config
+        self.db_client = db_client
+        self.collection_name = table_name
+        self.unique_identifiers = self._list_unique_identifiers(table_schema)
+        self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
+        self.embedding_model_func = model_func
+        self.embedding_model_dimensions = client_config.embedding_model_dimensions
+
+        with FileStorage.open_zipsafe_ro(local_path) as f:
+            docs, payloads, ids = [], [], []
+
+            for line in f:
+                data = json.loads(line)
+                point_id = (self._generate_uuid(data, self.unique_identifiers, self.collection_name) if self.unique_identifiers else uuid.uuid4())
+                embedding_doc = self._get_embedding_doc(data)
+                payloads.append(data)
+                ids.append(point_id)
+                docs.append(embedding_doc)
+
+            embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
+            embeddings = list(embedding_model.embed(docs, batch_size=self.config.embedding_batch_size, parallel=self.config.embedding_parallelism, ))
+            vector_name = db_client.get_vector_field_name()
+            embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
+            assert len(embeddings) == len(payloads) == len(ids)
+
+            self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
+
+
+    def _get_embedding_doc(self, data: Dict[str, Any]) -> str:
+        """Returns a document to generate embeddings for.
+
+        Args:
+            data (Dict[str, Any]): A dictionary of data to be loaded.
+
+        Returns:
+            str: A concatenated string of all the fields intended for embedding.
+        """
+        return "\n".join(str(data[key]) for key in self.embedding_fields)
+
+
+    def _list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+        """Returns a list of unique identifiers for a table.
+
+        Args:
+            table_schema (TTableSchema): a dlt table schema.
+
+        Returns:
+            Sequence[str]: A list of unique column identifiers.
+        """
+        if table_schema.get("write_disposition") == "merge":
+            if primary_keys := get_columns_names_with_prop(table_schema, "primary_key"):
+                return primary_keys
+        return get_columns_names_with_prop(table_schema, "unique")
+
+
+    def _upload_data(self, ids: Iterable[Any], vectors: Iterable[Any], payloads: Iterable[Any]) -> None:
+        """Uploads data to a Qdrant instance in a batch. Supports retries and parallelism.
+
+        Args:
+            ids (Iterable[Any]): Point IDs to be uploaded to the collection
+            vectors (Iterable[Any]): Embeddings to be uploaded to the collection
+            payloads (Iterable[Any]): Payloads to be uploaded to the collection
+        """
+        self.db_client.upload_collection(self.collection_name, ids=ids, payload=payloads, vectors=vectors, parallel=self.config.upload_parallelism, batch_size=self.config.upload_batch_size,
+                                         max_retries=self.config.upload_max_retries, )
+
+
+    def _generate_uuid(self, data: DictStrAny, unique_identifiers: Sequence[str], collection_name: str) -> str:
+        """Generates deterministic UUID. Used for deduplication.
+
+        Args:
+            data (Dict[str, Any]): Arbitrary data to generate UUID for.
+            unique_identifiers (Sequence[str]): A list of unique identifiers.
+            collection_name (str): Qdrant collection name.
+
+        Returns:
+            str: A string representation of the genrated UUID
+        """
+        data_id = "_".join(str(data[key]) for key in unique_identifiers)
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, collection_name + data_id))
+
+
+    def state(self) -> TLoadJobState:
+        return "completed"
+
+
+    def exception(self) -> str:
+        raise NotImplementedError()
