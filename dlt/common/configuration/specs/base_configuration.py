@@ -20,7 +20,7 @@ from typing import (
     ClassVar,
     TypeVar,
 )
-from typing_extensions import get_args, get_origin, dataclass_transform, Annotated, TypeAlias
+from typing_extensions import get_args, get_origin, dataclass_transform
 from functools import wraps
 
 if TYPE_CHECKING:
@@ -30,6 +30,7 @@ else:
 
 from dlt.common.typing import (
     AnyType,
+    ConfigValueSentinel,
     TAnyClass,
     extract_inner_type,
     is_annotated,
@@ -61,7 +62,7 @@ class NotResolved:
         return self.not_resolved
 
 
-def is_hint_not_resolved(hint: AnyType) -> bool:
+def is_hint_not_resolvable(hint: AnyType) -> bool:
     """Checks if hint should NOT be resolved. Final and types annotated like
 
     >>> Annotated[str, NotResolved()]
@@ -102,7 +103,7 @@ def is_valid_hint(hint: Type[Any]) -> bool:
         # class vars are skipped by dataclass
         return True
 
-    if is_hint_not_resolved(hint):
+    if is_hint_not_resolvable(hint):
         # all hints that are not resolved are valid
         return True
 
@@ -190,7 +191,7 @@ def configspec(
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_")):
                 warnings.warn(
                     f"Missing default value for field {ann} on {cls.__name__}. None assumed. All"
-                    " fields in configspec must have default."
+                    " fields in configspec must have defaults."
                 )
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
@@ -217,6 +218,20 @@ def configspec(
                 # context can have any type
                 if not is_valid_hint(hint) and not is_context:
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
+                # replace config / secret sentinels
+                if isinstance(att_value, ConfigValueSentinel):
+                    if is_secret_hint(att_value.default_type) and not is_secret_hint(hint):
+                        warnings.warn(
+                            f"You indicated {att_name} to be {att_value.default_literal} but type"
+                            " hint is not a secret"
+                        )
+                    if not is_secret_hint(att_value.default_type) and is_secret_hint(hint):
+                        warnings.warn(
+                            f"You typed {att_name} to be a secret but"
+                            f" {att_value.default_literal} indicates it is not"
+                        )
+                    setattr(cls, att_name, None)
+
                 if isinstance(att_value, BaseConfiguration):
                     # Wrap config defaults in default_factory to work around dataclass
                     # blocking mutable defaults
@@ -292,7 +307,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Yields all resolvable dataclass fields in the order they should be resolved"""
         # Sort dynamic type hint fields last because they depend on other values
         yield from sorted(
-            (f for f in cls.__dataclass_fields__.values() if cls.__is_valid_field(f)),
+            (f for f in cls.__dataclass_fields__.values() if is_valid_configspec_field(f)),
             key=lambda f: f.name in cls.__hint_resolvers__,
         )
 
@@ -350,7 +365,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Iterator or valid key names"""
         return map(
             lambda field: field.name,
-            filter(lambda val: self.__is_valid_field(val), self.__dataclass_fields__.values()),
+            filter(lambda val: is_valid_configspec_field(val), self.__dataclass_fields__.values()),
         )
 
     def __len__(self) -> int:
@@ -366,13 +381,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # helper functions
 
     def __has_attr(self, __key: str) -> bool:
-        return __key in self.__dataclass_fields__ and self.__is_valid_field(
+        return __key in self.__dataclass_fields__ and is_valid_configspec_field(
             self.__dataclass_fields__[__key]
         )
-
-    @staticmethod
-    def __is_valid_field(field: TDtcField) -> bool:
-        return not field.name.startswith("__") and field._field_type is dataclasses._FIELD  # type: ignore
 
     def call_method_in_mro(config, method_name: str) -> None:
         # python multi-inheritance is cooperative and this would require that all configurations cooperatively
@@ -389,6 +400,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
 
 _F_BaseConfiguration = BaseConfiguration
+
+
+def is_valid_configspec_field(field: TDtcField) -> bool:
+    return not field.name.startswith("__") and field._field_type is dataclasses._FIELD  # type: ignore
 
 
 @configspec
