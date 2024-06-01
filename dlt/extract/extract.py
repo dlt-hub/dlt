@@ -219,7 +219,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if name == "incremental":
                     # represent incremental as dictionary (it derives from BaseConfiguration)
                     if isinstance(hint, IncrementalResourceWrapper):
-                        hint = hint._incremental
+                        hint = hint.incremental
                     # sometimes internal incremental is not bound
                     if hint:
                         hints[name] = dict(hint)  # type: ignore[call-overload]
@@ -297,9 +297,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         load_id: str,
         source: DltSource,
         *,
-        max_parallel_items: int = None,
-        workers: int = None,
-        futures_poll_interval: float = None,
+        max_parallel_items: int,
+        workers: int,
     ) -> None:
         schema = source.schema
         collector = self.collector
@@ -319,7 +318,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source.resources.selected_pipes,
                     max_parallel_items=max_parallel_items,
                     workers=workers,
-                    futures_poll_interval=futures_poll_interval,
                 ) as pipes:
                     left_gens = total_gens = len(pipes._sources)
                     collector.update("Resources", 0, total_gens)

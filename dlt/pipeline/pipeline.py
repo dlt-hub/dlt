@@ -48,7 +48,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import TFun, TSecretValue, is_optional_type
+from dlt.common.typing import ConfigValue, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -400,8 +400,8 @@ class Pipeline(SupportsPipeline):
         columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
-        max_parallel_items: int = None,
-        workers: int = None,
+        max_parallel_items: int = ConfigValue,
+        workers: int = ConfigValue,
         schema_contract: TSchemaContract = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""

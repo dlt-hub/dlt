@@ -17,7 +17,7 @@ from typing_extensions import Annotated
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolved
+from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolvable
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
@@ -309,6 +309,32 @@ def test_explicit_values_false_when_bool() -> None:
     assert c.head == ""
     assert c.tube == []
     assert c.heels == ""
+
+
+def test_explicit_embedded_config(environment: Any) -> None:
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
+
+    environment["INSTRUMENTED__HEAD"] = "hed"
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
+        explicit_value={"instrumented": instr_explicit},
+    )
+
+    # explicit value will be part of the resolved configuration
+    assert c.instrumented is instr_explicit
+    # configuration was injected from env
+    assert c.instrumented.head == "hed"
+
+    # the same but with resolved
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
+    instr_explicit.resolve()
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
+        explicit_value={"instrumented": instr_explicit},
+    )
+    assert c.instrumented is instr_explicit
+    # but configuration is not injected
+    assert c.instrumented.head == "h"
 
 
 def test_default_values(environment: Any) -> None:
@@ -925,12 +951,14 @@ def test_is_valid_hint() -> None:
 
 
 def test_is_not_resolved_hint() -> None:
-    assert is_hint_not_resolved(Final[ConfigFieldMissingException]) is True
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved()]) is True
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved(True)]) is True
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved(False)]) is False
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, "REQ"]) is False
-    assert is_hint_not_resolved(str) is False
+    assert is_hint_not_resolvable(Final[ConfigFieldMissingException]) is True
+    assert is_hint_not_resolvable(Annotated[ConfigFieldMissingException, NotResolved()]) is True
+    assert is_hint_not_resolvable(Annotated[ConfigFieldMissingException, NotResolved(True)]) is True
+    assert (
+        is_hint_not_resolvable(Annotated[ConfigFieldMissingException, NotResolved(False)]) is False
+    )
+    assert is_hint_not_resolvable(Annotated[ConfigFieldMissingException, "REQ"]) is False
+    assert is_hint_not_resolvable(str) is False
 
 
 def test_not_resolved_hint() -> None:

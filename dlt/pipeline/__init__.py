@@ -102,11 +102,11 @@ def pipeline(
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
-    **kwargs: Any,
+    **injection_kwargs: Any,
 ) -> TPipeline:
-    ensure_correct_pipeline_kwargs(pipeline, **kwargs)
+    ensure_correct_pipeline_kwargs(pipeline, **injection_kwargs)
     # call without arguments returns current pipeline
-    orig_args = get_orig_args(**kwargs)  # original (*args, **kwargs)
+    orig_args = get_orig_args(**injection_kwargs)  # original (*args, **kwargs)
     # is any of the arguments different from defaults
     has_arguments = bool(orig_args[0]) or any(orig_args[1].values())
 
@@ -125,11 +125,12 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = Destination.from_reference(
-        destination or kwargs["destination_type"], destination_name=kwargs["destination_name"]
+        destination or injection_kwargs["destination_type"],
+        destination_name=injection_kwargs["destination_name"],
     )
     staging = Destination.from_reference(
-        staging or kwargs.get("staging_type", None),
-        destination_name=kwargs.get("staging_name", None),
+        staging or injection_kwargs.get("staging_type", None),
+        destination_name=injection_kwargs.get("staging_name", None),
     )
 
     progress = collector_from_name(progress)
@@ -147,8 +148,8 @@ def pipeline(
         full_refresh,
         progress,
         False,
-        last_config(**kwargs),
-        kwargs["runtime"],
+        last_config(**injection_kwargs),
+        injection_kwargs["runtime"],
     )
     # set it as current pipeline
     p.activate()
@@ -163,10 +164,10 @@ def attach(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    **kwargs: Any,
+    **injection_kwargs: Any,
 ) -> Pipeline:
     """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
-    ensure_correct_pipeline_kwargs(attach, **kwargs)
+    ensure_correct_pipeline_kwargs(attach, **injection_kwargs)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -185,8 +186,8 @@ def attach(
         full_refresh,
         progress,
         True,
-        last_config(**kwargs),
-        kwargs["runtime"],
+        last_config(**injection_kwargs),
+        injection_kwargs["runtime"],
     )
     # set it as current pipeline
     p.activate()
