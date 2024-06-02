@@ -5,12 +5,12 @@ from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, T
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import (
     AnyType,
-    ConfigValue,
-    SecretValue,
+    ConfigValueSentinel,
     StrAny,
     TSecretValue,
     get_all_types_of_class_in_union,
     is_optional_type,
+    is_subclass,
     is_union_type,
 )
 
@@ -89,7 +89,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
                     raise
         return first_credentials
     else:
-        assert issubclass(hint, CredentialsConfiguration)
+        assert is_subclass(hint, CredentialsConfiguration)
         return hint.from_init_value(initial_value)  # type: ignore
 
 
@@ -202,7 +202,7 @@ def _resolve_config_fields(
                 explicit_value = explicit_values[key]
                 explicit_none = explicit_value is None
                 # detect dlt.config and dlt.secrets and force injection
-                if explicit_value in (ConfigValue, SecretValue):
+                if isinstance(explicit_value, ConfigValueSentinel):
                     explicit_value = None
         else:
             if is_hint_not_resolvable(hint):

@@ -36,6 +36,7 @@ from dlt.common.typing import (
     is_annotated,
     is_final_type,
     is_optional_type,
+    is_subclass,
     is_union_type,
 )
 from dlt.common.data_types import py_type_to_sc_type
@@ -81,15 +82,15 @@ def is_hint_not_resolvable(hint: AnyType) -> bool:
 
 
 def is_base_configuration_inner_hint(inner_hint: Type[Any]) -> bool:
-    return inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration)
+    return is_subclass(inner_hint, BaseConfiguration)
 
 
 def is_context_inner_hint(inner_hint: Type[Any]) -> bool:
-    return inspect.isclass(inner_hint) and issubclass(inner_hint, ContainerInjectableContext)
+    return is_subclass(inner_hint, ContainerInjectableContext)
 
 
 def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
-    return inspect.isclass(inner_hint) and issubclass(inner_hint, CredentialsConfiguration)
+    return is_subclass(inner_hint, CredentialsConfiguration)
 
 
 def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:

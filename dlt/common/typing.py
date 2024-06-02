@@ -1,8 +1,9 @@
-from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
+from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence, Callable as C_Callable
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
 from re import Pattern as _REPattern
+import sys
 from types import FunctionType, MethodType, ModuleType
 from typing import (
     ForwardRef,
@@ -49,6 +50,16 @@ except ImportError:
     # as shown here should suffice because it is valid only
     # in versions of Python>=3.10.
     UnionType = Never
+
+if sys.version_info[:3] >= (3, 9, 0):
+    from typing import _SpecialGenericAlias, _GenericAlias  # type: ignore[attr-defined]
+    from types import GenericAlias  # type: ignore[attr-defined]
+
+    typingGenericAlias: Tuple[Any, ...] = (_GenericAlias, _SpecialGenericAlias, GenericAlias)
+else:
+    from typing import _GenericAlias  # type: ignore[attr-defined]
+
+    typingGenericAlias = (_GenericAlias,)
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -317,8 +328,34 @@ def get_all_types_of_class_in_union(hint: Type[Any], cls: Type[TAny]) -> List[Ty
     return [
         t
         for t in get_args(hint)
-        if not is_typeddict(t) and inspect.isclass(t) and (issubclass(t, cls) or issubclass(cls, t))
+        if not is_typeddict(t) and (is_subclass(t, cls) or is_subclass(cls, t))
     ]
+
+
+def is_generic_alias(tp: Type[Any]) -> bool:
+    """Tests if type is a generic alias ie. List[str]"""
+    return isinstance(tp, typingGenericAlias) and tp.__origin__ not in (
+        Union,
+        tuple,
+        ClassVar,
+        C_Callable,
+    )
+
+
+def is_subclass(subclass: Type[Any], cls: Type[Any]) -> bool:
+    """Return whether 'cls' is a derived from another class or is the same class.
+
+    Will handle generic types by comparing their origins.
+    """
+    if is_generic_alias(subclass):
+        subclass = get_origin(subclass)
+    if is_generic_alias(cls):
+        cls = get_origin(cls)
+
+    print(subclass, cls, inspect.isclass(subclass), inspect.isclass(cls))
+    if inspect.isclass(subclass) and inspect.isclass(cls):
+        return issubclass(subclass, cls)
+    return False
 
 
 def get_generic_type_argument_from_instance(

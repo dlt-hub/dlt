@@ -18,6 +18,7 @@ from dlt.common.typing import (
     extract_inner_type,
     get_generic_type_argument_from_instance,
     is_optional_type,
+    is_subclass,
 )
 from dlt.common.schema.typing import TColumnNames
 from dlt.common.configuration import configspec, ConfigurationValueError
@@ -524,10 +525,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         incremental_param: Optional[inspect.Parameter] = None
         for p in sig.parameters.values():
             annotation = extract_inner_type(p.annotation)
-            annotation = get_origin(annotation) or annotation
-            if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(
-                p.default, Incremental
-            ):
+            if is_subclass(annotation, Incremental) or isinstance(p.default, Incremental):
                 incremental_param = p
                 break
         return incremental_param

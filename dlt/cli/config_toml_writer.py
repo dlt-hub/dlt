@@ -11,7 +11,7 @@ from dlt.common.configuration.specs import (
     extract_inner_hint,
 )
 from dlt.common.data_types import py_type_to_sc_type
-from dlt.common.typing import AnyType, is_final_type, is_optional_type
+from dlt.common.typing import AnyType, is_final_type, is_optional_type, is_subclass
 
 
 class WritableConfigValue(NamedTuple):
@@ -34,7 +34,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
         if sc_type == "bool":
             return True
         if sc_type == "complex":
-            if issubclass(inner_hint, C_Sequence):
+            if is_subclass(inner_hint, C_Sequence):
                 return ["a", "b", "c"]
             else:
                 table = tomlkit.table(False)

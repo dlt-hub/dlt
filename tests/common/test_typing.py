@@ -34,6 +34,7 @@ from dlt.common.typing import (
     is_literal_type,
     is_newtype_type,
     is_optional_type,
+    is_subclass,
     is_typeddict,
     is_union_type,
     is_annotated,
@@ -233,3 +234,19 @@ def test_extract_annotated_inner_type() -> None:
     assert extract_inner_type(Annotated[Optional[MyDataclass], "meta"]) is MyDataclass  # type: ignore[arg-type]
     assert extract_inner_type(Annotated[MyDataclass, Optional]) is MyDataclass  # type: ignore[arg-type]
     assert extract_inner_type(Annotated[MyDataclass, "random metadata string"]) is MyDataclass  # type: ignore[arg-type]
+
+
+def test_is_subclass() -> None:
+    from dlt.extract import Incremental
+
+    assert is_subclass(Incremental, BaseConfiguration) is True
+    assert is_subclass(Incremental[float], Incremental[int]) is True
+    assert is_subclass(BaseConfiguration, Incremental[int]) is False
+    assert is_subclass(list, Sequence) is True
+    assert is_subclass(list, Sequence[str]) is True
+    # unions, new types, literals etc. will always produce False
+    assert is_subclass(list, Optional[list]) is False  # type: ignore[arg-type]
+    assert is_subclass(Optional[list], list) is False  # type: ignore[arg-type]
+    assert is_subclass(list, TTestLi) is False  # type: ignore[arg-type]
+    assert is_subclass(TTestLi, TTestLi) is False  # type: ignore[arg-type]
+    assert is_subclass(list, NewType("LT", list)) is False
