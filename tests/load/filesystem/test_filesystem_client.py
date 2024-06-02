@@ -265,7 +265,7 @@ def test_write_delta_table(filesystem_client) -> None:
 
     client, remote_dir = filesystem_client
     client = cast(FilesystemClient, client)
-    storage_options = _deltalake_storage_options(client)
+    storage_options = _deltalake_storage_options(client.config)
 
     with pytest.raises(Exception):
         # bug in `delta-rs` causes error when writing big decimal values

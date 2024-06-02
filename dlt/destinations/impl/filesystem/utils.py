@@ -2,10 +2,9 @@ from typing import Optional, Dict, Union
 
 import pyarrow as pa
 
-from dlt.common.json import json
 from dlt.common.libs.pyarrow import ensure_arrow_table, adjust_arrow_schema
 from dlt.common.schema.typing import TWriteDisposition
-from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 
 
 def ensure_delta_compatible_arrow_table(table: pa.table) -> pa.Table:
@@ -60,28 +59,11 @@ def write_delta_table(
     )
 
 
-def _deltalake_storage_options(client: FilesystemClient) -> Dict[str, str]:
+def _deltalake_storage_options(config: FilesystemDestinationClientConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
-    # TODO: implement method properly and remove hard-coded values.
-    # `delta-rs` does not currently (version 0.17.4) support `gdrive` protocol
     storage_options = None
-    if client.config.protocol == "s3":
-        from dlt.common.configuration.specs import AwsCredentials
-
-        assert isinstance(client.config.credentials, AwsCredentials)
-        storage_options = client.config.credentials.to_session_credentials()
-        storage_options["AWS_REGION"] = client.config.credentials.region_name
-        # https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/#enable-unsafe-writes-in-s3-opt-in
-        storage_options["AWS_S3_ALLOW_UNSAFE_RENAME"] = "true"
-    elif client.config.protocol == "gs":
-        from dlt.common.configuration.specs import GcpServiceAccountCredentials
-
-        assert isinstance(client.config.credentials, GcpServiceAccountCredentials)
-        gcs_creds = client.config.credentials.to_gcs_credentials()
-        gcs_creds["token"]["private_key_id"] = "921837921798379812"
-        storage_options = {"GOOGLE_SERVICE_ACCOUNT_KEY": json.dumps(gcs_creds["token"])}
-    else:
-        storage_options = {  # `delta-rs` requires string values
-            k: str(v) for k, v in client.fs_client.storage_options.items()
-        }
+    if config.protocol in ("az", "gs", "s3"):
+        storage_options = config.credentials.to_object_store_rs_credentials()
+        if config.protocol == "s3":
+            storage_options["AWS_S3_ALLOW_UNSAFE_RENAME"] = "true"  # upper case required
     return storage_options

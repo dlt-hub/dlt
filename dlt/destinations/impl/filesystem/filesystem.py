@@ -126,7 +126,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
             path=self.client.make_remote_uri(self.make_remote_path()),
             data=ds.dataset(file_paths),
             write_disposition=self.table["write_disposition"],
-            storage_options=_deltalake_storage_options(self.client),
+            storage_options=_deltalake_storage_options(self.client.config),
         )
 
     def make_remote_path(self) -> str:

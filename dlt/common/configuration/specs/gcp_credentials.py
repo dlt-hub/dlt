@@ -1,6 +1,6 @@
 import dataclasses
 import sys
-from typing import Any, ClassVar, Final, List, Tuple, Union, Dict
+from typing import Any, ClassVar, Final, List, Tuple, Union, Dict, Optional
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
@@ -74,6 +74,7 @@ class GcpCredentials(CredentialsConfiguration):
 @configspec
 class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
     private_key: TSecretValue = None
+    private_key_id: Optional[str] = None
     client_email: str = None
     type: Final[str] = dataclasses.field(  # noqa: A003
         default="service_account", init=False, repr=False, compare=False
@@ -121,6 +122,10 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
             return self.private_key
         else:
             return ServiceAccountCredentials.from_service_account_info(self)
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/gcp
+        return {"service_account_key": json.dumps(dict(self))}
 
     def __str__(self) -> str:
         return f"{self.client_email}@{self.project_id}"
@@ -170,6 +175,12 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
 
     def to_native_representation(self) -> str:
         return json.dumps(self._info_dict())
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        raise NotImplementedError(
+            "`object_store` Rust crate does not support OAuth for GCP credentials. Reference:"
+            " https://docs.rs/object_store/latest/object_store/gcp."
+        )
 
     def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:
         if not self.refresh_token:
