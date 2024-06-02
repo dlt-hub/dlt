@@ -221,7 +221,9 @@ def _resolve_config_fields(
                 if (
                     explicit_value
                     and not is_valid_hint(type(explicit_value))
-                    and get_all_types_of_class_in_union(hint, type(explicit_value))
+                    and get_all_types_of_class_in_union(
+                        hint, type(explicit_value), with_superclass=True
+                    )
                 ):
                     current_value, traces = explicit_value, []
                 else:

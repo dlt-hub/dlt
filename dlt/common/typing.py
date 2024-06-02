@@ -323,16 +323,18 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
     return hint
 
 
-def get_all_types_of_class_in_union(hint: Type[Any], cls: Type[TAny]) -> List[Type[TAny]]:
-    # hint is an Union that contains classes, return all classes that are a subclass or superclass of cls
+def get_all_types_of_class_in_union(
+    hint: Any, cls: TAny, with_superclass: bool = False
+) -> List[TAny]:
+    """if `hint` is an Union that contains classes, return all classes that are a subclass or (optionally) superclass of cls"""
     return [
         t
         for t in get_args(hint)
-        if not is_typeddict(t) and (is_subclass(t, cls) or is_subclass(cls, t))
+        if not is_typeddict(t) and (is_subclass(t, cls) or is_subclass(cls, t) and with_superclass)
     ]
 
 
-def is_generic_alias(tp: Type[Any]) -> bool:
+def is_generic_alias(tp: Any) -> bool:
     """Tests if type is a generic alias ie. List[str]"""
     return isinstance(tp, typingGenericAlias) and tp.__origin__ not in (
         Union,
@@ -342,7 +344,7 @@ def is_generic_alias(tp: Type[Any]) -> bool:
     )
 
 
-def is_subclass(subclass: Type[Any], cls: Type[Any]) -> bool:
+def is_subclass(subclass: Any, cls: Any) -> bool:
     """Return whether 'cls' is a derived from another class or is the same class.
 
     Will handle generic types by comparing their origins.
@@ -352,7 +354,6 @@ def is_subclass(subclass: Type[Any], cls: Type[Any]) -> bool:
     if is_generic_alias(cls):
         cls = get_origin(cls)
 
-    print(subclass, cls, inspect.isclass(subclass), inspect.isclass(cls))
     if inspect.isclass(subclass) and inspect.isclass(cls):
         return issubclass(subclass, cls)
     return False

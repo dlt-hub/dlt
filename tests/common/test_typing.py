@@ -29,6 +29,7 @@ from dlt.common.typing import (
     StrAny,
     extract_inner_type,
     extract_union_types,
+    get_all_types_of_class_in_union,
     is_dict_generic_type,
     is_list_generic_type,
     is_literal_type,
@@ -245,8 +246,27 @@ def test_is_subclass() -> None:
     assert is_subclass(list, Sequence) is True
     assert is_subclass(list, Sequence[str]) is True
     # unions, new types, literals etc. will always produce False
-    assert is_subclass(list, Optional[list]) is False  # type: ignore[arg-type]
-    assert is_subclass(Optional[list], list) is False  # type: ignore[arg-type]
-    assert is_subclass(list, TTestLi) is False  # type: ignore[arg-type]
-    assert is_subclass(TTestLi, TTestLi) is False  # type: ignore[arg-type]
+    assert is_subclass(list, Optional[list]) is False
+    assert is_subclass(Optional[list], list) is False
+    assert is_subclass(list, TTestLi) is False
+    assert is_subclass(TTestLi, TTestLi) is False
     assert is_subclass(list, NewType("LT", list)) is False
+
+
+def test_get_all_types_of_class_in_union() -> None:
+    from dlt.extract import Incremental
+
+    # optional is an union
+    assert get_all_types_of_class_in_union(Optional[str], str) == [str]
+    # both classes and type aliases are recognized
+    assert get_all_types_of_class_in_union(Optional[Incremental], BaseConfiguration) == [
+        Incremental
+    ]
+    assert get_all_types_of_class_in_union(Optional[Incremental[float]], BaseConfiguration) == [
+        Incremental[float]
+    ]
+    # by default superclasses are not recognized
+    assert get_all_types_of_class_in_union(Union[BaseConfiguration, str], Incremental[float]) == []
+    assert get_all_types_of_class_in_union(
+        Union[BaseConfiguration, str], Incremental[float], with_superclass=True
+    ) == [BaseConfiguration]

@@ -1,5 +1,6 @@
 import os
 import asyncio
+import inspect
 import random
 from time import sleep
 from typing import Optional, Any
@@ -25,6 +26,7 @@ from dlt.extract import DltSource
 from dlt.extract.exceptions import InvalidStepFunctionArguments
 from dlt.extract.resource import DltResource
 from dlt.sources.helpers.transform import take_first
+from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
@@ -38,6 +40,45 @@ from tests.utils import (
     TestDataItemFormat,
     ALL_TEST_DATA_ITEM_FORMATS,
 )
+
+
+def test_detect_incremental_arg() -> None:
+    def incr_1(incremental: dlt.sources.incremental):  # type: ignore[type-arg]
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_1)).name
+        == "incremental"
+    )
+
+    def incr_2(incremental: Incremental[str]):
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_2)).name
+        == "incremental"
+    )
+
+    def incr_3(incremental=dlt.sources.incremental[str]("updated_at")):  # noqa
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_3)).name
+        == "incremental"
+    )
+
+    def incr_4(incremental=Incremental[str]("updated_at")):  # noqa
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_4)).name
+        == "incremental"
+    )
+
+    def incr_5(incremental: IncrementalResourceWrapper):
+        pass
+
+    assert IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_5)) is None
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
