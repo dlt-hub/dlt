@@ -234,6 +234,11 @@ def test_pipeline_delta_filesystem_destination(
             )
         # ensure multiple files are created for single load
         os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
+    if default_buckets_env.startswith("s3://"):
+        # https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/
+        os.environ["DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS"] = (
+            '{"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}'
+        )
 
     def reset_pipeline(pipeline: dlt.Pipeline) -> None:
         pipeline.drop()

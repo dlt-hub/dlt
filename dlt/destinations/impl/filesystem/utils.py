@@ -2,6 +2,7 @@ from typing import Optional, Dict, Union
 
 import pyarrow as pa
 
+from dlt.common import logger
 from dlt.common.libs.pyarrow import ensure_arrow_table, adjust_arrow_schema
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -61,9 +62,18 @@ def write_delta_table(
 
 def _deltalake_storage_options(config: FilesystemDestinationClientConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
-    storage_options = None
+    creds = {}
+    extra_options = {}
     if config.protocol in ("az", "gs", "s3"):
-        storage_options = config.credentials.to_object_store_rs_credentials()
-        if config.protocol == "s3":
-            storage_options["AWS_S3_ALLOW_UNSAFE_RENAME"] = "true"  # upper case required
-    return storage_options
+        creds = config.credentials.to_object_store_rs_credentials()
+    if config.deltalake_storage_options is not None:
+        extra_options = config.deltalake_storage_options
+    shared_keys = creds.keys() & extra_options.keys()
+    if len(shared_keys) > 0:
+        logger.warning(
+            "The `deltalake_storage_options` configuration dictionary contains "
+            "keys also provided by dlt's credential system: "
+            + ", ".join([f"`{key}`" for key in shared_keys])
+            + ". dlt will use the values in `deltalake_storage_options`."
+        )
+    return {**creds, **extra_options}
