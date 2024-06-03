@@ -25,11 +25,10 @@ def convert_storage_to_http_scheme(
         protocol = "https" if use_https else "http"
 
         if endpoint:
-            domain = endpoint
+            domain = endpoint.replace("https://", "").replace("http://", "")
         elif region and parsed_url.scheme == "s3":
             domain = f"s3-{region}.amazonaws.com"
         else:
-            # TODO: Incorporate dlt.config endpoint.
             storage_domains = {
                 "s3": "s3.amazonaws.com",
                 "gs": "storage.googleapis.com",
