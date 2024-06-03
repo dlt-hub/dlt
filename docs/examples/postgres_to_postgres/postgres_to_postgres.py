@@ -85,7 +85,7 @@ def pg_resource_chunked(
     primary_key: List[str],
     schema_name: str,
     order_date: str,
-    load_type: str = "merge",  # type: ignore
+    load_type: str = "merge",
     columns: str = "*",
     credentials: ConnectionStringCredentials = dlt.secrets[
         "sources.postgres.credentials"
@@ -98,7 +98,7 @@ def pg_resource_chunked(
 
     query = f"SELECT {columns} FROM {schema_name}.{table_name} ORDER BY {order_date}"  # Needed to have an idempotent query
 
-    source = dlt.resource(
+    source = dlt.resource(  # type: ignore
         name=table_name,
         table_name=table_name,
         write_disposition=load_type,  # use `replace` for initial load, `merge` for incremental
@@ -253,10 +253,10 @@ if __name__ == "__main__":
         print("##################################### FINISHED ########")
 
         # check that stuff was loaded
-        row_counts = conn.sql(
+        rows = conn.sql(
             f"SELECT count(*) as count FROM pg_db.{timestamped_schema}.{table['table_name']};"
         ).fetchone()[0]
-        assert int(row_counts) == 9
+        assert int(rows) == 9
 
         # 5. Cleanup and rename Schema
         print(
