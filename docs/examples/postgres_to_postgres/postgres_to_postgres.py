@@ -216,7 +216,7 @@ if __name__ == "__main__":
     if load_type == "replace":
         # 4. Load DuckDB local database into Postgres
         print("##################################### START DUCKDB LOAD ########")
-        conn = duckdb.connect(f"{pipeline_name}.duckdb")
+        conn = duckdb.connect(f"{load_info.destination_displayable_credentials}".split(":///")[1])
         conn.install_extension(
             "./postgres_scanner.duckdb_extension"
         )  # duckdb_extension is downloaded/installed manually here, only needed if `LOAD/INSTALL postgres` throws an error
