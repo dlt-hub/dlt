@@ -49,7 +49,7 @@ here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), th
 import argparse
 import os
 from datetime import datetime
-from typing import Literal, List
+from typing import List
 
 import connectorx as cx
 import duckdb
@@ -85,7 +85,7 @@ def pg_resource_chunked(
     primary_key: List[str],
     schema_name: str,
     order_date: str,
-    load_type:  Literal["skip", "append", "replace", "merge"] = "merge",
+    load_type: str = "merge",  # type: ignore
     columns: str = "*",
     credentials: ConnectionStringCredentials = dlt.secrets[
         "sources.postgres.credentials"
@@ -145,12 +145,8 @@ if __name__ == "__main__":
         table_desc("table_2", ["pk"], source_schema_name, "updated_at"),
     ]
 
-    if args.replace:
-        load_type  = "replace"
-    else:
-        # default is delta load
-        load_type = "merge"
-
+    # default is initial loading (replace)
+    load_type = "merge" if args.merge else "replace"
     print(f"LOAD-TYPE: {load_type}")
 
     resources = []
@@ -161,7 +157,7 @@ if __name__ == "__main__":
                 table["pk"],
                 table["schema_name"],
                 table["order_date"],
-                load_type=load_type,  # ignore: type
+                load_type=load_type,
                 columns=table["columns"],
             )
         )
@@ -209,6 +205,14 @@ if __name__ == "__main__":
     print(load_info)
     print(f"--Time elapsed: {datetime.now() - startTime}")
 
+    # check that stuff was loaded
+    row_counts = pipeline.last_trace.last_normalize_info.row_counts
+    assert row_counts["table_1"] == 9
+    assert row_counts["table_2"] == 9
+
+    # make sure nothing failed
+    load_info.raise_on_failed_jobs()
+
     if load_type == "replace":
         # 4. Load DuckDB local database into Postgres
         print("##################################### START DUCKDB LOAD ########")
@@ -247,6 +251,12 @@ if __name__ == "__main__":
 
         print(f"--Time elapsed: {datetime.now() - startTime}")
         print("##################################### FINISHED ########")
+
+        # check that stuff was loaded
+        row_counts = conn.sql(
+            f"SELECT count(*) as count FROM pg_db.{timestamped_schema}.{table['table_name']};"
+        ).fetchone()[0]
+        assert int(row_counts) == 9
 
         # 5. Cleanup and rename Schema
         print(
