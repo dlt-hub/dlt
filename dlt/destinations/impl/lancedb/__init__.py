@@ -4,7 +4,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl", "parquet"]
+    caps.supported_loader_file_formats = ["jsonl"]
 
     caps.max_identifier_length = 200
     caps.max_column_identifier_length = 1024
