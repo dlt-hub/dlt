@@ -16,6 +16,7 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
+    Dict,
 )
 
 from dlt import version
@@ -45,6 +46,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
+    TTableSchema,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -95,6 +97,7 @@ from dlt.common.pipeline import (
     StateInjectableContext,
     TStepMetrics,
     WithStepInfo,
+    TRefreshMode,
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
@@ -122,6 +125,7 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
     SqlClientNotAvailable,
     FSClientNotAvailable,
+    PipelineNeverRan,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
@@ -133,6 +137,7 @@ from dlt.pipeline.trace import (
     end_trace_step,
     end_trace,
 )
+from dlt.common.pipeline import pipeline_state as current_pipeline_state
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     PIPELINE_STATE_ENGINE_VERSION,
@@ -145,6 +150,7 @@ from dlt.pipeline.state_sync import (
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
 from dlt.common.storages.load_package import TLoadPackageState
+from dlt.pipeline.helpers import refresh_source
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -293,7 +299,7 @@ class Pipeline(SupportsPipeline):
     schema_names: List[str] = []
     first_run: bool = False
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
-    full_refresh: bool
+    dev_mode: bool
     must_attach_to_local_pipeline: bool
     pipelines_dir: str
     """A directory where the pipelines' working directories are created"""
@@ -310,6 +316,7 @@ class Pipeline(SupportsPipeline):
     collector: _Collector
     config: PipelineConfiguration
     runtime_config: RunConfiguration
+    refresh: Optional[TRefreshMode] = None
 
     def __init__(
         self,
@@ -322,20 +329,22 @@ class Pipeline(SupportsPipeline):
         credentials: Any,
         import_schema_path: str,
         export_schema_path: str,
-        full_refresh: bool,
+        dev_mode: bool,
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
         runtime: RunConfiguration,
+        refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
-        self.full_refresh = full_refresh
+        self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self.destination = None
         self.staging = None
+        self.refresh = refresh
 
         self._container = Container()
         self._pipeline_instance_id = self._create_pipeline_instance_id()
@@ -379,7 +388,7 @@ class Pipeline(SupportsPipeline):
             self.credentials,
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
-            self.full_refresh,
+            self.dev_mode,
             self.collector,
             False,
             self.config,
@@ -403,8 +412,10 @@ class Pipeline(SupportsPipeline):
         max_parallel_items: int = None,
         workers: int = None,
         schema_contract: TSchemaContract = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
+
         # create extract storage to which all the sources will be extracted
         extract_step = Extract(
             self._schema_storage,
@@ -428,7 +439,14 @@ class Pipeline(SupportsPipeline):
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
-                    self._extract_source(extract_step, source, max_parallel_items, workers)
+
+                    self._extract_source(
+                        extract_step,
+                        source,
+                        max_parallel_items,
+                        workers,
+                        refresh=refresh or self.refresh,
+                    )
                 # extract state
                 state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:
@@ -580,6 +598,7 @@ class Pipeline(SupportsPipeline):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
+        refresh: Optional[TRefreshMode] = None,
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -633,6 +652,11 @@ class Pipeline(SupportsPipeline):
 
             schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
+            refresh (str | TRefreshMode): Fully or partially reset sources before loading new data in this run. The following refresh modes are supported:
+                * `drop_sources`: Drop tables and source and resource state for all sources currently being processed in `run` or `extract` methods of the pipeline. (Note: schema history is erased)
+                * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
+                * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
+
         Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         Returns:
@@ -648,7 +672,7 @@ class Pipeline(SupportsPipeline):
         # sync state with destination
         if (
             self.config.restore_from_destination
-            and not self.full_refresh
+            and not self.dev_mode
             and not self._state_restored
             and (self.destination or destination)
         ):
@@ -679,6 +703,7 @@ class Pipeline(SupportsPipeline):
                 primary_key=primary_key,
                 schema=schema,
                 schema_contract=schema_contract,
+                refresh=refresh or self.refresh,
             )
             self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
@@ -1031,7 +1056,7 @@ class Pipeline(SupportsPipeline):
         # create pipeline storage, do not create working dir yet
         self._pipeline_storage = FileStorage(self.working_dir, makedirs=False)
         # if full refresh was requested, wipe out all data from working folder, if exists
-        if self.full_refresh:
+        if self.dev_mode:
             self._wipe_working_folder()
 
     def _configure(
@@ -1083,7 +1108,13 @@ class Pipeline(SupportsPipeline):
         pass
 
     def _extract_source(
-        self, extract: Extract, source: DltSource, max_parallel_items: int, workers: int
+        self,
+        extract: Extract,
+        source: DltSource,
+        max_parallel_items: int,
+        workers: int,
+        refresh: Optional[TRefreshMode] = None,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
     ) -> str:
         # discover the existing pipeline schema
         try:
@@ -1102,8 +1133,14 @@ class Pipeline(SupportsPipeline):
         except FileNotFoundError:
             pass
 
+        load_package_state_update = dict(load_package_state_update or {})
+        if refresh:
+            load_package_state_update.update(refresh_source(self, source, refresh))
+
         # extract into pipeline schema
-        load_id = extract.extract(source, max_parallel_items, workers)
+        load_id = extract.extract(
+            source, max_parallel_items, workers, load_package_state_update=load_package_state_update
+        )
 
         # save import with fully discovered schema
         # NOTE: moved to with_schema_sync, remove this if all test pass
@@ -1145,9 +1182,9 @@ class Pipeline(SupportsPipeline):
 
         # this client support many schemas and datasets
         if issubclass(client_spec, DestinationClientDwhConfiguration):
-            if not self.dataset_name and self.full_refresh:
+            if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "Full refresh may not work if dataset name is not set. Please set the"
+                    "Dev mode may not work if dataset name is not set. Please set the"
                     " dataset_name argument in dlt.pipeline or run method"
                 )
             # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
@@ -1335,8 +1372,8 @@ class Pipeline(SupportsPipeline):
         if not new_dataset_name:
             return
 
-        # in case of full refresh add unique suffix
-        if self.full_refresh:
+        # in case of dev_mode add unique suffix
+        if self.dev_mode:
             # dataset must be specified
             # double _ is not allowed
             if new_dataset_name.endswith("_"):
@@ -1532,8 +1569,37 @@ class Pipeline(SupportsPipeline):
         state["schema_names"] = self._list_schemas_sorted()
         return state
 
+    def _save_and_extract_state_and_schema(
+        self,
+        state: TPipelineState,
+        schema: Schema,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Save given state + schema and extract creating a new load package
+
+        Args:
+            state: The new pipeline state, replaces the current state
+            schema: The new source schema, replaces current schema of the same name
+            load_package_state_update: Dict which items will be included in the load package state
+        """
+        self.schemas.save_schema(schema)
+        with self.managed_state() as old_state:
+            old_state.update(state)
+
+        self._bump_version_and_extract_state(
+            state,
+            extract_state=True,
+            load_package_state_update=load_package_state_update,
+            schema=schema,
+        )
+
     def _bump_version_and_extract_state(
-        self, state: TPipelineState, extract_state: bool, extract: Extract = None
+        self,
+        state: TPipelineState,
+        extract_state: bool,
+        extract: Extract = None,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
+        schema: Optional[Schema] = None,
     ) -> TPipelineStateDoc:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
@@ -1547,7 +1613,11 @@ class Pipeline(SupportsPipeline):
                 self._schema_storage, self._normalize_storage_config(), original_data=data
             )
             self._extract_source(
-                extract_, data_to_sources(data, self, self.default_schema)[0], 1, 1
+                extract_,
+                data_to_sources(data, self, schema or self.default_schema)[0],
+                1,
+                1,
+                load_package_state_update=load_package_state_update,
             )
             # set state to be extracted
             mark_state_extracted(state, hash_)

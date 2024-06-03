@@ -286,7 +286,7 @@ def _resolve_config_field(
     embedded_sections: Tuple[str, ...],
     accept_partial: bool,
 ) -> Tuple[Any, List[LookupTrace]]:
-    inner_hint = extract_inner_hint(hint)
+    inner_hint = extract_inner_hint(hint, preserve_literal=True)
 
     if explicit_value is not None:
         value = explicit_value

@@ -327,16 +327,18 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
         del schema.tables[tbl]
     schema._bump_version()
     client.drop_tables(*tables_to_drop)
+    client._update_schema_in_storage(schema)  # Schema was deleted, load it in again
     if isinstance(client, WithStagingDataset):
         with contextlib.suppress(DatabaseUndefinedRelation):
             with client.with_staging_dataset():
-                client.drop_tables(*tables_to_drop, replace_schema=False)
+                client.drop_tables(*tables_to_drop, delete_schema=False)
     # drop again - should not break anything
     client.drop_tables(*tables_to_drop)
+    client._update_schema_in_storage(schema)
     if isinstance(client, WithStagingDataset):
         with contextlib.suppress(DatabaseUndefinedRelation):
             with client.with_staging_dataset():
-                client.drop_tables(*tables_to_drop, replace_schema=False)
+                client.drop_tables(*tables_to_drop, delete_schema=False)
 
     # Verify requested tables are dropped
     for tbl in tables_to_drop:

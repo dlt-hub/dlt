@@ -59,7 +59,7 @@ pipeline = dlt.pipeline(
     pipeline_name="github_pipeline",
     destination="duckdb",
     dataset_name="github_reactions",
-    full_refresh=True
+    dev_mode=True
 )
 with pipeline.sql_client() as client:
     with client.execute_query(

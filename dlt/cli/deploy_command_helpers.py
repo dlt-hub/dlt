@@ -263,22 +263,25 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
     if n.PIPELINE in visitor.known_calls:
         for call_args in visitor.known_calls[n.PIPELINE]:
             pipeline_name, pipelines_dir = None, None
-            f_r_node = call_args.arguments.get("full_refresh")
+            # Check both full_refresh/dev_mode until full_refresh option is removed from dlt
+            f_r_node = call_args.arguments.get("full_refresh") or call_args.arguments.get(
+                "dev_mode"
+            )
             if f_r_node:
                 f_r_value = evaluate_node_literal(f_r_node)
                 if f_r_value is None:
                     fmt.warning(
-                        "The value of `full_refresh` in call to `dlt.pipeline` cannot be"
+                        "The value of `dev_mode` in call to `dlt.pipeline` cannot be"
                         f" determined from {unparse(f_r_node).strip()}. We assume that you know"
                         " what you are doing :)"
                     )
                 if f_r_value is True:
                     if fmt.confirm(
-                        "The value of 'full_refresh' is set to True. Do you want to abort to set it"
-                        " to False?",
+                        "The value of 'dev_mode' or 'full_refresh' is set to True. Do you want to"
+                        " abort to set it to False?",
                         default=True,
                     ):
-                        raise CliCommandException("deploy", "Please set the full_refresh to False")
+                        raise CliCommandException("deploy", "Please set the dev_mode to False")
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:

@@ -30,7 +30,7 @@ def test_async_iterator_resource() -> None:
             # return the counter value
             return {"i": self.counter}
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     pipeline_1.run(AsyncIterator, table_name="async")
     with pipeline_1.sql_client() as c:
         with c.execute_query("SELECT * FROM async") as cur:
@@ -53,7 +53,7 @@ def test_async_generator_resource() -> None:
             await asyncio.sleep(0.1)
             yield {"letter": l_}
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
 
     # pure async function
     pipeline_1.run(async_gen_table(), table_name="async")
@@ -81,7 +81,7 @@ def test_async_generator_nested() -> None:
         for idx_ in range(3):
             yield _gen(idx_)
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     pipeline_1.run(async_inner_table(), table_name="async")
     with pipeline_1.sql_client() as c:
         with c.execute_query("SELECT * FROM async") as cur:
@@ -114,7 +114,7 @@ def test_async_generator_transformer() -> None:
             "letter": item["letter"] + "t",
         }
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     pipeline_1.run(async_transformer(), table_name="async")
 
     with pipeline_1.sql_client() as c:
@@ -174,7 +174,7 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
         elif resource_mode == "second_async":
             return [sync_resource1(), async_resource2()]
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     pipeline_1.run(source())
 
     with pipeline_1.sql_client() as c:
@@ -243,7 +243,7 @@ def test_parallelized_resource(parallelized: bool) -> None:
     def source():
         return [resource1(), resource2()]
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     pipeline_1.run(source())
 
     # all records should be here

@@ -31,7 +31,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("eth_2", full_refresh=True)
+    p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v5.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
@@ -97,7 +97,7 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_1", full_refresh=True)
+    p = destination_config.setup_pipeline("github_1", dev_mode=True)
 
     with open(
         "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
@@ -162,7 +162,7 @@ def github():
 def test_merge_source_compound_keys_and_changes(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
 
     info = p.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -211,7 +211,7 @@ def test_merge_source_compound_keys_and_changes(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_no_child_tables(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     assert github_data.max_table_nesting is None
     assert github_data.root_key is True
@@ -251,7 +251,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     # NOTE: we can test filesystem destination merge behavior here too, will also fallback!
     if destination_config.file_format == "insert_values":
         pytest.skip("Insert values row count checking is buggy, skipping")
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     # remove all keys
     github_data.load_issues.apply_hints(merge_key=(), primary_key=())
@@ -279,7 +279,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_keys_non_existing_columns(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     # set keys names that do not exist in the data
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
@@ -318,7 +318,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     ids=lambda x: x.name,
 )
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     # generate some complex types
     github_data.max_table_nesting = 2
@@ -447,7 +447,7 @@ def test_merge_with_dispatch_and_incremental(
         ]
 
     # load to destination
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     info = p.run(
         _get_shuffled_events(True) | github_resource,
         loader_file_format=destination_config.file_format,
@@ -507,7 +507,7 @@ def test_merge_with_dispatch_and_incremental(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_deduplicate_single_load(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(write_disposition="merge", primary_key="id")
     def duplicates():
@@ -538,7 +538,7 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(write_disposition="merge", merge_key="id")
     def duplicates():
@@ -575,7 +575,7 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     def r(data):
         yield data
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     data = [{"id": 1, "simple": "foo", "complex": [1, 2, 3]}]
     info = p.run(r(data), loader_file_format=destination_config.file_format)
@@ -618,7 +618,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         # we test what happens if there are no merge keys
         pass
 
-    p = destination_config.setup_pipeline(f"abstract_{key_type}", full_refresh=True)
+    p = destination_config.setup_pipeline(f"abstract_{key_type}", dev_mode=True)
 
     # insert two records
     data = [
@@ -766,7 +766,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
     def data_resource(data):
         yield data
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     # insert two records
     data = [
@@ -828,7 +828,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     def data_resource(data):
         yield data
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     # three records with same primary key
     data = [

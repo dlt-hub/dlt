@@ -153,7 +153,7 @@ class DestinationTestConfiguration:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
     def setup_pipeline(
-        self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
+        self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
         self.setup()
@@ -162,7 +162,7 @@ class DestinationTestConfiguration:
             destination=self.destination,
             staging=self.staging,
             dataset_name=dataset_name or pipeline_name,
-            full_refresh=full_refresh,
+            dev_mode=dev_mode,
             **kwargs,
         )
         return pipeline
