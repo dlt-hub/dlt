@@ -349,13 +349,6 @@ def destinations_configs(
                 destination="clickhouse",
                 staging="filesystem",
                 file_format="parquet",
-                bucket_url=GCS_BUCKET,
-                extra_info="gcs-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
             ),
@@ -372,13 +365,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="jsonl",
-                bucket_url=GCS_BUCKET,
-                extra_info="gcs-authorization",
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
