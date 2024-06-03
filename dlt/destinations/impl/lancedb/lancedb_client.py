@@ -40,6 +40,7 @@ from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
+from dlt.destinations.impl.lancedb.utils import infer_lancedb_model_from_data
 from dlt.destinations.job_impl import EmptyLoadJob
 
 
@@ -440,10 +441,10 @@ class LoadLanceDBJob(LoadJob):
         self.embedding_model_func = model_func
         self.embedding_model_dimensions = client_config.embedding_model_dimensions
 
-        # We reserve two field names `__id` and `__vector` to store vector embeddings and record IDs respectively.
+        # We reserve two field names `id__` and `vector__` to store vector embeddings and record IDs respectively.
         # TODO: Make these field configurable.
-        self.vector_field_name = "__vector"
-        self.id_field_name = "__id"
+        self.vector_field_name = "vector__"
+        self.id_field_name = "id__"
 
         with FileStorage.open_zipsafe_ro(local_path) as f:
             records: List[DictStrAny] = json.load(f)
@@ -456,7 +457,16 @@ class LoadLanceDBJob(LoadJob):
             )
             record.update({self.id_field_name: uuid_id})
 
-        self._upload_data(records, self._get_lancedb_model(), table_name)
+        # TODO: Use `table_schema` to infer LanceDB schema instead.
+        inferred_lancedb_model: Type[LanceModel] = infer_lancedb_model_from_data(
+            data=records,
+            id_field_name=self.id_field_name,
+            vector_field_name=self.vector_field_name,
+            embedding_fields=self.embedding_fields,
+            embedding_model_func=self.embedding_model_func,
+            embedding_model_dimensions=self.embedding_model_dimensions,
+        )
+        self._upload_data(records, inferred_lancedb_model, table_name)
 
     def _upload_data(
         self, records: List[DictStrAny], lancedb_model: TLanceModel, table_name: str
@@ -518,20 +528,6 @@ class LoadLanceDBJob(LoadJob):
             if primary_keys := get_columns_names_with_prop(table_schema, "primary_key"):
                 return primary_keys
         return get_columns_names_with_prop(table_schema, "unique")
-
-    def _get_lancedb_model(self) -> LanceModel:
-        """Constructs a LanceModel to parse data records with from the load job's table schema.
-
-        Returns:
-            LanceModel: The constructed, equivalent LanceModel.
-        """
-        table_schema: TTableSchema = self.table_schema
-        id_field_name: str = self.id_field_name
-        vector_field_name: str = self.vector_field_name
-        embedding_fields: List[str] = self.embedding_fields
-        embedding_model_func: TextEmbeddingFunction = self.embedding_model_func
-        embedding_model_dimensions: int = self.embedding_model_dimensions
-        ...
 
     def state(self) -> TLoadJobState:
         return "completed"
