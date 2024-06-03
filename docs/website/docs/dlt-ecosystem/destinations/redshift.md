@@ -9,7 +9,7 @@ keywords: [redshift, destination, data warehouse]
 ## Install dlt with Redshift
 **To install the dlt library with Redshift dependencies:**
 ```sh
-pip install dlt[redshift]
+pip install "dlt[redshift]"
 ```
 
 ## Setup Guide
@@ -26,7 +26,7 @@ The above command generates several files and directories, including `.dlt/secre
 ```sh
 pip install -r requirements.txt
 ```
-or with `pip install dlt[redshift]`, which installs the `dlt` library and the necessary dependencies for working with Amazon Redshift as a destination.
+or with `pip install "dlt[redshift]"`, which installs the `dlt` library and the necessary dependencies for working with Amazon Redshift as a destination.
 
 ### 2. Setup Redshift cluster
 To load data into Redshift, you need to create a Redshift cluster and enable access to your IP address through the VPC inbound rules associated with the cluster. While we recommend asking our GPT-4 assistant for details, we have provided a general outline of the process below:

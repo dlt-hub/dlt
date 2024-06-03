@@ -20,7 +20,13 @@ from .gcp_credentials import (
 from .connection_string_credentials import ConnectionStringCredentials
 from .api_credentials import OAuth2Credentials
 from .aws_credentials import AwsCredentials, AwsCredentialsWithoutDefaults
-from .azure_credentials import AzureCredentials, AzureCredentialsWithoutDefaults
+from .azure_credentials import (
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+    AzureServicePrincipalCredentials,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+    AnyAzureCredentials,
+)
 
 
 # backward compatibility for service account credentials
@@ -51,6 +57,9 @@ __all__ = [
     "AwsCredentialsWithoutDefaults",
     "AzureCredentials",
     "AzureCredentialsWithoutDefaults",
+    "AzureServicePrincipalCredentials",
+    "AzureServicePrincipalCredentialsWithoutDefaults",
+    "AnyAzureCredentials",
     "GcpClientCredentials",
     "GcpClientCredentialsWithDefault",
 ]

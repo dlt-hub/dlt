@@ -5,13 +5,13 @@ description: Learn how use the custom destination to load to bigquery and use cr
 keywords: [destination, credentials, example, bigquery, custom destination]
 ---
 
-In this example, you'll find a Python script that demonstrates how to load to bigquey with the custom destination.
+In this example, you'll find a Python script that demonstrates how to load to BigQuery with the custom destination.
 
 We'll learn how to:
-- use [built-in credentials](../general-usage/credentials/config_specs#gcp-credentials)
-- use the [custom destination](../dlt-ecosystem/destinations/destination.md)
-- Use pyarrow tables to create complex column types on bigquery
-- Use bigquery `autodetect=True` for schema inference from parquet files
+- Use [built-in credentials.](../general-usage/credentials/config_specs#gcp-credentials)
+- Use the [custom destination.](../dlt-ecosystem/destinations/destination.md)
+- Use pyarrow tables to create complex column types on BigQuery.
+- Use BigQuery `autodetect=True` for schema inference from parquet files.
 
 """
 
@@ -38,7 +38,7 @@ BIGQUERY_TABLE_ID = "chat-analytics-rasa-ci.ci_streaming_insert.natural-disaster
 def resource(url: str):
     # load pyarrow table with pandas
     table = pa.Table.from_pandas(pd.read_csv(url))
-    # we add a list type column to demontrate bigquery lists
+    # we add a list type column to demonstrate bigquery lists
     table = table.append_column(
         "tags",
         pa.array(
@@ -57,12 +57,14 @@ def resource(url: str):
     yield table
 
 
-# dlt biquery custom destination
+# dlt bigquery custom destination
 # we can use the dlt provided credentials class
 # to retrieve the gcp credentials from the secrets
-@dlt.destination(name="bigquery", loader_file_format="parquet", batch_size=0)
+@dlt.destination(
+    name="bigquery", loader_file_format="parquet", batch_size=0, naming_convention="snake_case"
+)
 def bigquery_insert(
-    items, table, credentials: GcpServiceAccountCredentials = dlt.secrets.value
+    items, table=BIGQUERY_TABLE_ID, credentials: GcpServiceAccountCredentials = dlt.secrets.value
 ) -> None:
     client = bigquery.Client(
         credentials.project_id, credentials.to_native_credentials(), location="US"
@@ -74,7 +76,7 @@ def bigquery_insert(
     )
     # since we have set the batch_size to 0, we get a filepath and can load the file directly
     with open(items, "rb") as f:
-        load_job = client.load_table_from_file(f, BIGQUERY_TABLE_ID, job_config=job_config)
+        load_job = client.load_table_from_file(f, table, job_config=job_config)
     load_job.result()  # Waits for the job to complete.
 
 

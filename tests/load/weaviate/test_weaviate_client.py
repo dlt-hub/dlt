@@ -37,10 +37,10 @@ def drop_weaviate_schema() -> Iterator[None]:
 
 
 def get_client_instance(schema: Schema) -> WeaviateClient:
-    dest = weaviate(dataset_name="ClientTest" + uniq_id())
-    return dest.client(schema, dest.spec())
-    # with Container().injectable_context(ConfigSectionContext(sections=('destination', 'weaviate'))):
-    #     return dest.client(schema, config)
+    dest = weaviate()
+    return dest.client(
+        schema, dest.spec()._bind_dataset_name(dataset_name="ClientTest" + uniq_id())
+    )
 
 
 @pytest.fixture(scope="function")
