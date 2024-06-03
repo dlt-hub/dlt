@@ -48,7 +48,7 @@ here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), th
 
 import argparse
 import os
-from datetime import datetime
+from dlt.common import pendulum
 from typing import List
 
 import connectorx as cx
@@ -179,12 +179,12 @@ if __name__ == "__main__":
         )  # full_refresh=False
 
     # start timer
-    startTime = datetime.now()
+    startTime = pendulum.now()
 
     # 1. extract
     print("##################################### START EXTRACT ########")
     pipeline.extract(resources)
-    print(f"--Time elapsed: {datetime.now() - startTime}")
+    print(f"--Time elapsed: {pendulum.now() - startTime}")
 
     # 2. normalize
     print("##################################### START NORMALIZATION ########")
@@ -197,13 +197,13 @@ if __name__ == "__main__":
 
     print(info)
     print(pipeline.last_trace.last_normalize_info)
-    print(f"--Time elapsed: {datetime.now() - startTime}")
+    print(f"--Time elapsed: {pendulum.now() - startTime}")
 
     # 3. load
     print("##################################### START LOAD ########")
     load_info = pipeline.load()
     print(load_info)
-    print(f"--Time elapsed: {datetime.now() - startTime}")
+    print(f"--Time elapsed: {pendulum.now() - startTime}")
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
@@ -249,7 +249,7 @@ if __name__ == "__main__":
                 f"SELECT count(*) as count FROM pg_db.{timestamped_schema}.{table['table_name']};"
             ).show()
 
-        print(f"--Time elapsed: {datetime.now() - startTime}")
+        print(f"--Time elapsed: {pendulum.now() - startTime}")
         print("##################################### FINISHED ########")
 
         # check that stuff was loaded
@@ -277,8 +277,8 @@ if __name__ == "__main__":
                 + ", DB: "
                 + target_credentials.username
             )
-        except:
-            print("Unable to connect to HD-database!")
+        except Exception as e:
+            print(f"Unable to connect to HD-database! The reason: {e}")
 
         with con_hd.cursor() as cur:
             # Drop existing target_schema_name
