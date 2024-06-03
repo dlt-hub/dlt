@@ -1,5 +1,5 @@
 import os
-from typing import Iterator, Tuple, Dict, Any, cast
+from typing import Iterator, Tuple, cast
 
 import pytest
 import pyarrow as pa
@@ -45,11 +45,11 @@ def test_deltalake_storage_options() -> None:
     assert _deltalake_storage_options(config) == {"foo": "bar"}
 
     # yes credentials, yes deltalake_storage_options: no shared keys
-    fs_creds: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
     creds = AwsCredentials(
-        aws_access_key_id=fs_creds["aws_access_key_id"],
-        aws_secret_access_key=fs_creds["aws_secret_access_key"],
-        region_name=fs_creds["region_name"],
+        aws_access_key_id="dummy_key_id",
+        aws_secret_access_key="dummy_acces_key",  # type: ignore[arg-type]
+        aws_session_token="dummy_session_token",  # type: ignore[arg-type]
+        region_name="dummy_region_name",
     )
     config.credentials = creds
     config.bucket_url = "s3://foo"
