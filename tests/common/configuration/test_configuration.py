@@ -61,6 +61,7 @@ from dlt.common.configuration.utils import (
     add_config_dict_to_env,
     add_config_to_env,
 )
+from dlt.common.pipeline import TRefreshMode
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
@@ -246,6 +247,11 @@ class SubclassConfigWithDynamicType(ConfigWithDynamicType):
         if self.is_number:
             return int
         return str
+
+
+@configspec
+class ConfigWithLiteralField(BaseConfiguration):
+    refresh: TRefreshMode = None
 
 
 LongInteger = NewType("LongInteger", int)
@@ -1415,3 +1421,20 @@ def test_configuration_with_generic(environment: Dict[str, str]) -> None:
         SourceWideUnionConfiguration(name="name"), explicit_value={"incremental_sub": sentinel}
     )
     assert c4.incremental_sub is sentinel
+
+
+def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
+    """Literal type fields only allow values from the literal"""
+    environment["REFRESH"] = "not_a_refresh_mode"
+
+    with pytest.raises(ConfigValueCannotBeCoercedException) as einfo:
+        resolve.resolve_configuration(ConfigWithLiteralField())
+
+    assert einfo.value.field_name == "refresh"
+    assert einfo.value.field_value == "not_a_refresh_mode"
+    assert einfo.value.hint == TRefreshMode
+
+    environment["REFRESH"] = "drop_data"
+
+    spec = resolve.resolve_configuration(ConfigWithLiteralField())
+    assert spec.refresh == "drop_data"

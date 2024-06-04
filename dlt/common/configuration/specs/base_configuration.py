@@ -19,6 +19,7 @@ from typing import (
     overload,
     ClassVar,
     TypeVar,
+    Literal,
 )
 from typing_extensions import get_args, get_origin, dataclass_transform
 from functools import wraps
@@ -122,13 +123,18 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     return False
 
 
-def extract_inner_hint(hint: Type[Any], preserve_new_types: bool = False) -> Type[Any]:
+def extract_inner_hint(
+    hint: Type[Any], preserve_new_types: bool = False, preserve_literal: bool = False
+) -> Type[Any]:
     # extract hint from Optional / Literal / NewType hints
-    inner_hint = extract_inner_type(hint, preserve_new_types)
+    inner_hint = extract_inner_type(hint, preserve_new_types, preserve_literal)
     # get base configuration from union type
     inner_hint = get_config_if_union_hint(inner_hint) or inner_hint
     # extract origin from generic types (ie List[str] -> List)
-    return get_origin(inner_hint) or inner_hint
+    origin = get_origin(inner_hint) or inner_hint
+    if preserve_literal and origin is Literal:
+        return inner_hint
+    return origin or inner_hint
 
 
 def is_secret_hint(hint: Type[Any]) -> bool:

@@ -438,6 +438,17 @@ class Schema:
         self._settings = deepcopy(schema.settings)
         self._compile_settings()
 
+    def drop_tables(
+        self, table_names: Sequence[str], seen_data_only: bool = False
+    ) -> List[TTableSchema]:
+        """Drops tables from the schema and returns the dropped tables"""
+        result = []
+        for table_name in table_names:
+            table = self.tables.get(table_name)
+            if table and (not seen_data_only or utils.has_table_seen_data(table)):
+                result.append(self._schema_tables.pop(table_name))
+        return result
+
     def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
         rv_row: DictStrAny = {}
         column_prop: TColumnProp = utils.hint_to_column_prop(hint_type)

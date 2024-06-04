@@ -17,7 +17,7 @@ if __name__ == "__main__":
         pipeline_name="debug_pipeline",
         destination="postgres",
         dataset_name="debug_pipeline_data",
-        full_refresh=False,
+        dev_mode=False,
     )
     load_info = p.run(example_source(last_id=819273998))
     print(load_info)
