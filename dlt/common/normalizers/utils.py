@@ -42,7 +42,7 @@ def import_normalizers(
     """
     # add defaults to normalizer_config
     normalizers_config["names"] = names = normalizers_config["names"] or "snake_case"
-    normalizers_config["json"] = item_normalizer = normalizers_config["json"] or {
+    normalizers_config["json"] = item_normalizer = normalizers_config.get("json") or {
         "module": "dlt.common.normalizers.json.relational"
     }
     json_module = cast(SupportsDataItemNormalizer, import_module(item_normalizer["module"]))
@@ -63,6 +63,31 @@ def naming_from_reference(
     Reference may be: (1) actual instance of NamingConvention (2) shorthand name pointing to `dlt.common.normalizers.naming` namespace
     (3) a type name which is a module containing `NamingConvention` attribute (4) a type of class deriving from NamingConvention
     """
+
+    # try:
+    #     if "." in names:
+    #         # TODO: bump schema engine version and migrate schema. also change the name in  TNormalizersConfig from names to naming
+    #         if names == "dlt.common.normalizers.names.snake_case":
+    #             names = DEFAULT_NAMING_MODULE
+    #         # this is full module name
+    #         naming_module = cast(SupportsNamingConvention, import_module(names))
+    #     else:
+    #         # from known location
+    #         naming_module = cast(
+    #             SupportsNamingConvention, import_module(f"dlt.common.normalizers.naming.{names}")
+    #         )
+    # except ImportError:
+    #     raise UnknownNamingModule(names)
+    # if not hasattr(naming_module, "NamingConvention"):
+    #     raise InvalidNamingModule(names)
+    # # get max identifier length
+    # if destination_capabilities:
+    #     max_length = min(
+    #         destination_capabilities.max_identifier_length,
+    #         destination_capabilities.max_column_identifier_length,
+    #     )
+    # else:
+    #     max_length = None
 
     def _import_naming(module: str, cls: str) -> Type[NamingConvention]:
         if "." in module or cls != "NamingConvention":

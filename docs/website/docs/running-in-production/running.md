@@ -9,7 +9,7 @@ keywords: [running, production, tips]
 When running the pipeline in production, you may consider a few additions to your script. We'll use
 the script below as a starting point.
 
-```python
+```py
 import dlt
 from chess import chess
 
@@ -28,7 +28,7 @@ packages. Package information contains its state (`COMPLETED/PROCESSED`) and lis
 their statuses, file sizes, types and in case of failed jobs-the error messages from the
 destination.
 
-```python
+```py
     # see when load was started
     print(load_info.started_at)
     # print the information on the first load package and all jobs inside
@@ -39,7 +39,7 @@ destination.
 
 `load_info` may also be loaded into the destinations as below:
 
-```python
+```py
     # we reuse the pipeline instance below and load to the same dataset as data
     pipeline.run([load_info], table_name="_load_info")
 ```
@@ -50,7 +50,7 @@ where they were obtained. You can display and load trace info as shown below. Us
 to explore `trace` object further. The `normalize` step information contains the counts of rows per
 table of data that was normalized and then loaded.
 
-```python
+```py
     # print human friendly trace information
     print(pipeline.last_trace)
     # save trace to destination, sensitive data will be removed
@@ -59,7 +59,7 @@ table of data that was normalized and then loaded.
 
 You can also access the last `extract`, `normalize` and `load` infos directly:
 
-```python
+```py
     # print human friendly extract information
     print(pipeline.last_trace.last_extract_info)
     # print human friendly normalization information
@@ -79,7 +79,7 @@ In the package information you can also see the list of all tables and columns c
 destination during loading of that package. The code below displays all tables and schemas. Note that
 those objects are Typed Dictionaries, use your code editor to explore.
 
-```python
+```py
     # print all the new tables/columns in
     for package in load_info.load_packages:
         for table_name, table in package.schema_update.items():
@@ -91,7 +91,7 @@ those objects are Typed Dictionaries, use your code editor to explore.
 You can save only the new tables and column schemas to the destination. Note that the code above
 that saves `load_info` saves this data as well.
 
-```python
+```py
     # save just the new tables
     table_updates = [p.asdict()["tables"] for p in load_info.load_packages]
     pipeline.run(table_updates, table_name="_new_tables")
@@ -108,6 +108,12 @@ behind. In `config.toml`:
 load.delete_completed_jobs=true
 ```
 
+Also, by default, `dlt` leaves data in staging dataset, used during merge and replace load for deduplication. In order to clear it, put the following line in `config.toml`:
+
+```toml
+load.truncate_staging_dataset=true
+```
+
 ## Using slack to send messages
 
 `dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via
@@ -122,14 +128,14 @@ slack_incoming_hook="https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TD
 
 or
 
-```
+```sh
 RUNTIME__SLACK_INCOMING_HOOK="https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
 ```
 
 Then the configured hook is available via pipeline object, we also provide convenience method to
 send Slack messages:
 
-```python
+```py
 from dlt.common.runtime.slack import send_slack_message
 
 send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
@@ -168,8 +174,57 @@ As with any other configuration, you can use environment variables instead of th
 - `RUNTIME__LOG_LEVEL` to set the log level
 - `LOG_FORMAT` to set the log format
 
-`dlt` logs to a logger named **dlt**. Note: redirecting **dlt** log to other logs is not yet
-supported.
+`dlt` logs to a logger named **dlt**. `dlt` logger uses a regular python logger so you can configure the handlers 
+as per your requirement.
+
+For example, to put logs to the file:
+```py
+import logging
+
+# Create a logger
+logger = logging.getLogger('dlt')
+
+# Set the log level
+logger.setLevel(logging.INFO)
+
+# Create a file handler
+handler = logging.FileHandler('dlt.log')
+
+# Add the handler to the logger
+logger.addHandler(handler)
+```
+You can intercept logs by using [loguru](https://loguru.readthedocs.io/en/stable/api/logger.html). To do so, follow the instructions below:
+```py
+import logging
+import sys
+
+import dlt
+from loguru import logger
+
+
+class InterceptHandler(logging.Handler):
+
+    @logger.catch(default=True, onerror=lambda _: sys.exit(1))
+    def emit(self, record):
+        # Get corresponding Loguru level if it exists.
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message.
+        frame, depth = sys._getframe(6), 6
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+logger_dlt = logging.getLogger("dlt")
+logger_dlt.addHandler(InterceptHandler())
+
+logger.add("dlt_loguru.log")
+```
 
 ## Handle exceptions, failed jobs and retry the pipeline
 
@@ -191,11 +246,13 @@ There are two different types of exceptions in `__context__`:
 Code below tells one exception type from another. Note that we provide retry strategy helpers that
 does that for you.
 
-```python
+```py
 from dlt.common.exceptions import TerminalException
 
-if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstance(ex.__context__, TerminalException)):
-    return False
+def check(ex: Exception):
+    if isinstance(ex, TerminalException) or (ex.__context__ is not None and isinstance(ex.__context__, TerminalException)):
+        return False
+    return True
 ```
 
 ### Failed jobs
@@ -204,7 +261,7 @@ If any job in the package **fail terminally** it will be moved to `failed_jobs` 
 such status. By default **no exception is raised** and other jobs will be processed and completed.
 You may inspect if the failed jobs are present by checking the load info as follows:
 
-```python
+```py
 # returns True if there are failed jobs in any of the load packages
 print(load_info.has_failed_jobs)
 # raises terminal exception if there are any failed jobs
@@ -241,7 +298,7 @@ the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. Snippet belo
 `load` stage with the `retry_load` strategy and defined back-off or re-raise exception for any other
 steps (`extract`, `normalize`) and for terminal exceptions.
 
-```python
+```py
 from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
@@ -264,7 +321,7 @@ if __name__ == "__main__" :
 
 You can also use `tenacity` to decorate functions. This example additionally retries on `extract`:
 
-```python
+```py
 if __name__ == "__main__" :
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
 

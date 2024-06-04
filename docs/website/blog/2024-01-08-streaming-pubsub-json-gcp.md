@@ -11,7 +11,7 @@ authors:
   title: GCP cloud architect * Backend and data engineer
   url: https://www.linkedin.com/in/william-laroche/
   image_url: https://avatars.githubusercontent.com/u/10359701?v=4
-tags: [dlthub, python, dlt, pub/sub, gcp, event ingestion]
+tags: [dlthub, python, dlt, pub/sub, gcp, event ingestion, Streaming]
 ---
 
 <head>
@@ -125,7 +125,7 @@ By using this micro-batch architecture, we strive to maintain a balance of datab
 insert efficiency (by writing multiple records at a time) with near real-time insertion
 (by keeping the window size around 5 seconds).
 
-```python
+```py
 
 pipeline = dlt.pipeline(
     pipeline_name="pubsub_dlt",

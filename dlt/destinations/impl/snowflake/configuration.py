@@ -1,11 +1,9 @@
+import dataclasses
 import base64
-import binascii
-
-from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING
-
-from dlt.common.libs.sql_alchemy import URL
+from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING, Union
 
 from dlt import version
+from dlt.common.libs.sql_alchemy import URL
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -51,9 +49,12 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     )
 
 
-@configspec
+SNOWFLAKE_APPLICATION_ID = "dltHub_dlt"
+
+
+@configspec(init=False)
 class SnowflakeCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "snowflake"  # type: ignore[misc]
+    drivername: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
     password: Optional[TSecretStrValue] = None
     host: str = None
     database: str = None
@@ -62,6 +63,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
+    application: Optional[str] = SNOWFLAKE_APPLICATION_ID
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -87,6 +89,10 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             query["warehouse"] = self.warehouse
         if self.role and "role" not in query:
             query["role"] = self.role
+
+        if self.application != "" and "application" not in query:
+            query["application"] = self.application
+
         return URL.create(
             self.drivername,
             self.username,
@@ -101,6 +107,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         private_key: Optional[bytes] = None
         if self.private_key:
             private_key = _read_private_key(self.private_key, self.private_key_passphrase)
+
         conn_params = dict(
             self.query or {},
             user=self.username,
@@ -111,15 +118,20 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             role=self.role,
             private_key=private_key,
         )
+
         if self.authenticator:
             conn_params["authenticator"] = self.authenticator
+
+        if self.application != "" and "application" not in conn_params:
+            conn_params["application"] = self.application
+
         return conn_params
 
 
 @configspec
 class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "snowflake"  # type: ignore[misc]
-    credentials: SnowflakeCredentials
+    destination_type: Final[str] = dataclasses.field(default="snowflake", init=False, repr=False, compare=False)  # type: ignore[misc]
+    credentials: SnowflakeCredentials = None
 
     stage_name: Optional[str] = None
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
@@ -131,18 +143,3 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            destination_type: str = None,
-            credentials: SnowflakeCredentials = None,
-            dataset_name: str = None,
-            default_schema_name: str = None,
-            stage_name: str = None,
-            keep_staged_files: bool = True,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...

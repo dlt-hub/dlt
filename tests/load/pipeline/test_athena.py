@@ -2,14 +2,26 @@ import pytest
 import datetime  # noqa: I251
 from typing import Iterator, Any
 
-import dlt
+import dlt, os
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
-from tests.load.pipeline.utils import load_table_counts
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import assert_load_info, load_table_counts
+from tests.pipeline.utils import load_table_counts
+from dlt.destinations.exceptions import CantExtractTablePrefix
+from dlt.destinations.impl.athena.athena_adapter import athena_partition, athena_adapter
+from dlt.destinations.fs_client import FSClientBase
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    TEST_FILE_LAYOUTS,
+    FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
+    FILE_LAYOUT_CLASSIC,
+    FILE_LAYOUT_TABLE_NOT_FIRST,
+)
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -18,7 +30,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
     ids=lambda x: x.name,
 )
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     @dlt.resource(name="items", write_disposition="append")
     def items():
@@ -76,7 +88,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
 def test_athena_all_datatypes_and_timestamps(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     # TIME is not supported
     column_schemas, data_types = table_update_and_row(exclude_types=["time"])
@@ -164,7 +176,7 @@ def test_athena_all_datatypes_and_timestamps(
     ids=lambda x: x.name,
 )
 def test_athena_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     column_schemas, data_types = table_update_and_row()
 
@@ -186,3 +198,104 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
         "Athena cannot load TIME columns from parquet tables"
         in info.load_packages[0].jobs["failed_jobs"][0].failed_message
     )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
+def test_athena_file_layouts(destination_config: DestinationTestConfiguration, layout) -> None:
+    # test wether strange file layouts still work in all staging configs
+    pipeline = destination_config.setup_pipeline("athena_file_layout", full_refresh=True)
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
+
+    resources = [
+        dlt.resource([1, 2, 3], name="items1"),
+        dlt.resource([1, 2, 3, 4, 5, 6, 7], name="items2"),
+    ]
+
+    # layouts that should not work should raise exception
+    if layout in [
+        FILE_LAYOUT_CLASSIC,  # table not in own folder
+        FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,  # table not in own folder
+        FILE_LAYOUT_TABLE_NOT_FIRST,  # table not the first variable
+    ]:
+        with pytest.raises(CantExtractTablePrefix):
+            pipeline.run(resources)
+        return
+
+    info = pipeline.run(resources)
+    assert_load_info(info)
+
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    assert table_counts == {"items1": 3, "items2": 7}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["athena"], force_iceberg=True),
+    ids=lambda x: x.name,
+)
+def test_athena_partitioned_iceberg_table(destination_config: DestinationTestConfiguration):
+    """Load an iceberg table with partition hints and verifiy partitions are created correctly."""
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+
+    data_items = [
+        (1, "A", datetime.date.fromisoformat("2021-01-01")),
+        (2, "A", datetime.date.fromisoformat("2021-01-02")),
+        (3, "A", datetime.date.fromisoformat("2021-01-03")),
+        (4, "A", datetime.date.fromisoformat("2021-02-01")),
+        (5, "A", datetime.date.fromisoformat("2021-02-02")),
+        (6, "B", datetime.date.fromisoformat("2021-01-01")),
+        (7, "B", datetime.date.fromisoformat("2021-01-02")),
+        (8, "B", datetime.date.fromisoformat("2021-01-03")),
+        (9, "B", datetime.date.fromisoformat("2021-02-01")),
+        (10, "B", datetime.date.fromisoformat("2021-03-02")),
+    ]
+
+    @dlt.resource(table_format="iceberg")
+    def partitioned_table():
+        yield [{"id": i, "category": c, "created_at": d} for i, c, d in data_items]
+
+    athena_adapter(
+        partitioned_table,
+        partition=[
+            "category",
+            athena_partition.month("created_at"),
+        ],
+    )
+
+    info = pipeline.run(partitioned_table)
+    assert_load_info(info)
+
+    # Get partitions from metadata
+    with pipeline.sql_client() as sql_client:
+        tbl_name = sql_client.make_qualified_table_name("partitioned_table$partitions")
+        rows = sql_client.execute_sql(f"SELECT partition FROM {tbl_name}")
+        partition_keys = {r[0] for r in rows}
+
+        data_rows = sql_client.execute_sql(
+            "SELECT id, category, created_at FROM"
+            f" {sql_client.make_qualified_table_name('partitioned_table')}"
+        )
+        # data_rows = [(i, c, d.toisoformat()) for i, c, d in data_rows]
+
+    # All data is in table
+    assert len(data_rows) == len(data_items)
+    assert set(data_rows) == set(data_items)
+
+    # Compare with expected partitions
+    # Months are number of months since epoch
+    expected_partitions = {
+        "{category=A, created_at_month=612}",
+        "{category=A, created_at_month=613}",
+        "{category=B, created_at_month=612}",
+        "{category=B, created_at_month=613}",
+        "{category=B, created_at_month=614}",
+    }
+
+    assert partition_keys == expected_partitions

@@ -1,12 +1,13 @@
 import asyncio
+import pathlib
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
 import os
 import random
+import threading
 from time import sleep
 from typing import Any, Tuple, cast
-import threading
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
@@ -20,12 +21,15 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
-from dlt.common.exceptions import (
+from dlt.common.destination.exceptions import (
     DestinationHasFailedJobs,
+    DestinationIncompatibleLoaderFileFormatException,
+    DestinationLoadingViaStagingNotSupported,
+    DestinationNoStagingMode,
     DestinationTerminalException,
-    PipelineStateNotAvailable,
     UnknownDestinationModule,
 )
+from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
@@ -34,16 +38,18 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy
+from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
+from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.common.configuration.utils import environment
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, skipifnotwindows
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -88,15 +94,15 @@ def test_default_pipeline_dataset() -> None:
     assert p.dataset_name in possible_dataset_names
 
 
-def test_run_full_refresh_default_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True, destination="filesystem")
+def test_run_dev_mode_default_dataset() -> None:
+    p = dlt.pipeline(dev_mode=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(full_refresh=False)
+    r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset
-    p = dlt.pipeline(full_refresh=True, destination="dummy")
+    p = dlt.pipeline(dev_mode=True, destination="dummy")
     assert p.dataset_name is None
     # simulate set new dataset
     p._set_destinations("filesystem")
@@ -106,11 +112,11 @@ def test_run_full_refresh_default_dataset() -> None:
     assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
 
 
-def test_run_full_refresh_underscored_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True, dataset_name="_main_")
+def test_run_dev_mode_underscored_dataset() -> None:
+    p = dlt.pipeline(dev_mode=True, dataset_name="_main_")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(full_refresh=False)
+    r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
@@ -131,6 +137,32 @@ def test_pipeline_with_non_alpha_name() -> None:
     # this will create default schema
     p.extract(["a", "b", "c"], table_name="data")
     assert p.default_schema_name == "another_pipeline_8329x"
+
+
+def test_file_format_resolution() -> None:
+    # raise on destinations that does not support staging
+    with pytest.raises(DestinationLoadingViaStagingNotSupported):
+        dlt.pipeline(
+            pipeline_name="managed_state_pipeline", destination="postgres", staging="filesystem"
+        )
+
+    # raise on staging that does not support staging interface
+    with pytest.raises(DestinationNoStagingMode):
+        dlt.pipeline(pipeline_name="managed_state_pipeline", staging="postgres")
+
+    # check invalid input
+    with pytest.raises(DestinationIncompatibleLoaderFileFormatException):
+        pipeline = dlt.pipeline(pipeline_name="managed_state_pipeline", destination="postgres")
+        pipeline.config.restore_from_destination = False
+        pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="parquet")
+
+    # check invalid input
+    with pytest.raises(DestinationIncompatibleLoaderFileFormatException):
+        pipeline = dlt.pipeline(
+            pipeline_name="managed_state_pipeline", destination="athena", staging="filesystem"
+        )
+        pipeline.config.restore_from_destination = False
+        pipeline.run([1, 2, 3], table_name="numbers", loader_file_format="insert_values")
 
 
 def test_invalid_dataset_name() -> None:
@@ -438,6 +470,86 @@ def test_mark_hints() -> None:
     assert "spec_table" in p.default_schema.tables
     # resource name is kept
     assert p.default_schema.tables["spec_table"]["resource"] == "with_mark"
+
+
+def test_mark_hints_with_variant() -> None:
+    @dlt.resource(primary_key="pk")
+    def with_table_hints():
+        # dispatch to table a
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A"},
+            dlt.mark.make_hints(
+                table_name="table_a", columns=[{"name": "id", "data_type": "bigint"}]
+            ),
+            create_table_variant=True,
+        )
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B"},
+            dlt.mark.make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+
+        # item to resource
+        yield {"id": 3, "pk": "C"}
+        # table a with table_hints
+        yield dlt.mark.with_table_name({"id": 4, "pk": "D"}, "table_a")
+        # table b with table_hints
+        yield dlt.mark.with_table_name({"id": 5, "pk": "E"}, "table_b")
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(with_table_hints)
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "table_a": 2,
+        "table_b": 2,
+        "with_table_hints": 1,
+    }
+    # check table counts
+    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "with_table_hints": 1})
+
+
+def test_mark_hints_variant_dynamic_name() -> None:
+    @dlt.resource(table_name=lambda item: "table_" + item["tag"])
+    def with_table_hints():
+        # dispatch to table a
+        yield dlt.mark.with_hints(
+            {"id": 1, "pk": "A", "tag": "a"},
+            dlt.mark.make_hints(
+                table_name="table_a",
+                primary_key="pk",
+                columns=[{"name": "id", "data_type": "bigint"}],
+            ),
+            create_table_variant=True,
+        )
+
+        # dispatch to table b
+        yield dlt.mark.with_hints(
+            {"id": 2, "pk": "B", "tag": "b"},
+            dlt.mark.make_hints(table_name="table_b", write_disposition="replace"),
+            create_table_variant=True,
+        )
+
+        # dispatch by tag
+        yield {"id": 3, "pk": "C", "tag": "c"}
+        yield {"id": 4, "pk": "D", "tag": "a"}
+        yield {"id": 5, "pk": "E", "tag": "b"}
+
+    pipeline_name = "pipe_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    info = pipeline.run(with_table_hints)
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
+        "_dlt_pipeline_state": 1,
+        "table_a": 2,
+        "table_b": 2,
+        "table_c": 1,
+    }
+    # check table counts
+    assert_data_table_counts(pipeline, {"table_a": 2, "table_b": 2, "table_c": 1})
 
 
 def test_restore_state_on_dummy() -> None:
@@ -783,7 +895,7 @@ def test_extract_all_data_types() -> None:
 
 
 def test_set_get_local_value() -> None:
-    p = dlt.pipeline(destination="dummy", full_refresh=True)
+    p = dlt.pipeline(destination="dummy", dev_mode=True)
     value = uniq_id()
     # value is set
     p.set_local_state_val(value, value)
@@ -946,6 +1058,73 @@ def test_preserve_fields_order() -> None:
         "col_3",
         "col_2",
         "col_1",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+
+def test_preserve_new_fields_order_on_append() -> None:
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item = {"c1": 1, "c2": 2, "c3": "list"}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("order_1").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+    # add columns
+    item = {"c1": 1, "c4": 2.0, "c3": "list", "c5": {"x": 1}}
+    p.extract([item], table_name="order_1")
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("order_1").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+        "c4",
+        "c5__x",
+    ]
+
+
+def test_preserve_fields_order_incomplete_columns() -> None:
+    p = dlt.pipeline(pipeline_name="column_order", destination="dummy")
+    # incomplete columns (without data type) will be added in order of fields in data
+
+    @dlt.resource(columns={"c3": {"precision": 32}}, primary_key="c2")
+    def items():
+        yield {"c1": 1, "c2": 1, "c3": 1}
+
+    p.extract(items)
+    p.normalize()
+    assert list(p.default_schema.get_table_columns("items").keys()) == [
+        "c1",
+        "c2",
+        "c3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+
+    # complete columns preserve order in "columns"
+    p = p.drop()
+
+    @dlt.resource(columns={"c3": {"precision": 32, "data_type": "decimal"}}, primary_key="c1")
+    def items2():
+        yield {"c1": 1, "c2": 1, "c3": 1}
+
+    p.extract(items2)
+    p.normalize()
+    # c3 was first so goes first
+    assert list(p.default_schema.get_table_columns("items2").keys()) == [
+        "c3",
+        "c1",
+        "c2",
         "_dlt_load_id",
         "_dlt_id",
     ]
@@ -1268,6 +1447,72 @@ def test_drop_with_new_name() -> None:
     assert new_pipeline.pipeline_name == new_test_name
 
 
+def test_schema_version_increase_and_source_update() -> None:
+    now = pendulum.now()
+
+    @dlt.source
+    def autodetect():
+        # add unix ts autodetection to current source schema
+        dlt.current.source_schema().add_type_detection("timestamp")
+        return dlt.resource(
+            [int(now.timestamp()), int(now.timestamp() + 1), int(now.timestamp() + 2)],
+            name="numbers",
+        )
+
+    pipeline = dlt.pipeline(destination="duckdb")
+    # control version of the schema
+    auto_source = autodetect()
+    assert auto_source.schema.stored_version is None
+    pipeline.extract(auto_source)
+    # extract did a first save
+    assert pipeline.default_schema.stored_version == 1
+    # only one prev hash
+    assert len(pipeline.default_schema.previous_hashes) == 1
+    # source schema was updated in the pipeline
+    assert auto_source.schema.stored_version == 1
+    # source has pipeline schema
+    assert pipeline.default_schema is auto_source.schema
+
+    pipeline.normalize()
+    # columns added and schema was saved in between
+    assert pipeline.default_schema.stored_version == 2
+    assert len(pipeline.default_schema.previous_hashes) == 2
+    # source schema still updated
+    assert auto_source.schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    pipeline.load()
+    # nothing changed in load
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+
+    # run same source again
+    pipeline.extract(auto_source)
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    pipeline.normalize()
+    assert pipeline.default_schema.stored_version == 2
+    pipeline.load()
+    assert pipeline.default_schema.stored_version == 2
+
+    # run another instance of the same source
+    pipeline.run(autodetect())
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+
+    # data has compatible schema with "numbers" but schema is taken from pipeline
+    pipeline.run([1, 2, 3], table_name="numbers")
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    assert pipeline.default_schema.stored_version == 2
+    assert pipeline.default_schema is auto_source.schema
+
+    # new table will evolve schema
+    pipeline.run([1, 2, 3], table_name="seq")
+    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    assert pipeline.default_schema.stored_version == 4
+    assert pipeline.default_schema is auto_source.schema
+
+
 def test_remove_autodetect() -> None:
     now = pendulum.now()
 
@@ -1280,16 +1525,16 @@ def test_remove_autodetect() -> None:
             name="numbers",
         )
 
-    source = autodetect()
     pipeline = dlt.pipeline(destination="duckdb")
-    pipeline.run(source)
+    auto_source = autodetect()
+    pipeline.extract(auto_source)
+    pipeline.normalize()
 
     # unix ts recognized
     assert (
         pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
     )
-    assert "timestamp" in source.schema.settings["detections"]
-    assert "timestamp" in pipeline.default_schema.settings["detections"]
+    pipeline.load()
 
     pipeline = pipeline.drop()
 
@@ -1373,11 +1618,11 @@ def test_resource_state_name_not_normalized() -> None:
     pipeline.load()
 
     # get state from destination
-    from dlt.pipeline.state_sync import load_state_from_destination
+    from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
     client: WithStateSync
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        state = load_state_from_destination(pipeline.pipeline_name, client)
+        state = load_pipeline_state_from_destination(pipeline.pipeline_name, client)
         assert "airtable_emojis" in state["sources"]
         assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}
 
@@ -1393,8 +1638,13 @@ def test_pipeline_list_packages() -> None:
     )
     load_ids = pipeline.list_extracted_load_packages()
     assert len(load_ids) == 3
+    extracted_package = pipeline.get_load_package_info(load_ids[1])
+    assert extracted_package.schema_name == "airtable_emojis"
+    extracted_package = pipeline.get_load_package_info(load_ids[2])
+    assert extracted_package.schema_name == "emojis_2"
     extracted_package = pipeline.get_load_package_info(load_ids[0])
     assert extracted_package.state == "extracted"
+    assert extracted_package.schema_name == "airtable_emojis"
     # same load id continues till the end
     pipeline.normalize()
     load_ids_n = pipeline.list_normalized_load_packages()
@@ -1615,8 +1865,8 @@ def test_parallel_pipelines_async(workers: int) -> None:
         return pipeline.run(gen_())
 
     # declare pipelines in main thread then run them "async"
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", dev_mode=True)
 
     async def _run_async():
         loop = asyncio.get_running_loop()
@@ -1665,7 +1915,7 @@ def test_resource_while_stop() -> None:
         else:
             return []
 
-    pipeline = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     load_info = pipeline.run(product())
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
@@ -1865,7 +2115,6 @@ def test_pipeline_load_info_metrics_schema_is_not_changing() -> None:
     assert len(schema_hashset) == 1
 
 
-@pytest.mark.skip(reason="empty lists are removed in normalized. to be fixed")
 def test_yielding_empty_list_creates_table() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="empty_start",
@@ -1875,11 +2124,141 @@ def test_yielding_empty_list_creates_table() -> None:
 
     # empty list should create empty table in the destination but with the required schema
     extract_info = pipeline.extract(
-        [[]], table_name="empty", columns=[{"name": "id", "data_type": "bigint", "nullable": True}]
+        [MaterializedEmptyList()],
+        table_name="empty",
+        columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
     )
     print(extract_info)
     normalize_info = pipeline.normalize()
+    print(normalize_info)
     assert normalize_info.row_counts["empty"] == 0
     load_info = pipeline.load()
+    # print(load_info.asstr(verbosity=3))
     assert_load_info(load_info)
     assert_data_table_counts(pipeline, {"empty": 0})
+    # make sure we have expected columns
+    assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
+        "id",
+        "_dlt_load_id",
+        "_dlt_id",
+    }
+
+    # load some data
+    pipeline.run([{"id": 1}], table_name="empty")
+    assert_data_table_counts(pipeline, {"empty": 1})
+
+    # update schema on existing table
+    pipeline.run(
+        [MaterializedEmptyList()],
+        table_name="empty",
+        columns=[{"name": "user_name", "data_type": "text", "nullable": True}],
+    )
+    assert_data_table_counts(pipeline, {"empty": 1})
+    assert set(pipeline.default_schema.tables["empty"]["columns"].keys()) == {
+        "id",
+        "_dlt_load_id",
+        "_dlt_id",
+        "user_name",
+    }
+    with pipeline.sql_client() as client:
+        with client.execute_query("SELECT id, user_name FROM empty") as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == 1
+            assert rows[0] == (1, None)
+
+
+local_paths = [os.path.abspath("_storage"), "_storage"]
+if os.name == "nt":
+    local_paths += [
+        # UNC extended path
+        "\\\\?\\UNC\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+        # UNC path
+        "\\\\localhost\\" + os.path.abspath("_storage").replace(":", "$"),
+    ]
+
+
+@pytest.mark.parametrize("local_path", local_paths)
+def test_local_filesystem_destination(local_path: str) -> None:
+    dataset_name = "mydata_" + uniq_id()
+
+    @dlt.resource
+    def stateful_resource():
+        dlt.current.source_state()["mark"] = 1
+        yield [1, 2, 3]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="local_files",
+        destination=dlt.destinations.filesystem(local_path),
+        dataset_name=dataset_name,
+    )
+    info = pipeline.run(stateful_resource(), table_name="numbers", write_disposition="replace")
+    assert_load_info(info)
+
+    info = pipeline.run(stateful_resource(), table_name="numbers", write_disposition="replace")
+    assert_load_info(info)
+
+    pipeline = pipeline.drop()
+
+    # must be able to restore the schema and state
+    pipeline.sync_destination()
+    assert pipeline.state["sources"]["local_files"]["mark"] == 1
+    assert pipeline.default_schema.get_table("numbers") is not None
+
+    # check all the files, paths may get messed up in many different ways
+    # and data may land anywhere especially on Windows
+    expected_dataset = pathlib.Path("_storage").joinpath(dataset_name).resolve()
+    assert expected_dataset.exists()
+    assert expected_dataset.is_dir()
+
+    # count files in tables
+    assert expected_dataset.joinpath(INIT_FILE_NAME).is_file()
+    # one numbers table (replaced)
+    assert len(list(expected_dataset.joinpath("numbers").glob("*"))) == 1
+    # two loads + init
+    assert len(list(expected_dataset.joinpath("_dlt_loads").glob("*"))) == 3
+    # one schema (dedup on hash)
+    assert len(list(expected_dataset.joinpath("_dlt_version").glob("*"))) == 2
+    # one state (not sent twice)
+    assert len(list(expected_dataset.joinpath("_dlt_pipeline_state").glob("*"))) == 2
+
+    fs_client = pipeline._fs_client()
+    # all path formats we use must lead to "_storage" relative to tests
+    assert (
+        pathlib.Path(fs_client.dataset_path).resolve()
+        == pathlib.Path(local_path).joinpath(dataset_name).resolve()
+    )
+    # same for client
+    assert len(fs_client.list_table_files("numbers")) == 1
+    assert len(fs_client.list_table_files("_dlt_loads")) == 2
+    assert len(fs_client.list_table_files("_dlt_version")) == 1
+    assert len(fs_client.list_table_files("_dlt_pipeline_state")) == 1
+
+
+@pytest.mark.parametrize("truncate", (True, False))
+def test_staging_dataset_truncate(truncate) -> None:
+    dlt.config["truncate_staging_dataset"] = truncate
+
+    @dlt.resource(write_disposition="merge", merge_key="id")
+    def test_data():
+        yield [{"field": 1, "id": 1}, {"field": 2, "id": 2}, {"field": 3, "id": 3}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_cleared",
+        destination="duckdb",
+        full_refresh=True,
+    )
+
+    info = pipeline.run(test_data, table_name="staging_cleared")
+    assert_load_info(info)
+
+    with pipeline.sql_client() as client:
+        with client.execute_query(
+            f"SELECT * FROM {pipeline.dataset_name}_staging.staging_cleared"
+        ) as cur:
+            if truncate:
+                assert len(cur.fetchall()) == 0
+            else:
+                assert len(cur.fetchall()) == 3
+
+        with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
+            assert len(cur.fetchall()) == 3

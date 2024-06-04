@@ -1,14 +1,12 @@
 ---
-title: Command Line Interface
-description: Command Line Interface (CLI) of dlt
+title: Command line interface
+description: Command line interface (CLI) of dlt
 keywords: [command line interface, cli, dlt init]
 ---
 
-# Command Line Interface
-
 ## `dlt init`
 
-```shell
+```sh
 dlt init <source> <destination>
 ```
 This command creates new dlt pipeline script that loads data from `source` to `destination` to it. When you run the command:
@@ -26,7 +24,7 @@ version if run again with existing `source` name. You are warned if files will b
 You can use `--location <repo_url or local folder>` option to specify your own repository with sources. Typically you would [fork ours](https://github.com/dlt-hub/verified-sources) and start customizing and adding sources ie. to use them for your team or organization. You can also specify a branch with `--branch <name>` ie. to test a version being developed.
 
 ### List all verified sources
-```shell
+```sh
 dlt init --list-verified-sources
 ```
 Shows all available verified sources and their short descriptions. For each source, checks if your local `dlt` version requires update
@@ -43,7 +41,7 @@ that will add additional packages to current environment.
 
 ### github-action
 
-```shell
+```sh
 dlt deploy <script>.py github-action --schedule "*/30 * * * *"
 ```
 
@@ -62,7 +60,7 @@ Follow the guide on [how to deploy a pipeline with Github Actions](../walkthroug
 
 ### airflow-composer
 
-```shell
+```sh
 dlt deploy <script>.py airflow-composer
 ```
 
@@ -88,7 +86,7 @@ check for problems with the data loading.
 
 ### Show tables and data in the destination
 
-```shell
+```sh
 dlt pipeline <pipeline name> show
 ```
 
@@ -99,7 +97,7 @@ destination credentials. Requires `streamlit` to be installed.
 
 ### Get the pipeline information
 
-```shell
+```sh
 dlt pipeline <pipeline name> info
 ```
 
@@ -109,7 +107,7 @@ pipeline state set by the resources during extraction process.
 
 ### Get the load package information
 
-```shell
+```sh
 dlt pipeline <pipeline name> load-package <load id>
 ```
 
@@ -121,7 +119,7 @@ list of all tables and columns created at the destination during loading of that
 
 ### List all failed jobs
 
-```shell
+```sh
 dlt pipeline <pipeline name> failed-jobs
 ```
 
@@ -130,7 +128,7 @@ files that got loaded and the failure message from the destination.
 
 ### Get the last run trace
 
-```shell
+```sh
 dlt pipeline <pipeline name> trace
 ```
 
@@ -141,7 +139,7 @@ will display the [load info](walkthroughs/run-a-pipeline.md) instead.
 
 ### Sync pipeline with the destination
 
-```shell
+```sh
 dlt pipeline <pipeline name> sync
 ```
 
@@ -171,7 +169,7 @@ dlt pipeline github_events drop repo_events
 `dlt` will inform you on the names of dropped tables and the resource state slots that will be
 reset:
 
-```
+```text
 About to drop the following data in dataset airflow_events_1 in destination dlt.destinations.duckdb:
 Selected schema:: github_repo_events
 Selected resource(s):: ['repo_events']
@@ -214,11 +212,13 @@ dlt pipeline chess_pipeline drop --state-paths archives
 This will select the `archives` key in `chess` source:
 
 ```json
-sources:{
-  "chess": {
-    "archives": [
-      "https://api.chess.com/pub/player/magnuscarlsen/games/2022/05",
-    ]
+{
+  "sources":{
+    "chess": {
+      "archives": [
+        "https://api.chess.com/pub/player/magnuscarlsen/games/2022/05"
+      ]
+    }
   }
 }
 ```
@@ -228,7 +228,7 @@ sources:{
 
 ### List all pipelines on the local machine
 
-```shell
+```sh
 dlt pipeline --list-pipelines
 ```
 

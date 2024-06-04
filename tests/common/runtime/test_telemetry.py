@@ -1,11 +1,15 @@
-from typing import Any, TYPE_CHECKING
+from typing import Any
+from contextlib import nullcontext as does_not_raise
 import os
 import pytest
 import logging
+import base64
 from unittest.mock import patch
 
+from pytest_mock import MockerFixture
+
 from dlt.common import logger
-from dlt.common.runtime.segment import get_anonymous_id, track, disable_segment
+from dlt.common.runtime.anon_tracker import get_anonymous_id, track, disable_anon_tracker
 from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
@@ -28,22 +32,12 @@ class SentryLoggerConfiguration(RunConfiguration):
     sentry_dsn: str = (
         "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
     )
-    dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
+    # dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
 
 
 @configspec
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            pipeline_name: str = "logger",
-            sentry_dsn: str = "https://sentry.io",
-            dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
-            log_level: str = "CRITICAL",
-        ) -> None: ...
 
 
 def test_sentry_log_level() -> None:
@@ -57,6 +51,71 @@ def test_sentry_log_level() -> None:
     assert sll._handler.level == logging._nameToLevel["WARNING"]
     sll = _get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="INFO"))
     assert sll._handler.level == logging._nameToLevel["WARNING"]
+
+
+@pytest.mark.parametrize(
+    "endpoint, write_key, expectation",
+    [
+        (
+            "https://api.segment.io/v1/track",
+            "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
+            does_not_raise(),
+        ),
+        (
+            "https://telemetry.scalevector.ai",
+            None,
+            does_not_raise(),
+        ),
+        (
+            "https://telemetry-tracker.services4758.workers.dev/",
+            None,
+            does_not_raise(),
+        ),
+    ],
+)
+@pytest.mark.forked
+def test_telemetry_endpoint(endpoint, write_key, expectation) -> None:
+    from dlt.common.runtime import anon_tracker
+
+    with expectation:
+        anon_tracker.init_anon_tracker(
+            RunConfiguration(
+                dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
+            )
+        )
+
+    assert anon_tracker._ANON_TRACKER_ENDPOINT == endpoint
+    if write_key is None:
+        assert anon_tracker._WRITE_KEY is None
+    else:
+        assert base64.b64decode(anon_tracker._WRITE_KEY.encode("ascii")).decode() == write_key + ":"
+
+
+@pytest.mark.parametrize(
+    "endpoint, write_key, expectation",
+    [
+        (
+            "https://api.segment.io/v1/track",
+            None,
+            pytest.raises(AssertionError),
+        ),
+        (
+            None,
+            "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
+            pytest.raises(ValueError),
+        ),
+    ],
+)
+@pytest.mark.forked
+def test_telemetry_endpoint_exceptions(endpoint, write_key, expectation) -> None:
+    from dlt.common.runtime import anon_tracker
+
+    with expectation:
+        anon_tracker.init_anon_tracker(
+            RunConfiguration(
+                dlthub_telemetry_endpoint=endpoint, dlthub_telemetry_segment_write_key=write_key
+            )
+        )
 
 
 @pytest.mark.forked
@@ -76,22 +135,41 @@ def test_sentry_init(environment: DictStrStr) -> None:
 
 
 @pytest.mark.forked
-def test_track_segment_event() -> None:
+def test_track_anon_event(mocker: MockerFixture) -> None:
+    from dlt.sources.helpers import requests
+    from dlt.common.runtime import anon_tracker
+
     mock_github_env(os.environ)
     mock_pod_env(os.environ)
+    config = SentryLoggerConfiguration()
 
-    props = {"destination_name": "duckdb", "elapsed_time": 1.23123, "success": True}
-    with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
-        start_test_telemetry(SentryLoggerConfiguration())
+    requests_post = mocker.spy(requests, "post")
+
+    props = {"destination_name": "duckdb", "elapsed_time": 712.23123, "success": True}
+    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
+        start_test_telemetry(config)
         track("pipeline", "run", props)
         # this will send stuff
-        disable_segment()
+        disable_anon_tracker()
+
     event = SENT_ITEMS[0]
+    # requests were really called
+    requests_post.assert_called_once_with(
+        config.dlthub_telemetry_endpoint,
+        headers=anon_tracker._tracker_request_header(None),
+        json=event,
+        timeout=anon_tracker._REQUEST_TIMEOUT,
+    )
+    # was actually delivered
+    assert requests_post.spy_return.status_code == 204
+
     assert event["anonymousId"] == get_anonymous_id()
     assert event["event"] == "pipeline_run"
     assert props.items() <= event["properties"].items()
     assert event["properties"]["event_category"] == "pipeline"
     assert event["properties"]["event_name"] == "run"
+    assert event["properties"]["destination_name"] == "duckdb"
+    assert event["properties"]["elapsed_time"] == 712.23123
     # verify context
     context = event["context"]
     assert context["library"] == {"name": DLT_PKG_NAME, "version": __version__}

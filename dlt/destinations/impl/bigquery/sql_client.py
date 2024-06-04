@@ -51,8 +51,10 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
         super().__init__(curr)
         self.df_iterator = None
 
-    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
-        query_job: bigquery.QueryJob = self.native_cursor.query_job
+    def df(self, chunk_size: Optional[int] = None, **kwargs: Any) -> DataFrame:
+        query_job: bigquery.QueryJob = getattr(
+            self.native_cursor, "_query_job", self.native_cursor.query_job
+        )
         if self.df_iterator:
             return next(self.df_iterator, None)
         try:

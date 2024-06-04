@@ -1,8 +1,10 @@
 from typing import List, Dict, Set, Any
 from abc import abstractmethod
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.data_writers import DataWriterMetrics
+from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.runtime import signals
@@ -12,6 +14,7 @@ from dlt.common.storages import (
     NormalizeStorage,
     LoadStorage,
 )
+from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
@@ -31,13 +34,13 @@ except MissingDependencyException:
 class ItemsNormalizer:
     def __init__(
         self,
-        load_storage: LoadStorage,
+        item_storage: DataItemStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
-        self.load_storage = load_storage
+        self.item_storage = item_storage
         self.normalize_storage = normalize_storage
         self.schema = schema
         self.load_id = load_id
@@ -50,13 +53,13 @@ class ItemsNormalizer:
 class JsonLItemsNormalizer(ItemsNormalizer):
     def __init__(
         self,
-        load_storage: LoadStorage,
+        item_storage: DataItemStorage,
         normalize_storage: NormalizeStorage,
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
     ) -> None:
-        super().__init__(load_storage, normalize_storage, schema, load_id, config)
+        super().__init__(item_storage, normalize_storage, schema, load_id, config)
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -75,7 +78,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         return row
 
     def _normalize_chunk(
-        self, root_table_name: str, items: List[TDataItem], may_have_pua: bool
+        self, root_table_name: str, items: List[TDataItem], may_have_pua: bool, skip_write: bool
     ) -> TSchemaUpdate:
         column_schemas = self._column_schemas
         schema_update: TSchemaUpdate = {}
@@ -173,9 +176,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     # store row
                     # TODO: store all rows for particular items all together after item is fully completed
                     #   will be useful if we implement bad data sending to a table
-                    self.load_storage.write_data_item(
-                        self.load_id, schema_name, table_name, row, columns
-                    )
+                    # we skip write when discovering schema for empty file
+                    if not skip_write:
+                        self.item_storage.write_data_item(
+                            self.load_id, schema_name, table_name, row, columns
+                        )
             except StopIteration:
                 pass
             signals.raise_if_signalled()
@@ -194,28 +199,37 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             line: bytes = None
             for line_no, line in enumerate(f):
                 items: List[TDataItem] = json.loadb(line)
-                partial_update = self._normalize_chunk(root_table_name, items, may_have_pua(line))
+                partial_update = self._normalize_chunk(
+                    root_table_name, items, may_have_pua(line), skip_write=False
+                )
                 schema_updates.append(partial_update)
-                logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
+                logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
             # empty json files are when replace write disposition is used in order to truncate table(s)
             if line is None and root_table_name in self.schema.tables:
-                # write only if table seen data before
+                # TODO: we should push the truncate jobs via package state
+                # not as empty jobs. empty jobs should be reserved for
+                # materializing schemas and other edge cases ie. empty parquet files
                 root_table = self.schema.tables[root_table_name]
-                if has_table_seen_data(root_table):
-                    self.load_storage.write_empty_items_file(
-                        self.load_id,
-                        self.schema.name,
-                        root_table_name,
-                        self.schema.get_table_columns(root_table_name),
+                if not has_table_seen_data(root_table):
+                    # if this is a new table, add normalizer columns
+                    partial_update = self._normalize_chunk(
+                        root_table_name, [{}], False, skip_write=True
                     )
-                    logger.debug(
-                        f"No lines in file {extracted_items_file}, written empty load job file"
-                    )
+                    schema_updates.append(partial_update)
+                self.item_storage.write_empty_items_file(
+                    self.load_id,
+                    self.schema.name,
+                    root_table_name,
+                    self.schema.get_table_columns(root_table_name),
+                )
+                logger.debug(
+                    f"No lines in file {extracted_items_file}, written empty load job file"
+                )
 
         return schema_updates
 
 
-class ParquetItemsNormalizer(ItemsNormalizer):
+class ArrowItemsNormalizer(ItemsNormalizer):
     REWRITE_ROW_GROUPS = 1
 
     def _write_with_dlt_columns(
@@ -273,7 +287,10 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             )
 
         items_count = 0
-        as_py = self.load_storage.loader_file_format != "arrow"
+        columns_schema = schema.get_table_columns(root_table_name)
+        # if we use adapter to convert arrow to dicts, then normalization is not necessary
+        is_native_arrow_writer = not issubclass(self.item_storage.writer_cls, ArrowToObjectAdapter)
+        should_normalize: bool = None
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
@@ -281,28 +298,46 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 f, new_columns, row_groups_per_read=self.REWRITE_ROW_GROUPS
             ):
                 items_count += batch.num_rows
-                if as_py:
-                    # Write python rows to jsonl, insert-values, etc... storage
-                    batch = batch.to_pylist()
-                self.load_storage.write_data_item(
+                # we may need to normalize
+                if is_native_arrow_writer and should_normalize is None:
+                    should_normalize, _, _, _, _ = pyarrow.should_normalize_arrow_schema(
+                        batch.schema, columns_schema, schema.naming
+                    )
+                    if should_normalize:
+                        logger.info(
+                            f"When writing arrow table to {root_table_name} the schema requires"
+                            " normalization because its shape does not match the actual schema of"
+                            " destination table. Arrow table columns will be reordered and missing"
+                            " columns will be added if needed."
+                        )
+                if should_normalize:
+                    batch = pyarrow.normalize_py_arrow_item(
+                        batch, columns_schema, schema.naming, self.config.destination_capabilities
+                    )
+                self.item_storage.write_data_item(
                     load_id,
                     schema.name,
                     root_table_name,
                     batch,
-                    schema.get_table_columns(root_table_name),
+                    columns_schema,
                 )
-        if items_count == 0:
-            self.load_storage.write_empty_items_file(
+        # TODO: better to check if anything is in the buffer and skip writing file
+        if items_count == 0 and not is_native_arrow_writer:
+            self.item_storage.write_empty_items_file(
                 load_id,
                 schema.name,
                 root_table_name,
-                self.schema.get_table_columns(root_table_name),
+                columns_schema,
             )
 
         return [schema_update]
 
-    def _fix_schema_precisions(self, root_table_name: str) -> List[TSchemaUpdate]:
-        """Reduce precision of timestamp columns if needed, according to destination caps"""
+    def _fix_schema_precisions(
+        self, root_table_name: str, arrow_schema: Any
+    ) -> List[TSchemaUpdate]:
+        """Update precision of timestamp columns to the precision of parquet being normalized.
+        Reduce the precision if it is out of range of destination timestamp precision.
+        """
         schema = self.schema
         table = schema.tables[root_table_name]
         max_precision = self.config.destination_capabilities.timestamp_precision
@@ -310,9 +345,15 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         new_cols: TTableSchemaColumns = {}
         for key, column in table["columns"].items():
             if column.get("data_type") in ("timestamp", "time"):
-                if (prec := column.get("precision")) and prec > max_precision:
-                    new_cols[key] = dict(column, precision=max_precision)  # type: ignore[assignment]
-
+                if prec := column.get("precision"):
+                    # apply the arrow schema precision to dlt column schema
+                    data_type = pyarrow.get_column_type_from_py_arrow(arrow_schema.field(key).type)
+                    if data_type["data_type"] in ("timestamp", "time"):
+                        prec = data_type["precision"]
+                    # limit with destination precision
+                    if prec > max_precision:
+                        prec = max_precision
+                    new_cols[key] = dict(column, precision=prec)  # type: ignore[assignment]
         if not new_cols:
             return []
         return [
@@ -320,26 +361,47 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         ]
 
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
-        base_schema_update = self._fix_schema_precisions(root_table_name)
+        # read schema and counts from file metadata
+        from dlt.common.libs.pyarrow import get_parquet_metadata
+
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "rb"
+        ) as f:
+            num_rows, arrow_schema = get_parquet_metadata(f)
+            file_metrics = DataWriterMetrics(extracted_items_file, num_rows, f.tell(), 0, 0)
+        # when parquet files is saved, timestamps will be truncated and coerced. take the updated values
+        # and apply them to dlt schema
+        base_schema_update = self._fix_schema_precisions(root_table_name, arrow_schema)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id
-
-        if add_dlt_id or add_dlt_load_id or self.load_storage.loader_file_format != "arrow":
+        # if we need to add any columns or the file format is not parquet, we can't just import files
+        must_rewrite = (
+            add_dlt_id or add_dlt_load_id or self.item_storage.writer_spec.file_format != "parquet"
+        )
+        if not must_rewrite:
+            # in rare cases normalization may be needed
+            must_rewrite, _, _, _, _ = pyarrow.should_normalize_arrow_schema(
+                arrow_schema, self.schema.get_table_columns(root_table_name), self.schema.naming
+            )
+        if must_rewrite:
+            logger.info(
+                f"Table {root_table_name} parquet file {extracted_items_file} must be rewritten:"
+                f" add_dlt_id: {add_dlt_id} add_dlt_load_id: {add_dlt_load_id} destination file"
+                f" format: {self.item_storage.writer_spec.file_format} or due to required"
+                " normalization "
+            )
             schema_update = self._write_with_dlt_columns(
                 extracted_items_file, root_table_name, add_dlt_load_id, add_dlt_id
             )
             return base_schema_update + schema_update
 
-        from dlt.common.libs.pyarrow import get_row_count
-
-        with self.normalize_storage.extracted_packages.storage.open_file(
-            extracted_items_file, "rb"
-        ) as f:
-            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell(), 0, 0)
-
+        logger.info(
+            f"Table {root_table_name} parquet file {extracted_items_file} will be directly imported"
+            " without normalization"
+        )
         parts = ParsedLoadJobFileName.parse(extracted_items_file)
-        self.load_storage.import_items_file(
+        self.item_storage.import_items_file(
             self.load_id,
             self.schema.name,
             parts.table_name,

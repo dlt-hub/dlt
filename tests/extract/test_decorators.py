@@ -45,6 +45,24 @@ from dlt.extract.items import TableNameMeta
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, load_yml_case
 
 
+def test_default_resource() -> None:
+    @dlt.resource
+    def resource():
+        yield [1, 2, 3]
+
+    # simple generated table schema
+    assert resource().compute_table_schema() == {
+        "columns": {},
+        "name": "resource",
+        "resource": "resource",
+        "write_disposition": "append",
+    }
+    assert resource().name == "resource"
+    assert resource._args_bound is False
+    assert resource.incremental is None
+    assert resource.write_disposition == "append"
+
+
 def test_none_returning_source() -> None:
     with pytest.raises(SourceNotAFunction):
         dlt.source("data")()  # type: ignore[call-overload]
@@ -649,14 +667,14 @@ def test_sources_no_arguments() -> None:
     def no_args():
         return dlt.resource([1, 2], name="data")
 
-    # there is no spec if no arguments
+    # there is a spec even if no arguments
     SPEC = _SOURCES[no_args.__qualname__].SPEC
-    assert SPEC is None
+    assert SPEC
     _, _, checked = detect_source_configs(_SOURCES, "", ())
     assert no_args.__qualname__ in checked
 
     SPEC = _SOURCES[no_args.__qualname__].SPEC
-    assert SPEC is None
+    assert SPEC
     _, _, checked = detect_source_configs(_SOURCES, "", ())
     assert not_args_r.__qualname__ in checked
 
@@ -698,6 +716,33 @@ def test_custom_source_impl() -> None:
 
     s = all_users()
     assert list(s.users("group")) == ["group"]
+
+
+class TypedResource(DltResource):
+    def __call__(
+        self: "TypedResource", api_key: dlt.TSecretValue = dlt.secrets.value, limit: int = 10
+    ) -> "TypedResource":
+        """Pass api key and limit"""
+        return super().__call__(api_key, limit)
+
+
+@dlt.resource(_impl_cls=TypedResource)
+def inner_r(api_key: dlt.TSecretValue = dlt.secrets.value, limit: int = 10):
+    yield from ["A"] * limit
+
+
+def test_custom_resource_impl() -> None:
+    inn_r = inner_r(dlt.TSecretValue("key"), limit=3)
+    assert isinstance(inn_r, TypedResource)
+    assert list(inn_r) == ["A"] * 3
+
+    @dlt.resource(_impl_cls=TypedResource, standalone=True)
+    def inner_standalone(api_key: dlt.TSecretValue = dlt.secrets.value, limit: int = 10):
+        yield from range(1, limit + 1)
+
+    std_r = inner_standalone(dlt.TSecretValue("key"), limit=4)
+    assert isinstance(std_r, TypedResource)
+    assert list(std_r) == [1, 2, 3, 4]
 
 
 # wrapped flag will not create the resource but just simple function wrapper that must be called before use
@@ -821,8 +866,8 @@ def test_standalone_resource_with_name() -> None:
     assert my_tx.section == "test_decorators"
     assert my_tx.name == "my_tx"
 
-    # still the config comes via the function name
-    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_TX_WITH_NAME__INIT"] = "2"
+    # config uses the actual resource name (my_tx)
+    os.environ["SOURCES__TEST_DECORATORS__MY_TX__INIT"] = "2"
     assert list(dlt.resource([1, 2, 3], name="x") | my_tx) == [
         "my_txmy_tx",
         "my_txmy_txmy_txmy_tx",
@@ -843,6 +888,37 @@ def test_standalone_resource_with_name() -> None:
     # so resource will not instantiate
     with pytest.raises(KeyError):
         standalone_name_2("_N")
+
+
+def test_standalone_resource_returns() -> None:
+    @dlt.resource(standalone=True)
+    def rv_data(name: str):
+        return [name] * 10
+
+    with pytest.raises(InvalidResourceDataTypeFunctionNotAGenerator):
+        rv_data("returned")
+
+
+def test_standalone_resource_returning_resource() -> None:
+    @dlt.resource(standalone=True)
+    def rv_resource(name: str):
+        return dlt.resource([1, 2, 3], name=name, primary_key="value")
+
+    r = rv_resource("returned")
+    assert r.name == "returned"
+    assert r.compute_table_schema()["columns"]["value"]["primary_key"] is True
+    assert list(r) == [1, 2, 3]
+
+
+def test_standalone_resource_returning_resource_exception() -> None:
+    @dlt.resource(standalone=True)
+    def rv_resource(uniq_name: str = dlt.config.value):
+        return dlt.resource([1, 2, 3], name=uniq_name, primary_key="value")
+
+    # pass through of the exception in `rv_resource` when it returns, not yields
+    with pytest.raises(ConfigFieldMissingException) as conf_ex:
+        rv_resource()
+    assert conf_ex.value.fields == ["uniq_name"]
 
 
 def test_resource_rename_credentials_separation():

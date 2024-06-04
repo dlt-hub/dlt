@@ -10,19 +10,20 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
     NewLoadJob,
-    CredentialsConfiguration,
 )
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
-from dlt.common.schema.utils import table_schema_has_type, get_inherited_table_hint
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.utils import (
+    table_schema_has_type,
+    get_inherited_table_hint,
+    is_complete_column,
+)
 
 from dlt.common.configuration.specs import AzureCredentialsWithoutDefaults
 
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -126,9 +127,7 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:
-        if self.config.replace_strategy == "staging-optimized":
-            return [SynapseStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
-        return super()._create_replace_followup_jobs(table_chain)
+        return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
 
     def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
         table = super().prepare_load_table(table_name, staging)
@@ -136,9 +135,6 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             # Staging tables should always be heap tables, because "when you are
             # temporarily landing data in dedicated SQL pool, you may find that
             # using a heap table makes the overall process faster."
-            # "staging-optimized" is not included, because in that strategy the
-            # staging table becomes the final table, so we should already create
-            # it with the desired index type.
             table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
         elif table_name in self.schema.dlt_table_names():
             # dlt tables should always be heap tables, because "for small lookup
@@ -171,40 +167,6 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
                 self.config.staging_use_msi,
             )
         return job
-
-
-class SynapseStagingCopyJob(SqlStagingCopyJob):
-    @classmethod
-    def generate_sql(
-        cls,
-        table_chain: Sequence[TTableSchema],
-        sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
-    ) -> List[str]:
-        sql: List[str] = []
-        for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            # drop destination table
-            sql.append(f"DROP TABLE {table_name};")
-            # moving staging table to destination schema
-            sql.append(
-                f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER"
-                f" {staging_table_name};"
-            )
-            # recreate staging table
-            job_client = current.pipeline().destination_client()  # type: ignore[operator]
-            with job_client.with_staging_dataset():
-                # get table columns from schema
-                columns = [c for c in job_client.schema.get_table_columns(table["name"]).values()]
-                # generate CREATE TABLE statement
-                create_table_stmt = job_client._get_table_update_sql(
-                    table["name"], columns, generate_alter=False
-                )
-            sql.extend(create_table_stmt)
-
-        return sql
 
 
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):

@@ -1,7 +1,7 @@
 import binascii
 from os.path import isfile, join
 from pathlib import Path
-from typing import Any, Optional, Tuple, IO
+from typing import Any, ClassVar, Optional, IO
 from dlt.common.typing import TSecretStrValue
 
 from dlt.common.utils import encoding_for_mode, main_module_file_path, reveal_pseudo_secret
@@ -15,7 +15,8 @@ class RunConfiguration(BaseConfiguration):
     sentry_dsn: Optional[str] = None  # keep None to disable Sentry
     slack_incoming_hook: Optional[TSecretStrValue] = None
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
-    dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
+    dlthub_telemetry_endpoint: Optional[str] = "https://telemetry.scalevector.ai"
+    dlthub_telemetry_segment_write_key: Optional[str] = None
     log_format: str = "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}"
     log_level: str = "WARNING"
     request_timeout: float = 60
@@ -30,7 +31,7 @@ class RunConfiguration(BaseConfiguration):
     """Platform connection"""
     dlthub_dsn: Optional[TSecretStrValue] = None
 
-    __section__ = "runtime"
+    __section__: ClassVar[str] = "runtime"
 
     def on_resolved(self) -> None:
         # generate pipeline name from the entry point script name

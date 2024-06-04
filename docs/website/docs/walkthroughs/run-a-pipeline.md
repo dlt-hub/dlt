@@ -16,7 +16,7 @@ Once you [created a new pipeline](create-a-pipeline) or
 (or [customize](add-a-verified-source#3-customize-or-write-a-pipeline-script)) a pipeline script,
 like the one below that loads the data from [chess.com](https://www.chess.com) API:
 
-```python
+```py
 import dlt
 from chess import chess
 
@@ -34,13 +34,13 @@ packages. The `run` method returns a `load_info` object that, when printed, disp
 with pipeline and dataset names, ids of the load packages, optionally with the information on failed
 jobs. Add the following line to your script:
 
-```python
+```py
 print(load_info)
 ```
 
 To get this printed:
 
-```
+```text
 Pipeline chess_pipeline completed in 1.80 seconds
 1 load package(s) were loaded to destination duckdb and into dataset games_data
 The duckdb destination used duckdb:////home/user-name/src/dlt_tests/dlt-cmd-test-3/chess_pipeline.duckdb location to store data
@@ -54,7 +54,7 @@ progress bars or console logging to observe what pipeline is doing. We support m
 progress bar libraries, Python loggers or just a text console. To demonstrate, let's modify the
 script to get a year of chess games data:
 
-```python
+```py
 data = chess(['magnuscarlsen', 'rpragchess'], start_month="2021/11", end_month="2022/12")
 ```
 
@@ -92,7 +92,7 @@ dlt pipeline chess_pipeline show
 
 This will launch a Streamlit app, that you can open in your browser:
 
-```
+```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines
 
 Collecting usage statistics. To deactivate, set browser.gatherUsageStats to False.
@@ -153,7 +153,7 @@ to solving your problem. Let us know if you come across one that is not clear to
 The most common exception that you will encounter looks like this. Here we modify our
 `chess_pipeline.py` script to load data into postgres, but we are not providing the password.
 
-```bash
+```sh
 CREDENTIALS="postgres://loader@localhost:5432/dlt_data" python chess_pipeline.py
 ...
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['password'] in configuration with spec PostgresCredentials
@@ -203,11 +203,11 @@ credentials.password="loader"
 `dlt` will raise `PipelineStepFailed` exception to inform you of a problem encountered during
 execution of particular step. You can catch those in code:
 
-```python
+```py
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 try:
-    return pipeline.run(data)
+    pipeline.run(data)
 except PipelineStepFailed as step_failed:
     print(f"We failed at step: {step_failed.step} with step info {step_failed.step_info}")
     raise
@@ -219,7 +219,7 @@ Or use `trace` command to review the last exception. Here we provided a wrong po
 dlt pipeline chess_pipeline trace
 ```
 
-```
+```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines
 Run started at 2023-03-28T09:13:56.277016+00:00 and FAILED in 0.01 seconds with 1 steps.
 Step run FAILED in 0.01 seconds.
@@ -233,7 +233,7 @@ to load it, even if it retries the process. In that case the job is marked as fa
 information is available. Please note that (if not otherwise configured), `dlt` **will not raise
 exception on failed jobs**.
 
-```
+```text
 Step run COMPLETED in 14.21 seconds.
 Pipeline chess_pipeline completed in 35.21 seconds
 1 load package(s) were loaded to destination dummy and into dataset None
@@ -251,7 +251,7 @@ dlt pipeline chess_pipeline failed-jobs
 
 To get following output:
 
-```
+```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines
 Checking failed jobs in load id '1679996953.776288'
 JOB: players_games.80eb41650c.0.jsonl(players_games)

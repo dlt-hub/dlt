@@ -1,9 +1,13 @@
+---
+title: Salesforce
+description: dlt pipeline for Salesforce API
+keywords: [salesforce api, salesforce pipeline, salesforce]
+---
+import Header from './_source-info-header.md';
+
 # Salesforce
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-[Join our Slack community](https://dlthub.com/community) or
-[book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations
 and customer relationship management, encompassing sales, marketing, and customer service.
@@ -31,6 +35,8 @@ The resources that this verified source supports are:
 | CampaignMember         | merge | association between a contact or lead and a campaign                                                                        |
 | Task                   | merge | used to track and manage various activities and tasks within the salesforce platform                                        |
 | Event                  | merge | used to track and manage calendar-based events, such as meetings, appointments calls, or any other time-specific activities |
+
+* Note that formula fields are included - these function like Views in salesforce and will not be back-updated when their definitions change in Salesforce! The recommended handling is to ignore these fields and reproduce yourself any calculations from the base data fields.
 
 ## Setup Guide
 
@@ -63,7 +69,7 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init salesforce duckdb
    ```
 
@@ -110,16 +116,16 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
-   ```bash
+   ```sh
    python salesforce_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
    For example, the `pipeline_name` for the above pipeline example is `salesforce`, you may also use
@@ -137,13 +143,14 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function returns a list of resources to load users, user_role, opportunity,
 opportunity_line_item, account etc. data from Salesforce API.
 
-```python
+```py
 @dlt.source(name="salesforce")
 def salesforce_source(
     user_name: str = dlt.secrets.value,
     password: str = dlt.secrets.value,
     security_token: str = dlt.secrets.value,
 ) ->Iterable[DltResource]:
+   ...
 ```
 
 - `user_name`: Your Salesforce account username.
@@ -156,7 +163,7 @@ def salesforce_source(
 
 This resource function retrieves records from the Salesforce "User" endpoint.
 
-```python
+```py
 @dlt.resource(write_disposition="replace")
 def sf_user() -> Iterator[Dict[str, Any]]:
     yield from get_records(client, "User")
@@ -176,7 +183,7 @@ the "user_role" endpoint.
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.
 
-```python
+```py
 @dlt.resource(write_disposition="merge")
 def opportunity(
     last_timestamp: Incremental[str] = dlt.sources.incremental(
@@ -215,7 +222,7 @@ To create your data pipeline using single loading and
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
        pipeline_name="salesforce_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -228,7 +235,7 @@ To create your data pipeline using single loading and
 
 1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
-   ```python
+   ```py
    load_data = salesforce_source()
    source.schema.merge_hints({"not_null": ["id"]})  # Hint for id field not null
    load_info = pipeline.run(load_data)
@@ -241,7 +248,7 @@ To create your data pipeline using single loading and
 
 1. To use the method `pipeline.run()` to load custom endpoints “candidates” and “members”:
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data.with_resources("opportunity", "contact"))
    # print the information on data that was loaded
    print(load_info)
@@ -255,12 +262,12 @@ To create your data pipeline using single loading and
    > For incremental loading of endpoints, maintain the pipeline name and destination dataset name.
    > The pipeline name is important for accessing the [state](../../general-usage/state) from the
    > last run, including the end date for incremental data loads. Altering these names could trigger
-   > a [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh), disrupting
+   > a [“dev-mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting
    > the metadata tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 1. To load data from the “contact” in replace mode and “task” incrementally merge mode endpoints:
 
-   ```python
+   ```py
    load_info = pipeline.run(load_data.with_resources("contact", "task"))
    # pretty print the information on data that was loaded
    print(load_info)
@@ -270,11 +277,11 @@ To create your data pipeline using single loading and
    > overwriting existing data. Conversely, the "task" endpoint supports "merge" mode for
    > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
    > previously loaded data.
-   
-1. Salesforce enforces specific limits on API data requests. These limits 
+
+1. Salesforce enforces specific limits on API data requests. These limits
    vary based on the Salesforce edition and license type, as outlined in the [Salesforce API Request Limits documentation](https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_api.htm).
 
-   To limit the number of Salesforce API data requests, developers can control the environment for production or 
+   To limit the number of Salesforce API data requests, developers can control the environment for production or
    development purposes. For development, you can set the `IS_PRODUCTION` variable
    to `False` in "[salesforce/settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce/settings.py)",
    which limits API call requests to 100. To modify this limit, you can update the query limit in
@@ -284,5 +291,5 @@ To create your data pipeline using single loading and
    >To read more about Salesforce query limits, please refer to their official
    >[documentation here](https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm).
 
-<!--@@@DLT_SNIPPET_START tuba::salesforce-->
-<!--@@@DLT_SNIPPET_END tuba::salesforce-->
+<!--@@@DLT_TUBA salesforce-->
+

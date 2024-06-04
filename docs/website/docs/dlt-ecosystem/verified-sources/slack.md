@@ -3,30 +3,27 @@ title: Slack
 description: dlt verified source for Slack API
 keywords: [slack api, slack verified source, slack]
 ---
+import Header from './_source-info-header.md';
 
 # Slack
 
-:::info Need help deploying these sources, or figuring out how to run them in your data stack?
-
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
+<Header/>
 
 [Slack](https://slack.com/) is a popular messaging and collaboration platform for teams and organizations.
 
 This Slack `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/slack_pipeline.py)
-loads data using “Slack API” to the destination of your choice.
+load data using the “Slack API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
 | Name                  | Description                                                                        |
 |-----------------------|------------------------------------------------------------------------------------|
-| slack                 | Retrives all the Slack data: channels, messages for selected channels, users, logs |
-| channels              | Retrives all the channels data                                                     |
-| users                 | Retrives all the users info                                                        |
-| get_messages_resource | Retrives all the messages for a given channel                                      |
-| access_logs           | Retrives the access logs                                                           |
+| slack                 | Retrieves all the Slack data: channels, messages for selected channels, users, logs |
+| channels              | Retrieves all the channels data                                                     |
+| users                 | Retrieves all the users info                                                        |
+| get_messages_resource | Retrieves all the messages for a given channel                                      |
+| access_logs           | Retrieves the access logs                                                           |
 
 ## Setup Guide
 
@@ -67,13 +64,13 @@ To get started with your data pipeline, follow these steps:
 
 1. Enter the following command:
 
-   ```bash
+   ```sh
    dlt init slack duckdb
    ```
 
    [This command](../../reference/command-line-interface) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/slack_pipeline.py)
-   with Google Sheets as the [source](../../general-usage/source) and
+   with Slack as the [source](../../general-usage/source) and
    [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
@@ -96,7 +93,7 @@ For more information, read the guide on [how to add a verified source](../../wal
     access_token = "Please set me up!" # please set me up!
     ```
 
-1. Copy the user Oauth token you [copied above](#grab-user-oauth-token).
+1. Copy the user OAuth token you [copied above](#grab-user-oauth-token).
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
@@ -107,20 +104,20 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
 
-   ```bash
+   ```sh
    pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
-   ```bash
+   ```sh
    python slack_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
-   ```bash
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 
@@ -138,7 +135,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 It retrieves data from Slack's API and fetches the Slack data such as channels, messages for selected channels, users, logs.
 
-```python
+```py
 @dlt.source(name="slack", max_table_nesting=2)
 def slack_source(
     page_size: int = MAX_PAGE_SIZE,
@@ -147,6 +144,7 @@ def slack_source(
     end_date: Optional[TAnyDateTime] = None,
     selected_channels: Optional[List[str]] = dlt.config.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `page_size`: Maximum items per page (default: 1000).
@@ -161,27 +159,29 @@ def slack_source(
 
 ### Resource `channels`
 
-This function yields all the channels data as `dlt` resource.
+This function yields all the channels data as a `dlt` resource.
 
-```python
+```py
 @dlt.resource(name="channels", primary_key="id", write_disposition="replace")
 def channels_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 ### Resource `users`
 
-This function yields all the users data as `dlt` resource.
+This function yields all the users data as a `dlt` resource.
 
-```python
+```py
 @dlt.resource(name="users", primary_key="id", write_disposition="replace")
 def users_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 ### Resource `get_messages_resource`
 
-This method fetches messages for a specified channel from the Slack API. It creates a resource for each channel with channel's name.
+This method fetches messages for a specified channel from the Slack API. It creates a resource for each channel with the channel's name.
 
-```python
+```py
 def get_messages_resource(
     channel_data: Dict[str, Any],
     created_at: dlt.sources.incremental[DateTime] = dlt.sources.incremental(
@@ -191,6 +191,7 @@ def get_messages_resource(
         allow_external_schedulers=True,
     ),
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `channel_data`: A dictionary detailing a specific channel to determine where messages are fetched from.
@@ -209,7 +210,7 @@ def get_messages_resource(
 
 This method retrieves access logs from the Slack API.
 
-```python
+```py
 @dlt.resource(
     name="access_logs",
     selected=False,
@@ -218,6 +219,7 @@ This method retrieves access logs from the Slack API.
 )
 # it is not an incremental resource it just has a end_date filter
 def logs_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 `selected`: A boolean set to False, indicating the resource isn't loaded by default.
@@ -235,7 +237,7 @@ verified source.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-   ```python
+   ```py
    pipeline = dlt.pipeline(
         pipeline_name="slack",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -244,7 +246,7 @@ verified source.
    ```
 1. To load Slack resources from the specified start date:
 
-   ```python
+   ```py
    source = slack_source(page_size=1000, start_date=datetime(2023, 9, 1), end_date=datetime(2023, 9, 8))
 
    # Enable below to load only 'access_logs', available for paid accounts only.
@@ -258,7 +260,7 @@ verified source.
 
 1. To load data from selected Slack channels from the specified start date:
 
-   ```python
+   ```py
    # To load data from selected channels.
    selected_channels=["general", "random"] # Enter the channel names here.
 
@@ -275,7 +277,7 @@ verified source.
 
 1. To load only messages from selected Slack resources:
 
-   ```python
+   ```py
    # To load data from selected channels.
    selected_channels=["general", "random"] # Enter the channel names here.
 
@@ -285,10 +287,10 @@ verified source.
        start_date=datetime(2023, 9, 1),
        end_date=datetime(2023, 9, 8),
    )
-   # It loads only massages from the channel "general".
+   # It loads only messages from the channel "general".
    load_info = pipeline.run(source.with_resources("general"))
    print(load_info)
    ```
 
-<!--@@@DLT_SNIPPET_START tuba::slack-->
-<!--@@@DLT_SNIPPET_END tuba::slack-->
+<!--@@@DLT_TUBA slack-->
+

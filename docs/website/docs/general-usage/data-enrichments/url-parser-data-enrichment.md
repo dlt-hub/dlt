@@ -29,7 +29,7 @@ you can use any API you prefer.
 
 By default the URL Parse API will return a JSON response like:
 
-```text
+```json
 {
     "authority": "urlparse.com",
     "domain": "urlparse.com",
@@ -73,7 +73,7 @@ understanding, you may explore all three enrichments sequentially in the noteboo
 Alternatively, to create a data enrichment pipeline, you can start by creating the following
 directory structure:
 
-```python
+```text
 url_parser_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -100,41 +100,41 @@ Let's examine a synthetic dataset created for this article. It includes:
 
 Here's the resource that yields the sample data as discussed above:
 
-```python
-  import dlt
+```py
+    import dlt
 
-  @dlt.resource(write_disposition="append")
-  def tracked_data():
-  """
-  A generator function that yields a series of dictionaries, each representing
-  user tracking data.
+    @dlt.resource(write_disposition="append")
+    def tracked_data():
+        """
+        A generator function that yields a series of dictionaries, each representing
+        user tracking data.
 
-  This function is decorated with `dlt.resource` to integrate into the DLT (Data
-  Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
-  ensure that data from this generator is appended to the existing data in the
-  destination table.
+        This function is decorated with `dlt.resource` to integrate into the DLT (Data
+        Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
+        ensure that data from this generator is appended to the existing data in the
+        destination table.
 
-  Yields:
-      dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
-      representing the user's tracking data including their device and the page
-      they were referred from.
- """
+        Yields:
+            dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
+            representing the user's tracking data including their device and the page
+            they were referred from.
+        """
 
-     # Sample data representing tracked user data
-     sample_data = [
+        # Sample data representing tracked user data
+        sample_data = [
         {
                 "user_id": 1,
                 "device_name": "Sony Experia XZ",
                 "page_referer": "https://b2venture.lightning.force.com/"
         },
-         """
-         Data for other users
-         """
-     ]
+            """
+            Data for other users
+            """
+        ]
 
-     # Yielding each user's data as a dictionary
-     for user_data in sample_data:
-         yield user_data
+        # Yielding each user's data as a dictionary
+        for user_data in sample_data:
+            yield user_data
 ```
 
 ### 2. Create `url_parser` function
@@ -143,7 +143,7 @@ We use a free service called [URL Parse API](https://urlparse.com/), to parse th
 need to register to use this service neither get an API key.
 
 1. Create a `url_parser` function as follows:
-   ```python
+   ```py
    # @dlt.transformer(data_from=tracked_data)
    def url_parser(record):
        """
@@ -195,7 +195,7 @@ need to register to use this service neither get an API key.
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```python
+   ```py
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_three",
@@ -214,7 +214,7 @@ need to register to use this service neither get an API key.
    do so, you need to add the transformer decorator at the top of the `url_parser` function. For
    `pipeline.run`, you can use the following code:
 
-   ```python
+   ```py
    # using fetch_average_price as a transformer function
    load_info = pipeline.run(
        tracked_data | url_parser,
@@ -230,19 +230,19 @@ need to register to use this service neither get an API key.
 1. Install necessary dependencies for the preferred
    [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
 
-   ```
-   pip install dlt[duckdb]
+   ```sh
+   pip install "dlt[duckdb]"
    ```
 
 1. Run the pipeline with the following command:
 
-   ```
+   ```sh
    python url_enrichment_pipeline.py
    ```
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

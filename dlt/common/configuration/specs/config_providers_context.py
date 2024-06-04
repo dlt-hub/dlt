@@ -1,4 +1,5 @@
 import contextlib
+import dataclasses
 import io
 from typing import ClassVar, List
 
@@ -28,7 +29,7 @@ class ConfigProvidersConfiguration(BaseConfiguration):
     only_toml_fragments: bool = True
 
     # always look in providers
-    __section__ = known_sections.PROVIDERS
+    __section__: ClassVar[str] = known_sections.PROVIDERS
 
 
 @configspec
@@ -37,8 +38,12 @@ class ConfigProvidersContext(ContainerInjectableContext):
 
     global_affinity: ClassVar[bool] = True
 
-    providers: List[ConfigProvider]
-    context_provider: ConfigProvider
+    providers: List[ConfigProvider] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
+    context_provider: ConfigProvider = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     def __init__(self) -> None:
         super().__init__()

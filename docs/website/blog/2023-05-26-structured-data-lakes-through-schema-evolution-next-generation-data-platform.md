@@ -103,7 +103,7 @@ To try out schema evolution with `dlt`, check out our [colab demo.](https://cola
 
 
 
-![colab demo](/img/schema_evolution_colab_demo_light.png)
+![colab demo](https://storage.googleapis.com/dlt-blog-images/schema_evolution_colab_demo_light.png)
 
 ### Want more?
 

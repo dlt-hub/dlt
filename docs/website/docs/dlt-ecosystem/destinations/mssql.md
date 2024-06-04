@@ -7,44 +7,44 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 # Microsoft SQL Server
 
 ## Install dlt with MS SQL
-**To install the DLT library with MS SQL dependencies:**
-```
-pip install dlt[mssql]
+**To install the dlt library with MS SQL dependencies, use:**
+```sh
+pip install "dlt[mssql]"
 ```
 
 ## Setup guide
 
 ### Prerequisites
 
-_Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
-This can't be included with `dlt`'s python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
+The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
+This cannot be included with `dlt`'s python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
 
 Supported driver versions:
 * `ODBC Driver 18 for SQL Server`
 * `ODBC Driver 17 for SQL Server`
 
-You can [configure driver name](#additional-destination-options) explicitly as well.
+You can also [configure the driver name](#additional-destination-options) explicitly.
 
 ### Create a pipeline
 
-**1. Initalize a project with a pipeline that loads to MS SQL by running**
-```
+**1. Initialize a project with a pipeline that loads to MS SQL by running:**
+```sh
 dlt init chess mssql
 ```
 
-**2. Install the necessary dependencies for MS SQL by running**
-```
+**2. Install the necessary dependencies for MS SQL by running:**
+```sh
 pip install -r requirements.txt
 ```
 or run:
+```sh
+pip install "dlt[mssql]"
 ```
-pip install dlt[mssql]
-```
-This will install dlt with **mssql** extra which contains all the dependencies required by the SQL server client.
+This will install `dlt` with the `mssql` extra, which contains all the dependencies required by the SQL server client.
 
 **3. Enter your credentials into `.dlt/secrets.toml`.**
 
-Example, replace with your database connection info:
+For example, replace with your database connection info:
 ```toml
 [destination.mssql.credentials]
 database = "dlt_data"
@@ -53,42 +53,75 @@ password = "<password>"
 host = "loader.database.windows.net"
 port = 1433
 connect_timeout = 15
+[destination.mssql.credentials.query]
+# trust self signed SSL certificates
+TrustServerCertificate="yes"
+# require SSL connection
+Encrypt="yes"
+# send large string as VARCHAR, not legacy TEXT
+LongAsMax="yes"
 ```
 
 You can also pass a SQLAlchemy-like database connection:
 ```toml
 # keep it at the top of your toml file! before any section starts
-destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15"
+destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
 ```
 
-To pass credentials directly you can use `credentials` argument passed to `dlt.pipeline` or `pipeline.run` methods.
-```python
-pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15")
+You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
+
+**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
+
+```toml
+destination.mssql.credentials="mssql://loader.database.windows.net/dlt_data?trusted_connection=yes"
+```
+
+**To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
+```toml
+destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?encrypt=no"
+```
+
+**To allow self signed SSL certificate** when you are getting `certificate verify failed:unable to get local issuer certificate`:
+```toml
+destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?TrustServerCertificate=yes"
+```
+
+***To use long strings (>8k) and avoid collation errors**:
+```toml
+destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?LongAsMax=yes"
+```
+
+**To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
+```py
+pipeline = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15"),
+  dataset_name='chess_data')
 ```
 
 ## Write disposition
-All write dispositions are supported
+All write dispositions are supported.
 
-If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and
 recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: mssql supports DDL transactions.
 
 ## Data loading
-Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT and this is what we use.
+Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use.
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
 
 ## Supported column hints
-**mssql** will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**
+**mssql** will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
 ## Syncing of `dlt` state
-This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ## Data types
-MS SQL does not support JSON columns, so JSON objects are stored as strings in `nvarchar` column.
+MS SQL does not support JSON columns, so JSON objects are stored as strings in `nvarchar` columns.
 
 ## Additional destination options
-**mssql** destination **does not** creates UNIQUE indexes by default on columns with `unique` hint (ie. `_dlt_id`). To enable this behavior
+The **mssql** destination **does not** create UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To enable this behavior:
 ```toml
 [destination.mssql]
 create_indexes=true
@@ -108,16 +141,7 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ```
 
 ### dbt support
-No dbt support yet
+No dbt support yet.
 
-<!--@@@DLT_SNIPPET_START tuba::mssql-->
-## Additional Setup guides
+<!--@@@DLT_TUBA mssql-->
 
-- [Load data from Stripe to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-mssql)
-- [Load data from Google Analytics to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-mssql)
-- [Load data from Google Sheets to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-mssql)
-- [Load data from Chess.com to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-mssql)
-- [Load data from GitHub to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-mssql)
-- [Load data from Notion to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-mssql)
-- [Load data from HubSpot to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-mssql)
-<!--@@@DLT_SNIPPET_END tuba::mssql-->

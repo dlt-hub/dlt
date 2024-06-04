@@ -112,7 +112,9 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         super().__init__(
             schema_name,
             f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine},"
-            f" stopped at {from_engine}",
+            f" stopped at {from_engine}. You possibly tried to run an older dlt"
+            " version against a destination you have previously loaded data to with a newer dlt"
+            " version.",
         )
 
 
@@ -196,3 +198,7 @@ class TableIdentifiersFrozen(SchemaException):
         )
         msg += f" Details: {details}"
         super().__init__(schema_name, msg)
+
+
+class ColumnNameConflictException(SchemaException):
+    pass

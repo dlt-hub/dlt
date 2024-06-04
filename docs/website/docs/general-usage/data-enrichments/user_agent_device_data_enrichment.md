@@ -41,7 +41,7 @@ Here's the link to the notebook:
 ### B. Create a pipeline
 Alternatively, to create a data enrichment pipeline, you can start by creating the following directory structure:
 
-```python
+```text
 user_device_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -67,42 +67,42 @@ user_device_enrichment/
 
    Here's the resource that yields the sample data as discussed above:
 
-   ```python
-     import dlt
+   ```py
+    import dlt
 
-     @dlt.resource(write_disposition="append")
-     def tracked_data():
-     """
-     A generator function that yields a series of dictionaries, each representing
-     user tracking data.
+    @dlt.resource(write_disposition="append")
+    def tracked_data():
+        """
+        A generator function that yields a series of dictionaries, each representing
+        user tracking data.
 
-     This function is decorated with `dlt.resource` to integrate into the DLT (Data
-     Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
-     ensure that data from this generator is appended to the existing data in the
-     destination table.
+        This function is decorated with `dlt.resource` to integrate into the DLT (Data
+        Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
+        ensure that data from this generator is appended to the existing data in the
+        destination table.
 
-     Yields:
-         dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
-         representing the user's tracking data including their device and the page
-         they were referred from.
-    """
+        Yields:
+            dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
+            representing the user's tracking data including their device and the page
+            they were referred from.
+        """
 
-    # Sample data representing tracked user data
-    sample_data = [
-        {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer":
-          "https://b2venture.lightning.force.com/"},
-        {"user_id": 2, "device_name": "Samsung Galaxy S23 Ultra 5G",
-         "page_referer": "https://techcrunch.com/2023/07/20/can-dlthub-solve-the-python-library-problem-for-ai-dig-ventures-thinks-so/"},
-        {"user_id": 3, "device_name": "Apple iPhone 14 Pro Max",
-         "page_referer": "https://dlthub.com/success-stories/freelancers-perspective/"},
-        {"user_id": 4, "device_name": "OnePlus 11R",
-         "page_referer": "https://www.reddit.com/r/dataengineering/comments/173kp9o/ideas_for_data_validation_on_data_ingestion/"},
-        {"user_id": 5, "device_name": "Google Pixel 7 Pro", "page_referer": "https://pypi.org/"},
-    ]
+        # Sample data representing tracked user data
+        sample_data = [
+            {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer":
+            "https://b2venture.lightning.force.com/"},
+            {"user_id": 2, "device_name": "Samsung Galaxy S23 Ultra 5G",
+            "page_referer": "https://techcrunch.com/2023/07/20/can-dlthub-solve-the-python-library-problem-for-ai-dig-ventures-thinks-so/"},
+            {"user_id": 3, "device_name": "Apple iPhone 14 Pro Max",
+            "page_referer": "https://dlthub.com/success-stories/freelancers-perspective/"},
+            {"user_id": 4, "device_name": "OnePlus 11R",
+            "page_referer": "https://www.reddit.com/r/dataengineering/comments/173kp9o/ideas_for_data_validation_on_data_ingestion/"},
+            {"user_id": 5, "device_name": "Google Pixel 7 Pro", "page_referer": "https://pypi.org/"},
+        ]
 
-    # Yielding each user's data as a dictionary
-    for user_data in sample_data:
-        yield user_data
+        # Yielding each user's data as a dictionary
+        for user_data in sample_data:
+            yield user_data
    ```
 
 ### 2. Create `fetch_average_price` function
@@ -118,7 +118,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```python
+   ```py
    [sources]
    api_key= "Please set me up!"  #Serp Api key.
    ```
@@ -126,8 +126,8 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Replace the value of the `api_key`.
 
 1. Create `fetch_average_price()` function as follows:
-   ```python
-   import datetime
+   ```py
+   from datetime import datetime, timedelta
    import requests
 
    # Uncomment transformer function if it is to be used as a transformer,
@@ -160,7 +160,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
        device_info = dlt.current.resource_state().setdefault("devices", {})
 
        # Current timestamp for checking the last update
-       current_timestamp = datetime.datetime.now()
+       current_timestamp = datetime.now()
 
        # Print the current device information
        # print(device_info) # if you need to check state
@@ -172,10 +172,10 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
        # Calculate the time since the last update
        last_updated = (
            current_timestamp -
-           device_data.get('timestamp', datetime.datetime.min)
+           device_data.get('timestamp', datetime.min)
        )
        # Check if the device is not in state or data is older than 180 days
-       if device not in device_info or last_updated > datetime.timedelta(days=180):
+       if device not in device_info or last_updated > timedelta(days=180):
            try:
                # Make an API request to fetch device prices
                response = requests.get("https://serpapi.com/search", params={
@@ -247,7 +247,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```python
+   ```py
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_one",
@@ -266,7 +266,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    do so, you need to add the transformer decorator at the top of the `fetch_average_price` function.
    For `pipeline.run`, you can use the following code:
 
-   ```python
+   ```py
    # using fetch_average_price as a transformer function
    load_info = pipeline.run(
        tracked_data | fetch_average_price,
@@ -283,19 +283,19 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Install necessary dependencies for the preferred
    [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
 
-   ```
-   pip install dlt[duckdb]
+   ```sh
+   pip install "dlt[duckdb]"
    ```
 
 1. Run the pipeline with the following command:
 
-   ```
+   ```sh
    python device_enrichment_pipeline.py
    ```
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

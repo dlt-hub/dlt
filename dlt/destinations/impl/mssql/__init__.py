@@ -17,7 +17,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     # https://learn.microsoft.com/en-us/sql/sql-server/maximum-capacity-specifications-for-sql-server?view=sql-server-ver16&redirectedfrom=MSDN
     caps.max_identifier_length = 128
     caps.max_column_identifier_length = 128
-    caps.max_query_length = 4 * 1024 * 64 * 1024
+    # A SQL Query can be a varchar(max) but is shown as limited to 65,536 * Network Packet
+    caps.max_query_length = 65536 * 10
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 2**30 - 1
     caps.is_max_text_data_type_length_in_bytes = False

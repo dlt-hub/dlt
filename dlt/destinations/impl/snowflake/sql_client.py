@@ -142,11 +142,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         elif isinstance(ex, snowflake_lib.errors.IntegrityError):
             raise DatabaseTerminalException(ex)
         elif isinstance(ex, snowflake_lib.errors.DatabaseError):
-            term = cls._maybe_make_terminal_exception_from_data_error(ex)
-            if term:
-                return term
-            else:
-                return DatabaseTransientException(ex)
+            return DatabaseTransientException(ex)
         elif isinstance(ex, TypeError):
             # snowflake raises TypeError on malformed query parameters
             return DatabaseTransientException(snowflake_lib.errors.ProgrammingError(str(ex)))
@@ -154,12 +150,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
             return DatabaseTransientException(ex)
         else:
             return ex
-
-    @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(
-        snowflake_ex: snowflake_lib.DatabaseError,
-    ) -> Optional[Exception]:
-        return None
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:

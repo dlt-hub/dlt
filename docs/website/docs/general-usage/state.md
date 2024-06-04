@@ -15,7 +15,7 @@ You read and write the state in your resources. Below we use the state to create
 game archives which we then use to
 [prevent requesting duplicates](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities).
 
-```python
+```py
 @dlt.resource(write_disposition="append")
 def players_games(chess_url, player, start_month=None, end_month=None):
     # create or request a list of archives from resource scoped state
@@ -125,7 +125,7 @@ will display source and resource state slots for all known sources.
 **To fully reset the state:**
 
 - Drop the destination dataset to fully reset the pipeline.
-- [Set the `full_refresh` flag when creating pipeline](pipeline.md#do-experiments-with-full-refresh).
+- [Set the `dev_mode` flag when creating pipeline](pipeline.md#do-experiments-with-dev-mode).
 - Use the `dlt pipeline drop --drop-all` command to
   [drop state and tables for a given schema name](../reference/command-line-interface.md#selectively-drop-tables-and-reset-state).
 

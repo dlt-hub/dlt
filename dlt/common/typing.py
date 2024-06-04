@@ -3,6 +3,7 @@ from datetime import datetime, date  # noqa: I251
 import inspect
 import os
 from re import Pattern as _REPattern
+from types import FunctionType, MethodType, ModuleType
 from typing import (
     ForwardRef,
     Callable,
@@ -55,11 +56,13 @@ if TYPE_CHECKING:
     from typing import _TypedDict
 
     REPattern = _REPattern[str]
+    PathLike = os.PathLike[str]
 else:
     StrOrBytesPath = Any
     from typing import _TypedDictMeta as _TypedDict
 
     REPattern = _REPattern
+    PathLike = os.PathLike
 
 AnyType: TypeAlias = Any
 NoneType = type(None)
@@ -92,7 +95,7 @@ ConfigValue: None = None
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
-TFileOrPath = Union[str, os.PathLike, IO[Any]]
+TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
 
 
@@ -117,7 +120,34 @@ class SupportsHumanize(Protocol):
         ...
 
 
-def extract_type_if_modifier(t: Type[Any]) -> Type[Any]:
+def get_type_name(t: Type[Any]) -> str:
+    """Returns a human-friendly name of type `t`"""
+    if name := getattr(t, "__name__", None):
+        return name  # type: ignore[no-any-return]
+    t = get_origin(t) or t
+    if name := getattr(t, "__name__", None):
+        return name  # type: ignore[no-any-return]
+    return str(t)
+
+
+def is_callable_type(hint: Type[Any]) -> bool:
+    """Checks if `hint` is callable: a function or callable class. This function does not descend
+    into type arguments ie. if Union, Literal or NewType contain callables, those are ignored"""
+    if get_origin(hint) is get_origin(Callable):
+        return True
+    # this skips NewType etc.
+    if getattr(hint, "__module__", None) == "typing":
+        return False
+    if isinstance(hint, FunctionType):
+        return True
+    # this is how we check if __call__ is implemented in the mro
+    if inspect.isclass(hint) and any("__call__" in t_.__dict__ for t_ in inspect.getmro(hint)):
+        return True
+
+    return False
+
+
+def extract_type_if_modifier(t: Type[Any]) -> Optional[Type[Any]]:
     if get_origin(t) in (Final, ClassVar, Annotated):
         t = get_args(t)[0]
         if m_t := extract_type_if_modifier(t):
@@ -215,7 +245,9 @@ def is_dict_generic_type(t: Type[Any]) -> bool:
         return False
 
 
-def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Type[Any]:
+def extract_inner_type(
+    hint: Type[Any], preserve_new_types: bool = False, preserve_literal: bool = False
+) -> Type[Any]:
     """Gets the inner type from Literal, Optional, Final and NewType
 
     Args:
@@ -226,15 +258,15 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
         Type[Any]: Inner type if hint was Literal, Optional or NewType, otherwise hint
     """
     if maybe_modified := extract_type_if_modifier(hint):
-        return extract_inner_type(maybe_modified, preserve_new_types)
+        return extract_inner_type(maybe_modified, preserve_new_types, preserve_literal)
     if is_optional_type(hint):
-        return extract_inner_type(get_args(hint)[0], preserve_new_types)
-    if is_literal_type(hint):
+        return extract_inner_type(get_args(hint)[0], preserve_new_types, preserve_literal)
+    if is_literal_type(hint) and not preserve_literal:
         # assume that all literals are of the same type
         return type(get_args(hint)[0])
     if is_newtype_type(hint) and not preserve_new_types:
         # descend into supertypes of NewType
-        return extract_inner_type(hint.__supertype__, preserve_new_types)
+        return extract_inner_type(hint.__supertype__, preserve_new_types, preserve_literal)
     return hint
 
 
@@ -243,7 +275,7 @@ def get_all_types_of_class_in_union(hint: Type[Any], cls: Type[TAny]) -> List[Ty
     return [
         t
         for t in get_args(hint)
-        if inspect.isclass(t) and (issubclass(t, cls) or issubclass(cls, t))
+        if not is_typeddict(t) and inspect.isclass(t) and (issubclass(t, cls) or issubclass(cls, t))
     ]
 
 

@@ -79,6 +79,8 @@ def delete_classes(p, class_list):
 
 def drop_active_pipeline_data() -> None:
     def schema_has_classes(client):
+        if not hasattr(client, "db_client"):
+            return None
         schema = client.db_client.schema.get()
         return schema["classes"]
 

@@ -9,19 +9,23 @@ from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
-from dlt.common.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import load_state_from_destination, state_resource
+from dlt.pipeline.state_sync import (
+    load_pipeline_state_from_destination,
+    state_resource,
+)
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
-from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
+from tests.load.pipeline.utils import drop_active_pipeline_data
+from tests.pipeline.utils import assert_query_data
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -36,10 +40,14 @@ def duckdb_pipeline_location() -> None:
         del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_staging_configs=True, default_sql_configs=True, default_vector_configs=True
+        default_staging_configs=True,
+        default_sql_configs=True,
+        default_vector_configs=True,
+        all_buckets_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -55,20 +63,21 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     job_client: SqlJobClientBase
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         with pytest.raises(DestinationUndefinedEntity):
-            load_state_from_destination(p.pipeline_name, job_client)
+            load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(schema.version_table_name)
-        assert exists is True
+        # check if schema exists
+        stored_schema = job_client.get_stored_schema()
+        assert stored_schema is not None
         # dataset exists, still no table
         with pytest.raises(DestinationUndefinedEntity):
-            load_state_from_destination(p.pipeline_name, job_client)
+            load_pipeline_state_from_destination(p.pipeline_name, job_client)
         initial_state = p._get_state()
         # now add table to schema and sync
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
         initial_state["_local"]["_last_extracted_hash"] = initial_state["_version_hash"]
         # add _dlt_id and _dlt_load_id
-        resource = state_resource(initial_state)
+        resource, _ = state_resource(initial_state)
         resource.apply_hints(
             columns={
                 "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False},
@@ -84,17 +93,17 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(schema.state_table_name)
-        assert exists is True
+        stored_schema = job_client.get_stored_schema()
+        assert stored_schema is not None
         # table is there but no state
-        assert load_state_from_destination(p.pipeline_name, job_client) is None
+        assert load_pipeline_state_from_destination(p.pipeline_name, job_client) is None
         # extract state
         with p.managed_state(extract_state=True):
             pass
         # just run the existing extract
         p.normalize(loader_file_format=destination_config.file_format)
         p.load()
-        stored_state = load_state_from_destination(p.pipeline_name, job_client)
+        stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         local_state = p._get_state()
         local_state.pop("_local")
         assert stored_state == local_state
@@ -104,7 +113,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
         p.normalize(loader_file_format=destination_config.file_format)
         p.load()
-        stored_state = load_state_from_destination(p.pipeline_name, job_client)
+        stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
         local_state = p._get_state()
         local_state.pop("_local")
@@ -119,7 +128,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         p.normalize(loader_file_format=destination_config.file_format)
         info = p.load()
         assert len(info.loads_ids) == 0
-        new_stored_state = load_state_from_destination(p.pipeline_name, job_client)
+        new_stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # new state should not be stored
         assert new_stored_state == stored_state
 
@@ -150,7 +159,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         p.normalize(loader_file_format=destination_config.file_format)
         info = p.load()
         assert len(info.loads_ids) == 1
-        new_stored_state_2 = load_state_from_destination(p.pipeline_name, job_client)
+        new_stored_state_2 = load_pipeline_state_from_destination(p.pipeline_name, job_client)
         # the stored state changed to next version
         assert new_stored_state != new_stored_state_2
         assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
@@ -178,7 +187,9 @@ def test_silently_skip_on_invalid_credentials(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
@@ -212,6 +223,7 @@ def test_get_schemas_from_destination(
             job_client
         ) == default_schema.naming.normalize_table_identifier(dataset_name)
     schema_two = Schema("two")
+    schema_two._bump_version()
     with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
@@ -266,7 +278,9 @@ def test_get_schemas_from_destination(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("naming_convention", ["sql_upper"])
@@ -355,7 +369,7 @@ def test_restore_state_pipeline(
     # full refresh will not restore pipeline even if requested
     p._wipe_working_folder()
     p = destination_config.setup_pipeline(
-        pipeline_name=pipeline_name, dataset_name=dataset_name, full_refresh=True
+        pipeline_name=pipeline_name, dataset_name=dataset_name, dev_mode=True
     )
     p.run(loader_file_format=destination_config.file_format)
     assert p.default_schema_name is None
@@ -396,7 +410,9 @@ def test_restore_state_pipeline(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_ignore_state_unfinished_load(destination_config: DestinationTestConfiguration) -> None:
@@ -420,13 +436,15 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
     job_client: SqlJobClientBase
     with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
         # state without completed load id is not visible
-        state = load_state_from_destination(pipeline_name, job_client)
+        state = load_pipeline_state_from_destination(pipeline_name, job_client)
         assert state is None
 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_restore_schemas_while_import_schemas_exist(
@@ -512,7 +530,9 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_restore_state_parallel_changes(destination_config: DestinationTestConfiguration) -> None:
@@ -626,7 +646,9 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, default_vector_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_reset_pipeline_on_deleted_dataset(

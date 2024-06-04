@@ -14,6 +14,9 @@ from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
@@ -21,7 +24,9 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     creds = SnowflakeCredentials()
     return SnowflakeClient(
         empty_schema,
-        SnowflakeClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds),
+        SnowflakeClientConfiguration(credentials=creds)._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
 
 

@@ -1,22 +1,29 @@
 import os
 import pytest
 import time
-from typing import Iterator
+from typing import Iterator, Type
+from uuid import uuid4
 
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
-from dlt.common.data_writers.writers import DataWriterMetrics
-from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.common.data_writers.writers import (
+    DataWriter,
+    DataWriterMetrics,
+    InsertValuesWriter,
+    JsonlWriter,
+    ALL_WRITERS,
+)
+from dlt.common.destination.capabilities import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.common.typing import DictStrAny
 
-from tests.common.data_writers.utils import ALL_WRITERS, get_writer
+from tests.common.data_writers.utils import get_writer, ALL_OBJECT_WRITERS
 
 
-@pytest.mark.parametrize("format_", ALL_WRITERS)
-def test_write_no_item(format_: TLoaderFileFormat) -> None:
-    with get_writer(_format=format_) as writer:
+@pytest.mark.parametrize("writer_type", ALL_WRITERS)
+def test_write_no_item(writer_type: Type[DataWriter]) -> None:
+    with get_writer(writer=writer_type) as writer:
         pass
     assert writer.closed
     with pytest.raises(BufferedDataWriterClosed):
@@ -28,7 +35,7 @@ def test_write_no_item(format_: TLoaderFileFormat) -> None:
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
-def test_rotation_on_schema_change(disable_compression: bool) -> None:
+def test_rotation_with_buffer_on_schema_change(disable_compression: bool) -> None:
     c1 = new_column("col1", "bigint")
     c2 = new_column("col2", "bigint")
     c3 = new_column("col3", "text")
@@ -47,7 +54,9 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         return map(lambda x: {"col3": "col3_value"}, range(0, count))
 
     # change schema before file first flush
-    with get_writer(disable_compression=disable_compression) as writer:
+    with get_writer(
+        InsertValuesWriter, file_max_items=100, disable_compression=disable_compression
+    ) as writer:
         writer.write_data_item(list(c1_doc(8)), t1)
         assert writer._current_columns == t1
         # but different instance
@@ -70,7 +79,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
     assert "1,0" in content[-1]
 
     # data would flush and schema change
-    with get_writer() as writer:
+    with get_writer(InsertValuesWriter, file_max_items=100) as writer:
         writer.write_data_item(list(c1_doc(9)), t1)
         old_file = writer._file_name
         writer.write_data_item(list(c2_doc(1)), t2)  # rotates here
@@ -83,7 +92,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         assert writer._buffered_items == []
 
     # file would rotate and schema change
-    with get_writer() as writer:
+    with get_writer(InsertValuesWriter, file_max_items=100) as writer:
         writer.file_max_items = 10
         writer.write_data_item(list(c1_doc(9)), t1)
         old_file = writer._file_name
@@ -97,7 +106,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         assert writer._buffered_items == []
 
     # schema change after flush rotates file
-    with get_writer() as writer:
+    with get_writer(InsertValuesWriter, file_max_items=100) as writer:
         writer.write_data_item(list(c1_doc(11)), t1)
         writer.write_data_item(list(c2_doc(1)), t2)
         assert len(writer.closed_files) == 1
@@ -123,6 +132,41 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
 
 
 @pytest.mark.parametrize(
+    "disable_compression", [False, True], ids=["no_compression", "compression"]
+)
+def test_rotation_on_schema_change(disable_compression: bool) -> None:
+    c1 = new_column("col1", "bigint")
+    c2 = new_column("col2", "bigint")
+
+    t1 = {"col1": c1}
+    t2 = {"col2": c2, "col1": c1}
+
+    def c1_doc(count: int) -> Iterator[DictStrAny]:
+        return map(lambda x: {"col1": x}, range(0, count))
+
+    def c2_doc(count: int) -> Iterator[DictStrAny]:
+        return map(lambda x: {"col1": x, "col2": x * 2 + 1}, range(0, count))
+
+    # change schema before file first flush
+    with get_writer(
+        writer=JsonlWriter, file_max_items=100, disable_compression=disable_compression
+    ) as writer:
+        # mock spec
+        writer._supports_schema_changes = "False"
+        writer.writer_spec = writer.writer_spec._replace(supports_schema_changes="False")
+        # write 1 doc
+        writer.write_data_item(list(c1_doc(1)), t1)
+        # in buffer
+        assert writer._file is None
+        assert len(writer._buffered_items) == 1
+        writer.write_data_item(list(c2_doc(1)), t2)
+        # flushed because we force rotation with buffer flush
+        assert writer._file is None
+        assert len(writer._buffered_items) == 1
+    assert len(writer.closed_files) == 2
+
+
+@pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
 def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
@@ -139,7 +183,9 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
         return map(lambda x: {"col1": x, "col2": x * 2 + 1}, range(0, count))
 
     # change schema before file first flush
-    with get_writer(_format="jsonl", disable_compression=disable_compression) as writer:
+    with get_writer(
+        writer=JsonlWriter, file_max_items=100, disable_compression=disable_compression
+    ) as writer:
         writer.write_data_item(list(c1_doc(15)), t1)
         # flushed
         assert writer._file is not None
@@ -149,6 +195,7 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
         # only the initial 15 items written
         assert writer._writer.items_count == 15
     # all written
+    assert len(writer.closed_files) == 1
     with FileStorage.open_zipsafe_ro(writer.closed_files[-1].file_path, "r", encoding="utf-8") as f:
         content = f.readlines()
     assert content[-1] == '{"col1":1,"col2":3}\n'
@@ -160,12 +207,12 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
 def test_writer_requiring_schema(disable_compression: bool) -> None:
     # assertion on flushing
     with pytest.raises(AssertionError):
-        with get_writer(disable_compression=disable_compression) as writer:
+        with get_writer(InsertValuesWriter, disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
     # just single schema is enough
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
-    with get_writer(disable_compression=disable_compression) as writer:
+    with get_writer(InsertValuesWriter, disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], t1)
 
@@ -174,7 +221,7 @@ def test_writer_requiring_schema(disable_compression: bool) -> None:
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
 def test_writer_optional_schema(disable_compression: bool) -> None:
-    with get_writer(_format="jsonl", disable_compression=disable_compression) as writer:
+    with get_writer(writer=JsonlWriter, disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], None)
 
@@ -182,13 +229,13 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
-@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
-def test_write_empty_file(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+@pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
+def test_write_empty_file(disable_compression: bool, writer_type: Type[DataWriter]) -> None:
     # just single schema is enough
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
     now = time.time()
-    with get_writer(format_, disable_compression=disable_compression) as writer:
+    with get_writer(writer_type, disable_compression=disable_compression) as writer:
         metrics = writer.write_empty_file(t1)
         assert len(writer.closed_files) == 1
         assert os.path.abspath(metrics.file_path)
@@ -200,10 +247,10 @@ def test_write_empty_file(disable_compression: bool, format_: TLoaderFileFormat)
         assert writer.closed_files[0] == metrics
 
 
-@pytest.mark.parametrize("format_", ALL_WRITERS)
-def test_import_file(format_: TLoaderFileFormat) -> None:
+@pytest.mark.parametrize("writer_type", ALL_WRITERS)
+def test_import_file(writer_type: Type[DataWriter]) -> None:
     now = time.time()
-    with get_writer(format_) as writer:
+    with get_writer(writer_type) as writer:
         # won't destroy the original
         metrics = writer.import_file(
             "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
@@ -220,13 +267,13 @@ def test_import_file(format_: TLoaderFileFormat) -> None:
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
-@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
-def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+@pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
+def test_gather_metrics(disable_compression: bool, writer_type: Type[DataWriter]) -> None:
     now = time.time()
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
     with get_writer(
-        format_, disable_compression=disable_compression, buffer_max_items=2, file_max_items=2
+        writer_type, disable_compression=disable_compression, buffer_max_items=2, file_max_items=2
     ) as writer:
         time.sleep(0.55)
         count = writer.write_data_item([{"col1": 182812}, {"col1": -1}], t1)
@@ -253,12 +300,15 @@ def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )
-@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
-def test_special_write_rotates(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+@pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
+def test_special_write_rotates(disable_compression: bool, writer_type: Type[DataWriter]) -> None:
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
     with get_writer(
-        format_, disable_compression=disable_compression, buffer_max_items=100, file_max_items=100
+        writer_type,
+        disable_compression=disable_compression,
+        buffer_max_items=100,
+        file_max_items=100,
     ) as writer:
         writer.write_data_item([{"col1": 182812}, {"col1": -1}], t1)
         assert len(writer.closed_files) == 0
@@ -281,3 +331,38 @@ def test_special_write_rotates(disable_compression: bool, format_: TLoaderFileFo
         metrics = writer.import_file(
             "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
         )
+
+
+@pytest.mark.parametrize(
+    "disable_compression", [True, False], ids=["no_compression", "compression"]
+)
+@pytest.mark.parametrize("writer_type", ALL_OBJECT_WRITERS)
+def test_rotation_on_destination_caps_recommended_file_size(
+    disable_compression: bool, writer_type: Type[DataWriter]
+) -> None:
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.recommended_file_size = int(250 * 1024)
+    columns = {"id": new_column("id", "text")}
+    with get_writer(
+        writer_type,
+        disable_compression=disable_compression,
+        buffer_max_items=100,
+        file_max_items=None,
+        file_max_bytes=None,
+        caps=caps,
+    ) as writer:
+        for i in range(8):
+            # Data chunk approximately 40kb serialized
+            items = [{"id": str(uuid4())} for _ in range(1000)]
+            writer.write_data_item(items, columns)
+            if i < 5:
+                assert not writer.closed_files
+
+            if i > 5:
+                # We should have written atleast 250kb by now and have rotated the file
+                assert len(writer.closed_files) == 1
+
+    # Check the files that were written are all within the recommended size + 1 chunk
+    assert len(writer.closed_files) == 2
+    for file in writer.closed_files:
+        assert file.file_size < caps.recommended_file_size + 1024 * 50

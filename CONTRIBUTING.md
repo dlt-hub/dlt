@@ -6,11 +6,21 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 1. [Getting Started](#getting-started)
 2. [Submitting Changes](#submitting-changes)
-3. [Linting](#linting)
-4. [Testing](#testing)
-5. [Local Development](#local-development)
-6. [Publishing (Maintainers Only)](#publishing-maintainers-only)
-7. [Resources](#resources)
+3. [Adding or updating core dependencies](#adding-or-updating-core-dependencies)
+4. [Linting](#linting)
+5. [Testing](#testing)
+6. [Local Development](#local-development)
+7. [Publishing (Maintainers Only)](#publishing-maintainers-only)
+8. [Resources](#resources)
+
+## Before You Begin
+
+- **Proposing significant changes or enhancements**: If you're thinking about making significant changes, make sure to [submit an issue](https://github.com/dlt-hub/dlt/issues/new/choose) first. This ensures your efforts align with the project's direction and that you don't invest time on a feature that may not be merged.
+
+- **Fixing bugs**:
+  - **Check existing issues**: search [open issues](https://github.com/dlt-hub/dlt/issues) to see if the bug you've found is already reported.
+    - If **not reported**, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose). You're more than welcome to fix it and submit a pull request with your solution. Thank you!
+    - If the bug is **already reported**, please leave a comment on that issue stating you're working on fixing it. This helps keep everyone updated and avoids duplicate efforts.
 
 ## Getting Started
 
@@ -42,6 +52,29 @@ We use **master** branch for hot fixes (including documentation) that needs to b
 
 On the release day, **devel** branch is merged into **master**. All releases of `dlt` happen only from the **master**.
 
+### Branch naming rules
+
+We want to make sure that our git history explains in a human readable way what has been changed with which Branch or PR. To this end, we are using the following branch naming pattern (all lowercase and dashes, no underscores):
+
+```sh
+{category}/{ticket-id}-description-of-the-branch
+# example:
+feat/4922-add-avro-support
+```
+
+#### Branch categories
+
+* **feat** - a new feature that is being implemented (ticket required)
+* **fix** - a change that fixes a bug (ticket required)
+* **exp** - an experiment where we are testing a new  idea or want to demonstrate something to the team, might turn into a `feat` later (ticket encouraged)
+* **test** - anything related to the tests (ticket encouraged)
+* **blogs** - a new entry to our blog (ticket optional)
+* **docs** - a change to our docs (ticket optional)
+
+#### Ticket Numbers
+
+We encourage you to attach your branches to a ticket, if none exists, create one and explain what you are doing. For `feat` and `fix` branches, tickets are mandatory, for `exp` and `test` branches encouraged and for `blogs` and `docs` branches optional.
+
 ### Submitting a hotfix
 We'll fix critical bugs and release `dlt` out of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
 
@@ -52,6 +85,26 @@ only the `duckdb` and `postgres` are available to forks.
 ## Submitting Changes Requiring Full CI Credentials.
 
 In case you submit a new destination or make changes to a destination that require credentials (so Bigquery, Snowflake, buckets etc.) you **should contact us so we can add you as contributor**. Then you should make a PR directly to the `dlt` repo.
+
+## Adding or updating core dependencies
+
+Our objective is to maintain stability and compatibility of dlt across all environments.
+By following these guidelines, we can make sure that dlt stays secure, reliable and compatible.
+Please consider the following points carefully when proposing updates to dependencies.
+
+### Updating guidelines
+
+1. **Critical security or system integrity updates only:**
+   Major or minor version updates to dependencies should only be considered if there are critical security vulnerabilities or issues that impact the system's integrity. In such cases, updating is necessary to protect the system and the data it processes.
+
+2. **Using the '>=' operator:**
+   When specifying dependencies, please make sure to use the `>=` operator while also maintaining version minima. This approach ensures our project remains compatible with older systems and setups, mitigating potential unsolvable dependency conflicts.
+
+For example, if our project currently uses a package `example-package==1.2.3`, and a security update is
+released as `1.2.4`, instead of updating to `example-package==1.2.4`, we can set it to `example-package>=1.2.3,<2.0.0`. This permits the necessary security update and at the same time
+prevents the automatic jump to a potentially incompatible major version update in the future.
+The other important note on using possible version minimas is to prevent potential cases where package
+versions will not be resolvable.
 
 ## Linting
 
@@ -136,3 +189,4 @@ Once the version has been bumped, follow these steps to publish the new release 
 - [Poetry Documentation](https://python-poetry.org/docs/)
 
 If you have any questions or need help, don't hesitate to reach out to us. We're here to help you succeed in contributing to `dlt`. Happy coding!
+****

@@ -1,6 +1,7 @@
 import os
-from typing import TYPE_CHECKING, Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
-from urllib.parse import urlparse
+import pathlib
+from typing import Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
+from urllib.parse import urlparse, unquote
 
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -9,8 +10,7 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
     AwsCredentials,
     GcpOAuthCredentials,
-    AzureCredentials,
-    AzureCredentialsWithoutDefaults,
+    AnyAzureCredentials,
     BaseConfiguration,
 )
 from dlt.common.typing import DictStrAny
@@ -31,23 +31,10 @@ class SchemaStorageConfiguration(BaseConfiguration):
         True  # remove default values when exporting schema
     )
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            schema_volume_path: str = None,
-            import_schema_path: str = None,
-            export_schema_path: str = None,
-        ) -> None: ...
-
 
 @configspec
 class NormalizeStorageConfiguration(BaseConfiguration):
     normalize_volume_path: str = None  # path to volume where normalized loader files will be stored
-
-    if TYPE_CHECKING:
-
-        def __init__(self, normalize_volume_path: str = None) -> None: ...
 
 
 @configspec
@@ -59,15 +46,9 @@ class LoadStorageConfiguration(BaseConfiguration):
         False  # if set to true the folder with completed jobs will be deleted
     )
 
-    if TYPE_CHECKING:
-
-        def __init__(
-            self, load_volume_path: str = None, delete_completed_jobs: bool = None
-        ) -> None: ...
-
 
 FileSystemCredentials = Union[
-    AwsCredentials, GcpServiceAccountCredentials, AzureCredentials, GcpOAuthCredentials
+    AwsCredentials, GcpServiceAccountCredentials, AnyAzureCredentials, GcpOAuthCredentials
 ]
 
 
@@ -88,15 +69,15 @@ class FilesystemConfiguration(BaseConfiguration):
         "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "gdrive": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "s3": AwsCredentials,
-        "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
-        "abfs": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
-        "adl": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
+        "az": AnyAzureCredentials,
+        "abfs": AnyAzureCredentials,
+        "adl": AnyAzureCredentials,
     }
 
     bucket_url: str = None
 
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
-    credentials: FileSystemCredentials
+    credentials: FileSystemCredentials = None
 
     read_only: bool = False
     """Indicates read only filesystem access. Will enable caching"""
@@ -106,24 +87,22 @@ class FilesystemConfiguration(BaseConfiguration):
     @property
     def protocol(self) -> str:
         """`bucket_url` protocol"""
-        url = urlparse(self.bucket_url)
-        # this prevents windows absolute paths to be recognized as schemas
-        if not url.scheme or (os.path.isabs(self.bucket_url) and "\\" in self.bucket_url):
+        if self.is_local_path(self.bucket_url):
             return "file"
         else:
-            return url.scheme
+            return urlparse(self.bucket_url).scheme
 
     def on_resolved(self) -> None:
-        url = urlparse(self.bucket_url)
-        if not url.path and not url.netloc:
+        uri = urlparse(self.bucket_url)
+        if not uri.path and not uri.netloc:
             raise ConfigurationValueError(
-                "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
-                " must contain valid url with a path or host:password component."
+                "File path and netloc are missing. Field bucket_url of"
+                " FilesystemClientConfiguration must contain valid uri with a path or host:password"
+                " component."
             )
         # this is just a path in a local file system
-        if url.path == self.bucket_url:
-            url = url._replace(scheme="file")
-            self.bucket_url = url.geturl()
+        if self.is_local_path(self.bucket_url):
+            self.bucket_url = self.make_file_uri(self.bucket_url)
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -136,22 +115,56 @@ class FilesystemConfiguration(BaseConfiguration):
 
     def __str__(self) -> str:
         """Return displayable destination location"""
-        url = urlparse(self.bucket_url)
+        uri = urlparse(self.bucket_url)
         # do not show passwords
-        if url.password:
-            new_netloc = f"{url.username}:****@{url.hostname}"
-            if url.port:
-                new_netloc += f":{url.port}"
-            return url._replace(netloc=new_netloc).geturl()
+        if uri.password:
+            new_netloc = f"{uri.username}:****@{uri.hostname}"
+            if uri.port:
+                new_netloc += f":{uri.port}"
+            return uri._replace(netloc=new_netloc).geturl()
         return self.bucket_url
 
-    if TYPE_CHECKING:
+    @staticmethod
+    def is_local_path(uri: str) -> bool:
+        """Checks if `uri` is a local path, without a schema"""
+        uri_parsed = urlparse(uri)
+        # this prevents windows absolute paths to be recognized as schemas
+        return not uri_parsed.scheme or os.path.isabs(uri)
 
-        def __init__(
-            self,
-            bucket_url: str,
-            credentials: FileSystemCredentials = None,
-            read_only: bool = False,
-            kwargs: Optional[DictStrAny] = None,
-            client_kwargs: Optional[DictStrAny] = None,
-        ) -> None: ...
+    @staticmethod
+    def make_local_path(file_uri: str) -> str:
+        """Gets a valid local filesystem path from file:// scheme.
+        Supports POSIX/Windows/UNC paths
+
+        Returns:
+            str: local filesystem path
+        """
+        uri = urlparse(file_uri)
+        if uri.scheme != "file":
+            raise ValueError(f"Must be file scheme but is {uri.scheme}")
+        if not uri.path and not uri.netloc:
+            raise ConfigurationValueError("File path and netloc are missing.")
+        local_path = unquote(uri.path)
+        if uri.netloc:
+            # or UNC file://localhost/path
+            local_path = "//" + unquote(uri.netloc) + local_path
+        else:
+            # if we are on windows, strip the POSIX root from path which is always absolute
+            if os.path.sep != local_path[0]:
+                # filesystem root
+                if local_path == "/":
+                    return str(pathlib.Path("/").resolve())
+                # this prevents /C:/ or ///share/ where both POSIX and Windows root are present
+                if os.path.isabs(local_path[1:]):
+                    local_path = local_path[1:]
+        return str(pathlib.Path(local_path))
+
+    @staticmethod
+    def make_file_uri(local_path: str) -> str:
+        """Creates a normalized file:// uri from a local path
+
+        netloc is never set. UNC paths are represented as file://host/path
+        """
+        p_ = pathlib.Path(local_path)
+        p_ = p_.expanduser().resolve()
+        return p_.as_uri()

@@ -40,7 +40,9 @@ def setup_rasa_runner(
     runner = create_runner(
         Venv.restore_current(),
         # credentials are exported to env in setup_rasa_runner_client
-        DestinationClientDwhConfiguration(dataset_name=dataset_name or FIXTURES_DATASET_NAME),
+        DestinationClientDwhConfiguration()._bind_dataset_name(
+            dataset_name=dataset_name or FIXTURES_DATASET_NAME
+        ),
         TEST_STORAGE_ROOT,
         package_profile_name=profile_name,
         config=C,

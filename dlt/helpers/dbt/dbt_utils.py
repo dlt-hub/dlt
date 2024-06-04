@@ -3,7 +3,8 @@ import logging
 from typing import Any, Sequence, Optional, Union
 import warnings
 
-from dlt.common import json, logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import StrAny
 
@@ -23,7 +24,6 @@ try:
     # https://stackoverflow.com/questions/48619517/call-a-click-command-from-code
 
     import dbt.logger
-    from dbt.events import functions
     from dbt.contracts import results as dbt_results
 except ModuleNotFoundError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
@@ -55,17 +55,6 @@ def initialize_dbt_logging(level: str, is_json_logging: bool) -> Sequence[str]:
             self._file_handler.set_path(path)
         _DBT_LOGGER_INITIALIZED = True
 
-    # def setup_event_logger_wrapper(log_path: str, level_override:str = None) -> None:
-    #     global _DBT_LOGGER_INITIALIZED
-
-    #     if not _DBT_LOGGER_INITIALIZED:
-    #         functions.setup_event_logger(log_path, level.lower())
-    #         # force log level as file is debug only
-    #         # functions.this.FILE_LOG.setLevel(level)
-    #         # functions.this.FILE_LOG.handlers[0].setLevel(level)
-    #     _DBT_LOGGER_INITIALIZED = True
-
-    # dbt.main.setup_event_logger = setup_event_logger_wrapper
     dbt.logger.LogManager.set_path = set_path_wrapper  # type: ignore
 
     globs = []

@@ -11,13 +11,18 @@ from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, 
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.fixture
 def client(empty_schema: Schema) -> MsSqlClient:
     # return client without opening connection
     return MsSqlClient(
         empty_schema,
-        MsSqlClientConfiguration(dataset_name="test_" + uniq_id(), credentials=MsSqlCredentials()),
+        MsSqlClientConfiguration(credentials=MsSqlCredentials())._bind_dataset_name(
+            dataset_name="test_" + uniq_id()
+        ),
     )
 
 

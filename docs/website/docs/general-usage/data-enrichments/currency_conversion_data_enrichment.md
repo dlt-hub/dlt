@@ -77,7 +77,7 @@ currency_conversion_enrichment/
 
 1. Here's the resource that yields the sample data as discussed above:
 
-   ```python
+   ```py
    @dlt.resource()
    def enriched_data_part_two():
        data_enrichment_part_one = [
@@ -113,14 +113,14 @@ API token.
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```python
+   ```py
    [sources]
    api_key= "Please set me up!"  #ExchangeRate-API key
    ```
 
 1. Create the `converted_amount` function as follows:
 
-   ```python
+   ```py
    # @transformer(data_from=enriched_data_part_two)
    def converted_amount(record):
         """
@@ -210,7 +210,7 @@ API token.
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```python
+   ```py
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_two",
@@ -229,7 +229,7 @@ API token.
    To do so, you need to add the transformer decorator at the top of the `converted_amount` function.
    For `pipeline.run`, you can use the following code:
 
-   ```python
+   ```py
    # using fetch_average_price as a transformer function
    load_info = pipeline.run(
        enriched_data_part_two | converted_amount,
@@ -246,19 +246,19 @@ API token.
 1. Install necessary dependencies for the preferred
    [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
 
-   ```
-   pip install dlt[duckdb]
+   ```sh
+   pip install "dlt[duckdb]"
    ```
 
 1. Run the pipeline with the following command:
 
-   ```
+   ```sh
    python currency_enrichment_pipeline.py
    ```
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```
+   ```sh
    dlt pipeline <pipeline_name> show
    ```
 

@@ -1,25 +1,30 @@
 import contextlib
 from functools import reduce
 import datetime  # noqa: 251
-from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable
+from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable, Sequence
 from concurrent.futures import Executor
 import os
+from copy import deepcopy
 
-from dlt.common import sleep, logger
+from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_top_level_table
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_package import (
+    LoadPackageStateInjectableContext,
+    load_package as current_load_package,
+)
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.runtime.logger import pretty_format_exception
-from dlt.common.exceptions import (
-    TerminalValueError,
-    DestinationTerminalException,
-    DestinationTransientException,
-)
-from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.logger import pretty_format_exception
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.configuration.container import Container
+from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
@@ -34,6 +39,10 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TDestination,
 )
+from dlt.common.destination.exceptions import (
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -44,7 +53,7 @@ from dlt.load.exceptions import (
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
 )
-from dlt.load.utils import get_completed_table_chain, init_client
+from dlt.load.utils import _extend_tables_with_table_chain, get_completed_table_chain, init_client
 
 
 class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
@@ -78,16 +87,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if self.staging_destination:
             supported_file_formats = (
                 self.staging_destination.capabilities().supported_loader_file_formats
-                + ["reference"]
             )
-        if isinstance(self.get_destination_client(Schema("test")), WithStagingDataset):
-            supported_file_formats += ["sql"]
         load_storage = LoadStorage(
             is_storage_owner,
-            self.capabilities.preferred_loader_file_format,
             supported_file_formats,
             config=self.config._load_storage_config,
         )
+        # add internal job formats
+        if issubclass(self.destination.client_class, WithStagingDataset):
+            load_storage.supported_job_file_formats += ["sql"]
+        if self.staging_destination:
+            load_storage.supported_job_file_formats += ["reference"]
+
         return load_storage
 
     def get_destination_client(self, schema: Schema) -> JobClientBase:
@@ -131,7 +142,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 else job_client
             ) as client:
                 job_info = ParsedLoadJobFileName.parse(file_path)
-                if job_info.file_format not in self.load_storage.supported_file_formats:
+                if job_info.file_format not in self.load_storage.supported_job_file_formats:
                     raise LoadClientUnsupportedFileFormats(
                         job_info.file_format,
                         self.capabilities.supported_loader_file_formats,
@@ -169,6 +180,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             # return no job so file stays in new jobs (root) folder
             logger.exception(f"Temporary problem when adding job {file_path}")
             job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
+        if job is None:
+            raise DestinationTerminalException(
+                f"Destination could not create a job for file {file_path}. Typically the file"
+                " extension could not be associated with job type and that indicates an error in"
+                " the code."
+            )
         self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 
@@ -324,7 +341,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # do not commit load id for aborted packages
         if not aborted:
             with self.get_destination_client(schema) as job_client:
-                job_client.complete_load(load_id)
+                with Container().injectable_context(
+                    LoadPackageStateInjectableContext(
+                        storage=self.load_storage.normalized_packages,
+                        load_id=load_id,
+                    )
+                ):
+                    job_client.complete_load(load_id)
+                    self._maybe_trancate_staging_dataset(schema, job_client)
+
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
         self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
@@ -337,6 +362,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         new_jobs = self.get_new_jobs_info(load_id)
+
+        dropped_tables = current_load_package()["state"].get("dropped_tables", [])
+        truncated_tables = current_load_package()["state"].get("truncated_tables", [])
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
             if (expected_update := self.load_storage.begin_schema_update(load_id)) is not None:
@@ -352,6 +380,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         if isinstance(job_client, WithStagingDataset)
                         else None
                     ),
+                    drop_tables=dropped_tables,
+                    truncate_tables=truncated_tables,
                 )
 
                 # init staging client
@@ -360,6 +390,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         f"Job client for destination {self.destination.destination_type} does not"
                         " implement SupportsStagingDestination"
                     )
+
                     with self.get_staging_destination_client(schema) as staging_client:
                         init_client(
                             staging_client,
@@ -367,7 +398,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             new_jobs,
                             expected_update,
                             job_client.should_truncate_table_before_load_on_staging_destination,
+                            # should_truncate_staging,
                             job_client.should_load_data_to_staging_dataset_on_staging_destination,
+                            drop_tables=dropped_tables,
+                            truncate_tables=truncated_tables,
                         )
 
                 self.load_storage.commit_schema_update(load_id, applied_update)
@@ -414,7 +448,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 failed_job.job_file_info.job_id(),
                                 failed_job.failed_message,
                             )
-                    # possibly raise on too many retires
+                    # possibly raise on too many retries
                     if self.config.raise_on_max_retries:
                         for new_job in package_info.jobs["new_jobs"]:
                             r_c = new_job.job_file_info.retry_count
@@ -454,12 +488,49 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
-            # the same load id may be processed across multiple runs
-            if not self.current_load_id:
-                self._step_info_start_load_id(load_id)
-            self.load_single_package(load_id, schema)
+            with Container().injectable_context(
+                LoadPackageStateInjectableContext(
+                    storage=self.load_storage.normalized_packages,
+                    load_id=load_id,
+                )
+            ):
+                # the same load id may be processed across multiple runs
+                if not self.current_load_id:
+                    self._step_info_start_load_id(load_id)
+                self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
+
+    def _maybe_trancate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
+        """
+        Truncate the staging dataset if one used,
+        and configuration requests truncation.
+
+        Args:
+            schema (Schema): Schema to use for the staging dataset.
+            job_client (JobClientBase):
+                Job client to use for the staging dataset.
+        """
+        if not (
+            isinstance(job_client, WithStagingDataset) and self.config.truncate_staging_dataset
+        ):
+            return
+
+        data_tables = schema.data_table_names()
+        tables = _extend_tables_with_table_chain(
+            schema, data_tables, data_tables, job_client.should_load_data_to_staging_dataset
+        )
+
+        try:
+            with self.get_destination_client(schema) as client:
+                with client.with_staging_dataset():  # type: ignore
+                    client.initialize_storage(truncate_tables=tables)
+
+        except Exception as exc:
+            logger.warn(
+                f"Staging dataset truncate failed due to the following error: {exc}"
+                " However, it didn't affect the data integrity."
+            )
 
     def get_step_info(
         self,

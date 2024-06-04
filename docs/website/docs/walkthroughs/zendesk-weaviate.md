@@ -1,10 +1,10 @@
 ---
-title: 'Import Ticket Data from Zendesk API to Weaviate'
+title: 'Import ticket data from Zendesk API to Weaviate'
 description: How to Import Ticket Data from Zendesk API to Weaviate
 keywords: [how to, zendesk, weaviate, vector database, vector search]
 ---
 
-# How to Import Ticket Data from Zendesk API to Weaviate
+# How to import ticket data from Zendesk API to Weaviate
 
 Zendesk is a cloud-based customer service and support platform. Zendesk Support API, which is also known as the Ticketing API lets’s you access support tickets data. By analyzing this data, businesses can gain insights into customer needs, behavior, trends, and make data-driven decisions. The newest type of databases, vector databases, can help in advanced analysis of tickets data such as identifying common issues and sentiment analysis.
 
@@ -23,7 +23,7 @@ We're going to use some ready-made components from the [dlt ecosystem](https://d
 
 1. Create a new folder for your project, navigate to it, and create a virtual environment:
 
-    ```bash
+    ```sh
     mkdir zendesk-weaviate
     cd zendesk-weaviate
     python -m venv venv
@@ -31,13 +31,13 @@ We're going to use some ready-made components from the [dlt ecosystem](https://d
     ```
 2. Install dlt with Weaviate support
 
-    ```bash
+    ```sh
     pip install "dlt[weaviate]"
     ```
 
 3. Install dlt Zendesk verified source
 
-    ```bash
+    ```sh
     dlt init zendesk weaviate
     ```
 
@@ -77,7 +77,7 @@ X-OpenAI-Api-Key = "sk-..."
 
 When you run `dlt init zendesk weaviate`, dlt creates a file called `zendesk_pipeline.py` in the current directory. This file contains an example pipeline that you can use to load data from Zendesk source. Let's edit this file to make it work for our use case:
 
-```python
+```py
 import dlt
 from dlt.destinations.adapters import weaviate_adapter
 
@@ -122,7 +122,7 @@ Let's go through the code above step by step:
 
 Now that we have the pipeline configured, we can run the Python script:
 
-```bash
+```sh
 python zendesk_pipeline.py
 ```
 
@@ -132,7 +132,7 @@ We have successfully loaded the data from Zendesk to Weaviate. Let's check it ou
 
 We can now run a vector search query on the data we loaded into Weaviate. Create a new Python file called `query.py` and add the following code:
 
-```python
+```py
 import weaviate
 client = weaviate.Client(
     url='YOUR_WEAVIATE_URL',
@@ -168,15 +168,15 @@ The above code instantiates a Weaviate client and does a similarity search on th
                "subject": "How do I change the password for my account?",
                "description": "I forgot my password and I can't log in.",
                 "_additional": {
-                   "distance": 0.235,
-                },
+                   "distance": 0.235
+                }
             },
             {
                "subject": "I can't log in to my account.",
                "description": "The credentials I use to log in don't work.",
                "_additional": {
-                   "distance": 0.247,
-               },
+                   "distance": 0.247
+               }
             }
          ]
       }

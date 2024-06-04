@@ -5,6 +5,7 @@ import os
 from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse
 from dataclasses import dataclass
 
 import dlt
@@ -17,9 +18,11 @@ from dlt.common.destination.reference import (
     JobClientBase,
     LoadJob,
     DestinationClientStagingConfiguration,
+    TDestinationReferenceArg,
     WithStagingDataset,
 )
 from dlt.common.destination import TLoaderFileFormat, Destination
+from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -28,7 +31,6 @@ from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStora
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -45,7 +47,7 @@ from tests.cases import (
     assert_all_data_types_row,
 )
 
-# bucket urls
+# Bucket urls.
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
@@ -65,14 +67,16 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
 ]
 
 # Filter out buckets not in all filesystem drivers
-DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-DEFAULT_BUCKETS = [
-    bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
+WITH_GDRIVE_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET, GDRIVE_BUCKET]
+WITH_GDRIVE_BUCKETS = [
+    bucket
+    for bucket in WITH_GDRIVE_BUCKETS
+    if (urlparse(bucket).scheme or "file") in ALL_FILESYSTEM_DRIVERS
 ]
 
 # temporary solution to include gdrive bucket in tests,
 # while gdrive is not working as a destination
-WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
+DEFAULT_BUCKETS = [bucket for bucket in WITH_GDRIVE_BUCKETS if bucket != GDRIVE_BUCKET]
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -84,6 +88,20 @@ R2_BUCKET_CONFIG = dict(
         endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
     ),
 )
+
+# interesting filesystem layouts for basic tests
+FILE_LAYOUT_CLASSIC = "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}"
+FILE_LAYOUT_MANY_TABLES_ONE_FOLDER = "{table_name}88{load_id}-u-{file_id}.{ext}"
+FILE_LAYOUT_TABLE_IN_MANY_FOLDERS = "{table_name}/{load_id}/{file_id}.{ext}"
+FILE_LAYOUT_TABLE_NOT_FIRST = "{schema_name}/{table_name}/{load_id}/{file_id}.{ext}"
+
+TEST_FILE_LAYOUTS = [
+    DEFAULT_FILE_LAYOUT,
+    FILE_LAYOUT_CLASSIC,
+    FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
+    FILE_LAYOUT_TABLE_IN_MANY_FOLDERS,
+    FILE_LAYOUT_TABLE_NOT_FIRST,
+]
 
 EXTRA_BUCKETS: List[Dict[str, Any]] = []
 if "r2" in ALL_FILESYSTEM_DRIVERS:
@@ -97,7 +115,7 @@ class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
     destination: str
-    staging: Optional[str] = None
+    staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
@@ -135,7 +153,7 @@ class DestinationTestConfiguration:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
     def setup_pipeline(
-        self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
+        self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
         self.setup()
@@ -144,7 +162,7 @@ class DestinationTestConfiguration:
             destination=self.destination,
             staging=self.staging,
             dataset_name=dataset_name or pipeline_name,
-            full_refresh=full_refresh,
+            dev_mode=dev_mode,
             **kwargs,
         )
         return pipeline
@@ -162,10 +180,14 @@ def destinations_configs(
     file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
+    force_iceberg: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
+
+    # import filesystem destination to use named version for minio
+    from dlt.destinations import filesystem
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
@@ -175,12 +197,13 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks")
+            if destination
+            not in ("athena", "mssql", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
         ]
-        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
@@ -195,9 +218,14 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 force_iceberg=True,
-                supports_merge=False,
+                supports_merge=True,
                 supports_dbt=False,
                 extra_info="iceberg",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="clickhouse", file_format="jsonl", supports_dbt=False
             )
         ]
         destination_configs += [
@@ -208,10 +236,24 @@ def destinations_configs(
                 extra_info="az-authorization",
             )
         ]
+
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging=filesystem(destination_name="minio"),
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
+            )
+        ]
         destination_configs += [
             DestinationTestConfiguration(destination="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
+
+        # sanity check that when selecting default destinations, one of each sql destination is actually
+        # provided
+        assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
 
     if default_vector_configs:
         # for now only weaviate
@@ -301,6 +343,42 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="clickhouse",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging=filesystem(destination_name="minio"),
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                supports_dbt=False,
             ),
         ]
 
@@ -404,6 +482,11 @@ def destinations_configs(
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
 
+    if force_iceberg is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.force_iceberg is force_iceberg
+        ]
+
     return destination_configs
 
 
@@ -459,7 +542,7 @@ def prepare_table(
     table_name: str = "event_user",
     make_uniq_table: bool = True,
 ) -> str:
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
@@ -467,7 +550,7 @@ def prepare_table(
     else:
         user_table_name = table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
-    client.schema.bump_version()
+    client.schema._bump_version()
     client.update_stored_schema()
     return user_table_name
 
@@ -483,8 +566,8 @@ def yield_client(
     destination = Destination.from_reference(destination_type)
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
-    dest_config = destination.spec()  # type: ignore[assignment]
-    dest_config.dataset_name = dataset_name  # type: ignore[misc]
+    dest_config = destination.spec()  # type: ignore
+    dest_config.dataset_name = dataset_name
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
@@ -500,18 +583,17 @@ def yield_client(
     schema = schema_storage.load_schema(schema_name)
     schema.update_normalizers()
     # NOTE: schema version is bumped because new default hints are added
-    schema.bump_version()
+    schema._bump_version()
     # create client and dataset
     client: SqlJobClientBase = None
 
     # athena requires staging config to be present, so stick this in there here
     if destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
-            destination_type="fake-stage",  # type: ignore
-            dataset_name=dest_config.dataset_name,
-            default_schema_name=dest_config.default_schema_name,
             bucket_url=AWS_BUCKET,
-        )
+        )._bind_dataset_name(dataset_name=dest_config.dataset_name)
+        staging_config.destination_type = "filesystem"
+        staging_config.resolve()
         dest_config.staging_config = staging_config  # type: ignore[attr-defined]
 
     # lookup for credentials in the section that is destination name
@@ -576,17 +658,20 @@ def write_dataset(
     rows: Union[List[Dict[str, Any]], List[StrAny]],
     columns_schema: TTableSchemaColumns,
 ) -> None:
-    data_format = DataWriter.data_format_from_file_format(
-        client.capabilities.preferred_loader_file_format
+    spec = DataWriter.writer_spec_from_file_format(
+        client.capabilities.preferred_loader_file_format, "object"
     )
     # adapt bytes stream to text file format
-    if not data_format.is_binary_format and isinstance(f.read(0), bytes):
+    if not spec.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
-    writer = DataWriter.from_destination_capabilities(client.capabilities, f)
+    writer = DataWriter.from_file_format(
+        client.capabilities.preferred_loader_file_format, "object", f, client.capabilities
+    )
     # remove None values
     for idx, row in enumerate(rows):
         rows[idx] = {k: v for k, v in row.items() if v is not None}
     writer.write_all(columns_schema, rows)
+    writer.close()
 
 
 def prepare_load_package(

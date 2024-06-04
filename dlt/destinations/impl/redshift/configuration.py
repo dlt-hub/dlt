@@ -1,4 +1,5 @@
-from typing import Final, Optional, TYPE_CHECKING
+import dataclasses
+from typing import Final, Optional
 
 from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec
@@ -10,7 +11,7 @@ from dlt.destinations.impl.postgres.configuration import (
 )
 
 
-@configspec
+@configspec(init=False)
 class RedshiftCredentials(PostgresCredentials):
     port: int = 5439
     password: TSecretValue = None
@@ -20,8 +21,8 @@ class RedshiftCredentials(PostgresCredentials):
 
 @configspec
 class RedshiftClientConfiguration(PostgresClientConfiguration):
-    destination_type: Final[str] = "redshift"  # type: ignore
-    credentials: RedshiftCredentials
+    destination_type: Final[str] = dataclasses.field(default="redshift", init=False, repr=False, compare=False)  # type: ignore
+    credentials: RedshiftCredentials = None
     staging_iam_role: Optional[str] = None
 
     def fingerprint(self) -> str:
@@ -29,17 +30,3 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
-
-    if TYPE_CHECKING:
-
-        def __init__(
-            self,
-            *,
-            destination_type: str = None,
-            credentials: PostgresCredentials = None,
-            dataset_name: str = None,
-            default_schema_name: str = None,
-            staging_iam_role: str = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...

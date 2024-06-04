@@ -8,6 +8,9 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info
 
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -15,7 +18,7 @@ from tests.pipeline.utils import assert_load_info
     ids=lambda x: x.name,
 )
 def test_redshift_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("redshift_" + uniq_id(), dev_mode=True)
 
     column_schemas, data_types = table_update_and_row()
 

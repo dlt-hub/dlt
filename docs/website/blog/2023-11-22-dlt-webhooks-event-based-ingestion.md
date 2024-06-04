@@ -1,5 +1,5 @@
 ---
-slug: dlt-webhooks-on-cloud-functions-for-event-capture 
+slug: dlt-webhooks-on-cloud-functions-for-event-capture
 title: "Deploy Google Cloud Functions as webhooks to capture event-based data from GitHub, Slack, or Hubspot"
 image:  https://dlt-static.s3.eu-central-1.amazonaws.com/images/webhook_blog_image.jpeg
 authors:
@@ -7,12 +7,12 @@ authors:
   title: Junior Data Engineer
   url: https://github.com/dat-a-man
   image_url: https://dlt-static.s3.eu-central-1.amazonaws.com/images/aman.png
-tags: [data ingestion, python sdk, ETL, python data pipelines, Open Source, Developer Tools]
+tags: [data ingestion, python sdk, ETL, python data pipelines, Open Source, Developer Tools, Streaming]
 ---
 
 💡 This article explores methods for monitoring transactional events, allowing immediate action and data capture
-that might be lost otherwise. We focus on Github, Slack, and Hubspot, demonstrating techniques applicable to 
-low-volume transactional events (under 500k/month) within the free tier. For clickstream tracking or higher 
+that might be lost otherwise. We focus on Github, Slack, and Hubspot, demonstrating techniques applicable to
+low-volume transactional events (under 500k/month) within the free tier. For clickstream tracking or higher
 volumes, we recommend more scalable solutions.
 
 There’s more than one way to sync data. Pulling data after it has been collected from APIs is a
@@ -79,11 +79,11 @@ in-depth guide, please refer to the detailed documentation.
 1. Click 'Create Function' in Cloud Functions, and select your region and environment setup.
 1. Choose HTTP as the trigger, enable 'Allow unauthenticated invocations', save, and click 'Next'.
 1. Set the environment to Python 3.10 and prepare to insert code into main.py:
-   ```python
+   ```py
    import dlt
-   import json
    import time
    from google.cloud import bigquery
+   from dlt.common import json
 
    def github_webhook(request):
        # Extract relevant data from the request payload
@@ -106,7 +106,7 @@ in-depth guide, please refer to the detailed documentation.
    dlt[bigquery]
    ```
 1. Post-deployment, a webhook URL is generated, typically following a specific format.
-   ```bash
+   ```sh
    https://{region]-{project-id}.cloudfunctions.net/{cloud-function-name}
    ```
 
@@ -140,7 +140,7 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
 
 1. Here’s what `main.py` looks like:
-   ```python
+   ```py
    import dlt
    from flask import jsonify
 
@@ -159,8 +159,8 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
                # Configures and initiates a DLT pipeline
                pipeline = dlt.pipeline(
-                   pipeline_name='platform_to_bigquery', 
-                   destination='bigquery', 
+                   pipeline_name='platform_to_bigquery',
+                   destination='bigquery',
                    dataset_name='slack_data',
                )
 
@@ -215,7 +215,7 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
 
 1. Here’s what `main.py`looks like:
-   ```python
+   ```py
    import dlt
    from flask import jsonify
 
@@ -227,13 +227,14 @@ Set up the webhook by creating a cloud function, using the same steps as for the
 
            # Initialize and configure the DLT pipeline
            pipeline = dlt.pipeline(
-               pipeline_name=ßigquery',               # Destination service for the data
+               pipeline_name="hubspot",
+               destination='bigquery',               # Destination service for the data
                dataset_name='hubspot_webhooks_dataset',  # BigQuery dataset name
            )
 
            # Execute the pipeline with the incoming data
            pipeline.run([data], table_name='hubspot_contact_events')
-           
+
            # Return a success response
            return jsonify(message='HubSpot event processed.'), 200
        else:

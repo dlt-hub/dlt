@@ -6,13 +6,17 @@ import pytest
 
 import dlt
 
-from dlt.common.pipeline import SupportsPipeline
 from dlt.common import json, sleep
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
+from dlt.common.destination.exceptions import DestinationHasFailedJobs
+from dlt.common.destination.reference import WithStagingDataset
+from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract import DltSource
@@ -21,11 +25,16 @@ from dlt.pipeline.exceptions import (
     PipelineConfigMissing,
     PipelineStepFailed,
 )
-from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.exceptions import DestinationHasFailedJobs
 
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
-from tests.pipeline.utils import assert_data_table_counts, assert_load_info
+from tests.pipeline.utils import (
+    assert_data_table_counts,
+    assert_load_info,
+    assert_query_data,
+    assert_table,
+    load_table_counts,
+    select_data,
+)
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -34,13 +43,12 @@ from tests.load.utils import (
 )
 from tests.load.pipeline.utils import (
     drop_active_pipeline_data,
-    assert_query_data,
-    assert_table,
-    load_table_counts,
-    select_data,
     REPLACE_STRATEGIES,
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.mark.parametrize(
@@ -76,11 +84,11 @@ def test_default_pipeline_names(
     # this will create default schema
     p.extract(data_fun)
     # _pipeline suffix removed when creating default schema name
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+    assert p.default_schema_name in ["dlt_pytest", "dlt", "dlt_jb_pytest_runner"]
     assert "names" in p.schemas.keys()
 
     with pytest.raises(PipelineConfigMissing):
@@ -209,7 +217,7 @@ def test_skip_sync_schema_for_tables_without_columns(
         for d in data:
             yield d
 
-    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables", full_refresh=True)
+    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables", dev_mode=True)
     p.extract(_data)
     schema = p.default_schema
     assert "data_table" in schema.tables
@@ -232,7 +240,7 @@ def test_skip_sync_schema_for_tables_without_columns(
     destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> None:
+def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
     destination_config.setup()
 
@@ -243,7 +251,7 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     def _data():
         return dlt.resource(d(), name="lists", write_disposition="replace")
 
-    p = dlt.pipeline(full_refresh=True)
+    p = dlt.pipeline(dev_mode=True)
     info = p.run(
         _data(),
         destination=destination_config.destination,
@@ -259,7 +267,7 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     # restore the pipeline
     p = dlt.attach()
     # restored pipeline should be never put in full refresh
-    assert p.full_refresh is False
+    assert p.dev_mode is False
     # assert parent table (easy), None First (db order)
     assert_table(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
@@ -448,7 +456,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
     ds_2_name = "IteRation" + uniq_id()
     # illegal name that will be later normalized
     ds_3_name = "1it/era 👍 tion__" + uniq_id()
-    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, full_refresh=False)
+    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, dev_mode=False)
     try:
         info = p.run(s(), loader_file_format=destination_config.file_format)
         assert_load_info(info)
@@ -581,7 +589,7 @@ def test_pipeline_with_sources_sharing_schema(
     # conflict deselected
     assert "conflict" not in discover_2.tables
 
-    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", dev_mode=True)
     p.extract([source_1(), source_2()])
     default_schema = p.default_schema
     gen1_table = default_schema.tables["gen1"]
@@ -606,7 +614,7 @@ def test_pipeline_with_sources_sharing_schema(
     drop_active_pipeline_data()
 
     # same pipeline but enable conflict
-    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.extract([source_1(), source_2().with_resources("conflict")])
     assert isinstance(py_ex.value.__context__, CannotCoerceColumnException)
@@ -790,16 +798,27 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
-    # parquet on bigquery does not support JSON but we still want to run the test
-    if destination_config.destination == "bigquery":
+    # parquet on bigquery and clickhouse does not support JSON but we still want to run the test
+    if destination_config.destination in ["bigquery"]:
         column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
 
     # duckdb 0.9.1 does not support TIME other than 6
     if destination_config.destination in ["duckdb", "motherduck"]:
         column_schemas["col11_precision"]["precision"] = 0
+        # also we do not want to test col4_precision (datetime) because
+        # those timestamps are not TZ aware in duckdb and we'd need to
+        # disable TZ when generating parquet
+        # this is tested in test_duckdb.py
+        column_schemas["col4_precision"]["precision"] = 6
 
     # drop TIME from databases not supporting it via parquet
-    if destination_config.destination in ["redshift", "athena", "synapse", "databricks"]:
+    if destination_config.destination in [
+        "redshift",
+        "athena",
+        "synapse",
+        "databricks",
+        "clickhouse",
+    ]:
         data_types.pop("col11")
         data_types.pop("col11_null")
         data_types.pop("col11_precision")
@@ -807,7 +826,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col11_null")
         column_schemas.pop("col11_precision")
 
-    if destination_config.destination == "redshift":
+    if destination_config.destination in ("redshift", "dremio"):
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
 
@@ -834,7 +853,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         expected_completed_jobs += 1
     # add iceberg copy jobs
     if destination_config.force_iceberg:
-        expected_completed_jobs += 4
+        expected_completed_jobs += 3 if destination_config.supports_merge else 4
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
     with pipeline.sql_client() as sql_client:
@@ -856,7 +875,8 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=column_schemas,
             parse_complex_strings=destination_config.destination
             in ["snowflake", "bigquery", "redshift"],
-            timestamp_precision=3 if destination_config.destination == "athena" else 6,
+            allow_string_binary=destination_config.destination == "clickhouse",
+            timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
         )
 
 
@@ -877,11 +897,12 @@ def test_pipeline_upfront_tables_two_loads(
 
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    os.environ["TRUNCATE_STAGING_DATASET"] = "True"
 
     pipeline = destination_config.setup_pipeline(
         "test_pipeline_upfront_tables_two_loads",
         dataset_name="test_pipeline_upfront_tables_two_loads",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     @dlt.source
@@ -894,11 +915,11 @@ def test_pipeline_upfront_tables_two_loads(
             yield {"id": 1}
 
         @dlt.resource(
-            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True, "unique": True}],
             write_disposition="merge",
         )
         def table_2():
-            yield data_to_item_format("arrow", [{"id": 2}])
+            yield data_to_item_format("arrow-table", [{"id": 2}])
 
         @dlt.resource(
             columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
@@ -931,7 +952,7 @@ def test_pipeline_upfront_tables_two_loads(
 
     # load with one empty job, table 3 not created
     load_info = pipeline.run(source.table_3, loader_file_format=destination_config.file_format)
-    assert_load_info(load_info)
+    assert_load_info(load_info, expected_load_packages=0)
     with pytest.raises(DatabaseUndefinedRelation):
         load_table_counts(pipeline, "table_3")
     # print(pipeline.default_schema.to_pretty_yaml())
@@ -972,6 +993,21 @@ def test_pipeline_upfront_tables_two_loads(
     assert pipeline.default_schema.tables["table_2"]["x-normalizer"]["seen-data"] is True
     assert pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"] is True
 
+    job_client, _ = pipeline._get_destination_clients(schema)
+
+    if destination_config.staging and isinstance(job_client, WithStagingDataset):
+        for i in range(1, 4):
+            with pipeline.sql_client() as client:
+                table_name = f"table_{i}"
+
+                if job_client.should_load_data_to_staging_dataset(
+                    job_client.schema.tables[table_name]
+                ):
+                    with client.with_staging_dataset(staging=True):
+                        tab_name = client.make_qualified_table_name(table_name)
+                        with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
+                            assert len(cur.fetchall()) == 0
+
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
 # @pytest.mark.parametrize(
@@ -998,7 +1034,7 @@ def test_pipeline_upfront_tables_two_loads(
 #             }
 #             for hour in range(0, max_hours)
 #         ]
-#         data = data_to_item_format("arrow", data)
+#         data = data_to_item_format("arrow-table", data)
 #         # print(py_arrow_to_table_schema_columns(data[0].schema))
 #         # print(data)
 #         yield data
@@ -1006,7 +1042,7 @@ def test_pipeline_upfront_tables_two_loads(
 #     pipeline = destination_config.setup_pipeline(
 #         "test_load_non_utc_timestamps",
 #         dataset_name="test_load_non_utc_timestamps",
-#         full_refresh=True,
+#         dev_mode=True,
 #     )
 #     info = pipeline.run(some_data())
 #     # print(pipeline.default_schema.to_pretty_yaml())
@@ -1016,7 +1052,7 @@ def test_pipeline_upfront_tables_two_loads(
 
 
 def simple_nested_pipeline(
-    destination_config: DestinationTestConfiguration, dataset_name: str, full_refresh: bool
+    destination_config: DestinationTestConfiguration, dataset_name: str, dev_mode: bool
 ) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
@@ -1029,7 +1065,7 @@ def simple_nested_pipeline(
 
     p = dlt.pipeline(
         pipeline_name=f"pipeline_{dataset_name}",
-        full_refresh=full_refresh,
+        dev_mode=dev_mode,
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,

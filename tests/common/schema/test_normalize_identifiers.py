@@ -243,7 +243,9 @@ def test_normalize_default_hints(schema_storage_no_import: SchemaStorage) -> Non
         assert_schema_identifiers_case(norm_cloned, str.upper)
         assert isinstance(norm_cloned._normalizers_config["names"], NamingConvention)
 
-        norm_schema = Schema.from_dict(deepcopy(eth_V9), remove_processing_hints=True)
+        norm_schema = Schema.from_dict(
+            deepcopy(eth_V9), remove_processing_hints=True, bump_version=False
+        )
         norm_schema.update_normalizers()
         assert_schema_identifiers_case(norm_schema, str.upper)
         assert isinstance(norm_schema._normalizers_config["names"], NamingConvention)
@@ -260,6 +262,9 @@ def test_normalize_default_hints(schema_storage_no_import: SchemaStorage) -> Non
     # the instance got converted into
     assert storage_schema._normalizers_config["names"].endswith("sql_upper.NamingConvention")  # type: ignore
     assert storage_schema.stored_version_hash == storage_schema.version_hash
+    # cloned when bumped must have same version hash
+    norm_cloned._bump_version()
+    assert storage_schema.stored_version_hash == norm_cloned.stored_version_hash
 
 
 def test_raise_on_change_identifier_table_with_data() -> None:

@@ -1,18 +1,19 @@
 """Implements SupportsTracking"""
 from typing import Any, cast, TypedDict, List
-import requests
-from dlt.common.managed_thread_pool import ManagedThreadPool
-from urllib.parse import urljoin
+from requests import Session
 
-from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
-from dlt.common import json
-from dlt.common.runtime import logger
+from dlt.common import logger
+from dlt.common.json import json
 from dlt.common.pipeline import LoadInfo
+from dlt.common.managed_thread_pool import ManagedThreadPool
 from dlt.common.schema.typing import TStoredSchema
 
-_THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
+from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
+
+_THREAD_POOL: ManagedThreadPool = None
 TRACE_URL_SUFFIX = "/trace"
 STATE_URL_SUFFIX = "/state"
+requests: Session = None
 
 
 class TPipelineSyncPayload(TypedDict):
@@ -22,6 +23,27 @@ class TPipelineSyncPayload(TypedDict):
     destination_fingerprint: str
     dataset_name: str
     schemas: List[TStoredSchema]
+
+
+def init_platform_tracker() -> None:
+    # lazily import requests to avoid binding config before initialization
+    global requests
+    from dlt.sources.helpers import requests as r_
+
+    requests = r_  # type: ignore[assignment]
+
+    global _THREAD_POOL
+    if _THREAD_POOL is None:
+        _THREAD_POOL = ManagedThreadPool("platform_tracker", 1)
+        # create thread pool in controlled way, not lazy
+        _THREAD_POOL._create_thread_pool()
+
+
+def disable_platform_tracker() -> None:
+    global _THREAD_POOL
+    if _THREAD_POOL:
+        _THREAD_POOL.stop()
+    _THREAD_POOL = None
 
 
 def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:

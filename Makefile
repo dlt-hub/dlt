@@ -27,7 +27,7 @@ help:
 	@echo "			tests all components using local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
-	@echo "		test-and-lint-snippets"
+	@echo "		lint-and-test-snippets"
 	@echo "			tests and lints snippets and examples in docs"
 	@echo "		build-library"
 	@echo "			makes dev and then builds dlt package for distribution"
@@ -47,7 +47,8 @@ dev: has-poetry
 	poetry install --all-extras --with airflow --with docs --with providers --with pipeline --with sentry-sdk
 
 lint:
-	./check-package.sh
+	./tools/check-package.sh
+	poetry run python ./tools/check-lockfile.py
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
@@ -59,10 +60,21 @@ format:
 	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
 	# poetry run isort ./
 
-test-and-lint-snippets:
-	poetry run mypy --config-file mypy.ini docs/website docs/examples
-	poetry run flake8 --max-line-length=200 docs/website docs/examples
+lint-and-test-snippets:
+	cd docs/tools && poetry run python check_embedded_snippets.py full
+	poetry run mypy --config-file mypy.ini docs/website docs/examples docs/tools --exclude docs/tools/lint_setup --exclude docs/website/docs_processed
+	poetry run flake8 --max-line-length=200 docs/website docs/examples docs/tools
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
+
+lint-and-test-examples:
+	poetry run mypy --config-file mypy.ini docs/examples
+	poetry run flake8 --max-line-length=200 docs/examples
+	cd docs/tools && poetry run python prepare_examples_tests.py
+	cd docs/examples && poetry run pytest
+
+
+test-examples:
+	cd docs/examples && poetry run pytest
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l

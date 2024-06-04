@@ -1,24 +1,29 @@
 import os
+import dataclasses
 import threading
-from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Final, List, Optional, Tuple, TYPE_CHECKING, Union
 
+from typing import Any, ClassVar, Dict, Final, List, Optional, Tuple, Type, Union
+
+from pathvalidate import is_valid_filepath
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import (
-    DestinationClientDwhWithStagingConfiguration,
-    DestinationClientStagingConfiguration,
-)
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretValue
+from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
+
+try:
+    from duckdb import DuckDBPyConnection
+except ModuleNotFoundError:
+    DuckDBPyConnection = Type[Any]  # type: ignore[assignment,misc]
 
 DUCK_DB_NAME = "%s.duckdb"
 DEFAULT_DUCK_DB_NAME = DUCK_DB_NAME % "quack"
 LOCAL_STATE_KEY = "duckdb_database"
 
 
-@configspec
+@configspec(init=False)
 class DuckDbBaseCredentials(ConnectionStringCredentials):
     password: Optional[TSecretValue] = None
     host: Optional[str] = None
@@ -34,10 +39,13 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         if not hasattr(self, "_conn_lock"):
             self._conn_lock = threading.Lock()
 
+        config = self._get_conn_config()
         # obtain a lock because duck releases the GIL and we have refcount concurrency
         with self._conn_lock:
             if not hasattr(self, "_conn"):
-                self._conn = duckdb.connect(database=self._conn_str(), read_only=read_only)
+                self._conn = duckdb.connect(
+                    database=self._conn_str(), read_only=read_only, config=config
+                )
                 self._conn_owner = True
                 self._conn_borrows = 0
 
@@ -80,6 +88,9 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
             else:
                 raise
 
+    def _get_conn_config(self) -> Dict[str, Any]:
+        return {}
+
     def _conn_str(self) -> str:
         return self.database
 
@@ -95,7 +106,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
 
 @configspec
 class DuckDbCredentials(DuckDbBaseCredentials):
-    drivername: Final[str] = "duckdb"  # type: ignore
+    drivername: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     username: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = []
@@ -108,6 +119,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         return self.database == ":pipeline:"
 
     def on_resolved(self) -> None:
+        if isinstance(self.database, str) and self.database == ":memory:":
+            raise InvalidInMemoryDuckdbCredentials()
+
         # do not set any paths for external database
         if self.database == ":external:":
             return
@@ -193,30 +207,31 @@ class DuckDbCredentials(DuckDbBaseCredentials):
     def _conn_str(self) -> str:
         return self.database
 
+    def __init__(self, conn_or_path: Union[str, DuckDBPyConnection] = None) -> None:
+        """Access to duckdb database at a given path or from duckdb connection"""
+        self._apply_init_value(conn_or_path)
+
 
 @configspec
 class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = "duckdb"  # type: ignore
-    credentials: DuckDbCredentials
+    destination_type: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
+    credentials: DuckDbCredentials = None
 
     create_indexes: bool = (
         False  # should unique indexes be created, this slows loading down massively
     )
 
-    if TYPE_CHECKING:
-        try:
-            from duckdb import DuckDBPyConnection
-        except ModuleNotFoundError:
-            DuckDBPyConnection = Any  # type: ignore[assignment,misc]
-
-        def __init__(
-            self,
-            *,
-            credentials: Union[DuckDbCredentials, str, DuckDBPyConnection] = None,
-            dataset_name: str = None,
-            default_schema_name: Optional[str] = None,
-            create_indexes: bool = False,
-            staging_config: Optional[DestinationClientStagingConfiguration] = None,
-            destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
+    def __init__(
+        self,
+        *,
+        credentials: Union[DuckDbCredentials, str, DuckDBPyConnection] = None,
+        create_indexes: bool = False,
+        destination_name: str = None,
+        environment: str = None,
+    ) -> None:
+        super().__init__(
+            credentials=credentials,  # type: ignore[arg-type]
+            destination_name=destination_name,
+            environment=environment,
+        )
+        self.create_indexes = create_indexes

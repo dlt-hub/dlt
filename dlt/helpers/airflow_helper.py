@@ -1,7 +1,7 @@
 import functools
 import os
 from tempfile import gettempdir
-from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
 from tenacity import (
     retry_if_exception,
@@ -24,11 +24,13 @@ except ModuleNotFoundError:
 
 
 import dlt
-from dlt.common import pendulum
 from dlt.common import logger
+from dlt.common.pendulum import pendulum
 from dlt.common.runtime.telemetry import with_telemetry
-from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.schema.typing import TWriteDisposition, TSchemaContract
+
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.schema.typing import TWriteDispositionConfig, TSchemaContract
+
 from dlt.common.utils import uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.configuration.container import Container
@@ -103,6 +105,7 @@ class PipelineTasksGroup(TaskGroup):
         """
 
         super().__init__(group_id=pipeline_name, **kwargs)
+        self._used_names: Dict[str, Any] = {}
         self.use_task_logger = use_task_logger
         self.log_progress_period = log_progress_period
         self.buffer_max_items = buffer_max_items
@@ -132,15 +135,43 @@ class PipelineTasksGroup(TaskGroup):
         if ConfigProvidersContext in Container():
             del Container()[ConfigProvidersContext]
 
+    def _task_name(self, pipeline: Pipeline, data: Any) -> str:
+        """Generate a task name.
+
+        Args:
+            pipeline (Pipeline): The pipeline to run.
+            data (Any): The data to run the pipeline with.
+
+        Returns:
+            str: The name of the task.
+        """
+        task_name = pipeline.pipeline_name
+
+        if isinstance(data, DltSource):
+            resource_names = list(data.selected_resources.keys())
+            task_name = data.name + "_" + "-".join(resource_names[:4])
+
+            if len(resource_names) > 4:
+                task_name += f"-{len(resource_names)-4}-more"
+
+            num = self._used_names.setdefault(task_name, 0)
+            self._used_names[task_name] = num + 1
+
+            if num:
+                task_name += f"-{num + 1}"
+
+        return task_name
+
     def run(
         self,
         pipeline: Pipeline,
         data: Any,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
+        on_before_run: Callable[[], None] = None,
         **kwargs: Any,
     ) -> PythonOperator:
         """
@@ -149,10 +180,15 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): The pipeline to run
-            data (Any): The data to run the pipeline with
+            data (Any):
+                The data to run the pipeline with. If a non-resource
+                callable given, it's evaluated during the DAG execution,
+                right before the actual pipeline run.
+                NOTE: If `on_before_run` is provided, first `on_before_run`
+                      is evaluated, and then callable `data`.
             table_name (str, optional): The name of the table to
                 which the data should be loaded within the `dataset`.
-            write_disposition (TWriteDisposition, optional): Same as
+            write_disposition (TWriteDispositionConfig, optional): Same as
                 in `run` command.
             loader_file_format (TLoaderFileFormat, optional):
                 The file format the loader will use to create the
@@ -161,6 +197,8 @@ class PipelineTasksGroup(TaskGroup):
                 for the schema contract settings, this will replace
                 the schema contract settings for all tables in the schema.
             pipeline_name (str, optional): The name of the derived pipeline.
+            on_before_run (Callable, optional): A callable to be
+                executed right before the actual pipeline run.
 
         Returns:
             PythonOperator: Airflow task instance.
@@ -174,28 +212,35 @@ class PipelineTasksGroup(TaskGroup):
             loader_file_format=loader_file_format,
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
+            on_before_run=on_before_run,
         )
-        return PythonOperator(task_id=_task_name(pipeline, data), python_callable=f, **kwargs)
+        return PythonOperator(task_id=self._task_name(pipeline, data), python_callable=f, **kwargs)
 
     def _run(
         self,
         pipeline: Pipeline,
         data: Any,
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
+        on_before_run: Callable[[], None] = None,
     ) -> None:
         """Run the given pipeline with the given data.
 
         Args:
             pipeline (Pipeline): The pipeline to run
-            data (Any): The data to run the pipeline with
+            data (Any):
+                The data to run the pipeline with. If a non-resource
+                callable given, it's evaluated during the DAG execution,
+                right before the actual pipeline run.
+                NOTE: If `on_before_run` is provided, first `on_before_run`
+                      is evaluated, and then callable `data`.
             table_name (str, optional): The name of the
                 table to which the data should be loaded
                 within the `dataset`.
-            write_disposition (TWriteDisposition, optional):
+            write_disposition (TWriteDispositionConfig, optional):
                 Same as in `run` command.
             loader_file_format (TLoaderFileFormat, optional):
                 The file format the loader will use to create
@@ -206,6 +251,8 @@ class PipelineTasksGroup(TaskGroup):
                 for all tables in the schema.
             pipeline_name (str, optional): The name of the
                 derived pipeline.
+            on_before_run (Callable, optional): A callable
+                to be executed right before the actual pipeline run.
         """
         # activate pipeline
         pipeline.activate()
@@ -241,6 +288,12 @@ class PipelineTasksGroup(TaskGroup):
                 )
 
         try:
+            if on_before_run is not None:
+                on_before_run()
+
+            if callable(data):
+                data = data()
+
             # retry with given policy on selected pipeline steps
             for attempt in self.retry_policy.copy(
                 retry=retry_if_exception(
@@ -292,9 +345,10 @@ class PipelineTasksGroup(TaskGroup):
         *,
         decompose: Literal["none", "serialize", "parallel", "parallel-isolated"] = "none",
         table_name: str = None,
-        write_disposition: TWriteDisposition = None,
+        write_disposition: TWriteDispositionConfig = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
+        on_before_run: Callable[[], None] = None,
         **kwargs: Any,
     ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
@@ -308,7 +362,10 @@ class PipelineTasksGroup(TaskGroup):
 
         Args:
             pipeline (Pipeline): An instance of pipeline used to run the source
-            data (Any): Any data supported by `run` method of the pipeline
+            data (Any):
+                Any data supported by `run` method of the pipeline.
+                If a non-resource callable given, it's called before
+                the load to get the data.
             decompose (Literal["none", "serialize", "parallel"], optional):
                 A source decomposition strategy into Airflow tasks:
                     none - no decomposition, default value.
@@ -330,11 +387,13 @@ class PipelineTasksGroup(TaskGroup):
                 Parallel tasks are executed in different pipelines, all derived from the original
                 one, but with the state isolated from each other.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
-            write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
+            write_disposition (TWriteDispositionConfig, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
                 Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
             schema_contract (TSchemaContract, optional): On override for the schema contract settings,
                 this will replace the schema contract settings for all tables in the schema. Defaults to None.
+            on_before_run (Callable, optional):
+                A callable to be executed right before the actual pipeline run.
 
         Returns:
             Any: Airflow tasks created in order of creation.
@@ -361,9 +420,10 @@ class PipelineTasksGroup(TaskGroup):
                     loader_file_format=loader_file_format,
                     schema_contract=schema_contract,
                     pipeline_name=name,
+                    on_before_run=on_before_run,
                 )
                 return PythonOperator(
-                    task_id=_task_name(pipeline, data), python_callable=f, **kwargs
+                    task_id=self._task_name(pipeline, data), python_callable=f, **kwargs
                 )
 
             if decompose == "none":
@@ -372,8 +432,8 @@ class PipelineTasksGroup(TaskGroup):
             elif decompose == "serialize":
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
-                if pipeline.full_refresh:
-                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+                if pipeline.dev_mode:
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
                 # serialize tasks
                 tasks = []
                 pt = None
@@ -388,12 +448,12 @@ class PipelineTasksGroup(TaskGroup):
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
 
-                if pipeline.full_refresh:
-                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+                if pipeline.dev_mode:
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
 
                 tasks = []
                 sources = data.decompose("scc")
-                t_name = _task_name(pipeline, data)
+                t_name = self._task_name(pipeline, data)
                 start = make_task(pipeline, sources[0])
 
                 # parallel tasks
@@ -424,8 +484,8 @@ class PipelineTasksGroup(TaskGroup):
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
 
-                if pipeline.full_refresh:
-                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+                if pipeline.dev_mode:
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
 
                 # parallel tasks
                 tasks = []
@@ -434,16 +494,18 @@ class PipelineTasksGroup(TaskGroup):
                 start = make_task(
                     pipeline,
                     sources[0],
-                    naming.normalize_identifier(_task_name(pipeline, sources[0])),
+                    naming.normalize_identifier(self._task_name(pipeline, sources[0])),
                 )
 
                 # parallel tasks
                 for source in sources[1:]:
                     # name pipeline the same as task
-                    new_pipeline_name = naming.normalize_identifier(_task_name(pipeline, source))
+                    new_pipeline_name = naming.normalize_identifier(
+                        self._task_name(pipeline, source)
+                    )
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
-                t_name = _task_name(pipeline, data)
+                t_name = self._task_name(pipeline, data)
                 end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
@@ -468,25 +530,3 @@ def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.
         return context["data_interval_start"], context["data_interval_end"]
     except Exception:
         return None, None
-
-
-def _task_name(pipeline: Pipeline, data: Any) -> str:
-    """Generate a task name.
-
-    Args:
-        pipeline (Pipeline): The pipeline to run.
-        data (Any): The data to run the pipeline with.
-
-    Returns:
-        str: The name of the task.
-    """
-    task_name = pipeline.pipeline_name
-
-    if isinstance(data, DltSource):
-        resource_names = list(data.selected_resources.keys())
-        task_name = data.name + "_" + "-".join(resource_names[:4])
-
-        if len(resource_names) > 4:
-            task_name += f"-{len(resource_names)-4}-more"
-
-    return task_name

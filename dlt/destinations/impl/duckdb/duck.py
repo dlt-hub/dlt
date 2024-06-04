@@ -81,7 +81,11 @@ class DuckDbTypeMapper(TypeMapper):
             return "INTEGER"
         elif precision <= 64:
             return "BIGINT"
-        return "HUGEINT"
+        elif precision <= 128:
+            return "HUGEINT"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into duckdb integer type"
+        )
 
     def to_db_datetime_type(
         self, precision: Optional[int], table_format: TTableFormat = None
@@ -95,7 +99,8 @@ class DuckDbTypeMapper(TypeMapper):
         if precision == 9:
             return "TIMESTAMP_NS"
         raise TerminalValueError(
-            f"timestamp {precision} cannot be mapped into duckdb TIMESTAMP typ"
+            f"timestamp with {precision} decimals after seconds cannot be mapped into duckdb"
+            " TIMESTAMP type"
         )
 
     def from_db_type(

@@ -24,7 +24,6 @@ from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import (
     DestinationConnectionError,
     LoadClientNotConnected,
-    DatabaseTerminalException,
 )
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
@@ -230,7 +229,7 @@ class DBApiCursorImpl(DBApiCursor):
         May use native pandas/arrow reader if available. Depending on
         the native implementation chunk size may vary.
         """
-        from dlt.common.libs.pandas import _wrap_result
+        from dlt.common.libs.pandas_sql import _wrap_result
 
         columns = self._get_columns()
         if chunk_size is None:

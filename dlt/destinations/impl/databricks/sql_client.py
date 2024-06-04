@@ -161,11 +161,5 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             return DatabaseTransientException(ex)
 
     @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(
-        databricks_ex: databricks_lib.DatabaseError,
-    ) -> Optional[Exception]:
-        return None
-
-    @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, databricks_lib.DatabaseError)

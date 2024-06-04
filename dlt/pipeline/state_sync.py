@@ -1,105 +1,55 @@
-import base64
-import binascii
 from copy import copy
-import hashlib
 from typing import Tuple, cast
-import pendulum
 
 import dlt
-from dlt.common import json
-from dlt.common.pipeline import TPipelineState
+from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME
 from dlt.common.schema.utils import pipeline_state_table
-from dlt.common.destination.reference import WithStateSync, Destination
-from dlt.common.utils import compressed_b64decode, compressed_b64encode
-
+from dlt.common.destination.reference import WithStateSync, Destination, StateInfo
+from dlt.common.versioned_state import (
+    generate_state_version_hash,
+    bump_state_version_if_modified,
+    default_versioned_state,
+    compress_state,
+    decompress_state,
+)
+from dlt.common.pipeline import TPipelineState
+from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.extract import DltResource
 
-from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
+from dlt.pipeline.exceptions import (
+    PipelineStateEngineNoUpgradePathException,
+)
+
+PIPELINE_STATE_ENGINE_VERSION = 4
+LOAD_PACKAGE_STATE_KEY = "pipeline_state"
 
 
-# allows to upgrade state when restored with a new version of state logic/schema
-STATE_ENGINE_VERSION = 4
+def generate_pipeline_state_version_hash(state: TPipelineState) -> str:
+    return generate_state_version_hash(state, exclude_attrs=["_local"])
 
 
-def json_encode_state(state: TPipelineState) -> str:
-    return json.typed_dumps(state)
+def bump_pipeline_state_version_if_modified(state: TPipelineState) -> Tuple[int, str, str]:
+    return bump_state_version_if_modified(state, exclude_attrs=["_local"])
 
 
-def json_decode_state(state_str: str) -> DictStrAny:
-    return json.typed_loads(state_str)  # type: ignore[no-any-return]
+def mark_state_extracted(state: TPipelineState, hash_: str) -> None:
+    """Marks state as extracted by setting last extracted hash to hash_ (which is current version_hash)
+
+    `_last_extracted_hash` is kept locally and never synced with the destination
+    """
+    state["_local"]["_last_extracted_at"] = pendulum.now()
+    state["_local"]["_last_extracted_hash"] = hash_
 
 
-def compress_state(state: TPipelineState) -> str:
-    return compressed_b64encode(json.typed_dumpb(state))
+def force_state_extract(state: TPipelineState) -> None:
+    """Forces `state` to be extracted by removing local information on the most recent extraction"""
+    state["_local"].pop("_last_extracted_at", None)
+    state["_local"].pop("_last_extracted_hash", None)
 
 
-def decompress_state(state_str: str) -> DictStrAny:
-    try:
-        state_bytes = compressed_b64decode(state_str)
-    except binascii.Error:
-        return json.typed_loads(state_str)  # type: ignore[no-any-return]
-    else:
-        return json.typed_loadb(state_bytes)  # type: ignore[no-any-return]
-
-
-def generate_version_hash(state: TPipelineState) -> str:
-    # generates hash out of stored schema content, excluding hash itself, version and local state
-    state_copy = copy(state)
-    state_copy.pop("_state_version", None)
-    state_copy.pop("_state_engine_version", None)
-    state_copy.pop("_version_hash", None)
-    state_copy.pop("_local", None)
-    content = json.typed_dumpb(state_copy, sort_keys=True)
-    h = hashlib.sha3_256(content)
-    return base64.b64encode(h.digest()).decode("ascii")
-
-
-def bump_version_if_modified(state: TPipelineState) -> Tuple[int, str, str]:
-    """Bumps the `state` version and version hash if content modified, returns (new version, new hash, old hash) tuple"""
-    hash_ = generate_version_hash(state)
-    previous_hash = state.get("_version_hash")
-    if not previous_hash:
-        # if hash was not set, set it without bumping the version, that's initial schema
-        pass
-    elif hash_ != previous_hash:
-        state["_state_version"] += 1
-
-    state["_version_hash"] = hash_
-    return state["_state_version"], hash_, previous_hash
-
-
-def state_resource(state: TPipelineState) -> DltResource:
-    state = copy(state)
-    state.pop("_local")
-    state_str = compress_state(state)
-    state_doc = {
-        "version": state["_state_version"],
-        "engine_version": state["_state_engine_version"],
-        "pipeline_name": state["pipeline_name"],
-        "state": state_str,
-        "created_at": pendulum.now(),
-        "version_hash": state["_version_hash"],
-    }
-    return dlt.resource(
-        [state_doc],
-        name=PIPELINE_STATE_TABLE_NAME,
-        write_disposition="append",
-        columns=pipeline_state_table()["columns"],
-    )
-
-
-def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TPipelineState:
-    # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
-    state = client.get_stored_state(pipeline_name)
-    if not state:
-        return None
-    s = decompress_state(state.state)
-    return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
-
-
-def migrate_state(
+def migrate_pipeline_state(
     pipeline_name: str, state: DictStrAny, from_engine: int, to_engine: int
 ) -> TPipelineState:
     if from_engine == to_engine:
@@ -109,7 +59,7 @@ def migrate_state(
         from_engine = 2
     if from_engine == 2 and to_engine > 2:
         # you may want to recompute hash
-        state["_version_hash"] = generate_version_hash(state)  # type: ignore[arg-type]
+        state["_version_hash"] = generate_pipeline_state_version_hash(state)  # type: ignore[arg-type]
         from_engine = 3
     if from_engine == 3 and to_engine > 3:
         if state.get("destination"):
@@ -129,3 +79,54 @@ def migrate_state(
         )
     state["_state_engine_version"] = from_engine
     return cast(TPipelineState, state)
+
+
+def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
+    state = copy(state)
+    state.pop("_local")
+    state_str = compress_state(state)
+    doc: TPipelineStateDoc = {
+        "version": state["_state_version"],
+        "engine_version": state["_state_engine_version"],
+        "pipeline_name": state["pipeline_name"],
+        "state": state_str,
+        "created_at": pendulum.now(),
+        "version_hash": state["_version_hash"],
+    }
+    if load_id:
+        doc["dlt_load_id"] = load_id
+    return doc
+
+
+def state_resource(state: TPipelineState) -> Tuple[DltResource, TPipelineStateDoc]:
+    doc = state_doc(state)
+    return (
+        dlt.resource(
+            [doc],
+            name=PIPELINE_STATE_TABLE_NAME,
+            write_disposition="append",
+            columns=pipeline_state_table()["columns"],
+        ),
+        doc,
+    )
+
+
+def load_pipeline_state_from_destination(
+    pipeline_name: str, client: WithStateSync
+) -> TPipelineState:
+    # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
+    state = client.get_stored_state(pipeline_name)
+    if not state:
+        return None
+    s = decompress_state(state.state)
+    return migrate_pipeline_state(
+        pipeline_name, s, s["_state_engine_version"], PIPELINE_STATE_ENGINE_VERSION
+    )
+
+
+def default_pipeline_state() -> TPipelineState:
+    return {
+        **default_versioned_state(),
+        "_state_engine_version": PIPELINE_STATE_ENGINE_VERSION,
+        "_local": {"first_run": True},
+    }

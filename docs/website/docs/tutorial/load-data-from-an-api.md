@@ -8,7 +8,7 @@ In this section, we will retrieve and load data from the GitHub API into [DuckDB
 
 Before we start, make sure you have installed `dlt` with the DuckDB dependency:
 
-```bash
+```sh
 pip install "dlt[duckdb]"
 ```
 
@@ -20,28 +20,8 @@ Need help with this tutorial? Join our [Slack community](https://dlthub.com/comm
 
 First, we need to create a [pipeline](../general-usage/pipeline). Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
-<!--@@@DLT_SNIPPET_START basic_api-->
-```py
-import dlt
-from dlt.sources.helpers import requests
+<!--@@@DLT_SNIPPET basic_api-->
 
-# Specify the URL of the API endpoint
-url = "https://api.github.com/repos/dlt-hub/dlt/issues"
-# Make a request and check if it was successful
-response = requests.get(url)
-response.raise_for_status()
-
-pipeline = dlt.pipeline(
-    pipeline_name="github_issues",
-    destination="duckdb",
-    dataset_name="github_data",
-)
-# The response contains a list of issues
-load_info = pipeline.run(response.json(), table_name="issues")
-
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END basic_api-->
 
 Here's what the code above does:
 1. It makes a request to the GitHub API endpoint and checks if the response is successful.
@@ -52,19 +32,19 @@ Here's what the code above does:
 
 Save `github_issues.py` and run the following command:
 
-```bash
+```sh
 python github_issues.py
 ```
 
 Once the data has been loaded, you can inspect the created dataset using the Streamlit app:
 
-```bash
+```sh
 dlt pipeline github_issues show
 ```
 
 ## Append or replace your data
 
-Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have a new folder created daily with `json` file logs, and you want to ingest them.
+Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have daily data updates and you want to ingest them.
 
 To get the latest data, we'd need to run the script again. But how to do that without duplicating the data?
 One option is to tell `dlt` to replace the data in existing tables in the destination by using `replace` write disposition. Change the `github_issues.py` script to the following:
@@ -118,53 +98,8 @@ You can pass a generator to the `run` method directly or use the `@dlt.resource`
 Let's improve our GitHub API example and get only issues that were created since last load.
 Instead of using `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
-<!--@@@DLT_SNIPPET_START incremental-->
-```py
-import dlt
-from dlt.sources.helpers import requests
+<!--@@@DLT_SNIPPET incremental-->
 
-@dlt.resource(table_name="issues", write_disposition="append")
-def get_issues(
-    created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
-):
-    # NOTE: we read only open issues to minimize number of calls to the API.
-    # There's a limit of ~50 calls for not authenticated Github users.
-    url = (
-        "https://api.github.com/repos/dlt-hub/dlt/issues"
-        "?per_page=100&sort=created&directions=desc&state=open"
-    )
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # Stop requesting pages if the last element was already
-        # older than initial value
-        # Note: incremental will skip those items anyway, we just
-        # do not want to use the api limits
-        if created_at.start_out_of_range:
-            break
-
-        # get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
-
-pipeline = dlt.pipeline(
-    pipeline_name="github_issues_incremental",
-    destination="duckdb",
-    dataset_name="github_data_append",
-)
-
-load_info = pipeline.run(get_issues)
-row_counts = pipeline.last_trace.last_normalize_info
-
-print(row_counts)
-print("------")
-print(load_info)
-```
-<!--@@@DLT_SNIPPET_END incremental-->
 
 Let's take a closer look at the code above.
 
@@ -182,7 +117,7 @@ Now you can run this script on a daily schedule and each day you’ll load only 
 Between pipeline runs, `dlt` keeps the state in the same database it loaded data to.
 Peek into that state, the tables loaded and get other information with:
 
-```shell
+```sh
 dlt pipeline -v github_issues_incremental info
 ```
 :::
@@ -201,10 +136,27 @@ It will ignore any updates to **existing** issue text, emoji reactions etc.
 To get always fresh content of all the issues you combine incremental load with `merge` write disposition,
 like in the script below.
 
-<!--@@@DLT_SNIPPET_START incremental_merge-->
+<!--@@@DLT_SNIPPET incremental_merge-->
+
+
+Above we add `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
+
+Note that we now track the `updated_at` field — so we filter in all issues **updated** since the last pipeline run (which also includes those newly created).
+
+Pay attention how we use **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
+and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
+
+[Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
+
+## Using pagination helper
+
+In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has the built-in [REST client](../general-usage/http/rest-client.md) that simplifies API requests. We'll pick the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
+
+Here's how the updated script looks:
+
 ```py
 import dlt
-from dlt.sources.helpers import requests
+from dlt.sources.helpers.rest_client import paginate
 
 @dlt.resource(
     table_name="issues",
@@ -214,24 +166,17 @@ from dlt.sources.helpers import requests
 def get_issues(
     updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    # NOTE: we read only open issues to minimize number of calls to
-    # the API. There's a limit of ~50 calls for not authenticated
-    # Github users
-    url = (
-        "https://api.github.com/repos/dlt-hub/dlt/issues"
-        f"?since={updated_at.last_value}&per_page=100&sort=updated"
-        "&directions=desc&state=open"
-    )
-
-    while True:
-        response = requests.get(url)
-        response.raise_for_status()
-        yield response.json()
-
-        # Get next page
-        if "next" not in response.links:
-            break
-        url = response.links["next"]["url"]
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/issues",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+            "sort": "updated",
+            "direction": "desc",
+            "state": "open",
+        },
+    ):
+        yield page
 
 pipeline = dlt.pipeline(
     pipeline_name="github_issues_merge",
@@ -245,16 +190,12 @@ print(row_counts)
 print("------")
 print(load_info)
 ```
-<!--@@@DLT_SNIPPET_END incremental_merge-->
 
-Above we add `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
+Let's zoom in on the changes:
 
-Note that we now track the `updated_at` field — so we filter in all issues **updated** since the last pipeline run (which also includes those newly created).
-
-Pay attention how we use **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
-and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
-
-[Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
+1. The `while` loop that handled pagination is replaced with reading pages from the `paginate()` generator.
+2. `paginate()` takes the URL of the API endpoint and optional parameters. In this case, we pass the `since` parameter to get only issues updated after the last pipeline run.
+3. We're not explicitly setting up pagination, `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../general-usage/http/rest-client.md#paginating-api-responses).
 
 ## Next steps
 

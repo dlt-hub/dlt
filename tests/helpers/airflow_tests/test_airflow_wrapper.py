@@ -4,20 +4,20 @@ from unittest import mock
 from typing import List
 from airflow import DAG
 from airflow.decorators import dag
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, get_current_context
 from airflow.models import TaskInstance
 from airflow.utils.state import DagRunState
 from airflow.utils.types import DagRunType
 
 import dlt
-from dlt.common import pendulum
+from dlt.common import logger, pendulum
 from dlt.common.utils import uniq_id
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
-from tests.load.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts
 from tests.utils import TEST_STORAGE_ROOT
 
 
@@ -384,7 +384,17 @@ def test_parallel_incremental():
     with mock.patch("dlt.helpers.airflow_helper.logger.warn") as warn_mock:
         dag_def = dag_parallel()
         dag_def.test()
-        warn_mock.assert_called_once()
+        warn_mock.assert_has_calls(
+            [
+                mock.call(
+                    "The resource resource2 in task"
+                    " mock_data_incremental_source_resource1-resource2 is using incremental loading"
+                    " and may modify the state. Resources that modify the state should not run in"
+                    " parallel within the single pipeline as the state will not be correctly"
+                    " merged. Please use 'serialize' or 'parallel-isolated' modes instead."
+                )
+            ]
+        )
 
 
 def test_parallel_isolated_run():
@@ -435,7 +445,7 @@ def test_parallel_isolated_run():
     for i in range(0, 3):
         pipeline_dag_parallel = dlt.attach(
             pipeline_name=snake_case.normalize_identifier(
-                dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")
+                dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")[:-2]
             )
         )
         pipeline_dag_decomposed_counts = load_table_counts(
@@ -852,3 +862,146 @@ def get_task_run(dag_def: DAG, task_name: str, now: pendulum.DateTime) -> TaskIn
     dag_def.run(start_date=now, run_at_least_once=True)
     task_def = dag_def.task_dict[task_name]
     return TaskInstance(task=task_def, execution_date=now)
+
+
+def test_task_already_added():
+    """
+    Test that the error 'Task id {id} has already been added to the DAG'
+    is not happening while adding two same sources.
+    """
+    tasks_list: List[PythonOperator] = None
+
+    @dag(schedule=None, start_date=pendulum.today(), catchup=False)
+    def dag_parallel():
+        nonlocal tasks_list
+
+        tasks = PipelineTasksGroup(
+            "test_pipeline",
+            local_data_folder="_storage",
+            wipe_local_data=False,
+        )
+
+        source = mock_data_source()
+
+        pipe = dlt.pipeline(
+            pipeline_name="test_pipeline",
+            dataset_name="mock_data",
+            destination="duckdb",
+            credentials=os.path.join("_storage", "test_pipeline.duckdb"),
+        )
+        task = tasks.add_run(
+            pipe,
+            source,
+            decompose="none",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )[0]
+        assert task.task_id == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more"
+
+        task = tasks.add_run(
+            pipe,
+            source,
+            decompose="none",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )[0]
+        assert (
+            task.task_id == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more-2"
+        )
+
+        tasks_list = tasks.add_run(
+            pipe,
+            source,
+            decompose="none",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )
+        assert (
+            tasks_list[0].task_id
+            == "test_pipeline.mock_data_source__r_init-_t_init_post-_t1-_t2-2-more-3"
+        )
+
+    dag_def = dag_parallel()
+    assert len(tasks_list) == 1
+    dag_def.test()
+
+
+def callable_source():
+    @dlt.resource
+    def test_res():
+        context = get_current_context()
+        yield [
+            {"id": 1, "tomorrow": context["tomorrow_ds"]},
+            {"id": 2, "tomorrow": context["tomorrow_ds"]},
+            {"id": 3, "tomorrow": context["tomorrow_ds"]},
+        ]
+
+    return test_res
+
+
+def test_run_callable() -> None:
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "callable_dag.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_regular():
+        tasks = PipelineTasksGroup(
+            "callable_dag_group", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        call_dag = dlt.pipeline(
+            pipeline_name="callable_dag",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        tasks.run(call_dag, callable_source)
+
+    dag_def: DAG = dag_regular()
+    dag_def.test()
+
+    pipeline_dag = dlt.attach(pipeline_name="callable_dag")
+
+    with pipeline_dag.sql_client() as client:
+        with client.execute_query("SELECT * FROM test_res") as result:
+            results = result.fetchall()
+
+            assert len(results) == 3
+
+            for row in results:
+                assert row[1] == pendulum.tomorrow().format("YYYY-MM-DD")
+
+
+def on_before_run():
+    context = get_current_context()
+    logger.info(f'on_before_run test: {context["tomorrow_ds"]}')
+
+
+def test_on_before_run() -> None:
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "callable_dag.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_regular():
+        tasks = PipelineTasksGroup(
+            "callable_dag_group", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        call_dag = dlt.pipeline(
+            pipeline_name="callable_dag",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        tasks.run(call_dag, mock_data_source, on_before_run=on_before_run)
+
+    dag_def: DAG = dag_regular()
+
+    with mock.patch("dlt.helpers.airflow_helper.logger.info") as logger_mock:
+        dag_def.test()
+        logger_mock.assert_has_calls(
+            [
+                mock.call(f'on_before_run test: {pendulum.tomorrow().format("YYYY-MM-DD")}'),
+            ]
+        )

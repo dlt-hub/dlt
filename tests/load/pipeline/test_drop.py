@@ -56,7 +56,11 @@ def droppable_source() -> List[DltResource]:
         dlt.state()["data_from_d"] = {"foo1": {"bar": 1}, "foo2": {"bar": 2}}
         yield [dict(o=55), dict(o=22)]
 
-    return [droppable_a(), droppable_b(), droppable_c(), droppable_d()]
+    @dlt.resource(selected=True)
+    def droppable_no_state():
+        yield [1, 2, 3]
+
+    return [droppable_a(), droppable_b(), droppable_c(), droppable_d(), droppable_no_state]
 
 
 RESOURCE_TABLES = dict(
@@ -64,7 +68,10 @@ RESOURCE_TABLES = dict(
     droppable_b=["droppable_b", "droppable_b__items"],
     droppable_c=["droppable_c", "droppable_c__items", "droppable_c__items__labels"],
     droppable_d=["droppable_d"],
+    droppable_no_state=["droppable_no_state"],
 )
+
+NO_STATE_RESOURCES = {"droppable_no_state"}
 
 
 def assert_dropped_resources(pipeline: Pipeline, resources: List[str]) -> None:
@@ -96,7 +103,7 @@ def assert_dropped_resource_tables(pipeline: Pipeline, resources: List[str]) -> 
 
 def assert_dropped_resource_states(pipeline: Pipeline, resources: List[str]) -> None:
     # Verify only requested resource keys are removed from state
-    all_resources = set(RESOURCE_TABLES.keys())
+    all_resources = set(RESOURCE_TABLES.keys()) - NO_STATE_RESOURCES
     expected_keys = all_resources - set(resources)
     sources_state = pipeline.state["sources"]
     result_keys = set(sources_state["droppable"]["resources"].keys())
@@ -107,7 +114,11 @@ def assert_destination_state_loaded(pipeline: Pipeline) -> None:
     """Verify stored destination state matches the local pipeline state"""
     client: SqlJobClientBase
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        destination_state = state_sync.load_state_from_destination(pipeline.pipeline_name, client)
+        destination_state = state_sync.load_pipeline_state_from_destination(
+            pipeline.pipeline_name, client
+        )
+        # current pipeline schema available in the destination
+        client.get_stored_schema_by_hash(pipeline.default_schema.version_hash)
     pipeline_state = dict(pipeline.state)
     del pipeline_state["_local"]
     assert pipeline_state == destination_state
@@ -120,7 +131,7 @@ def test_drop_command_resources_and_state(destination_config: DestinationTestCon
     """Test the drop command with resource and state path options and
     verify correct data is deleted from destination and locally"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -143,10 +154,9 @@ def test_drop_command_resources_and_state(destination_config: DestinationTestCon
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_drop_command_only_state(destination_config: DestinationTestConfiguration) -> None:
-    """Test the drop command with resource and state path options and
-    verify correct data is deleted from destination and locally"""
+    """Test drop command that deletes part of the state and syncs with destination"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -166,23 +176,47 @@ def test_drop_command_only_state(destination_config: DestinationTestConfiguratio
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
-def test_drop_destination_tables_fails(destination_config: DestinationTestConfiguration) -> None:
-    """Fail on drop tables. Command runs again."""
+def test_drop_command_only_tables(destination_config: DestinationTestConfiguration) -> None:
+    """Test drop only tables and makes sure that schema and state are synced"""
     source = droppable_source()
     pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline.run(source)
+    sources_state = pipeline.state["sources"]
+
+    attached = _attach(pipeline)
+    helpers.drop(attached, resources=["droppable_no_state"])
+
+    attached = _attach(pipeline)
+
+    assert_dropped_resources(attached, ["droppable_no_state"])
+    # source state didn't change
+    assert pipeline.state["sources"] == sources_state
+
+    assert_destination_state_loaded(pipeline)
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+def test_drop_destination_tables_fails(destination_config: DestinationTestConfiguration) -> None:
+    """Fail on DROP TABLES in destination init. Command runs again."""
+    source = droppable_source()
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
 
     with mock.patch.object(
-        helpers.DropCommand,
-        "_drop_destination_tables",
-        side_effect=RuntimeError("Something went wrong"),
+        pipeline.destination.client_class,
+        "drop_tables",
+        autospec=True,
+        side_effect=RuntimeError("Oh no!"),
     ):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(PipelineStepFailed) as einfo:
             helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+        assert isinstance(einfo.value.exception, RuntimeError)
+        assert "Oh no!" in str(einfo.value.exception)
 
-    attached = _attach(pipeline)
     helpers.drop(attached, resources=("droppable_a", "droppable_b"))
 
     assert_dropped_resources(attached, ["droppable_a", "droppable_b"])
@@ -195,16 +229,23 @@ def test_drop_destination_tables_fails(destination_config: DestinationTestConfig
 def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration) -> None:
     """Fail directly after drop tables. Command runs again ignoring destination tables missing."""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
 
+    # Fail on client update_stored_schema
     with mock.patch.object(
-        helpers.DropCommand, "_drop_state_keys", side_effect=RuntimeError("Something went wrong")
+        pipeline.destination.client_class,
+        "update_stored_schema",
+        autospec=True,
+        side_effect=RuntimeError("Oh no!"),
     ):
-        with pytest.raises(RuntimeError):
+        with pytest.raises(PipelineStepFailed) as einfo:
             helpers.drop(attached, resources=("droppable_a", "droppable_b"))
+
+        assert isinstance(einfo.value.exception, RuntimeError)
+        assert "Oh no!" in str(einfo.value.exception)
 
     attached = _attach(pipeline)
     helpers.drop(attached, resources=("droppable_a", "droppable_b"))
@@ -219,7 +260,7 @@ def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration
 def test_load_step_fails(destination_config: DestinationTestConfiguration) -> None:
     """Test idempotence. pipeline.load() fails. Command can be run again successfully"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -241,7 +282,7 @@ def test_load_step_fails(destination_config: DestinationTestConfiguration) -> No
 )
 def test_resource_regex(destination_config: DestinationTestConfiguration) -> None:
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -260,7 +301,7 @@ def test_resource_regex(destination_config: DestinationTestConfiguration) -> Non
 def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
     """No resources, no state keys. Nothing is changed."""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
 
     attached = _attach(pipeline)
@@ -278,7 +319,7 @@ def test_drop_nothing(destination_config: DestinationTestConfiguration) -> None:
 def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None:
     """Using drop_all flag. Destination dataset and all local state is deleted"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
     dlt_tables = [
         t["name"] for t in pipeline.default_schema.dlt_tables()
@@ -303,7 +344,7 @@ def test_drop_all_flag(destination_config: DestinationTestConfiguration) -> None
 )
 def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConfiguration) -> None:
     """Pipeline can be run again after dropping some resources"""
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(droppable_source())
 
     attached = _attach(pipeline)
@@ -322,7 +363,7 @@ def test_run_pipeline_after_partial_drop(destination_config: DestinationTestConf
 )
 def test_drop_state_only(destination_config: DestinationTestConfiguration) -> None:
     """Pipeline can be run again after dropping some resources"""
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(droppable_source())
 
     attached = _attach(pipeline)

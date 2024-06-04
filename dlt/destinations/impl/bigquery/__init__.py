@@ -1,4 +1,4 @@
-from dlt.common.data_writers.escape import escape_hive_identifier
+from dlt.common.data_writers.escape import escape_hive_identifier, format_bigquery_datetime_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
@@ -14,6 +14,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.has_case_sensitive_identifiers = (
         True  # there are case insensitive identifiers but dlt does not use them
     )
+    # BQ limit is 4GB but leave a large headroom since buffered writer does not preemptively check size
+    caps.recommended_file_size = int(1024 * 1024 * 1024)
+    caps.format_datetime_literal = format_bigquery_datetime_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (76, 38)
     caps.max_identifier_length = 1024

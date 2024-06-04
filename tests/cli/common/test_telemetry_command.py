@@ -96,7 +96,7 @@ def test_command_instrumentation() -> None:
     def instrument_raises_2(in_raises_2: bool) -> int:
         raise Exception("failed")
 
-    with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
+    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry()
 
         SENT_ITEMS.clear()
@@ -139,9 +139,8 @@ def test_instrumentation_wrappers() -> None:
         COMMAND_DEPLOY_REPO_LOCATION,
         DeploymentMethods,
     )
-    from dlt.common.exceptions import UnknownDestinationModule
 
-    with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
+    with patch("dlt.common.runtime.anon_tracker.before_send", _mock_before_send):
         start_test_telemetry()
 
         SENT_ITEMS.clear()

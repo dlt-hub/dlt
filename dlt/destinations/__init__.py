@@ -10,8 +10,11 @@ from dlt.destinations.impl.redshift.factory import redshift
 from dlt.destinations.impl.qdrant.factory import qdrant
 from dlt.destinations.impl.motherduck.factory import motherduck
 from dlt.destinations.impl.weaviate.factory import weaviate
+from dlt.destinations.impl.destination.factory import destination
 from dlt.destinations.impl.synapse.factory import synapse
 from dlt.destinations.impl.databricks.factory import databricks
+from dlt.destinations.impl.dremio.factory import dremio
+from dlt.destinations.impl.clickhouse.factory import clickhouse
 
 
 __all__ = [
@@ -29,4 +32,7 @@ __all__ = [
     "weaviate",
     "synapse",
     "databricks",
+    "dremio",
+    "clickhouse",
+    "destination",
 ]

@@ -2,14 +2,13 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import List, Set, Dict, Optional, Set, Any
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
-from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
+from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -18,6 +17,7 @@ from dlt.common.pipeline import (
     WithStepInfo,
     reset_resource_state,
 )
+from dlt.common.typing import DictStrAny
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
@@ -25,10 +25,15 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TColumnNames,
     TSchemaContract,
-    TWriteDisposition,
+    TWriteDispositionConfig,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.storages.load_package import (
+    ParsedLoadJobFileName,
+    LoadPackageStateInjectableContext,
+    TPipelineStateDoc,
+    commit_load_package_state,
+)
 from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
@@ -38,7 +43,9 @@ from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
-from dlt.extract.extractors import JsonLExtractor, ArrowExtractor, Extractor
+from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
+from dlt.extract.utils import get_data_item_format
+from dlt.pipeline.drop import drop_resources
 
 
 def data_to_sources(
@@ -47,7 +54,7 @@ def data_to_sources(
     schema: Schema = None,
     table_name: str = None,
     parent_table_name: str = None,
-    write_disposition: TWriteDisposition = None,
+    write_disposition: TWriteDispositionConfig = None,
     columns: TAnySchemaColumns = None,
     primary_key: TColumnNames = None,
     schema_contract: TSchemaContract = None,
@@ -76,8 +83,7 @@ def data_to_sources(
         """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
         if schema:
             schema_ = schema
-        # TODO: We should start with a new schema of the same name here ideally, but many tests fail
-        # because of this. So some investigation is needed.
+        # take pipeline schema to make newest version visible to the resources
         elif pipeline.default_schema_name:
             schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
         else:
@@ -244,6 +250,48 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "hints": clean_hints,
         }
 
+    def _write_empty_files(
+        self, source: DltSource, extractors: Dict[TDataItemFormat, Extractor]
+    ) -> None:
+        schema = source.schema
+        json_extractor = extractors["object"]
+        resources_with_items = set().union(*[e.resources_with_items for e in extractors.values()])
+        # find REPLACE resources that did not yield any pipe items and create empty jobs for them
+        # NOTE: do not include tables that have never seen data
+        data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
+        tables_by_resources = utils.group_tables_by_resource(data_tables)
+        for resource in source.resources.selected.values():
+            if resource.write_disposition != "replace" or resource.name in resources_with_items:
+                continue
+            if resource.name not in tables_by_resources:
+                continue
+            for table in tables_by_resources[resource.name]:
+                # we only need to write empty files for the top tables
+                if not table.get("parent", None):
+                    json_extractor.write_empty_items_file(table["name"])
+
+        # collect resources that received empty materialized lists and had no items
+        resources_with_empty = (
+            set()
+            .union(*[e.resources_with_empty for e in extractors.values()])
+            .difference(resources_with_items)
+        )
+        # get all possible tables
+        data_tables = {t["name"]: t for t in schema.data_tables()}
+        tables_by_resources = utils.group_tables_by_resource(data_tables)
+        for resource_name in resources_with_empty:
+            if resource := source.resources.selected.get(resource_name):
+                if tables := tables_by_resources.get("resource_name"):
+                    # write empty tables
+                    for table in tables:
+                        # we only need to write empty files for the top tables
+                        if not table.get("parent", None):
+                            json_extractor.write_empty_items_file(table["name"])
+                else:
+                    table_name = json_extractor._get_static_table_name(resource, None)
+                    if table_name:
+                        json_extractor.write_empty_items_file(table_name)
+
     def _extract_single_source(
         self,
         load_id: str,
@@ -255,85 +303,85 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> None:
         schema = source.schema
         collector = self.collector
-        resources_with_items: Set[str] = set()
-        extractors: Dict[TLoaderFileFormat, Extractor] = {
-            "puae-jsonl": JsonLExtractor(
-                load_id, self.extract_storage, schema, resources_with_items, collector=collector
+        extractors: Dict[TDataItemFormat, Extractor] = {
+            "object": ObjectExtractor(
+                load_id, self.extract_storage.item_storages["object"], schema, collector=collector
             ),
             "arrow": ArrowExtractor(
-                load_id, self.extract_storage, schema, resources_with_items, collector=collector
+                load_id, self.extract_storage.item_storages["arrow"], schema, collector=collector
             ),
         }
-        last_item_format: Optional[TLoaderFileFormat] = None
-
+        # make sure we close storage on exception
         with collector(f"Extract {source.name}"):
-            self._step_info_start_load_id(load_id)
-            # yield from all selected pipes
-            with PipeIterator.from_pipes(
-                source.resources.selected_pipes,
-                max_parallel_items=max_parallel_items,
-                workers=workers,
-                futures_poll_interval=futures_poll_interval,
-            ) as pipes:
-                left_gens = total_gens = len(pipes._sources)
-                collector.update("Resources", 0, total_gens)
-                for pipe_item in pipes:
-                    curr_gens = len(pipes._sources)
-                    if left_gens > curr_gens:
-                        delta = left_gens - curr_gens
-                        left_gens -= delta
-                        collector.update("Resources", delta)
+            with self.manage_writers(load_id, source):
+                # yield from all selected pipes
+                with PipeIterator.from_pipes(
+                    source.resources.selected_pipes,
+                    max_parallel_items=max_parallel_items,
+                    workers=workers,
+                    futures_poll_interval=futures_poll_interval,
+                ) as pipes:
+                    left_gens = total_gens = len(pipes._sources)
+                    collector.update("Resources", 0, total_gens)
+                    for pipe_item in pipes:
+                        curr_gens = len(pipes._sources)
+                        if left_gens > curr_gens:
+                            delta = left_gens - curr_gens
+                            left_gens -= delta
+                            collector.update("Resources", delta)
+                        signals.raise_if_signalled()
+                        resource = source.resources[pipe_item.pipe.name]
+                        item_format = get_data_item_format(pipe_item.item)
+                        extractors[item_format].write_items(
+                            resource, pipe_item.item, pipe_item.meta
+                        )
 
-                    signals.raise_if_signalled()
+                    self._write_empty_files(source, extractors)
+                    if left_gens > 0:
+                        # go to 100%
+                        collector.update("Resources", left_gens)
 
-                    resource = source.resources[pipe_item.pipe.name]
-                    # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
-                    item_format = (
-                        Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
-                    )
-                    extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
-                    last_item_format = item_format
-
-                # find defined resources that did not yield any pipeitems and create empty jobs for them
-                # NOTE: do not include incomplete tables. those tables have never seen data so we do not need to reset them
-                data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=False)}
-                tables_by_resources = utils.group_tables_by_resource(data_tables)
-                for resource in source.resources.selected.values():
-                    if (
-                        resource.write_disposition != "replace"
-                        or resource.name in resources_with_items
-                    ):
-                        continue
-                    if resource.name not in tables_by_resources:
-                        continue
-                    for table in tables_by_resources[resource.name]:
-                        # we only need to write empty files for the top tables
-                        if not table.get("parent", None):
-                            extractors["puae-jsonl"].write_empty_items_file(table["name"])
-
-                if left_gens > 0:
-                    # go to 100%
-                    collector.update("Resources", left_gens)
-
-            # flush all buffered writers
+    @contextlib.contextmanager
+    def manage_writers(self, load_id: str, source: DltSource) -> Iterator[ExtractStorage]:
+        self._step_info_start_load_id(load_id)
+        # self.current_source = source
+        try:
+            yield self.extract_storage
+        except Exception:
+            # kill writers without flushing the content
+            self.extract_storage.close_writers(load_id, skip_flush=True)
+            raise
+        else:
             self.extract_storage.close_writers(load_id)
-            # gather metrics
-            self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
-            # remove the metrics of files processed in this extract run
-            # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
-            self.extract_storage.remove_closed_files(load_id)
+        finally:
+            # gather metrics when storage is closed
+            self.gather_metrics(load_id, source)
+
+    def gather_metrics(self, load_id: str, source: DltSource) -> None:
+        # gather metrics
+        self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+        # remove the metrics of files processed in this extract run
+        # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+        self.extract_storage.remove_closed_files(load_id)
 
     def extract(
         self,
         source: DltSource,
         max_parallel_items: int,
         workers: int,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
     ) -> str:
         # generate load package to be able to commit all the sources together later
         load_id = self.extract_storage.create_load_package(source.discover_schema())
         with Container().injectable_context(
             SourceSchemaInjectableContext(source.schema)
-        ), Container().injectable_context(SourceInjectableContext(source)):
+        ), Container().injectable_context(
+            SourceInjectableContext(source)
+        ), Container().injectable_context(
+            LoadPackageStateInjectableContext(
+                load_id=load_id, storage=self.extract_storage.new_packages
+            )
+        ) as load_package:
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(
@@ -341,6 +389,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source_state_key=source.name,
                 )
             ):
+                if load_package_state_update:
+                    load_package.state.update(load_package_state_update)  # type: ignore[typeddict-item]
+
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():
                     with contextlib.suppress(DataItemRequiredForDynamicTableHints):
@@ -353,12 +404,17 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
+                commit_load_package_state()
         return load_id
 
-    def commit_packages(self) -> None:
-        """Commits all extracted packages to normalize storage"""
+    def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:
+        """Commits all extracted packages to normalize storage, and adds the pipeline state to the load package"""
         # commit load packages
         for load_id, metrics in self._load_id_metrics.items():
+            if pipline_state_doc:
+                package_state = self.extract_storage.new_packages.get_load_package_state(load_id)
+                package_state["pipeline_state"] = {**pipline_state_doc, "dlt_load_id": load_id}
+                self.extract_storage.new_packages.save_load_package_state(load_id, package_state)
             self.extract_storage.commit_new_load_package(
                 load_id, self.schema_storage[metrics[0]["schema_name"]]
             )

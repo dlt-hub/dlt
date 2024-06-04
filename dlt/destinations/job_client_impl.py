@@ -17,7 +17,8 @@ from typing import (
 import zlib
 import re
 
-from dlt.common import json, pendulum, logger
+from dlt.common import pendulum, logger
+from dlt.common.json import json
 from dlt.common.schema.typing import (
     COLUMN_HINTS,
     TColumnType,
@@ -28,6 +29,7 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import normalize_table_identifiers, pipeline_state_table
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
@@ -42,13 +44,10 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
 )
-from dlt.destinations.exceptions import (
-    DatabaseUndefinedRelation,
-    DestinationSchemaTampered,
-)
+
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
-
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.utils import info_schema_null_to_bool, verify_sql_job_client_schema
@@ -166,7 +165,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return self.sql_client.has_dataset()
 
     def update_stored_schema(
-        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
     ) -> Optional[TSchemaTables]:
         super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
@@ -186,11 +187,18 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             )
         return applied_update
 
-    def drop_tables(self, *tables: str, replace_schema: bool = True) -> None:
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drop tables in destination database and optionally delete the stored schema as well.
+        Clients that support ddl transactions will have both operations performed in a single transaction.
+
+        Args:
+            tables: Names of tables to drop.
+            delete_schema: If True, also delete all versions of the current schema from storage
+        """
         with self.maybe_ddl_transaction():
             self.sql_client.drop_tables(*tables)
-            if replace_schema:
-                self._replace_schema_in_storage(self.schema)
+            if delete_schema:
+                self._delete_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
@@ -403,20 +411,13 @@ WHERE """
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        c_load_id, c_dlt_load_id, c_pipeline_name, c_status, c_created_at = (
-            self._norm_and_escape_columns(
-                "load_id", "_dlt_load_id", "pipeline_name", "status", "created_at"
-            )
+        c_load_id, c_dlt_load_id, c_pipeline_name, c_status = self._norm_and_escape_columns(
+            "load_id", "_dlt_load_id", "pipeline_name", "status"
         )
-        # c_load_id = self.schema.naming.normalize_identifier("load_id")
-        # c_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
-        # c_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
-        # c_status = self.schema.naming.normalize_identifier("status")
-        # c_created_at = self.schema.naming.normalize_identifier("created_at")
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
             f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s AND l.{c_status} = 0"
-            f" ORDER BY {c_created_at} DESC"
+            f" ORDER BY {c_load_id} DESC"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
@@ -428,15 +429,6 @@ WHERE """
         return map(
             self.sql_client.escape_column_name, map(self.schema.naming.normalize_path, columns)
         )
-
-    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
-    #     """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
-    #     query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s ORDER BY created_at DESC"
-    #     result: List[StateInfo] = []
-    #     with self.sql_client.execute_query(query) as cur:
-    #         for row in cur.fetchall():
-    #             result.append(StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4])))
-    #     return result
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
@@ -594,20 +586,15 @@ WHERE """
 
         return StorageSchemaInfo(row[4], row[3], row[0], row[1], inserted_at, schema_str)
 
-    def _replace_schema_in_storage(self, schema: Schema) -> None:
+    def _delete_schema_in_storage(self, schema: Schema) -> None:
         """
-        Save the given schema in storage and remove all previous versions with the same name
+        Delete all stored versions with the same name as given schema
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         (c_schema_name,) = self._norm_and_escape_columns("schema_name")
         self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name)
-        self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
-        # make sure that schema being saved was not modified from the moment it was loaded from storage
-        version_hash = schema.version_hash
-        if version_hash != schema.stored_version_hash:
-            raise DestinationSchemaTampered(schema.name, version_hash, schema.stored_version_hash)
         # get schema string or zip
         schema_str = json.dumps(schema.to_dict())
         # TODO: not all databases store data as utf-8 but this exception is mostly for redshift

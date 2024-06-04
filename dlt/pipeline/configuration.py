@@ -4,7 +4,8 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
-from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.pipeline import TRefreshMode
 
 
 @configspec
@@ -24,10 +25,14 @@ class PipelineConfiguration(BaseConfiguration):
     """Enables the tracing. Tracing saves the execution trace locally and is required by `dlt deploy`."""
     use_single_dataset: bool = True
     """Stores all schemas in single dataset. When False, each schema will get a separate dataset with `{dataset_name}_{schema_name}"""
-    full_refresh: bool = False
+    full_refresh: Optional[bool] = None
+    """Deprecated. Use `dev_mode` instead. When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
+    dev_mode: bool = False
     """When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
     progress: Optional[str] = None
-    runtime: RunConfiguration
+    runtime: RunConfiguration = None
+    refresh: Optional[TRefreshMode] = None
+    """Refresh mode for the pipeline to fully or partially reset a source during run. See docstring of `dlt.pipeline` for more details."""
 
     def on_resolved(self) -> None:
         if not self.pipeline_name:

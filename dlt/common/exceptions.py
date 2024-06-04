@@ -1,4 +1,4 @@
-from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, TypedDict
+from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, Type, TypedDict
 
 
 class ExceptionTrace(TypedDict, total=False):
@@ -94,11 +94,25 @@ class SignalReceivedException(KeyboardInterrupt, TerminalException):
 
 
 class DictValidationException(DltException):
-    def __init__(self, msg: str, path: str, field: str = None, value: Any = None) -> None:
+    def __init__(
+        self,
+        msg: str,
+        path: str,
+        expected_type: Type[Any] = None,
+        field: str = None,
+        value: Any = None,
+        nested_exceptions: List["DictValidationException"] = None,
+    ) -> None:
         self.path = path
+        self.expected_type = expected_type
         self.field = field
         self.value = value
+        self.nested_exceptions = nested_exceptions
+        self.msg = msg
         super().__init__(msg)
+
+    def __str__(self) -> str:
+        return f"In path {self.path}: " + self.msg
 
 
 class ArgumentsOverloadException(DltException):
@@ -131,115 +145,6 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
 
 class SystemConfigurationException(DltException):
     pass
-
-
-class DestinationException(DltException):
-    pass
-
-
-class UnknownDestinationModule(DestinationException):
-    def __init__(self, destination_module: str) -> None:
-        self.destination_module = destination_module
-        if "." in destination_module:
-            msg = f"Destination module {destination_module} could not be found and imported"
-        else:
-            msg = f"Destination {destination_module} is not one of the standard dlt destinations"
-        super().__init__(msg)
-
-
-class InvalidDestinationReference(DestinationException):
-    def __init__(self, destination_module: Any) -> None:
-        self.destination_module = destination_module
-        msg = f"Destination {destination_module} is not a valid destination module."
-        super().__init__(msg)
-
-
-class DestinationTerminalException(DestinationException, TerminalException):
-    pass
-
-
-class DestinationUndefinedEntity(DestinationTerminalException):
-    pass
-
-
-class DestinationTransientException(DestinationException, TransientException):
-    pass
-
-
-class DestinationLoadingViaStagingNotSupported(DestinationTerminalException):
-    def __init__(self, destination: str) -> None:
-        self.destination = destination
-        super().__init__(f"Destination {destination} does not support loading via staging.")
-
-
-class DestinationLoadingWithoutStagingNotSupported(DestinationTerminalException):
-    def __init__(self, destination: str) -> None:
-        self.destination = destination
-        super().__init__(f"Destination {destination} does not support loading without staging.")
-
-
-class DestinationNoStagingMode(DestinationTerminalException):
-    def __init__(self, destination: str) -> None:
-        self.destination = destination
-        super().__init__(f"Destination {destination} cannot be used as a staging")
-
-
-class DestinationIncompatibleLoaderFileFormatException(DestinationTerminalException):
-    def __init__(
-        self, destination: str, staging: str, file_format: str, supported_formats: Iterable[str]
-    ) -> None:
-        self.destination = destination
-        self.staging = staging
-        self.file_format = file_format
-        self.supported_formats = supported_formats
-        supported_formats_str = ", ".join(supported_formats)
-        if self.staging:
-            if not supported_formats:
-                msg = (
-                    f"Staging {staging} cannot be used with destination {destination} because they"
-                    " have no file formats in common."
-                )
-            else:
-                msg = (
-                    f"Unsupported file format {file_format} for destination {destination} in"
-                    f" combination with staging destination {staging}. Supported formats:"
-                    f" {supported_formats_str}"
-                )
-        else:
-            msg = (
-                f"Unsupported file format {file_format} destination {destination}. Supported"
-                f" formats: {supported_formats_str}. Check the staging option in the dlt.pipeline"
-                " for additional formats."
-            )
-        super().__init__(msg)
-
-
-class IdentifierTooLongException(DestinationTerminalException):
-    def __init__(
-        self,
-        destination_name: str,
-        identifier_type: str,
-        identifier_name: str,
-        max_identifier_length: int,
-    ) -> None:
-        self.destination_name = destination_name
-        self.identifier_type = identifier_type
-        self.identifier_name = identifier_name
-        self.max_identifier_length = max_identifier_length
-        super().__init__(
-            f"The length of {identifier_type} {identifier_name} exceeds"
-            f" {max_identifier_length} allowed for {destination_name}"
-        )
-
-
-class DestinationHasFailedJobs(DestinationTerminalException):
-    def __init__(self, destination_name: str, load_id: str, failed_jobs: List[Any]) -> None:
-        self.destination_name = destination_name
-        self.load_id = load_id
-        self.failed_jobs = failed_jobs
-        super().__init__(
-            f"Destination {destination_name} has failed jobs in load package {load_id}"
-        )
 
 
 class PipelineException(DltException):

@@ -5,36 +5,36 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 ---
 
 # MotherDuck
-> 🧪 MotherDuck is still invitation only and intensively tested. Please see the limitations / problems at the end.
+> 🧪 MotherDuck is still invitation-only and is being intensively tested. Please see the limitations/problems at the end.
 
 ## Install dlt with MotherDuck
-**To install the DLT library with MotherDuck dependencies:**
-```
-pip install dlt[motherduck]
+**To install the dlt library with MotherDuck dependencies:**
+```sh
+pip install "dlt[motherduck]"
 ```
 
 :::tip
-Decrease the number of load workers to 3-5 depending on the quality of your internet connection if you see a lot of retries in your logs with various timeout, add the following to your `config.toml`:
+If you see a lot of retries in your logs with various timeouts, decrease the number of load workers to 3-5 depending on the quality of your internet connection. Add the following to your `config.toml`:
 ```toml
 [load]
 workers=3
 ```
-or export **LOAD__WORKERS=3** env variable. See more in [performance](../../reference/performance.md)
+or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../reference/performance.md)
 :::
 
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to MotherDuck by running**
-```
+```sh
 dlt init chess motherduck
 ```
 
 **2. Install the necessary dependencies for MotherDuck by running**
-```
+```sh
 pip install -r requirements.txt
 ```
 
-This will install dlt with **motherduck** extra which contains **duckdb** and **pyarrow** dependencies
+This will install dlt with the **motherduck** extra which contains **duckdb** and **pyarrow** dependencies.
 
 **3. Add your MotherDuck token to `.dlt/secrets.toml`**
 ```toml
@@ -42,63 +42,63 @@ This will install dlt with **motherduck** extra which contains **duckdb** and **
 database = "dlt_data_3"
 password = "<your token here>"
 ```
-Paste your **service token** into password. The `database` field is optional but we recommend to set it. MotherDuck will create this database (in this case `dlt_data_3`) for you.
+Paste your **service token** into the password field. The `database` field is optional, but we recommend setting it. MotherDuck will create this database (in this case `dlt_data_3`) for you.
 
-Alternatively you can use the connection string syntax
+Alternatively, you can use the connection string syntax.
 ```toml
 [destination]
 motherduck.credentials="md:///dlt_data_3?token=<my service token>"
 ```
 
-**3. Run the pipeline**
-```
+**4. Run the pipeline**
+```sh
 python3 chess_pipeline.py
 ```
 
 ## Write disposition
-All write dispositions are supported
+All write dispositions are supported.
 
 ## Data loading
-By default **parquet** files and `COPY` command is used to move files to remote duckdb database. All write dispositions are supported.
+By default, Parquet files and the `COPY` command are used to move files to the remote duckdb database. All write dispositions are supported.
 
-**INSERT** format is also supported and will execute a large INSERT queries directly into the remote database. This is way slower and may exceed maximum query size - so not advised.
+The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
 
 ## dbt support
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb) which is a community supported package. `dbt` version >= 1.5 is required (which is current `dlt` default.)
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. `dbt` version >= 1.5 is required (which is the current `dlt` default.)
 
 ## Syncing of `dlt` state
-This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ## Automated tests
-Each destination must pass few hundred automatic tests. MotherDuck is passing those tests (except the transactions OFC). However we encountered issues with ATTACH timeouts when connecting which makes running such number of tests unstable. Tests on CI are disabled.
+Each destination must pass a few hundred automatic tests. MotherDuck is passing these tests (except for the transactions, of course). However, we have encountered issues with ATTACH timeouts when connecting, which makes running such a number of tests unstable. Tests on CI are disabled.
 
 ## Troubleshooting / limitations
 
 ### I see a lot of errors in the log like DEADLINE_EXCEEDED or Connection timed out
-Motherduck is very sensitive to quality of the internet connection and **number of workers used to load data**. Decrease the number of workers and make sure your internet connection really works. We could not find any way to increase those timeouts yet.
-
+MotherDuck is very sensitive to the quality of the internet connection and the **number of workers used to load data**. Decrease the number of workers and ensure your internet connection is stable. We have not found any way to increase these timeouts yet.
 
 ### MotherDuck does not support transactions.
-Do not use `begin`, `commit` and `rollback` on `dlt` **sql_client** or on duckdb dbapi connection. It has no effect for DML statements (they are autocommit). It is confusing the query engine for DDL (tables not found etc.).
-If your connection if of poor quality and you get a time out when executing DML query it may happen that your transaction got executed,
-
+Do not use `begin`, `commit`, and `rollback` on `dlt` **sql_client** or on the duckdb dbapi connection. It has no effect on DML statements (they are autocommit). It confuses the query engine for DDL (tables not found, etc.).
+If your connection is of poor quality and you get a timeout when executing a DML query, it may happen that your transaction got executed.
 
 ### I see some exception with home_dir missing when opening `md:` connection.
-Some internal component (HTTPS) requires **HOME** env variable to be present. Export such variable to the command line. Here is what we do in our tests:
-```python
+Some internal component (HTTPS) requires the **HOME** env variable to be present. Export such a variable to the command line. Here is what we do in our tests:
+```py
 os.environ["HOME"] = "/tmp"
 ```
-before opening connection
+before opening the connection.
 
 ### I see some watchdog timeouts.
 We also see them.
-```
+```text
 'ATTACH_DATABASE': keepalive watchdog timeout
 ```
-My observation is that if you write a lot of data into the database then close the connection and then open it again to write, there's a chance of such timeout. Possible **WAL** file is being written to the remote duckdb database.
+Our observation is that if you write a lot of data into the database, then close the connection and then open it again to write, there's a chance of such a timeout. A possible **WAL** file is being written to the remote duckdb database.
 
 ### Invalid Input Error: Initialization function "motherduck_init" from file
 Use `duckdb 0.8.1` or above.
 
-<!--@@@DLT_SNIPPET_START tuba::motherduck-->
-<!--@@@DLT_SNIPPET_END tuba::motherduck-->
+### Motherduck connection identifier
+We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
+associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
+<!--@@@DLT_TUBA motherduck-->

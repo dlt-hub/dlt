@@ -1,9 +1,21 @@
 from datetime import datetime, date  # noqa: I251
 from pendulum.tz import UTC
-from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
+from typing import (
+    Any,
+    Dict,
+    Mapping,
+    Tuple,
+    Optional,
+    Union,
+    Callable,
+    Iterable,
+    Iterator,
+    Sequence,
+    Tuple,
+)
 
 from dlt import version
-from dlt.common import pendulum
+from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
 
@@ -18,15 +30,18 @@ try:
     import pyarrow.compute
 except ModuleNotFoundError:
     raise MissingDependencyException(
-        "dlt parquet Helpers", [f"{version.DLT_PKG_NAME}[parquet]"], "dlt Helpers for for parquet."
+        "dlt pyarrow helpers",
+        [f"{version.DLT_PKG_NAME}[parquet]"],
+        "Install pyarrow to be allow to load arrow tables, panda frames and to use parquet files.",
     )
-
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 
 def get_py_arrow_datatype(
-    column: TColumnType, caps: DestinationCapabilitiesContext, tz: str
+    column: TColumnType,
+    caps: DestinationCapabilitiesContext,
+    tz: str,
 ) -> Any:
     column_type = column["data_type"]
     if column_type == "text":
@@ -63,6 +78,7 @@ def get_py_arrow_datatype(
 
 
 def get_py_arrow_timestamp(precision: int, tz: str) -> Any:
+    tz = tz if tz else None
     if precision == 0:
         return pyarrow.timestamp("s", tz=tz)
     if precision <= 3:
@@ -103,7 +119,7 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     return pyarrow.int64()
 
 
-def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
     """Returns (data_type, precision, scale) tuple from pyarrow.DataType"""
     if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
         return dict(data_type="text")
@@ -203,7 +219,40 @@ def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAny
         raise TypeError(f"Unsupported data item type {type(item)}")
 
 
-def normalize_py_arrow_schema(
+def should_normalize_arrow_schema(
+    schema: pyarrow.Schema,
+    columns: TTableSchemaColumns,
+    naming: NamingConvention,
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
+    rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
+    rev_mapping = {v: k for k, v in rename_mapping.items()}
+    nullable_mapping = {k: v.get("nullable", True) for k, v in columns.items()}
+    # All fields from arrow schema that have nullable set to different value than in columns
+    # Key is the renamed column name
+    nullable_updates: Dict[str, bool] = {}
+    for field in schema:
+        norm_name = rename_mapping[field.name]
+        if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
+            nullable_updates[norm_name] = nullable_mapping[norm_name]
+
+    dlt_tables = list(map(naming.normalize_table_identifier, ("_dlt_id", "_dlt_load_id")))
+
+    # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
+    # that should happen in the normalizer
+    columns = {
+        name: column
+        for name, column in columns.items()
+        if name not in dlt_tables or name in rev_mapping
+    }
+
+    # check if nothing to rename
+    skip_normalize = (
+        list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
+    ) and not nullable_updates
+    return not skip_normalize, rename_mapping, rev_mapping, nullable_updates, columns
+
+
+def normalize_py_arrow_item(
     item: TAnyArrowItem,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
@@ -214,26 +263,15 @@ def normalize_py_arrow_schema(
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
+    4. arrow columns with different nullability than corresponding schema columns will be updated
     """
-    rename_mapping = get_normalized_arrow_fields_mapping(item, naming)
-    rev_mapping = {v: k for k, v in rename_mapping.items()}
-    dlt_table_prefix = naming.normalize_table_identifier(DLT_NAME_PREFIX)
-
-    # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
-    # that should happen in the normalizer
-    columns = {
-        name: column
-        for name, column in columns.items()
-        if not name.startswith(dlt_table_prefix) or name in rev_mapping
-    }
-
-    # check if nothing to rename
-    if list(rename_mapping.keys()) == list(rename_mapping.values()):
-        # check if nothing to reorder
-        if list(rename_mapping.keys())[: len(columns)] == list(columns.keys()):
-            return item
-
     schema = item.schema
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
+        should_normalize_arrow_schema(schema, columns, naming)
+    )
+    if not should_normalize:
+        return item
+
     new_fields = []
     new_columns = []
 
@@ -242,8 +280,12 @@ def normalize_py_arrow_schema(
         field_name = rev_mapping.pop(column_name, column_name)
         if field_name in rename_mapping:
             idx = schema.get_field_index(field_name)
+            new_field = schema.field(idx).with_name(column_name)
+            if column_name in nullable_updates:
+                # Set field nullable to match column
+                new_field = new_field.with_nullable(nullable_updates[column_name])
             # use renamed field
-            new_fields.append(schema.field(idx).with_name(column_name))
+            new_fields.append(new_field)
             new_columns.append(item.column(idx))
         else:
             # column does not exist in pyarrow. create empty field and column
@@ -266,10 +308,10 @@ def normalize_py_arrow_schema(
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
 
 
-def get_normalized_arrow_fields_mapping(item: TAnyArrowItem, naming: NamingConvention) -> StrStr:
+def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
     """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
     norm_f = naming.normalize_identifier
-    name_mapping = {n.name: norm_f(n.name) for n in item.schema}
+    name_mapping = {n.name: norm_f(n.name) for n in schema}
     # verify if names uniquely normalize
     normalized_names = set(name_mapping.values())
     if len(name_mapping) != len(normalized_names):
@@ -294,22 +336,22 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
         result[field.name] = {
             "name": field.name,
             "nullable": field.nullable,
-            **_get_column_type_from_py_arrow(field.type),
+            **get_column_type_from_py_arrow(field.type),
         }
     return result
 
 
-def get_row_count(parquet_file: TFileOrPath) -> int:
-    """Get the number of rows in a parquet file.
+def get_parquet_metadata(parquet_file: TFileOrPath) -> Tuple[int, pyarrow.Schema]:
+    """Gets parquet file metadata (including row count and schema)
 
     Args:
         parquet_file (str): path to parquet file
 
     Returns:
-        int: number of rows
+        FileMetaData: file metadata
     """
     with pyarrow.parquet.ParquetFile(parquet_file) as reader:
-        return reader.metadata.num_rows  # type: ignore[no-any-return]
+        return reader.metadata.num_rows, reader.schema_arrow
 
 
 def is_arrow_item(item: Any) -> bool:

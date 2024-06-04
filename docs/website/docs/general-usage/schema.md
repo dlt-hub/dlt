@@ -36,9 +36,52 @@ the order is lost.
 
 ## Naming convention
 
+<<<<<<< HEAD
 Each schema contains [naming convention](naming-convention.md) that tells `dlt` how to translate identifiers to the
 namespace that the destination understands. This convention can be configured, changed in code or enforced via
 destination.
+=======
+`dlt` creates tables, child tables and column schemas from the data. The data being loaded,
+typically JSON documents, contains identifiers (i.e. key names in a dictionary) with any Unicode
+characters, any lengths and naming styles. On the other hand the destinations accept very strict
+namespaces for their identifiers. Like Redshift that accepts case-insensitive alphanumeric
+identifiers with maximum 127 characters.
+
+Each schema contains `naming convention` that tells `dlt` how to translate identifiers to the
+namespace that the destination understands.
+
+The default naming convention:
+
+1. Converts identifiers to snake_case, small caps. Removes all ascii characters except ascii
+   alphanumerics and underscores.
+1. Adds `_` if name starts with number.
+1. Multiples of `_` are converted into single `_`.
+1. The parent-child relation is expressed as double `_` in names.
+1. It shorts the identifier if it exceed the length at the destination.
+
+> 💡 Standard behavior of `dlt` is to **use the same naming convention for all destinations** so
+> users see always the same tables and columns in their databases.
+
+> 💡 If you provide any schema elements that contain identifiers via decorators or arguments (i.e.
+> `table_name` or `columns`) all the names used will be converted via the naming convention when
+> adding to the schema. For example if you execute `dlt.run(... table_name="CamelCase")` the data
+> will be loaded into `camel_case`.
+
+> 💡 Use simple, short small caps identifiers for everything!
+
+To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention, in "config.toml" as follows:
+```toml
+[schema]
+naming="direct"
+```
+:::caution
+Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
+:::
+
+The naming convention is configurable and users can easily create their own
+conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
+DuckDB).
+>>>>>>> devel
 
 ## Data normalizer
 
@@ -121,7 +164,7 @@ Now imagine the data has changed and `id` field also contains strings
 
 ```py
 data = [
-  {"id": 1, "human_name": "Alice"}
+  {"id": 1, "human_name": "Alice"},
   {"id": "idx-nr-456", "human_name": "Bob"}
 ]
 ```
@@ -185,9 +228,14 @@ and columns are inferred from data. For example you can assign **primary_key** h
 ### Data type autodetectors
 
 You can define a set of functions that will be used to infer the data type of the column from a
+<<<<<<< HEAD
 value. The functions are run from top to bottom on the lists. Look in `detections.py` to see what is
 available. **iso_timestamp** detector that looks for ISO 8601 strings and converts them to **timestamp**
 is enabled by default.
+=======
+value. The functions are run from top to bottom on the lists. Look in [`detections.py`](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/detections.py) to see what is
+available.
+>>>>>>> devel
 
 ```yaml
 settings:
@@ -195,6 +243,9 @@ settings:
     - timestamp
     - iso_timestamp
     - iso_date
+    - large_integer
+    - hexbytes_to_text
+    - wei_to_double
 ```
 
 Alternatively you can add and remove detections from code:
@@ -276,8 +327,43 @@ Here's same thing in code
     }
   )
 ```
+### Applying data types directly with `@dlt.resource` and `apply_hints`
+`dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
+
+### Direct specification in `@dlt.resource`
+Directly define data types and their properties, such as nullability, within the `@dlt.resource` decorator. This eliminates the dependency on external schema files. For example:
+
+```py
+@dlt.resource(name='my_table', columns={"my_column": {"data_type": "bool", "nullable": True}})
+def my_resource():
+    for i in range(10):
+        yield {'my_column': i % 2 == 0}
+```
+This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
+
+#### Using `apply_hints`
+When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
+
+For example, to apply a complex data type across all collections from a MongoDB source:
+
+```py
+all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
+source_data = mongodb().with_resources(*all_collections)
+
+for col in all_collections:
+    source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "complex"}})
+
+pipeline = dlt.pipeline(
+    pipeline_name="mongodb_pipeline",
+    destination="duckdb",
+    dataset_name="mongodb_data"
+)
+load_info = pipeline.run(source_data)
+```
+This example iterates through MongoDB collections, applying the complex [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## Export and import schema files
+
 
 Please follow the guide on [how to adjust a schema](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
 schema files in your pipeline.
@@ -316,7 +402,7 @@ schema available via `dlt.current.source_schema()`.
 
 Example:
 
-```python
+```py
 @dlt.source
 def textual(nesting_level: int):
     # get the source schema from the `current` context
@@ -325,6 +411,10 @@ def textual(nesting_level: int):
     schema.remove_type_detection("iso_timestamp")
     # convert UNIX timestamp (float, withing a year from NOW) into timestamp
     schema.add_type_detection("timestamp")
+<<<<<<< HEAD
+=======
+    schema._compile_settings()
+>>>>>>> devel
 
-    return dlt.resource(...)
+    return dlt.resource([])
 ```

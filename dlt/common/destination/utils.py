@@ -1,13 +1,11 @@
 from typing import List
 
 from dlt.common import logger
-from dlt.common.exceptions import IdentifierTooLongException
+from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import TTableSchema
-from dlt.common.schema.utils import (
-    is_complete_column,
-)
+from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.utils import is_complete_column
 from dlt.common.typing import DictStrStr
 
 from .capabilities import DestinationCapabilitiesContext

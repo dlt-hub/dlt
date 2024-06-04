@@ -2,10 +2,23 @@ import os
 import ast
 import contextlib
 import tomlkit
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Tuple, Type, Sequence
+from typing import (
+    Any,
+    Dict,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Tuple,
+    Type,
+    Sequence,
+    get_args,
+    Literal,
+    get_origin,
+    List,
+)
 from collections.abc import Mapping as C_Mapping
 
-from dlt.common import json
+from dlt.common.json import json
 from dlt.common.typing import AnyType, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
@@ -51,25 +64,35 @@ def deserialize_value(key: str, value: Any, hint: Type[TAny]) -> TAny:
                                 raise
                 return c  # type: ignore
 
+            literal_values: Tuple[Any, ...] = ()
+            if get_origin(hint) is Literal:
+                # Literal fields are validated against the literal values
+                literal_values = get_args(hint)
+                hint_origin = type(literal_values[0])
+            else:
+                hint_origin = hint
+
             # coerce value
-            hint_dt = py_type_to_sc_type(hint)
+            hint_dt = py_type_to_sc_type(hint_origin)
             value_dt = py_type_to_sc_type(type(value))
 
             # eval only if value is string and hint is "complex"
             if value_dt == "text" and hint_dt == "complex":
-                if hint is tuple:
+                if hint_origin is tuple:
                     # use literal eval for tuples
                     value = ast.literal_eval(value)
                 else:
                     # use json for sequences and mappings
                     value = json.loads(value)
                 # exact types must match
-                if not isinstance(value, hint):
+                if not isinstance(value, hint_origin):
                     raise ValueError(value)
             else:
                 # for types that are not complex, reuse schema coercion rules
                 if value_dt != hint_dt:
                     value = coerce_value(hint_dt, value_dt, value)
+                if literal_values and value not in literal_values:
+                    raise ConfigValueCannotBeCoercedException(key, value, hint)
         return value  # type: ignore
     except ConfigValueCannotBeCoercedException:
         raise
@@ -122,8 +145,6 @@ def log_traces(
     default_value: Any,
     traces: Sequence[LookupTrace],
 ) -> None:
-    from dlt.common import logger
-
     # if logger.is_logging() and logger.log_level() == "DEBUG" and config:
     #     logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
     # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")

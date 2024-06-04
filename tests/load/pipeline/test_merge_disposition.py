@@ -11,14 +11,14 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
+from dlt.common.schema.exceptions import SchemaException
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.pipeline.utils import assert_load_info
-from tests.load.pipeline.utils import load_table_counts, select_data
+from tests.pipeline.utils import assert_load_info, load_table_counts, select_data
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 # uncomment add motherduck tests
@@ -26,11 +26,12 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("eth_2", full_refresh=True)
+    p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v5.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
@@ -96,7 +97,7 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_1", full_refresh=True)
+    p = destination_config.setup_pipeline("github_1", dev_mode=True)
 
     with open(
         "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
@@ -148,18 +149,20 @@ def github():
         with open(
             "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
         ) as f:
-            yield from json.load(f)
+            for item in json.load(f):
+                yield item
 
     return load_issues
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_source_compound_keys_and_changes(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
 
     info = p.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -208,7 +211,7 @@ def test_merge_source_compound_keys_and_changes(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_no_child_tables(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     assert github_data.max_table_nesting is None
     assert github_data.root_key is True
@@ -237,11 +240,18 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
+# mark as essential for now
+@pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
 )
 def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    # NOTE: we can test filesystem destination merge behavior here too, will also fallback!
+    if destination_config.file_format == "insert_values":
+        pytest.skip("Insert values row count checking is buggy, skipping")
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     # remove all keys
     github_data.load_issues.apply_hints(merge_key=(), primary_key=())
@@ -261,15 +271,15 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    # only ten rows remains. merge falls back to replace when no keys are specified
-    assert github_1_counts["issues"] == 10 if destination_config.supports_merge else 100 - 45
+    # we have 10 rows more, merge falls back to append if no keys present
+    assert github_1_counts["issues"] == 100 - 45 + 10
 
 
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_merge_keys_non_existing_columns(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     # set keys names that do not exist in the data
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
@@ -288,14 +298,14 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     if not destination_config.supports_merge:
         return
 
-    # all the keys are invalid so the merge falls back to replace
+    # all the keys are invalid so the merge falls back to append
     github_data = github()
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
     github_data.load_issues.add_filter(take_first(1))
     info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_2_counts["issues"] == 1
+    assert github_2_counts["issues"] == 100 - 45 + 1
     with p._sql_job_client(p.default_schema) as job_c:
         _, table_schema = job_c.get_storage_table("issues")
         assert "url" in table_schema
@@ -308,7 +318,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     ids=lambda x: x.name,
 )
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     github_data = github()
     # generate some complex types
     github_data.max_table_nesting = 2
@@ -437,7 +447,7 @@ def test_merge_with_dispatch_and_incremental(
         ]
 
     # load to destination
-    p = destination_config.setup_pipeline("github_3", full_refresh=True)
+    p = destination_config.setup_pipeline("github_3", dev_mode=True)
     info = p.run(
         _get_shuffled_events(True) | github_resource,
         loader_file_format=destination_config.file_format,
@@ -497,7 +507,7 @@ def test_merge_with_dispatch_and_incremental(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_deduplicate_single_load(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(write_disposition="merge", primary_key="id")
     def duplicates():
@@ -528,7 +538,7 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(write_disposition="merge", merge_key="id")
     def duplicates():
@@ -565,7 +575,7 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     def r(data):
         yield data
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     data = [{"id": 1, "simple": "foo", "complex": [1, 2, 3]}]
     info = p.run(r(data), loader_file_format=destination_config.file_format)
@@ -586,8 +596,10 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("key_type", ["primary_key", "merge_key"])
+@pytest.mark.parametrize("key_type", ["primary_key", "merge_key", "no_key"])
 def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
+    # no_key setting will have the effect that hard deletes have no effect, since hard delete records
+    # can not be matched
     table_name = "test_hard_delete_hint"
 
     @dlt.resource(
@@ -602,8 +614,11 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         data_resource.apply_hints(primary_key="id", merge_key="")
     elif key_type == "merge_key":
         data_resource.apply_hints(primary_key="", merge_key="id")
+    elif key_type == "no_key":
+        # we test what happens if there are no merge keys
+        pass
 
-    p = destination_config.setup_pipeline(f"abstract_{key_type}", full_refresh=True)
+    p = destination_config.setup_pipeline(f"abstract_{key_type}", dev_mode=True)
 
     # insert two records
     data = [
@@ -620,7 +635,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     ]
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name)[table_name] == (1 if key_type != "no_key" else 2)
 
     # update one record (None for hard_delete column is treated as "not True")
     data = [
@@ -628,16 +643,17 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     ]
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name)[table_name] == (1 if key_type != "no_key" else 3)
 
     # compare observed records with expected records
-    qual_name = p.sql_client().make_qualified_table_name(table_name)
-    observed = [
-        {"id": row[0], "val": row[1], "deleted": row[2]}
-        for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
-    ]
-    expected = [{"id": 2, "val": "baz", "deleted": None}]
-    assert sorted(observed, key=lambda d: d["id"]) == expected
+    if key_type != "no_key":
+        qual_name = p.sql_client().make_qualified_table_name(table_name)
+        observed = [
+            {"id": row[0], "val": row[1], "deleted": row[2]}
+            for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
+        ]
+        expected = [{"id": 2, "val": "baz", "deleted": None}]
+        assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # insert two records with same key
     data = [
@@ -651,6 +667,12 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         assert counts == 2
     elif key_type == "merge_key":
         assert counts == 3
+    elif key_type == "no_key":
+        assert counts == 5
+
+    # we do not need to test "no_key" further
+    if key_type == "no_key":
+        return
 
     # delete one key, resulting in one (primary key) or two (merge key) deleted records
     data = [
@@ -744,7 +766,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
     def data_resource(data):
         yield data
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     # insert two records
     data = [
@@ -785,6 +807,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
         info = p.run(r(), loader_file_format=destination_config.file_format)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, supports_merge=True),
@@ -797,12 +820,15 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         name=table_name,
         write_disposition="merge",
         primary_key="id",  # sort hints only have effect when a primary key is provided
-        columns={"sequence": {"dedup_sort": "desc"}},
+        columns={
+            "sequence": {"dedup_sort": "desc", "nullable": False},
+            "val": {"dedup_sort": None},
+        },
     )
     def data_resource(data):
         yield data
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     # three records with same primary key
     data = [
@@ -825,7 +851,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
     # now test "asc" sorting
-    data_resource.apply_hints(columns={"sequence": {"dedup_sort": "asc"}})
+    data_resource.apply_hints(columns={"sequence": {"dedup_sort": "asc", "nullable": False}})
 
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -844,7 +870,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     table_name = "test_dedup_sort_hint_complex"
     data_resource.apply_hints(
         table_name=table_name,
-        columns={"sequence": {"dedup_sort": "desc"}},
+        columns={"sequence": {"dedup_sort": "desc", "nullable": False}},
     )
 
     # three records with same primary key
@@ -861,13 +887,17 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # compare observed records with expected records, now for child table
     qual_name = p.sql_client().make_qualified_table_name(table_name + "__val")
-    observed = [row[0] for row in select_data(p, f"SELECT value FROM {qual_name}")]
+    value_quoted = p.sql_client().escape_column_name("value")
+    observed = [row[0] for row in select_data(p, f"SELECT {value_quoted} FROM {qual_name}")]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
     table_name = "test_dedup_sort_hint_with_hard_delete"
     data_resource.apply_hints(
         table_name=table_name,
-        columns={"sequence": {"dedup_sort": "desc"}, "deleted": {"hard_delete": True}},
+        columns={
+            "sequence": {"dedup_sort": "desc", "nullable": False},
+            "deleted": {"hard_delete": True},
+        },
     )
 
     # three records with same primary key
@@ -943,3 +973,19 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r(), loader_file_format=destination_config.file_format)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_invalid_merge_strategy(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+    def r():
+        yield {"foo": "bar"}
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaException)

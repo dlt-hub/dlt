@@ -1,5 +1,6 @@
 from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -73,7 +74,11 @@ class MsSqlTypeMapper(TypeMapper):
             return "smallint"
         if precision <= 32:
             return "int"
-        return "bigint"
+        elif precision <= 64:
+            return "bigint"
+        raise TerminalValueError(
+            f"bigint with {precision} bits precision cannot be mapped into mssql integer type"
+        )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
@@ -135,8 +140,8 @@ class MsSqlMergeJob(SqlMergeJob):
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
 
     @classmethod
-    def _new_temp_table_name(cls, name_prefix: str) -> str:
-        name = SqlMergeJob._new_temp_table_name(name_prefix)
+    def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
+        name = SqlMergeJob._new_temp_table_name(name_prefix, sql_client)
         return "#" + name
 
 
@@ -175,8 +180,8 @@ class MsSqlClient(InsertValuesJobClient):
             for h in self.active_hints.keys()
             if c.get(h, False) is True
         )
-        column_name = self.sql_client.escape_column_name(c["name"])
-        return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
+        column_name = self.capabilities.escape_identifier(c["name"])
+        return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]

@@ -1,12 +1,16 @@
 import contextlib
-from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
 import datetime  # noqa: I251
+from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
+
+from pendulum.parsing import (
+    parse_iso8601,
+    DEFAULT_OPTIONS as pendulum_options,
+    _parse_common as parse_datetime_common,
+)
+from pendulum.tz import UTC
 
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
-from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
-from pendulum.tz import UTC
-
 
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
@@ -45,7 +49,7 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
 
 def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     """Parses ISO8601 string into pendulum datetime, date or time. Preserves timezone info.
-    Note: naive datetimes will generated from string without timezone
+    Note: naive datetimes will be generated from string without timezone
 
        we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
        it also tries to parse ISO intervals but the code is very low quality
@@ -56,7 +60,7 @@ def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Dat
         dtv = parse_iso8601(value)
     # now try to parse a set of ISO like dates
     if not dtv:
-        dtv = parse_datetime_common(value)
+        dtv = parse_datetime_common(value, **pendulum_options)
     if isinstance(dtv, datetime.time):
         return pendulum.time(dtv.hour, dtv.minute, dtv.second, dtv.microsecond)
     if isinstance(dtv, datetime.datetime):
@@ -129,7 +133,6 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
     Returns:
         A pendulum.Time object
     """
-
     if isinstance(value, datetime.time):
         if isinstance(value, pendulum.Time):
             return value
@@ -180,6 +183,14 @@ def to_py_date(value: datetime.date) -> datetime.date:
     return value
 
 
+def datetime_to_timestamp(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return int(moment.timestamp())
+
+
+def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return int(moment.timestamp() * 1000)
+
+
 def _datetime_from_ts_or_iso(
     value: Union[int, float, str]
 ) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
@@ -208,10 +219,12 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
     return td
 
 
-T = TypeVar("T", bound=Union[pendulum.DateTime, pendulum.Time])
+TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[pendulum.DateTime, pendulum.Time])
 
 
-def reduce_pendulum_datetime_precision(value: T, microsecond_precision: int) -> T:
-    if microsecond_precision >= 6:
+def reduce_pendulum_datetime_precision(
+    value: TTimeWithPrecision, precision: int
+) -> TTimeWithPrecision:
+    if precision >= 6:
         return value
-    return value.replace(microsecond=value.microsecond // 10 ** (6 - microsecond_precision) * 10 ** (6 - microsecond_precision))  # type: ignore
+    return value.replace(microsecond=value.microsecond // 10 ** (6 - precision) * 10 ** (6 - precision))  # type: ignore

@@ -18,19 +18,19 @@ You can disable telemetry by adding `--disable-telemetry` to any dlt
 
 This command will disable telemetry both in the current project and globally for the whole machine:
 
-```shell
+```sh
 dlt --disable-telemetry
 ```
 
 While this command will also permanently disable telemetry and then initialize the `chess` pipeline:
 
-```shell
+```sh
 dlt --disable-telemetry init chess duckdb
 ```
 
 You can check the current telemetry status with this command:
 
-```shell
+```sh
 dlt telemetry
 ```
 
@@ -133,14 +133,26 @@ The message context contains the following information:
 - The `library`, `os`, and `python` give us some understanding of the runtime environment of the
   `dlt`.
 
-## Sending telemetry data to your own Segment instance
+## Send telemetry data to your own tracker
+You can setup your own tracker to receive telemetry events. You can create scalable, globally distributed
+edge service [using `dlt` and Cloudflare](https://dlthub.com/docs/blog/dlt-segment-migration).
 
-You can send the anonymous telemetry information to your own [Segment](https://segment.com/)
+Once your tracker is running, point `dlt` to it. You can use global `config.toml` to redirect all pipelines on
+a given machine.
+
+```toml
+[runtime]
+dlthub_telemetry_endpoint="telemetry-tracker.services4745.workers.dev"
+```
+
+### Track events with Segment
+
+You can send the anonymous telemetry to your own [Segment](https://segment.com/)
 account. You need to create a HTTP Server source and generate a WRITE KEY, which you then pass to
 the `config.toml` like this:
 
 ```toml
 [runtime]
-
+dlthub_telemetry_endpoint="https://api.segment.io/v1/track"
 dlthub_telemetry_segment_write_key="<write_key>"
 ```
