@@ -1,12 +1,16 @@
+import os
 import uuid
-from typing import Sequence
+from typing import Sequence, Union
 
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.typing import DictStrAny
+from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 
 
-def generate_uuid(data: DictStrAny, unique_identifiers: Sequence[str], table_name: str) -> str:
+def generate_uuid(
+    data: DictStrAny, unique_identifiers: Sequence[str], table_name: str
+) -> str:
     """Generates deterministic UUID - used for deduplication.
 
     Args:
@@ -34,3 +38,9 @@ def list_unique_identifiers(table_schema: TTableSchema) -> Sequence[str]:
         if primary_keys := get_columns_names_with_prop(table_schema, "primary_key"):
             return primary_keys
     return get_columns_names_with_prop(table_schema, "unique")
+
+
+def set_non_standard_providers_environment_variables(
+    embedding_model_provider: TEmbeddingProvider, api_key: Union[str, None]
+) -> None:
+    os.environ[embedding_model_provider.upper()] = api_key or ""
