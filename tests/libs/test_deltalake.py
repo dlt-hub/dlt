@@ -6,17 +6,18 @@ from deltalake import DeltaTable
 
 import dlt
 from dlt.common.libs.pyarrow import pyarrow as pa
-from dlt.common.configuration.specs import AwsCredentials
-from dlt.destinations.impl.filesystem.delta_utils import (
+from dlt.common.libs.deltalake import (
     write_delta_table,
     _deltalake_storage_options,
 )
+from dlt.common.configuration.specs import AwsCredentials
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,
 )
 
 from tests.cases import arrow_table_all_data_types
+from tests.load.conftest import default_buckets_env
 
 
 @pytest.fixture()

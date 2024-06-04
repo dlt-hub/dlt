@@ -1,10 +1,21 @@
 from typing import Optional, Dict, Union
 
+from dlt import version
 from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import dataset_to_table, cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.exceptions import MissingDependencyException
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+
+try:
+    from deltalake import write_deltalake
+except ModuleNotFoundError:
+    raise MissingDependencyException(
+        "dlt deltalake helpers",
+        [f"{version.DLT_PKG_NAME}[deltalake]"],
+        "Install `deltalake` so dlt can create Delta tables in the `filesystem` destination.",
+    )
 
 
 def ensure_delta_compatible_arrow_table(table: pa.table) -> pa.Table:
@@ -44,7 +55,6 @@ def write_delta_table(
     storage_options: Optional[Dict[str, str]] = None,
 ) -> None:
     """Writes in-memory Arrow table to on-disk Delta table."""
-    from deltalake import write_deltalake
 
     table = dataset_to_table(data)
 
