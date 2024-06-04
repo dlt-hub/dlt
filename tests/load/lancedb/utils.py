@@ -27,12 +27,7 @@ def assert_table(
     assert exists
 
     qualified_collection_name = client._make_qualified_table_name(collection_name)
-    records = (
-        client.db_client.open_table(qualified_collection_name)
-        .search()
-        .limit(50)
-        .to_list()
-    )
+    records = client.db_client.open_table(qualified_collection_name).search().limit(50).to_list()
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)
