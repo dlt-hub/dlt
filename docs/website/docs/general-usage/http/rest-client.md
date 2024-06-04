@@ -305,7 +305,9 @@ client = RESTClient(
 
 ### Implementing a custom paginator
 
-When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and `update_state` and `update_request` methods:
+When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and implementing `init_request`, `update_state` and `update_request` methods:
+
+- `init_request(request: Request) -> None`: This method is called before making the first API call in the `RESTClient.paginate` method. You can use this method to set up the initial request query parameters, headers, etc. For example, you can set the initial page number or cursor value.
 
 - `update_state(response: Response) -> None`: This method updates the paginator's state based on the response of the API call. Typically, you extract pagination details (like the next page reference) from the response and store them in the paginator instance.
 
@@ -324,6 +326,10 @@ class QueryParamPaginator(BasePaginator):
         super().__init__()
         self.page_param = page_param
         self.page = initial_page
+
+    def init_request(self, request: Request) -> None:
+        # This will set the initial page number (e.g. page=1)
+        self.update_request(request)
 
     def update_state(self, response: Response) -> None:
         # Assuming the API returns an empty list when no more data is available
