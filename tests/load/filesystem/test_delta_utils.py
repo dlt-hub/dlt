@@ -7,7 +7,10 @@ from deltalake import DeltaTable
 
 import dlt
 from dlt.common.configuration.specs import AwsCredentials
-from dlt.destinations.impl.filesystem.utils import write_delta_table, _deltalake_storage_options
+from dlt.destinations.impl.filesystem.delta_utils import (
+    write_delta_table,
+    _deltalake_storage_options,
+)
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemClient,
     FilesystemDestinationClientConfiguration,

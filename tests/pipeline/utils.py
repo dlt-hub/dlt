@@ -153,7 +153,7 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 #
 def _get_delta_table(client: FilesystemClient, table_name: str) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
     from deltalake import DeltaTable
-    from dlt.destinations.impl.filesystem.utils import _deltalake_storage_options
+    from dlt.destinations.impl.filesystem.delta_utils import _deltalake_storage_options
 
     table_dir = client.get_table_dir(table_name)
     remote_table_dir = f"{client.config.protocol}://{table_dir}"

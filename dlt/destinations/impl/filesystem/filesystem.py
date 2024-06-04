@@ -115,7 +115,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
     def write(self) -> None:
         import pyarrow.dataset as ds
-        from dlt.destinations.impl.filesystem.utils import (
+        from dlt.destinations.impl.filesystem.delta_utils import (
             write_delta_table,
             _deltalake_storage_options,
         )
