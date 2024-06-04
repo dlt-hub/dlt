@@ -361,7 +361,9 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = p.destination_client()  # type: ignore[assignment]
 
     assert p.dataset_name is None
-    info = p.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    info = p.run(
+        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
     # dataset in load info is empty
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]
