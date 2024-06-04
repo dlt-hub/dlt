@@ -166,7 +166,7 @@ What tables are not considered new:
 
 ### Working with datasets that have manually added tables and columns on the first load
 
-If you are loading to a dataset that already has a given table not created by `dlt`, `dlt` will not know about this table while enforcing schema contracts. This means that if you do a load where the `tables` are set to `evolve`, all will work as planned. If you have `tables` set to `freeze`, dlt will raise an exception because it thinks you are creating a new table (which you are from dlts perspective). You can allow `evolve` for one load and then switch back to `freeze`. 
+In some cases you might be working with datasets that have tables or columns created outside of dlt. If you are loading to a table not created by `dlt` for the first time, `dlt` will not know about this table while enforcing schema contracts. This means that if you do a load where the `tables` are set to `evolve`, all will work as planned. If you have `tables` set to `freeze`, dlt will raise an exception because it thinks you are creating a new table (which you are from dlts perspective). You can allow `evolve` for one load and then switch back to `freeze`. 
 
 The same thing will happen if `dlt` knows your table, but you have manually added a column to your destination and you have `columns` set to `freeze`.
 
