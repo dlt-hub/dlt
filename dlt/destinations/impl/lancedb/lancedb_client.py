@@ -476,11 +476,9 @@ class LoadLanceDBJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
         self.schema = schema
-        self.config = client_config
         self.db_client = db_client
         self.type_mapper = type_mapper
         self.table_name = table_name
-        self.table_schema: TTableSchema = table_schema
         self.unique_identifiers = list_unique_identifiers(table_schema)
         self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.embedding_model_func = model_func
