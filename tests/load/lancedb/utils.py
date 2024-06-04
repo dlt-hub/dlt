@@ -23,10 +23,10 @@ def assert_table(
 ) -> None:
     client: LanceDBClient = pipeline.destination_client()  # type: ignore[assignment]
 
-    exists = client._table_exists(collection_name)
+    exists = client.table_exists(collection_name)
     assert exists
 
-    qualified_collection_name = client._make_qualified_table_name(collection_name)
+    qualified_collection_name = client.make_qualified_table_name(collection_name)
     records = client.db_client.open_table(qualified_collection_name).search().limit(50).to_list()
 
     if expected_items_count is not None:
