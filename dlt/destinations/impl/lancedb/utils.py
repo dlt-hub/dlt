@@ -8,9 +8,7 @@ from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
 
 
-def generate_uuid(
-    data: DictStrAny, unique_identifiers: Sequence[str], table_name: str
-) -> str:
+def generate_uuid(data: DictStrAny, unique_identifiers: Sequence[str], table_name: str) -> str:
     """Generates deterministic UUID - used for deduplication.
 
     Args:
