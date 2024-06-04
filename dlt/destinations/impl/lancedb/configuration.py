@@ -29,7 +29,7 @@ class LanceDBCredentials(CredentialsConfiguration):
     __config_gen_annotations__: ClassVar[List[str]] = [
         "uri",
         "api_key",
-        "embedding_model_provider_api_key"
+        "embedding_model_provider_api_key",
     ]
 
 

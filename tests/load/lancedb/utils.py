@@ -1,8 +1,8 @@
 from typing import Union, List, Any
 
 import numpy as np
-from lancedb.embeddings import TextEmbeddingFunction
-from lancedb.pydantic import LanceModel, Vector
+from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
+from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -30,12 +30,7 @@ def assert_table(
     assert exists
 
     qualified_collection_name = client._make_qualified_table_name(collection_name)
-    records = (
-        client.db_client.open_table(qualified_collection_name)
-        .search()
-        .limit(50)
-        .to_list()
-    )
+    records = client.db_client.open_table(qualified_collection_name).search().limit(50).to_list()
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)
@@ -72,9 +67,10 @@ def drop_active_pipeline_data() -> None:
 
 
 class MockEmbeddingFunc(TextEmbeddingFunction):
-    def generate_embeddings(  # type: ignore
-        self, texts: Union[List[str], np.ndarray]
-    ) -> List[np.array]:
+    def generate_embeddings(
+        self,
+        texts: Union[List[str], np.ndarray],  # type: ignore[type-arg]
+    ) -> List[np.array]:  # type: ignore[valid-type]
         return [np.array(None)]
 
     def ndims(self) -> int:
@@ -104,5 +100,5 @@ def test_infer_lancedb_model_from_data() -> None:
     }
 
     assert issubclass(inferred_model, LanceModel)
-    for field_name, (field_type, field_default) in expected_fields.items():
+    for field_name in expected_fields:
         assert field_name in inferred_model.model_fields

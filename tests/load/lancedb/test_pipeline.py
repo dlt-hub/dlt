@@ -29,7 +29,7 @@ def test_adapter_and_hints() -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
-    def some_data():  # type: ignore[no-untyped-def]
+    def some_data():
         yield from next(generator_instance1)
 
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
@@ -50,7 +50,7 @@ def test_basic_state_and_schema() -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource
-    def some_data():  # type: ignore[no-untyped-def]
+    def some_data():
         yield from next(generator_instance1)
 
     lancedb_adapter(
@@ -361,12 +361,10 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = p.destination_client()  # type: ignore[assignment]
 
     assert p.dataset_name is None
-    info = p.run(
-        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
-    )
+    info = p.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # dataset in load info is empty
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
-    assert client.sentinel_collection == "DltSentinelCollection"
+    assert client.sentinel_table == "DltSentinelCollection"
     assert_table(p, "content", expected_items_count=3)
