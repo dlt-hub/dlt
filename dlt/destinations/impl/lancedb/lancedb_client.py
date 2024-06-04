@@ -102,7 +102,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
         # Some use ENV variables and others allow passing api key as an argument.
         # To account for this, we set provider environment variable as well.
         set_non_standard_providers_environment_variables(
-            self.config.embedding_model_provider, self.config.credentials.embedding_model_provider_api_key
+            self.config.embedding_model_provider,
+            self.config.credentials.embedding_model_provider_api_key,
         )
         self.model_func: TextEmbeddingFunction = self.registry.get(
             self.config.embedding_model_provider
