@@ -275,13 +275,18 @@ def test_pipeline_delta_filesystem_destination(
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 20
 
-    # ensure write disposition is handled
+    # ensure "replace" write disposition is handled
+    # should do logical replace, increasing the table version
+    from tests.pipeline.utils import _get_delta_table
+
     info = p.run(data_types(), write_disposition="replace")
     assert_load_info(info)
+    client = cast(FilesystemClient, p.destination_client())
+    assert _get_delta_table(client, "data_types").version() == 2
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
-    # resolves to `append` behavior
+    # `merge` resolves to `append` behavior
     info = p.run(data_types(), write_disposition="merge")
     assert_load_info(info)
     rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]

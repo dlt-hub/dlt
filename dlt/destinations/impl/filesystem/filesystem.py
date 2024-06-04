@@ -336,6 +336,12 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         return False
 
+    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+        return (
+            table["write_disposition"] == "replace"
+            and not table.get("table_format") == "delta"  # Delta can do a logical replace
+        )
+
     #
     # state stuff
     #

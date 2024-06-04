@@ -151,6 +151,18 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 #
 # Load table dicts
 #
+def _get_delta_table(client: FilesystemClient, table_name: str) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
+    from deltalake import DeltaTable
+    from dlt.destinations.impl.filesystem.utils import _deltalake_storage_options
+
+    table_dir = client.get_table_dir(table_name)
+    remote_table_dir = f"{client.config.protocol}://{table_dir}"
+    return DeltaTable(
+        remote_table_dir,
+        storage_options=_deltalake_storage_options(client.config),
+    )
+
+
 def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
     client = p._fs_client()
@@ -161,16 +173,8 @@ def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, Li
             table_name in p.default_schema.data_table_names()
             and get_table_format(p.default_schema.tables, table_name) == "delta"
         ):
-            from deltalake import DeltaTable
-            from dlt.destinations.impl.filesystem.utils import _deltalake_storage_options
-
             assert isinstance(client, FilesystemClient)
-            table_dir = client.get_table_dir(table_name)
-            remote_table_dir = f"{client.config.protocol}://{table_dir}"
-            dt = DeltaTable(
-                remote_table_dir,
-                storage_options=_deltalake_storage_options(client.config),
-            )
+            dt = _get_delta_table(client, table_name)
             result[table_name] = dt.to_pyarrow_table().to_pylist()
         else:
             table_files = client.list_table_files(table_name)
