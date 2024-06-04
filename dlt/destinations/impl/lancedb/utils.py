@@ -1,7 +1,7 @@
 from typing import List, Type, Optional
 
-from lancedb.embeddings import TextEmbeddingFunction
-from lancedb.pydantic import LanceModel, Vector
+from lancedb.embeddings import TextEmbeddingFunction  # type: ignore[import-untyped]
+from lancedb.pydantic import LanceModel, Vector  # type: ignore[import-untyped]
 from pydantic import create_model
 
 from dlt.common.typing import DictStrAny
@@ -29,7 +29,7 @@ def infer_lancedb_model_from_data(
         Type[LanceModel]: The inferred LanceModel.
     """
 
-    template_schema: Type[LanceModel] = create_model(
+    template_schema: Type[LanceModel] = create_model(  # type: ignore[call-overload]
         "TemplateSchema",
         __base__=LanceModel,
         __module__=__name__,
@@ -37,27 +37,25 @@ def infer_lancedb_model_from_data(
         **{
             id_field_name: (str, ...),
             vector_field_name: (
-                Vector(
-                    embedding_model_dimensions
-                    if embedding_model_dimensions
-                    else embedding_model_func.ndims()
-                ),
+                Vector(embedding_model_dimensions or embedding_model_func.ndims()),
                 ...,
             ),
         },
     )
 
-    field_types = {}
-    for field_name in data[0].keys():
-        if field_name != id_field_name and field_name != vector_field_name:
-            field_types[field_name] = (
-                str,  # Infer all fields as str
+    field_types = {
+        field_name: (
+            str,  # Infer all fields temporarily as str
+            (
                 embedding_model_func.SourceField()
                 if field_name in embedding_fields
-                else None,  # Set default to None to make fields optional
-            )
-
-    inferred_schema: Type[LanceModel] = create_model(
+                else None  # Set default to None to make fields optional
+            ),
+        )
+        for field_name in data[0].keys()
+        if field_name not in [id_field_name, vector_field_name]
+    }
+    inferred_schema: Type[LanceModel] = create_model(  # type: ignore[call-overload]
         "InferredSchema",
         __base__=template_schema,
         __module__=__name__,
