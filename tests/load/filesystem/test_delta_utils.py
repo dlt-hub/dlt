@@ -2,10 +2,10 @@ import os
 from typing import Iterator, Tuple, cast
 
 import pytest
-import pyarrow as pa
 from deltalake import DeltaTable
 
 import dlt
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.destinations.impl.filesystem.delta_utils import (
     write_delta_table,

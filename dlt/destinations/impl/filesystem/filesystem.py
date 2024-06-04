@@ -114,7 +114,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         self.write()
 
     def write(self) -> None:
-        import pyarrow.dataset as ds
+        from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.destinations.impl.filesystem.delta_utils import (
             write_delta_table,
             _deltalake_storage_options,
@@ -124,7 +124,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
         write_delta_table(
             path=self.client.make_remote_uri(self.make_remote_path()),
-            data=ds.dataset(file_paths),
+            data=pa.dataset.dataset(file_paths),
             write_disposition=self.table["write_disposition"],
             storage_options=_deltalake_storage_options(self.client.config),
         )

@@ -1,8 +1,7 @@
 from typing import Optional, Dict, Union
 
-import pyarrow as pa
-
 from dlt.common import logger
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import dataset_to_table, cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
