@@ -1,3 +1,4 @@
+import os
 import uuid
 from types import TracebackType
 from typing import (
@@ -38,7 +39,10 @@ from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb import capabilities
-from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
+from dlt.destinations.impl.lancedb.configuration import (
+    LanceDBClientConfiguration,
+    TEmbeddingProvider,
+)
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.utils import infer_lancedb_model_from_data
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -67,6 +71,12 @@ class LoadsSchema(LanceModel):
     inserted_at: str
 
 
+def set_non_standard_providers_environment_variables(
+    embedding_model_provider: TEmbeddingProvider, api_key: Union[str, None]
+) -> None:
+    os.environ[embedding_model_provider.upper()] = api_key or ""
+
+
 class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
@@ -84,13 +94,23 @@ class LanceDBClient(JobClientBase, WithStateSync):
         super().__init__(schema, config)
         self.config: LanceDBClientConfiguration = config
         self.db_client: DBConnection = lancedb.connect(
-            **(dict(self.config.credentials)), **(dict(self.config.options))
+            uri=self.config.credentials.uri, api_key=self.config.credentials.api_key
         )
         self.registry = EmbeddingFunctionRegistry.get_instance()
-        # We let dlt handles retries.
+
+        # LanceDB doesn't provide a standardized way to set API keys across providers.
+        # Some use ENV variables and others allow passing api key as an argument.
+        # To account for this, we set provider environment variable as well.
+        set_non_standard_providers_environment_variables(
+            self.config.embedding_model_provider, self.config.credentials.embedding_model_provider_api_key
+        )
         self.model_func: TextEmbeddingFunction = self.registry.get(
-            self.config.provider
-        ).create(name=self.config.embedding_model, max_retries=1)
+            self.config.embedding_model_provider
+        ).create(
+            name=self.config.embedding_model,
+            max_retries=self.config.options.max_retries,
+            api_key=self.config.credentials.api_key,
+        )
 
     @property
     def dataset_name(self) -> str:

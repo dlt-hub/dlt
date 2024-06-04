@@ -1,4 +1,3 @@
-from pprint import pprint
 from typing import List, Type, Optional
 
 from lancedb.embeddings import TextEmbeddingFunction
@@ -65,7 +64,7 @@ def infer_lancedb_model_from_data(
         **field_types,
     )
 
-    pprint(f"template_schema fields:\n{template_schema.model_fields}")
-    pprint(f"inferred_schema fields:\n{inferred_schema.model_fields}")
+    # pprint(f"template_schema fields:\n{template_schema.model_fields}")
+    # pprint(f"inferred_schema fields:\n{inferred_schema.model_fields}")
 
     return inferred_schema

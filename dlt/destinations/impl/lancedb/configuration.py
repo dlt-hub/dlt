@@ -23,10 +23,13 @@ class LanceDBCredentials(CredentialsConfiguration):
     """
     api_key: TSecretStrValue = None
     """API key for the remote connections (LanceDB cloud)."""
+    embedding_model_provider_api_key: str = None
+    """API key for the embedding model provider."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "uri",
         "api_key",
+        "embedding_model_provider_api_key"
     ]
 
 
@@ -74,7 +77,7 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     options: Optional[LanceDBClientOptions] = None
     """LanceDB client options."""
 
-    provider: TEmbeddingProvider = "cohere"
+    embedding_model_provider: TEmbeddingProvider = "cohere"
     """Embedding provider used for generating embeddings. Default is "cohere". You can find the full list of
     providers at https://github.com/lancedb/lancedb/tree/main/python/python/lancedb/embeddings as well as
     https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
@@ -88,7 +91,7 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     __config_gen_annotations__: ClassVar[List[str]] = [
         "embedding_model_dimensions",
         "embedding_model",
-        "provider",
+        "embedding_model_provider",
     ]
 
     def fingerprint(self) -> str:
