@@ -3,7 +3,7 @@ from typing import (
     Any,
 )
 
-from lancedb.exceptions import MissingValueError, MissingColumnError
+from lancedb.exceptions import MissingValueError, MissingColumnError  # type: ignore[import-untyped]
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -26,4 +26,4 @@ def lancedb_error(f: TFun) -> TFun:
         except Exception as e:
             raise DestinationTerminalException(e) from e
 
-    return _wrap
+    return _wrap  # type: ignore[return-value]
