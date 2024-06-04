@@ -1,22 +1,26 @@
-import pytest
 from typing import Iterator
+
+import pytest
 
 import dlt
 from dlt.common import json
 from dlt.common.utils import uniq_id
-
-from dlt.destinations.impl.qdrant.qdrant_adapter import qdrant_adapter, VECTORIZE_HINT
-from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
-from tests.pipeline.utils import assert_load_info
-from tests.load.qdrant.utils import drop_active_pipeline_data, assert_collection
+from dlt.destinations.impl.lancedb.lancedb_adapter import (
+    lancedb_adapter,
+    VECTORIZE_HINT,
+)
+from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+from tests.load.lancedb.utils import drop_active_pipeline_data, assert_table
 from tests.load.utils import sequence_generator
+from tests.pipeline.utils import assert_load_info
+
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
 
 
 @pytest.fixture(autouse=True)
-def drop_qdrant_data() -> Iterator[None]:
+def drop_lancedb_data() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
 
@@ -25,43 +29,47 @@ def test_adapter_and_hints() -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
-    def some_data():
+    def some_data():  # type: ignore[no-untyped-def]
         yield from next(generator_instance1)
 
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
 
-    qdrant_adapter(
+    lancedb_adapter(
         some_data,
         embed=["content"],
     )
 
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-qdrant-embed": True}  # type: ignore[index]
+    assert some_data.columns["content"] == {  # type: ignore
+        "name": "content",
+        "data_type": "text",
+        "x-lancedb-embed": True,
+    }
 
 
 def test_basic_state_and_schema() -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource
-    def some_data():
+    def some_data():  # type: ignore[no-untyped-def]
         yield from next(generator_instance1)
 
-    qdrant_adapter(
+    lancedb_adapter(
         some_data,
         embed=["content"],
     )
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="qdrant",
-        dataset_name="test_pipeline_append_dataset" + uniq_id(),
+        destination="lancedb",
+        dataset_name=f"test_pipeline_append_dataset{uniq_id()}",
     )
     info = pipeline.run(
         some_data(),
     )
     assert_load_info(info)
 
-    client: QdrantClient
-    with pipeline.destination_client() as client:  # type: ignore[assignment]
+    client: LanceDBClient
+    with pipeline.destination_client() as client:  # type: ignore
         # check if we can get a stored schema and state
         schema = client.get_stored_schema()
         print("Print dataset name", client.dataset_name)
@@ -78,15 +86,15 @@ def test_pipeline_append() -> None:
     def some_data():
         yield from next(generator_instance1)
 
-    qdrant_adapter(
+    lancedb_adapter(
         some_data,
         embed=["content"],
     )
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="qdrant",
-        dataset_name="TestPipelineAppendDataset" + uniq_id(),
+        destination="lancedb",
+        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
     )
     info = pipeline.run(
         some_data(),
@@ -94,7 +102,7 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -102,11 +110,11 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data.extend(next(generator_instance2))
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
 
 def test_explicit_append() -> None:
-    """Append should work even when primary key is specified."""
+    """Append should work even when the primary key is specified."""
     data = [
         {"doc_id": 1, "content": "1"},
         {"doc_id": 2, "content": "2"},
@@ -117,21 +125,21 @@ def test_explicit_append() -> None:
     def some_data():
         yield data
 
-    qdrant_adapter(
+    lancedb_adapter(
         some_data,
         embed=["content"],
     )
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="qdrant",
-        dataset_name="TestPipelineAppendDataset" + uniq_id(),
+        destination="lancedb",
+        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
     )
     info = pipeline.run(
         some_data(),
     )
 
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -140,7 +148,7 @@ def test_explicit_append() -> None:
     assert_load_info(info)
 
     data.extend(data)
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
 
 def test_pipeline_replace() -> None:
@@ -151,7 +159,7 @@ def test_pipeline_replace() -> None:
     def some_data():
         yield from next(generator_instance1)
 
-    qdrant_adapter(
+    lancedb_adapter(
         some_data,
         embed=["content"],
     )
@@ -160,9 +168,9 @@ def test_pipeline_replace() -> None:
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_replace",
-        destination="qdrant",
+        destination="lancedb",
         dataset_name="test_pipeline_replace_dataset"
-        + uid,  # Qdrant doesn't mandate any name normalization
+        + uid,  # lancedb doesn't mandate any name normalization
     )
 
     info = pipeline.run(
@@ -170,12 +178,10 @@ def test_pipeline_replace() -> None:
         write_disposition="replace",
     )
     assert_load_info(info)
-    assert (
-        info.dataset_name == "test_pipeline_replace_dataset" + uid
-    )  # Qdrant doesn't mandate any name normalization
+    assert info.dataset_name == f"test_pipeline_replace_dataset{uid}"
 
     data = next(generator_instance2)
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -184,7 +190,7 @@ def test_pipeline_replace() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
 
 def test_pipeline_merge() -> None:
@@ -217,21 +223,23 @@ def test_pipeline_merge() -> None:
     def movies_data():
         yield data
 
-    qdrant_adapter(
+    lancedb_adapter(
         movies_data,
         embed=["description"],
     )
 
     pipeline = dlt.pipeline(
         pipeline_name="movies",
-        destination="qdrant",
-        dataset_name="TestPipelineAppendDataset" + uniq_id(),
+        destination="lancedb",
+        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
     )
     info = pipeline.run(
-        movies_data(), write_disposition="merge", dataset_name="MoviesDataset" + uniq_id()
+        movies_data(),
+        write_disposition="merge",
+        dataset_name=f"MoviesDataset{uniq_id()}",
     )
     assert_load_info(info)
-    assert_collection(pipeline, "movies_data", items=data)
+    assert_table(pipeline, "movies_data", items=data)
 
     # Change some data
     data[0]["title"] = "The Shawshank Redemption 2"
@@ -241,7 +249,7 @@ def test_pipeline_merge() -> None:
         write_disposition="merge",
     )
     assert_load_info(info)
-    assert_collection(pipeline, "movies_data", items=data)
+    assert_table(pipeline, "movies_data", items=data)
 
 
 def test_pipeline_with_schema_evolution():
@@ -260,18 +268,18 @@ def test_pipeline_with_schema_evolution():
     def some_data():
         yield data
 
-    qdrant_adapter(some_data, embed=["content"])
+    lancedb_adapter(some_data, embed=["content"])
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
-        destination="qdrant",
-        dataset_name="TestSchemaEvolutionDataset" + uniq_id(),
+        destination="lancedb",
+        dataset_name=f"TestSchemaEvolutionDataset{uniq_id()}",
     )
     pipeline.run(
         some_data(),
     )
 
-    assert_collection(pipeline, "some_data", items=data)
+    assert_table(pipeline, "some_data", items=data)
 
     aggregated_data = data.copy()
 
@@ -297,20 +305,22 @@ def test_pipeline_with_schema_evolution():
 
     aggregated_data.extend(data)
 
-    assert_collection(pipeline, "some_data", items=aggregated_data)
+    assert_table(pipeline, "some_data", items=aggregated_data)
 
 
 def test_merge_github_nested() -> None:
-    p = dlt.pipeline(destination="qdrant", dataset_name="github1", full_refresh=True)
+    p = dlt.pipeline(destination="lancedb", dataset_name="github1", full_refresh=True)
     assert p.dataset_name.startswith("github1_202")
 
     with open(
-        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+        "tests/normalize/cases/github.issues.load_page_5_duck.json",
+        "r",
+        encoding="utf-8",
     ) as f:
         data = json.load(f)
 
     info = p.run(
-        qdrant_adapter(data[:17], embed=["title", "body"]),
+        lancedb_adapter(data[:17], embed=["title", "body"]),
         table_name="issues",
         write_disposition="merge",
         primary_key="id",
@@ -326,12 +336,12 @@ def test_merge_github_nested() -> None:
         "issues__labels",
         "issues__assignees",
     }
-    assert set([t["name"] for t in p.default_schema.data_tables()]) == {
+    assert {t["name"] for t in p.default_schema.data_tables()} == {
         "issues",
         "issues__labels",
         "issues__assignees",
     }
-    assert set([t["name"] for t in p.default_schema.dlt_tables()]) == {
+    assert {t["name"] for t in p.default_schema.dlt_tables()} == {
         "_dlt_version",
         "_dlt_loads",
         "_dlt_pipeline_state",
@@ -342,19 +352,21 @@ def test_merge_github_nested() -> None:
     assert issues["columns"]["title"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert VECTORIZE_HINT not in issues["columns"]["url"]
-    assert_collection(p, "issues", expected_items_count=17)
+    assert_table(p, "issues", expected_items_count=17)
 
 
 def test_empty_dataset_allowed() -> None:
-    # dataset_name is optional so dataset name won't be autogenerated when not explicitly passed
-    p = dlt.pipeline(destination="qdrant", full_refresh=True)
-    client: QdrantClient = p.destination_client()  # type: ignore[assignment]
+    # dataset_name is optional so dataset name won't be autogenerated when not explicitly passed.
+    p = dlt.pipeline(destination="lancedb", full_refresh=True)
+    client: LanceDBClient = p.destination_client()  # type: ignore[assignment]
 
     assert p.dataset_name is None
-    info = p.run(qdrant_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    info = p.run(
+        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
     # dataset in load info is empty
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
     assert client.sentinel_collection == "DltSentinelCollection"
-    assert_collection(p, "content", expected_items_count=3)
+    assert_table(p, "content", expected_items_count=3)
