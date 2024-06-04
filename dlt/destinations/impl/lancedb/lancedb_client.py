@@ -423,6 +423,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self, table: TTableSchema, file_path: str, load_id: str
     ) -> LoadJob:
         return LoadLanceDBJob(
+            self.schema,
             table,
             file_path,
             db_client=self.db_client,
@@ -441,6 +442,7 @@ class LoadLanceDBJob(LoadJob):
 
     def __init__(
         self,
+        schema: Schema,
         table_schema: TTableSchema,
         local_path: str,
         db_client: DBConnection,
