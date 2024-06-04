@@ -2,13 +2,11 @@ from typing import Union, List, Any
 
 import numpy as np
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
-from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-from dlt.destinations.impl.lancedb.utils import infer_lancedb_model_from_data
 
 
 def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
@@ -25,12 +23,16 @@ def assert_table(
 ) -> None:
     client: LanceDBClient = pipeline.destination_client()  # type: ignore[assignment]
 
-    # Check whether table exists.
     exists = client._table_exists(collection_name)
     assert exists
 
     qualified_collection_name = client._make_qualified_table_name(collection_name)
-    records = client.db_client.open_table(qualified_collection_name).search().limit(50).to_list()
+    records = (
+        client.db_client.open_table(qualified_collection_name)
+        .search()
+        .limit(50)
+        .to_list()
+    )
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)
@@ -54,15 +56,13 @@ def drop_active_pipeline_data() -> None:
         return len(schema) > 0
 
     if Container()[PipelineContext].is_active():
-        # take existing pipeline
-        p = dlt.pipeline()
-        client: LanceDBClient = p.destination_client()  # type: ignore[assignment]
+        pipe = dlt.pipeline()
+        client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
         if has_tables(client):
             client.drop_storage()
 
-        p._wipe_working_folder()
-        # deactivate context
+        pipe._wipe_working_folder()
         Container()[PipelineContext].deactivate()
 
 
@@ -75,30 +75,3 @@ class MockEmbeddingFunc(TextEmbeddingFunction):
 
     def ndims(self) -> int:
         return 2
-
-
-def test_infer_lancedb_model_from_data() -> None:
-    data = [
-        {"id__": "1", "item": "tyre", "price": 12.0, "customer": "jack"},
-        {"id__": "2", "item": "wheel", "price": 100, "customer": "jill"},
-    ]
-    id_field_name = "id__"
-    vector_field_name = "vector__"
-    embedding_fields = ["item", "price"]
-    embedding_model_func = MockEmbeddingFunc()
-
-    inferred_model = infer_lancedb_model_from_data(
-        data, id_field_name, vector_field_name, embedding_fields, embedding_model_func
-    )
-
-    expected_fields = {
-        "id__": (str, ...),
-        "vector__": (Vector(2), ...),
-        "item": (str, embedding_model_func.SourceField()),
-        "price": (float, embedding_model_func.SourceField()),
-        "customer": (str, ...),
-    }
-
-    assert issubclass(inferred_model, LanceModel)
-    for field_name in expected_fields:
-        assert field_name in inferred_model.model_fields
