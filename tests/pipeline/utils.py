@@ -11,6 +11,9 @@ from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
+from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.common.storages import FileStorage
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
@@ -188,12 +191,13 @@ def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, Li
 
 
 def _load_tables_to_dicts_sql(
-    p: dlt.Pipeline, *table_names: str
+    p: dlt.Pipeline, *table_names: str, schema_name: str = None
 ) -> Dict[str, List[Dict[str, Any]]]:
     result = {}
+    schema = p.default_schema if not schema_name else p.schemas[schema_name]
     for table_name in table_names:
         table_rows = []
-        columns = p.default_schema.get_table_columns(table_name).keys()
+        columns = schema.get_table_columns(table_name).keys()
         query_columns = ",".join(map(p.sql_client().capabilities.escape_identifier, columns))
 
         with p.sql_client() as c:
@@ -210,6 +214,7 @@ def _load_tables_to_dicts_sql(
 def load_tables_to_dicts(
     p: dlt.Pipeline,
     *table_names: str,
+    schema_name: str = None,
     exclude_system_cols: bool = False,
     sortkey: str = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
@@ -220,13 +225,27 @@ def load_tables_to_dicts(
         """Sort list of dictionaries by dictionary key."""
         return sorted(list_, key=lambda d: d[sortkey])
 
-    func = _load_tables_to_dicts_fs if _is_filesystem(p) else _load_tables_to_dicts_sql
-    result = func(p, *table_names)
+    if _is_filesystem(p):
+        result = _load_tables_to_dicts_fs(p, *table_names)
+    else:
+        result = _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
+
     if exclude_system_cols:
         result = {k: [_exclude_system_cols(d) for d in v] for k, v in result.items()}
     if sortkey is not None:
         result = {k: _sort_list_of_dicts(v, sortkey) for k, v in result.items()}
     return result
+
+
+def assert_only_table_columns(
+    p: dlt.Pipeline, table_name: str, expected_columns: Sequence[str], schema_name: str = None
+) -> None:
+    """Table has all and only the expected columns (excluding _dlt columns)"""
+    rows = load_tables_to_dicts(p, table_name, schema_name=schema_name)[table_name]
+    assert rows, f"Table {table_name} is empty"
+    # Ignore _dlt columns
+    columns = set(col for col in rows[0].keys() if not col.startswith("_dlt"))
+    assert columns == set(expected_columns)
 
 
 #
@@ -275,6 +294,22 @@ def assert_data_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny) -> No
 #
 # TODO: migrate to be able to do full assertions on filesystem too, should be possible
 #
+
+
+def table_exists(p: dlt.Pipeline, table_name: str, schema_name: str = None) -> bool:
+    """Returns True if table exists in the destination database/filesystem"""
+    if _is_filesystem(p):
+        client = p._fs_client(schema_name=schema_name)
+        files = client.list_table_files(table_name)
+        return not not files
+
+    with p.sql_client(schema_name=schema_name) as c:
+        try:
+            qual_table_name = c.make_qualified_table_name(table_name)
+            c.execute_sql(f"SELECT 1 FROM {qual_table_name} LIMIT 1")
+            return True
+        except DatabaseUndefinedRelation:
+            return False
 
 
 def _assert_table_sql(

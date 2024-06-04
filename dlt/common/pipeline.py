@@ -21,6 +21,7 @@ from typing import (
     TypeVar,
     TypedDict,
     Mapping,
+    Literal,
 )
 from typing_extensions import NotRequired
 
@@ -50,6 +51,10 @@ from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
+
+
+# TRefreshMode = Literal["full", "replace"]
+TRefreshMode = Literal["drop_sources", "drop_resources", "drop_data"]
 
 
 class _StepInfo(NamedTuple):
@@ -760,6 +765,14 @@ def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny]
     state_ = source_state() if source_state_ is None else source_state_
     if "resources" in state_ and resource_name in state_["resources"]:
         state_["resources"].pop(resource_name)
+
+
+def _get_matching_sources(
+    pattern: REPattern, pipeline_state: Optional[TPipelineState] = None, /
+) -> List[str]:
+    """Get all source names in state matching the regex pattern"""
+    state_ = _sources_state(pipeline_state)
+    return [key for key in state_ if pattern.match(key)]
 
 
 def _get_matching_resources(

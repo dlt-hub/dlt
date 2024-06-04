@@ -226,9 +226,18 @@ def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], TTableSchemaColumns]:
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
+    nullable_mapping = {k: v.get("nullable", True) for k, v in columns.items()}
+    # All fields from arrow schema that have nullable set to different value than in columns
+    # Key is the renamed column name
+    nullable_updates: Dict[str, bool] = {}
+    for field in schema:
+        norm_name = rename_mapping[field.name]
+        if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
+            nullable_updates[norm_name] = nullable_mapping[norm_name]
+
     dlt_tables = list(map(naming.normalize_table_identifier, ("_dlt_id", "_dlt_load_id")))
 
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
@@ -242,8 +251,8 @@ def should_normalize_arrow_schema(
     # check if nothing to rename
     skip_normalize = (
         list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
-    )
-    return not skip_normalize, rename_mapping, rev_mapping, columns
+    ) and not nullable_updates
+    return not skip_normalize, rename_mapping, rev_mapping, nullable_updates, columns
 
 
 def normalize_py_arrow_item(
@@ -257,10 +266,11 @@ def normalize_py_arrow_item(
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
+    4. arrow columns with different nullability than corresponding schema columns will be updated
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, columns = should_normalize_arrow_schema(
-        schema, columns, naming
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
+        should_normalize_arrow_schema(schema, columns, naming)
     )
     if not should_normalize:
         return item
@@ -273,8 +283,12 @@ def normalize_py_arrow_item(
         field_name = rev_mapping.pop(column_name, column_name)
         if field_name in rename_mapping:
             idx = schema.get_field_index(field_name)
+            new_field = schema.field(idx).with_name(column_name)
+            if column_name in nullable_updates:
+                # Set field nullable to match column
+                new_field = new_field.with_nullable(nullable_updates[column_name])
             # use renamed field
-            new_fields.append(schema.field(idx).with_name(column_name))
+            new_fields.append(new_field)
             new_columns.append(item.column(idx))
         else:
             # column does not exist in pyarrow. create empty field and column

@@ -203,11 +203,18 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             )
         return applied_update
 
-    def drop_tables(self, *tables: str, replace_schema: bool = True) -> None:
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        """Drop tables in destination database and optionally delete the stored schema as well.
+        Clients that support ddl transactions will have both operations performed in a single transaction.
+
+        Args:
+            tables: Names of tables to drop.
+            delete_schema: If True, also delete all versions of the current schema from storage
+        """
         with self.maybe_ddl_transaction():
             self.sql_client.drop_tables(*tables)
-            if replace_schema:
-                self._replace_schema_in_storage(self.schema)
+            if delete_schema:
+                self._delete_schema_in_storage(self.schema)
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
@@ -523,13 +530,12 @@ WHERE """
 
         return StorageSchemaInfo(row[0], row[1], row[2], row[3], inserted_at, schema_str)
 
-    def _replace_schema_in_storage(self, schema: Schema) -> None:
+    def _delete_schema_in_storage(self, schema: Schema) -> None:
         """
-        Save the given schema in storage and remove all previous versions with the same name
+        Delete all stored versions with the same name as given schema
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         self.sql_client.execute_sql(f"DELETE FROM {name} WHERE schema_name = %s;", schema.name)
-        self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         # get schema string or zip

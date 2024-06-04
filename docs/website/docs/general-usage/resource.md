@@ -421,6 +421,9 @@ assert list(r) == list(range(10))
 > 💡 If you are paremetrizing the value of `add_limit` and sometimes need it to be disabled, you can set `None` or `-1`
 >  to disable the limiting. You can also set the limit to `0` for the resource to not yield any items.
 
+> 💡 For internal reasons, async resources with a limit added, occassionally produce one item more than the limit
+> on some runs. This behavior is not deterministic.
+
 ### Set table name and adjust schema
 
 You can change the schema of a resource, be it standalone or as a part of a source. Look for method

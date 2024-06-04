@@ -48,7 +48,7 @@ pipeline = dlt.pipeline(
     dataset_name=dataset_name,
     credentials=credentials,
     export_schema_path=export_schema_path,
-    full_refresh=True,
+    dev_mode=True,
 )
 
 

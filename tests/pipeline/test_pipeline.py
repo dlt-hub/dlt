@@ -94,15 +94,15 @@ def test_default_pipeline_dataset() -> None:
     assert p.dataset_name in possible_dataset_names
 
 
-def test_run_full_refresh_default_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True, destination="filesystem")
+def test_run_dev_mode_default_dataset() -> None:
+    p = dlt.pipeline(dev_mode=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(full_refresh=False)
+    r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset
-    p = dlt.pipeline(full_refresh=True, destination="dummy")
+    p = dlt.pipeline(dev_mode=True, destination="dummy")
     assert p.dataset_name is None
     # simulate set new dataset
     p._set_destinations("filesystem")
@@ -112,11 +112,11 @@ def test_run_full_refresh_default_dataset() -> None:
     assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
 
 
-def test_run_full_refresh_underscored_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True, dataset_name="_main_")
+def test_run_dev_mode_underscored_dataset() -> None:
+    p = dlt.pipeline(dev_mode=True, dataset_name="_main_")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(full_refresh=False)
+    r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
@@ -895,7 +895,7 @@ def test_extract_all_data_types() -> None:
 
 
 def test_set_get_local_value() -> None:
-    p = dlt.pipeline(destination="dummy", full_refresh=True)
+    p = dlt.pipeline(destination="dummy", dev_mode=True)
     value = uniq_id()
     # value is set
     p.set_local_state_val(value, value)
@@ -1862,8 +1862,8 @@ def test_parallel_pipelines_async(workers: int) -> None:
         return pipeline.run(gen_())
 
     # declare pipelines in main thread then run them "async"
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", dev_mode=True)
 
     async def _run_async():
         loop = asyncio.get_running_loop()
@@ -1912,7 +1912,7 @@ def test_resource_while_stop() -> None:
         else:
             return []
 
-    pipeline = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     load_info = pipeline.run(product())
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12

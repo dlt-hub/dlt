@@ -245,7 +245,9 @@ def is_dict_generic_type(t: Type[Any]) -> bool:
         return False
 
 
-def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Type[Any]:
+def extract_inner_type(
+    hint: Type[Any], preserve_new_types: bool = False, preserve_literal: bool = False
+) -> Type[Any]:
     """Gets the inner type from Literal, Optional, Final and NewType
 
     Args:
@@ -256,15 +258,15 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
         Type[Any]: Inner type if hint was Literal, Optional or NewType, otherwise hint
     """
     if maybe_modified := extract_type_if_modifier(hint):
-        return extract_inner_type(maybe_modified, preserve_new_types)
+        return extract_inner_type(maybe_modified, preserve_new_types, preserve_literal)
     if is_optional_type(hint):
-        return extract_inner_type(get_args(hint)[0], preserve_new_types)
-    if is_literal_type(hint):
+        return extract_inner_type(get_args(hint)[0], preserve_new_types, preserve_literal)
+    if is_literal_type(hint) and not preserve_literal:
         # assume that all literals are of the same type
         return type(get_args(hint)[0])
     if is_newtype_type(hint) and not preserve_new_types:
         # descend into supertypes of NewType
-        return extract_inner_type(hint.__supertype__, preserve_new_types)
+        return extract_inner_type(hint.__supertype__, preserve_new_types, preserve_literal)
     return hint
 
 

@@ -151,7 +151,7 @@ def load_data():
         pipeline_name='pipeline_name',
         dataset_name='dataset_name',
         destination='duckdb',
-        full_refresh=False # must be false if we decompose
+        dev_mode=False # must be false if we decompose
     )
     # Create the source, the "serialize" decompose option
     # will convert dlt resources into Airflow tasks.
