@@ -216,36 +216,32 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
-@pytest.mark.parametrize("multiple_files", (False, True))
+@pytest.fixture
+def local_filesystem_pipeline() -> dlt.Pipeline:
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    return dlt.pipeline(pipeline_name="delta", destination="filesystem", full_refresh=True)
+
+
 def test_pipeline_delta_filesystem_destination(
     default_buckets_env: str,
-    multiple_files: bool,
+    local_filesystem_pipeline: dlt.Pipeline,
 ) -> None:
-    # _write_delta_table function is unit tested elsewhere
-    # this test asserts resource/pipeline configuration is properly handled
+    """Tests core functionality for `delta` table format.
+
+    Tests all data types, all filesystems, all write dispositions.
+    """
+
+    from tests.pipeline.utils import _get_delta_table
+
     if default_buckets_env.startswith("memory://"):
         pytest.skip(
             "`deltalake` library does not support `memory` protocol (write works, read doesn't)"
         )
-    if multiple_files:
-        if not default_buckets_env == "_storage":
-            pytest.skip(
-                "Only test loading from multiples files on `file` protocol to limit test load."
-            )
-        # ensure multiple files are created for single load
-        os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"
     if default_buckets_env.startswith("s3://"):
         # https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/
         os.environ["DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS"] = (
             '{"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}'
         )
-
-    def reset_pipeline(pipeline: dlt.Pipeline) -> None:
-        pipeline.drop()
-        with pipeline.destination_client() as client:
-            client.drop_storage()
-
-    p = dlt.pipeline(pipeline_name="delta", destination="filesystem", full_refresh=True)
 
     # create resource that yields rows with all data types
     column_schemas, row = table_update_and_row()
@@ -256,7 +252,7 @@ def test_pipeline_delta_filesystem_destination(
         yield [row] * 10
 
     # run pipeline, this should create Delta table
-    info = p.run(data_types())
+    info = local_filesystem_pipeline.run(data_types())
     assert_load_info(info)
 
     # `delta` table format should use `parquet` file format
@@ -268,47 +264,82 @@ def test_pipeline_delta_filesystem_destination(
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
-    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
     assert len(rows) == 10
     assert_all_data_types_row(rows[0], schema=column_schemas)
 
     # another run should append rows to the table
-    info = p.run(data_types())
+    info = local_filesystem_pipeline.run(data_types())
     assert_load_info(info)
-    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
     assert len(rows) == 20
 
     # ensure "replace" write disposition is handled
     # should do logical replace, increasing the table version
-    from tests.pipeline.utils import _get_delta_table
-
-    info = p.run(data_types(), write_disposition="replace")
+    info = local_filesystem_pipeline.run(data_types(), write_disposition="replace")
     assert_load_info(info)
-    client = cast(FilesystemClient, p.destination_client())
+    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
     assert _get_delta_table(client, "data_types").version() == 2
-    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
     assert len(rows) == 10
 
     # `merge` resolves to `append` behavior
-    info = p.run(data_types(), write_disposition="merge")
+    info = local_filesystem_pipeline.run(data_types(), write_disposition="merge")
     assert_load_info(info)
-    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
     assert len(rows) == 20
 
-    # test custom layout handling
-    reset_pipeline(p)
-    fs = filesystem(layout="{schema_name}/foo/{table_name}/{load_id}.{file_id}.{ext}")
-    p._set_destinations(destination=fs)
 
-    info = p.run(data_types())
+def test_pipeline_delta_filesystem_destination_multiple_files(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests loading multiple files into a Delta table.
+
+    Files should be loaded into the Delta table in a single commit.
+    """
+
+    from tests.pipeline.utils import _get_delta_table
+
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"  # force multiple files
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": True}] * 10
+
+    info = local_filesystem_pipeline.run(delta_table())
     assert_load_info(info)
-    assert Path(p._fs_client().get_table_dir("data_types")).parts[-3:] == (
-        "delta",
-        "foo",
-        "data_types",
-    )
-    rows = load_tables_to_dicts(p, "data_types", exclude_system_cols=True)["data_types"]
+
+    # multiple Parquet files should have been created
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    delta_table_parquet_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "delta_table"
+        and job.job_file_info.file_format == "parquet"
+    ]
+    assert len(delta_table_parquet_jobs) == 5  # 10 records, max 2 per file
+
+    # all 10 records should have been loaded into a Delta table in a single commit
+    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    assert _get_delta_table(client, "delta_table").version() == 0
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "delta_table", exclude_system_cols=True)[
+        "delta_table"
+    ]
     assert len(rows) == 10
+
+
+def test_pipeline_delta_filesystem_destination_child_tables(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests child table handling for `delta` table format."""
 
     @dlt.resource(table_format="delta")
     def complex_table():
@@ -325,12 +356,10 @@ def test_pipeline_delta_filesystem_destination(
             },
         ]
 
-    # test child table handling
-    reset_pipeline(p)
-    info = p.run(complex_table())
+    info = local_filesystem_pipeline.run(complex_table())
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
-        p,
+        local_filesystem_pipeline,
         "complex_table",
         "complex_table__child",
         "complex_table__child__grandchild",
@@ -346,10 +375,10 @@ def test_pipeline_delta_filesystem_destination(
     assert rows_dict["complex_table__child__grandchild"][0].keys() == {"value"}
 
     # test write disposition handling with child tables
-    info = p.run(complex_table())
+    info = local_filesystem_pipeline.run(complex_table())
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
-        p,
+        local_filesystem_pipeline,
         "complex_table",
         "complex_table__child",
         "complex_table__child__grandchild",
@@ -359,10 +388,10 @@ def test_pipeline_delta_filesystem_destination(
     assert len(rows_dict["complex_table__child"]) == 3 * 2
     assert len(rows_dict["complex_table__child__grandchild"]) == 5 * 2
 
-    info = p.run(complex_table(), write_disposition="replace")
+    info = local_filesystem_pipeline.run(complex_table(), write_disposition="replace")
     assert_load_info(info)
     rows_dict = load_tables_to_dicts(
-        p,
+        local_filesystem_pipeline,
         "complex_table",
         "complex_table__child",
         "complex_table__child__grandchild",
@@ -372,33 +401,45 @@ def test_pipeline_delta_filesystem_destination(
     assert len(rows_dict["complex_table__child"]) == 3
     assert len(rows_dict["complex_table__child__grandchild"]) == 5
 
-    # test file format handling in source with diverse resources
-    # one has `delta` table format, the other doesn't
+
+def test_pipeline_delta_filesystem_destination_mixed_source(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests file format handling in mixed source.
+
+    One resource uses `delta` table format, the other doesn't.
+    """
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": True}]
+
     @dlt.resource()
-    def simple_table():
+    def non_delta_table():
         yield [1, 2, 3]
 
     @dlt.source
     def s():
-        return [data_types(), simple_table()]
+        return [delta_table(), non_delta_table()]
 
-    reset_pipeline(p)
-    info = p.run(s(), loader_file_format="jsonl")  # set file format at pipeline level
+    info = local_filesystem_pipeline.run(
+        s(), loader_file_format="jsonl"
+    )  # set file format at pipeline level
     assert_load_info(info)
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
 
-    # configured format `jsonl` should be overridden for `data_types` resource
+    # `jsonl` file format should be overridden for `delta_table` resource
     # because it's not supported for `delta` table format
-    data_types_jobs = [
-        job for job in completed_jobs if job.job_file_info.table_name == "data_types"
+    delta_table_jobs = [
+        job for job in completed_jobs if job.job_file_info.table_name == "delta_table"
     ]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in delta_table_jobs])
 
-    # configured format `jsonl` should be respected for `simple_table` resource
-    simple_table_job = [
-        job for job in completed_jobs if job.job_file_info.table_name == "simple_table"
+    # `jsonl` file format should be respected for `non_delta_table` resource
+    non_delta_table_job = [
+        job for job in completed_jobs if job.job_file_info.table_name == "non_delta_table"
     ][0]
-    assert simple_table_job.file_path.endswith(".jsonl")
+    assert non_delta_table_job.file_path.endswith(".jsonl")
 
 
 TEST_LAYOUTS = (
