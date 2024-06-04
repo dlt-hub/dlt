@@ -42,7 +42,7 @@ class LoaderFileFormatAdapter(Protocol):
         supported_loader_file_formats: Sequence[TLoaderFileFormat],
         /,
         *,
-        schema_tables: "TSchemaTables",  # type: ignore[name-defined] # noqa: F821
+        table_schema: "TTableSchema",  # type: ignore[name-defined] # noqa: F821
     ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]: ...
 
 

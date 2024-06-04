@@ -20,7 +20,7 @@ from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema
+from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages import (
     NormalizeStorage,
@@ -110,7 +110,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     ) -> TWorkerRV:
         destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
-        item_normalizers: Dict[TDataItemFormat, ItemsNormalizer] = {}
+        item_normalizers: Dict[Tuple[TDataItemFormat, str], ItemsNormalizer] = {}
         # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
         preferred_file_format = (
             destination_caps.preferred_loader_file_format
@@ -120,47 +120,58 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         supported_file_formats = destination_caps.supported_loader_file_formats or []
         supported_table_formats = destination_caps.supported_table_formats or []
 
-        for table in stored_schema["tables"].values():
-            if "table_format" in table and table["table_format"] not in supported_table_formats:
-                logger.warning(
-                    "Destination does not support the configured `table_format` value "
-                    f"`{table['table_format']}` for table `{table['name']}`. "
-                    "The setting will probably be ignored."
-                )
-
-        if destination_caps.loader_file_format_adapter is not None:
-            preferred_file_format, supported_file_formats = (
-                destination_caps.loader_file_format_adapter(
-                    preferred_file_format,
-                    supported_file_formats,
-                    schema_tables=stored_schema["tables"],
-                )
-            )
-
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
             load_storage = LoadStorage(False, supported_file_formats, loader_storage_config)
 
-            def _get_items_normalizer(item_format: TDataItemFormat) -> ItemsNormalizer:
-                if item_format in item_normalizers:
-                    return item_normalizers[item_format]
-                # force file format
-                if config.loader_file_format:
-                    if config.loader_file_format not in supported_file_formats:
-                        raise ValueError(
-                            "`loader_file_format` must be `parquet` when `table_format` "
-                            f"is `delta`. Provided value `{config.loader_file_format}` "
-                            "is not supported."
+            def _get_items_normalizer(
+                item_format: TDataItemFormat, table_schema: TTableSchema
+            ) -> ItemsNormalizer:
+                if (item_format, table_schema["name"]) in item_normalizers:
+                    return item_normalizers[(item_format, table_schema["name"])]
+
+                if (
+                    "table_format" in table_schema
+                    and table_schema["table_format"] not in supported_table_formats
+                ):
+                    logger.warning(
+                        "Destination does not support the configured `table_format` value "
+                        f"`{table_schema['table_format']}` for table `{table_schema['name']}`. "
+                        "The setting will probably be ignored."
+                    )
+
+                if destination_caps.loader_file_format_adapter is not None:
+                    items_preferred_file_format, items_supported_file_formats = (
+                        destination_caps.loader_file_format_adapter(
+                            preferred_file_format,
+                            supported_file_formats,
+                            table_schema=table_schema,
                         )
-                    # TODO: pass supported_file_formats, when used in pipeline we already checked that
-                    # but if normalize is used standalone `supported_loader_file_formats` may be unresolved
-                    best_writer_spec = get_best_writer_spec(item_format, config.loader_file_format)
-                else:
+                    )
+
+                # force file format
+                best_writer_spec = None
+                if config.loader_file_format:
+                    if config.loader_file_format in items_supported_file_formats:
+                        # TODO: pass supported_file_formats, when used in pipeline we already checked that
+                        # but if normalize is used standalone `supported_loader_file_formats` may be unresolved
+                        best_writer_spec = get_best_writer_spec(
+                            item_format, config.loader_file_format
+                        )
+                    else:
+                        logger.warning(
+                            f"The configured value `{config.loader_file_format}` "
+                            "for `loader_file_format` is not supported for table "
+                            f"`{table_schema['name']}` and will be ignored. Dlt "
+                            "will use a supported format instead."
+                        )
+
+                if best_writer_spec is None:
                     # find best spec among possible formats taking into account destination preference
                     best_writer_spec = resolve_best_writer_spec(
-                        item_format, supported_file_formats, preferred_file_format
+                        item_format, items_supported_file_formats, items_preferred_file_format
                     )
                     # if best_writer_spec.file_format != preferred_file_format:
                     #     logger.warning(
@@ -183,7 +194,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
                     f" format {item_storage.writer_spec.file_format}"
                 )
-                norm = item_normalizers[item_format] = cls(
+                norm = item_normalizers[(item_format, table_schema["name"])] = cls(
                     item_storage,
                     normalize_storage,
                     schema,
@@ -235,7 +246,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     )
                     root_tables.add(root_table_name)
                     normalizer = _get_items_normalizer(
-                        DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
+                        DataWriter.item_format_from_file_extension(parsed_file_name.file_format),
+                        stored_schema["tables"].get(root_table_name),
                     )
                     logger.debug(
                         f"Processing extracted items in {extracted_items_file} in load_id"

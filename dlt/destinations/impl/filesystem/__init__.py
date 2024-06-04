@@ -1,6 +1,6 @@
 from typing import Sequence, Tuple
 
-from dlt.common.schema.typing import TSchemaTables
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
 
 
@@ -9,9 +9,9 @@ def loader_file_format_adapter(
     supported_loader_file_formats: Sequence[TLoaderFileFormat],
     /,
     *,
-    schema_tables: TSchemaTables,
+    table_schema: TTableSchema,
 ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]:
-    if any([table.get("table_format") == "delta" for table in schema_tables.values()]):
+    if table_schema.get("table_format") == "delta":
         return ("parquet", ["parquet"])
     return (preferred_loader_file_format, supported_loader_file_formats)
 

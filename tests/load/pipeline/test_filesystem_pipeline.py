@@ -261,7 +261,10 @@ def test_pipeline_delta_filesystem_destination(
 
     # `delta` table format should use `parquet` file format
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in completed_jobs])
+    data_types_jobs = [
+        job for job in completed_jobs if job.job_file_info.table_name == "data_types"
+    ]
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
@@ -369,7 +372,9 @@ def test_pipeline_delta_filesystem_destination(
     assert len(rows_dict["complex_table__child"]) == 3
     assert len(rows_dict["complex_table__child__grandchild"]) == 5
 
-    @dlt.resource(table_format="delta")
+    # test file format handling in source with diverse resources
+    # one has `delta` table format, the other doesn't
+    @dlt.resource()
     def simple_table():
         yield [1, 2, 3]
 
@@ -378,16 +383,22 @@ def test_pipeline_delta_filesystem_destination(
         return [data_types(), simple_table()]
 
     reset_pipeline(p)
-    info = p.run(s())
+    info = p.run(s(), loader_file_format="jsonl")  # set file format at pipeline level
     assert_load_info(info)
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
 
-    # pipeline should fail in `normalize` step when `loader_file_format` is
-    # provided and it's not `parquet`
-    reset_pipeline(p)
-    p.run(data_types(), loader_file_format="parquet")  # okay
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(data_types(), loader_file_format="csv")  # not okay
-    assert pip_ex.value.step == "normalize"
+    # configured format `jsonl` should be overridden for `data_types` resource
+    # because it's not supported for `delta` table format
+    data_types_jobs = [
+        job for job in completed_jobs if job.job_file_info.table_name == "data_types"
+    ]
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
+
+    # configured format `jsonl` should be respected for `simple_table` resource
+    simple_table_job = [
+        job for job in completed_jobs if job.job_file_info.table_name == "simple_table"
+    ][0]
+    assert simple_table_job.file_path.endswith(".jsonl")
 
 
 TEST_LAYOUTS = (
