@@ -880,6 +880,17 @@ def test_standalone_resource_returning_resource() -> None:
     assert list(r) == [1, 2, 3]
 
 
+def test_standalone_resource_returning_resource_exception() -> None:
+    @dlt.resource(standalone=True)
+    def rv_resource(uniq_name: str = dlt.config.value):
+        return dlt.resource([1, 2, 3], name=uniq_name, primary_key="value")
+
+    # pass through of the exception in `rv_resource` when it returns, not yields
+    with pytest.raises(ConfigFieldMissingException) as conf_ex:
+        rv_resource()
+    assert conf_ex.value.fields == ["uniq_name"]
+
+
 def test_resource_rename_credentials_separation():
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
     assert list(standalone_signature(1)) == [1, 2, 3, 4]

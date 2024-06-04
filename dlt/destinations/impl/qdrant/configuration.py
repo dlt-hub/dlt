@@ -1,7 +1,8 @@
 import dataclasses
 from typing import Optional, Final
+from typing_extensions import Annotated
 
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
@@ -55,7 +56,9 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     dataset_separator: str = "_"
 
     # make it optional so empty dataset is allowed
-    dataset_name: Final[Optional[str]] = dataclasses.field(default=None, init=False, repr=False, compare=False)  # type: ignore[misc]
+    dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
+        default=None, init=False, repr=False, compare=False
+    )
 
     # Batch size for generating embeddings
     embedding_batch_size: int = 32

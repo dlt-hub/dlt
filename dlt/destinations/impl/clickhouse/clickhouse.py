@@ -1,6 +1,7 @@
 import os
 import re
 from copy import deepcopy
+from textwrap import dedent
 from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
 from urllib.parse import urlparse
 
@@ -201,22 +202,23 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            # get auth and bucket url
-            bucket_http_url = convert_storage_to_http_scheme(bucket_url)
-            access_key_id: str = None
-            secret_access_key: str = None
             if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                bucket_http_url = convert_storage_to_http_scheme(
+                    bucket_url, endpoint=staging_credentials.endpoint_url
+                )
                 access_key_id = staging_credentials.aws_access_key_id
                 secret_access_key = staging_credentials.aws_secret_access_key
-            elif isinstance(staging_credentials, GcpCredentials):
-                access_key_id = client.credentials.gcp_access_key_id
-                secret_access_key = client.credentials.gcp_secret_access_key
-                if not access_key_id or not secret_access_key:
-                    raise DestinationTransientException(
-                        "You have tried loading from gcs with clickhouse. Please provide valid"
-                        " 'gcp_access_key_id' and 'gcp_secret_access_key' to connect to gcs as"
-                        " outlined in the dlthub docs."
-                    )
+            else:
+                raise LoadJobTerminalException(
+                    file_path,
+                    dedent(
+                        """
+                        Google Cloud Storage buckets must be configured using the S3 compatible access pattern.
+                        Please provide the necessary S3 credentials (access key ID and secret access key), to access the GCS bucket through the S3 API.
+                        Refer to https://dlthub.com/docs/dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage.
+                    """,
+                    ).strip(),
+                )
 
             auth = "NOSIGN"
             if access_key_id and secret_access_key:

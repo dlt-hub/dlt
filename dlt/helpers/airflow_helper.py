@@ -432,8 +432,8 @@ class PipelineTasksGroup(TaskGroup):
             elif decompose == "serialize":
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
-                if pipeline.full_refresh:
-                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+                if pipeline.dev_mode:
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
                 # serialize tasks
                 tasks = []
                 pt = None
@@ -448,8 +448,8 @@ class PipelineTasksGroup(TaskGroup):
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
 
-                if pipeline.full_refresh:
-                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+                if pipeline.dev_mode:
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
 
                 tasks = []
                 sources = data.decompose("scc")
@@ -484,8 +484,8 @@ class PipelineTasksGroup(TaskGroup):
                 if not isinstance(data, DltSource):
                     raise ValueError("Can only decompose dlt sources")
 
-                if pipeline.full_refresh:
-                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+                if pipeline.dev_mode:
+                    raise ValueError("Cannot decompose pipelines with dev_mode set")
 
                 # parallel tasks
                 tasks = []

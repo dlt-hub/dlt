@@ -301,7 +301,7 @@ def test_filesystem_destination_extended_layout_placeholders(
 
         for file in files:
             if ".jsonl" in file:
-                expected_files.add(posixpath.join(basedir, file))
+                expected_files.add(Path(posixpath.join(basedir, file)))
 
     for load_package in load_info.load_packages:
         for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
@@ -321,7 +321,7 @@ def test_filesystem_destination_extended_layout_placeholders(
             full_path = posixpath.join(client.dataset_path, path)  # type: ignore[attr-defined]
             assert client.fs_client.exists(full_path)  # type: ignore[attr-defined]
             if ".jsonl" in full_path:
-                known_files.add(full_path)
+                known_files.add(Path(full_path))
 
     assert expected_files == known_files
     assert known_files
@@ -362,8 +362,9 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
         )
 
     # generate 4 loads from 2 pipelines, store load ids
-    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test")
-    p2 = destination_config.setup_pipeline("p2", dataset_name="layout_test")
+    dataset_name = "layout_test_" + uniq_id()
+    p1 = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
+    p2 = destination_config.setup_pipeline("p2", dataset_name=dataset_name)
     c1 = cast(FilesystemClient, p1.destination_client())
     c2 = cast(FilesystemClient, p2.destination_client())
 

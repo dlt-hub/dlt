@@ -44,7 +44,7 @@ dlt pipeline github_issues show
 
 ## Append or replace your data
 
-Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have a new folder created daily with `json` file logs, and you want to ingest them.
+Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have daily data updates and you want to ingest them.
 
 To get the latest data, we'd need to run the script again. But how to do that without duplicating the data?
 One option is to tell `dlt` to replace the data in existing tables in the destination by using `replace` write disposition. Change the `github_issues.py` script to the following:
@@ -147,6 +147,55 @@ Pay attention how we use **since** parameter from [GitHub API](https://docs.gith
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
 [Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
+
+## Using pagination helper
+
+In the previous examples, we used the `requests` library to make HTTP requests to the GitHub API and handled pagination manually. `dlt` has the built-in [REST client](../general-usage/http/rest-client.md) that simplifies API requests. We'll pick the `paginate()` helper from it for the next example. The `paginate` function takes a URL and optional parameters (quite similar to `requests`) and returns a generator that yields pages of data.
+
+Here's how the updated script looks:
+
+```py
+import dlt
+from dlt.sources.helpers.rest_client import paginate
+
+@dlt.resource(
+    table_name="issues",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_issues(
+    updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+):
+    for page in paginate(
+        "https://api.github.com/repos/dlt-hub/dlt/issues",
+        params={
+            "since": updated_at.last_value,
+            "per_page": 100,
+            "sort": "updated",
+            "direction": "desc",
+            "state": "open",
+        },
+    ):
+        yield page
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_issues_merge",
+    destination="duckdb",
+    dataset_name="github_data_merge",
+)
+load_info = pipeline.run(get_issues)
+row_counts = pipeline.last_trace.last_normalize_info
+
+print(row_counts)
+print("------")
+print(load_info)
+```
+
+Let's zoom in on the changes:
+
+1. The `while` loop that handled pagination is replaced with reading pages from the `paginate()` generator.
+2. `paginate()` takes the URL of the API endpoint and optional parameters. In this case, we pass the `since` parameter to get only issues updated after the last pipeline run.
+3. We're not explicitly setting up pagination, `paginate()` handles it for us. Magic! Under the hood, `paginate()` analyzes the response and detects the pagination method used by the API. Read more about pagination in the [REST client documentation](../general-usage/http/rest-client.md#paginating-api-responses).
 
 ## Next steps
 

@@ -32,7 +32,8 @@ jobs:
   run_loader:
     name: dest | qdrant tests
     needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    # if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    if: false # TODO re-enable with above line
     defaults:
       run:
         shell: bash

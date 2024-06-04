@@ -19,8 +19,9 @@ from typing import (
     overload,
     ClassVar,
     TypeVar,
+    Literal,
 )
-from typing_extensions import get_args, get_origin, dataclass_transform
+from typing_extensions import get_args, get_origin, dataclass_transform, Annotated, TypeAlias
 from functools import wraps
 
 if TYPE_CHECKING:
@@ -29,8 +30,11 @@ else:
     TDtcField = dataclasses.Field
 
 from dlt.common.typing import (
+    AnyType,
     TAnyClass,
     extract_inner_type,
+    is_annotated,
+    is_final_type,
     is_optional_type,
     is_union_type,
 )
@@ -46,6 +50,34 @@ _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
 _T = TypeVar("_T", bound="BaseConfiguration")
 _C = TypeVar("_C", bound="CredentialsConfiguration")
+
+
+class NotResolved:
+    """Used in type annotations to indicate types that should not be resolved."""
+
+    def __init__(self, not_resolved: bool = True):
+        self.not_resolved = not_resolved
+
+    def __bool__(self) -> bool:
+        return self.not_resolved
+
+
+def is_hint_not_resolved(hint: AnyType) -> bool:
+    """Checks if hint should NOT be resolved. Final and types annotated like
+
+    >>> Annotated[str, NotResolved()]
+
+    are not resolved.
+    """
+    if is_final_type(hint):
+        return True
+
+    if is_annotated(hint):
+        _, *a_m = get_args(hint)
+        for annotation in a_m:
+            if isinstance(annotation, NotResolved):
+                return bool(annotation)
+    return False
 
 
 def is_base_configuration_inner_hint(inner_hint: Type[Any]) -> bool:
@@ -70,6 +102,11 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     if get_origin(hint) is ClassVar:
         # class vars are skipped by dataclass
         return True
+
+    if is_hint_not_resolved(hint):
+        # all hints that are not resolved are valid
+        return True
+
     hint = extract_inner_type(hint)
     hint = get_config_if_union_hint(hint) or hint
     hint = get_origin(hint) or hint
@@ -84,13 +121,18 @@ def is_valid_hint(hint: Type[Any]) -> bool:
     return False
 
 
-def extract_inner_hint(hint: Type[Any], preserve_new_types: bool = False) -> Type[Any]:
+def extract_inner_hint(
+    hint: Type[Any], preserve_new_types: bool = False, preserve_literal: bool = False
+) -> Type[Any]:
     # extract hint from Optional / Literal / NewType hints
-    inner_hint = extract_inner_type(hint, preserve_new_types)
+    inner_hint = extract_inner_type(hint, preserve_new_types, preserve_literal)
     # get base configuration from union type
     inner_hint = get_config_if_union_hint(inner_hint) or inner_hint
     # extract origin from generic types (ie List[str] -> List)
-    return get_origin(inner_hint) or inner_hint
+    origin = get_origin(inner_hint) or inner_hint
+    if preserve_literal and origin is Literal:
+        return inner_hint
+    return origin or inner_hint
 
 
 def is_secret_hint(hint: Type[Any]) -> bool:

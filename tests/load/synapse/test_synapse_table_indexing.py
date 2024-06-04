@@ -52,7 +52,7 @@ def test_default_table_index_type_configuration(
         pipeline_name=f"test_default_table_index_type_{table_index_type}",
         destination="synapse",
         dataset_name=f"test_default_table_index_type_{table_index_type}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     job_client = pipeline.destination_client()
@@ -118,7 +118,7 @@ def test_resource_table_index_type_configuration(
         pipeline_name=f"test_table_index_type_{table_index_type}",
         destination="synapse",
         dataset_name=f"test_table_index_type_{table_index_type}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     # An invalid value for `table_index_type` should raise a ValueError.

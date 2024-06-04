@@ -14,7 +14,7 @@ This destination helps you load data into Qdrant from [dlt resources](../../gene
 1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
 
 ```sh
-pip install dlt[qdrant]
+pip install "dlt[qdrant]"
 ```
 
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:

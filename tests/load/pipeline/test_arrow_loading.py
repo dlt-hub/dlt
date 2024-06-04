@@ -217,3 +217,48 @@ def test_parquet_column_names_are_normalized(
 
         # Parquet schema is written with normalized column names
         assert result_tbl.schema.names == expected_column_names
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        default_staging_configs=True,
+        all_staging_configs=True,
+        default_vector_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("item_type", ["arrow-table", "pandas", "arrow-batch"])
+def test_load_arrow_with_not_null_columns(
+    item_type: TestDataItemFormat, destination_config: DestinationTestConfiguration
+) -> None:
+    """Resource schema contains non-nullable columns. Arrow schema should be written accordingly"""
+    item, records, _ = arrow_table_all_data_types(item_type, include_json=False, include_time=False)
+
+    @dlt.resource(primary_key="string", columns=[{"name": "int", "nullable": False}])
+    def some_data():
+        yield item
+
+    pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
+
+    pipeline.extract(some_data())
+
+    norm_storage = pipeline._get_normalize_storage()
+    extract_files = [
+        fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
+    ]
+    assert len(extract_files) == 1
+
+    # Check the extracted parquet file. It should have the respective non-nullable column in schema
+    with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
+        result_tbl = pa.parquet.read_table(f)
+        assert result_tbl.schema.field("string").nullable is False
+        assert result_tbl.schema.field("string").type == pa.string()
+        assert result_tbl.schema.field("int").nullable is False
+        assert result_tbl.schema.field("int").type == pa.int64()
+
+    pipeline.normalize()
+    # Load is succesful
+    info = pipeline.load()
+    assert_load_info(info)

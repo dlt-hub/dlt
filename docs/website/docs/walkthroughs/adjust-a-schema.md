@@ -71,13 +71,13 @@ You should keep the import schema as simple as possible and let `dlt` do the res
    automatically on the next run. It means that after a user update, the schema in `import`
    folder reverts all the automatic updates from the data.
 
-In next steps we'll experiment a lot, you will be warned to set `full_refresh=True` until we are done experimenting.
+In next steps we'll experiment a lot, you will be warned to set `dev_mode=True` until we are done experimenting.
 
 :::caution
 `dlt` will **not modify** tables after they are created.
 So if you have a `yaml` file, and you change it (e.g. change a data type or add a hint),
 then you need to **delete the dataset**
-or set `full_refresh=True`:
+or set `dev_mode=True`:
 ```py
 dlt.pipeline(
     import_schema_path="schemas/import",
@@ -85,7 +85,7 @@ dlt.pipeline(
     pipeline_name="chess_pipeline",
     destination='duckdb',
     dataset_name="games_data",
-    full_refresh=True,
+    dev_mode=True,
 )
 ```
 :::
@@ -121,6 +121,32 @@ Do not rename the tables or columns in the yaml file. `dlt` infers those from th
 You can [adjust the schema](../general-usage/resource.md#adjust-schema) in Python before resource is loaded.
 :::
 
+### Reorder columns
+To reorder the columns in your dataset, follow these steps:
+
+1.	Initial Run: Execute the pipeline to obtain the import and export schemas.
+1.	Modify Export Schema: Adjust the column order as desired in the export schema.
+1.	Sync Import Schema: Ensure that these changes are mirrored in the import schema to maintain consistency.
+1.	Delete Dataset: Remove the existing dataset to prepare for the reload.
+1.	Reload Data: Reload the data. The dataset should now reflect the new column order as specified in the import YAML.
+
+These steps ensure that the column order in your dataset matches your specifications.
+
+**Another approach** to reorder columns is to use the `add_map` function. For instance, to rearrange ‘column1’, ‘column2’, and ‘column3’, you can proceed as follows:
+
+```py
+# Define the data source and reorder columns using add_map
+data_source = resource().add_map(lambda row: {
+    'column3': row['column3'], 
+    'column1': row['column1'], 
+    'column2': row['column2']
+})
+
+# Run the pipeline
+load_info = pipeline.run(data_source)
+```
+
+In this example, the `add_map` function reorders columns by defining a new mapping. The lambda function specifies the desired order by rearranging the key-value pairs. When the pipeline runs, the data will load with the columns in the new order.
 
 ### Load data as json instead of generating child table or columns from flattened dicts
 
