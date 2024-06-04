@@ -142,6 +142,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         "The setting will probably be ignored."
                     )
 
+                items_preferred_file_format = preferred_file_format
+                items_supported_file_formats = supported_file_formats
                 if destination_caps.loader_file_format_adapter is not None:
                     items_preferred_file_format, items_supported_file_formats = (
                         destination_caps.loader_file_format_adapter(
