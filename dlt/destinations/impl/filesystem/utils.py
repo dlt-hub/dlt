@@ -3,7 +3,7 @@ from typing import Optional, Dict, Union
 import pyarrow as pa
 
 from dlt.common import logger
-from dlt.common.libs.pyarrow import ensure_arrow_table, adjust_arrow_schema
+from dlt.common.libs.pyarrow import dataset_to_table, cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 
@@ -19,7 +19,9 @@ def ensure_delta_compatible_arrow_table(table: pa.table) -> pa.Table:
         pa.types.is_time: pa.string(),
         pa.types.is_decimal256: pa.string(),  # pyarrow does not allow downcasting to decimal128
     }
-    adjusted_schema = adjust_arrow_schema(table.schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP)
+    adjusted_schema = cast_arrow_schema_types(
+        table.schema, ARROW_TO_DELTA_COMPATIBLE_ARROW_TYPE_MAP
+    )
     return table.cast(adjusted_schema)
 
 
@@ -45,7 +47,7 @@ def write_delta_table(
     """Writes in-memory Arrow table to on-disk Delta table."""
     from deltalake import write_deltalake
 
-    table = ensure_arrow_table(data)
+    table = dataset_to_table(data)
 
     # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
     # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500

@@ -400,15 +400,15 @@ def pq_stream_with_new_columns(
             yield tbl
 
 
-def ensure_arrow_table(data: Union[pyarrow.Table, pyarrow.dataset.Dataset]) -> pyarrow.Table:
+def dataset_to_table(data: Union[pyarrow.Table, pyarrow.dataset.Dataset]) -> pyarrow.Table:
     return data.to_table() if isinstance(data, pyarrow.dataset.Dataset) else data
 
 
-def adjust_arrow_schema(
+def cast_arrow_schema_types(
     schema: pyarrow.Schema,
     type_map: Dict[Callable[[pyarrow.DataType], bool], Callable[..., pyarrow.DataType]],
 ) -> pyarrow.Schema:
-    """Returns adjusted Arrow schema.
+    """Returns type-casted Arrow schema.
 
     Replaces data types for fields matching a type check in `type_map`.
     Type check functions in `type_map` are assumed to be mutually exclusive, i.e.
