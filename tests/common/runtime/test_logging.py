@@ -129,6 +129,27 @@ def test_double_log_init(environment: DictStrStr) -> None:
     logger.error("test warning", extra={"metrics": "props"})
 
 
+def test_formatted_output(capfd) -> None:
+    init_test_logging(PureBasicConfiguration())
+    import re
+
+    log_pattern = (
+        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})\|\[(WARNING|ERROR)\]\|"
+        r"(\d+)\|(\d+)\|(\w+)\|(\w+\.py)\|(\w+:\d+)\|test\n"
+    )
+    # Using capdf, we can test at least warning and error outputs.
+    # testing warning message
+    logger.warning("test")
+    message = capfd.readouterr().err
+    match = re.match(log_pattern, message)
+    assert match is not None
+    # testing error message
+    logger.error("test")
+    message = capfd.readouterr().err
+    match = re.match(log_pattern, message)
+    assert match is not None
+
+
 def test_cleanup(environment: DictStrStr) -> None:
     # this must happen after all forked tests (problems with tests teardowns in other tests)
     pass

@@ -549,7 +549,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "dlthub_telemetry": True,
         "dlthub_telemetry_endpoint": "https://telemetry-tracker.services4758.workers.dev",
         "dlthub_telemetry_segment_write_key": None,
-        "log_format": "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}",
+        "log_format": "{asctime}|[{levelname}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}",
         "log_level": "WARNING",
         "request_timeout": 60,
         "request_max_attempts": 5,
