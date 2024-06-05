@@ -222,6 +222,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
+@pytest.mark.essential
 def test_delta_table_core(
     default_buckets_env: str,
     local_filesystem_pipeline: dlt.Pipeline,
