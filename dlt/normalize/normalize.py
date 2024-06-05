@@ -127,10 +127,12 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             load_storage = LoadStorage(False, supported_file_formats, loader_storage_config)
 
             def _get_items_normalizer(
-                item_format: TDataItemFormat, table_schema: TTableSchema
+                item_format: TDataItemFormat, table_schema: Optional[TTableSchema]
             ) -> ItemsNormalizer:
-                if (item_format, table_schema["name"]) in item_normalizers:
-                    return item_normalizers[(item_format, table_schema["name"])]
+                table_schema = {} if table_schema is None else table_schema
+
+                if (item_format, table_schema.get("name")) in item_normalizers:
+                    return item_normalizers[(item_format, table_schema.get("name"))]
 
                 if (
                     "table_format" in table_schema
@@ -196,7 +198,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
                     f" format {item_storage.writer_spec.file_format}"
                 )
-                norm = item_normalizers[(item_format, table_schema["name"])] = cls(
+                norm = item_normalizers[(item_format, table_schema.get("name"))] = cls(
                     item_storage,
                     normalize_storage,
                     schema,
