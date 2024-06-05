@@ -6,7 +6,7 @@ from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import dataset_to_table, cast_arrow_schema_types
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.exceptions import MissingDependencyException
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+from dlt.common.storages import FilesystemConfiguration
 
 try:
     from deltalake import write_deltalake
@@ -71,7 +71,7 @@ def write_delta_table(
     )
 
 
-def _deltalake_storage_options(config: FilesystemDestinationClientConfiguration) -> Dict[str, str]:
+def _deltalake_storage_options(config: FilesystemConfiguration) -> Dict[str, str]:
     """Returns dict that can be passed as `storage_options` in `deltalake` library."""
     creds = {}
     extra_options = {}
