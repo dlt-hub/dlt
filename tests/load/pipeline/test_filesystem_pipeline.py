@@ -31,6 +31,12 @@ from tests.pipeline.utils import load_table_counts, assert_load_info, load_table
 skip_if_not_active("filesystem")
 
 
+@pytest.fixture
+def local_filesystem_pipeline() -> dlt.Pipeline:
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    return dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", full_refresh=True)
+
+
 def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     """Run pipeline twice with merge write disposition
     Regardless wether primary key is set or not, filesystem appends
@@ -216,13 +222,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
-@pytest.fixture
-def local_filesystem_pipeline() -> dlt.Pipeline:
-    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
-    return dlt.pipeline(pipeline_name="delta", destination="filesystem", full_refresh=True)
-
-
-def test_pipeline_delta_filesystem_destination(
+def test_delta_table_core(
     default_buckets_env: str,
     local_filesystem_pipeline: dlt.Pipeline,
 ) -> None:
@@ -298,7 +298,7 @@ def test_pipeline_delta_filesystem_destination(
     assert len(rows) == 20
 
 
-def test_pipeline_delta_filesystem_destination_multiple_files(
+def test_delta_table_multiple_files(
     local_filesystem_pipeline: dlt.Pipeline,
 ) -> None:
     """Tests loading multiple files into a Delta table.
@@ -336,7 +336,7 @@ def test_pipeline_delta_filesystem_destination_multiple_files(
     assert len(rows) == 10
 
 
-def test_pipeline_delta_filesystem_destination_child_tables(
+def test_delta_table_child_tables(
     local_filesystem_pipeline: dlt.Pipeline,
 ) -> None:
     """Tests child table handling for `delta` table format."""
@@ -402,7 +402,7 @@ def test_pipeline_delta_filesystem_destination_child_tables(
     assert len(rows_dict["complex_table__child__grandchild"]) == 5
 
 
-def test_pipeline_delta_filesystem_destination_mixed_source(
+def test_delta_table_mixed_source(
     local_filesystem_pipeline: dlt.Pipeline,
 ) -> None:
     """Tests file format handling in mixed source.
@@ -440,6 +440,23 @@ def test_pipeline_delta_filesystem_destination_mixed_source(
         job for job in completed_jobs if job.job_file_info.table_name == "non_delta_table"
     ][0]
     assert non_delta_table_job.file_path.endswith(".jsonl")
+
+
+def test_delta_table_dynamic_dispatch(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    @dlt.resource(primary_key="id", table_name=lambda i: i["type"], table_format="delta")
+    def github_events():
+        with open(
+            "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
+        ) as f:
+            yield json.load(f)
+
+    info = local_filesystem_pipeline.run(github_events())
+    assert_load_info(info)
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    # 20 event types, two jobs per table (.parquet and .reference), 1 job for _dlt_pipeline_state
+    assert len(completed_jobs) == 2 * 20 + 1
 
 
 TEST_LAYOUTS = (
