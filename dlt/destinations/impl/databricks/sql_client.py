@@ -89,6 +89,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         curr: DBApiCursor = None
+        db_args: Optional[Dict[str, Any]]
         if args:
             keys = [f"arg{i}" for i in range(len(args))]
             # Replace position arguments (%s) with named arguments (:arg0, :arg1, ...)
@@ -102,8 +103,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                     db_arg = to_py_date(db_arg)
                 db_args[key] = db_arg
         else:
-            db_args = None
-        db_args: Optional[Union[Dict[str, Any], Sequence[Any]]]
+            db_args = kwargs or None
         with self._conn.cursor() as curr:
             curr.execute(query, db_args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
