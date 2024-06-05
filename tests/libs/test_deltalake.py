@@ -17,16 +17,16 @@ from dlt.destinations.impl.filesystem.filesystem import (
 )
 
 from tests.cases import arrow_table_all_data_types
-from tests.load.conftest import default_buckets_env
 
 
 @pytest.fixture()
-def filesystem_client(default_buckets_env: str) -> Iterator[Tuple[FilesystemClient, str]]:
-    """Returns tuple of `FilesystemClient` instance and remote directory string.
+def filesystem_client() -> Iterator[Tuple[FilesystemClient, str]]:
+    """Returns tuple of local `FilesystemClient` instance and remote directory string.
 
     Remote directory is removed on teardown.
     """
     # setup
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
     client = cast(FilesystemClient, dlt.pipeline(destination="filesystem").destination_client())
     remote_dir = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] + "/tmp_dir"
 
@@ -77,16 +77,8 @@ def test_deltalake_storage_options() -> None:
 
 
 def test_write_delta_table(filesystem_client) -> None:
-    if os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"].startswith("memory://"):
-        pytest.skip(
-            "`deltalake` library does not support `memory` protocol (write works, read doesn't)"
-        )
-
     client, remote_dir = filesystem_client
     client = cast(FilesystemClient, client)
-
-    if client.config.protocol == "s3":
-        client.config.deltalake_storage_options = {"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}
     storage_options = _deltalake_storage_options(client.config)
 
     with pytest.raises(Exception):
