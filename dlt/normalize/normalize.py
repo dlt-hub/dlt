@@ -151,7 +151,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     items_preferred_file_format, items_supported_file_formats = (
                         destination_caps.loader_file_format_adapter(
                             preferred_file_format,
-                            supported_file_formats,
+                            (
+                                supported_file_formats.copy()
+                                if isinstance(supported_file_formats, list)
+                                else supported_file_formats
+                            ),
                             table_schema=table_schema,
                         )
                     )
