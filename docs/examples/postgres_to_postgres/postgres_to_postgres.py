@@ -5,6 +5,10 @@ description: Load data fast from Postgres to Postgres with ConnectorX & Arrow ex
 keywords: [connector x, pyarrow, zero copy, duckdb, postgres, initial load]
 ---
 
+:::info
+Huge shout out to [Simon Späti](https://github.com/sspaeti) for this example!
+:::
+
 This examples shows you how to export and import data from Postgres to Postgres in a fast way with ConnectorX and DuckDB
 since the default export will generate `Insert_statement` during the normalization phase, which is super slow for large tables.
 
@@ -218,9 +222,7 @@ if __name__ == "__main__":
         print("##################################### START DUCKDB LOAD ########")
         # connect to local duckdb dump
         conn = duckdb.connect(f"{load_info.destination_displayable_credentials}".split(":///")[1])
-        conn.install_extension(
-            "./postgres_scanner.duckdb_extension"
-        )  # duckdb_extension is downloaded/installed manually here, only needed if `LOAD/INSTALL postgres` throws an error
+        conn.sql("INSTALL postgres;")
         conn.sql("LOAD postgres;")
         # select generated timestamp schema
         timestamped_schema = conn.sql(

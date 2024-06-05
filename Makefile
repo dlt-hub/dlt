@@ -70,10 +70,6 @@ lint-and-test-examples:
 	poetry run mypy --config-file mypy.ini docs/examples
 	poetry run flake8 --max-line-length=200 docs/examples
 	cd docs/tools && poetry run python prepare_examples_tests.py
-	# install duckdb extension for postgres_to_postgres example
-	cd docs/examples/postgres_to_postgres && wget http://extensions.duckdb.org/v0.10.3/linux_amd64_gcc4/postgres_scanner.duckdb_extension.gz && gunzip ./postgres_scanner.duckdb_extension.gz
-	cd docs/examples/postgres_to_postgres && poetry run python ./install_duckdb_extensions.py
-	# run tests
 	cd docs/examples && poetry run pytest
 
 
