@@ -110,7 +110,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     ) -> TWorkerRV:
         destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
-        item_normalizers: Dict[Tuple[TDataItemFormat, str], ItemsNormalizer] = {}
+        item_normalizers: Dict[str, ItemsNormalizer] = {}
         # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
         preferred_file_format = (
             destination_caps.preferred_loader_file_format
@@ -130,9 +130,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 item_format: TDataItemFormat, table_schema: Optional[TTableSchema]
             ) -> ItemsNormalizer:
                 table_schema = {} if table_schema is None else table_schema
+                table_name = table_schema.get("name")
 
-                if (item_format, table_schema.get("name")) in item_normalizers:
-                    return item_normalizers[(item_format, table_schema.get("name"))]
+                if table_name in item_normalizers:
+                    return item_normalizers[table_name]
 
                 if (
                     "table_format" in table_schema
@@ -198,7 +199,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
                     f" format {item_storage.writer_spec.file_format}"
                 )
-                norm = item_normalizers[(item_format, table_schema.get("name"))] = cls(
+                norm = item_normalizers[table_name] = cls(
                     item_storage,
                     normalize_storage,
                     schema,
