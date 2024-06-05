@@ -106,6 +106,9 @@ def pydantic_to_table_schema_columns(
 
         inner_type = extract_inner_type(annotation)
         if is_union_type(inner_type):
+            # TODO: order those types deterministically before getting first one
+            # order of the types in union is in many cases not deterministic
+            # https://docs.python.org/3/library/typing.html#typing.get_args
             first_argument_type = get_args(inner_type)[0]
             inner_type = extract_inner_type(first_argument_type)
 
