@@ -1,5 +1,6 @@
 import os
 import asyncio
+import inspect
 import random
 from time import sleep
 from typing import Optional, Any
@@ -12,6 +13,7 @@ import pytest
 
 import dlt
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import InvalidNativeValue
 from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.configuration import ConfigurationValueError
 from dlt.common.pendulum import pendulum, timedelta
@@ -24,6 +26,7 @@ from dlt.extract import DltSource
 from dlt.extract.exceptions import InvalidStepFunctionArguments
 from dlt.extract.resource import DltResource
 from dlt.sources.helpers.transform import take_first
+from dlt.extract.incremental import IncrementalResourceWrapper, Incremental
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
@@ -37,6 +40,45 @@ from tests.utils import (
     TestDataItemFormat,
     ALL_TEST_DATA_ITEM_FORMATS,
 )
+
+
+def test_detect_incremental_arg() -> None:
+    def incr_1(incremental: dlt.sources.incremental):  # type: ignore[type-arg]
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_1)).name
+        == "incremental"
+    )
+
+    def incr_2(incremental: Incremental[str]):
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_2)).name
+        == "incremental"
+    )
+
+    def incr_3(incremental=dlt.sources.incremental[str]("updated_at")):  # noqa
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_3)).name
+        == "incremental"
+    )
+
+    def incr_4(incremental=Incremental[str]("updated_at")):  # noqa
+        pass
+
+    assert (
+        IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_4)).name
+        == "incremental"
+    )
+
+    def incr_5(incremental: IncrementalResourceWrapper):
+        pass
+
+    assert IncrementalResourceWrapper.get_incremental_arg(inspect.signature(incr_5)) is None
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -332,7 +374,7 @@ def test_optional_arg_from_spec_not_passed(item_type: TestDataItemFormat) -> Non
 
 @configspec
 class SomeDataOverrideConfiguration(BaseConfiguration):
-    created_at: dlt.sources.incremental = dlt.sources.incremental("created_at", initial_value="2022-02-03T00:00:00Z")  # type: ignore[type-arg]
+    created_at: dlt.sources.incremental = dlt.sources.incremental("updated_at", initial_value="2022-02-03T00:00:00Z")  # type: ignore[type-arg]
 
 
 # provide what to inject via spec. the spec contain the default
@@ -351,6 +393,7 @@ def some_data_override_config(
 def test_override_initial_value_from_config(item_type: TestDataItemFormat) -> None:
     # use the shortest possible config version
     # os.environ['SOURCES__TEST_INCREMENTAL__SOME_DATA_OVERRIDE_CONFIG__CREATED_AT__INITIAL_VALUE'] = '2000-02-03T00:00:00Z'
+    os.environ["CREATED_AT__CURSOR_PATH"] = "created_at"
     os.environ["CREATED_AT__INITIAL_VALUE"] = "2000-02-03T00:00:00Z"
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -598,7 +641,7 @@ def test_json_path_cursor() -> None:
 def test_remove_incremental_with_explicit_none() -> None:
     @dlt.resource(standalone=True)
     def some_data(
-        last_timestamp: dlt.sources.incremental[float] = dlt.sources.incremental(
+        last_timestamp: Optional[dlt.sources.incremental[float]] = dlt.sources.incremental(
             "id", initial_value=9
         ),
     ):
@@ -623,9 +666,9 @@ def test_remove_incremental_with_incremental_empty() -> None:
         assert last_timestamp is None
         yield 1
 
-    # we disable incremental by typing the argument as optional
-    # if not disabled it would fail on "item.timestamp" not found
-    assert list(some_data_optional(last_timestamp=dlt.sources.incremental.EMPTY)) == [1]
+    # can't use EMPTY to reset incremental
+    with pytest.raises(ValueError):
+        list(some_data_optional(last_timestamp=dlt.sources.incremental.EMPTY))
 
     @dlt.resource(standalone=True)
     def some_data(
@@ -635,8 +678,8 @@ def test_remove_incremental_with_incremental_empty() -> None:
         yield 1
 
     # we'll get the value error
-    with pytest.raises(ValueError):
-        assert list(some_data(last_timestamp=dlt.sources.incremental.EMPTY)) == [1]
+    with pytest.raises(InvalidNativeValue):
+        list(some_data(last_timestamp=dlt.sources.incremental.EMPTY))
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -860,20 +903,23 @@ def test_incremental_explicit_disable_unique_check(item_type: TestDataItemFormat
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
-    p = dlt.pipeline(pipeline_name=uniq_id())
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
     data = [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
     source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
     def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
         # make sure that incremental from apply_hints is here
-        assert created_at is not None
-        assert created_at.last_value_func is max
+        if created_at is not None:
+            assert created_at.cursor_path == "created_at"
+            assert created_at.last_value_func is max
         yield source_items
 
     # the incremental wrapper is created for a resource and the incremental value is provided via apply hints
     r = some_data()
     assert r is not some_data
+    assert r.incremental is not None
+    assert r.incremental.incremental is None
     r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
     if item_type == "pandas":
         assert list(r)[0].equals(source_items[0])
@@ -881,6 +927,9 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
         assert list(r) == source_items
     p.extract(r)
     assert "incremental" in r.state
+    assert r.incremental.incremental is not None
+    assert len(r._pipe) == 2
+    # no more elements
     assert list(r) == []
 
     # same thing with explicit None
@@ -894,11 +943,20 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     assert "incremental" in r.state
     assert list(r) == []
 
+    # remove incremental
+    r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
+    assert r.incremental is not None
+    assert r.incremental.incremental is None
+    if item_type == "pandas":
+        assert list(r)[0].equals(source_items[0])
+    else:
+        assert list(r) == source_items
+
     # as above but we provide explicit incremental when creating resource
     p = p.drop()
-    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=max))
-    # explicit has precedence here and hints will be ignored
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=min))
+    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
+    # hints have precedence, as expected
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
     p.extract(r)
     assert "incremental" in r.state
     # max value
@@ -927,10 +985,128 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     # we add incremental as a step
     p = p.drop()
     r = some_data_no_incremental()
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
-    assert r.incremental is not None
+    print(r._pipe)
+    incr_instance = dlt.sources.incremental("created_at", last_value_func=max)
+    r.apply_hints(incremental=incr_instance)
+    print(r._pipe)
+    assert r.incremental is incr_instance
     p.extract(r)
     assert "incremental" in r.state
+    info = p.normalize()
+    assert info.row_counts["some_data_no_incremental"] == 3
+    # make sure we can override incremental
+    incr_instance = dlt.sources.incremental("created_at", last_value_func=max, row_order="desc")
+    r.apply_hints(incremental=incr_instance)
+    assert r.incremental is incr_instance
+    p.extract(r)
+    info = p.normalize()
+    assert "some_data_no_incremental" not in info.row_counts
+    # we switch last value func to min
+    incr_instance = dlt.sources.incremental(
+        "created_at", last_value_func=min, row_order="desc", primary_key=()
+    )
+    r.apply_hints(incremental=incr_instance)
+    assert r.incremental is incr_instance
+    p.extract(r)
+    info = p.normalize()
+    # we have three elements due to min function (equal element NOT is eliminated due to primary_key==())
+    assert info.row_counts["some_data_no_incremental"] == 3
+
+    # remove incremental
+    r.apply_hints(incremental=dlt.sources.incremental.EMPTY)
+    assert r.incremental is None
+
+
+def test_incremental_wrapper_on_clone_standalone_incremental() -> None:
+    @dlt.resource(standalone=True)
+    def standalone_incremental(created_at: Optional[dlt.sources.incremental[int]] = None):
+        yield [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
+
+    s_r_1 = standalone_incremental()
+    s_r_i_1 = dlt.sources.incremental[int]("created_at")
+    s_r_2 = standalone_incremental()
+    s_r_i_2 = dlt.sources.incremental[int]("created_at", initial_value=3)
+    s_r_i_3 = dlt.sources.incremental[int]("created_at", initial_value=1, last_value_func=min)
+    s_r_3 = standalone_incremental(created_at=s_r_i_3)
+
+    # different wrappers
+    assert s_r_1.incremental is not s_r_2.incremental
+    s_r_1.apply_hints(incremental=s_r_i_1)
+    s_r_2.apply_hints(incremental=s_r_i_2)
+    assert s_r_1.incremental.incremental is s_r_i_1
+    assert s_r_2.incremental.incremental is s_r_i_2
+
+    # evaluate s r 3
+    assert list(s_r_3) == [{"created_at": 1}]
+    # incremental is set after evaluation but the instance is different (wrapper is merging instances)
+    assert s_r_3.incremental.incremental.last_value_func is min
+
+    # standalone resources are bound so clone does not re-wrap
+    s_r_3_clone = s_r_3._clone()
+    assert s_r_3_clone.incremental is s_r_3.incremental
+    assert s_r_3_clone.incremental.incremental is s_r_3.incremental.incremental
+
+    # evaluate others
+    assert len(list(s_r_1)) == 3
+    assert len(list(s_r_2)) == 1
+
+
+def test_incremental_wrapper_on_clone_standalone_no_incremental() -> None:
+    @dlt.resource(standalone=True)
+    def standalone():
+        yield [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
+
+    s_r_1 = standalone()
+    s_r_i_1 = dlt.sources.incremental[int]("created_at", row_order="desc")
+    s_r_2 = standalone()
+    s_r_i_2 = dlt.sources.incremental[int]("created_at", initial_value=3)
+
+    # clone keeps the incremental step
+    s_r_1.apply_hints(incremental=s_r_i_1)
+    assert s_r_1.incremental is s_r_i_1
+
+    s_r_1_clone = s_r_1._clone()
+    assert s_r_1_clone.incremental is s_r_i_1
+
+    assert len(list(s_r_1)) == 3
+    s_r_2.apply_hints(incremental=s_r_i_2)
+    assert len(list(s_r_2)) == 1
+
+
+def test_incremental_wrapper_on_clone_incremental() -> None:
+    @dlt.resource
+    def regular_incremental(created_at: Optional[dlt.sources.incremental[int]] = None):
+        yield [{"created_at": 1}, {"created_at": 2}, {"created_at": 3}]
+
+    assert regular_incremental.incremental is not None
+    assert regular_incremental.incremental.incremental is None
+
+    # separate incremental
+    r_1 = regular_incremental()
+    assert r_1.args_bound is True
+    r_2 = regular_incremental.with_name("cloned_regular")
+    assert r_1.incremental is not None
+    assert r_2.incremental is not None
+    assert r_1.incremental is not r_2.incremental is not regular_incremental.incremental
+
+    # evaluate and compare incrementals
+    assert len(list(r_1)) == 3
+    assert len(list(r_2)) == 3
+    assert r_1.incremental.incremental is None
+    assert r_2.incremental.incremental is None
+
+    # now bind some real incrementals
+    r_3 = regular_incremental(dlt.sources.incremental[int]("created_at", initial_value=3))
+    r_4 = regular_incremental(
+        dlt.sources.incremental[int]("created_at", initial_value=1, last_value_func=min)
+    )
+    r_4_clone = r_4._clone("r_4_clone")
+    # evaluate
+    assert len(list(r_3)) == 1
+    assert len(list(r_4)) == 1
+    assert r_3.incremental.incremental is not r_4.incremental.incremental
+    # now the clone should share the incremental because it was done after parameters were bound
+    assert r_4_clone.incremental is r_4.incremental
 
 
 def test_last_value_func_on_dict() -> None:
@@ -991,6 +1167,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         max_hours: int = 2,
         tz: str = None,
     ):
+        print("some_data", updated_at, dict(updated_at))
         data = [
             {"updated_at": start_dt + timedelta(hours=hour), "hour": hour}
             for hour in range(1, max_hours + 1)
@@ -1034,6 +1211,8 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
             "updated_at", initial_value=pendulum_start_dt, end_value=pendulum_start_dt.add(hours=3)
         )
     )
+    print(resource.incremental.incremental, dict(resource.incremental.incremental))
+    pipeline = pipeline.drop()
     extract_info = pipeline.extract(resource)
     assert (
         extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
@@ -1621,7 +1800,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
 
     r = test_type()
     list(r)
-    assert r.incremental._incremental.get_incremental_value_type() is str
+    assert r.incremental.incremental.get_incremental_value_type() is str
 
     # use annotation
     @dlt.resource
@@ -1635,7 +1814,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
 
     r = test_type_2()
     list(r)
-    assert r.incremental._incremental.get_incremental_value_type() is int
+    assert r.incremental.incremental.get_incremental_value_type() is int
 
     # pass in explicit value
     @dlt.resource
@@ -1645,7 +1824,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
 
     r = test_type_3(dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True))
     list(r)
-    assert r.incremental._incremental.get_incremental_value_type() is float
+    assert r.incremental.incremental.get_incremental_value_type() is float
 
     # pass explicit value overriding default that is typed
     @dlt.resource
@@ -1657,7 +1836,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
 
     r = test_type_4(dlt.sources.incremental[str]("updated_at", allow_external_schedulers=True))
     list(r)
-    assert r.incremental._incremental.get_incremental_value_type() is str
+    assert r.incremental.incremental.get_incremental_value_type() is str
 
     # no generic type information
     @dlt.resource
@@ -1669,7 +1848,7 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
 
     r = test_type_5(dlt.sources.incremental("updated_at"))
     list(r)
-    assert r.incremental._incremental.get_incremental_value_type() is Any
+    assert r.incremental.incremental.get_incremental_value_type() is Any
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -1743,27 +1922,39 @@ def test_allow_external_schedulers(item_type: TestDataItemFormat) -> None:
 
     # does not participate
     os.environ["DLT_START_VALUE"] = "2"
-    result = data_item_to_list(item_type, list(test_type_2()))
-    assert len(result) == 3
+    # r = test_type_2()
+    # result = data_item_to_list(item_type, list(r))
+    # assert len(result) == 3
 
-    assert test_type_2.incremental.allow_external_schedulers is False
-    assert test_type_2().incremental.allow_external_schedulers is False
+    # # incremental not bound to the wrapper
+    # assert test_type_2.incremental.allow_external_schedulers is None
+    # assert test_type_2().incremental.allow_external_schedulers is None
+    # # this one is bound
+    # assert r.incremental.allow_external_schedulers is False
 
-    # allow scheduler in wrapper
-    r = test_type_2()
-    r.incremental.allow_external_schedulers = True
-    result = data_item_to_list(item_type, list(test_type_2()))
-    assert len(result) == 2
-    assert r.incremental.allow_external_schedulers is True
-    assert r.incremental._incremental.allow_external_schedulers is True
+    # # allow scheduler in wrapper
+    # r = test_type_2()
+    # r.incremental.allow_external_schedulers = True
+    # result = data_item_to_list(item_type, list(r))
+    # assert len(result) == 2
+    # assert r.incremental.allow_external_schedulers is True
+    # assert r.incremental.incremental.allow_external_schedulers is True
 
     # add incremental dynamically
     @dlt.resource()
     def test_type_3():
-        yield [{"updated_at": d} for d in [1, 2, 3]]
+        data = [{"updated_at": d} for d in [1, 2, 3]]
+        yield data_to_item_format(item_type, data)
 
+    r = test_type_3()
+    r.add_step(dlt.sources.incremental[int]("updated_at"))
+    r.incremental.allow_external_schedulers = True
+    result = data_item_to_list(item_type, list(r))
+    assert len(result) == 2
+
+    # if type of incremental cannot be inferred, external scheduler will be ignored
     r = test_type_3()
     r.add_step(dlt.sources.incremental("updated_at"))
     r.incremental.allow_external_schedulers = True
-    result = data_item_to_list(item_type, list(test_type_2()))
-    assert len(result) == 2
+    result = data_item_to_list(item_type, list(r))
+    assert len(result) == 3

@@ -89,7 +89,7 @@ def test_config_provider_order(toml_providers: ConfigProvidersContext, environme
         return port
 
     # secrets have api.port=1023 and this will be used
-    assert single_val(None) == 1023
+    assert single_val(dlt.secrets.value) == 1023
 
     # env will make it string, also section is optional
     environment["PORT"] = "UNKNOWN"
@@ -110,7 +110,7 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
     ):
         return api_type, secret_value, typecheck
 
-    _tup = mixed_val(None, None, None)
+    _tup = mixed_val(dlt.config.value, dlt.secrets.value, dlt.config.value)
     assert _tup[0] == "REST"
     assert _tup[1] == "2137"
     assert isinstance(_tup[2], dict)

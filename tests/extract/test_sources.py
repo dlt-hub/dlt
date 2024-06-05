@@ -677,8 +677,8 @@ def test_illegal_double_bind() -> None:
     def _r1():
         yield ["a", "b", "c"]
 
-    assert _r1._args_bound is False
-    assert _r1()._args_bound is True
+    assert _r1.args_bound is False
+    assert _r1().args_bound is True
 
     with pytest.raises(TypeError) as py_ex:
         _r1()()
@@ -689,14 +689,14 @@ def test_illegal_double_bind() -> None:
     assert "Parametrized resource" in str(py_ex.value)
 
     bound_r = dlt.resource([1, 2, 3], name="rx")
-    assert bound_r._args_bound is True
+    assert bound_r.args_bound is True
     with pytest.raises(TypeError):
         _r1()
 
     def _gen():
         yield from [1, 2, 3]
 
-    assert dlt.resource(_gen())._args_bound is True
+    assert dlt.resource(_gen()).args_bound is True
 
 
 @dlt.resource
@@ -1293,7 +1293,7 @@ def test_apply_hints() -> None:
     )
     assert empty_r._hints == {
         "columns": {},
-        "incremental": None,
+        "incremental": Incremental.EMPTY,
         "validator": None,
         "write_disposition": "append",
         "original_columns": {},

@@ -8,6 +8,7 @@ from dlt.common.configuration.exceptions import (
     ContainerInjectableContextMangled,
     ContextDefaultCannotBeCreated,
 )
+from dlt.common.typing import is_subclass
 
 TConfiguration = TypeVar("TConfiguration", bound=ContainerInjectableContext)
 
@@ -56,7 +57,7 @@ class Container:
 
     def __getitem__(self, spec: Type[TConfiguration]) -> TConfiguration:
         # return existing config object or create it from spec
-        if not issubclass(spec, ContainerInjectableContext):
+        if not is_subclass(spec, ContainerInjectableContext):
             raise KeyError(f"{spec.__name__} is not a context")
 
         context, item = self._thread_getitem(spec)
