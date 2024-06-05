@@ -28,6 +28,7 @@ from dlt.common.typing import (
     extract_inner_type,
     is_list_generic_type,
     is_dict_generic_type,
+    is_subclass,
     is_union_type,
 )
 
@@ -124,7 +125,7 @@ def pydantic_to_table_schema_columns(
         try:
             data_type = py_type_to_sc_type(inner_type)
         except TypeError:
-            if issubclass(inner_type, BaseModel):
+            if is_subclass(inner_type, BaseModel):
                 data_type = "complex"
                 is_inner_type_pydantic_model = True
             else:
@@ -250,7 +251,7 @@ def apply_schema_contract_to_model(
         elif is_union_type(t_):
             u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
             return Union[u_t_s]  # type: ignore[return-value]
-        elif inspect.isclass(t_) and issubclass(t_, BaseModel):
+        elif is_subclass(t_, BaseModel):
             # types must be same before and after processing
             if id(t_) in _child_models:
                 return _child_models[id(t_)]

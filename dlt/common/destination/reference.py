@@ -37,7 +37,6 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     IdentifierTooLongException,
@@ -627,7 +626,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return dest
 
     def client(
-        self, schema: Schema, initial_config: TDestinationConfig = config.value
+        self, schema: Schema, initial_config: TDestinationConfig = None
     ) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""
         return self.client_class(schema, self.configuration(initial_config))
