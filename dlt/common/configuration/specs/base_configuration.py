@@ -1,5 +1,4 @@
 import copy
-import inspect
 import contextlib
 import dataclasses
 import warnings
@@ -221,6 +220,11 @@ def configspec(
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
+                # resolve the annotation as per PEP 563
+                # NOTE: we do not use get_type_hints because at this moment cls is an unknown name
+                # (ie. used as decorator and module is being imported)
+                if isinstance(hint, str):
+                    hint = eval(hint)
 
                 # context can have any type
                 if not is_valid_hint(hint) and not is_context:
@@ -321,7 +325,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
     @classmethod
     def get_resolvable_fields(cls) -> Dict[str, type]:
         """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
-        return {f.name: f.type for f in cls._get_resolvable_dataclass_fields()}
+        return {
+            f.name: eval(f.type) if isinstance(f.type, str) else f.type  # type: ignore[arg-type]
+            for f in cls._get_resolvable_dataclass_fields()
+        }
 
     def is_resolved(self) -> bool:
         return self.__is_resolved__
