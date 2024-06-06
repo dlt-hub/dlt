@@ -9,7 +9,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
 
 try:
-    from deltalake import write_deltalake  # type: ignore[import-not-found]
+    from deltalake import write_deltalake
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt deltalake helpers",
@@ -61,7 +61,7 @@ def write_delta_table(
     # throws warning for `s3` protocol: https://github.com/delta-io/delta-rs/issues/2460
     # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500
     # is released
-    write_deltalake(
+    write_deltalake(  # type: ignore[call-overload]
         table_or_uri=path,
         data=ensure_delta_compatible_arrow_table(table),
         mode=get_delta_write_mode(write_disposition),
