@@ -24,7 +24,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.8,<3.13"
 requests = ">=2.26.0"
 pendulum = ">=2.1.2"
 simplejson = ">=3.17.5"
@@ -85,7 +85,7 @@ databricks-sql-connector = {version = ">=2.9.3,<3.0.0", optional = true}
 dbt-databricks = {version = ">=1.7.3", optional = true}
 clickhouse-driver = { version = ">=0.2.7", optional = true }
 clickhouse-connect = { version = ">=0.7.7", optional = true }
-lancedb = { version = ">=0.8.2", optional = true, extras = ["emdeddings"] }
+lancedb = { version = ">=0.6", optional = true, extras = ["emdeddings"] }
 deltalake = { version = ">=0.17.4", optional = true }
 
 [tool.poetry.extras]
