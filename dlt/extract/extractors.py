@@ -1,6 +1,7 @@
 from copy import copy
 from typing import Set, Dict, Any, Optional, List
 
+from dlt.common.configuration import known_sections
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
@@ -21,6 +22,7 @@ from dlt.extract.hints import HintsMeta
 from dlt.extract.resource import DltResource
 from dlt.extract.items import TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
+from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
     from dlt.common.libs import pyarrow
@@ -215,12 +217,25 @@ class ObjectExtractor(Extractor):
 class ArrowExtractor(Extractor):
     """Extracts arrow data items into parquet. Normalizes arrow items column names.
     Compares the arrow schema to actual dlt table schema to reorder the columns and to
-    insert missing columns (without data).
+    insert missing columns (without data). Adds _dlt_load_id column to the table if
+    `add_dlt_load_id` is set to True in normalizer config.
 
     We do things that normalizer should do here so we do not need to load and save parquet
     files again later.
 
+    Handles the following types:
+    - `pyarrow.Table`
+    - `pyarrow.RecordBatch`
+    - `pandas.DataFrame` (is converted to arrow `Table` before processing)
     """
+
+    # Inject the parts of normalize configuration that are used here
+    @with_config(
+        spec=ItemsNormalizerConfiguration, sections=(known_sections.NORMALIZE, "parquet_normalizer")
+    )
+    def __init__(self, *args: Any, add_dlt_load_id: bool = False, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.add_dlt_load_id = add_dlt_load_id
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
@@ -294,7 +309,13 @@ class ArrowExtractor(Extractor):
         columns = columns or self.schema.get_table_columns(table_name)
         # Note: `items` is always a list here due to the conversion in `write_table`
         items = [
-            pyarrow.normalize_py_arrow_item(item, columns, self.naming, self._caps)
+            pyarrow.normalize_py_arrow_item(
+                item,
+                columns,
+                self.naming,
+                self._caps,
+                load_id=self.load_id if self.add_dlt_load_id else None,
+            )
             for item in items
         ]
         # write items one by one
@@ -318,6 +339,13 @@ class ArrowExtractor(Extractor):
             arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
             # normalize arrow table before merging
             arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+            # Add load_id column
+            if self.add_dlt_load_id and "_dlt_load_id" not in arrow_table["columns"]:
+                arrow_table["columns"]["_dlt_load_id"] = {
+                    "name": "_dlt_load_id",
+                    "data_type": "text",
+                    "nullable": False,
+                }
             # issue warnings when overriding computed with arrow
             override_warn: bool = False
             for col_name, column in arrow_table["columns"].items():

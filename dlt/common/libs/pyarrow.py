@@ -226,7 +226,8 @@ def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
+    add_load_id: bool = False,
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], bool, TTableSchemaColumns]:
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
     nullable_mapping = {k: v.get("nullable", True) for k, v in columns.items()}
@@ -240,6 +241,16 @@ def should_normalize_arrow_schema(
 
     dlt_tables = list(map(naming.normalize_table_identifier, ("_dlt_id", "_dlt_load_id")))
 
+    # Do we need to add a load id column?
+    if add_load_id and "_dlt_load_id" in columns:
+        try:
+            schema.field("_dlt_load_id")
+            needs_load_id = False
+        except KeyError:
+            needs_load_id = True
+    else:
+        needs_load_id = False
+
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
     # that should happen in the normalizer
     columns = {
@@ -250,9 +261,18 @@ def should_normalize_arrow_schema(
 
     # check if nothing to rename
     skip_normalize = (
-        list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
-    ) and not nullable_updates
-    return not skip_normalize, rename_mapping, rev_mapping, nullable_updates, columns
+        (list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys()))
+        and not nullable_updates
+        and not needs_load_id
+    )
+    return (
+        not skip_normalize,
+        rename_mapping,
+        rev_mapping,
+        nullable_updates,
+        needs_load_id,
+        columns,
+    )
 
 
 def normalize_py_arrow_item(
@@ -260,6 +280,7 @@ def normalize_py_arrow_item(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     caps: DestinationCapabilitiesContext,
+    load_id: Optional[str] = None,
 ) -> TAnyArrowItem:
     """Normalize arrow `item` schema according to the `columns`.
 
@@ -267,10 +288,11 @@ def normalize_py_arrow_item(
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
     4. arrow columns with different nullability than corresponding schema columns will be updated
+    5. Add `_dlt_load_id` column if it is missing and `load_id` is provided
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
-        should_normalize_arrow_schema(schema, columns, naming)
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, needs_load_id, columns = (
+        should_normalize_arrow_schema(schema, columns, naming, load_id is not None)
     )
     if not should_normalize:
         return item
@@ -306,6 +328,12 @@ def normalize_py_arrow_item(
         # use renamed field
         new_fields.append(schema.field(idx).with_name(column_name))
         new_columns.append(item.column(idx))
+
+    if needs_load_id and load_id:
+        # Storage efficient type for a column with constant value
+        load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
+        new_fields.append(pyarrow.field("_dlt_load_id", load_id_type, nullable=False))
+        new_columns.append(pyarrow.array([load_id] * item.num_rows, type=load_id_type))
 
     # create desired type
     return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
@@ -381,6 +409,30 @@ def from_arrow_scalar(arrow_value: pyarrow.Scalar) -> Any:
 
 TNewColumns = Sequence[Tuple[int, pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]
 """Sequence of tuples: (field index, field, generating function)"""
+
+
+def add_constant_column(
+    item: TAnyArrowItem,
+    name: str,
+    data_type: pyarrow.DataType,
+    value: Any = None,
+    nullable: bool = True,
+    index: int = -1,
+) -> TAnyArrowItem:
+    """Add column with a single value to the table.
+
+    Args:
+        item: Arrow table or record batch
+        name: The new column name
+        data_type: The data type of the new column
+        nullable: Whether the new column is nullable
+        value: The value to fill the new column with
+        index: The index at which to insert the new column. Defaults to -1 (append)
+    """
+    field = pyarrow.field(name, pyarrow.dictionary(pyarrow.int8(), data_type), nullable=nullable)
+    if index == -1:
+        return item.append_column(field, pyarrow.array([value] * item.num_rows, type=field.type))
+    return item.add_column(index, field, pyarrow.array([value] * item.num_rows, type=field.type))
 
 
 def pq_stream_with_new_columns(
