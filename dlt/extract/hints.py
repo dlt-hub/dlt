@@ -24,6 +24,7 @@ from dlt.common.schema.utils import (
     new_table,
 )
 from dlt.common.typing import TDataItem
+from dlt.common.utils import clone_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -156,6 +157,10 @@ class DltResourceHints:
     @property
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
+
+    @property
+    def table_format(self) -> TTableHintTemplate[TTableFormat]:
+        return None if self._hints is None else self._hints.get("table_format")
 
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
@@ -318,7 +323,7 @@ class DltResourceHints:
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
-            t["incremental"] = None if incremental is Incremental.EMPTY else incremental
+            t["incremental"] = incremental
 
         self._set_hints(t, create_table_variant)
 
@@ -375,11 +380,11 @@ class DltResourceHints:
 
     @staticmethod
     def _clone_hints(hints_template: TResourceHints) -> TResourceHints:
-        t_ = copy(hints_template)
-        t_["columns"] = deepcopy(hints_template["columns"])
-        if "schema_contract" in hints_template:
-            t_["schema_contract"] = deepcopy(hints_template["schema_contract"])
-        return t_
+        if hints_template is None:
+            return None
+        # creates a deep copy of dict structure without actually copying the objects
+        # deepcopy(hints_template) #
+        return clone_dict_nested(hints_template)  # type: ignore[type-var]
 
     @staticmethod
     def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[Any]) -> Any:

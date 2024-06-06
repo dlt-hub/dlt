@@ -141,7 +141,7 @@ TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborte
 
 
 class ParsedLoadJobFileName(NamedTuple):
-    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retired, extension
+    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retried, extension
     and a 5 bytes random string to make job file name unique.
     The job id does not contain retry count and is immutable during loading of the data
     """

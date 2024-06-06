@@ -28,6 +28,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_table_identifiers, pipeline_state_table
 from dlt.common.storages import FileStorage
+from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.destination.reference import (
@@ -232,10 +233,12 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return jobs
 
     def create_table_chain_completed_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self,
+        table_chain: Sequence[TTableSchema],
+        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
-        jobs = super().create_table_chain_completed_followup_jobs(table_chain)
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "append":
             jobs.extend(self._create_append_followup_jobs(table_chain))

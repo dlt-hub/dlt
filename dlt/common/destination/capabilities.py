@@ -1,4 +1,16 @@
-from typing import Any, Callable, ClassVar, Union, Literal, Optional, Sequence, Tuple, Set, get_args
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Set,
+    Protocol,
+    Union,
+    get_args,
+)
 
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
@@ -9,7 +21,6 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingWithoutStagingNotSupported,
 )
 from dlt.common.normalizers.naming import NamingConvention
-
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
@@ -22,12 +33,28 @@ TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", 
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
 
+class LoaderFileFormatAdapter(Protocol):
+    """Callback protocol for `loader_file_format_adapter` capability."""
+
+    def __call__(
+        self,
+        preferred_loader_file_format: TLoaderFileFormat,
+        supported_loader_file_formats: Sequence[TLoaderFileFormat],
+        /,
+        *,
+        table_schema: "TTableSchema",  # type: ignore[name-defined] # noqa: F821
+    ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]: ...
+
+
 @configspec
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
 
     preferred_loader_file_format: TLoaderFileFormat = None
     supported_loader_file_formats: Sequence[TLoaderFileFormat] = None
+    loader_file_format_adapter: LoaderFileFormatAdapter = None
+    """Callable that adapts `preferred_loader_file_format` and `supported_loader_file_formats` at runtime."""
+    supported_table_formats: Sequence["TTableFormat"] = None  # type: ignore[name-defined] # noqa: F821
     recommended_file_size: Optional[int] = None
     """Recommended file size in bytes when writing extract/load files"""
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
@@ -71,16 +98,20 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
         naming_convention: Union[str, NamingConvention] = None,
+        loader_file_format_adapter: LoaderFileFormatAdapter = None,
+        supported_table_formats: Sequence["TTableFormat"] = None,  # type: ignore[name-defined] # noqa: F821
     ) -> "DestinationCapabilitiesContext":
         from dlt.common.data_writers.escape import format_datetime_literal
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
+        caps.loader_file_format_adapter = loader_file_format_adapter
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
         caps.naming_convention = naming_convention or caps.naming_convention
         caps.escape_identifier = str
+        caps.supported_table_formats = supported_table_formats or []
         caps.escape_literal = serialize_value
         caps.casefold_identifier = str
         caps.has_case_sensitive_identifiers = True

@@ -62,14 +62,14 @@ def ie_storage(request) -> SchemaStorage:
     )
 
 
-def init_storage(cls, C: SchemaStorageConfiguration) -> SchemaStorage:
+def init_storage(cls, config: SchemaStorageConfiguration) -> SchemaStorage:
     # use live schema storage for test which must be backward compatible with schema storage
-    s = cls(C, makedirs=True)
-    assert C is s.config
-    if C.export_schema_path:
-        os.makedirs(C.export_schema_path, exist_ok=True)
-    if C.import_schema_path:
-        os.makedirs(C.import_schema_path, exist_ok=True)
+    s = cls(config, makedirs=True)
+    assert config is s.config
+    if config.export_schema_path:
+        os.makedirs(config.export_schema_path, exist_ok=True)
+    if config.import_schema_path:
+        os.makedirs(config.import_schema_path, exist_ok=True)
     return s
 
 

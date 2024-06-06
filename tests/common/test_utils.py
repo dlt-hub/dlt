@@ -1,12 +1,14 @@
+from copy import deepcopy
 import itertools
 import inspect
 import binascii
 import pytest
-from typing import Dict
+from typing import Any, Dict
 from dlt.common.exceptions import PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (
+    clone_dict_nested,
     graph_find_scc_nodes,
     flatten_list_of_str_or_dicts,
     digest128,
@@ -293,6 +295,75 @@ def test_nested_dict_merge() -> None:
 
     assert update_dict_nested(dict(dict_1), dict_2) == {"a": 2, "b": 2, "c": 4}
     assert update_dict_nested(dict(dict_2), dict_1) == {"a": 1, "b": 2, "c": 4}
-    assert update_dict_nested(dict(dict_1), dict_2, keep_dst_values=True) == update_dict_nested(
-        dict_2, dict_1
+    assert update_dict_nested(dict(dict_1), dict_2, copy_src_dicts=True) == {"a": 2, "b": 2, "c": 4}
+    assert update_dict_nested(dict(dict_2), dict_1, copy_src_dicts=True) == {"a": 1, "b": 2, "c": 4}
+    dict_1_update = update_dict_nested({}, dict_1)
+    assert dict_1_update == dict_1
+    assert dict_1_update is not dict_1
+    dict_1_update = clone_dict_nested(dict_1)
+    assert dict_1_update == dict_1
+    assert dict_1_update is not dict_1
+
+    dict_1_deep = {"a": 3, "b": dict_1}
+    dict_1_deep_clone = update_dict_nested({}, dict_1_deep)
+    assert dict_1_deep_clone == dict_1_deep
+    # reference got copied
+    assert dict_1_deep_clone["b"] is dict_1
+    # update with copy
+    dict_1_deep_clone = clone_dict_nested(dict_1_deep)
+    assert dict_1_deep_clone == dict_1_deep
+    # reference got copied
+    assert dict_1_deep_clone["b"] is not dict_1
+
+    # make sure that that Mappings that are not dicts are atomically copied
+    from dlt.common.configuration.specs import ConnectionStringCredentials
+
+    dsn = ConnectionStringCredentials("postgres://loader:loader@localhost:5432/dlt_data")
+    dict_1_mappings: Dict[str, Any] = {
+        "_tuple": (1, 2),
+        "_config": {"key": "str", "_dsn": dsn, "_dict": dict_1_deep},
+    }
+    # make a clone
+    dict_1_mappings_clone = clone_dict_nested(dict_1_mappings)
+    # values are same
+    assert dict_1_mappings == dict_1_mappings_clone
+    # all objects and mappings are copied as reference
+    assert dict_1_mappings["_tuple"] is dict_1_mappings_clone["_tuple"]
+    assert dict_1_mappings["_config"]["_dsn"] is dict_1_mappings_clone["_config"]["_dsn"]
+    # dicts are copied by value
+    assert dict_1_mappings["_config"] is not dict_1_mappings_clone["_config"]
+    assert dict_1_mappings["_config"]["_dict"] is not dict_1_mappings_clone["_config"]["_dict"]
+    assert (
+        dict_1_mappings["_config"]["_dict"]["b"]
+        is not dict_1_mappings_clone["_config"]["_dict"]["b"]
     )
+
+    # make a copy using references
+    dict_1_mappings_clone = update_dict_nested({}, dict_1_mappings)
+    assert dict_1_mappings["_config"] is dict_1_mappings_clone["_config"]
+    assert dict_1_mappings["_config"]["_dict"] is dict_1_mappings_clone["_config"]["_dict"]
+    assert (
+        dict_1_mappings["_config"]["_dict"]["b"] is dict_1_mappings_clone["_config"]["_dict"]["b"]
+    )
+
+    # replace a few keys
+    print(dict_1_mappings)
+    # this should be non destructive for the dst
+    deep_clone_dict_1_mappings = deepcopy(dict_1_mappings)
+    mappings_update = update_dict_nested(
+        dict_1_mappings, {"_config": {"_dsn": ConnectionStringCredentials(), "_dict": {"a": "X"}}}
+    )
+    # assert deep_clone_dict_1_mappings == dict_1_mappings
+    # things overwritten
+    assert dict_1_mappings["_config"]["_dsn"] is mappings_update["_config"]["_dsn"]
+    # this one is empty
+    assert mappings_update["_config"]["_dsn"].username is None
+    assert dict_1_mappings["_config"]["_dsn"].username is None
+    assert mappings_update["_config"]["_dict"]["a"] == "X"
+    assert dict_1_mappings["_config"]["_dict"]["a"] == "X"
+
+    # restore original values
+    mappings_update = update_dict_nested(
+        mappings_update, {"_config": {"_dsn": dsn, "_dict": {"a": 3}}}
+    )
+    assert mappings_update == deep_clone_dict_1_mappings

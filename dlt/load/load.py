@@ -256,8 +256,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if table_chain := get_completed_table_chain(
                     schema, all_jobs, top_job_table, starting_job.job_file_info().job_id()
                 ):
+                    table_chain_names = [table["name"] for table in table_chain]
+                    table_chain_jobs = [
+                        job for job in all_jobs if job.job_file_info.table_name in table_chain_names
+                    ]
                     if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
-                        table_chain
+                        table_chain, table_chain_jobs
                     ):
                         jobs = jobs + follow_up_jobs
             jobs = jobs + starting_job.create_followup_jobs(state)
