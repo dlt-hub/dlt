@@ -13,7 +13,7 @@ from dlt.common.utils import digest128
 
 @configspec
 class LanceDBCredentials(CredentialsConfiguration):
-    uri: str = "./.lancedb"
+    uri: str = ".lancedb"
     """LanceDB database URI. Defaults to local, on-disk instance.
 
     The available schemas are:
@@ -68,7 +68,7 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
         default="LanceDB", init=False, repr=False, compare=False
     )
     credentials: LanceDBCredentials = None
-    dataset_separator: str = "_"
+    dataset_separator: str = "___"
     """Character for the dataset separator."""
     dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
         default=None, init=False, repr=False, compare=False
