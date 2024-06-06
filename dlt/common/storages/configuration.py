@@ -83,6 +83,7 @@ class FilesystemConfiguration(BaseConfiguration):
     """Indicates read only filesystem access. Will enable caching"""
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
+    deltalake_storage_options: Optional[DictStrAny] = None
 
     @property
     def protocol(self) -> str:

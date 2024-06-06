@@ -14,7 +14,6 @@ from dlt.destinations.impl.filesystem.filesystem import (
     INIT_FILE_NAME,
 )
 
-
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging

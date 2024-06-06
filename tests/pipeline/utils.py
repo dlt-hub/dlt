@@ -1,5 +1,4 @@
-import posixpath
-from typing import Any, Dict, List, Tuple, Callable, Sequence
+from typing import Any, Dict, List, Callable, Sequence
 import pytest
 import random
 from os import environ
@@ -8,7 +7,7 @@ import io
 import dlt
 from dlt.common import json, sleep
 from dlt.common.pipeline import LoadInfo
-from dlt.common.schema.typing import LOADS_TABLE_NAME
+from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.fs_client import FSClientBase
@@ -16,7 +15,6 @@ from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
-from tests.utils import TEST_STORAGE_ROOT
 
 PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
 
@@ -156,19 +154,39 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 #
 # Load table dicts
 #
+def _get_delta_table(client: FilesystemClient, table_name: str) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
+    from deltalake import DeltaTable
+    from dlt.common.libs.deltalake import _deltalake_storage_options
+
+    table_dir = client.get_table_dir(table_name)
+    remote_table_dir = f"{client.config.protocol}://{table_dir}"
+    return DeltaTable(
+        remote_table_dir,
+        storage_options=_deltalake_storage_options(client.config),
+    )
+
+
 def _load_tables_to_dicts_fs(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
     client = p._fs_client()
     result: Dict[str, Any] = {}
 
     for table_name in table_names:
-        table_files = client.list_table_files(table_name)
-        for file in table_files:
-            items = _load_file(client, file)
-            if table_name in result:
-                result[table_name] = result[table_name] + items
-            else:
-                result[table_name] = items
+        if (
+            table_name in p.default_schema.data_table_names()
+            and get_table_format(p.default_schema.tables, table_name) == "delta"
+        ):
+            assert isinstance(client, FilesystemClient)
+            dt = _get_delta_table(client, table_name)
+            result[table_name] = dt.to_pyarrow_table().to_pylist()
+        else:
+            table_files = client.list_table_files(table_name)
+            for file in table_files:
+                items = _load_file(client, file)
+                if table_name in result:
+                    result[table_name] = result[table_name] + items
+                else:
+                    result[table_name] = items
     return result
 
 
@@ -194,11 +212,29 @@ def _load_tables_to_dicts_sql(
 
 
 def load_tables_to_dicts(
-    p: dlt.Pipeline, *table_names: str, schema_name: str = None
+    p: dlt.Pipeline,
+    *table_names: str,
+    schema_name: str = None,
+    exclude_system_cols: bool = False,
+    sortkey: str = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
+    def _exclude_system_cols(dict_: Dict[str, Any]) -> Dict[str, Any]:
+        return {k: v for k, v in dict_.items() if not k.startswith("_dlt")}
+
+    def _sort_list_of_dicts(list_: List[Dict[str, Any]], sortkey: str) -> List[Dict[str, Any]]:
+        """Sort list of dictionaries by dictionary key."""
+        return sorted(list_, key=lambda d: d[sortkey])
+
     if _is_filesystem(p):
-        return _load_tables_to_dicts_fs(p, *table_names)
-    return _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
+        result = _load_tables_to_dicts_fs(p, *table_names)
+    else:
+        result = _load_tables_to_dicts_sql(p, *table_names, schema_name=schema_name)
+
+    if exclude_system_cols:
+        result = {k: [_exclude_system_cols(d) for d in v] for k, v in result.items()}
+    if sortkey is not None:
+        result = {k: _sort_list_of_dicts(v, sortkey) for k, v in result.items()}
+    return result
 
 
 def assert_only_table_columns(

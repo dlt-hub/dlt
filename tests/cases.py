@@ -257,6 +257,11 @@ def assert_all_data_types_row(
             else:
                 db_mapping[binary_col] = bytes(db_mapping[binary_col])
 
+    # `delta` table format stores `wei` type as string
+    if "col8" in db_mapping:
+        if isinstance(db_mapping["col8"], str):
+            db_mapping["col8"] = int(db_mapping["col8"])
+
     # redshift and bigquery return strings from structured fields
     if "col9" in db_mapping:
         if isinstance(db_mapping["col9"], str):
@@ -270,7 +275,7 @@ def assert_all_data_types_row(
     if "col10" in db_mapping:
         db_mapping["col10"] = db_mapping["col10"].isoformat()
     if "col11" in db_mapping:
-        db_mapping["col11"] = db_mapping["col11"].isoformat()
+        db_mapping["col11"] = ensure_pendulum_time(db_mapping["col11"]).isoformat()
 
     if expect_filtered_null_columns:
         for key, expected in expected_rows.items():
@@ -291,6 +296,8 @@ def arrow_table_all_data_types(
     include_time: bool = True,
     include_binary: bool = True,
     include_decimal: bool = True,
+    include_decimal_default_precision: bool = False,
+    include_decimal_arrow_max_precision: bool = False,
     include_date: bool = True,
     include_not_normalized_name: bool = True,
     include_name_clash: bool = False,
@@ -336,6 +343,20 @@ def arrow_table_all_data_types(
 
     if include_decimal:
         data["decimal"] = [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)]
+
+    if include_decimal_default_precision:
+        from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION
+
+        data["decimal_default_precision"] = [
+            Decimal(int("1" * DEFAULT_NUMERIC_PRECISION)) for _ in range(num_rows)
+        ]
+
+    if include_decimal_arrow_max_precision:
+        from dlt.common.libs.pyarrow import ARROW_DECIMAL_MAX_PRECISION
+
+        data["decimal_arrow_max_precision"] = [
+            Decimal(int("1" * ARROW_DECIMAL_MAX_PRECISION)) for _ in range(num_rows)
+        ]
 
     if include_date:
         data["date"] = pd.date_range("2021-01-01", periods=num_rows, tz=tz).date

@@ -161,7 +161,9 @@ class User(BaseModel):
     address: Annotated[UserAddress, "PII", "address"]
     uuid_or_str: Union[str, UUID4, None]
     unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
-    location: Annotated[Optional[Union[str, List[str]]], None]
+    # NOTE: added "int" because this type was clashing with a type
+    # in a delta-rs library that got cached and that re-orders the union
+    location: Annotated[Optional[Union[str, List[str], int]], None]
     something_required: Annotated[Union[str, int], type(None)]
     final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
     final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]

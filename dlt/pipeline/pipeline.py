@@ -104,7 +104,7 @@ from dlt.common.utils import is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
-from dlt.extract import DltSource
+from dlt.extract import DltSource, DltResource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
@@ -662,6 +662,7 @@ class Pipeline(SupportsPipeline):
         Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
+
         signals.raise_if_signalled()
         self.activate()
         self._set_destinations(destination=destination, staging=staging)
@@ -679,7 +680,6 @@ class Pipeline(SupportsPipeline):
             self.sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
-
         # normalize and load pending data
         if self.list_extracted_load_packages():
             self.normalize(loader_file_format=loader_file_format)

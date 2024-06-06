@@ -158,6 +158,10 @@ class DltResourceHints:
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
 
+    @property
+    def table_format(self) -> TTableHintTemplate[TTableFormat]:
+        return None if self._hints is None else self._hints.get("table_format")
+
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
         `item` parameter is used to resolve table hints based on data.
