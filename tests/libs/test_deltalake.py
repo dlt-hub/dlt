@@ -2,7 +2,7 @@ import os
 from typing import Iterator, Tuple, cast
 
 import pytest
-from deltalake import DeltaTable
+from deltalake import DeltaTable  # type: ignore[import-not-found]
 
 import dlt
 from dlt.common.libs.pyarrow import pyarrow as pa

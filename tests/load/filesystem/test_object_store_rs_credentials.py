@@ -3,8 +3,8 @@
 from typing import Any, Dict, cast
 
 import pytest
-from deltalake import DeltaTable
-from deltalake.exceptions import TableNotFoundError
+from deltalake import DeltaTable  # type: ignore[import-not-found]
+from deltalake.exceptions import TableNotFoundError  # type: ignore[import-not-found]
 
 import dlt
 from dlt.common.typing import TSecretStrValue
