@@ -155,7 +155,7 @@ def _load_file(client: FSClientBase, filepath) -> List[Dict[str, Any]]:
 # Load table dicts
 #
 def _get_delta_table(client: FilesystemClient, table_name: str) -> "DeltaTable":  # type: ignore[name-defined] # noqa: F821
-    from deltalake import DeltaTable  # type: ignore[import-not-found]
+    from deltalake import DeltaTable
     from dlt.common.libs.deltalake import _deltalake_storage_options
 
     table_dir = client.get_table_dir(table_name)
