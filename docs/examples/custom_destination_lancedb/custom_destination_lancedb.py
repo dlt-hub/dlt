@@ -36,7 +36,7 @@ from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
 
-os.environ["COHERE_API_KEY"] = dlt.secrets.get("cohere.api_key")
+os.environ["COHERE_API_KEY"] = dlt.secrets.get("destination.cohere.api_key")
 
 cohere = EmbeddingFunctionRegistry
 func = EmbeddingFunctionRegistry.get_instance().get("cohere").create(max_retries=1)
