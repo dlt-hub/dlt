@@ -41,7 +41,7 @@ def configure(C: Type[PoolRunnerConfiguration]) -> PoolRunnerConfiguration:
     return resolve_configuration(default)
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module", autouse=False)
 def logger_autouse() -> None:
     init_test_logging()
 
@@ -133,8 +133,8 @@ def test_pool_runner_process_methods_forced(method) -> None:
     multiprocessing.set_start_method(method, force=True)
     r = _TestRunnableWorker(4)
     # make sure signals and logging is initialized
-    C = resolve_configuration(RunConfiguration())
-    initialize_runtime(C)
+    #C = resolve_configuration(RunConfiguration())
+    #initialize_runtime(C)
 
     runs_count = runner.run_pool(configure(ProcessPoolConfiguration), r)
     assert runs_count == 1
@@ -145,8 +145,8 @@ def test_pool_runner_process_methods_forced(method) -> None:
 def test_pool_runner_process_methods_configured(method) -> None:
     r = _TestRunnableWorker(4)
     # make sure signals and logging is initialized
-    C = resolve_configuration(RunConfiguration())
-    initialize_runtime(C)
+    #C = resolve_configuration(RunConfiguration())
+    #initialize_runtime(C)
 
     runs_count = runner.run_pool(ProcessPoolConfiguration(start_method=method), r)
     assert runs_count == 1
