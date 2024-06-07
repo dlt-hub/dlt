@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Iterator, Union, Any
+from typing import Optional, Dict, Iterator, Any
 
 from dlt.common import jsonpath
 
