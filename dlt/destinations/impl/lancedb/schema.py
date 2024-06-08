@@ -26,8 +26,8 @@ def make_field_schema(
     column_name: str,
     column: TColumnSchema,
     type_mapper: TypeMapper,
-    embedding_model_func: Optional[TextEmbeddingFunction],
-    embedding_fields: Optional[List[str]],
+    embedding_model_func: Optional[TextEmbeddingFunction] = None,
+    embedding_fields: Optional[List[str]] = None,
 ) -> DictStrAny:
     if embedding_fields and embedding_model_func:
         return {
@@ -55,7 +55,7 @@ def make_fields(
     type_mapper: TypeMapper,
     embedding_model_func: Optional[TextEmbeddingFunction] = None,
     embedding_fields: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
+) -> List[DictStrAny]:
     """Creates a Pydantic properties schema from a table schema.
 
     Args:
