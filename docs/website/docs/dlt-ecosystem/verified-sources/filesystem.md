@@ -122,13 +122,21 @@ For more information, read the
 2. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
 3. You can pass the bucket URL and glob pattern or use `config.toml`. For local filesystems, use
-   `file://` or skip the schema and provide the local path in a format native for your operating system.
+   `file://`  as follows:
+   
+   ```toml
+   [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+   bucket_url='file://Users/admin/Documents/csv_files'
+   file_glob="*"
+   ```
+   or skip the schema and provide the local path in a format native for your operating system as follows:
 
    ```toml
    [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
    bucket_url='~\Documents\csv_files\'
    file_glob="*"
    ```
+   
    In the example above we use Windows path to current user's Documents folder. Mind that literal toml string (single quotes)
    was used to conveniently use the backslashes without need to escape.
 
