@@ -9,6 +9,7 @@ from typing import (
     Dict,
 )
 
+import pyarrow as pa
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from lancedb.pydantic import LanceModel, Vector  # type: ignore
 from pydantic import create_model
@@ -25,23 +26,35 @@ def make_field_schema(
     column_name: str,
     column: TColumnSchema,
     type_mapper: TypeMapper,
-    embedding_model_func: TextEmbeddingFunction,
-    embedding_fields: List[str],
+    embedding_model_func: Optional[TextEmbeddingFunction],
+    embedding_fields: Optional[List[str]],
 ) -> DictStrAny:
-    return {
-        column_name: (
-            type_mapper.to_db_type(column),
-            (embedding_model_func.SourceField() if column_name in embedding_fields else ...),
-        )
-    }
+    if embedding_fields and embedding_model_func:
+        return {
+            column_name: (
+                type_mapper.to_db_type(column),
+                (
+                    embedding_model_func.SourceField()
+                    if column_name in embedding_fields
+                    else ...
+                ),
+            )
+        }
+    else:
+        return {
+            column_name: (
+                type_mapper.to_db_type(column),
+                ...,
+            )
+        }
 
 
 def make_fields(
     table_name: str,
     schema: Schema,
     type_mapper: TypeMapper,
-    embedding_model_func: TextEmbeddingFunction,
-    embedding_fields: List[str],
+    embedding_model_func: Optional[TextEmbeddingFunction] = None,
+    embedding_fields: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     """Creates a Pydantic properties schema from a table schema.
 
@@ -52,7 +65,6 @@ def make_fields(
         schema (Schema): Schema to use.
         table_name: The table name for which columns should be converted to a pydantic model.
     """
-
     return [
         make_field_schema(
             column_name,
@@ -66,16 +78,17 @@ def make_fields(
 
 
 def create_template_schema(
-    id_field_name: str,
-    vector_field_name: str,
-    embedding_fields: List[str],
-    embedding_model_func: TextEmbeddingFunction,
-    embedding_model_dimensions: Optional[int],
+    id_field_name: Optional[str] = None,
+    vector_field_name: Optional[str] = None,
+    embedding_fields: Optional[List[str]] = None,
+    embedding_model_func: Optional[TextEmbeddingFunction] = None,
+    embedding_model_dimensions: Optional[int] = None,
 ) -> Type[LanceModel]:
-    # Only create vector Field if there is one or more embedding fields defined.
-    special_fields = {
-        id_field_name: (str, ...),
-    }
+    special_fields = {}
+    if id_field_name:
+        special_fields[id_field_name] = {
+            id_field_name: (str, ...),
+        }
     if embedding_fields:
         special_fields[vector_field_name] = (
             Vector(embedding_model_dimensions or embedding_model_func.ndims()),
@@ -91,3 +104,7 @@ def create_template_schema(
             **special_fields,
         ),
     )
+
+
+def arrow_schema_to_dict(schema: pa.Schema) -> DictStrAny:
+    return {field.name: field.type for field in schema}
