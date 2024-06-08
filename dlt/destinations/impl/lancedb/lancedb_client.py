@@ -442,7 +442,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     def get_stored_schema_by_hash(self, schema_hash: str) -> StorageSchemaInfo:
         try:
-            table_name = self.make_qualified_table_name(self.schema.version_table_name)
+            table_name = self.schema.version_table_name
             response = (
                 self.db_client[table_name]
                 .search()
