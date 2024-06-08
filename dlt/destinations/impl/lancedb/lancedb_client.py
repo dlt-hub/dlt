@@ -204,7 +204,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     @property
     def sentinel_table(self) -> str:
-        return self.dataset_name or "DltSentinelTable"
+        return self.make_qualified_table_name("dltSentinelTable")
 
     def make_qualified_table_name(self, table_name: str) -> str:
         return (
