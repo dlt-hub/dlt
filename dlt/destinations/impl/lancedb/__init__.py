@@ -14,4 +14,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_text_data_type_length_in_bytes = False
     caps.supports_ddl_transactions = False
 
+    caps.decimal_precision = (38, 18)
+    caps.timestamp_precision = 6
+
     return caps

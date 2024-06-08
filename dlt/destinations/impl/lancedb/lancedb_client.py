@@ -10,6 +10,7 @@ from typing import (
     Iterable,
     Type,
     Optional,
+    Dict,
 )
 
 import lancedb  # type: ignore
@@ -36,15 +37,16 @@ from dlt.common.destination.reference import (
     TLoadJobState,
 )
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, TTableFormat
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage
 from dlt.common.typing import DictStrAny
+from dlt.common.utils import without_none
 from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
-from dlt.destinations.impl.lancedb.errors import lancedb_error
+from dlt.destinations.impl.lancedb.exceptions import lancedb_error
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
     TLanceModel,
@@ -60,19 +62,19 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.type_mapping import TypeMapper
 
 
+TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
+UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
+
+
 class LanceDBTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
         "text": pa.string(),
         "double": pa.float64(),
         "bool": pa.bool_(),
-        "timestamp": pa.timestamp("us", "UTC"),
         "bigint": pa.int64(),
         "binary": pa.binary(),
-        "decimal": pa.decimal128(38, 18),
         "date": pa.date32(),
-        "time": pa.time64("us"),
         "complex": pa.string(),
-        "wei": pa.float64(),
     }
 
     sct_to_dbt = {}
@@ -81,13 +83,62 @@ class LanceDBTypeMapper(TypeMapper):
         pa.string(): "text",
         pa.float64(): "double",
         pa.bool_(): "bool",
-        pa.timestamp("us", "UTC"): "timestamp",
         pa.int64(): "bigint",
         pa.binary(): "binary",
-        pa.decimal128(38, 18): "decimal",
         pa.date32(): "date",
-        pa.time64("us"): "time",
     }
+
+    def to_db_decimal_type(
+        self, precision: Optional[int], scale: Optional[int]
+    ) -> pa.Decimal128Type:
+        precision, scale = self.decimal_precision(precision, scale)
+        return pa.decimal128(precision, scale)
+
+    def to_db_datetime_type(
+        self, precision: Optional[int], table_format: TTableFormat = None
+    ) -> pa.TimestampType:
+        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
+        return pa.timestamp(unit, "UTC")
+
+    def to_db_time_type(
+        self, precision: Optional[int], table_format: TTableFormat = None
+    ) -> pa.Time64Type:
+        unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
+        return pa.time64(unit)
+
+    def from_db_type(
+        self,
+        db_type: pa.DataType,
+        precision: Optional[int] = None,
+        scale: Optional[int] = None,
+    ) -> TColumnType:
+        if isinstance(db_type, pa.TimestampType):
+            return dict(
+                data_type="timestamp",
+                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
+                scale=scale,
+            )
+        if isinstance(db_type, pa.Time64Type):
+            return dict(
+                data_type="time",
+                precision=UNIT_TO_TIMESTAMP_PRECISION[db_type.unit],
+                scale=scale,
+            )
+        if isinstance(db_type, pa.Decimal128Type):
+            precision, scale = db_type.precision, db_type.scale
+            if (precision, scale) == self.capabilities.wei_precision:
+                return cast(TColumnType, dict(data_type="wei"))
+            return dict(data_type="decimal", precision=precision, scale=scale)
+        return cast(
+            TColumnType,
+            without_none(
+                dict(
+                    data_type=self.dbt_to_sct.get(db_type, "text"),
+                    precision=precision,
+                    scale=scale,
+                )
+            ),
+        )
 
 
 class NullSchema(LanceModel):
@@ -459,9 +510,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
     def _from_db_type(
-        self, wt_t: str, precision: Optional[int], scale: Optional[int]
+        self, wt_t: pa.DataType, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        return self.type_mapper.from_db_type(wt_t, precision, scale)
+        return self.type_mapper.from_db_type(cast(pa.DataType, wt_t), precision, scale)
 
 
 class LoadLanceDBJob(LoadJob):
