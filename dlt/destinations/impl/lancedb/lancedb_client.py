@@ -561,8 +561,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
 
     def __enter__(self) -> "LanceDBClient":
-        pass
-
+        return self
 
     def complete_load(self, load_id: str) -> None:
         properties = {
