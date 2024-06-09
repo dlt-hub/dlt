@@ -256,8 +256,7 @@ def destinations_configs(
         assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
 
     if default_vector_configs:
-        # for now only weaviate
-        destination_configs += [DestinationTestConfiguration(destination="weaviate")]
+        destination_configs += [DestinationTestConfiguration(destination="weaviate"),DestinationTestConfiguration(destination="lancedb")]
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [

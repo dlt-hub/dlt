@@ -1,9 +1,10 @@
-from typing import Iterator
+from typing import Iterator, Generator, Any
 
 import pytest
 
 import dlt
 from dlt.common import json
+from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
@@ -15,7 +16,7 @@ from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
 
 
-# mark all tests as essential, do not remove
+# Mark all tests as essential, do not remove.
 pytestmark = pytest.mark.essential
 
 
@@ -29,7 +30,7 @@ def test_adapter_and_hints() -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
-    def some_data():
+    def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
@@ -50,7 +51,7 @@ def test_basic_state_and_schema() -> None:
     generator_instance1 = sequence_generator()
 
     @dlt.resource
-    def some_data():
+    def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
     lancedb_adapter(
@@ -70,7 +71,7 @@ def test_basic_state_and_schema() -> None:
 
     client: LanceDBClient
     with pipeline.destination_client() as client:  # type: ignore
-        # check if we can get a stored schema and state
+        # Check if we can get a stored schema and state.
         schema = client.get_stored_schema()
         print("Print dataset name", client.dataset_name)
         assert schema
@@ -83,7 +84,7 @@ def test_pipeline_append() -> None:
     generator_instance2 = sequence_generator()
 
     @dlt.resource
-    def some_data():
+    def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
     lancedb_adapter(
@@ -122,7 +123,7 @@ def test_explicit_append() -> None:
     ]
 
     @dlt.resource(primary_key="doc_id")
-    def some_data():
+    def some_data() -> Generator[DictStrStr, Any, None]:
         yield data
 
     lancedb_adapter(
@@ -156,7 +157,7 @@ def test_pipeline_replace() -> None:
     generator_instance2 = sequence_generator()
 
     @dlt.resource
-    def some_data():
+    def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
 
     lancedb_adapter(
@@ -220,7 +221,7 @@ def test_pipeline_merge() -> None:
     ]
 
     @dlt.resource(primary_key="doc_id")
-    def movies_data():
+    def movies_data() -> Any:
         yield data
 
     lancedb_adapter(
@@ -252,7 +253,7 @@ def test_pipeline_merge() -> None:
     assert_table(pipeline, "movies_data", items=data)
 
 
-def test_pipeline_with_schema_evolution():
+def test_pipeline_with_schema_evolution() -> None:
     data = [
         {
             "doc_id": 1,
@@ -265,7 +266,7 @@ def test_pipeline_with_schema_evolution():
     ]
 
     @dlt.resource()
-    def some_data():
+    def some_data() -> Generator[DictStrStr, Any, None]:
         yield data
 
     lancedb_adapter(some_data, embed=["content"])
@@ -309,8 +310,10 @@ def test_pipeline_with_schema_evolution():
 
 
 def test_merge_github_nested() -> None:
-    p = dlt.pipeline(destination="lancedb", dataset_name="github1", full_refresh=True)
-    assert p.dataset_name.startswith("github1_202")
+    pipe = dlt.pipeline(
+        destination="lancedb", dataset_name="github1", full_refresh=True
+    )
+    assert pipe.dataset_name.startswith("github1_202")
 
     with open(
         "tests/normalize/cases/github.issues.load_page_5_duck.json",
@@ -319,7 +322,7 @@ def test_merge_github_nested() -> None:
     ) as f:
         data = json.load(f)
 
-    info = p.run(
+    info = pipe.run(
         lancedb_adapter(data[:17], embed=["title", "body"]),
         table_name="issues",
         write_disposition="merge",
@@ -327,8 +330,8 @@ def test_merge_github_nested() -> None:
     )
     assert_load_info(info)
     # assert if schema contains tables with right names
-    print(p.default_schema.tables.keys())
-    assert set(p.default_schema.tables.keys()) == {
+    print(pipe.default_schema.tables.keys())
+    assert set(pipe.default_schema.tables.keys()) == {
         "_dlt_version",
         "_dlt_loads",
         "issues",
@@ -336,35 +339,37 @@ def test_merge_github_nested() -> None:
         "issues__labels",
         "issues__assignees",
     }
-    assert {t["name"] for t in p.default_schema.data_tables()} == {
+    assert {t["name"] for t in pipe.default_schema.data_tables()} == {
         "issues",
         "issues__labels",
         "issues__assignees",
     }
-    assert {t["name"] for t in p.default_schema.dlt_tables()} == {
+    assert {t["name"] for t in pipe.default_schema.dlt_tables()} == {
         "_dlt_version",
         "_dlt_loads",
         "_dlt_pipeline_state",
     }
-    issues = p.default_schema.tables["issues"]
+    issues = pipe.default_schema.tables["issues"]
     assert issues["columns"]["id"]["primary_key"] is True
-    # make sure that vectorization is enabled for
+    # Make sure vectorization is enabled for.
     assert issues["columns"]["title"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert VECTORIZE_HINT not in issues["columns"]["url"]
-    assert_table(p, "issues", expected_items_count=17)
+    assert_table(pipe, "issues", expected_items_count=17)
 
 
 def test_empty_dataset_allowed() -> None:
     # dataset_name is optional so dataset name won't be autogenerated when not explicitly passed.
-    p = dlt.pipeline(destination="lancedb", full_refresh=True)
-    client: LanceDBClient = p.destination_client()  # type: ignore[assignment]
+    pipe = dlt.pipeline(destination="lancedb", full_refresh=True)
+    client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
-    assert p.dataset_name is None
-    info = p.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
-    # dataset in load info is empty
+    assert pipe.dataset_name is None
+    info = pipe.run(
+        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
+    # Dataset in load info is empty.
     assert info.dataset_name is None
-    client = p.destination_client()  # type: ignore[assignment]
+    client = pipe.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
     assert client.sentinel_table == "DltSentinelCollection"
-    assert_table(p, "content", expected_items_count=3)
+    assert_table(pipe, "content", expected_items_count=3)
