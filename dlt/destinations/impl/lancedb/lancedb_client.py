@@ -394,12 +394,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
         return applied_update
 
+    @lancedb_error
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
 
         try:
             table_schema_ = self.get_table_schema_dict(table_name)
-        except FileNotFoundError:
+        except DestinationUndefinedEntity:
             return False, table_schema
         except Exception:
             raise
@@ -492,6 +493,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 state["dlt_load_id"] = state.pop("_dlt_load_id")
                 return StateInfo(**state)
 
+    @lancedb_error
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         try:
             response = (
@@ -504,7 +506,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
             record = response.to_list()[0]
             return StorageSchemaInfo(**record)
-        except FileNotFoundError:
+        except DestinationUndefinedEntity:
             return None
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
