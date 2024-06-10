@@ -19,7 +19,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace
 from dlt.common.runners.configuration import PoolRunnerConfiguration
-from dlt.common.typing import AnyType, TSecretValue
+from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
 
 
 from tests.utils import preserve_environ
@@ -29,8 +29,8 @@ RESOLVED_TRACES = get_resolved_traces()
 
 
 def test_accessor_singletons() -> None:
-    assert dlt.config.value is None
-    assert dlt.secrets.value is None
+    assert dlt.config.value is ConfigValue
+    assert dlt.secrets.value is SecretValue
 
 
 def test_getter_accessor(toml_providers: ConfigProvidersContext, environment: Any) -> None:

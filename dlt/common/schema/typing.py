@@ -64,7 +64,7 @@ TColumnHint = Literal[
     "dedup_sort",
 ]
 """Known hints of a column used to declare hint regexes."""
-TTableFormat = Literal["iceberg", "parquet", "jsonl"]
+TTableFormat = Literal["iceberg", "delta"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
 ]

@@ -22,4 +22,4 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
     loader_file_format: TLoaderFileFormat = "typed-jsonl"
     batch_size: int = 10
     skip_dlt_columns_and_tables: bool = True
-    max_table_nesting: int = 0
+    max_table_nesting: Optional[int] = 0

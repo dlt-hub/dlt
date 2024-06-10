@@ -5,10 +5,12 @@ from typing import Any, Dict, ContextManager, List, Optional, Sequence, Tuple, T
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.typing import (
     AnyType,
+    ConfigValueSentinel,
     StrAny,
     TSecretValue,
     get_all_types_of_class_in_union,
     is_optional_type,
+    is_subclass,
     is_union_type,
 )
 
@@ -20,7 +22,7 @@ from dlt.common.configuration.specs.base_configuration import (
     is_context_inner_hint,
     is_base_configuration_inner_hint,
     is_valid_hint,
-    is_hint_not_resolved,
+    is_hint_not_resolvable,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.specs.exceptions import NativeValueError
@@ -87,7 +89,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
                     raise
         return first_credentials
     else:
-        assert issubclass(hint, CredentialsConfiguration)
+        assert is_subclass(hint, CredentialsConfiguration)
         return hint.from_init_value(initial_value)  # type: ignore
 
 
@@ -189,67 +191,83 @@ def _resolve_config_fields(
             hint = config.__hint_resolvers__[key](config)
         # get default and explicit values
         default_value = getattr(config, key, None)
+        explicit_none = False
         traces: List[LookupTrace] = []
 
         if explicit_values:
-            explicit_value = explicit_values.get(key)
+            explicit_value = None
+            if key in explicit_values:
+                # allow None to be passed in explicit values
+                # so we are able to reset defaults like in regular function calls
+                explicit_value = explicit_values[key]
+                explicit_none = explicit_value is None
+                # detect dlt.config and dlt.secrets and force injection
+                if isinstance(explicit_value, ConfigValueSentinel):
+                    explicit_value = None
         else:
-            if is_hint_not_resolved(hint):
+            if is_hint_not_resolvable(hint):
                 # for final fields default value is like explicit
                 explicit_value = default_value
             else:
                 explicit_value = None
 
-        # if hint is union of configurations, any of them must be resolved
-        specs_in_union: List[Type[BaseConfiguration]] = []
         current_value = None
-        if is_union_type(hint):
-            # if union contains a type of explicit value which is not a valid hint, return it as current value
-            if (
-                explicit_value
-                and not is_valid_hint(type(explicit_value))
-                and get_all_types_of_class_in_union(hint, type(explicit_value))
-            ):
-                current_value, traces = explicit_value, []
-            else:
-                specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
-        if not current_value:
-            if len(specs_in_union) > 1:
-                for idx, alt_spec in enumerate(specs_in_union):
-                    # return first resolved config from an union
-                    try:
-                        current_value, traces = _resolve_config_field(
-                            key,
-                            alt_spec,
-                            default_value,
-                            explicit_value,
-                            config,
-                            config.__section__,
-                            explicit_sections,
-                            embedded_sections,
-                            accept_partial,
-                        )
-                        break
-                    except ConfigFieldMissingException as cfm_ex:
-                        # add traces from unresolved union spec
-                        # TODO: we should group traces per hint - currently user will see all options tried without the key info
-                        traces.extend(list(itertools.chain(*cfm_ex.traces.values())))
-                    except InvalidNativeValue:
-                        # if none of specs in union parsed
-                        if idx == len(specs_in_union) - 1:
-                            raise
-            else:
-                current_value, traces = _resolve_config_field(
-                    key,
-                    hint,
-                    default_value,
-                    explicit_value,
-                    config,
-                    config.__section__,
-                    explicit_sections,
-                    embedded_sections,
-                    accept_partial,
-                )
+        # explicit none skips resolution
+        if not explicit_none:
+            # if hint is union of configurations, any of them must be resolved
+            specs_in_union: List[Type[BaseConfiguration]] = []
+            if is_union_type(hint):
+                # if union contains a type of explicit value which is not a valid hint, return it as current value
+                if (
+                    explicit_value
+                    and not is_valid_hint(type(explicit_value))
+                    and get_all_types_of_class_in_union(
+                        hint, type(explicit_value), with_superclass=True
+                    )
+                ):
+                    current_value, traces = explicit_value, []
+                else:
+                    specs_in_union = get_all_types_of_class_in_union(hint, BaseConfiguration)
+            if not current_value:
+                if len(specs_in_union) > 1:
+                    for idx, alt_spec in enumerate(specs_in_union):
+                        # return first resolved config from an union
+                        try:
+                            current_value, traces = _resolve_config_field(
+                                key,
+                                alt_spec,
+                                default_value,
+                                explicit_value,
+                                config,
+                                config.__section__,
+                                explicit_sections,
+                                embedded_sections,
+                                accept_partial,
+                            )
+                            break
+                        except ConfigFieldMissingException as cfm_ex:
+                            # add traces from unresolved union spec
+                            # TODO: we should group traces per hint - currently user will see all options tried without the key info
+                            traces.extend(list(itertools.chain(*cfm_ex.traces.values())))
+                        except InvalidNativeValue:
+                            # if none of specs in union parsed
+                            if idx == len(specs_in_union) - 1:
+                                raise
+                else:
+                    current_value, traces = _resolve_config_field(
+                        key,
+                        hint,
+                        default_value,
+                        explicit_value,
+                        config,
+                        config.__section__,
+                        explicit_sections,
+                        embedded_sections,
+                        accept_partial,
+                    )
+        else:
+            # set the trace for explicit none
+            traces = [LookupTrace("ExplicitValues", None, key, None)]
 
         # check if hint optional
         is_optional = is_optional_type(hint)
@@ -258,7 +276,7 @@ def _resolve_config_fields(
             unresolved_fields[key] = traces
         # set resolved value in config
         if default_value != current_value:
-            if not is_hint_not_resolved(hint):
+            if not is_hint_not_resolvable(hint):
                 # ignore final types
                 setattr(config, key, current_value)
 
@@ -286,7 +304,7 @@ def _resolve_config_field(
     embedded_sections: Tuple[str, ...],
     accept_partial: bool,
 ) -> Tuple[Any, List[LookupTrace]]:
-    inner_hint = extract_inner_hint(hint)
+    inner_hint = extract_inner_hint(hint, preserve_literal=True)
 
     if explicit_value is not None:
         value = explicit_value
@@ -302,15 +320,15 @@ def _resolve_config_field(
         pass
     # if inner_hint is BaseConfiguration then resolve it recursively
     elif is_base_configuration_inner_hint(inner_hint):
-        if isinstance(value, BaseConfiguration):
+        if isinstance(default_value, BaseConfiguration):
+            # if default value was instance of configuration, use it as embedded initial
+            embedded_config = default_value
+            default_value = None
+        elif isinstance(value, BaseConfiguration):
             # if resolved value is instance of configuration (typically returned by context provider)
             embedded_config = value
             default_value = None
             value = None
-        elif isinstance(default_value, BaseConfiguration):
-            # if default value was instance of configuration, use it
-            embedded_config = default_value
-            default_value = None
         else:
             embedded_config = inner_hint()
 

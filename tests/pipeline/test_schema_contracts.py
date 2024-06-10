@@ -179,7 +179,7 @@ def get_pipeline():
         pipeline_name=uniq_id(),
         destination="duckdb",
         credentials=duckdb.connect(":memory:"),
-        full_refresh=True,
+        dev_mode=True,
     )
 
 

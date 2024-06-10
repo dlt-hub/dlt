@@ -1,7 +1,7 @@
 import os
 from subprocess import CalledProcessError
 import giturlparse
-from typing import Sequence
+from typing import Optional, Sequence
 
 import dlt
 from dlt.common import logger
@@ -302,11 +302,11 @@ def create_runner(
     credentials: DestinationClientDwhConfiguration,
     working_dir: str,
     package_location: str = dlt.config.value,
-    package_repository_branch: str = None,
-    package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
-    package_profiles_dir: str = None,
-    package_profile_name: str = None,
-    auto_full_refresh_when_out_of_sync: bool = None,
+    package_repository_branch: Optional[str] = None,
+    package_repository_ssh_key: Optional[TSecretValue] = TSecretValue(""),  # noqa
+    package_profiles_dir: Optional[str] = None,
+    package_profile_name: Optional[str] = None,
+    auto_full_refresh_when_out_of_sync: bool = True,
     config: DBTRunnerConfiguration = None,
 ) -> DBTPackageRunner:
     """Creates a Python wrapper over `dbt` package present at specified location, that allows to control it (ie. run and test) from Python code.

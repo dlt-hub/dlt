@@ -4,6 +4,7 @@ from tomlkit.items import Table as TOMLTable
 from tomlkit.container import Container as TOMLContainer
 from collections.abc import Sequence as C_Sequence
 
+from dlt.common.configuration.specs.base_configuration import is_hint_not_resolvable
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     BaseConfiguration,
@@ -11,7 +12,7 @@ from dlt.common.configuration.specs import (
     extract_inner_hint,
 )
 from dlt.common.data_types import py_type_to_sc_type
-from dlt.common.typing import AnyType, is_final_type, is_optional_type
+from dlt.common.typing import AnyType, is_optional_type, is_subclass
 
 
 class WritableConfigValue(NamedTuple):
@@ -34,7 +35,7 @@ def generate_typed_example(name: str, hint: AnyType) -> Any:
         if sc_type == "bool":
             return True
         if sc_type == "complex":
-            if issubclass(inner_hint, C_Sequence):
+            if is_subclass(inner_hint, C_Sequence):
                 return ["a", "b", "c"]
             else:
                 table = tomlkit.table(False)
@@ -62,9 +63,9 @@ def write_value(
     # skip if table contains the name already
     if name in toml_table and not overwrite_existing:
         return
-    # do not dump final and optional fields if they are not of special interest
+    # do not dump nor resolvable and optional fields if they are not of special interest
     if (
-        is_final_type(hint) or is_optional_type(hint) or default_value is not None
+        is_hint_not_resolvable(hint) or is_optional_type(hint) or default_value is not None
     ) and not is_default_of_interest:
         return
     # get the inner hint to generate cool examples

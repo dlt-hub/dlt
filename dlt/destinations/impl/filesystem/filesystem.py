@@ -1,18 +1,18 @@
 import posixpath
-import pathlib
 import os
 import base64
+
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set, Iterator, Optional, Tuple, cast
+from typing import ClassVar, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
-from dlt.common import json, pendulum
-from dlt.common.typing import DictStrAny
 
 import dlt
-from dlt.common import logger, time
+from dlt.common import logger, time, json, pendulum
+from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -25,9 +25,10 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     DoNothingJob,
+    DoNothingFollowupJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
@@ -41,56 +42,47 @@ FILENAME_SEPARATOR = "__"
 class LoadFilesystemJob(LoadJob):
     def __init__(
         self,
+        client: "FilesystemClient",
         local_path: str,
-        dataset_path: str,
-        *,
-        config: FilesystemDestinationClientConfiguration,
-        schema_name: str,
         load_id: str,
+        table: TTableSchema,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        self.config = config
-        self.dataset_path = dataset_path
-        self.is_local_filesystem = config.protocol == "file"
+        self.client = client
+        self.table = table
+        self.is_local_filesystem = client.config.protocol == "file"
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
-        self.destination_file_name = path_utils.create_path(
-            config.layout,
-            file_name,
-            schema_name,
-            load_id,
-            current_datetime=config.current_datetime,
-            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
-            extra_placeholders=config.extra_placeholders,
-        )
 
+        file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
-        fs_client, _ = fsspec_from_config(config)
+
+        self.destination_file_name = path_utils.create_path(
+            client.config.layout,
+            file_name,
+            client.schema.name,
+            load_id,
+            current_datetime=client.config.current_datetime,
+            load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
+            extra_placeholders=client.config.extra_placeholders,
+        )
         # We would like to avoid failing for local filesystem where
         # deeply nested directory will not exist before writing a file.
         # It `auto_mkdir` is disabled by default in fsspec so we made some
         # trade offs between different options and decided on this.
-        item = self.make_remote_path()
+        # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
+        remote_path = self.make_remote_path()
         if self.is_local_filesystem:
-            fs_client.makedirs(self.pathlib.dirname(item), exist_ok=True)
-        fs_client.put_file(local_path, item)
+            client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
+        client.fs_client.put_file(local_path, remote_path)
 
     def make_remote_path(self) -> str:
         """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may string the trailing separator
         return self.pathlib.join(  # type: ignore[no-any-return]
-            self.dataset_path,
+            self.client.dataset_path,
             path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
         )
-
-    def make_remote_uri(self) -> str:
-        """Returns uri to the remote filesystem to which copy the file"""
-        remote_path = self.make_remote_path()
-        if self.is_local_filesystem:
-            return self.config.make_file_uri(remote_path)
-        else:
-            return f"{self.config.protocol}://{remote_path}"
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -99,12 +91,60 @@ class LoadFilesystemJob(LoadJob):
         raise NotImplementedError()
 
 
+class DeltaLoadFilesystemJob(NewReferenceJob):
+    def __init__(
+        self,
+        client: "FilesystemClient",
+        table: TTableSchema,
+        table_jobs: Sequence[LoadJobInfo],
+    ) -> None:
+        self.client = client
+        self.table = table
+        self.table_jobs = table_jobs
+
+        ref_file_name = ParsedLoadJobFileName(
+            table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
+        ).file_name()
+        super().__init__(
+            file_name=ref_file_name,
+            status="running",
+            remote_path=self.client.make_remote_uri(self.make_remote_path()),
+        )
+
+        self.write()
+
+    def write(self) -> None:
+        from dlt.common.libs.pyarrow import pyarrow as pa
+        from dlt.common.libs.deltalake import (
+            write_delta_table,
+            _deltalake_storage_options,
+        )
+
+        file_paths = [job.file_path for job in self.table_jobs]
+
+        write_delta_table(
+            path=self.client.make_remote_uri(self.make_remote_path()),
+            data=pa.dataset.dataset(file_paths),
+            write_disposition=self.table["write_disposition"],
+            storage_options=_deltalake_storage_options(self.client.config),
+        )
+
+    def make_remote_path(self) -> str:
+        # directory path, not file path
+        return self.client.get_table_dir(self.table["name"])
+
+    def state(self) -> TLoadJobState:
+        return "completed"
+
+
 class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self.make_remote_uri()
+                file_name=self.file_name(),
+                status="running",
+                remote_path=self.client.make_remote_uri(self.make_remote_path()),
             )
             jobs.append(ref_job)
         return jobs
@@ -171,6 +211,15 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         self.fs_client.makedirs(self.dataset_path, exist_ok=True)
         self.fs_client.touch(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))
 
+    def drop_tables(self, *tables: str, delete_schema: bool = True) -> None:
+        self.truncate_tables(list(tables))
+        if not delete_schema:
+            return
+        # Delete all stored schemas
+        for filename, fileparts in self._iter_stored_schema_files():
+            if fileparts[0] == self.schema.name:
+                self._delete_file(filename)
+
     def truncate_tables(self, table_names: List[str]) -> None:
         """Truncate table with given name"""
         table_dirs = set(self.get_table_dirs(table_names))
@@ -180,18 +229,22 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
                 # print(f"DEL {table_file}")
                 try:
-                    # NOTE: must use rm_file to get errors on delete
-                    self.fs_client.rm_file(table_file)
-                except NotImplementedError:
-                    # not all filesystem implement the above
-                    self.fs_client.rm(table_file)
-                    if self.fs_client.exists(table_file):
-                        raise FileExistsError(table_file)
+                    self._delete_file(table_file)
                 except FileNotFoundError:
                     logger.info(
                         f"Directory or path to truncate tables {table_names} does not exist but"
                         " it should have been created previously!"
                     )
+
+    def _delete_file(self, file_path: str) -> None:
+        try:
+            # NOTE: must use rm_file to get errors on delete
+            self.fs_client.rm_file(file_path)
+        except NotImplementedError:
+            # not all filesystems implement the above
+            self.fs_client.rm(file_path)
+            if self.fs_client.exists(file_path):
+                raise FileExistsError(file_path)
 
     def update_stored_schema(
         self,
@@ -269,18 +322,23 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging:
             return DoNothingJob(file_path)
+        if table.get("table_format") == "delta":
+            import dlt.common.libs.deltalake  # assert dependencies are installed
+
+            return DoNothingFollowupJob(file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
-        return cls(
-            file_path,
-            self.dataset_path,
-            config=self.config,
-            schema_name=self.schema.name,
-            load_id=load_id,
-        )
+        return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
+
+    def make_remote_uri(self, remote_path: str) -> str:
+        """Returns uri to the remote filesystem to which copy the file"""
+        if self.is_local_filesystem:
+            return self.config.make_file_uri(remote_path)
+        else:
+            return f"{self.config.protocol}://{remote_path}"
 
     def __enter__(self) -> "FilesystemClient":
         return self
@@ -292,6 +350,12 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         return False
+
+    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+        return (
+            table["write_disposition"] == "replace"
+            and not table.get("table_format") == "delta"  # Delta can do a logical replace
+        )
 
     #
     # state stuff
@@ -401,6 +465,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             f"{self.schema.name}{FILENAME_SEPARATOR}{load_id}{FILENAME_SEPARATOR}{self._to_path_safe_string(version_hash)}.jsonl",
         )
 
+    def _iter_stored_schema_files(self) -> Iterator[Tuple[str, List[str]]]:
+        """Iterator over all stored schema files"""
+        for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
+            yield filepath, fileparts
+
     def _get_stored_schema_by_hash_or_newest(
         self, version_hash: str = None
     ) -> Optional[StorageSchemaInfo]:
@@ -409,7 +478,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # find newest schema for pipeline or by version hash
         selected_path = None
         newest_load_id = "0"
-        for filepath, fileparts in self._list_dlt_table_files(self.schema.version_table_name):
+        for filepath, fileparts in self._iter_stored_schema_files():
             if (
                 not version_hash
                 and fileparts[0] == self.schema.name
@@ -455,3 +524,25 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def get_stored_schema_by_hash(self, version_hash: str) -> Optional[StorageSchemaInfo]:
         return self._get_stored_schema_by_hash_or_newest(version_hash)
+
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[TTableSchema],
+        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[NewLoadJob]:
+        def get_table_jobs(
+            table_jobs: Sequence[LoadJobInfo], table_name: str
+        ) -> Sequence[LoadJobInfo]:
+            return [job for job in table_jobs if job.job_file_info.table_name == table_name]
+
+        assert table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
+        table_format = table_chain[0].get("table_format")
+        if table_format == "delta":
+            delta_jobs = [
+                DeltaLoadFilesystemJob(self, table, get_table_jobs(table_chain_jobs, table["name"]))
+                for table in table_chain
+            ]
+            jobs.extend(delta_jobs)
+
+        return jobs

@@ -27,6 +27,13 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             sas_token=self.azure_storage_sas_token,
         )
 
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/azure
+        creds = self.to_adlfs_credentials()
+        if creds["sas_token"] is None:
+            creds.pop("sas_token")
+        return creds
+
     def create_sas_token(self) -> None:
         from azure.storage.blob import generate_account_sas, ResourceTypes
 
@@ -60,6 +67,10 @@ class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
             client_id=self.azure_client_id,
             client_secret=self.azure_client_secret,
         )
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/azure
+        return self.to_adlfs_credentials()
 
 
 @configspec

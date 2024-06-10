@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 from dlt.common.json import json
 from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob

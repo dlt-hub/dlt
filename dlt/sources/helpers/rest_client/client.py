@@ -6,7 +6,6 @@ from typing import (
     Any,
     TypeVar,
     Iterable,
-    Union,
     cast,
 )
 import copy
@@ -21,7 +20,6 @@ from dlt.sources.helpers.requests.retry import Client
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
-from .auth import AuthConfigBase
 from .detector import PaginatorFactory, find_response_page_data
 from .exceptions import IgnoreResponseException, PaginatorNotFound
 

@@ -11,6 +11,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     # athena only supports loading from staged files on s3 for now
     caps.preferred_loader_file_format = None
     caps.supported_loader_file_formats = []
+    caps.supported_table_formats = ["iceberg"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_athena_identifier

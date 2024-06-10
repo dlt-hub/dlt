@@ -15,6 +15,7 @@ from typing import (
     Any,
     ContextManager,
     Dict,
+    MutableMapping,
     Iterator,
     Optional,
     Sequence,
@@ -24,17 +25,15 @@ from typing import (
     Mapping,
     List,
     Union,
-    Counter,
     Iterable,
 )
-from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import DltException, ExceptionTrace, TerminalException
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
 T = TypeVar("T")
-TDict = TypeVar("TDict", bound=DictStrAny)
+TDict = TypeVar("TDict", bound=MutableMapping[Any, Any])
 
 TKey = TypeVar("TKey")
 TValue = TypeVar("TValue")
@@ -281,33 +280,34 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
             del dest[k]
 
 
-def update_dict_nested(dst: TDict, src: StrAny, keep_dst_values: bool = False) -> TDict:
+def update_dict_nested(dst: TDict, src: TDict, copy_src_dicts: bool = False) -> TDict:
     """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit.
-    Optionally (`keep_dst_values`) you can keep the `dst` value on conflict
+    Only `dict` and its subclasses are updated recursively. With `copy_src_dicts`, dict key:values will be deep copied,
+    otherwise, both dst and src will keep the same references.
     """
-    # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
-
-    def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
-        both_mapping = isinstance(a, C_Mapping) and isinstance(b, C_Mapping)
-        both_counter = isinstance(a, Counter) and isinstance(b, Counter)
-        return both_mapping and not both_counter
 
     for key in src:
+        src_val = src[key]
         if key in dst:
-            if _is_recursive_merge(dst[key], src[key]):
+            dst_val = dst[key]
+            if isinstance(src_val, dict) and isinstance(dst_val, dict):
                 # If the key for both `dst` and `src` are both Mapping types (e.g. dict), then recurse.
-                update_dict_nested(dst[key], src[key], keep_dst_values=keep_dst_values)
-            elif dst[key] is src[key]:
-                # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
-                pass
-            else:
-                if not keep_dst_values:
-                    # if not keep then overwrite
-                    dst[key] = src[key]
+                update_dict_nested(dst_val, src_val, copy_src_dicts=copy_src_dicts)
+                continue
+
+        if copy_src_dicts and isinstance(src_val, dict):
+            dst[key] = update_dict_nested({}, src_val, True)
         else:
-            # If the key exists only in `src`, the value from the `src` object will be used.
-            dst[key] = src[key]
+            dst[key] = src_val
+
     return dst
+
+
+def clone_dict_nested(src: TDict) -> TDict:
+    """Clones `src` structure descending into nested dicts. Does not descend into mappings that are not dicts ie. specs instances.
+    Compared to `deepcopy` does not clone any other objects. Uses `update_dict_nested` internally
+    """
+    return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
 def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:

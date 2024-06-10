@@ -3,7 +3,7 @@ import contextlib
 from dlt.common.exceptions import VenvNotFound
 from dlt.common.runners import Venv
 from dlt.common.schema import Schema
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import ConfigValue, TSecretValue
 from dlt.common.schema.utils import normalize_schema_name
 
 from dlt.helpers.dbt import (
@@ -52,9 +52,9 @@ def get_venv(
 def package(
     pipeline: Pipeline,
     package_location: str,
-    package_repository_branch: str = None,
+    package_repository_branch: str = ConfigValue,
     package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
-    auto_full_refresh_when_out_of_sync: bool = None,
+    auto_full_refresh_when_out_of_sync: bool = ConfigValue,
     venv: Venv = None,
 ) -> DBTPackageRunner:
     """Creates a Python wrapper over `dbt` package present at specified location, that allows to control it (ie. run and test) from Python code.

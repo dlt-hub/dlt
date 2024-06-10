@@ -1,7 +1,7 @@
 ---
 title: Pipeline
 description: Explanation of what a dlt pipeline is
-keywords: [pipeline, source, full refresh]
+keywords: [pipeline, source, full refresh, dev mode]
 ---
 
 # Pipeline
@@ -85,12 +85,46 @@ You can inspect stored artifacts using the command
 > 💡 You can attach `Pipeline` instance to an existing working folder, without creating a new
 > pipeline with `dlt.attach`.
 
-## Do experiments with full refresh
+## Do experiments with dev mode
 
 If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md) you will be
 experimenting a lot. If you want that each time the pipeline resets its state and loads data to a
-new dataset, set the `full_refresh` argument of the `dlt.pipeline` method to True. Each time the
+new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. Each time the
 pipeline is created, `dlt` adds datetime-based suffix to the dataset name.
+
+## Refresh pipeline data and state
+
+You can reset parts or all of your sources by using the `refresh` argument to `dlt.pipeline` or the pipeline's `run` or `extract` method.
+That means when you run the pipeline the sources/resources being processed will have their state reset and their tables either dropped or truncated
+depending on which refresh mode is used.
+
+The `refresh` argument should have one of the following string values to decide the refresh mode:
+
+* `drop_sources`
+  All sources being processed in `pipeline.run` or `pipeline.extract` are refreshed.
+  That means all tables listed in their schemas are dropped and state belonging to those sources and all their resources is completely wiped.
+  The tables are deleted both from pipeline's schema and from the destination database.
+
+  If you only have one source or run with all your sources together, then this is practically like running the pipeline again for the first time
+
+  :::caution
+  This erases schema history for the selected sources and only the latest version is stored
+  ::::
+
+* `drop_resources`
+  Limits the refresh to the resources being processed in `pipeline.run` or `pipeline.extract` (.e.g by using `source.with_resources(...)`).
+  Tables belonging to those resources are dropped and their resource state is wiped (that includes incremental state).
+  The tables are deleted both from pipeline's schema and from the destination database.
+
+  Source level state keys are not deleted in this mode (i.e. `dlt.state()[<'my_key>'] = '<my_value>'`)
+
+  :::caution
+  This erases schema history for all affected schemas and only the latest schema version is stored
+  ::::
+
+* `drop_data`
+  Same as `drop_resources` but instead of dropping tables from schema only the data is deleted from them (i.e. by `TRUNCATE <table_name>` in sql destinations). Resource state for selected resources is also wiped.
+  The schema remains unmodified in this case.
 
 ## Display the loading progress
 

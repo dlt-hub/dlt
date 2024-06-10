@@ -28,6 +28,7 @@ try:
     import pyarrow
     import pyarrow.parquet
     import pyarrow.compute
+    import pyarrow.dataset
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
@@ -36,6 +37,8 @@ except ModuleNotFoundError:
     )
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
+
+ARROW_DECIMAL_MAX_PRECISION = 76
 
 
 def get_py_arrow_datatype(
@@ -223,9 +226,18 @@ def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
-) -> Tuple[bool, Mapping[str, str], Dict[str, str], TTableSchemaColumns]:
+) -> Tuple[bool, Mapping[str, str], Dict[str, str], Dict[str, bool], TTableSchemaColumns]:
     rename_mapping = get_normalized_arrow_fields_mapping(schema, naming)
     rev_mapping = {v: k for k, v in rename_mapping.items()}
+    nullable_mapping = {k: v.get("nullable", True) for k, v in columns.items()}
+    # All fields from arrow schema that have nullable set to different value than in columns
+    # Key is the renamed column name
+    nullable_updates: Dict[str, bool] = {}
+    for field in schema:
+        norm_name = rename_mapping[field.name]
+        if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
+            nullable_updates[norm_name] = nullable_mapping[norm_name]
+
     dlt_tables = list(map(naming.normalize_table_identifier, ("_dlt_id", "_dlt_load_id")))
 
     # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
@@ -239,8 +251,8 @@ def should_normalize_arrow_schema(
     # check if nothing to rename
     skip_normalize = (
         list(rename_mapping.keys()) == list(rename_mapping.values()) == list(columns.keys())
-    )
-    return not skip_normalize, rename_mapping, rev_mapping, columns
+    ) and not nullable_updates
+    return not skip_normalize, rename_mapping, rev_mapping, nullable_updates, columns
 
 
 def normalize_py_arrow_item(
@@ -254,10 +266,11 @@ def normalize_py_arrow_item(
     1. arrow schema field names will be normalized according to `naming`
     2. arrows columns will be reordered according to `columns`
     3. empty columns will be inserted if they are missing, types will be generated using `caps`
+    4. arrow columns with different nullability than corresponding schema columns will be updated
     """
     schema = item.schema
-    should_normalize, rename_mapping, rev_mapping, columns = should_normalize_arrow_schema(
-        schema, columns, naming
+    should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
+        should_normalize_arrow_schema(schema, columns, naming)
     )
     if not should_normalize:
         return item
@@ -270,8 +283,12 @@ def normalize_py_arrow_item(
         field_name = rev_mapping.pop(column_name, column_name)
         if field_name in rename_mapping:
             idx = schema.get_field_index(field_name)
+            new_field = schema.field(idx).with_name(column_name)
+            if column_name in nullable_updates:
+                # Set field nullable to match column
+                new_field = new_field.with_nullable(nullable_updates[column_name])
             # use renamed field
-            new_fields.append(schema.field(idx).with_name(column_name))
+            new_fields.append(new_field)
             new_columns.append(item.column(idx))
         else:
             # column does not exist in pyarrow. create empty field and column
@@ -395,6 +412,29 @@ def pq_stream_with_new_columns(
                 else:
                     tbl = tbl.add_column(idx, field, gen_(tbl))
             yield tbl
+
+
+def dataset_to_table(data: Union[pyarrow.Table, pyarrow.dataset.Dataset]) -> pyarrow.Table:
+    return data.to_table() if isinstance(data, pyarrow.dataset.Dataset) else data
+
+
+def cast_arrow_schema_types(
+    schema: pyarrow.Schema,
+    type_map: Dict[Callable[[pyarrow.DataType], bool], Callable[..., pyarrow.DataType]],
+) -> pyarrow.Schema:
+    """Returns type-casted Arrow schema.
+
+    Replaces data types for fields matching a type check in `type_map`.
+    Type check functions in `type_map` are assumed to be mutually exclusive, i.e.
+    a data type does not match more than one type check function.
+    """
+    for i, e in enumerate(schema.types):
+        for type_check, cast_type in type_map.items():
+            if type_check(e):
+                adjusted_field = schema.field(i).with_type(cast_type)
+                schema = schema.set(i, adjusted_field)
+                break  # if type matches type check, do not do other type checks
+    return schema
 
 
 class NameNormalizationClash(ValueError):
