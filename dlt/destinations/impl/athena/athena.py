@@ -451,11 +451,11 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         {partition_clause}
                         LOCATION '{location.rstrip('/')}'
                         TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
-            elif table_format == "jsonl":
-                sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
-                        ({columns})
-                        ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
-                        LOCATION '{location}';""")
+            # elif table_format == "jsonl":
+            #     sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
+            #             ({columns})
+            #             ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+            #             LOCATION '{location}';""")
             else:
                 sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                         ({columns})

@@ -37,7 +37,6 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     IdentifierTooLongException,
@@ -49,6 +48,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -313,7 +313,9 @@ class JobClientBase(ABC):
         return table["write_disposition"] == "replace"
 
     def create_table_chain_completed_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self,
+        table_chain: Sequence[TTableSchema],
+        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
@@ -624,7 +626,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return dest
 
     def client(
-        self, schema: Schema, initial_config: TDestinationConfig = config.value
+        self, schema: Schema, initial_config: TDestinationConfig = None
     ) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""
         return self.client_class(schema, self.configuration(initial_config))

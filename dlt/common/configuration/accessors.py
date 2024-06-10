@@ -1,6 +1,4 @@
 import abc
-import contextlib
-import tomlkit
 from typing import Any, ClassVar, List, Sequence, Tuple, Type, TypeVar
 
 from dlt.common.configuration.container import Container
@@ -9,10 +7,8 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint
 from dlt.common.configuration.utils import deserialize_value, log_traces, auto_cast
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.typing import AnyType, ConfigValue, TSecretValue
+from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
 
-DLT_SECRETS_VALUE = "secrets.value"
-DLT_CONFIG_VALUE = "config.value"
 TConfigAny = TypeVar("TConfigAny", bound=Any)
 
 
@@ -129,7 +125,7 @@ class _SecretsAccessor(_Accessor):
             p for p in self._get_providers_from_context() if p.is_writable and p.supports_secrets
         )
 
-    value: ClassVar[Any] = ConfigValue
+    value: ClassVar[Any] = SecretValue
     "A placeholder that tells dlt to replace it with actual secret during the call to a source or resource decorated function."
 
 

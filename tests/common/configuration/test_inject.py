@@ -6,7 +6,10 @@ import dlt
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import (
+    _LAST_DLT_CONFIG,
+    _ORIGINAL_ARGS,
     get_fun_spec,
+    get_orig_args,
     last_config,
     with_config,
     create_resolved_partial,
@@ -20,11 +23,16 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentialsWithoutDefaults,
     ConnectionStringCredentials,
 )
-from dlt.common.configuration.specs.base_configuration import configspec, is_secret_hint
+from dlt.common.configuration.specs.base_configuration import (
+    CredentialsConfiguration,
+    configspec,
+    is_secret_hint,
+    is_valid_configspec_field,
+)
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.reflection.spec import _get_spec_name_from_f
-from dlt.common.typing import StrAny, TSecretValue, is_newtype_type
+from dlt.common.typing import StrAny, TSecretStrValue, TSecretValue, is_newtype_type
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
@@ -47,8 +55,28 @@ def test_arguments_are_explicit(environment: Any) -> None:
         assert path == "explicit path"
 
     # user will be injected
-    f_var_env(None, path="explicit path")
-    f_var_env(path="explicit path", user=None)
+    f_var_env(dlt.config.value, path="explicit path")
+    f_var_env(path="explicit path", user=dlt.secrets.value)
+
+    # none will be passed and trigger config missing
+    with pytest.raises(ConfigFieldMissingException) as cfg_ex:
+        f_var_env(None, path="explicit path")
+    assert "user" in cfg_ex.value.traces
+    assert cfg_ex.value.traces["user"][0].provider == "ExplicitValues"
+
+
+def test_explicit_none(environment: Any) -> None:
+    @with_config
+    def f_var(user: Optional[str] = "default"):
+        return user
+
+    assert f_var(None) is None
+    assert f_var() == "default"
+    assert f_var(dlt.config.value) == "default"
+    environment["USER"] = "env user"
+    assert f_var() == "env user"
+    assert f_var(None) is None
+    assert f_var(dlt.config.value) == "env user"
 
 
 def test_default_values_are_resolved(environment: Any) -> None:
@@ -83,11 +111,64 @@ def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
 
     environment["USER"] = "user"
     assert f_config() == "user"
-    assert f_config(None) == "user"
+    assert f_config(dlt.config.value) == "user"
 
     environment["PASSWORD"] = "password"
     assert f_secret() == "password"
-    assert f_secret(None) == "password"
+    assert f_secret(dlt.secrets.value) == "password"
+
+
+def test_dlt_literals_in_spec() -> None:
+    @configspec
+    class LiteralsConfiguration(BaseConfiguration):
+        required_str: str = dlt.config.value
+        required_int: int = dlt.config.value
+        required_secret: TSecretStrValue = dlt.secrets.value
+        credentials: CredentialsConfiguration = dlt.secrets.value
+        optional_default: float = 1.2
+
+    fields = {
+        k: f.default
+        for k, f in LiteralsConfiguration.__dataclass_fields__.items()
+        if is_valid_configspec_field(f)
+    }
+    # make sure all special values are evaluated to None which indicate required params
+    assert fields == {
+        "required_str": None,
+        "required_int": None,
+        "required_secret": None,
+        "credentials": None,
+        "optional_default": 1.2,
+    }
+    c = LiteralsConfiguration()
+    assert dict(c) == fields
+
+    # instantiate to make sure linter does not complain
+    c = LiteralsConfiguration("R", 0, TSecretStrValue("A"), ConnectionStringCredentials())
+    assert dict(c) == {
+        "required_str": "R",
+        "required_int": 0,
+        "required_secret": TSecretStrValue("A"),
+        "credentials": ConnectionStringCredentials(),
+        "optional_default": 1.2,
+    }
+
+    # this generates warnings
+    @configspec
+    class WrongLiteralsConfiguration(BaseConfiguration):
+        required_int: int = dlt.secrets.value
+        required_secret: TSecretStrValue = dlt.config.value
+        credentials: CredentialsConfiguration = dlt.config.value
+
+
+def test_dlt_literals_defaults_none() -> None:
+    @with_config
+    def with_optional_none(
+        level: Optional[int] = dlt.config.value, aux: Optional[str] = dlt.secrets.value
+    ):
+        return (level, aux)
+
+    assert with_optional_none() == (None, None)
 
 
 def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) -> None:
@@ -104,12 +185,14 @@ def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) ->
 def test_inject_secret_value_secret_type(environment: Any) -> None:
     @with_config
     def f_custom_secret_type(
-        _dict: Dict[str, Any] = dlt.secrets.value, _int: int = dlt.secrets.value, **kwargs: Any
+        _dict: Dict[str, Any] = dlt.secrets.value,
+        _int: int = dlt.secrets.value,
+        **injection_kwargs: Any,
     ):
         # secret values were coerced into types
         assert _dict == {"a": 1}
         assert _int == 1234
-        cfg = last_config(**kwargs)
+        cfg = last_config(**injection_kwargs)
         spec: Type[BaseConfiguration] = cfg.__class__
         # assert that types are secret
         for f in ["_dict", "_int"]:
@@ -122,6 +205,22 @@ def test_inject_secret_value_secret_type(environment: Any) -> None:
     environment["_INT"] = "1234"
 
     f_custom_secret_type()
+
+
+def test_aux_not_injected_into_kwargs() -> None:
+    # only kwargs with name injection_kwargs receive aux info
+
+    @configspec
+    class AuxTest(BaseConfiguration):
+        aux: str = "INFO"
+
+    @with_config(spec=AuxTest)
+    def f_no_aux(**kwargs: Any):
+        assert "aux" not in kwargs
+        assert _LAST_DLT_CONFIG not in kwargs
+        assert _ORIGINAL_ARGS not in kwargs
+
+    f_no_aux()
 
 
 @pytest.mark.skip("not implemented")
@@ -356,15 +455,50 @@ def test_inject_with_str_sections() -> None:
     pass
 
 
-@pytest.mark.skip("not implemented")
-def test_inject_with_func_section() -> None:
+def test_inject_with_func_section(environment: Any) -> None:
     # function to get sections from the arguments is provided
-    pass
+
+    @with_config(sections=lambda args: "dlt_" + args["name"])  # type: ignore[call-overload]
+    def table_info(name, password=dlt.secrets.value):
+        return password
+
+    environment["DLT_USERS__PASSWORD"] = "pass"
+    assert table_info("users") == "pass"
+
+    @with_config(sections=lambda args: ("dlt", args["name"]))  # type: ignore[call-overload]
+    def table_info_2(name, password=dlt.secrets.value):
+        return password
+
+    environment["DLT__CONTACTS__PASSWORD"] = "pass_x"
+    assert table_info_2("contacts") == "pass_x"
 
 
-@pytest.mark.skip("not implemented")
-def test_inject_on_class_and_methods() -> None:
-    pass
+def test_inject_on_class_and_methods(environment: Any) -> None:
+    environment["AUX"] = "DEBUG"
+    environment["LEVEL"] = "1"
+
+    class AuxCallReceiver:
+        @with_config
+        def __call__(self, level: int = dlt.config.value, aux: str = dlt.config.value) -> Any:
+            return (level, aux)
+
+    assert AuxCallReceiver()() == (1, "DEBUG")
+
+    class AuxReceiver:
+        @with_config
+        def __init__(self, level: int = dlt.config.value, aux: str = dlt.config.value) -> None:
+            self.level = level
+            self.aux = aux
+
+        @with_config
+        def resolve(self, level: int = dlt.config.value, aux: str = dlt.config.value) -> Any:
+            return (level, aux)
+
+    kl_ = AuxReceiver()
+    assert kl_.level == 1
+    assert kl_.aux == "DEBUG"
+
+    assert kl_.resolve() == (1, "DEBUG")
 
 
 @pytest.mark.skip("not implemented")
@@ -374,34 +508,96 @@ def test_set_defaults_for_positional_args() -> None:
     pass
 
 
-@pytest.mark.skip("not implemented")
 def test_inject_spec_remainder_in_kwargs() -> None:
     # if the wrapped func contains kwargs then all the fields from spec without matching func args must be injected in kwargs
-    pass
+    @configspec
+    class AuxTest(BaseConfiguration):
+        level: int = None
+        aux: str = "INFO"
+
+    @with_config(spec=AuxTest)
+    def f_aux(level, **injection_kwargs: Any):
+        # level is in args so not added to kwargs
+        assert level == 1
+        assert "level" not in injection_kwargs
+        # remainder in kwargs
+        assert injection_kwargs["aux"] == "INFO"
+        # assert _LAST_DLT_CONFIG not in kwargs
+        # assert _ORIGINAL_ARGS not in kwargs
+
+    f_aux(1)
 
 
-@pytest.mark.skip("not implemented")
 def test_inject_spec_in_kwargs() -> None:
-    # the resolved spec is injected in kwargs
-    pass
+    @configspec
+    class AuxTest(BaseConfiguration):
+        aux: str = "INFO"
+
+    @with_config(spec=AuxTest)
+    def f_kw_spec(**injection_kwargs: Any):
+        c = last_config(**injection_kwargs)
+        assert c.aux == "INFO"
+        # no args, no kwargs
+        assert get_orig_args(**injection_kwargs) == ((), {})
+
+    f_kw_spec()
 
 
-@pytest.mark.skip("not implemented")
-def test_resolved_spec_in_kwargs_pass_through() -> None:
+def test_resolved_spec_in_kwargs_pass_through(environment: Any) -> None:
     # if last_config is in kwargs then use it and do not resolve it anew
-    pass
+    @configspec
+    class AuxTest(BaseConfiguration):
+        aux: str = "INFO"
+
+    @with_config(spec=AuxTest)
+    def init_cf(aux: str = dlt.config.value, **injection_kwargs: Any):
+        assert aux == "DEBUG"
+        return last_config(**injection_kwargs)
+
+    environment["AUX"] = "DEBUG"
+    c = init_cf()
+
+    @with_config(spec=AuxTest)
+    def get_cf(aux: str = dlt.config.value, last_config: AuxTest = None):
+        assert aux == "DEBUG"
+        assert last_config.aux == "DEBUG"
+        return last_config
+
+    # this will be ignored, last_config is regarded as resolved
+    environment["AUX"] = "ERROR"
+    assert get_cf(last_config=c) is c
 
 
-@pytest.mark.skip("not implemented")
 def test_inject_spec_into_argument_with_spec_type() -> None:
     # if signature contains argument with type of SPEC, it gets injected there
-    pass
+    from dlt.destinations.impl.dummy import _configure, DummyClientConfiguration
+
+    # _configure has argument of type DummyClientConfiguration that it returns
+    # this type holds resolved configuration
+    c = _configure()
+    assert isinstance(c, DummyClientConfiguration)
 
 
-@pytest.mark.skip("not implemented")
-def test_initial_spec_from_arg_with_spec_type() -> None:
+def test_initial_spec_from_arg_with_spec_type(environment: Any) -> None:
     # if signature contains argument with type of SPEC, get its value to init SPEC (instead of calling the constructor())
-    pass
+    @configspec
+    class AuxTest(BaseConfiguration):
+        level: int = None
+        aux: str = "INFO"
+
+    @with_config(spec=AuxTest)
+    def init_cf(
+        level: int = dlt.config.value, aux: str = dlt.config.value, init_cf: AuxTest = None
+    ):
+        assert level == -1
+        assert aux == "DEBUG"
+        # init_cf was used as init but also got resolved
+        assert init_cf.aux == "DEBUG"
+        return init_cf
+
+    init_c = AuxTest(level=-1)
+    environment["AUX"] = "DEBUG"
+    assert init_cf(init_cf=init_c) is init_c
 
 
 def test_use_most_specific_union_type(
