@@ -62,15 +62,6 @@ def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None
                 table["resource"],
             )
 
-        # table schema contains various hints (like clustering or partition options)
-        # that we do not want to show in basic view
-        def essentials_f(c: TColumnSchema) -> Dict[str, Any]:
-            return {
-                "name": c["name"],
-                "data_type": c.get("data_type"),
-                "nullable": c.get("nullable"),
-            }
-
         st.table(
             map(
                 lambda c: {

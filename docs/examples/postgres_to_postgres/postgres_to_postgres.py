@@ -91,16 +91,17 @@ def pg_resource_chunked(
     order_date: str,
     load_type: str = "merge",
     columns: str = "*",
-    credentials: ConnectionStringCredentials = dlt.secrets[
-        "sources.postgres.credentials"
-    ],
+    credentials: ConnectionStringCredentials = dlt.secrets["sources.postgres.credentials"],
 ):
     print(
         f"dlt.resource write_disposition: `{load_type}` -- ",
-        f"connection string: postgresql://{credentials.username}:*****@{credentials.host}:{credentials.host}/{credentials.database}",
+        "connection string:"
+        f" postgresql://{credentials.username}:*****@{credentials.host}:{credentials.host}/{credentials.database}",
     )
 
-    query = f"SELECT {columns} FROM {schema_name}.{table_name} ORDER BY {order_date}"  # Needed to have an idempotent query
+    query = (  # Needed to have an idempotent query
+        f"SELECT {columns} FROM {schema_name}.{table_name} ORDER BY {order_date}"
+    )
 
     source = dlt.resource(  # type: ignore
         name=table_name,
@@ -133,9 +134,7 @@ def table_desc(table_name, pk, schema_name, order_date, columns="*"):
 
 if __name__ == "__main__":
     # Input Handling
-    parser = argparse.ArgumentParser(
-        description="Run specific functions in the script."
-    )
+    parser = argparse.ArgumentParser(description="Run specific functions in the script.")
     parser.add_argument("--replace", action="store_true", help="Run initial load")
     parser.add_argument("--merge", action="store_true", help="Run delta load")
     args = parser.parse_args()
@@ -233,20 +232,26 @@ if __name__ == "__main__":
         ).fetchone()[0]
         print(f"timestamped_schema: {timestamped_schema}")
 
-        target_credentials = ConnectionStringCredentials(dlt.secrets["destination.postgres.credentials"])
+        target_credentials = ConnectionStringCredentials(
+            dlt.secrets["destination.postgres.credentials"]
+        )
         # connect to destination (timestamped schema)
         conn.sql(
-            f"ATTACH 'dbname={target_credentials.database} user={target_credentials.username} password={target_credentials.password} host={target_credentials.host} port={target_credentials.port}' AS pg_db (TYPE postgres);"
+            "ATTACH"
+            f" 'dbname={target_credentials.database} user={target_credentials.username} password={target_credentials.password} host={target_credentials.host} port={target_credentials.port}'"
+            " AS pg_db (TYPE postgres);"
         )
         conn.sql(f"CREATE SCHEMA IF NOT EXISTS pg_db.{timestamped_schema};")
 
         for table in tables:
             print(
-                f"LOAD DuckDB -> Postgres: table: {timestamped_schema}.{table['table_name']} TO Postgres {timestamped_schema}.{table['table_name']}"
+                f"LOAD DuckDB -> Postgres: table: {timestamped_schema}.{table['table_name']} TO"
+                f" Postgres {timestamped_schema}.{table['table_name']}"
             )
 
             conn.sql(
-                f"CREATE OR REPLACE TABLE pg_db.{timestamped_schema}.{table['table_name']} AS SELECT * FROM {timestamped_schema}.{table['table_name']};"
+                f"CREATE OR REPLACE TABLE pg_db.{timestamped_schema}.{table['table_name']} AS"
+                f" SELECT * FROM {timestamped_schema}.{table['table_name']};"
             )
             conn.sql(
                 f"SELECT count(*) as count FROM pg_db.{timestamped_schema}.{table['table_name']};"
@@ -262,9 +267,7 @@ if __name__ == "__main__":
         assert int(rows) == 9
 
         # 5. Cleanup and rename Schema
-        print(
-            "##################################### RENAME Schema and CLEANUP ########"
-        )
+        print("##################################### RENAME Schema and CLEANUP ########")
         try:
             con_hd = psycopg2.connect(
                 dbname=target_credentials.database,
