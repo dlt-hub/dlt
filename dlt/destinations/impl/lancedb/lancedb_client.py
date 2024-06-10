@@ -155,22 +155,6 @@ class NullSchema(LanceModel):
     pass
 
 
-class VersionSchema(LanceModel):
-    version: int
-    engine_version: int
-    inserted_at: str
-    schema_name: str
-    version_hash: str
-    schema: str
-
-
-class LoadsSchema(LanceModel):
-    load_id: str
-    schema_name: str
-    status: int
-    inserted_at: str
-
-
 class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
@@ -456,20 +440,17 @@ class LanceDBClient(JobClientBase, WithStateSync):
         fq_version_table_name = self.make_qualified_table_name(
             self.schema.version_table_name
         )
-        self.create_record(properties, VersionSchema, fq_version_table_name)
+        self.create_record(properties, fq_version_table_name)
 
-    def create_record(
-        self, record: DictStrAny, lancedb_model: TLanceModel, table_name: str
-    ) -> None:
-        """Inserts a record into a LanceDB table without a vector.
+    def create_record(self, record: DictStrAny, table_name: str) -> None:
+        """Inserts a record into a LanceDB table.
 
         Args:
             record (DictStrAny): The data to be inserted as payload.
             table_name (str): The name of the table to insert the record into.
-            lancedb_model (LanceModel): Pydantic model to parse records.
         """
         tbl = self.db_client.open_table(table_name)
-        tbl.add([lancedb_model(**record)])
+        tbl.add([record])
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage by finding a load ID that was completed."""
@@ -559,7 +540,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         fq_loads_table_name = self.make_qualified_table_name(
             self.schema.loads_table_name
         )
-        self.create_record(properties, LoadsSchema, fq_loads_table_name)
+        self.create_record(properties, fq_loads_table_name)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
