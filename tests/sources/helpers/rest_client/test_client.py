@@ -241,3 +241,17 @@ class TestRESTClient:
             assert_pagination(pages_list)
 
             assert pages_list[0].response.request.headers["Authorization"] == "Bearer test-token"
+
+    def test_send_request_allows_ca_bundle(self, mocker, rest_client):
+        mocker.patch.dict(os.environ, {"REQUESTS_CA_BUNDLE": "/path/to/some/ca-bundle"})
+
+        _send = rest_client.session.send
+
+        def _fake_send(*args, **kwargs):
+            assert kwargs["verify"] == "/path/to/some/ca-bundle"
+            return _send(*args, **kwargs)
+
+        rest_client.session.send = _fake_send
+
+        result = rest_client.get("/posts/1")
+        assert result.status_code == 200
