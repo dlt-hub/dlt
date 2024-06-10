@@ -124,7 +124,11 @@ class RESTClient:
 
         prepared_request = self.session.prepare_request(request)
 
-        return self.session.send(prepared_request)
+        send_kwargs = self.session.merge_environment_settings(
+            prepared_request.url, {}, None, None, None
+        )
+
+        return self.session.send(prepared_request, **send_kwargs)
 
     def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
         prepared_request = self._create_request(
