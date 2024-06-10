@@ -41,8 +41,6 @@ os.environ["COHERE_API_KEY"] = dlt.secrets.get("destination.cohere.api_key")
 cohere = EmbeddingFunctionRegistry
 func = EmbeddingFunctionRegistry.get_instance().get("cohere").create(max_retries=1)
 
-db_path = Path(dlt.config.get("lancedb.db_path"))
-
 
 class EpisodeSchema(LanceModel):
     id: str  # noqa: A003
@@ -112,6 +110,7 @@ def spotify_shows(
 
 @dlt.destination(batch_size=250, name="lancedb")
 def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
+    db_path = Path(dlt.config.get("lancedb.db_path"))
     db = lancedb.connect(db_path)
     try:
         tbl = db.open_table(table["name"])
@@ -121,6 +120,7 @@ def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
 
 
 if __name__ == "__main__":
+    db_path = Path(dlt.config.get("lancedb.db_path"))
     db = lancedb.connect(db_path)
 
     for show in fields(Shows):
