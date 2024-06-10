@@ -2,11 +2,9 @@
 
 from typing import (
     List,
-    Any,
     cast,
     Type,
     Optional,
-    Dict,
 )
 
 import pyarrow as pa
@@ -108,3 +106,39 @@ def create_template_schema(
 
 def arrow_schema_to_dict(schema: pa.Schema) -> DictStrAny:
     return {field.name: field.type for field in schema}
+
+
+def make_arrow_schema(
+    table_name: str,
+    schema: Schema,
+    type_mapper: TypeMapper,
+    id_field_name: Optional[str] = None,
+    vector_field_name: Optional[str] = None,
+    embedding_fields: Optional[List[str]] = None,
+    embedding_model_func: Optional[TextEmbeddingFunction] = None,
+    embedding_model_dimensions: Optional[int] = None,
+) -> pa.Schema:
+    """Creates a PyArrow schema for a LanceDB table from a dlt schema."""
+    arrow_schema = []
+
+    for column_name, column in schema.get_table_columns(table_name).items():
+        dtype = cast(pa.DataType, type_mapper.to_db_type(column))
+
+        if embedding_fields and column_name in embedding_fields:
+            metadata = {"embedding_source": "true"}
+        else:
+            metadata = None
+
+        field = pa.field(column_name, dtype, metadata=metadata)
+        arrow_schema.append(field)
+
+    if id_field_name:
+        arrow_schema.append(pa.field(id_field_name, pa.string()))
+
+    if embedding_fields:
+        vec_size = embedding_model_dimensions or embedding_model_func.ndims()
+        arrow_schema.append(
+            pa.field(vector_field_name, pa.list_(pa.float32(), vec_size))
+        )
+
+    return pa.schema(arrow_schema)

@@ -59,6 +59,7 @@ from dlt.destinations.impl.lancedb.schema import (
     make_fields,
     arrow_schema_to_dict,
     make_field_schema,
+    make_arrow_schema,
 )
 from dlt.destinations.impl.lancedb.utils import (
     list_unique_identifiers,
@@ -155,11 +156,11 @@ class NullSchema(LanceModel):
 
 
 class VersionSchema(LanceModel):
-    version_hash: str
-    schema_name: str
     version: int
     engine_version: int
     inserted_at: str
+    schema_name: str
+    version_hash: str
     schema: str
 
 
@@ -364,7 +365,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         try:
             schema_info = self.get_stored_schema_by_hash(
                 self.schema.stored_version_hash
-        )
+            )
         except DestinationUndefinedEntity:
             schema_info = None
 
@@ -427,20 +428,30 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         )
                         self.add_table_field(table_name, field_schema)
                 else:
-                    table_schema = self.make_lancedb_table_schema(table_name)
+                    embedding_fields = get_columns_names_with_prop(
+                        self.schema.get_table(table_name=table_name), VECTORIZE_HINT
+                    )
+                    table_schema: pa.Schema = make_arrow_schema(
+                        table_name,
+                        schema=self.schema,
+                        type_mapper=self.type_mapper,
+                        embedding_fields=embedding_fields,
+                        embedding_model_func=self.model_func,
+                        embedding_model_dimensions=self.config.embedding_model_dimensions,
+                    )
                     fq_table_name = self.make_qualified_table_name(table_name)
                     self.create_table(fq_table_name, table_schema)
 
-        self.update_schema_in_storage(self.schema)
+        self.update_schema_in_storage()
 
-    def update_schema_in_storage(self, schema: Schema) -> None:
+    def update_schema_in_storage(self) -> None:
         properties = {
-            "version_hash": schema.stored_version_hash,
-            "schema_name": schema.name,
-            "version": schema.version,
-            "engine_version": schema.ENGINE_VERSION,
+            "version": self.schema.version,
+            "engine_version": self.schema.ENGINE_VERSION,
             "inserted_at": str(pendulum.now()),
-            "schema": json.dumps(schema.to_dict()),
+            "schema_name": self.schema.name,
+            "version_hash": self.schema.stored_version_hash,
+            "schema": json.dumps(self.schema.to_dict()),
         }
         fq_version_table_name = self.make_qualified_table_name(
             self.schema.version_table_name
@@ -458,7 +469,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             lancedb_model (LanceModel): Pydantic model to parse records.
         """
         tbl = self.db_client.open_table(table_name)
-        tbl.add(lancedb_model(**record))
+        tbl.add([lancedb_model(**record)])
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage by finding a load ID that was completed."""
@@ -574,40 +585,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self, wt_t: pa.DataType, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(cast(pa.DataType, wt_t), precision, scale)
-
-    def make_lancedb_table_schema(self, table_name: str) -> Type[LanceModel]:
-        """Creates a LanceDB table schema from dlt table."""
-        embedding_fields = get_columns_names_with_prop(
-            self.schema.get_table(table_name=table_name), VECTORIZE_HINT
-        )
-
-        template_model: TLanceModel = create_template_schema(
-            None,
-            "vector__" if embedding_fields else None,
-            embedding_fields or None,
-            self.model_func,
-            self.config.embedding_model_dimensions,
-        )
-
-        field_types: DictStrAny = {
-            k: v
-            for d in make_fields(
-                table_name,
-                schema=self.schema,
-                type_mapper=self.type_mapper,
-                embedding_fields=embedding_fields or None,
-                embedding_model_func=self.model_func,
-            )
-            for k, v in d.items()
-        }
-
-        return create_model(
-            table_name,
-            __base__=template_model,
-            __module__=__name__,
-
-            **field_types,
-        )
 
 
 class LoadLanceDBJob(LoadJob):
