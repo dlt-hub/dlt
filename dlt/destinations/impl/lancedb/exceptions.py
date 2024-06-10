@@ -19,6 +19,7 @@ def lancedb_error(f: TFun) -> TFun:
         try:
             return f(self, *args, **kwargs)
         except (
+            FileNotFoundError,
             MissingValueError,
             MissingColumnError,
         ) as status_ex:
