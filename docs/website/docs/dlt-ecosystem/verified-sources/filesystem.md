@@ -40,8 +40,8 @@ To access these, you'll need secret credentials:
 To get AWS keys for S3 access:
 
 1. Access IAM in AWS Console.
-1. Select "Users", choose a user, and open "Security credentials".
-1. Click "Create access key" for AWS ID and Secret Key.
+2. Select "Users", choose a user, and open "Security credentials".
+3. Click "Create access key" for AWS ID and Secret Key.
 
 For more info, see
 [AWS official documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
@@ -51,12 +51,12 @@ For more info, see
 To get GCS/GDrive access:
 
 1. Log in to [console.cloud.google.com](http://console.cloud.google.com/).
-1. Create a [service account](https://cloud.google.com/iam/docs/service-accounts-create#creating).
-1. Enable "Cloud Storage API" / "Google Drive API"; see
+2. Create a [service account](https://cloud.google.com/iam/docs/service-accounts-create#creating).
+3. Enable "Cloud Storage API" / "Google Drive API"; see
    [Google's guide](https://support.google.com/googleapi/answer/6158841?hl=en).
-1. In IAM & Admin > Service Accounts, find your account, click the three-dot menu > "Manage Keys" >
+4. In IAM & Admin > Service Accounts, find your account, click the three-dot menu > "Manage Keys" >
    "ADD KEY" > "CREATE" to get a JSON credential file.
-1. Grant the service account appropriate permissions for cloud storage access.
+5. Grant the service account appropriate permissions for cloud storage access.
 
 For more info, see how to
 [create service account](https://support.google.com/a/answer/7378726?hl=en).
@@ -66,9 +66,9 @@ For more info, see how to
 To obtain Azure blob storage access:
 
 1. Go to Azure Portal (portal.azure.com).
-1. Select "Storage accounts" > your storage.
-1. Click "Settings" > "Access keys".
-1. View account name and two keys (primary/secondary). Keep keys confidential.
+2. Select "Storage accounts" > your storage.
+3. Click "Settings" > "Access keys".
+4. View account name and two keys (primary/secondary). Keep keys confidential.
 
 For more info, see
 [Azure official documentation](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-keys-manage?tabs=azure-portal).
@@ -88,10 +88,10 @@ To get started with your data pipeline, follow these steps:
    with filesystem as the [source](../../general-usage/source) and
    [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+2. If you'd like to use a different destination, simply replace `duckdb` with the name of your
    preferred [destination](../destinations).
 
-1. After running this command, a new directory will be created with the necessary files and
+3. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
 For more information, read the
@@ -119,32 +119,71 @@ For more information, read the
    azure_storage_account_key="Please set me up!"
    ```
 
-1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+2. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-1. You can pass the bucket URL and glob pattern or use `config.toml`. For local filesystems, use
-   `file://` or skip the schema and provide the local path in a format native for your operating system.
+3. You can pass the bucket URL and glob pattern or use `config.toml`. For local filesystems, use
+   `file://`  as follows:
+   
+   ```toml
+   [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+   bucket_url='file://Users/admin/Documents/csv_files'
+   file_glob="*"
+   ```
+   or skip the schema and provide the local path in a format native for your operating system as follows:
 
    ```toml
    [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
    bucket_url='~\Documents\csv_files\'
    file_glob="*"
    ```
+   
    In the example above we use Windows path to current user's Documents folder. Mind that literal toml string (single quotes)
    was used to conveniently use the backslashes without need to escape.
 
    For remote file systems you need to add the schema, it will be used to get the protocol being
-   used:
+   used. The protocols that can be used are:
 
-   ```toml
-   [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
-   # bucket_url="az://my-bucket/csv_files/" - for Azure Blob Storage
-   # bucket_url="gdrive://my-bucket/csv_files/" - for Google Drive folder
-   # bucket_url="gs://my-bucket/csv_files/" - for Google Storage
-   bucket_url="s3://my-bucket/csv_files/" # for AWS S3
-   ```
-   :::caution
-   For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
-   :::
+   - For Azure blob storage
+      ```toml
+      [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+      bucket_url="az://<container_name>/<path_to_files>/"
+      ```
+
+      - `az://` indicates the Azure Blob Storage protocol.
+      - `container_name` is the name of the container.
+      - `path_to_files/` is a directory path within the container.
+
+      `CAUTION: For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.`
+
+   - For Google Drive
+      ```toml
+      [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+      bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/"
+      ```
+
+      - `gdrive://` indicates that the Google Drive protocol.
+      - `folder_name` refers to a folder within Google Drive.
+      - `subfolder_or_file_path/` is a sub-folder or directory path within the my-bucket folder.
+
+   - For Google Storage
+      ```toml
+      [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+      bucket_url="gs://<bucket_name>/<path_to_files>/"
+      ```
+
+      - `gs://` indicates the Google Cloud Storage protocol.
+      - `bucket_name` is the name of the bucket.
+      - `path_to_files/` is a directory path within the bucket.
+
+   - For AWS S3
+      ```toml
+      [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
+      bucket_url="s3://<bucket_name>/<path_to_files>/"
+      ```
+
+      - `s3://` indicates the AWS S3 protocol.
+      - `bucket_name` is the name of the bucket.
+      - `path_to_files/` is a directory path within the bucket.
 
 ### Use local file system paths
 You can use both native local file system paths and in form of `file:` uri. Absolute, relative and UNC Windows paths are supported.
@@ -172,7 +211,7 @@ bucket_url = '\\?\C:\a\b\c'
    pip install -r requirements.txt
    ```
 
-1. Install optional modules:
+2. Install optional modules:
 
    - For AWS S3:
      ```sh
@@ -184,13 +223,13 @@ bucket_url = '\\?\C:\a\b\c'
      ```
    - GCS storage: No separate module needed.
 
-1. You're now ready to run the pipeline! To get started, run the following command:
+3. You're now ready to run the pipeline! To get started, run the following command:
 
    ```sh
    python filesystem_pipeline.py
    ```
 
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+4. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
 
    ```sh
@@ -494,4 +533,3 @@ verified source.
       ```
 
 <!--@@@DLT_TUBA filesystem-->
-
