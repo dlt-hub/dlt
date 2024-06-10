@@ -47,6 +47,7 @@ def test_filesystem_configuration() -> None:
         "credentials": None,
         "client_kwargs": None,
         "kwargs": None,
+        "deltalake_storage_options": None,
     }
 
 
@@ -145,6 +146,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         bucket_url="az://root",
         kwargs={"use_ssl": True},
         client_kwargs={"verify": "public.crt"},
+        deltalake_storage_options={"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
     )
     assert dict(config) == {
         "read_only": False,
@@ -152,6 +154,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "credentials": None,
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
+        "deltalake_storage_options": {"AWS_S3_LOCKING_PROVIDER": "dynamodb"},
     }
 
 

@@ -28,6 +28,7 @@ try:
     import pyarrow
     import pyarrow.parquet
     import pyarrow.compute
+    import pyarrow.dataset
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt pyarrow helpers",
@@ -36,6 +37,8 @@ except ModuleNotFoundError:
     )
 
 TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
+
+ARROW_DECIMAL_MAX_PRECISION = 76
 
 
 def get_py_arrow_datatype(
@@ -409,6 +412,29 @@ def pq_stream_with_new_columns(
                 else:
                     tbl = tbl.add_column(idx, field, gen_(tbl))
             yield tbl
+
+
+def dataset_to_table(data: Union[pyarrow.Table, pyarrow.dataset.Dataset]) -> pyarrow.Table:
+    return data.to_table() if isinstance(data, pyarrow.dataset.Dataset) else data
+
+
+def cast_arrow_schema_types(
+    schema: pyarrow.Schema,
+    type_map: Dict[Callable[[pyarrow.DataType], bool], Callable[..., pyarrow.DataType]],
+) -> pyarrow.Schema:
+    """Returns type-casted Arrow schema.
+
+    Replaces data types for fields matching a type check in `type_map`.
+    Type check functions in `type_map` are assumed to be mutually exclusive, i.e.
+    a data type does not match more than one type check function.
+    """
+    for i, e in enumerate(schema.types):
+        for type_check, cast_type in type_map.items():
+            if type_check(e):
+                adjusted_field = schema.field(i).with_type(cast_type)
+                schema = schema.set(i, adjusted_field)
+                break  # if type matches type check, do not do other type checks
+    return schema
 
 
 class NameNormalizationClash(ValueError):

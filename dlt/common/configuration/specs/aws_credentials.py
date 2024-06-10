@@ -45,6 +45,14 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
             aws_session_token=self.aws_session_token,
         )
 
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/aws
+        assert self.region_name is not None, "`object_store` Rust crate requires AWS region."
+        creds = self.to_session_credentials()
+        if creds["aws_session_token"] is None:
+            creds.pop("aws_session_token")
+        return {**creds, **{"region": self.region_name}}
+
 
 @configspec
 class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):

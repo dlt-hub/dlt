@@ -6,8 +6,6 @@ from typing_extensions import get_origin, get_args
 import inspect
 from functools import wraps
 
-
-import dlt
 from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pendulum import pendulum
@@ -20,6 +18,7 @@ from dlt.common.typing import (
     extract_inner_type,
     get_generic_type_argument_from_instance,
     is_optional_type,
+    is_subclass,
 )
 from dlt.common.schema.typing import TColumnNames
 from dlt.common.configuration import configspec, ConfigurationValueError
@@ -111,7 +110,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
     def __init__(
         self,
-        cursor_path: str = dlt.config.value,
+        cursor_path: str = None,
         initial_value: Optional[TCursorValue] = None,
         last_value_func: Optional[LastValueFunc[TCursorValue]] = max,
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
@@ -254,14 +253,22 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
-            self.cursor_path = native_value.cursor_path
-            self.initial_value = native_value.initial_value
-            self.last_value_func = native_value.last_value_func
-            self.end_value = native_value.end_value
-            self.resource_name = native_value.resource_name
-            self._primary_key = native_value._primary_key
-            self.allow_external_schedulers = native_value.allow_external_schedulers
-            self.row_order = native_value.row_order
+            if self is self.EMPTY:
+                raise ValueError("Trying to resolve EMPTY Incremental")
+            if native_value is self.EMPTY:
+                raise ValueError(
+                    "Do not use EMPTY Incremental as default or explicit values. Pass None to reset"
+                    " an incremental."
+                )
+            merged = self.merge(native_value)
+            self.cursor_path = merged.cursor_path
+            self.initial_value = merged.initial_value
+            self.last_value_func = merged.last_value_func
+            self.end_value = merged.end_value
+            self.resource_name = merged.resource_name
+            self._primary_key = merged._primary_key
+            self.allow_external_schedulers = merged.allow_external_schedulers
+            self.row_order = merged.row_order
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
@@ -440,7 +447,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
     def __str__(self) -> str:
         return (
-            f"Incremental at {id(self)} for resource {self.resource_name} with cursor path:"
+            f"Incremental at 0x{id(self):x} for resource {self.resource_name} with cursor path:"
             f" {self.cursor_path} initial {self.initial_value} - {self.end_value} lv_func"
             f" {self.last_value_func}"
         )
@@ -490,6 +497,8 @@ Incremental.EMPTY = Incremental[Any]("")
 class IncrementalResourceWrapper(ItemTransform[TDataItem]):
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
+    _from_hints: bool = False
+    """If True, incremental was set explicitly from_hints"""
     _resource_name: str = None
 
     def __init__(self, primary_key: Optional[TTableHintTemplate[TColumnNames]] = None) -> None:
@@ -516,10 +525,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         incremental_param: Optional[inspect.Parameter] = None
         for p in sig.parameters.values():
             annotation = extract_inner_type(p.annotation)
-            annotation = get_origin(annotation) or annotation
-            if (inspect.isclass(annotation) and issubclass(annotation, Incremental)) or isinstance(
-                p.default, Incremental
-            ):
+            if is_subclass(annotation, Incremental) or isinstance(p.default, Incremental):
                 incremental_param = p
                 break
         return incremental_param
@@ -539,8 +545,10 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             if p.name in bound_args.arguments:
                 explicit_value = bound_args.arguments[p.name]
                 if explicit_value is Incremental.EMPTY or p.default is Incremental.EMPTY:
-                    # drop incremental
-                    pass
+                    raise ValueError(
+                        "Do not use EMPTY Incremental as default or explicit values. Pass None to"
+                        " reset an incremental."
+                    )
                 elif isinstance(explicit_value, Incremental):
                     # Explicit Incremental instance is merged with default
                     # allowing e.g. to only update initial_value/end_value but keeping default cursor_path
@@ -573,14 +581,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                 new_incremental.__orig_class__ = p.annotation  # type: ignore
 
             # set the incremental only if not yet set or if it was passed explicitly
-            # NOTE: if new incremental is resolved, it was passed via config injection
             # NOTE: the _incremental may be also set by applying hints to the resource see `set_template` in `DltResource`
-            if (
-                new_incremental
-                and p.name in bound_args.arguments
-                and not new_incremental.is_resolved()
-            ) or not self._incremental:
-                self._incremental = new_incremental
+            if (new_incremental and p.name in bound_args.arguments) or not self._incremental:
+                self.set_incremental(new_incremental)
             if not self._incremental.is_resolved():
                 self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
@@ -592,6 +595,20 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             return func(*bound_args.args, **bound_args.kwargs)
 
         return _wrap  # type: ignore
+
+    @property
+    def incremental(self) -> Optional[Incremental[Any]]:
+        return self._incremental
+
+    def set_incremental(
+        self, incremental: Optional[Incremental[Any]], from_hints: bool = False
+    ) -> None:
+        """Sets the incremental. If incremental was set from_hints, it can only be changed in the same manner"""
+        if self._from_hints and not from_hints:
+            # do not accept incremental if apply hints were used
+            return
+        self._from_hints = from_hints
+        self._incremental = incremental
 
     @property
     def allow_external_schedulers(self) -> bool:

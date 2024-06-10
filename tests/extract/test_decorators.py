@@ -57,8 +57,10 @@ def test_default_resource() -> None:
         "resource": "resource",
         "write_disposition": "append",
     }
-    assert resource().name == "resource"
     assert resource._args_bound is False
+    assert resource.name == "resource"
+    assert resource().args_bound is True
+    assert resource().name == "resource"
     assert resource.incremental is None
     assert resource.write_disposition == "append"
 
@@ -630,6 +632,18 @@ def test_spec_generation() -> None:
     assert "secret" in fields
     assert "config" in fields
 
+    @dlt.resource(standalone=True)
+    def inner_standalone_resource(
+        secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"
+    ):
+        yield 1
+
+    SPEC = get_fun_spec(inner_standalone_resource("TS", "CFG")._pipe.gen)  # type: ignore[arg-type]
+    fields = SPEC.get_resolvable_fields()
+    # resources marked as standalone always inject full signature
+    assert len(fields) == 3
+    assert {"secret", "config", "opt"} == set(fields.keys())
+
     @dlt.source
     def inner_source(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
         return standalone_resource
@@ -734,6 +748,11 @@ def standalone_signature(init: int, secret_end: int = dlt.secrets.value):
     yield from range(init, secret_end)
 
 
+@dlt.resource
+def regular_signature(init: int, secret_end: int = dlt.secrets.value):
+    yield from range(init, secret_end)
+
+
 def test_standalone_resource() -> None:
     # wrapped flag will not create the resource but just simple function wrapper that must be called before use
     @dlt.resource(standalone=True)
@@ -746,7 +765,7 @@ def test_standalone_resource() -> None:
     assert nice_signature.__doc__ == """Has nice signature"""
 
     assert list(nice_signature(7)) == [7, 8, 9]
-    assert nice_signature(8)._args_bound is True
+    assert nice_signature(8).args_bound is True
     with pytest.raises(TypeError):
         # bound!
         nice_signature(7)()
@@ -800,7 +819,7 @@ def test_standalone_transformer() -> None:
 
     bound_tx = standalone_transformer(5, 10)
     # this is not really true
-    assert bound_tx._args_bound is True
+    assert bound_tx.args_bound is True
     with pytest.raises(TypeError):
         bound_tx(1)
     assert isinstance(bound_tx, DltResource)
@@ -891,14 +910,26 @@ def test_standalone_resource_returning_resource_exception() -> None:
     assert conf_ex.value.fields == ["uniq_name"]
 
 
-def test_resource_rename_credentials_separation():
+def test_standalone_resource_rename_credentials_separation():
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
     assert list(standalone_signature(1)) == [1, 2, 3, 4]
 
-    # config section is not impacted by the rename
-    # NOTE: probably we should keep it like that
-    os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    # os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    # assert list(standalone_signature.with_name("renamed_sig")(1)) == [1, 2, 3, 4, 5]
+
+    # bound resource will not allow for reconfig
     assert list(standalone_signature(1).with_name("renamed_sig")) == [1, 2, 3, 4]
+
+
+def test_resource_rename_credentials_separation():
+    os.environ["SOURCES__TEST_DECORATORS__REGULAR_SIGNATURE__SECRET_END"] = "5"
+    assert list(regular_signature(1)) == [1, 2, 3, 4]
+
+    os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    assert list(regular_signature.with_name("renamed_sig")(1)) == [1, 2, 3, 4, 5]
+
+    # bound resource will not allow for reconfig
+    assert list(regular_signature(1).with_name("renamed_sig")) == [1, 2, 3, 4]
 
 
 def test_class_source() -> None:

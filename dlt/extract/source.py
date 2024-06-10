@@ -178,6 +178,7 @@ class DltSource(Iterable[TDataItem]):
     * You can select and deselect resources that you want to load via `with_resources` method
     * You can access the resources (which are `DltResource` instances) as source attributes
     * It implements `Iterable` interface so you can get all the data from the resources yourself and without dlt pipeline present.
+    * It will create a DAG from resources and transformers and optimize the extraction so parent resources are extracted only once
     * You can get the `schema` for the source and all the resources within it.
     * You can use a `run` method to load the data with a default instance of dlt pipeline.
     * You can get source read only state for the currently active Pipeline instance
