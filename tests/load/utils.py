@@ -197,8 +197,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination
-            not in ("athena", "mssql", "synapse", "databricks", "dremio", "clickhouse")
+            if destination not in ("athena", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -247,7 +246,7 @@ def destinations_configs(
             )
         ]
         destination_configs += [
-            DestinationTestConfiguration(destination="mssql", supports_dbt=False),
+            # DestinationTestConfiguration(destination="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
 
