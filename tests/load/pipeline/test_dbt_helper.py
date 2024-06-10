@@ -23,7 +23,8 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
     # yield Venv.restore_current()
-    with create_venv(tempfile.mkdtemp(), list(ACTIVE_SQL_DESTINATIONS)) as venv:
+    # NOTE: we limit the max version of dbt to allow all dbt adapters to run. ie. sqlserver does not work on 1.8
+    with create_venv(tempfile.mkdtemp(), list(ACTIVE_SQL_DESTINATIONS), dbt_version="<1.8") as venv:
         yield venv
 
 
