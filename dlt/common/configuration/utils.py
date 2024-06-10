@@ -193,5 +193,7 @@ def add_config_dict_to_env(
             if env_key not in os.environ or overwrite_keys:
                 if v is None:
                     os.environ.pop(env_key, None)
+                elif isinstance(v, dict):
+                    add_config_dict_to_env(v, sections + (k,))
                 else:
                     os.environ[env_key] = serialize_value(v)

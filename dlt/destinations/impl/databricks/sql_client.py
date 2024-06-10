@@ -110,7 +110,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         #     db_args = kwargs or None
 
         db_args = args or kwargs or None
-        with self._conn.cursor() as curr:
+        with self._conn.cursor() as curr:  # type: ignore[assignment]
             curr.execute(query, db_args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 

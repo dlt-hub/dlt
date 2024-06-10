@@ -1297,6 +1297,15 @@ def test_add_config_to_env(environment: Dict[str, str]) -> None:
     add_config_to_env(c.sectioned)
     assert environment == {"DLT_TEST__PASSWORD": "PASS"}
 
+    # dicts should be added as sections
+    environment.clear()
+    c_s = ConnectionStringCredentials(
+        "mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
+    )
+    add_config_to_env(c_s, ("dlt",))
+    assert environment["DLT__CREDENTIALS__QUERY__ENCRYPT"] == "yes"
+    assert environment["DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE"] == "yes"
+
 
 def test_configuration_copy() -> None:
     c = resolve.resolve_configuration(

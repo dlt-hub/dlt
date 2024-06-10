@@ -44,7 +44,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with airflow --with docs --with providers --with pipeline --with sentry-sdk
+	poetry install --all-extras --with airflow,docs,providers,pipeline,sentry-sdk,dbt
 
 lint:
 	./tools/check-package.sh
