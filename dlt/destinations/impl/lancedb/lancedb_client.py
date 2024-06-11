@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from types import TracebackType
 from typing import (
     ClassVar,
@@ -216,8 +217,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def __init__(self, schema: Schema, config: LanceDBClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: LanceDBClientConfiguration = config
+        # Make read consistency configurable. We set strong consistency while testing.
         self.db_client: DBConnection = lancedb.connect(
-            uri=self.config.credentials.uri, api_key=self.config.credentials.api_key
+            uri=self.config.credentials.uri,
+            api_key=self.config.credentials.api_key,
+            read_consistency_interval=timedelta(0),
         )
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self.type_mapper = LanceDBTypeMapper(self.capabilities)
