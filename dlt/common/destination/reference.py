@@ -26,6 +26,7 @@ import inspect
 
 from dlt.common import logger
 from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
     get_write_disposition,
@@ -247,11 +248,15 @@ class DoNothingFollowupJob(DoNothingJob, FollowupJob):
 
 
 class JobClientBase(ABC):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = None
-
-    def __init__(self, schema: Schema, config: DestinationClientConfiguration) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        config: DestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
         self.schema = schema
         self.config = config
+        self.capabilities = capabilities
 
     @abstractmethod
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -453,13 +458,55 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
         """Get a fully resolved destination config from the initial config"""
+
         config = resolve_configuration(
-            initial_config,
+            initial_config or self.spec(),
             sections=(known_sections.DESTINATION, self.destination_name),
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params,
         )
         return config
+
+    def client(
+        self, schema: Schema, initial_config: TDestinationConfig = None
+    ) -> TDestinationClient:
+        """Returns a configured instance of the destination's job client"""
+        config = self.configuration(initial_config)
+        caps = self.adjust_capabilities(self.capabilities(), config, schema.naming)
+        return self.client_class(schema, config, caps)
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: TDestinationConfig,
+        naming: NamingConvention,
+    ) -> DestinationCapabilitiesContext:
+        """Adjust the capabilities to match the case sensitivity as requested by naming convention."""
+        if not naming.is_case_sensitive:
+            # all destinations are configured to be case insensitive so there's nothing to adjust
+            return caps
+        if not caps.has_case_sensitive_identifiers:
+            if caps.casefold_identifier is str:
+                logger.info(
+                    f"Naming convention {naming.name()} is case sensitive but the destination does"
+                    " not support case sensitive identifiers. Nevertheless identifier casing will"
+                    " be preserved in the destination schema."
+                )
+            else:
+                logger.warn(
+                    f"Naming convention {naming.name()} is case sensitive but the destination does"
+                    " not support case sensitive identifiers. Destination will case fold all the"
+                    f" identifiers with {caps.casefold_identifier}"
+                )
+        else:
+            # adjust case folding to store casefold identifiers in the schema
+            if caps.casefold_identifier is not str:
+                caps.casefold_identifier = str
+                logger.info(
+                    f"Enabling case sensitive identifiers for naming convention {naming.name()}"
+                )
+        return caps
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -535,12 +582,6 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         except Exception as e:
             raise InvalidDestinationReference(ref) from e
         return dest
-
-    def client(
-        self, schema: Schema, initial_config: TDestinationConfig = None
-    ) -> TDestinationClient:
-        """Returns a configured instance of the destination's job client"""
-        return self.client_class(schema, self.configuration(initial_config))
 
 
 TDestination = Destination[DestinationClientConfiguration, JobClientBase]
