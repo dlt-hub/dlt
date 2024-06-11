@@ -1,5 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Union, Dict
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Tuple, Union, Dict
 
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
@@ -44,10 +44,14 @@ class DatabricksCursorImpl(DBApiCursorImpl):
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = databricks_lib
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
-        super().__init__(credentials.catalog, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: DatabricksCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.catalog, dataset_name, capabilities)
         self._conn: DatabricksSqlConnection = None
         self.credentials = credentials
 
@@ -133,13 +137,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             curr.execute(query, db_args)
             yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
         catalog = self.capabilities.casefold_identifier(self.credentials.catalog)
-        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
         if escape:
             catalog = self.capabilities.escape_identifier(catalog)
-            dataset_name = self.capabilities.escape_identifier(dataset_name)
-        return f"{catalog}.{dataset_name}"
+        return catalog
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:

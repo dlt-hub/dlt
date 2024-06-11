@@ -255,10 +255,15 @@ class DatabricksMergeJob(SqlMergeJob):
 
 
 class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: DatabricksClientConfiguration) -> None:
-        sql_client = DatabricksSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: DatabricksClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = DatabricksSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
         self.sql_client: DatabricksSqlClient = sql_client

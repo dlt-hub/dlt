@@ -10,7 +10,10 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
     caps.escape_identifier = escape_databricks_identifier
+    # databricks identifiers are case insensitive and stored in lower case
+    # https://docs.databricks.com/en/sql/language-manual/sql-ref-identifiers.html
     caps.escape_literal = escape_databricks_literal
+    caps.casefold_identifier = str.lower
     caps.has_case_sensitive_identifiers = False
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
