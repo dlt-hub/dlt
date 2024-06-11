@@ -51,7 +51,11 @@ from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
-from dlt.destinations.impl.lancedb.exceptions import lancedb_error, lancedb_batch_error, LanceDBBatchError
+from dlt.destinations.impl.lancedb.exceptions import (
+    lancedb_error,
+    lancedb_batch_error,
+    LanceDBBatchError,
+)
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
     arrow_schema_to_dict,
@@ -496,6 +500,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 return StateInfo(**state)
         return None
 
+    @lancedb_error
     def get_stored_schema_by_hash(
         self, schema_hash: str
     ) -> Optional[StorageSchemaInfo]:
@@ -512,9 +517,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
             record = response.to_list()[0]
             return StorageSchemaInfo(**record)
-        except  IndexError:
+        except IndexError:
             return None
 
+    @lancedb_error
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
         fq_version_table_name = self.make_qualified_table_name(
