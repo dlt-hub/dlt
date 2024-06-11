@@ -737,6 +737,7 @@ def version_table() -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
     # set to nullable so we can migrate existing tables
+    # WARNING: do not reorder the columns
     table = new_table(
         VERSION_TABLE_NAME,
         columns=[
@@ -757,10 +758,11 @@ def version_table() -> TTableSchema:
     return table
 
 
-def load_table() -> TTableSchema:
+def loads_table() -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
     # set to nullable so we can migrate existing tables
+    # WARNING: do not reorder the columns
     table = new_table(
         LOADS_TABLE_NAME,
         columns=[
@@ -784,6 +786,7 @@ def pipeline_state_table() -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
     # set to nullable so we can migrate existing tables
+    # WARNING: do not reorder the columns
     table = new_table(
         PIPELINE_STATE_TABLE_NAME,
         columns=[

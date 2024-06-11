@@ -942,7 +942,7 @@ class Schema:
             utils.version_table(), self.naming
         )
         self._schema_tables[self.loads_table_name] = utils.normalize_table_identifiers(
-            utils.load_table(), self.naming
+            utils.loads_table(), self.naming
         )
 
     def _add_standard_hints(self) -> None:
@@ -1036,6 +1036,14 @@ class Schema:
         self.version_table_name = to_naming.normalize_table_identifier(VERSION_TABLE_NAME)
         self.loads_table_name = to_naming.normalize_table_identifier(LOADS_TABLE_NAME)
         self.state_table_name = to_naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
+        # do a sanity check - dlt tables must start with dlt prefix
+        for table_name in [self.version_table_name, self.loads_table_name, self.state_table_name]:
+            if not table_name.startswith(self._dlt_tables_prefix):
+                raise SchemaCorruptedException(
+                    self.name,
+                    f"A naming convention {self.naming.name()} mangles _dlt table prefix to"
+                    f" '{self._dlt_tables_prefix}'. A table '{table_name}' does not start with it.",
+                )
         # normalize default hints
         if default_hints := self._settings.get("default_hints"):
             self._settings["default_hints"] = self._normalize_default_hints(default_hints)
