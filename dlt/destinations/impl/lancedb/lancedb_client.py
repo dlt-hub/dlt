@@ -604,6 +604,9 @@ class LoadLanceDBJob(LoadJob):
         with FileStorage.open_zipsafe_ro(local_path) as f:
             records: List[DictStrAny] = json.load(f)
 
+        if not isinstance(records, list):
+            records = [records]
+
         for record in records:
             uuid_id = (
                 generate_uuid(record, self.unique_identifiers, self.table_name)
