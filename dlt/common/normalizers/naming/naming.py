@@ -3,15 +3,19 @@ from abc import abstractmethod, ABC
 from functools import lru_cache
 import math
 import hashlib
-from typing import Any, List, Protocol, Sequence, Type
+from typing import Sequence
 
 
 class NamingConvention(ABC):
     _TR_TABLE = bytes.maketrans(b"/+", b"ab")
     _DEFAULT_COLLISION_PROB = 0.001
 
-    def __init__(self, max_length: int = None) -> None:
+    def __init__(self, max_length: int = None, is_case_sensitive: bool = True) -> None:
+        """Initializes naming convention producing identifiers with `max_length` and transforming input
+        in case sensitive or case insensitive manner.
+        """
         self.max_length = max_length
+        self.is_case_sensitive = is_case_sensitive
 
     @abstractmethod
     def normalize_identifier(self, identifier: str) -> str:
@@ -57,6 +61,14 @@ class NamingConvention(ABC):
             return None
         path_str = self.make_path(*normalized_idents)
         return self.shorten_identifier(path_str, path_str, self.max_length)
+
+    @classmethod
+    def name(cls) -> str:
+        """Naming convention name is the name of the module in which NamingConvention is defined"""
+        if cls.__module__.startswith("dlt.common.normalizers.naming."):
+            # return last component
+            return cls.__module__.split(".")[-1]
+        return cls.__module__
 
     @staticmethod
     @lru_cache(maxsize=None)

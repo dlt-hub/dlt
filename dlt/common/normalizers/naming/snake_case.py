@@ -18,6 +18,9 @@ class NamingConvention(BaseNamingConvention):
     # subsequent nested fields will be separated with the string below, applies both to field and table names
     PATH_SEPARATOR = "__"
 
+    def __init__(self, max_length: int = None, is_case_sensitive: bool = False) -> None:
+        super().__init__(max_length, False)
+
     def normalize_identifier(self, identifier: str) -> str:
         identifier = super().normalize_identifier(identifier)
         # print(f"{identifier} -> {self.shorten_identifier(identifier, self.max_length)} ({self.max_length})")
