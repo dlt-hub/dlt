@@ -515,7 +515,6 @@ def resource(
             SPEC, resolvable_fields = spec_from_signature(
                 f, inspect.signature(f), include_defaults=standalone
             )
-            print(SPEC, resolvable_fields, standalone)
             if is_inner_resource and not standalone:
                 if len(resolvable_fields) > 0:
                     # prevent required arguments to inner functions that are not standalone

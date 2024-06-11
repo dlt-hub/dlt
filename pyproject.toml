@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.12"
+version = "0.4.13a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -64,12 +64,6 @@ duckdb = {version = ">=0.6.1,<0.11", optional = true}
 #     {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},
 #     {version = ">=0.10.0,<0.11.0", python = ">=3.12", optional = true}
 # ]
-dbt-core = {version = ">=1.2.0", optional = true}
-dbt-redshift = {version = ">=1.2.0", optional = true}
-dbt-bigquery = {version = ">=1.2.0", optional = true}
-dbt-duckdb = {version = ">=1.2.0", optional = true}
-dbt-snowflake = {version = ">=1.2.0", optional = true}
-dbt-athena-community = {version = ">=1.2.0", optional = true}
 s3fs = {version = ">=2022.4.0", optional = true}
 gcsfs = {version = ">=2022.4.0", optional = true}
 botocore = {version = ">=1.28", optional = true}
@@ -81,14 +75,12 @@ weaviate-client = {version = ">=3.22", optional = true}
 adlfs = {version = ">=2022.4.0", optional = true}
 pyodbc = {version = "^4.0.39", optional = true}
 qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
-databricks-sql-connector = {version = ">=2.9.3,<3.0.0", optional = true}
-dbt-databricks = {version = ">=1.7.3", optional = true}
+databricks-sql-connector = {version = ">=3", optional = true}
 clickhouse-driver = { version = ">=0.2.7", optional = true }
 clickhouse-connect = { version = ">=0.7.7", optional = true }
 deltalake = { version = ">=0.17.4", optional = true }
 
 [tool.poetry.extras]
-dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake", "dbt-athena-community", "dbt-databricks"]
 gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
 # bigquery is alias on gcp extras
 bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "gcsfs"]
@@ -197,6 +189,19 @@ sentry-sdk = "^1.5.6"
 [tool.poetry.group.docs]
 optional = true
 
+
+[tool.poetry.group.dbt]
+optional = true
+[tool.poetry.group.dbt.dependencies]
+dbt-core = ">=1.5.0"
+dbt-redshift = ">=1.5.0"
+dbt-bigquery = ">=1.5.0"
+dbt-duckdb = ">=1.5.0"
+dbt-snowflake = ">=1.5.0"
+dbt-athena-community = ">=1.5.0"
+dbt-sqlserver = ">=1.5.0"
+# dbt-databricks = {version = ">=1.7.3", optional = true}
+
 [tool.poetry.group.docs.dependencies]
 SQLAlchemy = ">=1.4.0"
 pymysql = "^1.1.0"
@@ -208,7 +213,7 @@ dbt-duckdb = ">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 alive-progress = ">=3.0.1"
-pyarrow = ">=16.0.0"
+pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file

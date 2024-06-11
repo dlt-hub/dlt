@@ -266,7 +266,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
-        self.sql_client: DatabricksSqlClient = sql_client
+        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
         self.type_mapper = DatabricksTypeMapper(self.capabilities)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:

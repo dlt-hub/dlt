@@ -141,7 +141,7 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ```
 
 ### dbt support
-No dbt support yet.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-msft/dbt-sqlserver).
 
 <!--@@@DLT_TUBA mssql-->
 
