@@ -5,6 +5,7 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
+from dlt.destinations.impl.duckdb import capabilities
 from dlt.destinations.impl.duckdb.duck import DuckDbClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
@@ -25,6 +26,7 @@ def client(empty_schema: Schema) -> DuckDbClient:
     return DuckDbClient(
         empty_schema,
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
+        capabilities(),
     )
 
 
@@ -122,6 +124,7 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
         DuckDbClientConfiguration(create_indexes=True)._bind_dataset_name(
             dataset_name="test_" + uniq_id()
         ),
+        capabilities(),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql)

@@ -4,8 +4,10 @@ import sqlfluff
 
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import uniq_id
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, utils
+from dlt.common.destination import Destination
 
+from dlt.destinations.impl.postgres import capabilities
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
@@ -25,12 +27,26 @@ pytestmark = pytest.mark.essential
 
 @pytest.fixture
 def client(empty_schema: Schema) -> PostgresClient:
+    return create_client(empty_schema)
+
+
+@pytest.fixture
+def cs_client(empty_schema: Schema) -> PostgresClient:
+    # change normalizer to case sensitive
+    empty_schema._normalizers_config["names"] = "tests.common.cases.normalizers.title_case"
+    empty_schema.update_normalizers()
+    return create_client(empty_schema)
+
+
+def create_client(empty_schema: Schema) -> PostgresClient:
     # return client without opening connection
+    config = PostgresClientConfiguration(credentials=PostgresCredentials())._bind_dataset_name(
+        dataset_name="test_" + uniq_id()
+    )
     return PostgresClient(
         empty_schema,
-        PostgresClientConfiguration(credentials=PostgresCredentials())._bind_dataset_name(
-            dataset_name="test_" + uniq_id()
-        ),
+        config,
+        Destination.adjust_capabilities(capabilities(), config, empty_schema.naming),
     )
 
 
@@ -125,7 +141,25 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
             create_indexes=False,
             credentials=PostgresCredentials(),
         )._bind_dataset_name(dataset_name="test_" + uniq_id()),
+        capabilities(),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
     assert '"col2" double precision  NOT NULL' in sql
+
+
+def test_create_table_case_sensitive(cs_client: PostgresClient) -> None:
+    cs_client.schema.update_table(
+        utils.new_table("event_test_table", columns=deepcopy(TABLE_UPDATE))
+    )
+    sql = cs_client._get_table_update_sql(
+        "Event_test_tablE",
+        list(cs_client.schema.get_table_columns("Event_test_tablE").values()),
+        False,
+    )[0]
+    sqlfluff.parse(sql, dialect="postgres")
+    # everything capitalized
+    assert cs_client.sql_client.fully_qualified_dataset_name(escape=False)[0] == "T"  # Test
+    # every line starts with "Col"
+    for line in sql.split("\n")[1:]:
+        assert line.startswith('"Col')

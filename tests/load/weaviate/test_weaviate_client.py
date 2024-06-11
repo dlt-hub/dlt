@@ -5,6 +5,7 @@ from typing import Iterator, List
 from dlt.common.schema import Schema
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.schema.exceptions import SchemaIdentifierNormalizationClash
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
 
@@ -119,8 +120,13 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
         )
     )
     client.schema._bump_version()
-    with pytest.raises(PropertyNameConflict):
+    with pytest.raises(SchemaIdentifierNormalizationClash) as clash_ex:
         client.update_stored_schema()
+    assert clash_ex.value.identifier_type == "column"
+    assert clash_ex.value.identifier_name == "coL1"
+    assert clash_ex.value.conflict_identifier_name == "col1"
+    assert clash_ex.value.table_name == "ColClass"
+    assert clash_ex.value.naming_name == "dlt.destinations.impl.weaviate.naming"
 
 
 def test_case_insensitive_properties_create(ci_client: WeaviateClient) -> None:
@@ -163,7 +169,7 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
         )
     )
     client.schema._bump_version()
-    with pytest.raises(PropertyNameConflict):
+    with pytest.raises(SchemaIdentifierNormalizationClash):
         client.update_stored_schema()
 
     # _, table_columns = client.get_storage_table("ColClass")
@@ -179,12 +185,13 @@ def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStor
     client.schema.update_table(new_table(class_name, columns=[table_create["col1"]]))
     client.schema._bump_version()
     client.update_stored_schema()
-    # prepare a data item where is name clash due to Weaviate being CI
+    # prepare a data item where is name clash due to Weaviate being CS
     data_clash = {"col1": 72187328, "coL1": 726171}
     # write row
     with io.BytesIO() as f:
         write_dataset(client, f, [data_clash], table_create)
         query = f.getvalue().decode()
+    class_name = client.schema.naming.normalize_table_identifier(class_name)
     with pytest.raises(PropertyNameConflict):
         expect_load_file(client, file_storage, query, class_name)
 
@@ -210,6 +217,7 @@ def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: Fi
     with io.BytesIO() as f:
         write_dataset(ci_client, f, [data_clash], table_create)
         query = f.getvalue().decode()
+    class_name = ci_client.schema.naming.normalize_table_identifier(class_name)
     expect_load_file(ci_client, file_storage, query, class_name)
     response = ci_client.query_class(class_name, ["col1"]).do()
     objects = response["data"]["Get"][ci_client.make_qualified_class_name(class_name)]

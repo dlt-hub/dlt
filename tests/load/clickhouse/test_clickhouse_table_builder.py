@@ -6,6 +6,8 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ, digest128
 from dlt.common.utils import uniq_id
+
+from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
@@ -21,6 +23,7 @@ def clickhouse_client(empty_schema: Schema) -> ClickHouseClient:
     return ClickHouseClient(
         empty_schema,
         ClickHouseClientConfiguration(credentials=creds)._bind_dataset_name(f"test_{uniq_id()}"),
+        capabilities(),
     )
 
 

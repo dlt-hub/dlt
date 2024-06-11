@@ -19,6 +19,7 @@ from dlt.common.schema.typing import (
     TStoredSchema,
 )
 from dlt.common.configuration.resolve import resolve_configuration
+from dlt.destinations.impl.duckdb import capabilities
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
@@ -74,7 +75,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
                         sections=("destination", "duckdb"),
                     )
-                    with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
+                    with DuckDbSqlClient(
+                        GITHUB_DATASET, duckdb_cfg.credentials, capabilities()
+                    ) as client:
                         rows = client.execute_sql(f"SELECT * FROM {LOADS_TABLE_NAME}")
                         # make sure we have just 4 columns
                         assert len(rows[0]) == 4
@@ -115,7 +118,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 )
                 assert "_version_hash" in state_dict
 
-                with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
+                with DuckDbSqlClient(
+                    GITHUB_DATASET, duckdb_cfg.credentials, capabilities()
+                ) as client:
                     rows = client.execute_sql(
                         f"SELECT * FROM {LOADS_TABLE_NAME} ORDER BY inserted_at"
                     )
@@ -195,7 +200,9 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                     DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
                     sections=("destination", "duckdb"),
                 )
-                with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
+                with DuckDbSqlClient(
+                    GITHUB_DATASET, duckdb_cfg.credentials, capabilities()
+                ) as client:
                     rows = client.execute_sql("SELECT * FROM issues")
                     assert len(rows) == 70
                 github_schema = json.loads(

@@ -6,6 +6,7 @@ from dlt.common.utils import uniq_id, custom_environ, digest128
 from dlt.common.schema import Schema
 from dlt.common.configuration import resolve_configuration
 
+from dlt.destinations.impl.redshift import capabilities
 from dlt.destinations.impl.redshift.redshift import RedshiftClient
 from dlt.destinations.impl.redshift.configuration import (
     RedshiftClientConfiguration,
@@ -26,6 +27,7 @@ def client(empty_schema: Schema) -> RedshiftClient:
         RedshiftClientConfiguration(credentials=RedshiftCredentials())._bind_dataset_name(
             dataset_name="test_" + uniq_id()
         ),
+        capabilities(),
     )
 
 

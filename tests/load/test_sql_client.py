@@ -490,7 +490,7 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
     def test_thread(thread_id: Decimal) -> None:
         # make a copy of the sql_client
         thread_client = client.sql_client.__class__(
-            client.sql_client.dataset_name, client.sql_client.credentials
+            client.sql_client.dataset_name, client.sql_client.credentials, client.capabilities
         )
         with thread_client:
             with thread_client.begin_transaction():

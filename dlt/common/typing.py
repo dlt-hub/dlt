@@ -377,12 +377,12 @@ def get_generic_type_argument_from_instance(
         Type[Any]: type argument or Any if not known
     """
     orig_param_type = Any
-    # instance of class deriving from generic
-    if bases_ := get_original_bases(instance):
-        cls_ = bases_[0]
-    else:
+    if cls_ := getattr(instance, "__orig_class__", None):
         # instance of generic class
-        cls_ = getattr(instance, "__orig_class__", None)
+        pass
+    elif bases_ := get_original_bases(instance):
+        # instance of class deriving from generic
+        cls_ = bases_[0]
     if cls_:
         orig_param_type = get_args(cls_)[0]
     if orig_param_type is Any and sample_value is not None:

@@ -6,7 +6,8 @@ from dlt.common.schema import Schema
 
 pytest.importorskip("dlt.destinations.impl.mssql.mssql", reason="MSSQL ODBC driver not installed")
 
-from dlt.destinations.impl.mssql.mssql import MsSqlClient
+from dlt.destinations.impl.mssql import capabilities
+from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
@@ -16,17 +17,18 @@ pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
-def client(empty_schema: Schema) -> MsSqlClient:
+def client(empty_schema: Schema) -> MsSqlJobClient:
     # return client without opening connection
-    return MsSqlClient(
+    return MsSqlJobClient(
         empty_schema,
         MsSqlClientConfiguration(credentials=MsSqlCredentials())._bind_dataset_name(
             dataset_name="test_" + uniq_id()
         ),
+        capabilities(),
     )
 
 
-def test_create_table(client: MsSqlClient) -> None:
+def test_create_table(client: MsSqlJobClient) -> None:
     # non existing table
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
     sqlfluff.parse(sql, dialect="tsql")
@@ -50,7 +52,7 @@ def test_create_table(client: MsSqlClient) -> None:
     assert '"col11_precision" time(3)  NOT NULL' in sql
 
 
-def test_alter_table(client: MsSqlClient) -> None:
+def test_alter_table(client: MsSqlJobClient) -> None:
     # existing table has no columns
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)[0]
     sqlfluff.parse(sql, dialect="tsql")
