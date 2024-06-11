@@ -4,7 +4,7 @@ import inspect
 import os
 from re import Pattern as _REPattern
 import sys
-from types import FunctionType, MethodType, ModuleType
+from types import FunctionType
 from typing import (
     ForwardRef,
     Callable,
@@ -39,6 +39,7 @@ from typing_extensions import (
     Concatenate,
     get_args,
     get_origin,
+    get_original_bases,
 )
 
 try:
@@ -362,7 +363,7 @@ def is_subclass(subclass: Any, cls: Any) -> bool:
 
 
 def get_generic_type_argument_from_instance(
-    instance: Any, sample_value: Optional[Any]
+    instance: Any, sample_value: Optional[Any] = None
 ) -> Type[Any]:
     """Infers type argument of a Generic class from an `instance` of that class using optional `sample_value` of the argument type
 
@@ -376,8 +377,14 @@ def get_generic_type_argument_from_instance(
         Type[Any]: type argument or Any if not known
     """
     orig_param_type = Any
-    if hasattr(instance, "__orig_class__"):
-        orig_param_type = get_args(instance.__orig_class__)[0]
+    # instance of class deriving from generic
+    if bases_ := get_original_bases(instance):
+        cls_ = bases_[0]
+    else:
+        # instance of generic class
+        cls_ = getattr(instance, "__orig_class__", None)
+    if cls_:
+        orig_param_type = get_args(cls_)[0]
     if orig_param_type is Any and sample_value is not None:
         orig_param_type = type(sample_value)
     return orig_param_type  # type: ignore
