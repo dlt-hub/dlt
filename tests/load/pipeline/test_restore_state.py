@@ -185,6 +185,7 @@ def test_silently_skip_on_invalid_credentials(
     destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -193,7 +194,9 @@ def test_silently_skip_on_invalid_credentials(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
-@pytest.mark.parametrize("naming_convention", ["sql_upper", "snake_case"])
+@pytest.mark.parametrize(
+    "naming_convention", ["tests.common.cases.normalizers.title_case", "snake_case"]
+)
 def test_get_schemas_from_destination(
     destination_config: DestinationTestConfiguration,
     use_single_dataset: bool,
@@ -276,6 +279,7 @@ def test_get_schemas_from_destination(
     assert len(restored_schemas) == 3
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -283,7 +287,9 @@ def test_get_schemas_from_destination(
     ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("naming_convention", ["sql_upper"])
+@pytest.mark.parametrize(
+    "naming_convention", ["tests.common.cases.normalizers.title_case", "snake_case", "sql_upper"]
+)
 def test_restore_state_pipeline(
     destination_config: DestinationTestConfiguration, naming_convention: str
 ) -> None:
