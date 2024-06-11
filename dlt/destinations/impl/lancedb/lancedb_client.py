@@ -21,7 +21,8 @@ from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction 
 from lancedb.query import LanceQueryBuilder  # type: ignore
 from lancedb.table import Table  # type: ignore[import-untyped]
 from numpy import ndarray
-from pyarrow import Array, ChunkedArray
+from orjson import JSONDecodeError
+from pyarrow import Array, ChunkedArray, ArrowInvalid
 
 from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -50,7 +51,7 @@ from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
-from dlt.destinations.impl.lancedb.exceptions import lancedb_error, lancedb_batch_error
+from dlt.destinations.impl.lancedb.exceptions import lancedb_error, lancedb_batch_error, LanceDBBatchError
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
     arrow_schema_to_dict,
@@ -173,28 +174,34 @@ def upload_batch(
             provided for update/merge operations.
     """
 
-    tbl = db_client.open_table(table_name)
+    try:
+        tbl = db_client.open_table(table_name)
+    except FileNotFoundError as e:
+        raise LanceDBBatchError(e) from e
 
-    if write_disposition == "skip":
-        pass
-    elif write_disposition == "append":
-        tbl.add(records)
-    elif write_disposition == "replace":
-        if not id_field_name:
-            raise ValueError("To perform an update, 'id_field_name' must be specified.")
-        tbl.merge_insert(id_field_name).when_matched_update_all().execute(records)
-    elif write_disposition == "merge":
-        if not id_field_name:
+    try:
+        if write_disposition == "skip":
+            pass
+        elif write_disposition == "append":
+            tbl.add(records)
+        elif write_disposition == "replace":
+            tbl.add(records, mode="replace")
+        elif write_disposition == "merge":
+            if not id_field_name:
+                raise ValueError(
+                    "To perform a merge update, 'id_field_name' must be specified."
+                )
+            tbl.merge_insert(
+                id_field_name
+            ).when_matched_update_all().when_not_matched_insert_all().execute(records)
+        else:
             raise ValueError(
-                "To perform a merge update, 'id_field_name' must be specified."
+                f"Unsupported write disposition {write_disposition} for LanceDB Destination."
             )
-        tbl.merge_insert(
-            id_field_name
-        ).when_matched_update_all().when_not_matched_insert_all().execute(records)
-    else:
-        raise ValueError(
-            f"Unsupported write disposition {write_disposition} for LanceDB Destination."
-        )
+    except ArrowInvalid as e:
+        raise LanceDBBatchError(e) from e
+    except Exception:
+        raise
 
 
 class LanceDBClient(JobClientBase, WithStateSync):
@@ -618,10 +625,25 @@ class LoadLanceDBJob(LoadJob):
             TWriteDisposition, self.table_schema.get("write_disposition", "append")
         )
 
+        records: List[DictStrAny]
         with FileStorage.open_zipsafe_ro(local_path) as f:
-            records: List[DictStrAny] = json.load(f)
+            try:
+                records = json.load(f)
+            except JSONDecodeError:
+                # If parsing as a single object fails, try a line at a time.
+                records = []
+                f.seek(0)
+                for line in f:
+                    try:
+                        json_object = json.loads(line)
+                        records.append(json_object)
+                    except JSONDecodeError:
+                        raise
+            except Exception:
+                raise
 
-        if not isinstance(records, list):
+        # Batch load only accepts a list of dicts.
+        if not isinstance(records, list) and isinstance(records, dict):
             records = [records]
 
         # Add reserved ID fields if the table is a data table.
@@ -630,7 +652,7 @@ class LoadLanceDBJob(LoadJob):
                 uuid_id = (
                     generate_uuid(record, self.unique_identifiers, self.fq_table_name)
                     if self.unique_identifiers
-                    else uuid.uuid4()
+                    else str(uuid.uuid4())
                 )
                 record.update({self.id_field_name: uuid_id})
 

@@ -35,7 +35,7 @@ class LanceDBCredentials(CredentialsConfiguration):
 
 @configspec
 class LanceDBClientOptions(BaseConfiguration):
-    max_retries: Optional[int] = 1
+    max_retries: Optional[int] = 3
     """`EmbeddingFunction` class wraps the calls for source and query embedding
     generation inside a rate limit handler that retries the requests with exponential
     backoff after successive failures.
