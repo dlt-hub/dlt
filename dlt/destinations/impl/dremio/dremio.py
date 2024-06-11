@@ -137,10 +137,15 @@ class DremioLoadJob(LoadJob, FollowupJob):
 
 
 class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: DremioClientConfiguration) -> None:
-        sql_client = DremioSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: DremioClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = DremioSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: DremioClientConfiguration = config
         self.sql_client: DremioSqlClient = sql_client  # type: ignore
@@ -197,40 +202,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        def _null_to_bool(v: str) -> bool:
-            if v == "NO":
-                return False
-            elif v == "YES":
-                return True
-            raise ValueError(v)
-
-        fields = self._get_storage_table_query_columns()
-        table_schema = self.sql_client.fully_qualified_dataset_name(escape=False)
-        db_params = (table_schema, table_name)
-        query = f"""
-SELECT {",".join(fields)}
-    FROM INFORMATION_SCHEMA.COLUMNS
-WHERE
-    table_catalog = 'DREMIO' AND table_schema = %s AND table_name = %s ORDER BY ordinal_position;
-"""
-        rows = self.sql_client.execute_sql(query, *db_params)
-
-        # if no rows we assume that table does not exist
-        schema_table: TTableSchemaColumns = {}
-        if len(rows) == 0:
-            return False, schema_table
-        for c in rows:
-            numeric_precision = c[3]
-            numeric_scale = c[4]
-            schema_c: TColumnSchemaBase = {
-                "name": c[0],
-                "nullable": _null_to_bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),
-            }
-            schema_table[c[0]] = schema_c  # type: ignore
-        return True, schema_table
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]

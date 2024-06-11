@@ -21,6 +21,11 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.format_datetime_literal = format_clickhouse_datetime_literal
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal
+    # docs are very unclear https://clickhouse.com/docs/en/sql-reference/syntax
+    # taking into account other sources: identifiers are case sensitive
+    caps.has_case_sensitive_identifiers = True
+    # and store as is in the information schema
+    caps.casefold_identifier = str
 
     # https://stackoverflow.com/questions/68358686/what-is-the-maximum-length-of-a-column-in-clickhouse-can-it-be-modified
     caps.max_identifier_length = 255

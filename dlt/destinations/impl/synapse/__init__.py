@@ -16,8 +16,12 @@ def capabilities() -> DestinationCapabilitiesContext:
 
     caps.insert_values_writer_type = "select_union"  # https://stackoverflow.com/a/77014299
 
+    # similarly to mssql case sensitivity depends on database collation
+    # https://learn.microsoft.com/en-us/sql/relational-databases/collations/collation-and-unicode-support?view=sql-server-ver16#collations-in-azure-sql-database
+    # note that special option CATALOG_COLLATION is used to change it
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_mssql_literal
+    # we allow to reconfigure capabilities in the mssql factory
     caps.has_case_sensitive_identifiers = False
 
     # Synapse has a max precision of 38

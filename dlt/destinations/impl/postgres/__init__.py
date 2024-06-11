@@ -12,6 +12,11 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
     caps.escape_identifier = escape_postgres_identifier
+    # postgres has case sensitive identifiers but by default
+    # it folds them to lower case which makes them case insensitive
+    # https://stackoverflow.com/questions/20878932/are-postgresql-column-names-case-sensitive
+    caps.casefold_identifier = str.lower
+    caps.has_case_sensitive_identifiers = True
     caps.escape_literal = escape_postgres_literal
     caps.has_case_sensitive_identifiers = True
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)

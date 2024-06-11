@@ -145,11 +145,16 @@ class MsSqlMergeJob(SqlMergeJob):
         return "#" + name
 
 
-class MsSqlClient(InsertValuesJobClient):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: MsSqlClientConfiguration) -> None:
-        sql_client = PyOdbcMsSqlClient(config.normalize_dataset_name(schema), config.credentials)
+class MsSqlJobClient(InsertValuesJobClient):
+    def __init__(
+        self,
+        schema: Schema,
+        config: MsSqlClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = PyOdbcMsSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: MsSqlClientConfiguration = config
         self.sql_client = sql_client

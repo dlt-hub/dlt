@@ -175,12 +175,16 @@ class BigQueryMergeJob(SqlMergeJob):
 
 
 class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        config: BigQueryClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
         sql_client = BigQuerySqlClient(
             config.normalize_dataset_name(schema),
             config.credentials,
+            capabilities,
             config.get_location(),
             config.http_timeout,
             config.retry_deadline,

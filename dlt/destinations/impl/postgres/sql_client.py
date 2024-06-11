@@ -31,10 +31,14 @@ from dlt.destinations.impl.postgres import capabilities
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     dbapi: ClassVar[DBApi] = psycopg2
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: PostgresCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: PostgresCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, capabilities)
         self._conn: psycopg2.connection = None
         self.credentials = credentials
 

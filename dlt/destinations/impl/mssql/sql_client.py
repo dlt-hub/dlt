@@ -43,10 +43,14 @@ def handle_datetimeoffset(dto_value: bytes) -> datetime:
 
 class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     dbapi: ClassVar[DBApi] = pyodbc
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: MsSqlCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: MsSqlCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, capabilities)
         self._conn: pyodbc.Connection = None
         self.credentials = credentials
 

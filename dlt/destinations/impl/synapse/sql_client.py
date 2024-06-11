@@ -12,8 +12,6 @@ from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
 
 class SynapseSqlClient(PyOdbcMsSqlClient):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return

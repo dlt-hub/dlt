@@ -146,10 +146,13 @@ class LoadQdrantJob(LoadJob):
 class QdrantClient(JobClientBase, WithStateSync):
     """Qdrant Destination Handler"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: QdrantClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: QdrantClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.version_collection_properties = list(
             schema.get_table_columns(schema.version_table_name).keys()
         )

@@ -153,15 +153,19 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
 class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStateSync):
     """filesystem client storing jobs in memory"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     fs_client: AbstractFileSystem
     # a path (without the scheme) to a location in the bucket where dataset is present
     bucket_path: str
     # name of the dataset
     dataset_name: str
 
-    def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: FilesystemDestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.fs_client, fs_path = fsspec_from_config(config)
         self.is_local_filesystem = config.protocol == "file"
         self.bucket_path = (

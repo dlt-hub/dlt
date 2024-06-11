@@ -110,10 +110,13 @@ CREATED_FOLLOWUP_JOBS: Dict[str, NewLoadJob] = {}
 class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset):
     """dummy client storing jobs in memory"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: DummyClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: DummyClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.in_staging_context = False
         self.config: DummyClientConfiguration = config
 

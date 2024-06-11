@@ -23,13 +23,12 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
-from dlt.destinations.impl.databricks import capabilities
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):
     """Use native data frame support if available"""
 
-    native_cursor: DatabricksSqlCursor
+    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
     vector_size: ClassVar[int] = 2048
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:

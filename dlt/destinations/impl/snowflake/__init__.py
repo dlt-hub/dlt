@@ -9,7 +9,11 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["jsonl", "parquet"]
     caps.preferred_staging_file_format = "jsonl"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
+    # snowflake is case sensitive but all unquoted identifiers are upper cased
+    # so upper case identifiers are considered case insensitive
     caps.escape_identifier = escape_snowflake_identifier
+    # dlt is configured to create case insensitive identifiers
+    # note that case sensitive naming conventions will change this setting to "str" (case sensitive)
     caps.casefold_identifier = str.upper
     caps.has_case_sensitive_identifiers = True
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)

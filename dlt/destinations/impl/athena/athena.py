@@ -34,20 +34,17 @@ from pyathena.formatter import (
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import without_none
-from dlt.common.data_types import TDataType
-from dlt.common.schema import TColumnSchema, Schema, TSchemaTables, TTableSchema
+from dlt.common.schema import TColumnSchema, Schema, TTableSchema
 from dlt.common.schema.typing import (
     TTableSchema,
     TColumnType,
-    TWriteDisposition,
     TTableFormat,
     TSortOrder,
 )
-from dlt.common.schema.utils import table_schema_has_type, get_table_format
+from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob, DoNothingFollowupJob, DoNothingJob
-from dlt.common.destination.reference import TLoadJobState, NewLoadJob, SupportsStagingDestination
-from dlt.common.storages import FileStorage
+from dlt.common.destination.reference import NewLoadJob, SupportsStagingDestination
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 
@@ -58,7 +55,6 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     LoadJobTerminalException,
 )
-from dlt.destinations.impl.athena import capabilities
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
@@ -221,11 +217,15 @@ class AthenaMergeJob(SqlMergeJob):
 
 
 class AthenaSQLClient(SqlClientBase[Connection]):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     dbapi: ClassVar[DBApi] = pyathena
 
-    def __init__(self, dataset_name: str, config: AthenaClientConfiguration) -> None:
-        super().__init__(None, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        config: AthenaClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(None, dataset_name, capabilities)
         self._conn: Connection = None
         self.config = config
         self.credentials = config.credentials
@@ -370,9 +370,12 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
 
 class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: AthenaClientConfiguration) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        config: AthenaClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
         # verify if staging layout is valid for Athena
         # this will raise if the table prefix is not properly defined
         # we actually that {table_name} is first, no {schema_name} is allowed
@@ -382,7 +385,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             table_needs_own_folder=True,
         )
 
-        sql_client = AthenaSQLClient(config.normalize_dataset_name(schema), config)
+        sql_client = AthenaSQLClient(config.normalize_dataset_name(schema), config, capabilities)
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config

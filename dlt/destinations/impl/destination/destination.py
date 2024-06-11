@@ -27,10 +27,13 @@ from dlt.destinations.job_impl import (
 class DestinationClient(JobClientBase):
     """Sink Client"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: CustomDestinationClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: CustomDestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.config: CustomDestinationClientConfiguration = config
         # create pre-resolved callable to avoid multiple config resolutions during execution of the jobs
         self.destination_callable = create_resolved_partial(

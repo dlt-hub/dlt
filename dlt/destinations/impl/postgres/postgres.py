@@ -135,10 +135,15 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
 
 
 class PostgresClient(InsertValuesJobClient):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: PostgresClientConfiguration) -> None:
-        sql_client = Psycopg2SqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: PostgresClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = Psycopg2SqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: PostgresClientConfiguration = config
         self.sql_client: Psycopg2SqlClient = sql_client

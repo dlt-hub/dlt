@@ -43,10 +43,14 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = duckdb
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: DuckDbBaseCredentials) -> None:
-        super().__init__(None, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: DuckDbBaseCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(None, dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
 

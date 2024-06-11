@@ -14,6 +14,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_table_formats = ["iceberg"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
+    # athena is storing all identifiers in lower case and is case insensitive
+    # it also uses lower case in all the queries
+    # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
     caps.escape_identifier = escape_athena_identifier
     caps.casefold_identifier = str.lower
     caps.has_case_sensitive_identifiers = False

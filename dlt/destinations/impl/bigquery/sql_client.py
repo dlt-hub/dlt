@@ -75,12 +75,12 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     dbapi: ClassVar[DBApi] = bq_dbapi
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(
         self,
         dataset_name: str,
         credentials: GcpServiceAccountCredentialsWithoutDefaults,
+        capabilities: DestinationCapabilitiesContext,
         location: str = "US",
         http_timeout: float = 15.0,
         retry_deadline: float = 60.0,
@@ -89,7 +89,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
         self.location = location
         self.http_timeout = http_timeout
-        super().__init__(credentials.project_id, dataset_name)
+        super().__init__(credentials.project_id, dataset_name, capabilities)
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._default_query = bigquery.QueryJobConfig(
@@ -235,13 +235,11 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 # will close all cursors
                 conn.close()
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
         project_id = self.capabilities.casefold_identifier(self.credentials.project_id)
-        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
         if escape:
             project_id = self.capabilities.escape_identifier(project_id)
-            dataset_name = self.capabilities.escape_identifier(dataset_name)
-        return f"{project_id}.{dataset_name}"
+        return project_id
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

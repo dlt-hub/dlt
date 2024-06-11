@@ -9,6 +9,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["insert_values"]
     caps.preferred_staging_file_format = "jsonl"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
+    # redshift is case insensitive and will lower case identifiers when stored
+    # you can enable case sensitivity https://docs.aws.amazon.com/redshift/latest/dg/r_enable_case_sensitive_identifier.html
+    # then redshift behaves like postgres
     caps.escape_identifier = escape_redshift_identifier
     caps.escape_literal = escape_redshift_literal
     caps.casefold_identifier = str.lower

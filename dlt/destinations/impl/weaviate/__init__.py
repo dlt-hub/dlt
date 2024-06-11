@@ -6,7 +6,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl"]
+    # weaviate names are case sensitive following GraphQL naming convention
+    # https://weaviate.io/developers/weaviate/config-refs/schema
     caps.has_case_sensitive_identifiers = False
+    # weaviate will upper case first letter of class name and lower case first letter of a property
+    # we assume that naming convention will do that
+    caps.casefold_identifier = str
     caps.max_identifier_length = 200
     caps.max_column_identifier_length = 1024
     caps.max_query_length = 8 * 1024 * 1024

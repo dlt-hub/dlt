@@ -1,6 +1,7 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.destinations.impl.synapse import capabilities
 from dlt.destinations.impl.synapse.configuration import (
@@ -36,6 +37,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
         default_table_index_type: t.Optional[TTableIndexType] = "heap",
         create_indexes: bool = False,
         staging_use_msi: bool = False,
+        has_case_sensitive_identifiers: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -50,6 +52,7 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
             default_table_index_type: Maps directly to the default_table_index_type attribute of the SynapseClientConfiguration object.
             create_indexes: Maps directly to the create_indexes attribute of the SynapseClientConfiguration object.
             staging_use_msi: Maps directly to the staging_use_msi attribute of the SynapseClientConfiguration object.
+            has_case_sensitive_identifiers: Are identifiers used by synapse database case sensitive (following the catalog collation)
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
@@ -57,7 +60,21 @@ class synapse(Destination[SynapseClientConfiguration, "SynapseClient"]):
             default_table_index_type=default_table_index_type,
             create_indexes=create_indexes,
             staging_use_msi=staging_use_msi,
+            has_case_sensitive_identifiers=has_case_sensitive_identifiers,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
         )
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: SynapseClientConfiguration,
+        naming: NamingConvention,
+    ) -> DestinationCapabilitiesContext:
+        # modify the caps if case sensitive identifiers are requested
+        if config.has_case_sensitive_identifiers:
+            caps.has_case_sensitive_identifiers = True
+            caps.casefold_identifier = str
+        return super().adjust_capabilities(caps, config, naming)

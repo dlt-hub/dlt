@@ -31,10 +31,14 @@ class SnowflakeCursorImpl(DBApiCursorImpl):
 
 class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = snowflake_lib
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: SnowflakeCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: SnowflakeCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, capabilities)
         self._conn: snowflake_lib.SnowflakeConnection = None
         self.credentials = credentials
 

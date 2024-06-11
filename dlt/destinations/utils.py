@@ -28,9 +28,9 @@ def ensure_resource(data: Any) -> DltResource:
 
 def info_schema_null_to_bool(v: str) -> bool:
     """Converts INFORMATION SCHEMA truth values to Python bool"""
-    if v == "NO":
+    if v in ("NO", "0"):
         return False
-    elif v == "YES":
+    elif v in ("YES", "1"):
         return True
     raise ValueError(v)
 

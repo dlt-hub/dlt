@@ -193,10 +193,15 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
 
 class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: SnowflakeClientConfiguration) -> None:
-        sql_client = SnowflakeSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: SnowflakeClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = SnowflakeSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore

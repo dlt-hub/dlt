@@ -10,8 +10,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["insert_values"]
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
+    # mssql is by default case insensitive and stores identifiers as is
+    # case sensitivity can be changed by database collation so we allow to reconfigure
+    # capabilities in the mssql factory
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_mssql_literal
+    caps.has_case_sensitive_identifiers = False
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     # https://learn.microsoft.com/en-us/sql/sql-server/maximum-capacity-specifications-for-sql-server?view=sql-server-ver16&redirectedfrom=MSDN
