@@ -3,7 +3,10 @@ from typing import List
 from dlt.common import logger
 from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema import Schema
-from dlt.common.schema.exceptions import SchemaCorruptedException
+from dlt.common.schema.exceptions import (
+    SchemaCorruptedException,
+    SchemaIdentifierNormalizationClash,
+)
 from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import is_complete_column
 from dlt.common.typing import DictStrStr
@@ -42,6 +45,11 @@ def verify_schema_capabilities(
             " identifiers. You may try to change the destination capabilities by changing the"
             " `casefold_identifier` to `str`"
         )
+    clash_msg += (
+        ". Please clean up your data before loading so the entities have different name. You can"
+        " also change to case insensitive naming convention. Note that in that case data from both"
+        " columns will be merged into one."
+    )
 
     # check for any table clashes
     for table in schema.data_tables():
@@ -51,11 +59,14 @@ def verify_schema_capabilities(
         if cased_table_name in table_name_lookup:
             conflict_table_name = table_name_lookup[cased_table_name]
             exception_log.append(
-                SchemaCorruptedException(
+                SchemaIdentifierNormalizationClash(
                     schema.name,
-                    f"A table name {table_name} clashes with {conflict_table_name} after"
-                    f" normalization to {cased_table_name}. "
-                    + clash_msg,
+                    table_name,
+                    "table",
+                    table_name,
+                    conflict_table_name,
+                    schema.naming.name(),
+                    clash_msg,
                 )
             )
         table_name_lookup[cased_table_name] = table_name
@@ -76,11 +87,14 @@ def verify_schema_capabilities(
             if cased_column_name in column_name_lookup:
                 conflict_column_name = column_name_lookup[cased_column_name]
                 exception_log.append(
-                    SchemaCorruptedException(
+                    SchemaIdentifierNormalizationClash(
                         schema.name,
-                        f"A column name {column_name} in table {table_name} clashes with"
-                        f" {conflict_column_name} after normalization to {cased_column_name}. "
-                        + clash_msg,
+                        table_name,
+                        "column",
+                        column_name,
+                        conflict_column_name,
+                        schema.naming.name(),
+                        clash_msg,
                     )
                 )
             column_name_lookup[cased_column_name] = column_name
