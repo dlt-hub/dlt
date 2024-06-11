@@ -17,14 +17,11 @@ from typing import (
 import lancedb  # type: ignore
 import pyarrow as pa
 from lancedb import DBConnection
-from lancedb.common import DATA  # type: ignore
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
-from lancedb.pydantic import LanceModel  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
 from lancedb.table import Table  # type: ignore[import-untyped]
 from numpy import ndarray
 from pyarrow import Array, ChunkedArray
-from pydantic import create_model
 
 from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -43,6 +40,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TTableSchemaColumns,
     TColumnSchema,
+    TWriteDisposition,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage
@@ -55,12 +53,11 @@ from dlt.destinations.impl.lancedb.configuration import (
 from dlt.destinations.impl.lancedb.exceptions import lancedb_error, lancedb_batch_error
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
-    TLanceModel,
-    create_template_schema,
-    make_fields,
     arrow_schema_to_dict,
-    make_field_schema,
-    make_arrow_schema,
+    make_arrow_field_schema,
+    make_arrow_table_schema,
+    TArrowSchema,
+    NULL_SCHEMA,
 )
 from dlt.destinations.impl.lancedb.utils import (
     list_unique_identifiers,
@@ -152,8 +149,52 @@ class LanceDBTypeMapper(TypeMapper):
         )
 
 
-class NullSchema(LanceModel):
-    pass
+@lancedb_batch_error
+def upload_batch(
+    records: List[DictStrAny],
+    /,
+    *,
+    db_client: DBConnection,
+    table_name: str,
+    write_disposition: TWriteDisposition,
+    id_field_name: Optional[str] = None,
+) -> None:
+    """Inserts records into a LanceDB table with automatic embedding computation.
+
+    Args:
+        records: The data to be inserted as payload.
+        db_client: The LanceDB client connection.
+        table_name: The name of the table to insert into.
+        id_field_name: The name of the ID field for update/merge operations.
+        write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
+
+    Raises:
+        ValueError: If the write disposition is unsupported, or `id_field_name` is not
+            provided for update/merge operations.
+    """
+
+    tbl = db_client.open_table(table_name)
+
+    if write_disposition == "skip":
+        pass
+    elif write_disposition == "append":
+        tbl.add(records)
+    elif write_disposition == "replace":
+        if not id_field_name:
+            raise ValueError("To perform an update, 'id_field_name' must be specified.")
+        tbl.merge_insert(id_field_name).when_matched_update_all().execute(records)
+    elif write_disposition == "merge":
+        if not id_field_name:
+            raise ValueError(
+                "To perform a merge update, 'id_field_name' must be specified."
+            )
+        tbl.merge_insert(
+            id_field_name
+        ).when_matched_update_all().when_not_matched_insert_all().execute(records)
+    else:
+        raise ValueError(
+            f"Unsupported write disposition {write_disposition} for LanceDB Destination."
+        )
 
 
 class LanceDBClient(JobClientBase, WithStateSync):
@@ -185,6 +226,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
             api_key=self.config.credentials.api_key,
         )
 
+        self.vector_field_name = self.config.vector_field_name
+        self.id_field_name = self.config.id_field_name
+
     @property
     def dataset_name(self) -> str:
         return self.config.normalize_dataset_name(self.schema)
@@ -200,24 +244,20 @@ class LanceDBClient(JobClientBase, WithStateSync):
             else table_name
         )
 
-    def get_table_schema(self, table_name: str) -> pa.Schema:
+    def get_table_schema(self, table_name: str) -> TArrowSchema:
         schema = self.db_client.open_table(table_name).schema
         return cast(
-            pa.Schema,
+            TArrowSchema,
             schema,
         )
 
-    def create_table(
-        self, table_name: str, schema: Union[pa.Schema, TLanceModel]
-    ) -> Table:
+    def create_table(self, table_name: str, schema: TArrowSchema) -> Table:
         """Create a LanceDB Table from the provided LanceModel or PyArrow schema.
 
         Args:
             schema: The table schema to create.
             table_name: The name of the table to create.
         """
-
-        # TODO: Add embedding_functions configuration to empty table creation.
         return self.db_client.create_table(table_name, schema=schema)
 
     def delete_table(self, table_name: str) -> None:
@@ -249,43 +289,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
             A LanceDB query builder.
         """
         return self.db_client.open_table(table_name).search(query=query)
-
-    def add_to_table(
-        self,
-        table_name: str,
-        data: DATA,
-        mode: str = "append",
-        on_bad_vectors: str = "error",
-        fill_value: float = 0.0,
-    ) -> None:
-        """Add more data to the LanceDB Table.
-
-        Args:
-            table_name (str): The name of the table to add data to.
-            data (DATA): The data to insert into the table.
-                         Acceptable types are:
-                            - dict or list-of-dict
-                            - pandas.DataFrame
-                            - pyarrow.Table or pyarrow.RecordBatch
-            mode (str): The mode to use when writing the data.
-            Valid values are
-                "append" and "overwrite".
-            on_bad_vectors (str): What to do if any of the vectors are different
-                size or contain NaNs.
-                One of "error", "drop", "fill".
-                Defaults to
-                "error".
-            fill_value (float): The value to use when filling vectors.
-            Only used if
-                on_bad_vectors="fill".
-                Defaults to 0.0.
-
-        Returns:
-            None
-        """
-        self.db_client.open_table(table_name).add(
-            data, mode, on_bad_vectors, fill_value
-        )
 
     def drop_storage(self) -> None:
         """Drop the dataset from the LanceDB instance.
@@ -328,11 +331,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def is_storage_initialized(self) -> bool:
         return self.table_exists(self.sentinel_table)
 
-    def _create_sentinel_table(self) -> None:
+    def _create_sentinel_table(self) -> Table:
         """Create an empty table to indicate that the storage is initialized."""
-        self.create_table(
-            schema=cast(TLanceModel, NullSchema), table_name=self.sentinel_table
-        )
+        return self.create_table(schema=NULL_SCHEMA, table_name=self.sentinel_table)
 
     def _delete_sentinel_table(self) -> None:
         """Delete the sentinel table."""
@@ -387,7 +388,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             table_schema[field_type] = schema_c
         return True, table_schema
 
-    def add_table_field(self, table_name: str, field_schema: DictStrAny) -> None:
+    def add_table_field(self, table_name: str, field_schema: pa.DataType) -> None:
         """Add a field to the LanceDB table.
 
         Args:
@@ -411,7 +412,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             if len(new_columns) > 0:
                 if exists:
                     for column in new_columns:
-                        field_schema = make_field_schema(
+                        field_schema = make_arrow_field_schema(
                             column["name"], column, self.type_mapper
                         )
                         self.add_table_field(table_name, field_schema)
@@ -419,7 +420,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     embedding_fields = get_columns_names_with_prop(
                         self.schema.get_table(table_name=table_name), VECTORIZE_HINT
                     )
-                    table_schema: pa.Schema = make_arrow_schema(
+                    table_schema: TArrowSchema = make_arrow_table_schema(
                         table_name,
                         schema=self.schema,
                         type_mapper=self.type_mapper,
@@ -432,29 +433,30 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         self.update_schema_in_storage()
 
+    @lancedb_error
     def update_schema_in_storage(self) -> None:
-        properties = {
-            "version": self.schema.version,
-            "engine_version": self.schema.ENGINE_VERSION,
-            "inserted_at": str(pendulum.now()),
-            "schema_name": self.schema.name,
-            "version_hash": self.schema.stored_version_hash,
-            "schema": json.dumps(self.schema.to_dict()),
-        }
+        records = [
+            {
+                "version": self.schema.version,
+                "engine_version": self.schema.ENGINE_VERSION,
+                "inserted_at": str(pendulum.now()),
+                "schema_name": self.schema.name,
+                "version_hash": self.schema.stored_version_hash,
+                "schema": json.dumps(self.schema.to_dict()),
+            }
+        ]
         fq_version_table_name = self.make_qualified_table_name(
             self.schema.version_table_name
         )
-        self.create_record(properties, fq_version_table_name)
-
-    def create_record(self, record: DictStrAny, table_name: str) -> None:
-        """Inserts a record into a LanceDB table.
-
-        Args:
-            record (DictStrAny): The data to be inserted as payload.
-            table_name (str): The name of the table to insert the record into.
-        """
-        tbl = self.db_client.open_table(table_name)
-        tbl.add([record])
+        write_disposition = self.schema.get_table(self.schema.version_table_name).get(
+            "write_disposition"
+        )
+        upload_batch(
+            records,
+            db_client=self.db_client,
+            table_name=fq_version_table_name,
+            write_disposition=write_disposition,
+        )
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage by finding a load ID that was completed."""
@@ -484,6 +486,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             ):
                 state["dlt_load_id"] = state.pop("_dlt_load_id")
                 return StateInfo(**state)
+        return None
 
     def get_stored_schema_by_hash(
         self, schema_hash: str
@@ -535,16 +538,26 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     @lancedb_error
     def complete_load(self, load_id: str) -> None:
-        properties = {
-            "load_id": load_id,
-            "schema_name": self.schema.name,
-            "status": 0,
-            "inserted_at": str(pendulum.now()),
-        }
+        records = [
+            {
+                "load_id": load_id,
+                "schema_name": self.schema.name,
+                "status": 0,
+                "inserted_at": str(pendulum.now()),
+            }
+        ]
         fq_loads_table_name = self.make_qualified_table_name(
             self.schema.loads_table_name
         )
-        self.create_record(properties, fq_loads_table_name)
+        write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
+            "write_disposition"
+        )
+        upload_batch(
+            records,
+            db_client=self.db_client,
+            table_name=fq_loads_table_name,
+            write_disposition=write_disposition,
+        )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
@@ -573,8 +586,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
 
 class LoadLanceDBJob(LoadJob):
-    embedding_fields: List[str]
-    embedding_model_func: TextEmbeddingFunction
+    arrow_schema: TArrowSchema
 
     def __init__(
         self,
@@ -590,6 +602,7 @@ class LoadLanceDBJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
         self.schema: Schema = schema
+        self.table_schema: TTableSchema = table_schema
         self.db_client: DBConnection = db_client
         self.type_mapper: TypeMapper = type_mapper
         self.table_name: str = table_schema["name"]
@@ -600,11 +613,10 @@ class LoadLanceDBJob(LoadJob):
         )
         self.embedding_model_func: TextEmbeddingFunction = model_func
         self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
-
-        # We reserve two field names `id__` and `vector__` to store vector embeddings and record IDs respectively.
-        # TODO: Make these field configurable.
-        self.vector_field_name = "vector__"
-        self.id_field_name = "id__"
+        self.id_field_name: str = client_config.id_field_name
+        self.write_disposition: TWriteDisposition = cast(
+            TWriteDisposition, self.table_schema.get("write_disposition", "append")
+        )
 
         with FileStorage.open_zipsafe_ro(local_path) as f:
             records: List[DictStrAny] = json.load(f)
@@ -612,65 +624,22 @@ class LoadLanceDBJob(LoadJob):
         if not isinstance(records, list):
             records = [records]
 
-        for record in records:
-            uuid_id = (
-                generate_uuid(record, self.unique_identifiers, self.table_name)
-                if self.unique_identifiers
-                else uuid.uuid4()
-            )
-            record.update({self.id_field_name: uuid_id})
+        # Add reserved ID fields if the table is a data table.
+        if self.table_schema not in self.schema.dlt_tables():
+            for record in records:
+                uuid_id = (
+                    generate_uuid(record, self.unique_identifiers, self.fq_table_name)
+                    if self.unique_identifiers
+                    else uuid.uuid4()
+                )
+                record.update({self.id_field_name: uuid_id})
 
-        template_model: TLanceModel = create_template_schema(
-            self.id_field_name,
-            self.vector_field_name,
-            self.embedding_fields,
-            self.embedding_model_func,
-            self.embedding_model_dimensions,
-        )
-
-        field_types: DictStrAny = {
-            k: v
-            for d in make_fields(
-                self.table_name,
-                schema=self.schema,
-                type_mapper=self.type_mapper,
-                embedding_fields=self.embedding_fields,
-                embedding_model_func=self.embedding_model_func,
-            )
-            for k, v in d.items()
-        }
-
-        lance_model: TLanceModel = create_model(
-            self.table_name,
-            __base__=template_model,
-            __module__=__name__,
-            **field_types,
-        )
-
-        self.upload_data(records, lance_model, table_name)
-
-    @lancedb_batch_error
-    def upload_data(
-        self, records: List[DictStrAny], lancedb_model: TLanceModel, table_name: str
-    ) -> None:
-        """Inserts records into a LanceDB table.
-        Embeddings are automatically computed according to `lancedb_model`.
-
-        Args:
-            records (List[DictStrAny]): The data to be inserted as payload.
-            table_name (str): The name of the table to insert the record into.
-            lancedb_model (LanceModel): Pydantic model to parse records.
-        """
-        tbl = self.db_client.open_table(table_name)
-        parsed_records: List[LanceModel] = [
-            lancedb_model(**record) for record in records
-        ]
-
-        # Upsert using reserved ID as the key.
-        tbl.merge_insert(
-            self.id_field_name
-        ).when_matched_update_all().when_not_matched_insert_all().execute(
-            parsed_records
+        upload_batch(
+            records,
+            db_client=db_client,
+            table_name=self.fq_table_name,
+            write_disposition=self.write_disposition,
+            id_field_name=self.id_field_name,
         )
 
     def state(self) -> TLoadJobState:

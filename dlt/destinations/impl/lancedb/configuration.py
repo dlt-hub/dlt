@@ -87,11 +87,17 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
     embedding_model_dimensions: int = 1024
     """The dimensions of the embeddings generated. Make sure it corresponds with the embedding model's."""
+    vector_field_name: str = "vector__"
+    """Name of the special field to store the vector embeddings."""
+    id_field_name: str = "id__"
+    """Name of the special field to manage deduplication."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "embedding_model_dimensions",
         "embedding_model",
         "embedding_model_provider",
+        "vector_field_name",
+        "id_field_name",
     ]
 
     def fingerprint(self) -> str:
