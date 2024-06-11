@@ -465,6 +465,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             write_disposition=write_disposition,
         )
 
+    @lancedb_error
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage by finding a load ID that was completed."""
         fq_state_table_name = self.make_qualified_table_name(
