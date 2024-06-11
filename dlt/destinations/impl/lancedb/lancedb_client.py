@@ -11,6 +11,7 @@ from typing import (
     Type,
     Optional,
     Dict,
+    Sequence,
 )
 
 import lancedb  # type: ignore
@@ -51,7 +52,7 @@ from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
-from dlt.destinations.impl.lancedb.exceptions import lancedb_error
+from dlt.destinations.impl.lancedb.exceptions import lancedb_error, lancedb_batch_error
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
     TLanceModel,
@@ -392,8 +393,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
         Args:
             table_name: The name of the table to create the field on.
             field_schema: The field to create.
-        """  # TODO: Arrow tables are immutable. This is tricky without creating a new table.  # Perhaps my performing a merge this can work tbl.merge  # self.db_client.open_table(  #  #  #  #  #
-        pass  # self.make_qualified_table_name(table_name)).add_columns()
+        """
+        # TODO: Arrow tables are immutable.
+        # This is tricky without creating a new table.
+        # Perhaps my performing a merge this can work tbl.merge
+        raise NotImplementedError
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
@@ -555,8 +559,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
             type_mapper=self.type_mapper,
             db_client=self.db_client,
             client_config=self.config,
-            table_name=self.make_qualified_table_name(table["name"]),
             model_func=self.model_func,
+            fq_table_name=self.make_qualified_table_name(table["name"]),
         )
 
     def table_exists(self, table_name: str) -> bool:
@@ -580,21 +584,22 @@ class LoadLanceDBJob(LoadJob):
         type_mapper: LanceDBTypeMapper,
         db_client: DBConnection,
         client_config: LanceDBClientConfiguration,
-        table_name: str,
         model_func: TextEmbeddingFunction,
+        fq_table_name: str,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
-        self.schema = schema
-        self.db_client = db_client
-        self.type_mapper = type_mapper
-        self.table_name = table_name
-        self.unique_identifiers = list_unique_identifiers(table_schema)
-        self.embedding_fields = get_columns_names_with_prop(
+        self.schema: Schema = schema
+        self.db_client: DBConnection = db_client
+        self.type_mapper: TypeMapper = type_mapper
+        self.table_name: str = table_schema["name"]
+        self.fq_table_name: str = fq_table_name
+        self.unique_identifiers: Sequence[str] = list_unique_identifiers(table_schema)
+        self.embedding_fields: List[str] = get_columns_names_with_prop(
             table_schema, VECTORIZE_HINT
         )
-        self.embedding_model_func = model_func
-        self.embedding_model_dimensions = client_config.embedding_model_dimensions
+        self.embedding_model_func: TextEmbeddingFunction = model_func
+        self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
 
         # We reserve two field names `id__` and `vector__` to store vector embeddings and record IDs respectively.
         # TODO: Make these field configurable.
@@ -644,6 +649,7 @@ class LoadLanceDBJob(LoadJob):
 
         self.upload_data(records, lance_model, table_name)
 
+    @lancedb_batch_error
     def upload_data(
         self, records: List[DictStrAny], lancedb_model: TLanceModel, table_name: str
     ) -> None:
@@ -655,13 +661,7 @@ class LoadLanceDBJob(LoadJob):
             table_name (str): The name of the table to insert the record into.
             lancedb_model (LanceModel): Pydantic model to parse records.
         """
-        try:
-            tbl = self.db_client.open_table(table_name)
-        except FileNotFoundError:
-            tbl = self.db_client.create_table(table_name)
-        except Exception:
-            raise
-
+        tbl = self.db_client.open_table(table_name)
         parsed_records: List[LanceModel] = [
             lancedb_model(**record) for record in records
         ]
