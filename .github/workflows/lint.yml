@@ -59,7 +59,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --all-extras --with airflow,providers,pipeline,sentry-sdk
+        run: poetry install --all-extras --with airflow,providers,pipeline,sentry-sdk,dbt
 
       - name: Run make lint
         run: |
