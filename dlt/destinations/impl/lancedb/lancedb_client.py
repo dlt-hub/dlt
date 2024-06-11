@@ -512,7 +512,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
             record = response.to_list()[0]
             return StorageSchemaInfo(**record)
-        except FileNotFoundError:
+        except  IndexError:
             return None
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
@@ -530,7 +530,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
             record = response.to_list()[0]
             return StorageSchemaInfo(**record)
-        except FileNotFoundError:
+        except IndexError:
             return None
 
     def __exit__(
