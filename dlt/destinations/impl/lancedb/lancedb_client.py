@@ -186,9 +186,7 @@ def upload_batch(
         raise LanceDBBatchError(e) from e
 
     try:
-        if write_disposition == "skip":
-            pass
-        elif write_disposition == "append":
+        if write_disposition in ("append", "skip"):
             tbl.add(records)
         elif write_disposition == "replace":
             tbl.add(records, mode="replace")
@@ -411,7 +409,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return True, table_schema
 
     @lancedb_error
-    def add_table_field(self, table_name: str, field_schema: TArrowField) -> Table:
+    def add_table_field(
+        self, table_name: str, field_schema: TArrowField
+    ) -> Optional[Table]:
         """Add a field to the LanceDB table.
 
         Since arrow tables are immutable, this is done via a staging mechanism.
@@ -422,10 +422,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
             table_name: The name of the table to create the field on.
             field_schema: The field to create.
         """
-        # TODO: Arrow tables are immutable.
-        # This is tricky without creating a new table.
-        # Perhaps my performing a merge this can work tbl.merge
-        # Open existing LanceDB table directly as PyArrow Table
         arrow_table = self.db_client.open_table(table_name).to_arrow()
 
         # Create an array of null values for the new column.
@@ -434,7 +430,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
         # Create staging Table with new column appended.
         stage = arrow_table.append_column(field_schema, null_array)
 
-        return self.db_client.create_table(table_name, stage, mode="overwrite")
+        try:
+            return self.db_client.create_table(table_name, stage, mode="overwrite")
+        except OSError:
+            # Field already present, skip.
+            return None
+        except Exception:
+            raise
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
