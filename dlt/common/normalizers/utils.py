@@ -42,9 +42,8 @@ def import_normalizers(
     """
     # add defaults to normalizer_config
     normalizers_config["names"] = names = normalizers_config["names"] or "snake_case"
-    normalizers_config["json"] = item_normalizer = normalizers_config.get("json") or {
-        "module": "dlt.common.normalizers.json.relational"
-    }
+    normalizers_config["json"] = item_normalizer = normalizers_config.get("json") or {}
+    item_normalizer.setdefault("module", "dlt.common.normalizers.json.relational")
     json_module = cast(SupportsDataItemNormalizer, import_module(item_normalizer["module"]))
 
     return (
