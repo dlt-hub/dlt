@@ -496,7 +496,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             response = (
                 self.db_client.open_table(fq_version_table_name)
                 .search()
-                .where(f'version_hash = "{schema_hash}"')
+                .where(f'version_hash = "{schema_hash}" ORDER BY inserted_at DESC')
                 .limit(1)
             )
             record = response.to_list()[0]
@@ -513,7 +513,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             response = (
                 self.db_client.open_table(fq_version_table_name)
                 .search()
-                .where(f'schema_name = "{self.schema.name}"')
+                .where(f'schema_name = "{self.schema.name}" ORDER BY inserted_at DESC')
                 .limit(1)
             )
             record = response.to_list()[0]
