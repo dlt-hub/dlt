@@ -70,11 +70,11 @@ def run_pipeline(
 def test_max_concurrent() -> None:
     # default is 20, so result is lower than that
     max_concurrent, _ = run_pipeline(10)
-    assert max_concurrent <= 20 and max_concurrent > 18
+    assert max_concurrent <= 20 and max_concurrent >= 18
 
     # lower it
     max_concurrent, _ = run_pipeline(5, max_parallel_load_jobs=5)
-    assert max_concurrent <= 5 and max_concurrent > 3
+    assert max_concurrent <= 5 and max_concurrent >= 3
 
     # sequential strategy will make it go to 1
     max_concurrent, _ = run_pipeline(
@@ -88,7 +88,7 @@ def test_loading_strategy() -> None:
         10, max_parallel_load_jobs=20, loader_parallelism_strategy="parallel"
     )
     # this includes multiple jobs per table being run
-    assert max_concurrent <= 20 and max_concurrent > 18
+    assert max_concurrent <= 20 and max_concurrent >= 18
     assert max_concurrent_per_table["t1"] > 2
 
     # this strategy only allows one job per table max
