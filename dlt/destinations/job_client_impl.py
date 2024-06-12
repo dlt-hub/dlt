@@ -29,7 +29,6 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import (
     loads_table,
     normalize_table_identifiers,
-    pipeline_state_table,
     version_table,
 )
 from dlt.common.storages import FileStorage
@@ -55,7 +54,11 @@ from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJ
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.utils import info_schema_null_to_bool, verify_sql_job_client_schema
+from dlt.destinations.utils import (
+    get_pipeline_state_query_columns,
+    info_schema_null_to_bool,
+    verify_sql_job_client_schema,
+)
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
@@ -145,7 +148,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self.loads_table_schema_columns = ", ".join(
             sql_client.escape_column_name(col) for col in loads_table_["columns"]
         )
-        state_table_ = normalize_table_identifiers(pipeline_state_table(), schema.naming)
+        state_table_ = normalize_table_identifiers(
+            get_pipeline_state_query_columns(), schema.naming
+        )
         self.state_table_columns = ", ".join(
             sql_client.escape_column_name(col) for col in state_table_["columns"]
         )
@@ -402,7 +407,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             row = cur.fetchone()
         if not row:
             return None
-        return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
+        return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]), row[5])
 
     def _norm_and_escape_columns(self, *columns: str) -> Iterator[str]:
         return map(

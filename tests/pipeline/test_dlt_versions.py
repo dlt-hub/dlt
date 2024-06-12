@@ -1,3 +1,4 @@
+from subprocess import CalledProcessError
 import sys
 import pytest
 import tempfile
@@ -103,7 +104,16 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 # execute in current version
                 venv = Venv.restore_current()
                 # load all issues
-                print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_pipeline.py"))
+                try:
+                    print(
+                        venv.run_script(
+                            "../tests/pipeline/cases/github_pipeline/github_pipeline.py"
+                        )
+                    )
+                except CalledProcessError as cpe:
+                    print(f"script stdout: {cpe.stdout}")
+                    print(f"script stderr: {cpe.stderr}")
+                    raise
                 # hash hash in schema
                 github_schema = json.loads(
                     test_storage.load(
