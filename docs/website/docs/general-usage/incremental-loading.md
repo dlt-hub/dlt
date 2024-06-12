@@ -1013,7 +1013,7 @@ pipeline.run(my_resource)
 
 You'll see the following output:
 
-```
+```text
 Attaching to pipeline <pipeline_name>
 ...
 
