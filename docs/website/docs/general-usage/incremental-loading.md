@@ -501,7 +501,7 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
 ```
 
 ### Using `last_value_func` for lookback
-The example below uses the `last_value_func` to load data from the past month. 
+The example below uses the `last_value_func` to load data from the past month.
 ```py
 def lookback(event):
     last_value = None
@@ -977,3 +977,62 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
 
             yield page
 ```
+
+## Troubleshooting
+
+If you see that the incremental loading is not working as expected and the incremental values are not modified between pipeline runs, check the following:
+
+1. Make sure the destination, pipeline name and dataset name are the same between pipeline runs.
+
+2. Check the logs for `Bind incremental on <resource_name> ...` message. This message indicates that the incremental value was bound to the resource and shows the state of the incremental value.
+
+3. After the pipeline run, check the state of the pipeline. You can do this by running the following command:
+
+```sh
+dlt pipeline -v <pipeline_name> info
+```
+
+For example, if your pipeline is defined as follows:
+
+```py
+@dlt.resource
+def my_resource(
+    incremental_object = dlt.sources.incremental("some_key", initial_value=0),
+):
+    ...
+
+pipeline = dlt.pipeline(
+    pipeline_name="example_pipeline",
+    destination="duckdb",
+)
+
+pipeline.run(my_resource)
+```
+
+You'll see the following output:
+
+```
+Attaching to pipeline <pipeline_name>
+...
+
+sources:
+{
+  "example": {
+    "resources": {
+      "my_resource": {
+        "incremental": {
+          "some_key": {
+            "initial_value": 0,
+            "last_value": 42,
+            "unique_hashes": [
+              "nmbInLyII4wDF5zpBovL"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Verify that the `last_value` is updated between pipeline runs.
