@@ -10,6 +10,7 @@ from dlt.common import logger
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
+from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 
 from dlt.destinations.impl.destination.factory import destination as _destination
 from dlt.destinations.impl.destination.configuration import (
@@ -28,6 +29,8 @@ def destination(
     skip_dlt_columns_and_tables: bool = True,
     max_table_nesting: int = 0,
     spec: Type[CustomDestinationClientConfiguration] = None,
+    max_parallel_load_jobs: Optional[int] = None,
+    loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None,
 ) -> Callable[
     [Callable[Concatenate[Union[TDataItems, str], TTableSchema, TDestinationCallableParams], Any]],
     Callable[TDestinationCallableParams, _destination],
@@ -55,7 +58,8 @@ def destination(
         max_nesting_level: defines how deep the normalizer will go to normalize complex fields on your data to create subtables. This overwrites any settings on your source and is set to zero to not create any nested tables by default.
         skip_dlt_columns_and_tables: defines wether internal tables and columns will be fed into the custom destination function. This is set to True by default.
         spec: defines a configuration spec that will be used to to inject arguments into the decorated functions. Argument not in spec will not be injected
-
+        max_parallel_load_jobs: how many load jobs at most will be running during the load
+        loader_parallelism_strategy: Can be "sequential" which equals max_parallel_load_jobs=1, "table_sequential" where each table will have at most one loadjob at any given time and "parallel"
     Returns:
         A callable that can be used to create a dlt custom destination instance
     """
@@ -83,6 +87,8 @@ def destination(
                 naming_convention=naming_convention,
                 skip_dlt_columns_and_tables=skip_dlt_columns_and_tables,
                 max_table_nesting=max_table_nesting,
+                max_parallel_load_jobs=max_parallel_load_jobs,
+                loader_parallelism_strategy=loader_parallelism_strategy,
                 **kwargs,  # type: ignore
             )
 
