@@ -544,6 +544,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             return None
         for state in state_records:
             load_id = state["_dlt_load_id"]
+            # If there is a load for this state which was successful, return the state.
             if (
                 self.db_client.open_table(fq_loads_table_name)
                     .search()
@@ -552,7 +553,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     .to_list()
             ):
                 state["dlt_load_id"] = state.pop("_dlt_load_id")
-                return StateInfo(**state)
+                return StateInfo(**{k: v for k, v in state.items() if k in StateInfo._fields})
         return None
 
 
