@@ -191,6 +191,9 @@ def upload_batch(
 
     try:
         if write_disposition in ("append", "skip"):
+            # is_in_payload = ('vector__' in records[0])
+            # is_in_target_schema = (tbl.schema.get_field_index('vector__') != -1)
+            # mismatch_flag = is_in_payload or is_in_target_schema
             tbl.add(records)
         elif write_disposition == "replace":
             tbl.add(records, mode="replace")
@@ -481,9 +484,18 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         fq_table_name = self.make_qualified_table_name(table_name)
                         self.add_table_field(fq_table_name, field_schema)
                 else:
-                    embedding_fields = get_columns_names_with_prop(
-                        self.schema.get_table(table_name=table_name), VECTORIZE_HINT
-                    )
+
+                    if table_name not in self.schema.dlt_table_names():
+                        embedding_fields = get_columns_names_with_prop(
+                            self.schema.get_table(table_name=table_name), VECTORIZE_HINT
+                        )
+                        vector_field_name = self.vector_field_name
+                        id_field_name = self.id_field_name
+                    else:
+                        embedding_fields = None
+                        vector_field_name = None
+                        id_field_name = None
+
                     table_schema: TArrowSchema = make_arrow_table_schema(
                         table_name,
                         schema=self.schema,
@@ -491,6 +503,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         embedding_fields=embedding_fields,
                         embedding_model_func=self.model_func,
                         embedding_model_dimensions=self.config.embedding_model_dimensions,
+                        vector_field_name=vector_field_name,
+                        id_field_name=id_field_name
                     )
                     fq_table_name = self.make_qualified_table_name(table_name)
                     self.create_table(fq_table_name, table_schema)
