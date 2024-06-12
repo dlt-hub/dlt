@@ -1,5 +1,5 @@
 import re
-from typing import Any, List, Sequence
+from typing import Sequence
 from functools import lru_cache
 
 from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
@@ -19,7 +19,7 @@ class NamingConvention(BaseNamingConvention):
     PATH_SEPARATOR = "__"
 
     def __init__(self, max_length: int = None, is_case_sensitive: bool = False) -> None:
-        super().__init__(max_length, False)
+        super().__init__(max_length, is_case_sensitive)
 
     def normalize_identifier(self, identifier: str) -> str:
         identifier = super().normalize_identifier(identifier)

@@ -42,7 +42,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, load_yml_case
+from tests.common.utils import load_yml_case
 
 
 def test_default_resource() -> None:

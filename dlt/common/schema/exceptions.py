@@ -210,7 +210,7 @@ class TableIdentifiersFrozen(SchemaException):
         self.from_naming = from_naming
         msg = (
             f"Attempt to normalize identifiers for a table {table_name} from naming"
-            f" {str(type(from_naming))} to {str(type(to_naming))} changed one or more identifiers. "
+            f" {from_naming.name()} to {to_naming.name()} changed one or more identifiers. "
         )
         msg += (
             " This table already received data and tables were created at the destination. By"

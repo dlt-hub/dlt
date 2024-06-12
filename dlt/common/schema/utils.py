@@ -551,10 +551,21 @@ def has_table_seen_data(table: TTableSchema) -> bool:
 
 def remove_processing_hints(tables: TSchemaTables) -> TSchemaTables:
     "Removes processing hints like x-normalizer and x-loader from schema tables. Modifies the input tables and returns it for convenience"
+    for table_name, hints in get_processing_hints(tables).items():
+        for hint in hints:
+            del tables[table_name][hint]  # type: ignore[misc]
+    return tables
+
+
+def get_processing_hints(tables: TSchemaTables) -> Dict[str, List[str]]:
+    """Finds processing hints in a set of tables and returns table_name: [hints] mapping"""
+    hints: Dict[str, List[str]] = {}
     for table in tables.values():
         for hint in TTableProcessingHints.__annotations__.keys():
-            table.pop(hint, None)  # type: ignore[misc]
-    return tables
+            if hint in table:
+                table_hints = hints.setdefault(table["name"], [])
+                table_hints.append(hint)
+    return hints
 
 
 def hint_to_column_prop(h: TColumnHint) -> TColumnProp:

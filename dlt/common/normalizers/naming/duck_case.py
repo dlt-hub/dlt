@@ -6,7 +6,12 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCa
 
 class NamingConvention(SnakeCaseNamingConvention):
     _CLEANUP_TABLE = str.maketrans('\n\r"', "___")
-    _RE_LEADING_DIGITS = None  # do not remove leading digits
+
+    def __init__(self, max_length: int = None, is_case_sensitive: bool = True) -> None:
+        """Case sensitive naming convention preserving all unicode characters except new line(s). Uses __ for path
+        separation and will replace multiple underscores with a single one.
+        """
+        super().__init__(max_length, is_case_sensitive)
 
     @staticmethod
     @lru_cache(maxsize=None)

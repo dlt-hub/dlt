@@ -7,6 +7,7 @@ from dlt.common import json
 from dlt.common.normalizers.utils import explicit_normalizers
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
+from dlt.common.schema.utils import remove_processing_hints
 from dlt.common.storages.exceptions import (
     InStorageSchemaModified,
     SchemaNotFoundError,
@@ -117,9 +118,11 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     _, new_table = storage_schema.coerce_row("event_user", None, row)
     storage_schema.update_table(new_table)
     assert storage_schema.is_modified
+    print("SAVE SCHEMA")
     storage.save_schema(storage_schema)
     assert not storage_schema.is_modified
     # now use synced storage to load schema again
+    print("LOAD SCHEMA")
     reloaded_schema = synced_storage.load_schema("ethereum")
     # the schema was not overwritten
     assert "event_user" in reloaded_schema.tables
@@ -267,10 +270,10 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     ie_storage.save_schema(schema)
     assert schema.version_hash == schema_hash
     # we linked schema to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
     # load schema and make sure our new schema is here
     schema = ie_storage.load_schema("ethereum")
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
     assert schema._stored_version_hash == schema_hash
     assert schema.version_hash == schema_hash
     assert schema.previous_hashes == []
@@ -287,7 +290,7 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
     schema = Schema("ethereum")
     schema_hash = schema.version_hash
     synced_storage.save_schema(schema)
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
     # import schema is overwritten
     fs = FileStorage(synced_storage.config.import_schema_path)
     exported_name = synced_storage._file_name_in_store("ethereum", "yaml")
@@ -496,22 +499,23 @@ def test_new_live_schema_committed(live_storage: LiveSchemaStorage) -> None:
 #     assert schema.settings["schema_sealed"] is True
 
 
-def prepare_import_folder(storage: SchemaStorage) -> None:
-    shutil.copy(
-        yml_case_path("schemas/eth/ethereum_schema_v8"),
-        os.path.join(storage.storage.storage_path, "../import/ethereum.schema.yaml"),
-    )
+def prepare_import_folder(storage: SchemaStorage) -> Schema:
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    # remove processing hints before installing as import schema
+    # ethereum schema is a "dirty" schema with processing hints
+    eth = Schema.from_dict(eth_V9, remove_processing_hints=True)
+    storage._export_schema(eth, os.path.join(storage.storage.storage_path, "../import/"))
+    return eth
 
 
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:
     prepare_import_folder(synced_storage)
-    eth_V9: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v9")
     schema = synced_storage.load_schema("ethereum")
     # is linked to imported schema
-    schema._imported_version_hash = eth_V9["version_hash"]
+    schema._imported_version_hash = IMPORTED_VERSION_HASH_ETH_V9()
     # also was saved in storage
     assert synced_storage.has_schema("ethereum")
-    # and has link to imported schema s well (load without import)
+    # and has link to imported schema as well (load without import)
     schema = storage.load_schema("ethereum")
-    assert schema._imported_version_hash == eth_V9["version_hash"]
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
     return schema
