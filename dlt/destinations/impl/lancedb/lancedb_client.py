@@ -103,11 +103,13 @@ class LanceDBTypeMapper(TypeMapper):
         pa.date32(): "date",
     }
 
+
     def to_db_decimal_type(
         self, precision: Optional[int], scale: Optional[int]
     ) -> pa.Decimal128Type:
         precision, scale = self.decimal_precision(precision, scale)
         return pa.decimal128(precision, scale)
+
 
     def to_db_datetime_type(
         self, precision: Optional[int], table_format: TTableFormat = None
@@ -115,11 +117,13 @@ class LanceDBTypeMapper(TypeMapper):
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.timestamp(unit, "UTC")
 
+
     def to_db_time_type(
         self, precision: Optional[int], table_format: TTableFormat = None
     ) -> pa.Time64Type:
         unit: str = TIMESTAMP_PRECISION_TO_UNIT[self.capabilities.timestamp_precision]
         return pa.time64(unit)
+
 
     def from_db_type(
         self,
@@ -187,6 +191,9 @@ def upload_batch(
 
     try:
         if write_disposition in ("append", "skip"):
+            is_in_payload = ('schema_version_hash' in records[0])
+            is_in_target_schema = (tbl.schema.get_field_index('schema_version_hash') != -1)
+            mismatch_flag = is_in_payload or is_in_target_schema
             tbl.add(records)
         elif write_disposition == "replace":
             tbl.add(records, mode="replace")
@@ -212,6 +219,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+
 
     def __init__(self, schema: Schema, config: LanceDBClientConfiguration) -> None:
         super().__init__(schema, config)
@@ -243,13 +251,16 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.vector_field_name = self.config.vector_field_name
         self.id_field_name = self.config.id_field_name
 
+
     @property
     def dataset_name(self) -> str:
         return self.config.normalize_dataset_name(self.schema)
 
+
     @property
     def sentinel_table(self) -> str:
         return self.make_qualified_table_name("dltSentinelTable")
+
 
     def make_qualified_table_name(self, table_name: str) -> str:
         return (
@@ -258,12 +269,14 @@ class LanceDBClient(JobClientBase, WithStateSync):
             else table_name
         )
 
+
     def get_table_schema(self, table_name: str) -> TArrowSchema:
         schema = self.db_client.open_table(table_name).schema
         return cast(
             TArrowSchema,
             schema,
         )
+
 
     @lancedb_error
     def create_table(
@@ -280,6 +293,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         """
         return self.db_client.create_table(table_name, schema=schema, mode=mode)
 
+
     def delete_table(self, table_name: str) -> None:
         """Delete a LanceDB table.
 
@@ -288,9 +302,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
         """
         self.db_client.drop_table(table_name)
 
+
     def delete_all_tables(self) -> None:
         """Delete all LanceDB tables from the LanceDB instance and all data associated with it."""
         self.db_client.drop_database()
+
 
     def query_table(
         self,
@@ -309,6 +325,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             A LanceDB query builder.
         """
         return self.db_client.open_table(table_name).search(query=query)
+
 
     def drop_storage(self) -> None:
         """Drop the dataset from the LanceDB instance.
@@ -332,6 +349,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         self._delete_sentinel_table()
 
+
     @lancedb_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -347,17 +365,21 @@ class LanceDBClient(JobClientBase, WithStateSync):
                     schema=self.get_table_schema(table_name),
                 )
 
+
     @lancedb_error
     def is_storage_initialized(self) -> bool:
         return self.table_exists(self.sentinel_table)
+
 
     def _create_sentinel_table(self) -> Table:
         """Create an empty table to indicate that the storage is initialized."""
         return self.create_table(schema=NULL_SCHEMA, table_name=self.sentinel_table)
 
+
     def _delete_sentinel_table(self) -> None:
         """Delete the sentinel table."""
         self.db_client.drop_table(self.sentinel_table)
+
 
     @lancedb_error
     def update_stored_schema(
@@ -389,6 +411,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             )
         return applied_update
 
+
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
 
@@ -407,6 +430,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             }
             table_schema[field_type] = schema_c
         return True, table_schema
+
 
     @lancedb_error
     def add_table_field(
@@ -437,6 +461,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             return None
         except Exception:
             raise
+
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
@@ -475,6 +500,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         self.update_schema_in_storage()
 
+
     @lancedb_error
     def update_schema_in_storage(self) -> None:
         records = [
@@ -500,6 +526,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             write_disposition=write_disposition,
         )
 
+
     @lancedb_error
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage by finding a load ID that was completed."""
@@ -522,14 +549,15 @@ class LanceDBClient(JobClientBase, WithStateSync):
             load_id = state["_dlt_load_id"]
             if (
                 self.db_client.open_table(fq_loads_table_name)
-                .search()
-                .where(f'load_id = "{load_id}"')
-                .limit(1)
-                .to_list()
+                    .search()
+                    .where(f'load_id = "{load_id}"')
+                    .limit(1)
+                    .to_list()
             ):
                 state["dlt_load_id"] = state.pop("_dlt_load_id")
                 return StateInfo(**state)
         return None
+
 
     @lancedb_error
     def get_stored_schema_by_hash(
@@ -551,6 +579,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         except IndexError:
             return None
 
+
     @lancedb_error
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
@@ -570,6 +599,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         except IndexError:
             return None
 
+
     def __exit__(
         self,
         exc_type: Type[BaseException],
@@ -578,8 +608,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
     ) -> None:
         pass
 
+
     def __enter__(self) -> "LanceDBClient":
         return self
+
 
     @lancedb_error
     def complete_load(self, load_id: str) -> None:
@@ -589,6 +621,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 "schema_name": self.schema.name,
                 "status": 0,
                 "inserted_at": str(pendulum.now()),
+                "schema_version_hash": None  # Payload schema must match the target schema.
             }
         ]
         fq_loads_table_name = self.make_qualified_table_name(
@@ -604,8 +637,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
             write_disposition=write_disposition,
         )
 
+
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
+
 
     def start_file_load(
         self, table: TTableSchema, file_path: str, load_id: str
@@ -621,8 +656,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
             fq_table_name=self.make_qualified_table_name(table["name"]),
         )
 
+
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
+
 
     def _from_db_type(
         self, wt_t: pa.DataType, precision: Optional[int], scale: Optional[int]
@@ -632,6 +669,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
 class LoadLanceDBJob(LoadJob):
     arrow_schema: TArrowSchema
+
 
     def __init__(
         self,
@@ -702,8 +740,10 @@ class LoadLanceDBJob(LoadJob):
             id_field_name=self.id_field_name,
         )
 
+
     def state(self) -> TLoadJobState:
         return "completed"
+
 
     def exception(self) -> str:
         raise NotImplementedError()
