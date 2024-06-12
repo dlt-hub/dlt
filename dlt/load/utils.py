@@ -233,7 +233,6 @@ def filter_new_jobs(
 
     # destination can overwrite ps
     parallelism_strategy = capabilities.loader_parallelism_strategy or config.parallelism_strategy
-    print(parallelism_strategy)
 
     # we only always process one
     if parallelism_strategy == "sequential":
