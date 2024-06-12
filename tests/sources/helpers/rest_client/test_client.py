@@ -1,9 +1,11 @@
 import os
 import pytest
 from typing import Any, cast
+from dlt.common import logger
+from requests import PreparedRequest, Request, Response
 from requests.auth import AuthBase
 from dlt.common.typing import TSecretStrValue
-from dlt.sources.helpers.requests import Response, Request
+from dlt.sources.helpers.requests import Client
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
@@ -34,6 +36,7 @@ def rest_client() -> RESTClient:
     return RESTClient(
         base_url="https://api.example.com",
         headers={"Accept": "application/json"},
+        session=Client().session,
     )
 
 
@@ -167,6 +170,7 @@ class TestRESTClient:
             auth_endpoint="https://api.example.com/oauth/token",
             scopes=["read", "write"],
             headers={"Content-Type": "application/json"},
+            session=Client().session,
         )
 
         response = rest_client.get(
@@ -184,12 +188,25 @@ class TestRESTClient:
 
         assert_pagination(list(pages_iter))
 
+    def test_custom_session_client(self, mocker):
+        mocked_warning = mocker.patch.object(logger, "warning")
+        RESTClient(
+            base_url="https://api.example.com",
+            headers={"Accept": "application/json"},
+            session=Client(raise_for_status=True).session,
+        )
+        assert (
+            mocked_warning.call_args[0][0]
+            == "The session provided has raise_for_status enabled. This may cause unexpected"
+            " behavior."
+        )
+
     def test_custom_auth_success(self, rest_client: RESTClient):
         class CustomAuthConfigBase(AuthConfigBase):
             def __init__(self, token: str):
                 self.token = token
 
-            def __call__(self, request: Request) -> Request:
+            def __call__(self, request: PreparedRequest) -> PreparedRequest:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
 
@@ -197,7 +214,7 @@ class TestRESTClient:
             def __init__(self, token: str):
                 self.token = token
 
-            def __call__(self, request: Request) -> Request:
+            def __call__(self, request: PreparedRequest) -> PreparedRequest:
                 request.headers["Authorization"] = f"Bearer {self.token}"
                 return request
 
@@ -224,3 +241,17 @@ class TestRESTClient:
             assert_pagination(pages_list)
 
             assert pages_list[0].response.request.headers["Authorization"] == "Bearer test-token"
+
+    def test_send_request_allows_ca_bundle(self, mocker, rest_client):
+        mocker.patch.dict(os.environ, {"REQUESTS_CA_BUNDLE": "/path/to/some/ca-bundle"})
+
+        _send = rest_client.session.send
+
+        def _fake_send(*args, **kwargs):
+            assert kwargs["verify"] == "/path/to/some/ca-bundle"
+            return _send(*args, **kwargs)
+
+        rest_client.session.send = _fake_send
+
+        result = rest_client.get("/posts/1")
+        assert result.status_code == 200

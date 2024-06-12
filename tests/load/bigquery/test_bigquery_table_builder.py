@@ -200,7 +200,7 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
 def test_bigquery_partition_by_date(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
 
     @dlt.resource(
         write_disposition="merge",
@@ -243,7 +243,7 @@ def test_bigquery_partition_by_date(
 def test_bigquery_no_partition_by_date(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
 
     @dlt.resource(
         write_disposition="merge",
@@ -286,7 +286,7 @@ def test_bigquery_no_partition_by_date(
 def test_bigquery_partition_by_timestamp(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
 
     @dlt.resource(
         write_disposition="merge",
@@ -329,7 +329,7 @@ def test_bigquery_partition_by_timestamp(
 def test_bigquery_no_partition_by_timestamp(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
 
     @dlt.resource(
         write_disposition="merge",
@@ -372,7 +372,7 @@ def test_bigquery_no_partition_by_timestamp(
 def test_bigquery_partition_by_integer(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
 
     @dlt.resource(
         columns={"some_int": {"data_type": "bigint", "partition": True, "nullable": False}},
@@ -407,7 +407,7 @@ def test_bigquery_partition_by_integer(
 def test_bigquery_no_partition_by_integer(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", dev_mode=True)
 
     @dlt.resource(
         columns={"some_int": {"data_type": "bigint", "partition": False, "nullable": False}},
@@ -510,7 +510,7 @@ def test_adapter_hints_partitioning(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -570,7 +570,7 @@ def test_adapter_hints_round_half_away_from_zero(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -632,7 +632,7 @@ def test_adapter_hints_round_half_even(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -764,7 +764,7 @@ def test_adapter_hints_multiple_clustering(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -814,7 +814,7 @@ def test_adapter_hints_clustering(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -904,7 +904,7 @@ def test_adapter_additional_table_hints_table_description(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -1004,7 +1004,7 @@ def test_adapter_additional_table_hints_table_expiration(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())
@@ -1049,7 +1049,7 @@ def test_adapter_merge_behaviour(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(hints)

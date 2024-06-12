@@ -9,7 +9,7 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 ## Install dlt with MS SQL
 **To install the dlt library with MS SQL dependencies, use:**
 ```sh
-pip install dlt[mssql]
+pip install "dlt[mssql]"
 ```
 
 ## Setup guide
@@ -38,7 +38,7 @@ pip install -r requirements.txt
 ```
 or run:
 ```sh
-pip install dlt[mssql]
+pip install "dlt[mssql]"
 ```
 This will install `dlt` with the `mssql` extra, which contains all the dependencies required by the SQL server client.
 
@@ -70,12 +70,11 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 
 You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
 
-**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string. This method is useful when SQL logins aren't available, and you use Windows credentials.
+**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 
 ```toml
-destination.mssql.credentials="mssql://username:password@loader.database.windows.net/dlt_data?trusted_connection=yes"
+destination.mssql.credentials="mssql://loader.database.windows.net/dlt_data?trusted_connection=yes"
 ```
-> The username and password must be filled out with the appropriate login credentials or left untouched. Leaving these empty is not recommended.
 
 **To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
 ```toml
@@ -142,7 +141,7 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ```
 
 ### dbt support
-No dbt support yet.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-msft/dbt-sqlserver).
 
 <!--@@@DLT_TUBA mssql-->
 

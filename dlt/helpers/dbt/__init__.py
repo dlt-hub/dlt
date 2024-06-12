@@ -6,12 +6,12 @@ import semver
 from dlt.common.runners import Venv
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
-from dlt.common.typing import TSecretValue
+from dlt.common.typing import TSecretValue, ConfigValue
 from dlt.version import get_installed_requirement_string
 
 from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
 
-DEFAULT_DBT_VERSION = ">=1.1,<1.6"
+DEFAULT_DBT_VERSION = ">=1.5,<1.9"
 
 # a map of destination names to dbt package names in case they don't match the pure destination name
 DBT_DESTINATION_MAP = {
@@ -84,9 +84,9 @@ def package_runner(
     destination_configuration: DestinationClientDwhConfiguration,
     working_dir: str,
     package_location: str,
-    package_repository_branch: str = None,
+    package_repository_branch: str = ConfigValue,
     package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
-    auto_full_refresh_when_out_of_sync: bool = None,
+    auto_full_refresh_when_out_of_sync: bool = ConfigValue,
 ) -> DBTPackageRunner:
     default_profile_name = _default_profile_name(destination_configuration)
     return create_runner(

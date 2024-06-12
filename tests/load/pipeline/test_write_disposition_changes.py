@@ -27,7 +27,7 @@ def data_with_subtables(offset: int) -> Any:
 )
 def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     pipeline = destination_config.setup_pipeline(
-        pipeline_name="test_switch_from_merge", full_refresh=True
+        pipeline_name="test_switch_from_merge", dev_mode=True
     )
 
     info = pipeline.run(
@@ -96,7 +96,7 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
 @pytest.mark.parametrize("with_root_key", [True, False])
 def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_root_key: bool):
     pipeline = destination_config.setup_pipeline(
-        pipeline_name="test_switch_to_merge", full_refresh=True
+        pipeline_name="test_switch_to_merge", dev_mode=True
     )
 
     @dlt.source()

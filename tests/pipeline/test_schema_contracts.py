@@ -176,10 +176,10 @@ def get_pipeline():
     import duckdb
 
     return dlt.pipeline(
-        pipeline_name=uniq_id(),
+        pipeline_name="contracts_" + uniq_id(),
         destination="duckdb",
         credentials=duckdb.connect(":memory:"),
-        full_refresh=True,
+        dev_mode=True,
     )
 
 
@@ -816,3 +816,32 @@ def test_pydantic_contract_implementation(contract_setting: str, as_list: bool) 
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
     )
     assert table_counts[ITEMS_TABLE] == 1 if (contract_setting in ["freeze", "discard_row"]) else 3
+
+
+def test_write_to_existing_database_tables_frozen() -> None:
+    pipeline = get_pipeline()
+
+    # Create a database schema with table
+    with pipeline.sql_client() as c:
+        table_name = c.make_qualified_table_name("test_items")
+        c.create_dataset()
+        c.execute_sql(
+            f"CREATE TABLE {table_name} (id INTEGER PRIMARY KEY, name VARCHAR NOT NULL,"
+            " _dlt_load_id VARCHAR NOT NULL, _dlt_id VARCHAR NOT NULL)"
+        )
+
+    data = [
+        {"id": 101, "name": "sub item 101"},
+        {"id": 101, "name": "sub item 102"},
+    ]
+
+    # we are trying to load to a table existing on the destination but not known to our internal schema
+    # this will fail!
+    with raises_step_exception(
+        expected_nested_error=DataValidationError,
+    ):
+        pipeline.run(
+            data,
+            table_name="test_items",
+            schema_contract={"tables": "freeze", "columns": "freeze", "data_type": "freeze"},
+        )

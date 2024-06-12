@@ -210,6 +210,10 @@ def resource():
 ...
 ```
 
+:::note
+Indexing is important for doing lookups by column value, especially for merge writes, to ensure acceptable performance in some destinations.
+:::
+
 #### Forcing root key propagation
 
 Merge write disposition requires that the `_dlt_id` of top level table is propagated to child
@@ -223,7 +227,7 @@ pipeline = dlt.pipeline(
     pipeline_name='facebook_insights',
     destination='duckdb',
     dataset_name='facebook_insights_data',
-    full_refresh=True
+    dev_mode=True
 )
 fb_ads = facebook_ads_source()
 # enable root key propagation on a source that is not a merge one by default.

@@ -1,16 +1,13 @@
 from typing import Dict, List, cast
 
 from dlt.common.schema.schema import Schema
-from dlt.common.configuration.accessors import config
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.storages.configuration import SchemaStorageConfiguration
 
 
 class LiveSchemaStorage(SchemaStorage):
-    def __init__(
-        self, config: SchemaStorageConfiguration = config.value, makedirs: bool = False
-    ) -> None:
+    def __init__(self, config: SchemaStorageConfiguration, makedirs: bool = False) -> None:
         self.live_schemas: Dict[str, Schema] = {}
         super().__init__(config, makedirs)
 

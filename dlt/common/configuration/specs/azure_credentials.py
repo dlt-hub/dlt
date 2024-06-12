@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
@@ -7,10 +7,6 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
-from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
-from dlt import version
-
-import fsspec
 
 
 @configspec
@@ -30,6 +26,13 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             account_key=self.azure_storage_account_key,
             sas_token=self.azure_storage_sas_token,
         )
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/azure
+        creds = self.to_adlfs_credentials()
+        if creds["sas_token"] is None:
+            creds.pop("sas_token")
+        return creds
 
     def create_sas_token(self) -> None:
         from azure.storage.blob import generate_account_sas, ResourceTypes
@@ -51,6 +54,26 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
 
 
 @configspec
+class AzureServicePrincipalCredentialsWithoutDefaults(CredentialsConfiguration):
+    azure_storage_account_name: str = None
+    azure_tenant_id: str = None
+    azure_client_id: str = None
+    azure_client_secret: TSecretStrValue = None
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        return dict(
+            account_name=self.azure_storage_account_name,
+            tenant_id=self.azure_tenant_id,
+            client_id=self.azure_client_id,
+            client_secret=self.azure_client_secret,
+        )
+
+    def to_object_store_rs_credentials(self) -> Dict[str, str]:
+        # https://docs.rs/object_store/latest/object_store/azure
+        return self.to_adlfs_credentials()
+
+
+@configspec
 class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
     def on_partial(self) -> None:
         from azure.identity import DefaultAzureCredential
@@ -67,3 +90,31 @@ class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
         if self.has_default_credentials():
             base_kwargs["anon"] = False
         return base_kwargs
+
+
+@configspec
+class AzureServicePrincipalCredentials(
+    AzureServicePrincipalCredentialsWithoutDefaults, CredentialsWithDefault
+):
+    def on_partial(self) -> None:
+        from azure.identity import DefaultAzureCredential
+
+        self._set_default_credentials(DefaultAzureCredential())
+        if self.azure_storage_account_name:
+            self.resolve()
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        base_kwargs = super().to_adlfs_credentials()
+        if self.has_default_credentials():
+            base_kwargs["anon"] = False
+        return base_kwargs
+
+
+AnyAzureCredentials = Union[
+    # Credentials without defaults come first because union types are attempted in order
+    # and explicit config should supersede system defaults
+    AzureCredentialsWithoutDefaults,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+    AzureCredentials,
+    AzureServicePrincipalCredentials,
+]

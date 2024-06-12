@@ -9,10 +9,7 @@ from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.schema.utils import has_table_seen_data
-from dlt.common.storages import (
-    NormalizeStorage,
-    LoadStorage,
-)
+from dlt.common.storages import NormalizeStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny, TDataItem
@@ -295,7 +292,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                 items_count += batch.num_rows
                 # we may need to normalize
                 if is_native_arrow_writer and should_normalize is None:
-                    should_normalize, _, _, _ = pyarrow.should_normalize_arrow_schema(
+                    should_normalize, _, _, _, _ = pyarrow.should_normalize_arrow_schema(
                         batch.schema, columns_schema, schema.naming
                     )
                     if should_normalize:
@@ -376,7 +373,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         )
         if not must_rewrite:
             # in rare cases normalization may be needed
-            must_rewrite, _, _, _ = pyarrow.should_normalize_arrow_schema(
+            must_rewrite, _, _, _, _ = pyarrow.should_normalize_arrow_schema(
                 arrow_schema, self.schema.get_table_columns(root_table_name), self.schema.naming
             )
         if must_rewrite:

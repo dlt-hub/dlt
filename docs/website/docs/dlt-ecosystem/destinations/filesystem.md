@@ -6,7 +6,7 @@ The Filesystem destination stores data in remote file systems and bucket storage
 ## Install dlt with filesystem
 **To install the dlt library with filesystem dependencies:**
 ```sh
-pip install dlt[filesystem]
+pip install "dlt[filesystem]"
 ```
 
 This installs `s3fs` and `botocore` packages.
@@ -21,9 +21,7 @@ pip install s3fs
 so pip does not fail on backtracking.
 :::
 
-## Setup Guide
-
-### 1. Initialise the dlt project
+## Initialise the dlt project
 
 Let's start by initializing a new dlt project as follows:
    ```sh
@@ -33,9 +31,9 @@ Let's start by initializing a new dlt project as follows:
 This command will initialize your pipeline with chess as the source and the AWS S3 filesystem as the destination.
 :::
 
-### 2. Set up bucket storage and credentials
+## Set up bucket storage and credentials
 
-#### AWS S3
+### AWS S3
 The command above creates a sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
 ```sh
 pip install -r requirements.txt
@@ -100,7 +98,7 @@ You need to create an S3 bucket and a user who can access that bucket. `dlt` doe
 5. To grab the access and secret key for the user. Go to IAM > Users and in the “Security Credentials”, click on “Create Access Key”, and preferably select “Command Line Interface” and create the access key.
 6. Grab the “Access Key” and “Secret Access Key” created that are to be used in "secrets.toml".
 
-##### Using S3 compatible storage
+#### Using S3 compatible storage
 
 To use an S3 compatible storage other than AWS S3 like [MinIO](https://min.io/) or [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
@@ -114,7 +112,7 @@ aws_secret_access_key = "please set me up!" # copy the secret access key here
 endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpoint URL here
 ```
 
-##### Adding Additional Configuration
+#### Adding Additional Configuration
 
 To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in the config as a **stringified dictionary**:
 
@@ -124,8 +122,8 @@ kwargs = '{"use_ssl": true, "auto_mkdir": true}'
 client_kwargs = '{"verify": "public.crt"}'
 ```
 
-#### Google Storage
-Run `pip install dlt[gs]` which will install the `gcfs` package.
+### Google Storage
+Run `pip install "dlt[gs]"` which will install the `gcfs` package.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
 You'll see AWS credentials by default.
@@ -147,10 +145,16 @@ if you have default google cloud credentials in your environment (i.e. on cloud 
 
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
-#### Azure Blob Storage
-Run `pip install dlt[az]` which will install the `adlfs` package to interface with Azure Blob Storage.
+### Azure Blob Storage
+Run `pip install "dlt[az]"` which will install the `adlfs` package to interface with Azure Blob Storage.
 
-Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials:
+Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials.
+
+Two forms of Azure credentials are supported:
+
+#### SAS token credentials
+
+Supply storage account name and either sas token or storage account key
 
 ```toml
 [destination.filesystem]
@@ -168,7 +172,21 @@ If you have the correct Azure credentials set up on your machine (e.g. via azure
 you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and `dlt` will fall back to the available default.
 Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
 
-#### Local file system
+#### Service principal credentials
+
+Supply a client ID, client secret and a tenant ID for a service principal authorized to access your container
+
+```toml
+[destination.filesystem]
+bucket_url = "az://[your_container name]" # replace with your container name
+
+[destination.filesystem.credentials]
+azure_client_id = "client_id" # please set me up!
+azure_client_secret = "client_secret"
+azure_tenant_id = "tenant_id" # please set me up!
+```
+
+### Local file system
 If for any reason you want to have those files in a local folder, set up the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)
 
 ```toml
@@ -176,10 +194,24 @@ If for any reason you want to have those files in a local folder, set up the `bu
 bucket_url = "file:///absolute/path"  # three / for an absolute path
 ```
 
-`dlt` correctly handles the native local file paths. Indeed, using the `file://` schema may be not intuitive especially for Windows users.
+:::tip
+For handling deeply nested layouts, consider enabling automatic directory creation for the local filesystem destination. This can be done by setting `kwargs` in `secrets.toml`:
 
 ```toml
 [destination.filesystem]
+kwargs = '{"auto_mkdir": true}'
+```
+
+Or by setting environment variable:
+```sh
+export DESTINATION__FILESYSTEM__KWARGS = '{"auto_mkdir": true/false}'
+```
+:::
+
+`dlt` correctly handles the native local file paths. Indeed, using the `file://` schema may be not intuitive especially for Windows users.
+
+```toml
+[destination.unc_destination]
 bucket_url = 'C:\a\b\c'
 ```
 
@@ -359,18 +391,17 @@ Please note:
 
 The filesystem destination configuration supports advanced layout customization and the inclusion of additional placeholders. This can be done through `config.toml` or programmatically when initializing via a factory method.
 
-:::tip
-For handling deeply nested layouts, consider enabling automatic directory creation for the local filesystem destination. This can be done by setting `kwargs = '{"auto_mkdir": true}'` to facilitate the creation of directories automatically.
-:::
-
 #### Configuration via `config.toml`
 
 To configure the layout and placeholders using `config.toml`, use the following format:
 
 ```toml
+[destination.filesystem]
 layout = "{table_name}/{test_placeholder}/{YYYY}-{MM}-{DD}/{ddd}/{mm}/{load_id}.{file_id}.{ext}"
 extra_placeholders = { "test_placeholder" = "test_value" }
 current_datetime="2024-04-14T00:00:00"
+# for automatic directory creation in the local filesystem
+kwargs = '{"auto_mkdir": true}'
 ```
 
 :::note
@@ -449,6 +480,40 @@ You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is supported
 * [csv](../file-formats/csv.md) is supported
 
+## Supported table formats
+You can choose the following table formats:
+* [Delta](../table-formats/delta.md) is supported
+
+### Delta table format
+You need the `deltalake` package to use this format:
+
+```sh
+pip install "dlt[deltalake]"
+```
+
+Set the `table_format` argument to `delta` when defining your resource:
+
+```py
+@dlt.resource(table_format="delta")
+def my_delta_resource():
+    ...
+```
+
+> `dlt` always uses `parquet` as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+
+#### Storage options
+You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
+
+```toml
+[destination.filesystem]
+deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
+```
+
+`dlt` passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
+
+You don't need to specify credentials here. `dlt` merges the required credentials with the options you provided, before passing it as `storage_options`.
+
+>❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior. 
 
 ## Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files that will be created at your destination which hold information about your pipeline state, schemas and completed loads. These folders DO NOT respect your

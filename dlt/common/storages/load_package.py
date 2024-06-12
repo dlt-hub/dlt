@@ -35,7 +35,7 @@ from dlt.common.data_writers import DataWriter, new_file_id
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound, CurrentLoadPackageStateNotAvailable
 from dlt.common.typing import DictStrAny, SupportsHumanize
@@ -75,6 +75,11 @@ class TLoadPackageState(TVersionedState, total=False):
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+
+    dropped_tables: NotRequired[List[TTableSchema]]
+    """List of tables that are to be dropped from the schema and destination (i.e. when `refresh` mode is used)"""
+    truncated_tables: NotRequired[List[TTableSchema]]
+    """List of tables that are to be truncated in the destination (i.e. when `refresh='drop_data'` mode is used)"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -136,7 +141,7 @@ TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborte
 
 
 class ParsedLoadJobFileName(NamedTuple):
-    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retired, extension
+    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retried, extension
     and a 5 bytes random string to make job file name unique.
     The job id does not contain retry count and is immutable during loading of the data
     """

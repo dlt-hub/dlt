@@ -50,9 +50,9 @@ if __name__ == "__main__":
     print("You must run this from the docs/examples/chess folder")
     # chess_url in config.toml, credentials for postgres in secrets.toml, credentials always under credentials key
     # look for parallel run configuration in `config.toml`!
-    # mind the full_refresh: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state
+    # mind the dev_mode: it makes the pipeline to load to a distinct dataset each time it is run and always is resetting the schema and state
     load_info = dlt.pipeline(
-        pipeline_name="chess_games", destination="postgres", dataset_name="chess", full_refresh=True
+        pipeline_name="chess_games", destination="postgres", dataset_name="chess", dev_mode=True
     ).run(chess(max_players=5, month=9))
     # display where the data went
     print(load_info)

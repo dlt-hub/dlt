@@ -9,7 +9,7 @@ keywords: [duckdb, destination, data warehouse]
 ## Install dlt with DuckDB
 **To install the dlt library with DuckDB dependencies, run:**
 ```sh
-pip install dlt[duckdb]
+pip install "dlt[duckdb]"
 ```
 
 ## Setup Guide
@@ -90,7 +90,7 @@ p = dlt.pipeline(
   pipeline_name='chess',
   destination=dlt.destinations.duckdb("files/data.db"),
   dataset_name='chess_data',
-  full_refresh=False
+  dev_mode=False
 )
 
 # will load data to /var/local/database.duckdb (absolute path)
@@ -98,7 +98,7 @@ p = dlt.pipeline(
   pipeline_name='chess',
   destination=dlt.destinations.duckdb("/var/local/database.duckdb"),
   dataset_name='chess_data',
-  full_refresh=False
+  dev_mode=False
 )
 ```
 
@@ -112,7 +112,7 @@ p = dlt.pipeline(
   pipeline_name="chess",
   destination=dlt.destinations.duckdb(db),
   dataset_name="chess_data",
-  full_refresh=False,
+  dev_mode=False,
 )
 
 # Or if you would like to use in-memory duckdb instance
@@ -183,4 +183,3 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA duckdb-->
-

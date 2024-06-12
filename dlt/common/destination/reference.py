@@ -18,8 +18,8 @@ from typing import (
     Any,
     TypeVar,
     Generic,
-    Final,
 )
+from typing_extensions import Annotated
 import datetime  # noqa: 251
 from copy import deepcopy
 import inspect
@@ -35,9 +35,8 @@ from dlt.common.schema.utils import (
     has_column_with_prop,
     get_first_column_name_with_prop,
 )
-from dlt.common.configuration import configspec, resolve_configuration, known_sections
+from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
     IdentifierTooLongException,
@@ -49,6 +48,7 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -78,7 +78,7 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_type: Final[str] = dataclasses.field(
+    destination_type: Annotated[str, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )  # which destination to load data to
     credentials: Optional[CredentialsConfiguration] = None
@@ -103,11 +103,11 @@ class DestinationClientConfiguration(BaseConfiguration):
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
-    dataset_name: Final[str] = dataclasses.field(
+    dataset_name: Annotated[str, NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
-    )  # dataset must be final so it is not configurable
+    )  # dataset cannot be resolved
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
-    default_schema_name: Final[Optional[str]] = dataclasses.field(
+    default_schema_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
     )
     """name of default schema to be used to name effective dataset to load data to"""
@@ -121,8 +121,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         This method is intended to be used internally.
         """
-        self.dataset_name = dataset_name  # type: ignore[misc]
-        self.default_schema_name = default_schema_name  # type: ignore[misc]
+        self.dataset_name = dataset_name
+        self.default_schema_name = default_schema_name
         return self
 
     def normalize_dataset_name(self, schema: Schema) -> str:
@@ -313,7 +313,9 @@ class JobClientBase(ABC):
         return table["write_disposition"] == "replace"
 
     def create_table_chain_completed_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
+        self,
+        table_chain: Sequence[TTableSchema],
+        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
@@ -624,7 +626,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return dest
 
     def client(
-        self, schema: Schema, initial_config: TDestinationConfig = config.value
+        self, schema: Schema, initial_config: TDestinationConfig = None
     ) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""
         return self.client_class(schema, self.configuration(initial_config))

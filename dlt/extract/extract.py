@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
 from dlt.common.configuration.container import Container
@@ -32,9 +32,8 @@ from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
     TPipelineStateDoc,
+    commit_load_package_state,
 )
-
-
 from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
@@ -46,6 +45,7 @@ from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage
 from dlt.extract.extractors import ObjectExtractor, ArrowExtractor, Extractor
 from dlt.extract.utils import get_data_item_format
+from dlt.pipeline.drop import drop_resources
 
 
 def data_to_sources(
@@ -219,7 +219,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if name == "incremental":
                     # represent incremental as dictionary (it derives from BaseConfiguration)
                     if isinstance(hint, IncrementalResourceWrapper):
-                        hint = hint._incremental
+                        hint = hint.incremental
                     # sometimes internal incremental is not bound
                     if hint:
                         hints[name] = dict(hint)  # type: ignore[call-overload]
@@ -297,9 +297,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         load_id: str,
         source: DltSource,
         *,
-        max_parallel_items: int = None,
-        workers: int = None,
-        futures_poll_interval: float = None,
+        max_parallel_items: int,
+        workers: int,
     ) -> None:
         schema = source.schema
         collector = self.collector
@@ -319,7 +318,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source.resources.selected_pipes,
                     max_parallel_items=max_parallel_items,
                     workers=workers,
-                    futures_poll_interval=futures_poll_interval,
                 ) as pipes:
                     left_gens = total_gens = len(pipes._sources)
                     collector.update("Resources", 0, total_gens)
@@ -369,6 +367,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         source: DltSource,
         max_parallel_items: int,
         workers: int,
+        load_package_state_update: Optional[Dict[str, Any]] = None,
     ) -> str:
         # generate load package to be able to commit all the sources together later
         load_id = self.extract_storage.create_load_package(source.discover_schema())
@@ -378,9 +377,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             SourceInjectableContext(source)
         ), Container().injectable_context(
             LoadPackageStateInjectableContext(
-                storage=self.extract_storage.new_packages, load_id=load_id
+                load_id=load_id, storage=self.extract_storage.new_packages
             )
-        ):
+        ) as load_package:
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(
@@ -388,6 +387,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source_state_key=source.name,
                 )
             ):
+                if load_package_state_update:
+                    load_package.state.update(load_package_state_update)  # type: ignore[typeddict-item]
+
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():
                     with contextlib.suppress(DataItemRequiredForDynamicTableHints):
@@ -400,6 +402,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
+                commit_load_package_state()
         return load_id
 
     def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:
