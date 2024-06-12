@@ -144,6 +144,23 @@ athena:
       work_group: "{{ env_var('DLT__ATHENA_WORK_GROUP', '') }}"
 
 
+mssql:
+  target: analytics
+  outputs:
+    analytics:
+      type: sqlserver
+      driver: "{{ env_var('DLT__CREDENTIALS__DRIVER') }}"
+      server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      port: "{{ env_var('DLT__CREDENTIALS__PORT') | as_number }}"
+      database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      login_timeout: "{{ env_var('DLT__CREDENTIALS__CONNECT_TIMEOUT', '0')  | as_number }}"
+      encrypt: "{{ (env_var('DLT__CREDENTIALS__QUERY__ENCRYPT', 'No') == 'yes')  | as_bool }}"
+      trust_cert: "{{ (env_var('DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE', 'yes') == 'yes')  | as_bool }}"
+
+
 # commented out because dbt for Synapse isn't currently properly supported.
 # Leave config here for potential future use.
 # synapse:
@@ -157,7 +174,7 @@ athena:
 #       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
 #       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
 #       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
-#       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"    
+#       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
 
 
 databricks:

@@ -23,7 +23,8 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
     # yield Venv.restore_current()
-    with create_venv(tempfile.mkdtemp(), list(ACTIVE_SQL_DESTINATIONS)) as venv:
+    # NOTE: we limit the max version of dbt to allow all dbt adapters to run. ie. sqlserver does not work on 1.8
+    with create_venv(tempfile.mkdtemp(), list(ACTIVE_SQL_DESTINATIONS), dbt_version="<1.8") as venv:
         yield venv
 
 
@@ -70,6 +71,12 @@ def test_run_jaffle_package(
     ids=lambda x: x.name,
 )
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
+    if destination_config.destination == "mssql":
+        pytest.skip(
+            "mssql requires non standard SQL syntax and we do not have specialized dbt package"
+            " for it"
+        )
+
     from docs.examples.chess.chess import chess
 
     # provide chess url via environ
@@ -123,6 +130,11 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
 def test_run_chess_dbt_to_other_dataset(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
 ) -> None:
+    if destination_config.destination == "mssql":
+        pytest.skip(
+            "mssql requires non standard SQL syntax and we do not have specialized dbt package"
+            " for it"
+        )
     from docs.examples.chess.chess import chess
 
     # provide chess url via environ

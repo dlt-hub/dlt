@@ -60,7 +60,7 @@ jobs:
 
       - name: Install dependencies
         # install dlt with postgres support
-        run: poetry install --no-interaction -E postgres -E dbt --with sentry-sdk
+        run: poetry install --no-interaction -E postgres --with sentry-sdk,dbt
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
