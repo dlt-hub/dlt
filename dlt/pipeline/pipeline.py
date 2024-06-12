@@ -448,14 +448,13 @@ class Pipeline(SupportsPipeline):
                         refresh=refresh or self.refresh,
                     )
                 # extract state
-                state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:
                     # this will update state version hash so it will not be extracted again by with_state_sync
-                    state = self._bump_version_and_extract_state(
+                    self._bump_version_and_extract_state(
                         self._container[StateInjectableContext].state, True, extract_step
                     )
                 # commit load packages with state
-                extract_step.commit_packages(state)
+                extract_step.commit_packages()
                 return self._get_step_info(extract_step)
         except Exception as exc:
             # emit step info
@@ -1604,13 +1603,22 @@ class Pipeline(SupportsPipeline):
         _, hash_, _ = bump_pipeline_state_version_if_modified(self._props_to_state(state))
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:
-            data, doc = state_resource(state)
-            extract_ = extract or Extract(
-                self._schema_storage, self._normalize_storage_config(), original_data=data
+            extract_ = extract or Extract(self._schema_storage, self._normalize_storage_config())
+            # create or get load package upfront to get load_id to create state doc
+            schema = schema or self.default_schema
+            # note that we preferably retrieve existing package for `schema`
+            # same thing happens in extract_.extract so the load_id is preserved
+            load_id = extract_.extract_storage.create_load_package(
+                schema, reuse_exiting_package=True
             )
+            data, doc = state_resource(state, load_id)
+            extract_.original_data = data
+            # append pipeline state to package state
+            load_package_state_update = load_package_state_update or {}
+            load_package_state_update["pipeline_state"] = doc
             self._extract_source(
                 extract_,
-                data_to_sources(data, self, schema or self.default_schema)[0],
+                data_to_sources(data, self, schema)[0],
                 1,
                 1,
                 load_package_state_update=load_package_state_update,
@@ -1619,7 +1627,7 @@ class Pipeline(SupportsPipeline):
             mark_state_extracted(state, hash_)
             # commit only if we created storage
             if not extract:
-                extract_.commit_packages(doc)
+                extract_.commit_packages()
             return doc
         return None
 
