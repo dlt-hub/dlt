@@ -16,4 +16,6 @@ def capabilities(
     caps.supports_transactions = False
     caps.naming_convention = naming_convention
     caps.max_table_nesting = max_table_nesting
+    caps.max_parallel_load_jobs = max_parallel_load_jobs
+    caps.loader_parallelism_strategy = loader_parallelism_strategy
     return caps

@@ -53,7 +53,12 @@ from dlt.load.exceptions import (
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
 )
-from dlt.load.utils import _extend_tables_with_table_chain, get_completed_table_chain, init_client
+from dlt.load.utils import (
+    _extend_tables_with_table_chain,
+    get_completed_table_chain,
+    init_client,
+    filter_new_jobs,
+)
 
 
 class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
@@ -189,47 +194,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 
-    def filter_new_jobs(self, file_names: Sequence[str]) -> Sequence[str]:
-        """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
-
-        # nothing to do
-        if not file_names:
-            return file_names
-
-        # destination can overwrite ps
-        parallelism_strategy = (
-            self.capabilities.loader_parallelism_strategy or self.config.parallelism_strategy
-        )
-
-        # we only always process one
-        if parallelism_strategy == "sequential":
-            return file_names[:1]
-
-        # find real max workers value
-        max_workers = self.config.workers
-        if mp := self.capabilities.max_parallel_load_jobs:
-            max_workers = min(max_workers, mp)
-
-        # regular sequential will take max worker amount no matter the table
-        if parallelism_strategy == "parallel":
-            return file_names[:max_workers]
-
-        # we must ensure there only is one job per table
-        if parallelism_strategy == "table_sequential":
-            filtered_jobs: List[str] = []
-            seen_tables: Set[str] = set()
-            for job in file_names:
-                table_name = ParsedLoadJobFileName.parse(job).table_name
-                if table_name not in seen_tables:
-                    filtered_jobs.append(job)
-                    seen_tables.add(table_name)
-                if len(filtered_jobs) == max_workers:
-                    break
-            return filtered_jobs
-
     def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
-        load_files = self.filter_new_jobs(self.load_storage.list_new_jobs(load_id))
+        load_files = filter_new_jobs(
+            self.load_storage.list_new_jobs(load_id), self.capabilities, self.config
+        )
         file_count = len(load_files)
         if file_count == 0:
             logger.info(f"No new jobs found in {load_id}")
