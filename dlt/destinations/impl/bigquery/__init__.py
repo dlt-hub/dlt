@@ -14,6 +14,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.has_case_sensitive_identifiers = (
         True  # there are case insensitive identifiers but dlt does not use them
     )
+    caps.casefold_identifier = str
     # BQ limit is 4GB but leave a large headroom since buffered writer does not preemptively check size
     caps.recommended_file_size = int(1024 * 1024 * 1024)
     caps.format_datetime_literal = format_bigquery_datetime_literal

@@ -1,11 +1,10 @@
 import functools
 import os
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
-from google.cloud import exceptions as gcp_exceptions
 from google.api_core import retry
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
@@ -370,6 +369,25 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     )
                 )
         return table
+
+    def _get_info_schema_columns_query(
+        self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
+    ) -> Tuple[str, List[Any]]:
+        """Bigquery needs to scope the INFORMATION_SCHEMA.COLUMNS with project and dataset name so standard query generator cannot be used."""
+        # escape schema and catalog names
+        catalog_name = self.capabilities.escape_identifier(catalog_name)
+        schema_name = self.capabilities.escape_identifier(schema_name)
+
+        query = f"""
+SELECT {",".join(self._get_storage_table_query_columns())}
+    FROM {catalog_name}.{schema_name}.INFORMATION_SCHEMA.COLUMNS
+WHERE """
+
+        # placeholder for each table
+        table_placeholders = ",".join(["%s"] * len(folded_table_names))
+        query += f"table_name IN ({table_placeholders}) ORDER BY table_name, ordinal_position;"
+
+        return query, folded_table_names
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.sql_client.escape_column_name(column["name"])
