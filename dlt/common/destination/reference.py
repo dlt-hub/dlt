@@ -68,7 +68,7 @@ class StateInfo(NamedTuple):
     pipeline_name: str
     state: str
     created_at: datetime.datetime
-    dlt_load_id: str = None
+    dlt_load_id: str
 
 
 @configspec

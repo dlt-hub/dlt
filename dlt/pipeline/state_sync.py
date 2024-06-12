@@ -98,8 +98,8 @@ def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     return doc
 
 
-def state_resource(state: TPipelineState) -> Tuple[DltResource, TPipelineStateDoc]:
-    doc = state_doc(state)
+def state_resource(state: TPipelineState, load_id: str) -> Tuple[DltResource, TPipelineStateDoc]:
+    doc = state_doc(state, load_id)
     return (
         dlt.resource(
             [doc],
