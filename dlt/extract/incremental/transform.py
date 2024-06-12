@@ -37,7 +37,7 @@ class IncrementalTransform:
     """A base class for handling extraction and stateful tracking
     of incremental data from input data items.
 
-    By default, the descendant classes are instantiated withing the
+    By default, the descendant classes are instantiated within the
     `dlt.extract.incremental.Incremental` class.
 
     Subclasses must implement the `__call__` method which will be called
