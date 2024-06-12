@@ -35,12 +35,10 @@ from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     loads_table,
     normalize_table_identifiers,
-    pipeline_state_table,
     version_table,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
-from dlt.common.data_types import TDataType
 from dlt.common.storages import FileStorage
 
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
@@ -49,6 +47,7 @@ from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateGrpcError
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.utils import get_pipeline_state_query_columns
 
 
 NON_VECTORIZED_CLASS = {
@@ -251,11 +250,13 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self.version_collection_properties = list(version_table_["columns"].keys())
         loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
         self.loads_collection_properties = list(loads_table_["columns"].keys())
-        state_table_ = normalize_table_identifiers(pipeline_state_table(), schema.naming)
+        state_table_ = normalize_table_identifiers(
+            get_pipeline_state_query_columns(), schema.naming
+        )
         self.pipeline_state_properties = list(state_table_["columns"].keys())
 
         self.config: WeaviateClientConfiguration = config
-        self.db_client = self.create_db_client(config)
+        self.db_client: weaviate.Client = None
 
         self._vectorizer_config = {
             "vectorizer": config.vectorizer,
@@ -529,7 +530,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             if len(state_records) == 0:
                 return None
             for state in state_records:
-                load_id = state["_dlt_load_id"]
+                load_id = state[p_dlt_load_id]
                 load_records = self.get_records(
                     self.schema.loads_table_name,
                     where={
@@ -543,7 +544,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 # if there is a load for this state which was successful, return the state
                 if len(load_records):
                     state["dlt_load_id"] = state.pop(p_dlt_load_id)
-                    state.pop("version_hash")
                     return StateInfo(**state)
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
@@ -582,7 +582,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
             return None
 
     @wrap_weaviate_error
-    # @wrap_grpc_error
     def get_records(
         self,
         table_name: str,
@@ -697,6 +696,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self.create_object(properties, self.schema.loads_table_name)
 
     def __enter__(self) -> "WeaviateClient":
+        self.db_client = self.create_db_client(self.config)
         return self
 
     def __exit__(
@@ -705,7 +705,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
         exc_val: BaseException,
         exc_tb: TracebackType,
     ) -> None:
-        pass
+        if self.db_client:
+            self.db_client = None
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         schema_str = json.dumps(schema.to_dict())

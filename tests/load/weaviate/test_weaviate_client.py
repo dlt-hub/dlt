@@ -59,11 +59,11 @@ def make_client(naming_convention: str) -> Iterator[WeaviateClient]:
         "test_schema",
         {"names": f"dlt.destinations.impl.weaviate.{naming_convention}", "json": None},
     )
-    _client = get_client_instance(schema)
-    try:
-        yield _client
-    finally:
-        _client.drop_storage()
+    with get_client_instance(schema) as _client:
+        try:
+            yield _client
+        finally:
+            _client.drop_storage()
 
 
 @pytest.fixture

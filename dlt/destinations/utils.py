@@ -4,11 +4,12 @@ from typing import Any, List, Optional, Tuple
 from dlt.common import logger
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
-from dlt.common.schema.typing import MERGE_STRATEGIES
+from dlt.common.schema.typing import MERGE_STRATEGIES, TTableSchema
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     has_column_with_prop,
+    pipeline_state_table,
 )
 from typing import Any, cast, Tuple, Dict, Type
 
@@ -49,6 +50,14 @@ def parse_db_data_type_str_with_precision(db_type: str) -> Tuple[str, Optional[i
 
     # If the pattern does not match, return the original type without precision and scale
     return db_type, None, None
+
+
+def get_pipeline_state_query_columns() -> TTableSchema:
+    """We get definition of pipeline state table without columns we do not need for the query"""
+    state_table = pipeline_state_table()
+    # we do not need version_hash to be backward compatible as long as we can
+    state_table["columns"].pop("version_hash")
+    return state_table
 
 
 def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[Exception]:

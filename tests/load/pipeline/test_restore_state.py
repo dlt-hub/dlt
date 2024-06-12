@@ -77,7 +77,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
         initial_state["_local"]["_last_extracted_hash"] = initial_state["_version_hash"]
         # add _dlt_id and _dlt_load_id
-        resource, _ = state_resource(initial_state)
+        resource, _ = state_resource(initial_state, "not_used_load_id")
         resource.apply_hints(
             columns={
                 "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False},
@@ -195,15 +195,19 @@ def test_silently_skip_on_invalid_credentials(
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
 @pytest.mark.parametrize(
-    "naming_convention", ["tests.common.cases.normalizers.title_case", "snake_case"]
+    "naming_convention",
+    [
+        "tests.common.cases.normalizers.title_case",
+        "snake_case",
+        "tests.common.cases.normalizers.sql_upper",
+    ],
 )
 def test_get_schemas_from_destination(
     destination_config: DestinationTestConfiguration,
     use_single_dataset: bool,
     naming_convention: str,
 ) -> None:
-    # use specific naming convention
-    os.environ["SCHEMA__NAMING"] = naming_convention
+    set_naming_env(destination_config.destination, naming_convention)
 
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
@@ -288,13 +292,17 @@ def test_get_schemas_from_destination(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
-    "naming_convention", ["tests.common.cases.normalizers.title_case", "snake_case", "sql_upper"]
+    "naming_convention",
+    [
+        "tests.common.cases.normalizers.title_case",
+        "snake_case",
+        "tests.common.cases.normalizers.sql_upper",
+    ],
 )
 def test_restore_state_pipeline(
     destination_config: DestinationTestConfiguration, naming_convention: str
 ) -> None:
-    # use specific naming convention
-    os.environ["SCHEMA__NAMING"] = naming_convention
+    set_naming_env(destination_config.destination, naming_convention)
     # enable restoring from destination
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
@@ -471,6 +479,9 @@ def test_restore_schemas_while_import_schemas_exist(
     # make sure schema got imported
     schema = p.schemas["ethereum"]
     assert "blocks" in schema.tables
+    # allow to modify tables even if naming convention is changed. some of the tables in ethereum schema
+    # have processing hints that lock the table schema. so when weaviate changes naming convention we have an exception
+    os.environ["SCHEMA__ALLOW_IDENTIFIER_CHANGE_ON_TABLE_WITH_DATA"] = "true"
 
     # extract some additional data to upgrade schema in the pipeline
     p.run(
@@ -516,7 +527,7 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_annotations in schema.tables
 
     # check if attached to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
     # extract some data with restored pipeline
     p.run(
         ["C", "D", "E"], table_name="blacklist", loader_file_format=destination_config.file_format
@@ -729,3 +740,15 @@ def prepare_import_folder(p: Pipeline) -> None:
         common_yml_case_path("schemas/eth/ethereum_schema_v5"),
         os.path.join(p._schema_storage.config.import_schema_path, "ethereum.schema.yaml"),
     )
+
+
+def set_naming_env(destination: str, naming_convention: str) -> None:
+    # snake case is for default convention so do not set it
+    if naming_convention != "snake_case":
+        # path convention to test weaviate ci_naming
+        if destination == "weaviate":
+            if naming_convention.endswith("sql_upper"):
+                pytest.skip(f"{naming_convention} not supported on weaviate")
+            else:
+                naming_convention = "dlt.destinations.impl.weaviate.ci_naming"
+        os.environ["SCHEMA__NAMING"] = naming_convention

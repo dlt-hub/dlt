@@ -1,6 +1,7 @@
 import pytest
 import os
 
+from dlt.common.schema.exceptions import SchemaIdentifierNormalizationClash
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -54,7 +55,10 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
             table_name="🦚peacocks🦚",
             loader_file_format=destination_config.file_format,
         )
-    assert isinstance(pip_ex.value.__context__, DatabaseTerminalException)
+    assert isinstance(pip_ex.value.__context__, SchemaIdentifierNormalizationClash)
+    assert pip_ex.value.__context__.conflict_identifier_name == "🦚Peacocks🦚"
+    assert pip_ex.value.__context__.identifier_name == "🦚peacocks🦚"
+    assert pip_ex.value.__context__.identifier_type == "table"
 
     # show tables and columns
     with pipeline.sql_client() as client:

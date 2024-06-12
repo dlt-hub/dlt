@@ -1,36 +1,22 @@
 from copy import deepcopy
 import os
-from typing import Callable, List, Sequence, cast
+from typing import Callable
 import pytest
 
-from dlt.common import pendulum, json
+from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.normalizers.naming.naming import NamingConvention
-from dlt.common.schema.migrations import migrate_schema
 from dlt.common.storages import SchemaStorageConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.exceptions import DictValidationException
-from dlt.common.normalizers.naming import snake_case, direct, sql_upper
-from dlt.common.typing import DictStrAny, StrAny
-from dlt.common.utils import uniq_id
-from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils, TColumnHint
-from dlt.common.schema.exceptions import (
-    InvalidSchemaName,
-    ParentTableNotFoundException,
-    SchemaEngineNoUpgradePathException,
-    TableIdentifiersFrozen,
-)
-from dlt.common.schema.typing import (
-    LOADS_TABLE_NAME,
-    SIMPLE_REGEX_PREFIX,
-    VERSION_TABLE_NAME,
-    TColumnName,
-    TSimpleRegex,
-    COLUMN_HINTS,
-)
+from dlt.common.normalizers.naming import snake_case, direct
+from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
+from dlt.common.schema.exceptions import TableIdentifiersFrozen
+from dlt.common.schema.typing import SIMPLE_REGEX_PREFIX
 from dlt.common.storages import SchemaStorage
-from tests.common.utils import load_json_case, load_yml_case, COMMON_TEST_CASES_PATH
+
+from tests.common.cases.normalizers import sql_upper
+from tests.common.utils import load_json_case, load_yml_case
 
 
 @pytest.fixture
@@ -178,7 +164,7 @@ def test_update_normalizers() -> None:
     # save default hints in original form
     default_hints = schema._settings["default_hints"]
 
-    os.environ["SCHEMA__NAMING"] = "sql_upper"
+    os.environ["SCHEMA__NAMING"] = "tests.common.cases.normalizers.sql_upper"
     schema.update_normalizers()
     assert isinstance(schema.naming, sql_upper.NamingConvention)
     # print(schema.to_pretty_yaml())
@@ -188,7 +174,7 @@ def test_update_normalizers() -> None:
     assert schema.tables["ISSUES"]["resource"] == "issues"
 
     # make sure normalizer config is replaced
-    assert schema._normalizers_config["names"] == "sql_upper"
+    assert schema._normalizers_config["names"] == "tests.common.cases.normalizers.sql_upper"
     assert "allow_identifier_change_on_table_with_data" not in schema._normalizers_config
 
     # regexes are uppercased
@@ -273,7 +259,7 @@ def test_raise_on_change_identifier_table_with_data() -> None:
     # mark issues table to seen data and change naming to sql upper
     issues_table = schema.tables["issues"]
     issues_table["x-normalizer"] = {"seen-data": True}
-    os.environ["SCHEMA__NAMING"] = "sql_upper"
+    os.environ["SCHEMA__NAMING"] = "tests.common.cases.normalizers.sql_upper"
     with pytest.raises(TableIdentifiersFrozen) as fr_ex:
         schema.update_normalizers()
     assert fr_ex.value.table_name == "issues"
