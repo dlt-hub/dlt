@@ -9,7 +9,6 @@ from typing import (
 import pyarrow as pa
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from typing_extensions import TypeAlias
-
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.typing import DictStrAny
 from dlt.destinations.type_mapping import TypeMapper
@@ -53,7 +52,7 @@ def make_arrow_table_schema(
     embedding_model_func: Optional[TextEmbeddingFunction] = None,
     embedding_model_dimensions: Optional[int] = None,
 ) -> TArrowSchema:
-    """Creates a PyArrow schema from a dlt schema."""
+    """Creates a LanceDB adapted PyArrow schema from a dlt schema."""
     arrow_schema: List[TArrowField] = []
 
     if id_field_name:
@@ -66,14 +65,21 @@ def make_arrow_table_schema(
         )
 
     for column_name, column in schema.get_table_columns(table_name).items():
-        dtype = cast(TArrowDataType, type_mapper.to_db_type(column))
-
-        if embedding_fields and column_name in embedding_fields:
-            metadata = {"embedding_source": "true"}
-        else:
-            metadata = None
-
-        field = pa.field(column_name, dtype, metadata=metadata)
+        field = make_arrow_field_schema(
+            column_name, column, type_mapper, embedding_fields
+        )
         arrow_schema.append(field)
 
-    return pa.schema(arrow_schema)
+    metadata = {}
+    if embedding_model_func and embedding_fields:
+        embedding_functions = [
+            {
+                "source_column": source_column,
+                "vector_column": vector_field_name,
+                "function": embedding_model_func.safe_model_dump(),
+            }
+            for source_column in embedding_fields
+        ]
+        metadata["embedding_functions"] = embedding_functions
+
+    return pa.schema(arrow_schema, metadata=metadata)

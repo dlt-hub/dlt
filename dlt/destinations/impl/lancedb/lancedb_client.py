@@ -491,18 +491,22 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         )
                         vector_field_name = self.vector_field_name
                         id_field_name = self.id_field_name
+                        embedding_model_func = self.model_func
+                        embedding_model_dimensions  = self.config.embedding_model_dimensions
                     else:
                         embedding_fields = None
                         vector_field_name = None
                         id_field_name = None
+                        embedding_model_func = None
+                        embedding_model_dimensions = None
 
                     table_schema: TArrowSchema = make_arrow_table_schema(
                         table_name,
                         schema=self.schema,
                         type_mapper=self.type_mapper,
                         embedding_fields=embedding_fields,
-                        embedding_model_func=self.model_func,
-                        embedding_model_dimensions=self.config.embedding_model_dimensions,
+                        embedding_model_func=embedding_model_func,
+                        embedding_model_dimensions=embedding_model_dimensions,
                         vector_field_name=vector_field_name,
                         id_field_name=id_field_name
                     )
