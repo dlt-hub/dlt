@@ -577,6 +577,8 @@ When the API endpoint supports incremental loading, you can configure the source
 
 See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
+If you encounter issues with incremental loading, see the [troubleshooting section](../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
+
 ## Advanced configuration
 
 `rest_api_source()` function creates the [dlt source](../../general-usage/source.md) and lets you configure the following parameters:
@@ -686,6 +688,10 @@ If incorrect data is received from an endpoint, check the `data_selector` field 
 #### Getting insufficient data or incorrect pagination
 
 Check the `paginator` field in the configuration. When not explicitly specified, the source tries to auto-detect the pagination method. If auto-detection fails, or the system is unsure, a warning is logged. For production environments, we recommend to specify an explicit paginator in the configuration. See the [pagination](#pagination) section for more details. Some APIs may have non-standard pagination methods, and you may need to implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+
+#### Incremental loading not working
+
+See the [troubleshooting guide](../../general-usage/incremental-loading.md#troubleshooting) for incremental loading issues.
 
 #### Getting HTTP 404 errors
 
