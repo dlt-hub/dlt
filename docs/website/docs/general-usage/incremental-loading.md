@@ -982,11 +982,13 @@ def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, sta
 
 If you see that the incremental loading is not working as expected and the incremental values are not modified between pipeline runs, check the following:
 
-1. Make sure the destination, pipeline name and dataset name are the same between pipeline runs.
+1. Make sure the `destination`, `pipeline_name` and `dataset_name` are the same between pipeline runs.
 
-2. Check the logs for `Bind incremental on <resource_name> ...` message. This message indicates that the incremental value was bound to the resource and shows the state of the incremental value.
+2. Check if `dev_mode` is `False` in the pipeline configuration. Check if `refresh` for associated sources and resources is not enabled.
 
-3. After the pipeline run, check the state of the pipeline. You can do this by running the following command:
+3. Check the logs for `Bind incremental on <resource_name> ...` message. This message indicates that the incremental value was bound to the resource and shows the state of the incremental value.
+
+4. After the pipeline run, check the state of the pipeline. You can do this by running the following command:
 
 ```sh
 dlt pipeline -v <pipeline_name> info
