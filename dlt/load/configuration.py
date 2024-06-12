@@ -1,14 +1,18 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from dlt.common.configuration import configspec
 from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
+
+TLoaderParallelismStrategy = Literal["parallel", "table_sequential", "sequential"]
 
 
 @configspec
 class LoaderConfiguration(PoolRunnerConfiguration):
     workers: int = 20
     """how many parallel loads can be executed"""
+    parallelism_strategy: TLoaderParallelismStrategy = "parallel"
+    """Which parallelism strategy to use at load time"""
     pool_type: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
     raise_on_failed_jobs: bool = False
     """when True, raises on terminally failed jobs immediately"""
@@ -20,4 +24,6 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     truncate_staging_dataset: bool = False
 
     def on_resolved(self) -> None:
-        self.pool_type = "none" if self.workers == 1 else "thread"
+        self.pool_type = (
+            "none" if (self.workers == 1 or self.parallelism_strategy == "sequential") else "thread"
+        )
