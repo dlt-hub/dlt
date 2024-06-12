@@ -191,9 +191,6 @@ def upload_batch(
 
     try:
         if write_disposition in ("append", "skip"):
-            is_in_payload = ('schema_version_hash' in records[0])
-            is_in_target_schema = (tbl.schema.get_field_index('schema_version_hash') != -1)
-            mismatch_flag = is_in_payload or is_in_target_schema
             tbl.add(records)
         elif write_disposition == "replace":
             tbl.add(records, mode="replace")
