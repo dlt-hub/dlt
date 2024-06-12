@@ -68,6 +68,8 @@ def test_basic_state_and_schema() -> None:
         assert schema
         state = client.get_stored_state("test_pipeline_append")
         assert state
+        state = client.get_stored_state("unknown_pipeline")
+        assert state is None
 
 
 def test_pipeline_append() -> None:

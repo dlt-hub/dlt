@@ -7,8 +7,9 @@ from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
+    loads_table,
     normalize_table_identifiers,
-    pipeline_state_table,
+    version_table,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
@@ -18,7 +19,7 @@ from dlt.common.time import precise_time
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 
-from dlt.destinations.impl.qdrant import capabilities
+from dlt.destinations.utils import get_pipeline_state_query_columns
 from dlt.destinations.impl.qdrant.configuration import QdrantClientConfiguration
 from dlt.destinations.impl.qdrant.qdrant_adapter import VECTORIZE_HINT
 
@@ -54,21 +55,24 @@ class LoadQdrantJob(LoadJob):
                     if self.unique_identifiers
                     else uuid.uuid4()
                 )
-                embedding_doc = self._get_embedding_doc(data)
                 payloads.append(data)
                 ids.append(point_id)
-                docs.append(embedding_doc)
+                if len(self.embedding_fields) > 0:
+                    docs.append(self._get_embedding_doc(data))
 
-            embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
-            embeddings = list(
-                embedding_model.embed(
-                    docs,
-                    batch_size=self.config.embedding_batch_size,
-                    parallel=self.config.embedding_parallelism,
+            if len(self.embedding_fields) > 0:
+                embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
+                embeddings = list(
+                    embedding_model.embed(
+                        docs,
+                        batch_size=self.config.embedding_batch_size,
+                        parallel=self.config.embedding_parallelism,
+                    )
                 )
-            )
-            vector_name = db_client.get_vector_field_name()
-            embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
+                vector_name = db_client.get_vector_field_name()
+                embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
+            else:
+                embeddings = [{}] * len(ids)
             assert len(embeddings) == len(payloads) == len(ids)
 
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
@@ -153,21 +157,18 @@ class QdrantClient(JobClientBase, WithStateSync):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         super().__init__(schema, config, capabilities)
-        self.version_collection_properties = list(
-            schema.get_table_columns(schema.version_table_name).keys()
+        # get definitions of the dlt tables, normalize column names and keep for later use
+        version_table_ = normalize_table_identifiers(version_table(), schema.naming)
+        self.version_collection_properties = list(version_table_["columns"].keys())
+        loads_table_ = normalize_table_identifiers(loads_table(), schema.naming)
+        self.loads_collection_properties = list(loads_table_["columns"].keys())
+        state_table_ = normalize_table_identifiers(
+            get_pipeline_state_query_columns(), schema.naming
         )
-        self.loads_collection_properties = list(
-            schema.get_table_columns(schema.loads_table_name).keys()
-        )
-        # get definition of state table (may not be present in the schema)
-        state_table = schema.tables.get(
-            schema.state_table_name,
-            normalize_table_identifiers(pipeline_state_table(), schema.naming),
-        )
-        # column names are pipeline properties
-        self.pipeline_state_properties = list(state_table["columns"].keys())
+        self.pipeline_state_properties = list(state_table_["columns"].keys())
+
         self.config: QdrantClientConfiguration = config
-        self.db_client: QC = QdrantClient._create_db_client(config)
+        self.db_client: QC = None
         self.model = config.model
 
     @property
@@ -229,6 +230,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         self.db_client.create_collection(
             collection_name=full_collection_name, vectors_config=vectors_config
         )
+        # TODO: we can use index hints to create indexes on properties or full text
+        # self.db_client.create_payload_index(full_collection_name, "_dlt_load_id", field_type="float")
 
     def _create_point_no_vector(self, obj: Dict[str, Any], collection_name: str) -> None:
         """Inserts a point into a Qdrant collection without a vector.
@@ -326,14 +329,11 @@ class QdrantClient(JobClientBase, WithStateSync):
         """
         # normalize property names
         p_load_id = self.schema.naming.normalize_identifier("load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
+        # p_created_at = self.schema.naming.normalize_identifier("created_at")
 
-        # this works only because we create points that have no vectors
-        # with decreasing ids. so newest (lowest ids) go first
-        # TODO: this does not work because we look for state first and state has UUID4
-        # TODO: look for 10 last load ids and find the state associated with them
-
-        limit = 10
+        limit = 100
         offset = None
         while True:
             try:
@@ -350,14 +350,20 @@ class QdrantClient(JobClientBase, WithStateSync):
                             )
                         ]
                     ),
+                    # search by package load id which is guaranteed to increase over time
+                    # order_by=models.OrderBy(
+                    #     key=p_created_at,
+                    #     # direction=models.Direction.DESC,
+                    # ),
                     limit=limit,
                     offset=offset,
                 )
+                # print("state_r", state_records)
                 if len(state_records) == 0:
                     return None
                 for state_record in state_records:
                     state = state_record.payload
-                    load_id = state["_dlt_load_id"]
+                    load_id = state[p_dlt_load_id]
                     scroll_table_name = self._make_qualified_collection_name(
                         self.schema.loads_table_name
                     )
@@ -373,7 +379,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                         ),
                     )
                     if load_records.count > 0:
-                        state["dlt_load_id"] = state.pop("_dlt_load_id")
+                        state["dlt_load_id"] = state.pop(p_dlt_load_id)
                         return StateInfo(**state)
             except Exception:
                 return None
@@ -385,6 +391,9 @@ class QdrantClient(JobClientBase, WithStateSync):
             p_schema_name = self.schema.naming.normalize_identifier("schema_name")
             # this works only because we create points that have no vectors
             # with decreasing ids. so newest (lowest ids) go first
+            # we do not use order_by because it requires and index to be created
+            # and this behavior is different for local and cloud qdrant
+            # p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
             response = self.db_client.scroll(
                 scroll_table_name,
                 with_payload=True,
@@ -397,6 +406,10 @@ class QdrantClient(JobClientBase, WithStateSync):
                     ]
                 ),
                 limit=1,
+                # order_by=models.OrderBy(
+                #     key=p_inserted_at,
+                #     direction=models.Direction.DESC,
+                # )
             )
             record = response[0][0].payload
             return StorageSchemaInfo(**record)
@@ -437,13 +450,14 @@ class QdrantClient(JobClientBase, WithStateSync):
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None:
-        values = [load_id, self.schema.name, 0, str(pendulum.now())]
+        values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]
         assert len(values) == len(self.loads_collection_properties)
         properties = {k: v for k, v in zip(self.loads_collection_properties, values)}
         loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
         self._create_point_no_vector(properties, loads_table_name)
 
     def __enter__(self) -> "QdrantClient":
+        self.db_client = QdrantClient._create_db_client(self.config)
         return self
 
     def __exit__(
@@ -452,16 +466,18 @@ class QdrantClient(JobClientBase, WithStateSync):
         exc_val: BaseException,
         exc_tb: TracebackType,
     ) -> None:
-        pass
+        if self.db_client:
+            self.db_client.close()
+            self.db_client = None
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         schema_str = json.dumps(schema.to_dict())
         values = [
-            schema.stored_version_hash,
-            schema.name,
             schema.version,
             schema.ENGINE_VERSION,
-            str(pendulum.now()),
+            str(pendulum.now().isoformat()),
+            schema.name,
+            schema.stored_version_hash,
             schema_str,
         ]
         assert len(values) == len(self.version_collection_properties)
@@ -488,6 +504,10 @@ class QdrantClient(JobClientBase, WithStateSync):
             )
             self.db_client.get_collection(table_name)
             return True
+        except ValueError as e:
+            if "not found" in str(e):
+                return False
+            raise e
         except UnexpectedResponse as e:
             if e.status_code == 404:
                 return False
