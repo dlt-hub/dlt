@@ -54,9 +54,7 @@ def make_arrow_table_schema(
 
     if embedding_fields:
         vec_size = embedding_model_dimensions or embedding_model_func.ndims()
-        arrow_schema.append(
-            pa.field(vector_field_name, pa.list_(pa.float32(), vec_size))
-        )
+        arrow_schema.append(pa.field(vector_field_name, pa.list_(pa.float32(), vec_size)))
 
     for column_name, column in schema.get_table_columns(table_name).items():
         dtype = cast(TArrowDataType, type_mapper.to_db_type(column))

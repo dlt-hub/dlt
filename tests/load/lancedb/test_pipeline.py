@@ -1,10 +1,10 @@
-from typing import Iterator, Generator, Any
+from typing import Iterator, Generator, Any, List
 
 import pytest
 
 import dlt
 from dlt.common import json
-from dlt.common.typing import DictStrStr
+from dlt.common.typing import DictStrStr, DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
@@ -123,7 +123,7 @@ def test_explicit_append() -> None:
     ]
 
     @dlt.resource(primary_key="doc_id")
-    def some_data() -> Generator[DictStrStr, Any, None]:
+    def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
     lancedb_adapter(
@@ -266,7 +266,7 @@ def test_pipeline_with_schema_evolution() -> None:
     ]
 
     @dlt.resource()
-    def some_data() -> Generator[DictStrStr, Any, None]:
+    def some_data() -> Generator[List[DictStrAny], Any, None]:
         yield data
 
     lancedb_adapter(some_data, embed=["content"])
@@ -310,9 +310,7 @@ def test_pipeline_with_schema_evolution() -> None:
 
 
 def test_merge_github_nested() -> None:
-    pipe = dlt.pipeline(
-        destination="lancedb", dataset_name="github1", full_refresh=True
-    )
+    pipe = dlt.pipeline(destination="lancedb", dataset_name="github1", full_refresh=True)
     assert pipe.dataset_name.startswith("github1_202")
 
     with open(
@@ -364,9 +362,7 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
     assert pipe.dataset_name is None
-    info = pipe.run(
-        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
-    )
+    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]

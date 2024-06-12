@@ -57,8 +57,6 @@ def lancedb_batch_error(f: TFun) -> TFun:
                     "Batch failed AND WILL **NOT** BE RETRIED"
                 ) from batch_ex
         except Exception as e:
-            raise DestinationTransientException(
-                "Batch failed AND WILL BE RETRIED"
-            ) from e
+            raise DestinationTransientException("Batch failed AND WILL BE RETRIED") from e
 
     return _wrap  # type: ignore[return-value]
