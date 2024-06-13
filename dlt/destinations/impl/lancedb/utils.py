@@ -16,9 +16,7 @@ PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
 }
 
 
-def generate_uuid(
-    data: DictStrAny, unique_identifiers: Sequence[str], table_name: str
-) -> str:
+def generate_uuid(data: DictStrAny, unique_identifiers: Sequence[str], table_name: str) -> str:
     """Generates deterministic UUID - used for deduplication.
 
     Args:
@@ -52,6 +50,4 @@ def set_non_standard_providers_environment_variables(
     embedding_model_provider: TEmbeddingProvider, api_key: Union[str, None]
 ) -> None:
     if embedding_model_provider in PROVIDER_ENVIRONMENT_VARIABLES_MAP:
-        os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = (
-            api_key or ""
-        )
+        os.environ[PROVIDER_ENVIRONMENT_VARIABLES_MAP[embedding_model_provider]] = api_key or ""
