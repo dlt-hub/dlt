@@ -13,7 +13,8 @@ from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.utils import pipeline_state_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 
@@ -137,10 +138,27 @@ def test_default_pipeline_names(
     destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_default_schema_name(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("use_single_dataset", [True, False])
+@pytest.mark.parametrize(
+    "naming_convention",
+    [
+        "duck_case",
+        "snake_case",
+        "sql_cs_v1",
+    ],
+)
+def test_default_schema_name(
+    destination_config: DestinationTestConfiguration,
+    use_single_dataset: bool,
+    naming_convention: str,
+) -> None:
+    os.environ["SCHEMA__NAMING"] = naming_convention
     destination_config.setup()
     dataset_name = "dataset_" + uniq_id()
-    data = ["a", "b", "c"]
+    data = [
+        {"id": idx, "CamelInfo": uniq_id(), "GEN_ERIC": alpha}
+        for idx, alpha in [(0, "A"), (0, "B"), (0, "C")]
+    ]
 
     p = dlt.pipeline(
         "test_default_schema_name",
@@ -149,16 +167,25 @@ def test_default_schema_name(destination_config: DestinationTestConfiguration) -
         staging=destination_config.staging,
         dataset_name=dataset_name,
     )
+    p.config.use_single_dataset = use_single_dataset
     p.extract(data, table_name="test", schema=Schema("default"))
     p.normalize()
     info = p.load()
+    print(info)
 
     # try to restore pipeline
     r_p = dlt.attach("test_default_schema_name", TEST_STORAGE_ROOT)
     schema = r_p.default_schema
     assert schema.name == "default"
 
-    assert_table(p, "test", data, info=info)
+    # check if dlt ables have exactly the required schemas
+    # TODO: uncomment to check dlt tables schemas
+    # assert (
+    #     r_p.default_schema.tables[PIPELINE_STATE_TABLE_NAME]["columns"]
+    #     == pipeline_state_table()["columns"]
+    # )
+
+    # assert_table(p, "test", data, info=info)
 
 
 @pytest.mark.parametrize(

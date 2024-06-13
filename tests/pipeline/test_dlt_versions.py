@@ -122,6 +122,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 )
                 assert github_schema["engine_version"] == 9
                 assert "schema_version_hash" in github_schema["tables"][LOADS_TABLE_NAME]["columns"]
+                # print(github_schema["tables"][PIPELINE_STATE_TABLE_NAME])
                 # load state
                 state_dict = json.loads(
                     test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/state.json")

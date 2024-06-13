@@ -30,9 +30,7 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
-from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
-from dlt.destinations.impl.redshift import capabilities
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
@@ -148,7 +146,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 "CREDENTIALS"
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
-        table_name = table["name"]
 
         # get format
         ext = os.path.splitext(bucket_path)[1][1:]
@@ -188,10 +185,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
         with self._sql_client.begin_transaction():
-            dataset_name = self._sql_client.dataset_name
             # TODO: if we ever support csv here remember to add column names to COPY
             self._sql_client.execute_sql(f"""
-                COPY {dataset_name}.{table_name}
+                COPY {self._sql_client.make_qualified_table_name(table['name'])}
                 FROM '{bucket_path}'
                 {file_type}
                 {dateformat}

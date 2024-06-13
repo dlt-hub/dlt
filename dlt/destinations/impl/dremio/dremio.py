@@ -177,7 +177,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not generate_alter:
             partition_list = [
-                self.capabilities.escape_identifier(c["name"])
+                self.sql_client.escape_column_name(c["name"])
                 for c in new_columns
                 if c.get("partition")
             ]
@@ -185,7 +185,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 sql[0] += "\nPARTITION BY (" + ",".join(partition_list) + ")"
 
             sort_list = [
-                self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("sort")
+                self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("sort")
             ]
             if sort_list:
                 sql[0] += "\nLOCALSORT BY (" + ",".join(sort_list) + ")"
@@ -198,7 +198,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(c["name"])
+        name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )

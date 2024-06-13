@@ -198,7 +198,7 @@ def _load_tables_to_dicts_sql(
     for table_name in table_names:
         table_rows = []
         columns = schema.get_table_columns(table_name).keys()
-        query_columns = ",".join(map(p.sql_client().capabilities.escape_identifier, columns))
+        query_columns = ",".join(map(p.sql_client().escape_column_name, columns))
 
         with p.sql_client() as c:
             query_columns = ",".join(map(c.escape_column_name, columns))

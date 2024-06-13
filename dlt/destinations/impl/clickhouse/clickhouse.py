@@ -326,7 +326,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
         return (
-            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_str}"
+            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_str}"
             .strip()
         )
 
@@ -356,7 +356,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [
-            self.capabilities.escape_identifier(c["name"])
+            self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("primary_key")
         ]:

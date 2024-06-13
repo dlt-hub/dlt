@@ -6,6 +6,7 @@ import pytest
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
@@ -199,7 +200,6 @@ def test_silently_skip_on_invalid_credentials(
     [
         "tests.common.cases.normalizers.title_case",
         "snake_case",
-        "tests.common.cases.normalizers.sql_upper",
     ],
 )
 def test_get_schemas_from_destination(
@@ -213,6 +213,7 @@ def test_get_schemas_from_destination(
     dataset_name = "state_test_" + uniq_id()
 
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    assert_naming_to_caps(destination_config.destination, p.destination.capabilities())
     p.config.use_single_dataset = use_single_dataset
 
     def _make_dn_name(schema_name: str) -> str:
@@ -287,7 +288,10 @@ def test_get_schemas_from_destination(
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        all_staging_configs=True,
+        default_vector_configs=True,
+        all_buckets_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
@@ -296,7 +300,6 @@ def test_get_schemas_from_destination(
     [
         "tests.common.cases.normalizers.title_case",
         "snake_case",
-        "tests.common.cases.normalizers.sql_upper",
     ],
 )
 def test_restore_state_pipeline(
@@ -308,6 +311,7 @@ def test_restore_state_pipeline(
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    assert_naming_to_caps(destination_config.destination, p.destination.capabilities())
 
     def some_data_gen(param: str) -> Any:
         dlt.current.source_state()[param] = param
@@ -735,11 +739,9 @@ def test_reset_pipeline_on_deleted_dataset(
 
 
 def prepare_import_folder(p: Pipeline) -> None:
-    os.makedirs(p._schema_storage.config.import_schema_path, exist_ok=True)
-    shutil.copy(
-        common_yml_case_path("schemas/eth/ethereum_schema_v5"),
-        os.path.join(p._schema_storage.config.import_schema_path, "ethereum.schema.yaml"),
-    )
+    from tests.common.storages.utils import prepare_eth_import_folder
+
+    prepare_eth_import_folder(p._schema_storage)
 
 
 def set_naming_env(destination: str, naming_convention: str) -> None:
@@ -752,3 +754,16 @@ def set_naming_env(destination: str, naming_convention: str) -> None:
             else:
                 naming_convention = "dlt.destinations.impl.weaviate.ci_naming"
         os.environ["SCHEMA__NAMING"] = naming_convention
+
+
+def assert_naming_to_caps(destination: str, caps: DestinationCapabilitiesContext) -> None:
+    naming = Schema("test").naming
+    if (
+        not caps.has_case_sensitive_identifiers
+        and caps.casefold_identifier is not str
+        and naming.is_case_sensitive
+    ):
+        pytest.skip(
+            f"Skipping for case insensitive destination {destination} with case folding because"
+            f" naming {naming.name()} is case sensitive"
+        )

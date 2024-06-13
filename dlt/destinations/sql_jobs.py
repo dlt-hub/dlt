@@ -117,7 +117,7 @@ class SqlStagingCopyJob(SqlBaseJob):
             table_name = sql_client.make_qualified_table_name(table["name"])
             columns = ", ".join(
                 map(
-                    sql_client.capabilities.escape_identifier,
+                    sql_client.escape_column_name,
                     get_columns_names_with_prop(table, "name"),
                 )
             )

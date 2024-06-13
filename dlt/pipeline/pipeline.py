@@ -1612,7 +1612,9 @@ class Pipeline(SupportsPipeline):
                 schema, reuse_exiting_package=True
             )
             data, doc = state_resource(state, load_id)
-            extract_.original_data = data
+            # keep the original data to be used in the metrics
+            if extract_.original_data is None:
+                extract_.original_data = data
             # append pipeline state to package state
             load_package_state_update = load_package_state_update or {}
             load_package_state_update["pipeline_state"] = doc
