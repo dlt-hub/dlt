@@ -1,13 +1,10 @@
 import os
-import shutil
 import pytest
 import yaml
 from dlt.common import json
 
 from dlt.common.normalizers.utils import explicit_normalizers
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TStoredSchema
-from dlt.common.schema.utils import remove_processing_hints
 from dlt.common.storages.exceptions import (
     InStorageSchemaModified,
     SchemaNotFoundError,
@@ -21,9 +18,9 @@ from dlt.common.storages import (
 )
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
+from tests.common.storages.utils import prepare_eth_import_folder
 from tests.common.utils import (
     load_yml_case,
-    yml_case_path,
     COMMON_TEST_CASES_PATH,
     IMPORTED_VERSION_HASH_ETH_V9,
 )
@@ -237,7 +234,7 @@ def test_getter(storage: SchemaStorage) -> None:
 def test_getter_with_import(ie_storage: SchemaStorage) -> None:
     with pytest.raises(KeyError):
         ie_storage["ethereum"]
-    prepare_import_folder(ie_storage)
+    prepare_eth_import_folder(ie_storage)
     # schema will be imported
     schema = ie_storage["ethereum"]
     assert schema.name == "ethereum"
@@ -263,7 +260,7 @@ def test_getter_with_import(ie_storage: SchemaStorage) -> None:
 
 
 def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
-    prepare_import_folder(ie_storage)
+    prepare_eth_import_folder(ie_storage)
     # we have ethereum schema to be imported but we create new schema and save it
     schema = Schema("ethereum")
     schema_hash = schema.version_hash
@@ -286,7 +283,7 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
 
 def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> None:
     # as in test_save_store_schema_over_import but we export the new schema immediately to overwrite the imported schema
-    prepare_import_folder(synced_storage)
+    prepare_eth_import_folder(synced_storage)
     schema = Schema("ethereum")
     schema_hash = schema.version_hash
     synced_storage.save_schema(schema)
@@ -499,17 +496,8 @@ def test_new_live_schema_committed(live_storage: LiveSchemaStorage) -> None:
 #     assert schema.settings["schema_sealed"] is True
 
 
-def prepare_import_folder(storage: SchemaStorage) -> Schema:
-    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
-    # remove processing hints before installing as import schema
-    # ethereum schema is a "dirty" schema with processing hints
-    eth = Schema.from_dict(eth_V9, remove_processing_hints=True)
-    storage._export_schema(eth, os.path.join(storage.storage.storage_path, "../import/"))
-    return eth
-
-
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:
-    prepare_import_folder(synced_storage)
+    prepare_eth_import_folder(synced_storage)
     schema = synced_storage.load_schema("ethereum")
     # is linked to imported schema
     schema._imported_version_hash = IMPORTED_VERSION_HASH_ETH_V9()
