@@ -70,7 +70,7 @@ def make_arrow_table_schema(
 
     metadata = {}
     if embedding_model_func and embedding_fields:
-        # Get the registered alias if it exists, otherwise use the class name
+        # Get the registered alias if it exists, otherwise use the class name.
         name = getattr(
             embedding_model_func,
             "__embedding_function_registry_alias__",
