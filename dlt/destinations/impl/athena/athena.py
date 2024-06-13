@@ -362,12 +362,6 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
         yield DBApiCursorImpl(cursor)  # type: ignore
 
-    def has_dataset(self) -> bool:
-        # PRESTO escaping for queries
-        query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""
-        rows = self.execute_sql(query)
-        return len(rows) > 0
-
 
 class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def __init__(
