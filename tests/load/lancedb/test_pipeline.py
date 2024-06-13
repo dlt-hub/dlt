@@ -367,5 +367,5 @@ def test_empty_dataset_allowed() -> None:
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
-    assert client.sentinel_table == "DltSentinelCollection"
+    assert client.sentinel_table == "dltSentinelTable"
     assert_table(pipe, "content", expected_items_count=3)
