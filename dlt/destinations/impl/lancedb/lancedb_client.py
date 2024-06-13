@@ -193,7 +193,7 @@ def upload_batch(
         if write_disposition in ("append", "skip"):
             tbl.add(records)
         elif write_disposition == "replace":
-            tbl.add(records, mode="replace")
+            tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
             if not id_field_name:
                 raise ValueError(
@@ -357,10 +357,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 fq_table_name = self.make_qualified_table_name(table_name)
                 if not self.table_exists(fq_table_name):
                     continue
+                schema = self.get_table_schema(fq_table_name)
                 self.db_client.drop_table(fq_table_name)
                 self.create_table(
-                    table_name=table_name,
-                    schema=self.get_table_schema(table_name),
+                    table_name=fq_table_name,
+                    schema=schema,
                 )
 
 
