@@ -19,21 +19,18 @@ def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
 
 def assert_table(
     pipeline: dlt.Pipeline,
-    collection_name: str,
+    table_name: str,
     expected_items_count: int = None,
     items: List[Any] = None,
 ) -> None:
     client: LanceDBClient = pipeline.destination_client()  # type: ignore[assignment]
+    qualified_table_name = client.make_qualified_table_name(table_name)
 
-    exists = client.table_exists(collection_name)
+    exists = client.table_exists(qualified_table_name)
     assert exists
 
-    qualified_collection_name = client.make_qualified_table_name(collection_name)
     records = (
-        client.db_client.open_table(qualified_collection_name)
-        .search()
-        .limit(50)
-        .to_list()
+        client.db_client.open_table(qualified_table_name).search().limit(50).to_list()
     )
 
     if expected_items_count is not None:
@@ -42,12 +39,18 @@ def assert_table(
     if items is None:
         return
 
-    drop_keys = ["_dlt_id", "_dlt_load_id"]
-    objects_without_dlt_keys = [
+    drop_keys = [
+        "_dlt_id",
+        "_dlt_load_id",
+        dlt.config.get("destination.lancedb.credentials.id_field_name", str) or "id__",
+        dlt.config.get("destination.lancedb.credentials.vector_field_name", str)
+        or "vector__",
+    ]
+    objects_without_dlt_or_special_keys = [
         {k: v for k, v in record.items() if k not in drop_keys} for record in records
     ]
 
-    assert_unordered_list_equal(objects_without_dlt_keys, items)
+    assert_unordered_list_equal(objects_without_dlt_or_special_keys, items)
 
 
 def drop_active_pipeline_data() -> None:
@@ -70,9 +73,8 @@ def drop_active_pipeline_data() -> None:
 
 class MockEmbeddingFunc(TextEmbeddingFunction):
     def generate_embeddings(
-        self,
-        texts: Union[List[str], np.ndarray],  # type: ignore[type-arg]
-    ) -> List[np.array]:  # type: ignore[valid-type]
+        self, texts: Union[List[str], np.ndarray], *args, **kwargs
+    ) -> List[np.ndarray]:
         return [np.array(None)]
 
     def ndims(self) -> int:
