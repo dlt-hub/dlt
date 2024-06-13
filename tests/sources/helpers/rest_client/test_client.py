@@ -183,8 +183,8 @@ class TestRESTClient:
             access_token_request_data={
                 "grant_type": "client_credentials",
             },
-            client_id="test-client-id",
-            client_secret="test-client-secret",
+            client_id=cast(TSecretStrValue, "test-client-id"),
+            client_secret=cast(TSecretStrValue, "test-client-secret"),
         )
 
         response = rest_client.get(
