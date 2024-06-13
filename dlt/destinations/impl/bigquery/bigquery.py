@@ -1,10 +1,11 @@
 import functools
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, cast
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
+from google.cloud import exceptions as gcp_exceptions
 from google.api_core import retry
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
@@ -369,6 +370,37 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     )
                 )
         return table
+
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        print(self.sql_client.fully_qualified_dataset_name())
+        """Gets table schemas from BigQuery using INFORMATION_SCHEMA or get_table for hidden datasets"""
+        if not self.sql_client.is_hidden_dataset:
+            return super().get_storage_tables(table_names)
+
+        # use the api to get storage tables for hidden dataset
+        schema_tables: List[Tuple[str, TTableSchemaColumns]] = []
+        for table_name in table_names:
+            try:
+                schema_table: TTableSchemaColumns = {}
+                table = self.sql_client.native_connection.get_table(
+                    self.sql_client.make_qualified_table_name(table_name, escape=False),
+                    retry=self.sql_client._default_retry,
+                    timeout=self.config.http_timeout,
+                )
+                for c in table.schema:
+                    schema_c: TColumnSchema = {
+                        "name": c.name,
+                        "nullable": c.is_nullable,
+                        **self._from_db_type(c.field_type, c.precision, c.scale),
+                    }
+                    schema_table[c.name] = schema_c
+                schema_tables.append((table_name, schema_table))
+            except gcp_exceptions.NotFound:
+                # table is not present
+                schema_tables.append((table_name, {}))
+        return schema_tables
 
     def _get_info_schema_columns_query(
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]

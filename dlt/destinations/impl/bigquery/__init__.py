@@ -9,11 +9,11 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["jsonl", "parquet"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["parquet", "jsonl"]
+    # BigQuery is by default case sensitive but that cannot be turned off for a dataset
+    # https://cloud.google.com/bigquery/docs/reference/standard-sql/lexical#case_sensitivity
     caps.escape_identifier = escape_hive_identifier
     caps.escape_literal = None
-    caps.has_case_sensitive_identifiers = (
-        True  # there are case insensitive identifiers but dlt does not use them
-    )
+    caps.has_case_sensitive_identifiers = True
     caps.casefold_identifier = str
     # BQ limit is 4GB but leave a large headroom since buffered writer does not preemptively check size
     caps.recommended_file_size = int(1024 * 1024 * 1024)

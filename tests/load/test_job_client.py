@@ -197,11 +197,11 @@ def test_complete_load(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, subset=["redshift", "postgres", "duckdb"]),
+    destinations_configs(default_sql_configs=True),
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
+def test_schema_update_create_table(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
@@ -232,7 +232,15 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     indirect=True,
     ids=lambda x: x.name,
 )
-def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
+@pytest.mark.parametrize("dataset_name", (None, "_hidden_ds"))
+def test_schema_update_create_table_bigquery(client: SqlJobClientBase, dataset_name: str) -> None:
+    # patch dataset name
+    if dataset_name:
+        # drop existing dataset
+        client.drop_storage()
+        client.sql_client.dataset_name = dataset_name + "_" + uniq_id()
+        client.initialize_storage()
+
     # infer typical rasa event schema
     schema = client.schema
     # this will be partition
@@ -249,11 +257,10 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     assert table_update["timestamp"]["partition"] is True
     assert table_update["_dlt_id"]["nullable"] is False
     _, storage_columns = client.get_storage_table("event_test_table")
-    assert storage_columns["timestamp"]["partition"] is True
-    assert storage_columns["sender_id"]["cluster"] is True
+    # check if all columns present
+    assert storage_columns.keys() == client.schema.tables["event_test_table"]["columns"].keys()
     _, storage_columns = client.get_storage_table("_dlt_version")
-    assert storage_columns["version"]["partition"] is False
-    assert storage_columns["version"]["cluster"] is False
+    assert storage_columns.keys() == client.schema.tables["_dlt_version"]["columns"].keys()
 
 
 @pytest.mark.parametrize(
@@ -434,7 +441,7 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
             if hasattr(client.sql_client, "escape_ddl_identifier"):
                 col_name = client.sql_client.escape_ddl_identifier(c["name"])
             else:
-                col_name = client.capabilities.escape_identifier(c["name"])
+                col_name = client.sql_client.escape_column_name(c["name"])
             print(col_name)
             # find column names
             idx = sql_.find(col_name, idx)

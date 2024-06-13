@@ -191,8 +191,11 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             return False
 
     def create_dataset(self) -> None:
+        dataset = bigquery.Dataset(self.fully_qualified_dataset_name(escape=False))
+        dataset.location = self.location
+        dataset.is_case_insensitive = not self.capabilities.has_case_sensitive_identifiers
         self._client.create_dataset(
-            self.fully_qualified_dataset_name(escape=False),
+            dataset,
             retry=self._default_retry,
             timeout=self.http_timeout,
         )
@@ -240,6 +243,14 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         if escape:
             project_id = self.capabilities.escape_identifier(project_id)
         return project_id
+
+    @property
+    def is_hidden_dataset(self) -> bool:
+        """Tells if the dataset associated with sql_client is a hidden dataset.
+
+        Hidden datasets are not present in information schema.
+        """
+        return self.dataset_name.startswith("_")
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
