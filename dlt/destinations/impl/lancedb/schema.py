@@ -1,5 +1,6 @@
 """Utilities for creating Pydantic model schemas from table schemas."""
 
+import json
 from typing import (
     List,
     cast,
@@ -9,6 +10,7 @@ from typing import (
 import pyarrow as pa
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 from typing_extensions import TypeAlias
+
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.typing import DictStrAny
 from dlt.destinations.type_mapping import TypeMapper
@@ -34,12 +36,8 @@ def make_arrow_field_schema(
     """Creates a PyArrow field from a dlt column schema."""
     dtype = cast(TArrowDataType, type_mapper.to_db_type(column))
 
-    if embedding_fields and column_name in embedding_fields:
-        metadata = {"embedding_source": "true"}
-    else:
-        metadata = None
-
-    return pa.field(column_name, dtype, metadata=metadata)
+    # TODO: Embedding flag needs to be passed to table metadata, not field metadata!
+    return pa.field(column_name, dtype)
 
 
 def make_arrow_table_schema(
@@ -52,7 +50,7 @@ def make_arrow_table_schema(
     embedding_model_func: Optional[TextEmbeddingFunction] = None,
     embedding_model_dimensions: Optional[int] = None,
 ) -> TArrowSchema:
-    """Creates a LanceDB adapted PyArrow schema from a dlt schema."""
+    """Creates a PyArrow schema from a dlt schema."""
     arrow_schema: List[TArrowField] = []
 
     if id_field_name:
@@ -72,14 +70,23 @@ def make_arrow_table_schema(
 
     metadata = {}
     if embedding_model_func and embedding_fields:
+        # Get the registered alias if it exists, otherwise use the class name
+        name = getattr(
+            embedding_model_func,
+            "__embedding_function_registry_alias__",
+            embedding_model_func.__class__.__name__,
+        )
         embedding_functions = [
             {
                 "source_column": source_column,
                 "vector_column": vector_field_name,
-                "function": embedding_model_func.safe_model_dump(),
+                "name": name,
+                "model": embedding_model_func.safe_model_dump(),
             }
             for source_column in embedding_fields
         ]
-        metadata["embedding_functions"] = embedding_functions
+        metadata["embedding_functions"] = json.dumps(embedding_functions).encode(
+            "utf-8"
+        )
 
     return pa.schema(arrow_schema, metadata=metadata)
