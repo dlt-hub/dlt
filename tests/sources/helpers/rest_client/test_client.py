@@ -16,6 +16,7 @@ from dlt.sources.helpers.rest_client.auth import (
     APIKeyAuth,
     HttpBasicAuth,
     OAuthJWTAuth,
+    OAuth2ImplicitFlow,
 )
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
 
@@ -162,6 +163,44 @@ class TestRESTClient:
         )
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
+
+    def test_oauth2_client_credentials_flow_auth_success(self, rest_client: RESTClient):
+        class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
+            def build_access_token_request(self):
+                return {
+                    "url": "https://api.example.com/oauth/token",
+                    "headers": {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    "data": {
+                        **self.access_token_request_data,
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                    }
+                }
+
+        auth = OAuth2ClientCredentialsExample(
+            access_token_request_data={
+                "grant_type": "client_credentials",
+            },
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+        )
+
+        response = rest_client.get(
+            "/protected/posts/bearer-token",
+            auth=auth,
+        )
+
+        assert response.status_code == 200
+        assert "test-token" in response.request.headers["Authorization"]
+
+        pages_iter = rest_client.paginate(
+            "/protected/posts/bearer-token",
+            auth=auth,
+        )
+
+        assert_pagination(list(pages_iter))
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(
