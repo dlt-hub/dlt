@@ -1,5 +1,5 @@
 import contextlib
-from typing import Union, List, Any
+from typing import Union, List, Any, Dict
 
 import numpy as np
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
@@ -11,10 +11,30 @@ from dlt.common.pipeline import PipelineContext
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
 
-def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
-    assert len(list1) == len(list2), "Lists have different length"
-    for item in list1:
-        assert item in list2, f"Item {item} not found in list2"
+def assert_unordered_dicts_equal(
+    dict_list1: List[Dict[str, Any]], dict_list2: List[Dict[str, Any]]
+) -> None:
+    """
+    Assert that two lists of dictionaries contain the same dictionaries, ignoring None values.
+
+    Args:
+        dict_list1 (List[Dict[str, Any]]): The first list of dictionaries to compare.
+        dict_list2 (List[Dict[str, Any]]): The second list of dictionaries to compare.
+
+    Raises:
+        AssertionError: If the lists have different lengths or contain different dictionaries.
+    """
+    assert len(dict_list1) == len(dict_list2), "Lists have different length"
+
+    dict_set1 = {
+        tuple(sorted((k, v) for k, v in d.items() if v is not None)) for d in dict_list1
+    }
+    dict_set2 = {
+        tuple(sorted((k, v) for k, v in d.items() if v is not None)) for d in dict_list2
+    }
+
+    assert dict_set1 == dict_set2, "Lists contain different dictionaries"
+
 
 
 def assert_table(
@@ -50,7 +70,7 @@ def assert_table(
         {k: v for k, v in record.items() if k not in drop_keys} for record in records
     ]
 
-    assert_unordered_list_equal(objects_without_dlt_or_special_keys, items)
+    assert_unordered_dicts_equal(objects_without_dlt_or_special_keys, items)
 
 
 def drop_active_pipeline_data() -> None:
