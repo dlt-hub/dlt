@@ -505,3 +505,56 @@ def test_empty_arrow(item_type: TPythonTableFormat) -> None:
     assert len(pipeline.list_extracted_resources()) == 1
     norm_info = pipeline.normalize()
     assert norm_info.row_counts["items"] == 0
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+def test_extract_adds_dlt_load_id(item_type: TPythonTableFormat) -> None:
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    item, _, _ = arrow_table_all_data_types(item_type, num_rows=5432)
+
+    @dlt.resource
+    def some_data():
+        yield item
+
+    pipeline: dlt.Pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    info = pipeline.extract(some_data())
+
+    load_id = info.loads_ids[0]
+    jobs = info.load_packages[0].jobs['new_jobs']
+    extracted_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
+
+    with pa.parquet.ParquetFile(extracted_file) as pq:
+        tbl = pq.read()
+        assert len(tbl) == 5432
+
+        # Extracted file has _dlt_load_id
+        assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
+
+
+def test_extract_json_normalize_parquet_adds_dlt_load_id():
+    """Extract jsonl data that gets written to parquet in normalizer. Check that _dlt_load_id is added."""
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+
+    rows, _, _ = arrow_table_all_data_types("object", num_rows=1001)
+
+    @dlt.resource
+    def some_data():
+        yield rows
+
+    pipeline: dlt.Pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+
+    pipeline.extract(some_data())
+    n_info = pipeline.normalize(loader_file_format="parquet")
+
+    load_id = n_info.loads_ids[0]
+    jobs = n_info.load_packages[0].jobs['new_jobs']
+    normalized_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
+
+    with pa.parquet.ParquetFile(normalized_file) as pq:
+        tbl = pq.read()
+        assert len(tbl) == 1001
+
+        # Normalized file has _dlt_load_id
+        assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
