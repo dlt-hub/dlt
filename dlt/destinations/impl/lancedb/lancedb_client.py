@@ -324,6 +324,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return self.db_client.open_table(table_name).search(query=query)
 
 
+    @lancedb_error
     def drop_storage(self) -> None:
         """Drop the dataset from the LanceDB instance.
 

@@ -1,3 +1,4 @@
+import contextlib
 from typing import Union, List, Any
 
 import numpy as np
@@ -5,6 +6,7 @@ from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 
 import dlt
 from dlt.common.configuration.container import Container
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.pipeline import PipelineContext
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
@@ -27,7 +29,12 @@ def assert_table(
     assert exists
 
     qualified_collection_name = client.make_qualified_table_name(collection_name)
-    records = client.db_client.open_table(qualified_collection_name).search().limit(50).to_list()
+    records = (
+        client.db_client.open_table(qualified_collection_name)
+        .search()
+        .limit(50)
+        .to_list()
+    )
 
     if expected_items_count is not None:
         assert expected_items_count == len(records)
@@ -55,8 +62,8 @@ def drop_active_pipeline_data() -> None:
         client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
         if has_tables(client):
-            client.drop_storage()
-
+            with contextlib.suppress(DestinationUndefinedEntity):
+                client.drop_storage()
         pipe._wipe_working_folder()
         Container()[PipelineContext].deactivate()
 

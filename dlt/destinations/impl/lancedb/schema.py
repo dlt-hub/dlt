@@ -35,8 +35,6 @@ def make_arrow_field_schema(
 ) -> TArrowField:
     """Creates a PyArrow field from a dlt column schema."""
     dtype = cast(TArrowDataType, type_mapper.to_db_type(column))
-
-    # TODO: Embedding flag needs to be passed to table metadata, not field metadata!
     return pa.field(column_name, dtype)
 
 
