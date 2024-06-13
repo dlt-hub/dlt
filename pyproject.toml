@@ -74,11 +74,11 @@ pyathena = {version = ">=2.9.6", optional = true}
 weaviate-client = {version = ">=3.22", optional = true}
 adlfs = {version = ">=2022.4.0", optional = true}
 pyodbc = {version = "^4.0.39", optional = true}
-qdrant-client = {version = ">=1.6.4", optional = true, extras = ["fastembed"]}
+qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
 databricks-sql-connector = {version = ">=3", optional = true}
 clickhouse-driver = { version = ">=0.2.7", optional = true }
 clickhouse-connect = { version = ">=0.7.7", optional = true }
-lancedb = { version = ">=0.6", optional = true, extras = ["emdeddings"] }
+lancedb = { version = ">=0.8.2", optional = true, markers = "python_version >= '3.9'", extras = ["emdeddings"] }
 deltalake = { version = ">=0.17.4", optional = true }
 
 [tool.poetry.extras]
@@ -215,7 +215,7 @@ dbt-duckdb = ">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 alive-progress = ">=3.0.1"
-pyarrow = "<15.0.1"
+pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
