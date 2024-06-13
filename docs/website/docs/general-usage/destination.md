@@ -86,7 +86,7 @@ private_key = "please set me up!"
 client_email = "please set me up!"
 ```
 
-You can then use this destination in your pipeline as follows: 
+You can then use this destination in your pipeline as follows:
 ```py
 import dlt
 from dlt.common.destination import Destination
@@ -117,23 +117,17 @@ Obviously, dlt will access the destination when you instantiate [sql_client](../
 
 :::
 
-<<<<<<< HEAD
-## Declare external destination
-You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass the destination class type or instance to `dlt` pipeline.
-
 ## Control how dlt creates table, column and other identifiers
 
 - case folding
 - case sensitivity
 
-
+(TODO)
 1. Redshift - always lower case, no matter which naming convention used. case insensitive
 2. Athena - always lower case, no matter which naming convention used. uses different catalogue and query engines that are incompatible
 
 
-=======
 ## Create new destination
 You have two ways to implement a new destination:
 1. You can use `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is perfect way to implement reverse ETL destinations that push data back to REST APIs.
 2. You can implement [a full destination](../walkthroughs/create-new-destination.md) where you have a full control over load jobs and schema migration.
->>>>>>> devel

@@ -36,19 +36,15 @@ the order is lost.
 
 ## Naming convention
 
-<<<<<<< HEAD
-Each schema contains [naming convention](naming-convention.md) that tells `dlt` how to translate identifiers to the
-namespace that the destination understands. This convention can be configured, changed in code or enforced via
-destination.
-=======
 `dlt` creates tables, child tables and column schemas from the data. The data being loaded,
 typically JSON documents, contains identifiers (i.e. key names in a dictionary) with any Unicode
 characters, any lengths and naming styles. On the other hand the destinations accept very strict
 namespaces for their identifiers. Like Redshift that accepts case-insensitive alphanumeric
 identifiers with maximum 127 characters.
 
-Each schema contains `naming convention` that tells `dlt` how to translate identifiers to the
-namespace that the destination understands.
+Each schema contains [naming convention](naming-convention.md) that tells `dlt` how to translate identifiers to the
+namespace that the destination understands. This convention can be configured, changed in code or enforced via
+destination.
 
 The default naming convention:
 
@@ -81,7 +77,6 @@ Opting for `"direct"` naming bypasses most name normalization processes. This me
 The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).
->>>>>>> devel
 
 ## Data normalizer
 
@@ -228,14 +223,9 @@ and columns are inferred from data. For example you can assign **primary_key** h
 ### Data type autodetectors
 
 You can define a set of functions that will be used to infer the data type of the column from a
-<<<<<<< HEAD
 value. The functions are run from top to bottom on the lists. Look in `detections.py` to see what is
 available. **iso_timestamp** detector that looks for ISO 8601 strings and converts them to **timestamp**
 is enabled by default.
-=======
-value. The functions are run from top to bottom on the lists. Look in [`detections.py`](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/detections.py) to see what is
-available.
->>>>>>> devel
 
 ```yaml
 settings:
@@ -411,10 +401,6 @@ def textual(nesting_level: int):
     schema.remove_type_detection("iso_timestamp")
     # convert UNIX timestamp (float, withing a year from NOW) into timestamp
     schema.add_type_detection("timestamp")
-<<<<<<< HEAD
-=======
-    schema._compile_settings()
->>>>>>> devel
 
     return dlt.resource([])
 ```
