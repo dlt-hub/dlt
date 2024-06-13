@@ -310,7 +310,9 @@ def test_pipeline_with_schema_evolution() -> None:
 
 
 def test_merge_github_nested() -> None:
-    pipe = dlt.pipeline(destination="lancedb", dataset_name="github1", full_refresh=True)
+    pipe = dlt.pipeline(
+        destination="lancedb", dataset_name="github1", full_refresh=True
+    )
     assert pipe.dataset_name.startswith("github1_202")
 
     with open(
@@ -362,7 +364,9 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
     assert pipe.dataset_name is None
-    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    info = pipe.run(
+        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]
