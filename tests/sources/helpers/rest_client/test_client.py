@@ -1,25 +1,26 @@
 import os
-import pytest
 from typing import Any, cast
-from dlt.common import logger
+
+import pytest
 from requests import PreparedRequest, Request, Response
 from requests.auth import AuthBase
 from requests.exceptions import HTTPError
+
+from dlt.common import logger
 from dlt.common.typing import TSecretStrValue
 from dlt.sources.helpers.requests import Client
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.client import Hooks
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
-
-from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 from dlt.sources.helpers.rest_client.auth import (
-    BearerTokenAuth,
     APIKeyAuth,
+    AuthConfigBase,
+    BearerTokenAuth,
     HttpBasicAuth,
-    OAuthJWTAuth,
     OAuth2ImplicitFlow,
+    OAuthJWTAuth,
 )
+from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
 
 from .conftest import assert_pagination
 
@@ -32,6 +33,7 @@ def load_private_key(name="private_key.pem"):
 
 TEST_PRIVATE_KEY = load_private_key()
 
+
 class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
     def build_access_token_request(self):
         return {
@@ -43,7 +45,7 @@ class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
                 **self.access_token_request_data,
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
-            }
+            },
         }
 
 
@@ -191,7 +193,7 @@ class TestRESTClient:
                         **self.access_token_request_data,
                         "client_id": self.client_id,
                         "client_secret": self.client_secret,
-                    }
+                    },
                 }
 
         auth = OAuth2ClientCredentialsExample(
@@ -217,7 +219,6 @@ class TestRESTClient:
 
         assert_pagination(list(pages_iter))
 
-
     def test_oauth2_client_credentials_flow_wrong_client_id(self, rest_client: RESTClient):
         auth = OAuth2ClientCredentialsExample(
             access_token_request_data={
@@ -233,7 +234,7 @@ class TestRESTClient:
                 auth=auth,
             )
         assert e.type == HTTPError
-        assert e.match('401 Client Error')
+        assert e.match("401 Client Error")
 
     def test_oauth2_client_credentials_flow_wrong_client_secret(self, rest_client: RESTClient):
         auth = OAuth2ClientCredentialsExample(
@@ -250,8 +251,10 @@ class TestRESTClient:
                 auth=auth,
             )
         assert e.type == HTTPError
-        assert e.match('401 Client Error')
+        assert e.match("401 Client Error")
 
+    def test_oauth_token_expired_refresh(self, rest_client: RESTClient):
+        pass
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(

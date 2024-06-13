@@ -231,8 +231,10 @@ def oauth_authorize(request):
     if "jwt-bearer" in grant_type:
         return True
     if "client_credentials" in grant_type:
-        return qs["client_secret"][0] == "test-client-secret" and qs["client_id"][0] == "test-client-id"
-
+        return (
+            qs["client_secret"][0] == "test-client-secret"
+            and qs["client_id"][0] == "test-client-id"
+        )
 
 
 def assert_pagination(pages, expected_start=0, page_size=10, total_pages=10):
