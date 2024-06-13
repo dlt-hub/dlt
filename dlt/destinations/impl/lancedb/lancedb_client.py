@@ -506,7 +506,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         state_records = (
             self.db_client.open_table(fq_state_table_name)
             .search()
-            .where(f'pipeline_name = "{pipeline_name}"')
+            .where(f'pipeline_name = "{pipeline_name}" ORDER BY _dlt_load_id DESC')
             .to_list()
         )
         if len(state_records) == 0:
