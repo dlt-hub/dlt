@@ -2,7 +2,7 @@ import re
 from typing import NamedTuple, Callable, Pattern, List, Union, TYPE_CHECKING, Dict, List, Any
 import base64
 
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 import pytest
 import requests_mock
@@ -207,7 +207,10 @@ def mock_api_server():
 
         @router.post("/oauth/token")
         def oauth_token(request, context):
-            return {"access_token": "test-token", "expires_in": 3600}
+            if oauth_authorize(request):
+                return {"access_token": "test-token", "expires_in": 3600}
+            context.status_code = 401
+            return {"error": "Unauthorized"}
 
         @router.post("/auth/refresh")
         def refresh_token(request, context):
@@ -220,6 +223,16 @@ def mock_api_server():
         router.register_routes(m)
 
         yield m
+
+
+def oauth_authorize(request):
+    qs = parse_qs(request.text)
+    grant_type = qs.get("grant_type")[0]
+    if "jwt-bearer" in grant_type:
+        return True
+    if "client_credentials" in grant_type:
+        return qs["client_secret"][0] == "test-client-secret" and qs["client_id"][0] == "test-client-id"
+
 
 
 def assert_pagination(pages, expected_start=0, page_size=10, total_pages=10):

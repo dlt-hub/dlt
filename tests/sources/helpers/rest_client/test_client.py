@@ -4,6 +4,7 @@ from typing import Any, cast
 from dlt.common import logger
 from requests import PreparedRequest, Request, Response
 from requests.auth import AuthBase
+from requests.exceptions import HTTPError
 from dlt.common.typing import TSecretStrValue
 from dlt.sources.helpers.requests import Client
 from dlt.sources.helpers.rest_client import RESTClient
@@ -30,6 +31,20 @@ def load_private_key(name="private_key.pem"):
 
 
 TEST_PRIVATE_KEY = load_private_key()
+
+class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
+    def build_access_token_request(self):
+        return {
+            "url": "https://api.example.com/oauth/token",
+            "headers": {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            "data": {
+                **self.access_token_request_data,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            }
+        }
 
 
 @pytest.fixture
@@ -201,6 +216,42 @@ class TestRESTClient:
         )
 
         assert_pagination(list(pages_iter))
+
+
+    def test_oauth2_client_credentials_flow_wrong_client_id(self, rest_client: RESTClient):
+        auth = OAuth2ClientCredentialsExample(
+            access_token_request_data={
+                "grant_type": "client_credentials",
+            },
+            client_id=cast(TSecretStrValue, "test-invalid-client-id"),
+            client_secret=cast(TSecretStrValue, "test-client-secret"),
+        )
+
+        with pytest.raises(HTTPError) as e:
+            response = rest_client.get(  # noqa: F841
+                "/protected/posts/bearer-token",
+                auth=auth,
+            )
+        assert e.type == HTTPError
+        assert e.match('401 Client Error')
+
+    def test_oauth2_client_credentials_flow_wrong_client_secret(self, rest_client: RESTClient):
+        auth = OAuth2ClientCredentialsExample(
+            access_token_request_data={
+                "grant_type": "client_credentials",
+            },
+            client_id=cast(TSecretStrValue, "test-client-id"),
+            client_secret=cast(TSecretStrValue, "test-invalid-client-secret"),
+        )
+
+        with pytest.raises(HTTPError) as e:
+            response = rest_client.get(  # noqa: F841
+                "/protected/posts/bearer-token",
+                auth=auth,
+            )
+        assert e.type == HTTPError
+        assert e.match('401 Client Error')
+
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(
