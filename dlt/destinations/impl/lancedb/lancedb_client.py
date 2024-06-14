@@ -144,7 +144,6 @@ class LanceDBTypeMapper(TypeMapper):
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
-
 @lancedb_batch_error
 def upload_batch(
     records: List[DictStrAny],
@@ -193,6 +192,8 @@ def upload_batch(
             )
     except ArrowInvalid as e:
         raise LanceDBBatchError(e) from e
+    except Exception:
+        raise
 
 
 class LanceDBClient(JobClientBase, WithStateSync):
@@ -382,8 +383,10 @@ class LanceDBClient(JobClientBase, WithStateSync):
         try:
             fq_table_name = self.make_qualified_table_name(table_name)
             arrow_schema = self.db_client.open_table(fq_table_name).schema
-        except DestinationUndefinedEntity:
+        except FileNotFoundError:
             return False, table_schema
+        except Exception:
+            raise
 
         for field_name, field_type in arrow_schema_to_dict(arrow_schema).items():
             schema_c: TColumnSchema = {
@@ -420,6 +423,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
         except OSError:
             # Field already present, skip.
             return None
+        except Exception:
+            raise
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
@@ -680,6 +685,8 @@ class LoadLanceDBJob(LoadJob):
                         records.append(json_object)
                     except JSONDecodeError:
                         raise
+            except Exception:
+                raise
 
         # Batch load only accepts a list of dicts.
         if not isinstance(records, list) and isinstance(records, dict):
