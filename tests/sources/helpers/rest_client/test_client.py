@@ -237,26 +237,19 @@ class TestRESTClient:
 
     def test_oauth2_client_credentials_flow_wrong_client_id(self, rest_client: RESTClient):
         auth = OAuth2ClientCredentialsExample(
-            access_token_request_data={
-                "grant_type": "client_credentials",
-            },
+            access_token_request_data={"grant_type": "client_credentials"},
             client_id=cast(TSecretStrValue, "invalid-client-id"),
             client_secret=cast(TSecretStrValue, "test-client-secret"),
         )
 
         with pytest.raises(HTTPError) as e:
-            rest_client.get(
-                "/protected/posts/bearer-token",
-                auth=auth,
-            )
+            rest_client.get("/protected/posts/bearer-token", auth=auth)
         assert e.type == HTTPError
         assert e.match("401 Client Error")
 
     def test_oauth2_client_credentials_flow_wrong_client_secret(self, rest_client: RESTClient):
         auth = OAuth2ClientCredentialsExample(
-            access_token_request_data={
-                "grant_type": "client_credentials",
-            },
+            access_token_request_data={"grant_type": "client_credentials"},
             client_id=cast(TSecretStrValue, "test-client-id"),
             client_secret=cast(TSecretStrValue, "invalid-client-secret"),
         )
@@ -278,13 +271,14 @@ class TestRESTClient:
         expiry_0 = rest_client.auth.token_expiry
         rest_client.auth.token_expiry = rest_client.auth.token_expiry.subtract(seconds=1)
         expiry_1 = rest_client.auth.token_expiry
-        assert expiry_1 < expiry_0
+        assert expiry_0 > expiry_1
         assert rest_client.auth.is_token_expired()
 
         response = rest_client.get("/protected/posts/bearer-token")
         assert response.status_code == 200
         expiry_2 = rest_client.auth.token_expiry
         assert expiry_2 > expiry_1
+        assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(
