@@ -421,8 +421,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         except OSError:
             # Field already present, skip.
             return None
-        except Exception:
-            raise
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
