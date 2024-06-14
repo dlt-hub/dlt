@@ -86,18 +86,22 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     Check with the embedding provider which options are available.
     Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
     embedding_model_dimensions: int = 1024
-    """The dimensions of the embeddings generated. Make sure it corresponds with the embedding model's."""
+    """The dimensions of the embeddings generated. In most cases it will be automatically inferred,
+    but it is configurable in rare cases.
+
+    Make sure it corresponds with the associated embedding model's dimensionality."""
     vector_field_name: str = "vector__"
     """Name of the special field to store the vector embeddings."""
     id_field_name: str = "id__"
     """Name of the special field to manage deduplication."""
+    sentinel_table_name: str = "dltSentinelTable"
+    """Name of the sentinel table that encapsulates datasets. Since LanceDB has no
+    concept of schemas, this table serves as a proxy to group related dlt tables together."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
-        "embedding_model_dimensions",
         "embedding_model",
+        "embedding_model_dimensions",
         "embedding_model_provider",
-        "vector_field_name",
-        "id_field_name",
     ]
 
     def fingerprint(self) -> str:

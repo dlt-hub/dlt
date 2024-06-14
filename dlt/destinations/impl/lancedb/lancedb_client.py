@@ -214,6 +214,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
         self.registry = EmbeddingFunctionRegistry.get_instance()
         self.type_mapper = LanceDBTypeMapper(self.capabilities)
+        self.sentinel_table_name = config.sentinel_table_name
 
         # LanceDB doesn't provide a standardized way to set API keys across providers.
         # Some use ENV variables and others allow passing api key as an argument.
@@ -239,7 +240,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     @property
     def sentinel_table(self) -> str:
-        return self.make_qualified_table_name("dltSentinelTable")
+        return self.make_qualified_table_name(self.sentinel_table_name)
 
     def make_qualified_table_name(self, table_name: str) -> str:
         return (
