@@ -229,7 +229,7 @@ class TestRESTClient:
         )
 
         with pytest.raises(HTTPError) as e:
-            response = rest_client.get(  # noqa: F841
+            rest_client.get(
                 "/protected/posts/bearer-token",
                 auth=auth,
             )
@@ -246,7 +246,7 @@ class TestRESTClient:
         )
 
         with pytest.raises(HTTPError) as e:
-            response = rest_client.get(  # noqa: F841
+            rest_client.get(
                 "/protected/posts/bearer-token",
                 auth=auth,
             )
