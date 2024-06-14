@@ -144,7 +144,6 @@ class LanceDBTypeMapper(TypeMapper):
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
-pa.DataType
 @lancedb_batch_error
 def upload_batch(
     records: List[DictStrAny],
