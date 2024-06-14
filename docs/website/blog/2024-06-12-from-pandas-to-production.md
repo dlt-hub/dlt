@@ -166,7 +166,7 @@ We often hear variations of “oh i postponed dlt so long but it only took a few
 Here are some notebooks and docs to open your appetite:
 
 - A colab demo of [schema evolution](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM) (2min read)
-- A colab tutorial on the REST API config-based pipeline
+- A [step by step tutorial](https://dlthub.com/docs/tutorial/load-data-from-an-api#load-only-new-data-incremental-loading) to build a production pipeline from an api
 - Docs: RestClient, the imperative class that powers the REST API source, featuring auto pagination https://dlthub.com/docs/general-usage/http/rest-client
 - Docs: [Build a simple pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
 - Docs: [Build a complex pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
