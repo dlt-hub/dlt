@@ -34,6 +34,32 @@ def load_private_key(name="private_key.pem"):
 TEST_PRIVATE_KEY = load_private_key()
 
 
+def build_rest_client(auth=None) -> RESTClient:
+    return RESTClient(
+        base_url="https://api.example.com",
+        headers={"Accept": "application/json"},
+        session=Client().session,
+        auth=auth,
+    )
+
+
+@pytest.fixture
+def rest_client() -> RESTClient:
+    return build_rest_client()
+
+
+@pytest.fixture
+def rest_client_oauth() -> RESTClient:
+    auth = OAuth2ClientCredentialsExample(
+        access_token_request_data={
+            "grant_type": "client_credentials",
+        },
+        client_id=cast(TSecretStrValue, "test-client-id"),
+        client_secret=cast(TSecretStrValue, "test-client-secret"),
+    )
+    return build_rest_client(auth=auth)
+
+
 class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
     def build_access_token_request(self):
         return {
@@ -47,15 +73,6 @@ class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
                 "client_secret": self.client_secret,
             },
         }
-
-
-@pytest.fixture
-def rest_client() -> RESTClient:
-    return RESTClient(
-        base_url="https://api.example.com",
-        headers={"Accept": "application/json"},
-        session=Client().session,
-    )
 
 
 @pytest.fixture
@@ -75,19 +92,14 @@ def rest_client_immediate_oauth_expiry(auth=None) -> RESTClient:
             }
 
     auth = OAuth2ClientCredentialsExpiringNow(
-            access_token_request_data={
-                "grant_type": "client_credentials",
-            },
-            client_id=cast(TSecretStrValue, "test-client-id"),
-            client_secret=cast(TSecretStrValue, "test-client-secret"),
-        )
-
-    return RESTClient(
-        base_url="https://api.example.com",
-        headers={"Accept": "application/json"},
-        session=Client().session,
-        auth=auth
+        access_token_request_data={
+            "grant_type": "client_credentials",
+        },
+        client_id=cast(TSecretStrValue, "test-client-id"),
+        client_secret=cast(TSecretStrValue, "test-client-secret"),
     )
+
+    return build_rest_client(auth=auth)
 
 
 @pytest.mark.usefixtures("mock_api_server")
@@ -213,41 +225,13 @@ class TestRESTClient:
         assert response.status_code == 200
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
 
-    def test_oauth2_client_credentials_flow_auth_success(self, rest_client: RESTClient):
-        class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
-            def build_access_token_request(self):
-                return {
-                    "url": "https://api.example.com/oauth/token",
-                    "headers": {
-                        "Content-Type": "application/x-www-form-urlencoded",
-                    },
-                    "data": {
-                        **self.access_token_request_data,
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                    },
-                }
-
-        auth = OAuth2ClientCredentialsExample(
-            access_token_request_data={
-                "grant_type": "client_credentials",
-            },
-            client_id=cast(TSecretStrValue, "test-client-id"),
-            client_secret=cast(TSecretStrValue, "test-client-secret"),
-        )
-
-        response = rest_client.get(
-            "/protected/posts/bearer-token",
-            auth=auth,
-        )
+    def test_oauth2_client_credentials_flow_auth_success(self, rest_client_oauth: RESTClient):
+        response = rest_client_oauth.get("/protected/posts/bearer-token")
 
         assert response.status_code == 200
         assert "test-token" in response.request.headers["Authorization"]
 
-        pages_iter = rest_client.paginate(
-            "/protected/posts/bearer-token",
-            auth=auth,
-        )
+        pages_iter = rest_client_oauth.paginate("/protected/posts/bearer-token")
 
         assert_pagination(list(pages_iter))
 
@@ -256,7 +240,7 @@ class TestRESTClient:
             access_token_request_data={
                 "grant_type": "client_credentials",
             },
-            client_id=cast(TSecretStrValue, "test-invalid-client-id"),
+            client_id=cast(TSecretStrValue, "invalid-client-id"),
             client_secret=cast(TSecretStrValue, "test-client-secret"),
         )
 
@@ -274,7 +258,7 @@ class TestRESTClient:
                 "grant_type": "client_credentials",
             },
             client_id=cast(TSecretStrValue, "test-client-id"),
-            client_secret=cast(TSecretStrValue, "test-invalid-client-secret"),
+            client_secret=cast(TSecretStrValue, "invalid-client-secret"),
         )
 
         with pytest.raises(HTTPError) as e:
@@ -288,7 +272,7 @@ class TestRESTClient:
     def test_oauth_token_expired_refresh(self, rest_client_immediate_oauth_expiry: RESTClient):
         rest_client = rest_client_immediate_oauth_expiry
         assert rest_client.auth.access_token is None
-        response = rest_client.get( "/protected/posts/bearer-token")
+        response = rest_client.get("/protected/posts/bearer-token")
         assert response.status_code == 200
         assert rest_client.auth.access_token is not None
         expiry_0 = rest_client.auth.token_expiry
@@ -297,12 +281,10 @@ class TestRESTClient:
         assert expiry_1 < expiry_0
         assert rest_client.auth.is_token_expired()
 
-        response = rest_client.get( "/protected/posts/bearer-token")
+        response = rest_client.get("/protected/posts/bearer-token")
         assert response.status_code == 200
         expiry_2 = rest_client.auth.token_expiry
-
         assert expiry_2 > expiry_1
-
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(
