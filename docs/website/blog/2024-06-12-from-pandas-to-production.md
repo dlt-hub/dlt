@@ -10,9 +10,14 @@ authors:
 tags: [pandas, production, etl, etl]
 ---
 
-# I. The background story
 
-## Normal people load data too
+
+:::tip
+**TL;DR: We created a library to reduce friction between data engineers and the rest of the team. From Pandas to Production tells the story of how we got here.**
+But if you want to load pandas dfs to production databases, with all the best practices built-in, check out this [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas) or this colab notebook that shows [easy handling of complex api data](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP#scrollTo=1wf1R0yQh7pv)
+:::
+
+## I. The background story: Normal people load data too
 
 Hey, I’m Adrian, cofounder of dlt. I’ve been working in the data industry since 2012, doing all kinds of end-to-end things.
 
@@ -24,7 +29,7 @@ Back in 2022 there was an online conference called [Normconf](https://normconf.c
 
 ![normal](https://storage.googleapis.com/dlt-blog-images/i-am-normal.png)
 
-## Normies: Problem solvers with antipathy for black boxes, gratuitous complexity and external dependencies
+### Normies: Problem solvers with antipathy for black boxes, gratuitous complexity and external dependencies
 
 At Normconf, "normie" participants often embodied the three fundamental psychological needs identified in Self-Determination Theory: autonomy, competence, and relatedness.
 
@@ -36,7 +41,7 @@ By very definition, Normie is someone not very specialised at one thing or anoth
 
 What undermines the Normie mission are things that clash with the basic needs, from uncustomisable products, to vendors that add bottlenecks and unreliable dependencies.
 
-## Encountering friction between data engineers and Python-first analysts
+### Encountering friction between data engineers and Python-first analysts
 
 Before becoming a co-founder of dlt I had 5 interesting years as a startup employee, a half-year nightmare in a corporation with no autonomy or mastery (I got fired for refusing the madness, and it was such a huge relief), followed by 5 fun, rewarding and adventure-filled years of freelancing. Much of my work was “build&hire” which usually meant building a first time data warehouse and hiring a team for it. The setups that I did were bespoke to the businesses that were getting them, including the teams - Meaning, the technical complexity was also tailored to the (lack of) technical culture of the companies I was building for.
 
@@ -44,17 +49,17 @@ In this time, I saw an acute friction between data engineers and Python-first an
 
 So at this point I started building boilerplate code for data warehouses and learning how to better cater to the entire team.
 
-# II. Early dlt days
 
-## The initial thesis how to serve Normies:  pandas.df.to_sql() with data engineering best practices
 
-After a few attempts I ended up with the thesis that df.to_sql() is the natural abstraction a data person would use - I have a table here, I want a table there, shouldn’t be harder than a function call right?
+### II. The initial idea: pandas.df.to_sql() with data engineering best practices
+
+After a few attempts I ended up with the hypothesis that df.to_sql() is the natural abstraction a data person would use - I have a table here, I want a table there, shouldn’t be harder than a function call right?
 
 Right.
 
 Except that particular function call is anything but data engineering complete.  A single run will do what it promises. A production pipeline will also have many additional requirements. In the early days, we wrote up an ideal list of features that should be auto-handled (spoiler alert: today dlt does all that and more). Read on for the wish list:
 
-## Our dream: a tool that meets production pipelines requirements
+### Our dream: a tool that meets production pipelines requirements
 
 - Wouldn’t it be nice if we could auto-flatten and unpack nested structures into tables with generated join keys?
 - Wouldn’t it be nice if data types were properly defined and managed?
@@ -68,46 +73,48 @@ Except that particular function call is anything but data engineering complete. 
 - Wouldn’t it be nice if it offered requests with built in retries for those nasty unreliable apis (Hey Zendesk, why you fail on call 99998/100000?)
 - Wouldn’t it be nice if we had some extraction helpers like pagination detection?
 
-## The initial steps
+### The initial steps
 
 How did we go about it? At first dlt was created as an engine to iron out its functionality. During this time, it was deployed it in several projects, from startups to enterprises, particularly to accelerate data pipeline building in a robust way.
 
 A while later, to prepare this engine for the general public, we created the current interface on top of it. We then tested it in a workshop with many “Normies” of which over 50% were pre-employment learners.
 
-For the workshop we broke down the steps to build an incremental pipeline into 20 steps. In the 6 hour workshop we asked people to react on Slack to each “checkpoint”. We then exported the slack data and loaded it with dlt, exposing the completion rate per checkpoint. Turns out, it was 100%. Everyone who started, managed to build the pipeline. “This is it!” we thought, and spend the next 6 months preparing our docs and adding some plugins for easy deployment.
+For the workshop we broke down the steps to build an incremental pipeline into 20 steps. In the 6 hour workshop we asked people to react on Slack to each “checkpoint”. We then exported the slack data and loaded it with dlt, exposing the completion rate per checkpoint. Turns out, it was 100%.
+Everyone who started, managed to build the pipeline. “This is it!” we thought, and spend the next 6 months preparing our docs and adding some plugins for easy deployment.
 
-# III. Launching dlt
+## III. Launching dlt
 
-We finally launched dlt mid 2023 to the general public. Our initial community was mostly data engineers who had been using dlt without docs, managing from reading code. As we hoped a lot of “normies” are using dlt, too!
+We finally launched dlt mid 2023 to the general public. Our initial community was mostly data engineers who had been using dlt without docs,
+managing from reading code. As we hoped a lot of “normies” are using dlt, too!
 
 ## dlt = code + docs + Slack support
 
-A product is a sum of many parts. For us dlt it’s not only the dlt library and interface, but also our docs and Slack support.
-
-We have a very active Slack community. We nearly have as many users on Slack as Github Stars.
+A product is a sum of many parts. For us dlt is not only the dlt library and interface, but also our docs and Slack community and the support and discussions there.
 
 In the early days of dlt we talked to Sebastian Ramirez from FastAPI who told us that he spends 2/3 of his FastAPI time writing documentation.
 
 In this vein, from the beginning docs were very important to us and we quickly adopted our own [docs standard](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/).
 
-However, when we originally launched dlt, we found that different user types, especially Normies, expect different things from our docs.
+However, when we originally launched dlt, we found that different user types, especially Normies, expect different things from our docs, and because we asked for feedback, they told us.
 
-### So how to best interface between our docs and the user’s expectation?
+So overall, we were not satisfied to stop there.
+
+### "Can you make your docs more like my favorite tool's docs?"
 
 To this end we built and embedded our own docs helper in our docs.
 
-The result? The docs helper has been running for a year and we currently see around **300 questions per day.** Comparing this to other communities that do AI support on Slack, that’s almost 2 orders of magnitude difference in question volume.
+The result? The docs helper has been running for a year and we currently see around **300 questions per day.** Comparing this to other communities that do AI support on Slack, that’s almost 2 orders of magnitude difference in question volume by community size.
 
 We think this is a good thing, and a result of several factors.
 
 - Embedded in docs means at the right place at the right time. Available to anyone, whether they use Slack or not.
 - Conversations are private and anonymous. This reduces the emotional barrier of asking. We suspect this is great for the many “Normies” / “problem solvers” that work in data.
-- The questions are different than in our Slack community: Many questions are around “Setup and configuration”, “Troubleshooting” and “General questions” about dlt architecture.
+- The questions are different than in our Slack community: Many questions are around “Setup and configuration”, “Troubleshooting” and “General questions” about dlt architecture. In Slack, we see the questions that our docs or assistant could not answer.
 - The bot is conversational and will remember recent context, enabling it to be particularly helpful. This is different from the “question answering service” that many Slack bots offer, which do not keep context once a question was answered. By retaining context, it’s possible to reach a useful outcome even if it doesn’t come in the first reply.
 
-## dlt = “dlt is pip install and go” - the fastest way to create a pipeline and source
+### dlt = “pip install and go” - the fastest way to create a pipeline and source
 
-dlt offers a small number of verified sources, but encourages you to build your own.  As we mentioned, creating an ad hoc dlt [pipeline and source](https://dlthub.com/docs/walkthroughs/create-a-pipeline is [dramatically simpler.](https://dlthub.com/docs/build-a-pipeline-tutorial#the-simplest-pipeline-1-liner-to-load-data-with-schema-evolution)
+dlt offers a small number of verified sources, but encourages you to build your own.  As we mentioned, creating an ad hoc dlt [pipeline and source](https://dlthub.com/docs/walkthroughs/create-a-pipeline is [dramatically simpler](https://dlthub.com/docs/build-a-pipeline-tutorial#the-simplest-pipeline-1-liner-to-load-data-with-schema-evolution) compared to other python libraries.
 Maintaining a custom dlt source in production takes no time at all because the pipeline won't break unless the source stops existing.
 
 The sources you build and run that are not shared back into the verified sources are what we call “private sources”.
