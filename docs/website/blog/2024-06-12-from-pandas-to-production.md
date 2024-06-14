@@ -16,6 +16,8 @@ tags: [pandas, production, etl, etl]
 **TL;DR: We created a library to reduce friction between data engineers, data scientists, and the rest of the team. From Pandas to Production article tells the story of how we got here.**
 
 But if you want to load pandas dfs to production databases, with all the best practices built-in, check out this [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas) or this colab notebook that shows [easy handling of complex api data](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP#scrollTo=1wf1R0yQh7pv).
+
+Or check out more resources [at the end of the article](#call-to-action)
 :::
 
 ## I. The background story: Normal people load data too
@@ -49,7 +51,6 @@ Before becoming a co-founder of dlt I had 5 interesting years as a startup emplo
 In this time, I saw an acute friction between data engineers and Python-first analysts, mostly around the fact that data engineers easily become a bottleneck and data scientists are forced to pick up the slack. And of course, this causes other issues that might further complicate the life of the data engineer, while still not being a good solution for the data consumers.
 
 So at this point I started building boilerplate code for data warehouses and learning how to better cater to the entire team.
-
 
 
 ### II. The initial idea: pandas.df.to_sql() with data engineering best practices
@@ -122,7 +123,7 @@ The sources you build and run that are not shared back into the verified sources
 
 By the end of 2023, our community had already built 1,000 private sources, [2,000 by early March](https://dlthub.com/docs/blog/code-vs-buy). We are now at the end of q2 2024 and we see 5,000 private sources.
 
-## Embracing  LLM-free code generation
+### Embracing  LLM-free code generation
 
 We recently launched additional tooling that helps our users build sources. If you wish to try our python-first dict-based declarative approach to building sources, check out the relevant post.
 
@@ -135,23 +136,23 @@ To get around this problem, we built from the OpenAPI standard which contains in
 
 By leveraging the data in the spec, we are able to have a basic pipeline. Our generator also infers some other pieces of information algorithmically to make the pipeline incremental and add some other useful details.
 
-## When generation doesn’t work
+### When generation doesn’t work
 
 Of course, generation doesn’t always work but you can take the generated pipeline and make the final adjustments to have a standard REST API config-based pipeline that won’t suffer from code smells.
 
-## The benefit of minimalistic sources
+### The benefit of minimalistic sources
 
 The real benefit of this declarative source is not at building time - A declarative interface requires more upfront knowledge. Instead, by having this option, we enable minimalistic pipelines that anyone could maintain, including non coders or human-assisted LLMs. After all, LLMs are particularly proficient at translating configurations back and forth.
 
 Want to influence us? we listen, so you’re welcome to discuss with us in our slack channel [**#4-discussions**](https://dlthub.com/community)
 
-## Towards a paid offering
+### Towards a paid offering
 
 dlt is an open core product, meaning it won’t be gated to push you to the paid version at some point. Instead, much like Kafka and Confluent, we will offer things around dlt to help you leverage it in your context.
 
 If you are interested to help us research what’s needed, you can apply for our design partnership program, that aims to help you deploy dlt, while helping us learn about your challenges.
 
-# Call to action.
+## Call to action.
 
 If you like the idea of dlt, there is one thing that would help us:
 
