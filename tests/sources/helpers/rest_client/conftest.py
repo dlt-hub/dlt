@@ -1,5 +1,5 @@
 import re
-from typing import NamedTuple, Callable, Pattern, List, Union, TYPE_CHECKING, Dict, List, Any
+from typing import NamedTuple, Callable, Pattern, Union, TYPE_CHECKING, Dict, List, Any
 import base64
 
 from urllib.parse import parse_qs, urlsplit, urlunsplit
