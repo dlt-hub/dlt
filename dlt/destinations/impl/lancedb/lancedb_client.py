@@ -681,8 +681,6 @@ class LoadLanceDBJob(LoadJob):
                         records.append(json_object)
                     except JSONDecodeError:
                         raise
-            except Exception:
-                raise
 
         # Batch load only accepts a list of dicts.
         if not isinstance(records, list) and isinstance(records, dict):
