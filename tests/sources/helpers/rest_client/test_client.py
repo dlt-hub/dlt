@@ -58,6 +58,38 @@ def rest_client() -> RESTClient:
     )
 
 
+@pytest.fixture
+def rest_client_immediate_oauth_expiry(auth=None) -> RESTClient:
+    class OAuth2ClientCredentialsExpiringNow(OAuth2ImplicitFlow):
+        def build_access_token_request(self):
+            return {
+                "url": "https://api.example.com/oauth/token-expires-now",
+                "headers": {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                "data": {
+                    **self.access_token_request_data,
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                },
+            }
+
+    auth = OAuth2ClientCredentialsExpiringNow(
+            access_token_request_data={
+                "grant_type": "client_credentials",
+            },
+            client_id=cast(TSecretStrValue, "test-client-id"),
+            client_secret=cast(TSecretStrValue, "test-client-secret"),
+        )
+
+    return RESTClient(
+        base_url="https://api.example.com",
+        headers={"Accept": "application/json"},
+        session=Client().session,
+        auth=auth
+    )
+
+
 @pytest.mark.usefixtures("mock_api_server")
 class TestRESTClient:
     def test_get_single_resource(self, rest_client):
@@ -253,8 +285,24 @@ class TestRESTClient:
         assert e.type == HTTPError
         assert e.match("401 Client Error")
 
-    def test_oauth_token_expired_refresh(self, rest_client: RESTClient):
-        pass
+    def test_oauth_token_expired_refresh(self, rest_client_immediate_oauth_expiry: RESTClient):
+        rest_client = rest_client_immediate_oauth_expiry
+        assert rest_client.auth.access_token is None
+        response = rest_client.get( "/protected/posts/bearer-token")
+        assert response.status_code == 200
+        assert rest_client.auth.access_token is not None
+        expiry_0 = rest_client.auth.token_expiry
+        rest_client.auth.token_expiry = rest_client.auth.token_expiry.subtract(seconds=1)
+        expiry_1 = rest_client.auth.token_expiry
+        assert expiry_1 < expiry_0
+        assert rest_client.auth.is_token_expired()
+
+        response = rest_client.get( "/protected/posts/bearer-token")
+        assert response.status_code == 200
+        expiry_2 = rest_client.auth.token_expiry
+
+        assert expiry_2 > expiry_1
+
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(

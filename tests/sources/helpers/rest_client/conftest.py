@@ -212,6 +212,13 @@ def mock_api_server():
             context.status_code = 401
             return {"error": "Unauthorized"}
 
+        @router.post("/oauth/token-expires-now")
+        def oauth_token_expires_now(request, context):
+            if oauth_authorize(request):
+                return {"access_token": "test-token", "expires_in": 0}
+            context.status_code = 401
+            return {"error": "Unauthorized"}
+
         @router.post("/auth/refresh")
         def refresh_token(request, context):
             body = request.json()
