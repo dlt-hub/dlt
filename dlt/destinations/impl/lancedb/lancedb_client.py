@@ -26,7 +26,11 @@ from pyarrow import Array, ChunkedArray, ArrowInvalid
 
 from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.exceptions import (
+    DestinationUndefinedEntity,
+    DestinationTransientException,
+    DestinationTerminalException,
+)
 from dlt.common.destination.reference import (
     JobClientBase,
     WithStateSync,
@@ -52,8 +56,6 @@ from dlt.destinations.impl.lancedb.configuration import (
 )
 from dlt.destinations.impl.lancedb.exceptions import (
     lancedb_error,
-    lancedb_batch_error,
-    LanceDBBatchError,
 )
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
@@ -144,7 +146,7 @@ class LanceDBTypeMapper(TypeMapper):
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
-@lancedb_batch_error
+
 def upload_batch(
     records: List[DictStrAny],
     /,
@@ -171,7 +173,9 @@ def upload_batch(
     try:
         tbl = db_client.open_table(table_name)
     except FileNotFoundError as e:
-        raise LanceDBBatchError(e) from e
+        raise DestinationTransientException(
+            "Couldn't open lancedb database. Batch WILL BE RETRIED"
+        ) from e
 
     try:
         if write_disposition in ("append", "skip"):
@@ -187,11 +191,13 @@ def upload_batch(
                 id_field_name
             ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
-            raise ValueError(
-                f"Unsupported write disposition {write_disposition} for LanceDB Destination."
+            raise DestinationTerminalException(
+                f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch failed AND WILL **NOT** BE RETRIED."
             )
     except ArrowInvalid as e:
-        raise LanceDBBatchError(e) from e
+        raise DestinationTerminalException(
+            "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
+        ) from e
 
 
 class LanceDBClient(JobClientBase, WithStateSync):
