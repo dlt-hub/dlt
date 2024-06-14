@@ -55,6 +55,7 @@ def make_arrow_table_schema(
         arrow_schema.append(pa.field(id_field_name, pa.string()))
 
     if embedding_fields:
+        # User's provided dimension config, if provided, takes precedence.
         vec_size = embedding_model_dimensions or embedding_model_func.ndims()
         arrow_schema.append(pa.field(vector_field_name, pa.list_(pa.float32(), vec_size)))
 
@@ -63,7 +64,7 @@ def make_arrow_table_schema(
         arrow_schema.append(field)
 
     metadata = {}
-    if embedding_model_func and embedding_fields:
+    if embedding_model_func:
         # Get the registered alias if it exists, otherwise use the class name.
         name = getattr(
             embedding_model_func,

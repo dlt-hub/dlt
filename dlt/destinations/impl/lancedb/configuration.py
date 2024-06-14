@@ -85,8 +85,8 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     """The model used by the embedding provider for generating embeddings.
     Check with the embedding provider which options are available.
     Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/."""
-    embedding_model_dimensions: int = 1024
-    """The dimensions of the embeddings generated. In most cases it will be automatically inferred,
+    embedding_model_dimensions: Optional[int] = None
+    """The dimensions of the embeddings generated. In most cases it will be automatically inferred, by LanceDB,
     but it is configurable in rare cases.
 
     Make sure it corresponds with the associated embedding model's dimensionality."""
@@ -100,7 +100,6 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "embedding_model",
-        "embedding_model_dimensions",
         "embedding_model_provider",
     ]
 
