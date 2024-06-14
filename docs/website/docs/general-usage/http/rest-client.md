@@ -406,11 +406,11 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [BearerTokenAuth](#bearer-token-authentication)
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
-- [OAuth2ImplicitFlow](#oauth20-authorization)
+- [OAuth2ClientCredentialsFlow](#oauth20-authorization)
 
 For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthBase` class from the Requests library.
 For specific flavors of OAuth 2.0 you can [implement custom OAuth 2.0](#oauth2-authorization)
-by subclassing `OAuth2ImplicitFlow`.
+by subclassing `OAuth2ClientCredentialsFlow`.
 
 ### Bearer token authentication
 
@@ -485,7 +485,7 @@ response = client.get("/protected/resource")
 OAuth 2.0 is a common protocol for authorization. We have implemented two-legged authorization employed for server-to-server authorization because the end user (resource owner) does not need to grant approval.
 The REST client acts as the OAuth client which obtains a temporary access token from the authorization server. This access token is then sent to the resource server to access protected content.
 
-Unfortunately, most OAuth 2.0 implementations vary and thus you need to subclass `OAuth2ImplicitFlow` and implement `obtain_token()` to suite the requirements of the specific authorization server you want to interact with.
+Unfortunately, most OAuth 2.0 implementations vary and thus you need to subclass `OAuth2ClientCredentialsFlow` and implement `obtain_token()` to suite the requirements of the specific authorization server you want to interact with.
 
 **Parameters:**
 
@@ -498,9 +498,9 @@ Unfortunately, most OAuth 2.0 implementations vary and thus you need to subclass
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.auth import OAuth2ImplicitFlow
+from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentialsFlow
 
-class OAuth2Zoom(OAuth2ImplicitFlow):
+class OAuth2Zoom(OAuth2ClientCredentialsFlow):
     def build_access_token_request(self) -> Dict[str, Any]:
         authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
         return {

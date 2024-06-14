@@ -15,7 +15,7 @@ from dlt.sources.helpers.rest_client.auth import (
     AuthConfigBase,
     BearerTokenAuth,
     HttpBasicAuth,
-    OAuth2ImplicitFlow,
+    OAuth2ClientCredentialsFlow,
     OAuthJWTAuth,
 )
 from dlt.sources.helpers.rest_client.client import Hooks
@@ -60,7 +60,7 @@ def rest_client_oauth() -> RESTClient:
     return build_rest_client(auth=auth)
 
 
-class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
+class OAuth2ClientCredentialsExample(OAuth2ClientCredentialsFlow):
     def build_access_token_request(self):
         return {
             "url": "https://api.example.com/oauth/token",
@@ -77,7 +77,7 @@ class OAuth2ClientCredentialsExample(OAuth2ImplicitFlow):
 
 @pytest.fixture
 def rest_client_immediate_oauth_expiry(auth=None) -> RESTClient:
-    class OAuth2ClientCredentialsExpiringNow(OAuth2ImplicitFlow):
+    class OAuth2ClientCredentialsExpiringNow(OAuth2ClientCredentialsFlow):
         def build_access_token_request(self):
             return {
                 "url": "https://api.example.com/oauth/token-expires-now",

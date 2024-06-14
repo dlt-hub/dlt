@@ -147,13 +147,14 @@ class OAuth2AuthBase(AuthConfigBase):
 
 
 @configspec
-class OAuth2ImplicitFlow(OAuth2AuthBase):
+class OAuth2ClientCredentialsFlow(OAuth2AuthBase):
     """
-    This class implements OAuth2 implicit flow which does not require the end user to
-    give permission to the app to access their information. This is often used for
-    server-to-server authorization.
-    The client obtains a temporary access token from the authorization service.
-    With the access token, the client can access resource services
+    This class implements OAuth2 Client Credentials flow where the autorization service
+    gives permission without the end user approving.
+    This is often used for machine-to-machine authorization.
+    The client sends its client ID and client secret to the authorization service which replies
+    with a temporary access token.
+    With the access token, the client can access resource services.
     """
 
     def __init__(
