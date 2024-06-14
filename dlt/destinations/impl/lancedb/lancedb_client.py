@@ -44,7 +44,6 @@ from dlt.common.schema.typing import (
     TColumnType,
     TTableFormat,
     TTableSchemaColumns,
-    TColumnSchema,
     TWriteDisposition,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -59,7 +58,6 @@ from dlt.destinations.impl.lancedb.exceptions import (
 )
 from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
-    arrow_schema_to_dict,
     make_arrow_field_schema,
     make_arrow_table_schema,
     TArrowSchema,
@@ -387,16 +385,16 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         try:
             fq_table_name = self.make_qualified_table_name(table_name)
-            arrow_schema = self.db_client.open_table(fq_table_name).schema
+            arrow_schema: TArrowSchema = self.db_client.open_table(fq_table_name).schema
         except FileNotFoundError:
             return False, table_schema
 
-        for field_name, field_type in arrow_schema_to_dict(arrow_schema).items():
-            schema_c: TColumnSchema = {
-                "name": self.schema.naming.normalize_identifier(field_name),
-                **self._from_db_type(field_type, None, None),
+        field: TArrowField
+        for field in arrow_schema:
+            table_schema[field.type] = {
+                "name": self.schema.naming.normalize_identifier(field.name),
+                **self.type_mapper.from_db_type(field.type),
             }
-            table_schema[field_type] = schema_c
         return True, table_schema
 
     @lancedb_error
@@ -632,11 +630,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
-
-    def _from_db_type(
-        self, wt_t: pa.DataType, precision: Optional[int], scale: Optional[int]
-    ) -> TColumnType:
-        return self.type_mapper.from_db_type(cast(pa.DataType, wt_t), precision, scale)
 
 
 class LoadLanceDBJob(LoadJob):
