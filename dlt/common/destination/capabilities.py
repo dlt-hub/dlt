@@ -88,6 +88,18 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
 
+    @property
+    def escapers(self) -> Tuple[Callable[[str], str], Callable[[Any], Any]]:
+        """Returns tuple of identifier and literal escape functions."""
+
+        escape_id = self.escape_identifier
+        escape_lit = self.escape_literal
+        if escape_id is None:
+            escape_id = self.generic_capabilities().escape_identifier
+        if escape_lit is None:
+            escape_lit = self.generic_capabilities().escape_literal
+        return (escape_id, escape_lit)
+
     @staticmethod
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,

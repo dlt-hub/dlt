@@ -154,7 +154,7 @@ class NormalizerInfo(TypedDict, total=True):
 
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
 
 
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))

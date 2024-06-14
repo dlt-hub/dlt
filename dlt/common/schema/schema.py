@@ -564,9 +564,9 @@ class Schema:
             )
         ]
 
-    def data_table_names(self) -> List[str]:
+    def data_table_names(self, include_incomplete: bool = False) -> List[str]:
         """Returns list of table table names. Excludes dlt table names."""
-        return [t["name"] for t in self.data_tables()]
+        return [t["name"] for t in self.data_tables(include_incomplete=include_incomplete)]
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""

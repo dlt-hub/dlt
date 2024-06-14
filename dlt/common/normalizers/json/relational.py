@@ -2,18 +2,23 @@ from functools import lru_cache
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
 from dlt.common.json import json
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
-from dlt.common.normalizers.typing import TJSONNormalizer
+from dlt.common.normalizers.typing import TJSONNormalizer, TRowIdType
 from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import (
+    TLoaderMergeStrategy,
     TColumnSchema,
     TColumnName,
     TSimpleRegex,
     DLT_NAME_PREFIX,
 )
-from dlt.common.schema.utils import column_name_validator, get_validity_column_names
+from dlt.common.schema.utils import (
+    column_name_validator,
+    get_validity_column_names,
+    get_columns_names_with_prop,
+)
 from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import (
@@ -142,7 +147,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         return cast(TDataItemRow, out_rec_row), out_rec_list
 
     @staticmethod
-    def get_row_hash(row: Dict[str, Any]) -> str:
+    def get_row_hash(row: Dict[str, Any], subset: Optional[List[str]] = None) -> str:
         """Returns hash of row.
 
         Hash includes column names and values and is ordered by column name.
@@ -150,6 +155,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         Can be used as deterministic row identifier.
         """
         row_filtered = {k: v for k, v in row.items() if not k.startswith(DLT_NAME_PREFIX)}
+        if subset is not None:
+            row_filtered = {k: v for k, v in row.items() if k in subset}
         row_str = json.dumps(row_filtered, sort_keys=True)
         return digest128(row_str, DLT_ID_LENGTH_BYTES)
 
@@ -252,14 +259,15 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         pos: Optional[int] = None,
         _r_lvl: int = 0,
-        row_hash: bool = False,
+        row_id_type: TRowIdType = None,
     ) -> TNormalizedRowIterator:
         schema = self.schema
         table = schema.naming.shorten_fragments(*parent_path, *ident_path)
-        # compute row hash and set as row id
-        if row_hash:
-            row_id = self.get_row_hash(dict_row)  # type: ignore[arg-type]
-            dict_row["_dlt_id"] = row_id
+        if row_id_type in ("key_hash", "row_hash"):
+            subset = None
+            if row_id_type == "key_hash":
+                subset = self._get_primary_key(schema, table)
+            dict_row["_dlt_id"] = self.get_row_hash(dict_row, subset=subset)  # type: ignore[arg-type]
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -341,10 +349,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
-        # determine if row hash should be used as dlt id
-        row_hash = False
-        if self._is_scd2_table(self.schema, table_name):
-            row_hash = self._dlt_id_is_row_hash(self.schema, table_name)
+        if self._get_merge_strategy(self.schema, table_name) == "scd2":
             self._validate_validity_column_names(
                 self._get_validity_column_names(self.schema, table_name), item
             )
@@ -352,7 +357,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
-            row_hash=row_hash,
+            row_id_type=self._get_row_id_type(self.schema, table_name),
         )
 
     @classmethod
@@ -397,11 +402,16 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _is_scd2_table(schema: Schema, table_name: str) -> bool:
-        if table_name in schema.data_table_names():
-            if schema.get_table(table_name).get("x-merge-strategy") == "scd2":
-                return True
-        return False
+    def _get_merge_strategy(schema: Schema, table_name: str) -> Optional[TLoaderMergeStrategy]:
+        if table_name in schema.data_table_names(include_incomplete=True):
+            return schema.get_table(table_name).get("x-merge-strategy")  # type: ignore[return-value]
+        return None
+
+    @staticmethod
+    @lru_cache(maxsize=None)
+    def _get_primary_key(schema: Schema, table_name: str) -> List[str]:
+        table = schema.get_table(table_name)
+        return get_columns_names_with_prop(table, "primary_key", include_incomplete=True)
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -410,12 +420,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _dlt_id_is_row_hash(schema: Schema, table_name: str) -> bool:
-        return (
-            schema.get_table(table_name)["columns"]  # type: ignore[return-value]
-            .get("_dlt_id", {})
-            .get("x-row-version", False)
-        )
+    def _get_row_id_type(schema: Schema, table_name: str) -> TRowIdType:
+        merge_strategy = DataItemNormalizer._get_merge_strategy(schema, table_name)
+        if merge_strategy == "upsert":
+            return "key_hash"
+        elif merge_strategy == "scd2":
+            if (
+                schema.get_table(table_name)["columns"]
+                .get("_dlt_id", {})
+                .get("x-row-version", False)
+            ):
+                return "row_hash"
+        return "random"
 
     @staticmethod
     def _validate_validity_column_names(

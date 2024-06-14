@@ -342,59 +342,67 @@ class JobClientBase(ABC):
         * Removes and warns on (unbound) incomplete columns
         """
 
-        for table in self.schema.data_tables():
-            table_name = table["name"]
-            if len(table_name) > self.capabilities.max_identifier_length:
-                raise IdentifierTooLongException(
-                    self.config.destination_type,
-                    "table",
-                    table_name,
-                    self.capabilities.max_identifier_length,
-                )
+        def verify_merge_disposition(table: TTableSchema) -> None:
             if table.get("write_disposition") == "merge":
                 if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
                     raise SchemaException(
-                        f'"{table["x-merge-strategy"]}" is not a valid merge strategy. '  # type: ignore[typeddict-item]
+                        f'`{table["x-merge-strategy"]}` is not a valid merge strategy. '  # type: ignore[typeddict-item]
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                     )
-                if (
-                    table.get("x-merge-strategy") == "delete-insert"
-                    and not has_column_with_prop(table, "primary_key")
-                    and not has_column_with_prop(table, "merge_key")
-                ):
-                    logger.warning(
-                        f"Table {table_name} has `write_disposition` set to `merge`"
-                        " and `merge_strategy` set to `delete-insert`, but no primary or"
-                        " merge keys defined."
-                        " dlt will fall back to `append` for this table."
-                    )
+                if table.get("x-merge-strategy") == "delete-insert":
+                    if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
+                        table, "merge_key"
+                    ):
+                        logger.warning(
+                            f"Table {table['name']} has `write_disposition` set to `merge`"
+                            " and `merge_strategy` set to `delete-insert`, but no primary or"
+                            " merge keys defined."
+                            " dlt will fall back to `append` for this table."
+                        )
+                elif table.get("x-merge-strategy") == "upsert":
+                    if not has_column_with_prop(table, "primary_key"):
+                        raise SchemaException(
+                            f"No primary key defined for table `{table['name']}`."
+                            " `primary_key` needs to be set when using the `upsert`"
+                            " merge strategy."
+                        )
+                    if has_column_with_prop(table, "merge_key"):
+                        logger.warning(
+                            f"Found `merge_key` for table `{table['name']}` with"
+                            " `upsert` merge strategy. Merge key is not supported"
+                            " for this strategy and will be ignored."
+                        )
+
+        def verify_hard_delete(table: TTableSchema) -> None:
             if has_column_with_prop(table, "hard_delete"):
                 if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                     raise SchemaException(
-                        f'Found multiple "hard_delete" column hints for table "{table_name}" in'
+                        f"""Found multiple "hard_delete" column hints for table "{table['name']}" in"""
                         f' schema "{self.schema.name}" while only one is allowed:'
                         f' {", ".join(get_columns_names_with_prop(table, "hard_delete"))}.'
                     )
                 if table.get("write_disposition") in ("replace", "append"):
                     logger.warning(
                         f"""The "hard_delete" column hint for column "{get_first_column_name_with_prop(table, 'hard_delete')}" """
-                        f'in table "{table_name}" with write disposition'
+                        f"""in table "{table['name']}" with write disposition"""
                         f' "{table.get("write_disposition")}"'
                         f' in schema "{self.schema.name}" will be ignored.'
                         ' The "hard_delete" column hint is only applied when using'
                         ' the "merge" write disposition.'
                     )
+
+        def verify_dedup_sort(table: TTableSchema) -> None:
             if has_column_with_prop(table, "dedup_sort"):
                 if len(get_columns_names_with_prop(table, "dedup_sort")) > 1:
                     raise SchemaException(
-                        f'Found multiple "dedup_sort" column hints for table "{table_name}" in'
+                        f"""Found multiple "dedup_sort" column hints for table "{table['name']}" in"""
                         f' schema "{self.schema.name}" while only one is allowed:'
                         f' {", ".join(get_columns_names_with_prop(table, "dedup_sort"))}.'
                     )
                 if table.get("write_disposition") in ("replace", "append"):
                     logger.warning(
                         f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
+                        f"""in table "{table['name']}" with write disposition"""
                         f' "{table.get("write_disposition")}"'
                         f' in schema "{self.schema.name}" will be ignored.'
                         ' The "dedup_sort" column hint is only applied when using'
@@ -405,12 +413,27 @@ class JobClientBase(ABC):
                 ):
                     logger.warning(
                         f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
+                        f"""in table "{table['name']}" with write disposition"""
                         f' "{table.get("write_disposition")}"'
                         f' in schema "{self.schema.name}" will be ignored.'
                         ' The "dedup_sort" column hint is only applied when a'
                         " primary key has been specified."
                     )
+
+        for table in self.schema.data_tables():
+            table_name = table["name"]
+            if len(table_name) > self.capabilities.max_identifier_length:
+                raise IdentifierTooLongException(
+                    self.config.destination_type,
+                    "table",
+                    table_name,
+                    self.capabilities.max_identifier_length,
+                )
+
+            verify_merge_disposition(table)
+            verify_hard_delete(table)
+            verify_dedup_sort(table)
+
             for column_name, column in dict(table["columns"]).items():
                 if len(column_name) > self.capabilities.max_column_identifier_length:
                     raise IdentifierTooLongException(

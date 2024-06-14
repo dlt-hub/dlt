@@ -12,6 +12,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.extract import DltResource
@@ -30,7 +31,11 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
-def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_on_keys_in_schema(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
     p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v5.yml", "r", encoding="utf-8") as f:
@@ -41,18 +46,21 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
         del schema.tables["blocks__uncles"]["x-normalizer"]  # type: ignore[typeddict-item]
         assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
-    with open(
-        "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
-        "r",
-        encoding="utf-8",
-    ) as f:
-        data = json.load(f)
+    @dlt.resource(
+        table_name="blocks",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+    )
+    def data(slice_: slice = None):
+        with open(
+            "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",
+            "r",
+            encoding="utf-8",
+        ) as f:
+            yield json.load(f) if slice_ is None else json.load(f)[slice_]
 
     # take only the first block. the first block does not have uncles so this table should not be created and merged
     info = p.run(
-        data[:1],
-        table_name="blocks",
-        write_disposition="merge",
+        data(slice(1)),
         schema=schema,
         loader_file_format=destination_config.file_format,
     )
@@ -69,8 +77,6 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     # if the table would be created before the whole load would fail because new columns have hints
     info = p.run(
         data,
-        table_name="blocks",
-        write_disposition="merge",
         schema=schema,
         loader_file_format=destination_config.file_format,
     )
@@ -80,8 +86,6 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     # make sure we have same record after merging full dataset again
     info = p.run(
         data,
-        table_name="blocks",
-        write_disposition="merge",
         schema=schema,
         loader_file_format=destination_config.file_format,
     )
@@ -96,19 +100,27 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
-def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_on_ad_hoc_primary_key(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
     p = destination_config.setup_pipeline("github_1", dev_mode=True)
 
-    with open(
-        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
-    ) as f:
-        data = json.load(f)
+    @dlt.resource(
+        table_name="issues",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="NodeId",
+    )
+    def data(slice_: slice = None):
+        with open(
+            "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+        ) as f:
+            yield json.load(f) if slice_ is None else json.load(f)[slice_]
+
     # note: NodeId will be normalized to "node_id" which exists in the schema
     info = p.run(
-        data[:17],
-        table_name="issues",
-        write_disposition="merge",
-        primary_key="NodeId",
+        data(slice(0, 17)),
         loader_file_format=destination_config.file_format,
     )
     assert_load_info(info)
@@ -121,10 +133,7 @@ def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfigur
     assert p.default_schema.tables["issues"]["columns"]["node_id"]["nullable"] is False
 
     info = p.run(
-        data[5:],
-        table_name="issues",
-        write_disposition="merge",
-        primary_key="node_id",
+        data(slice(5, None)),
         loader_file_format=destination_config.file_format,
     )
     assert_load_info(info)
@@ -568,10 +577,18 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-def test_complex_column_missing(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_complex_column_missing(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
     table_name = "test_complex_column_missing"
 
-    @dlt.resource(name=table_name, write_disposition="merge", primary_key="id")
+    @dlt.resource(
+        name=table_name,
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="id",
+    )
     def r(data):
         yield data
 
@@ -597,14 +614,21 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("key_type", ["primary_key", "merge_key", "no_key"])
-def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_hard_delete_hint(
+    destination_config: DestinationTestConfiguration,
+    key_type: str,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    if merge_strategy == "upsert" and key_type != "primary_key":
+        pytest.skip("`upsert` merge strategy requires `primary_key`")
     # no_key setting will have the effect that hard deletes have no effect, since hard delete records
     # can not be matched
     table_name = "test_hard_delete_hint"
 
     @dlt.resource(
         name=table_name,
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
         columns={"deleted": {"hard_delete": True}},
     )
     def data_resource(data):
@@ -660,6 +684,8 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         {"id": 3, "val": "foo", "deleted": False},
         {"id": 3, "val": "bar", "deleted": False},
     ]
+    if merge_strategy == "upsert":
+        del data[0]  # `upsert` requires unique `primary_key`
     info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, table_name)[table_name]
@@ -752,12 +778,16 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-def test_hard_delete_hint_config(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_hard_delete_hint_config(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
     table_name = "test_hard_delete_hint_non_bool"
 
     @dlt.resource(
         name=table_name,
-        write_disposition="merge",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
         primary_key="id",
         columns={
             "deleted_timestamp": {"data_type": "timestamp", "nullable": True, "hard_delete": True}
@@ -977,15 +1007,26 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
     ids=lambda x: x.name,
 )
-def test_invalid_merge_strategy(destination_config: DestinationTestConfiguration) -> None:
+def test_invalid_input(destination_config: DestinationTestConfiguration) -> None:
+    # invalid merge strategy should error
     @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
     def r():
         yield {"foo": "bar"}
 
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaException)
+
+    # `upsert` merge strategy without `primary_key` should error
+    p.drop()  # remove `write_disposition` from previous test
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+    )
+    assert "primary_key" not in r._hints
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
     assert isinstance(pip_ex.value.__context__, SchemaException)
