@@ -385,8 +385,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
             arrow_schema = self.db_client.open_table(fq_table_name).schema
         except FileNotFoundError:
             return False, table_schema
-        except Exception:
-            raise
 
         for field_name, field_type in arrow_schema_to_dict(arrow_schema).items():
             schema_c: TColumnSchema = {
