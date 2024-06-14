@@ -192,8 +192,6 @@ def upload_batch(
             )
     except ArrowInvalid as e:
         raise LanceDBBatchError(e) from e
-    except Exception:
-        raise
 
 
 class LanceDBClient(JobClientBase, WithStateSync):
