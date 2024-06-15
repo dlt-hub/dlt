@@ -25,6 +25,7 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
+from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.utils import verify_schema_capabilities
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -44,6 +45,7 @@ from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo
+from dlt.common.typing import get_all_types_of_class_in_union
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -92,6 +94,10 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     def on_resolved(self) -> None:
         self.destination_name = self.destination_name or self.destination_type
+
+    @classmethod
+    def credentials_type(cls) -> Type[CredentialsConfiguration]:
+        return extract_inner_hint(cls.get_resolvable_fields()["credentials"])
 
 
 @configspec
@@ -413,7 +419,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     with credentials and other config params.
     """
 
-    config_params: Optional[Dict[str, Any]] = None
+    config_params: Dict[str, Any]
+    """Explicit config params, overriding any injected or default values."""
+    caps_params: Dict[str, Any]
+    """Explicit capabilities params, overriding any default values for this destination"""
 
     def __init__(self, **kwargs: Any) -> None:
         # Create initial unresolved destination config
@@ -421,9 +430,27 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         # to supersede config from the environment or pipeline args
         sig = inspect.signature(self.__class__.__init__)
         params = sig.parameters
-        self.config_params = {
-            k: v for k, v in kwargs.items() if k not in params or v != params[k].default
-        }
+
+        # get available args
+        spec = self.spec
+        spec_fields = spec.get_resolvable_fields()
+        caps_fields = DestinationCapabilitiesContext.get_resolvable_fields()
+
+        # remove default kwargs
+        kwargs = {k: v for k, v in kwargs.items() if k not in params or v != params[k].default}
+
+        # warn on unknown params
+        for k in list(kwargs):
+            if k not in spec_fields and k not in caps_fields:
+                logger.warning(
+                    f"When initializing destination factory of type {self.destination_type},"
+                    f" argument {k} is not a valid field in {spec.__name__} or destination"
+                    " capabilities"
+                )
+                kwargs.pop(k)
+
+        self.config_params = {k: v for k, v in kwargs.items() if k in spec_fields}
+        self.caps_params = {k: v for k, v in kwargs.items() if k in caps_fields}
 
     @property
     @abstractmethod
@@ -431,9 +458,30 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         """A spec of destination configuration that also contains destination credentials"""
         ...
 
+    def capabilities(
+        self, config: Optional[TDestinationConfig] = None, naming: Optional[NamingConvention] = None
+    ) -> DestinationCapabilitiesContext:
+        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc.
+        Explicit caps arguments passed to the factory init and stored in `caps_params` are applied.
+
+        If `config` is provided, it is used to adjust the capabilities, otherwise the explicit config composed just of `config_params` passed
+          to factory init is applied
+        If `naming` is provided, the case sensitivity and case folding are adjusted.
+        """
+        caps = self._raw_capabilities()
+        caps.update(self.caps_params)
+        # get explicit config if final config not passed
+        if config is None:
+            # create mock credentials to avoid credentials being resolved
+            credentials = self.spec.credentials_type()()
+            credentials.__is_resolved__ = True
+            config = self.spec(credentials=credentials)
+            config = self.configuration(config, accept_partial=True)
+        return self.adjust_capabilities(caps, config, naming)
+
     @abstractmethod
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        """Returns raw capabilities, before being adjusted with naming convention and config"""
         ...
 
     @property
@@ -456,7 +504,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         """A job client class responsible for starting and resuming load jobs"""
         ...
 
-    def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
+    def configuration(
+        self, initial_config: TDestinationConfig, accept_partial: bool = False
+    ) -> TDestinationConfig:
         """Get a fully resolved destination config from the initial config"""
 
         config = resolve_configuration(
@@ -464,6 +514,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             sections=(known_sections.DESTINATION, self.destination_name),
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params,
+            accept_partial=accept_partial,
         )
         return config
 
@@ -472,18 +523,18 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     ) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""
         config = self.configuration(initial_config)
-        caps = self.adjust_capabilities(self.capabilities(), config, schema.naming)
-        return self.client_class(schema, config, caps)
+        return self.client_class(schema, config, self.capabilities(config, schema.naming))
 
     @classmethod
     def adjust_capabilities(
         cls,
         caps: DestinationCapabilitiesContext,
         config: TDestinationConfig,
-        naming: NamingConvention,
+        naming: Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         """Adjust the capabilities to match the case sensitivity as requested by naming convention."""
-        if not naming.is_case_sensitive:
+        # if naming not provided, skip the adjustment
+        if not naming or not naming.is_case_sensitive:
             # all destinations are configured to be case insensitive so there's nothing to adjust
             return caps
         if not caps.has_case_sensitive_identifiers:
