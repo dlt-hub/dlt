@@ -473,8 +473,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if len(new_columns) > 0:
                 if exists:
+                    is_collection_vectorized = self._is_collection_vectorized(table_name)
                     for column in new_columns:
-                        prop = self._make_property_schema(column["name"], column)
+                        prop = self._make_property_schema(
+                            column["name"], column, is_collection_vectorized
+                        )
                         self.create_class_property(table_name, prop)
                 else:
                     class_schema = self.make_weaviate_class_schema(table_name)
@@ -625,12 +628,18 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
 
         # check if any column requires vectorization
-        if get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT):
+        if self._is_collection_vectorized(table_name):
             class_schema.update(self._vectorizer_config)
         else:
             class_schema.update(NON_VECTORIZED_CLASS)
 
         return class_schema
+
+    def _is_collection_vectorized(self, table_name: str) -> bool:
+        """Tells is any of the columns has vectorize hint set"""
+        return (
+            len(get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT)) > 0
+        )
 
     def _make_properties(self, table_name: str) -> List[Dict[str, Any]]:
         """Creates a Weaviate properties schema from a table schema.
@@ -638,18 +647,20 @@ class WeaviateClient(JobClientBase, WithStateSync):
         Args:
             table: The table name for which columns should be converted to properties
         """
-
+        is_collection_vectorized = self._is_collection_vectorized(table_name)
         return [
-            self._make_property_schema(column_name, column)
+            self._make_property_schema(column_name, column, is_collection_vectorized)
             for column_name, column in self.schema.get_table_columns(table_name).items()
         ]
 
-    def _make_property_schema(self, column_name: str, column: TColumnSchema) -> Dict[str, Any]:
+    def _make_property_schema(
+        self, column_name: str, column: TColumnSchema, is_collection_vectorized: bool
+    ) -> Dict[str, Any]:
         extra_kv = {}
 
         vectorizer_name = self._vectorizer_config["vectorizer"]
         # x-weaviate-vectorize: (bool) means that this field should be vectorized
-        if not column.get(VECTORIZE_HINT, False):
+        if is_collection_vectorized and not column.get(VECTORIZE_HINT, False):
             # tell weaviate explicitly to not vectorize when column has no vectorize hint
             extra_kv["moduleConfig"] = {
                 vectorizer_name: {

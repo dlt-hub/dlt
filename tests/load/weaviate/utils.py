@@ -38,9 +38,10 @@ def assert_class(
         # make sure expected columns are vectorized
         for column_name, column in columns.items():
             prop = properties[column_name]
-            assert prop["moduleConfig"][vectorizer_name]["skip"] == (
-                not column.get(VECTORIZE_HINT, False)
-            )
+            if client._is_collection_vectorized(class_name):
+                assert prop["moduleConfig"][vectorizer_name]["skip"] == (
+                    not column.get(VECTORIZE_HINT, False)
+                )
             # tokenization
             if TOKENIZATION_HINT in column:
                 assert prop["tokenization"] == column[TOKENIZATION_HINT]  # type: ignore[literal-required]

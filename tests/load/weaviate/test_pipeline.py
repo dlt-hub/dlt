@@ -10,7 +10,7 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.impl.weaviate import weaviate_adapter
+from dlt.destinations.adapters import weaviate_adapter
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
@@ -248,7 +248,8 @@ def test_pipeline_merge() -> None:
     assert_class(pipeline, "MoviesData", items=data)
 
 
-def test_pipeline_with_schema_evolution():
+@pytest.mark.parametrize("vectorized", (True, False), ids=("vectorized", "not-vectorized"))
+def test_pipeline_with_schema_evolution(vectorized: bool):
     data = [
         {
             "doc_id": 1,
@@ -264,7 +265,8 @@ def test_pipeline_with_schema_evolution():
     def some_data():
         yield data
 
-    weaviate_adapter(some_data, vectorize=["content"])
+    if vectorized:
+        weaviate_adapter(some_data, vectorize=["content"])
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
@@ -284,17 +286,22 @@ def test_pipeline_with_schema_evolution():
             "doc_id": 3,
             "content": "3",
             "new_column": "new",
+            "new_vec_column": "lorem lorem",
         },
         {
             "doc_id": 4,
             "content": "4",
             "new_column": "new",
+            "new_vec_column": "lorem lorem",
         },
     ]
 
-    pipeline.run(
-        some_data(),
-    )
+    some_data_2 = some_data()
+
+    if vectorized:
+        weaviate_adapter(some_data_2, vectorize=["new_vec_column"])
+
+    pipeline.run(some_data_2)
 
     table_schema = pipeline.default_schema.tables["SomeData"]
     assert "new_column" in table_schema["columns"]
@@ -302,6 +309,8 @@ def test_pipeline_with_schema_evolution():
     aggregated_data.extend(data)
     aggregated_data[0]["new_column"] = None
     aggregated_data[1]["new_column"] = None
+    aggregated_data[0]["new_vec_column"] = None
+    aggregated_data[1]["new_vec_column"] = None
 
     assert_class(pipeline, "SomeData", items=aggregated_data)
 
