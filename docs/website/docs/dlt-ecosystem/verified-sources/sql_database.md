@@ -161,7 +161,7 @@ good performance, preserves exact database types and we recommend it for large t
 ### **sqlalchemy** backend
 
 **sqlalchemy** (the default) yields table data as list of Python dictionaries. This data goes through regular extract
-and normalize steps and does not require additional dependencies to be installed. It is the most robust (works with any destination, correctly represents data types) but also the slowest. You can use `detect_precision_hints` to pass exact database types to `dlt` schema.
+and normalize steps and does not require additional dependencies to be installed. It is the most robust (works with any destination, correctly represents data types) but also the slowest. You can use `reflection_level="full_with_precision"` to pass exact database types to `dlt` schema.
 
 ### **pyarrow** backend
 
@@ -262,7 +262,7 @@ unsw_table = sql_table(
     chunk_size=100000,
     backend="connectorx",
     # keep source data types
-    detect_precision_hints=True,
+    reflection_level="full_with_precision",
     # just to demonstrate how to setup a separate connection string for connectorx
     backend_kwargs={"conn": "postgresql://loader:loader@localhost:5432/dlt_data"}
 )
@@ -381,6 +381,51 @@ You can extract each table in a separate thread (no multiprocessing at this poin
 ```py
 database = sql_database().parallelize()
 table = sql_table().parallelize()
+```
+
+## Column reflection
+
+Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
+Most types are supported.
+
+The `reflection_level` argument controls how much information is reflected:
+
+- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data.
+- `reflection_level = "full"`: Column names, nullability, and data types are detected.
+- `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected.
+
+If the SQL type is unknown or not supported by `dlt` the column is skipped when using the `pyarrow` backend.
+In other backend the type is inferred from data regardless of `reflection_level`, this often works, some types are coerced to strings
+and `dataclass` based values from sqlalchemy are inferred as `complex` (JSON in most destinations).
+
+You can also override the sql type by passing a `type_adapter_callback` function.
+This function takes an `sqlalchemy` data type and returns a new type (or `None` to force the column to be skipped/inferred depending on backend).
+
+This is useful for example when:
+a) You're loading a data type which is not supported by the destination (e.g. you need JSON type columns to be coerced to string)
+b) You're using an sqlalchemy dialect which uses custom types that don't inherit from standard sqlalchemy types.
+
+Example, when loading timestamps from Snowflake you can make sure they translate to `timestamp` columns in the result schema:
+
+```python
+import dlt
+from snowflake.sqlalchemy import TIMESTAMP_NTZ
+import sqlalchemy as sa
+from sqlalchemy.sql.sqltypes import TypeAdapter
+
+def type_adapter_callback(sql_type: TypeAdapter) -> TypeAdapter:
+    if isinstance(sql_type, TIMESTAMP_NTZ):  # Snowflake does not inherit from sa.DateTime
+        return sa.DateTime(timezone=True)
+    return sql_type  # Use default detection for other types
+
+source = sql_database(
+    "snowflake://user:password@account/database?&warehouse=WH_123",
+    reflection_level="full",
+    type_adapter_callback=type_adapter_callback,
+    backend="pyarrow"
+)
+
+dlt.pipeline("demo").run(source)
 ```
 
 ## Troubleshooting
