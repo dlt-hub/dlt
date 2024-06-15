@@ -9493,6 +9493,7 @@ az = ["adlfs"]
 bigquery = ["gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
 cli = ["cron-descriptor", "pipdeptree"]
 clickhouse = ["adlfs", "clickhouse-connect", "clickhouse-driver", "gcsfs", "pyarrow", "s3fs"]
+cohere = ["cohere"]
 databricks = ["databricks-sql-connector"]
 deltalake = ["deltalake", "pyarrow"]
 dremio = ["pyarrow"]
@@ -9515,4 +9516,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "80596bc72fb60fcd895511d366571f7c48f30ab3296dce7da78dd1e9abf774e7"
+content-hash = "8af41ee50240467684e21646c099989ea45a5de93e03136a2b410f899cf7bfce"
