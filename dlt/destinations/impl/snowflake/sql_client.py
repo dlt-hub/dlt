@@ -17,7 +17,6 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
-from dlt.destinations.impl.snowflake import capabilities
 
 
 class SnowflakeCursorImpl(DBApiCursorImpl):

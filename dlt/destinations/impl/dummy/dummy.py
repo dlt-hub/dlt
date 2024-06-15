@@ -36,7 +36,6 @@ from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
     LoadJobInvalidStateTransitionException,
 )
-from dlt.destinations.impl.dummy import capabilities
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 

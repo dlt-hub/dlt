@@ -1,13 +1,14 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.data_writers.escape import escape_redshift_identifier, escape_redshift_literal
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.destinations.impl.redshift.configuration import (
     RedshiftCredentials,
     RedshiftClientConfiguration,
 )
-from dlt.destinations.impl.redshift import capabilities
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.redshift.redshift import RedshiftClient
@@ -16,8 +17,31 @@ if t.TYPE_CHECKING:
 class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
     spec = RedshiftClientConfiguration
 
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities()
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        caps = DestinationCapabilitiesContext()
+        caps.preferred_loader_file_format = "insert_values"
+        caps.supported_loader_file_formats = ["insert_values"]
+        caps.preferred_staging_file_format = "jsonl"
+        caps.supported_staging_file_formats = ["jsonl", "parquet"]
+        # redshift is case insensitive and will lower case identifiers when stored
+        # you can enable case sensitivity https://docs.aws.amazon.com/redshift/latest/dg/r_enable_case_sensitive_identifier.html
+        # then redshift behaves like postgres
+        caps.escape_identifier = escape_redshift_identifier
+        caps.escape_literal = escape_redshift_literal
+        caps.casefold_identifier = str.lower
+        caps.has_case_sensitive_identifiers = False
+        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+        caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
+        caps.max_identifier_length = 127
+        caps.max_column_identifier_length = 127
+        caps.max_query_length = 16 * 1024 * 1024
+        caps.is_max_query_length_in_bytes = True
+        caps.max_text_data_type_length = 65535
+        caps.is_max_text_data_type_length_in_bytes = True
+        caps.supports_ddl_transactions = True
+        caps.alter_add_multi_column = False
+
+        return caps
 
     @property
     def client_class(self) -> t.Type["RedshiftClient"]:
@@ -59,7 +83,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         cls,
         caps: DestinationCapabilitiesContext,
         config: RedshiftClientConfiguration,
-        naming: NamingConvention,
+        naming: t.Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         # modify the caps if case sensitive identifiers are requested
         if config.has_case_sensitive_identifiers:

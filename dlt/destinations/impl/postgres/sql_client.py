@@ -26,7 +26,6 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
-from dlt.destinations.impl.postgres import capabilities
 
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):

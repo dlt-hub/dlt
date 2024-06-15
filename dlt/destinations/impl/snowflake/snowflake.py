@@ -24,7 +24,6 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
-from dlt.destinations.impl.snowflake import capabilities
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.sql_jobs import SqlJobParams

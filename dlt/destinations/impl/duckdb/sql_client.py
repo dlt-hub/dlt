@@ -17,7 +17,6 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 
-from dlt.destinations.impl.duckdb import capabilities
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 

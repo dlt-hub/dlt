@@ -35,7 +35,6 @@ from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
     LoadJobTerminalException,
 )
-from dlt.destinations.impl.bigquery import capabilities
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     PARTITION_HINT,
     CLUSTER_HINT,

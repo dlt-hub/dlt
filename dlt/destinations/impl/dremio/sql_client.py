@@ -10,7 +10,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTransientException,
 )
-from dlt.destinations.impl.dremio import capabilities, pydremio
+from dlt.destinations.impl.dremio import pydremio
 from dlt.destinations.impl.dremio.configuration import DremioCredentials
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,

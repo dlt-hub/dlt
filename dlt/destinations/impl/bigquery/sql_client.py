@@ -17,7 +17,6 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.impl.bigquery import capabilities
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,

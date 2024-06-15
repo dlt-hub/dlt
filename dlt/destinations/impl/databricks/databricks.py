@@ -27,7 +27,6 @@ from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.databricks import capabilities
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlMergeJob

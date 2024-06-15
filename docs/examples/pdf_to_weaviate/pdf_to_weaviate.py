@@ -25,7 +25,7 @@ Look how we pipe data from `list_files` resource (note that resource is deselect
 
 import os
 import dlt
-from dlt.destinations.impl.weaviate import weaviate_adapter
+from dlt.destinations.adapters import weaviate_adapter
 from PyPDF2 import PdfReader
 
 

@@ -21,7 +21,6 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseTerminalException,
 )
-from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,

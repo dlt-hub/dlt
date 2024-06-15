@@ -1,4 +1,3 @@
-import platform
 import struct
 from datetime import datetime, timedelta, timezone  # noqa: I251
 
@@ -23,7 +22,6 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
-from dlt.destinations.impl.mssql import capabilities
 
 
 def handle_datetimeoffset(dto_value: bytes) -> datetime:

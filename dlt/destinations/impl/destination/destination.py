@@ -15,8 +15,6 @@ from dlt.common.destination.reference import (
     DoNothingJob,
     JobClientBase,
 )
-
-from dlt.destinations.impl.destination import capabilities
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.job_impl import (
     DestinationJsonlLoadJob,
@@ -33,6 +31,7 @@ class DestinationClient(JobClientBase):
         config: CustomDestinationClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
+        config.ensure_callable()
         super().__init__(schema, config, capabilities)
         self.config: CustomDestinationClientConfiguration = config
         # create pre-resolved callable to avoid multiple config resolutions during execution of the jobs

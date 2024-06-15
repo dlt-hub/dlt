@@ -1,5 +1,3 @@
-from typing import ClassVar
-
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import Schema
 

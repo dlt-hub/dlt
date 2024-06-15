@@ -1,19 +1,36 @@
 import typing as t
 
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.impl.filesystem import capabilities
-from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.configuration import FileSystemCredentials
+
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
+def loader_file_format_adapter(
+    preferred_loader_file_format: TLoaderFileFormat,
+    supported_loader_file_formats: t.Sequence[TLoaderFileFormat],
+    /,
+    *,
+    table_schema: TTableSchema,
+) -> t.Tuple[TLoaderFileFormat, t.Sequence[TLoaderFileFormat]]:
+    if table_schema.get("table_format") == "delta":
+        return ("parquet", ["parquet"])
+    return (preferred_loader_file_format, supported_loader_file_formats)
+
+
 class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
     spec = FilesystemDestinationClientConfiguration
 
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities()
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        return DestinationCapabilitiesContext.generic_capabilities(
+            preferred_loader_file_format="jsonl",
+            loader_file_format_adapter=loader_file_format_adapter,
+            supported_table_formats=["delta"],
+        )
 
     @property
     def client_class(self) -> t.Type["FilesystemClient"]:

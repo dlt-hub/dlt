@@ -36,7 +36,6 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
     TABLE_ENGINE_TYPE_HINT,

@@ -29,7 +29,6 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
-from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils

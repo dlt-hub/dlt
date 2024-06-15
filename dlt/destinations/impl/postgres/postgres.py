@@ -9,7 +9,6 @@ from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.impl.postgres import capabilities
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase

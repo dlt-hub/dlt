@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
+from typing import Optional, Sequence, List, Dict, Type, Iterable, Any
 
 from dlt.common import logger
 from dlt.common.json import json

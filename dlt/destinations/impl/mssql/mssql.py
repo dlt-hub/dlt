@@ -1,19 +1,15 @@
-from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple
+from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
-from dlt.common.utils import uniq_id
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
-from dlt.destinations.impl.mssql import capabilities
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase

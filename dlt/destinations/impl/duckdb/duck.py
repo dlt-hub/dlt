@@ -12,7 +12,6 @@ from dlt.common.utils import maybe_context
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
-from dlt.destinations.impl.duckdb import capabilities
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
