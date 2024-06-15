@@ -27,6 +27,14 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
 
+def skip_unsupported_destinations(merge_strategy: TLoaderMergeStrategy, destination: str) -> None:
+    if merge_strategy == "upsert" and destination not in ("postgres", "snowflake"):
+        pytest.skip(
+            f"`upsert` merge strategy currently not (yet) supported for `{destination}`"
+            " destination."
+        )
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
@@ -36,6 +44,8 @@ def test_merge_on_keys_in_schema(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_unsupported_destinations(merge_strategy, destination_config.destination)
+
     p = destination_config.setup_pipeline("eth_2", dev_mode=True)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v5.yml", "r", encoding="utf-8") as f:
@@ -105,6 +115,8 @@ def test_merge_on_ad_hoc_primary_key(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_unsupported_destinations(merge_strategy, destination_config.destination)
+
     p = destination_config.setup_pipeline("github_1", dev_mode=True)
 
     @dlt.resource(
@@ -582,6 +594,8 @@ def test_complex_column_missing(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_unsupported_destinations(merge_strategy, destination_config.destination)
+
     table_name = "test_complex_column_missing"
 
     @dlt.resource(
@@ -620,6 +634,8 @@ def test_hard_delete_hint(
     key_type: str,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_unsupported_destinations(merge_strategy, destination_config.destination)
+
     if merge_strategy == "upsert" and key_type != "primary_key":
         pytest.skip("`upsert` merge strategy requires `primary_key`")
     # no_key setting will have the effect that hard deletes have no effect, since hard delete records
@@ -783,6 +799,8 @@ def test_hard_delete_hint_config(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    skip_unsupported_destinations(merge_strategy, destination_config.destination)
+
     table_name = "test_hard_delete_hint_non_bool"
 
     @dlt.resource(
