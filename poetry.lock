@@ -1884,6 +1884,22 @@ numpy = ["numpy (>=1.12.0)", "pandas (>=0.24.0)"]
 zstd = ["clickhouse-cityhash (>=1.0.2.1)", "zstd"]
 
 [[package]]
+name = "cohere"
+version = "5.1.5"
+description = ""
+optional = true
+python-versions = "<4.0,>=3.8"
+files = [
+    {file = "cohere-5.1.5-py3-none-any.whl", hash = "sha256:10a2bc0aab8b3a03d5da84412a6309aeb2b267d852b969d8b6acd0a19176b5a9"},
+    {file = "cohere-5.1.5.tar.gz", hash = "sha256:2ed04ac3fb1b4e3a1e243cc94898158b3be41cd64165dd0910952d73207298fa"},
+]
+
+[package.dependencies]
+httpx = ">=0.21.2"
+pydantic = ">=1.9.2"
+typing_extensions = ">=4.0.0"
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
@@ -9484,7 +9500,7 @@ duckdb = ["duckdb"]
 filesystem = ["botocore", "s3fs"]
 gcp = ["gcsfs", "google-cloud-bigquery", "grpcio"]
 gs = ["gcsfs"]
-lancedb = ["lancedb", "pyarrow"]
+lancedb = ["cohere", "lancedb", "pyarrow"]
 motherduck = ["duckdb", "pyarrow"]
 mssql = ["pyodbc"]
 parquet = ["pyarrow"]
@@ -9499,4 +9515,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "ccb23824d108abb5a2ccbae39864507f15e289c4a82b37db60c11aa2fa7d6489"
+content-hash = "80596bc72fb60fcd895511d366571f7c48f30ab3296dce7da78dd1e9abf774e7"
