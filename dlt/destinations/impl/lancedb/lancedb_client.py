@@ -64,7 +64,7 @@ from dlt.destinations.impl.lancedb.schema import (
     TArrowField,
 )
 from dlt.destinations.impl.lancedb.utils import (
-    list_unique_identifiers,
+    list_merge_identifiers,
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
@@ -431,9 +431,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             if len(new_columns) > 0:
                 if exists:
                     field_schemas: List[TArrowField] = [
-                        make_arrow_field_schema(
-                            column["name"], column, self.type_mapper
-                        )
+                        make_arrow_field_schema(column["name"], column, self.type_mapper)
                         for column in new_columns
                     ]
                     fq_table_name = self.make_qualified_table_name(table_name)
@@ -627,7 +625,7 @@ class LoadLanceDBJob(LoadJob):
         self.type_mapper: TypeMapper = type_mapper
         self.table_name: str = table_schema["name"]
         self.fq_table_name: str = fq_table_name
-        self.unique_identifiers: Sequence[str] = list_unique_identifiers(table_schema)
+        self.unique_identifiers: Sequence[str] = list_merge_identifiers(table_schema)
         self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.embedding_model_func: TextEmbeddingFunction = model_func
         self.embedding_model_dimensions: int = client_config.embedding_model_dimensions

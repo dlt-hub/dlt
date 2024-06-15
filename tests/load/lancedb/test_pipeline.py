@@ -198,6 +198,7 @@ def test_pipeline_merge() -> None:
     data = [
         {
             "doc_id": 1,
+            "merge_id": "shawshank-redemption-1994",
             "title": "The Shawshank Redemption",
             "description": (
                 "Two imprisoned men find redemption through acts of decency over the years."
@@ -205,6 +206,7 @@ def test_pipeline_merge() -> None:
         },
         {
             "doc_id": 2,
+            "merge_id": "the-godfather-1972",
             "title": "The Godfather",
             "description": (
                 "A crime dynasty's aging patriarch transfers control to his reluctant son."
@@ -212,10 +214,48 @@ def test_pipeline_merge() -> None:
         },
         {
             "doc_id": 3,
+            "merge_id": "the-dark-knight-2008",
             "title": "The Dark Knight",
             "description": (
-                "The Joker wreaks havoc on Gotham, challenging "
-                "The Dark Knight's ability to fight injustice."
+                "The Joker wreaks havoc on Gotham, challenging The Dark Knight's ability to fight"
+                " injustice."
+            ),
+        },
+        {
+            "doc_id": 4,
+            "merge_id": "pulp-fiction-1994",
+            "title": "Pulp Fiction",
+            "description": (
+                "The lives of two mob hitmen, a boxer, a gangster and his wife, and a pair of diner"
+                " bandits intertwine in four tales of violence and redemption."
+            ),
+        },
+        {
+            "doc_id": 5,
+            "merge_id": "schindlers-list-1993",
+            "title": "Schindler's List",
+            "description": (
+                "In German-occupied Poland during World War II, industrialist Oskar Schindler"
+                " gradually becomes concerned for his Jewish workforce after witnessing their"
+                " persecution by the Nazis."
+            ),
+        },
+        {
+            "doc_id": 6,
+            "merge_id": "the-lord-of-the-rings-the-return-of-the-king-2003",
+            "title": "The Lord of the Rings: The Return of the King",
+            "description": (
+                "Gandalf and Aragorn lead the World of Men against Sauron's army to draw his gaze"
+                " from Frodo and Sam as they approach Mount Doom with the One Ring."
+            ),
+        },
+        {
+            "doc_id": 7,
+            "merge_id": "the-matrix-1999",
+            "title": "The Matrix",
+            "description": (
+                "A computer hacker learns from mysterious rebels about the true nature of his"
+                " reality and his role in the war against its controllers."
             ),
         },
     ]
@@ -224,8 +264,17 @@ def test_pipeline_merge() -> None:
     def movies_data() -> Any:
         yield data
 
+    @dlt.resource(primary_key="doc_id", merge_key=["merge_id", "title"])
+    def movies_data_explicit_merge_keys() -> Any:
+        yield data
+
     lancedb_adapter(
         movies_data,
+        embed=["description"],
+    )
+
+    lancedb_adapter(
+        movies_data_explicit_merge_keys,
         embed=["description"],
     )
 
@@ -242,7 +291,7 @@ def test_pipeline_merge() -> None:
     assert_load_info(info)
     assert_table(pipeline, "movies_data", items=data)
 
-    # Change some data
+    # Change some data.
     data[0]["title"] = "The Shawshank Redemption 2"
 
     info = pipeline.run(
@@ -251,6 +300,21 @@ def test_pipeline_merge() -> None:
     )
     assert_load_info(info)
     assert_table(pipeline, "movies_data", items=data)
+
+    info = pipeline.run(
+        movies_data(),
+        write_disposition="merge",
+    )
+    assert_load_info(info)
+    assert_table(pipeline, "movies_data", items=data)
+
+    # Test with explicit merge keys.
+    info = pipeline.run(
+        movies_data_explicit_merge_keys(),
+        write_disposition="merge",
+    )
+    assert_load_info(info)
+    assert_table(pipeline, "movies_data_explicit_merge_keys", items=data)
 
 
 def test_pipeline_with_schema_evolution() -> None:
