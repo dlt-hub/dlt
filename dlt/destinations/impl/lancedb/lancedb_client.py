@@ -646,11 +646,8 @@ class LoadLanceDBJob(LoadJob):
                 records = []
                 f.seek(0)
                 for line in f:
-                    try:
-                        json_object = json.loads(line)
-                        records.append(json_object)
-                    except JSONDecodeError:
-                        raise
+                    json_object = json.loads(line)
+                    records.append(json_object)
 
         # Batch load only accepts a list of dicts.
         if not isinstance(records, list) and isinstance(records, dict):
