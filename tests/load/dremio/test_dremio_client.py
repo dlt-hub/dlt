@@ -2,7 +2,7 @@ import pytest
 
 from dlt.common.schema import TColumnSchema, Schema
 
-from dlt.destinations.impl.dremio import capabilities
+from dlt.destinations import dremio
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration, DremioCredentials
 from dlt.destinations.impl.dremio.dremio import DremioClient
 from tests.load.utils import empty_schema
@@ -12,12 +12,11 @@ from tests.load.utils import empty_schema
 def dremio_client(empty_schema: Schema) -> DremioClient:
     creds = DremioCredentials()
     creds.database = "test_database"
-    return DremioClient(
+    return dremio().client(
         empty_schema,
         DremioClientConfiguration(credentials=creds)._bind_dataset_name(
             dataset_name="test_dataset"
         ),
-        capabilities(),
     )
 
 

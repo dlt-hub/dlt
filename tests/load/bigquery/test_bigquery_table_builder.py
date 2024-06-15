@@ -23,9 +23,9 @@ from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
-from dlt.destinations.impl.bigquery import capabilities
+from dlt.destinations import bigquery
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
-from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 
 from dlt.extract import DltResource
@@ -62,12 +62,11 @@ def gcp_client(empty_schema: Schema) -> BigQueryClient:
     creds = GcpServiceAccountCredentials()
     creds.project_id = "test_project_id"
     # noinspection PydanticTypeChecker
-    return BigQueryClient(
+    return bigquery().client(
         empty_schema,
         BigQueryClientConfiguration(credentials=creds)._bind_dataset_name(
             dataset_name=f"test_{uniq_id()}"
         ),
-        capabilities(),
     )
 
 

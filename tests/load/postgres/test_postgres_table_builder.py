@@ -5,9 +5,8 @@ import sqlfluff
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema, utils
-from dlt.common.destination import Destination
 
-from dlt.destinations.impl.postgres import capabilities
+from dlt.destinations import postgres
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
@@ -43,11 +42,7 @@ def create_client(empty_schema: Schema) -> PostgresClient:
     config = PostgresClientConfiguration(credentials=PostgresCredentials())._bind_dataset_name(
         dataset_name="test_" + uniq_id()
     )
-    return PostgresClient(
-        empty_schema,
-        config,
-        Destination.adjust_capabilities(capabilities(), config, empty_schema.naming),
-    )
+    return postgres().client(empty_schema, config)
 
 
 def test_create_table(client: PostgresClient) -> None:
@@ -118,7 +113,7 @@ def test_alter_table(client: PostgresClient) -> None:
     assert '"col11_precision" time (3) without time zone  NOT NULL' in sql
 
 
-def test_create_table_with_hints(client: PostgresClient) -> None:
+def test_create_table_with_hints(client: PostgresClient, empty_schema: Schema) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
     mod_update[0]["primary_key"] = True
@@ -135,13 +130,12 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     assert '"col4" timestamp with time zone  NOT NULL' in sql
 
     # same thing without indexes
-    client = PostgresClient(
-        client.schema,
+    client = postgres().client(
+        empty_schema,
         PostgresClientConfiguration(
             create_indexes=False,
             credentials=PostgresCredentials(),
         )._bind_dataset_name(dataset_name="test_" + uniq_id()),
-        capabilities(),
     )
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="postgres")

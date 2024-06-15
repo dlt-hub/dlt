@@ -1,7 +1,7 @@
 import pytest
 
 import dlt
-from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter
 from tests.pipeline.utils import assert_load_info
 
 

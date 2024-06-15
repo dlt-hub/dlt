@@ -570,7 +570,19 @@ def test_resolved_spec_in_kwargs_pass_through(environment: Any) -> None:
 
 def test_inject_spec_into_argument_with_spec_type() -> None:
     # if signature contains argument with type of SPEC, it gets injected there
-    from dlt.destinations.impl.dummy import _configure, DummyClientConfiguration
+    import dlt
+    from dlt.common.configuration import known_sections
+    from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
+
+    @with_config(
+        spec=DummyClientConfiguration,
+        sections=(
+            known_sections.DESTINATION,
+            "dummy",
+        ),
+    )
+    def _configure(config: DummyClientConfiguration = dlt.config.value) -> DummyClientConfiguration:
+        return config
 
     # _configure has argument of type DummyClientConfiguration that it returns
     # this type holds resolved configuration

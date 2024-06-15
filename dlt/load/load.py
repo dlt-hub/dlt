@@ -75,7 +75,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.initial_client_config = initial_client_config
         self.initial_staging_client_config = initial_staging_client_config
         self.destination = destination
-        self.capabilities = destination.capabilities()
         self.staging_destination = staging_destination
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
@@ -83,7 +82,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         super().__init__()
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
-        supported_file_formats = self.capabilities.supported_loader_file_formats
+        supported_file_formats = self.destination.capabilities().supported_loader_file_formats
         if self.staging_destination:
             supported_file_formats = (
                 self.staging_destination.capabilities().supported_loader_file_formats
@@ -145,7 +144,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if job_info.file_format not in self.load_storage.supported_job_file_formats:
                     raise LoadClientUnsupportedFileFormats(
                         job_info.file_format,
-                        self.capabilities.supported_loader_file_formats,
+                        self.destination.capabilities().supported_loader_file_formats,
                         file_path,
                     )
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")

@@ -8,12 +8,13 @@ import inspect
 
 from copy import deepcopy
 from dlt.common.configuration.specs.base_configuration import configspec
+from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
 from dlt.common.destination.exceptions import InvalidDestinationReference
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -38,7 +39,7 @@ def _run_through_sink(
     batch_size: int = 10,
 ) -> List[Tuple[TDataItems, TTableSchema]]:
     """
-    runs a list of items through the sink destination and returns colleceted calls
+    runs a list of items through the sink destination and returns collected calls
     """
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
@@ -126,6 +127,34 @@ def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
     global_calls.append((items, table))
 
 
+def test_capabilities() -> None:
+    # test default caps
+    dest = dlt.destination()(global_sink_func)()
+    caps = dest.capabilities()
+    assert caps.preferred_loader_file_format == "typed-jsonl"
+    assert caps.supported_loader_file_formats == ["typed-jsonl", "parquet"]
+    assert caps.naming_convention == "direct"
+    assert caps.max_table_nesting == 0
+    client_caps = dest.client(Schema("schema")).capabilities
+    assert dict(caps) == dict(client_caps)
+
+    # test modified caps
+    dest = dlt.destination(
+        loader_file_format="parquet",
+        batch_size=0,
+        name="my_name",
+        naming_convention="snake_case",
+        max_table_nesting=10,
+    )(global_sink_func)()
+    caps = dest.capabilities()
+    assert caps.preferred_loader_file_format == "parquet"
+    assert caps.supported_loader_file_formats == ["typed-jsonl", "parquet"]
+    assert caps.naming_convention == "snake_case"
+    assert caps.max_table_nesting == 10
+    client_caps = dest.client(Schema("schema")).capabilities
+    assert dict(caps) == dict(client_caps)
+
+
 def test_instantiation() -> None:
     # also tests _DESTINATIONS
     calls: List[Tuple[TDataItems, TTableSchema]] = []
@@ -144,7 +173,7 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert not _DESTINATIONS
+    assert "local_sink_func" not in _DESTINATIONS
 
     # test passing via from_reference
     calls = []
@@ -156,7 +185,7 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert not _DESTINATIONS
+    assert "local_sink_func" not in _DESTINATIONS
 
     # test passing string reference
     global global_calls
@@ -184,7 +213,7 @@ def test_instantiation() -> None:
         destination=Destination.from_reference("destination", destination_callable=None),
         full_refresh=True,
     )
-    with pytest.raises(PipelineStepFailed):
+    with pytest.raises(ConfigurationValueError):
         p.run([1, 2, 3], table_name="items")
 
     # pass invalid string reference will fail on instantiation

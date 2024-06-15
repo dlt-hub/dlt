@@ -82,6 +82,6 @@ def test_import_invalid_naming_module() -> None:
         import_normalizers(explicit_normalizers("dlt.common.tests"))
     assert py_ex.value.naming_module == "dlt.common.tests"
     with pytest.raises(InvalidNamingModule) as py_ex2:
-        import_normalizers(explicit_normalizers("dlt.pipeline"))
-    assert py_ex2.value.naming_module == "dlt"
-    assert py_ex2.value.naming_class == "pipeline"
+        import_normalizers(explicit_normalizers("dlt.pipeline.helpers"))
+    assert py_ex2.value.naming_module == "dlt.pipeline"
+    assert py_ex2.value.naming_class == "helpers"

@@ -9,7 +9,7 @@ from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
 from dlt.destinations.exceptions import CantExtractTablePrefix
-from dlt.destinations.impl.athena.athena_adapter import athena_partition, athena_adapter
+from dlt.destinations.adapters import athena_partition, athena_adapter
 from dlt.destinations.fs_client import FSClientBase
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration

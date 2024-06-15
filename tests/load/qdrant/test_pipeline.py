@@ -5,6 +5,7 @@ import dlt
 from dlt.common import json
 from dlt.common.utils import uniq_id
 
+from dlt.destinations.adapters import qdrant_adapter
 from dlt.destinations.impl.qdrant.qdrant_adapter import qdrant_adapter, VECTORIZE_HINT
 from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
 from tests.pipeline.utils import assert_load_info

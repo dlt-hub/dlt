@@ -2,7 +2,7 @@ import pytest
 
 import dlt
 from dlt.destinations import filesystem
-from dlt.destinations.impl.athena.athena_adapter import athena_adapter, athena_partition
+from dlt.destinations.adapters import athena_adapter, athena_partition
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

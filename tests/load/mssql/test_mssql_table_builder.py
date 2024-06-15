@@ -6,7 +6,7 @@ from dlt.common.schema import Schema
 
 pytest.importorskip("dlt.destinations.impl.mssql.mssql", reason="MSSQL ODBC driver not installed")
 
-from dlt.destinations.impl.mssql import capabilities
+from dlt.destinations import mssql
 from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
 
@@ -19,12 +19,11 @@ pytestmark = pytest.mark.essential
 @pytest.fixture
 def client(empty_schema: Schema) -> MsSqlJobClient:
     # return client without opening connection
-    return MsSqlJobClient(
+    return mssql().client(
         empty_schema,
         MsSqlClientConfiguration(credentials=MsSqlCredentials())._bind_dataset_name(
             dataset_name="test_" + uniq_id()
         ),
-        capabilities(),
     )
 
 

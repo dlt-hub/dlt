@@ -7,8 +7,6 @@ from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
 from dlt.common.typing import AnyFun
 
-# from dlt.destinations.postgres import capabilities
-from dlt.destinations.impl.redshift import capabilities as redshift_caps
 from dlt.common.data_writers.escape import (
     escape_redshift_identifier,
     escape_hive_identifier,
@@ -51,8 +49,10 @@ class _BytesIOWriter(DataWriter):
 
 @pytest.fixture
 def insert_writer() -> Iterator[DataWriter]:
+    from dlt.destinations import redshift
+
     with io.StringIO() as f:
-        yield InsertValuesWriter(f, caps=redshift_caps())
+        yield InsertValuesWriter(f, caps=redshift().capabilities())
 
 
 @pytest.fixture
