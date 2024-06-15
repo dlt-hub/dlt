@@ -432,7 +432,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 if exists:
                     field_schemas: List[TArrowField] = [
                         make_arrow_field_schema(
-                            column["name"], column, self.type_mapper, embedding_fields
+                            column["name"], column, self.type_mapper
                         )
                         for column in new_columns
                     ]

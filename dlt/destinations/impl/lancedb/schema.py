@@ -31,7 +31,6 @@ def make_arrow_field_schema(
     column_name: str,
     column: TColumnSchema,
     type_mapper: TypeMapper,
-    embedding_fields: Optional[List[str]] = None,
 ) -> TArrowField:
     """Creates a PyArrow field from a dlt column schema."""
     dtype = cast(TArrowDataType, type_mapper.to_db_type(column))
@@ -60,7 +59,7 @@ def make_arrow_table_schema(
         arrow_schema.append(pa.field(vector_field_name, pa.list_(pa.float32(), vec_size)))
 
     for column_name, column in schema.get_table_columns(table_name).items():
-        field = make_arrow_field_schema(column_name, column, type_mapper, embedding_fields)
+        field = make_arrow_field_schema(column_name, column, type_mapper)
         arrow_schema.append(field)
 
     metadata = {}
