@@ -1,6 +1,6 @@
 ---
 slug: scd2-and-incremental-loading
-title: "Implementing Slowly Changing Dimensions and Incremental loading strategies"
+title: "Slowly Changing Dimensions and Incremental loading strategies"
 authors:
   name: Aman Gupta
   title: Junior Data Engineer
@@ -74,7 +74,7 @@ This decision flowchart helps determine the most suitable data loading strategy 
                 2. If no, re-load fully via replace.
 
 Below is a visual representation of steps discussed above:
-![Image](https://storage.googleapis.com/dlt-blog-images/blog_scd2_and_incremental_loading.png)
+![Image](https://storage.googleapis.com/dlt-blog-images/flowchart_for_scd2.png)
 
 ### **Conclusion**
 
