@@ -513,7 +513,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             if (
                 self.db_client.open_table(fq_loads_table_name)
                 .search()
-                .where(f'load_id = "{load_id}"')
+                .where(f'load_id = "{load_id}" AND status = 0')
                 .limit(1)
                 .to_list()
             ):
