@@ -1,4 +1,4 @@
-"""Utilities for creating Pydantic model schemas from table schemas."""
+"""Utilities for creating arrow schemas from table schemas."""
 
 from dlt.common.json import json
 from typing import (
