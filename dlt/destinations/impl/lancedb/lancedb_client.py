@@ -74,9 +74,7 @@ from dlt.destinations.type_mapping import TypeMapper
 
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
-UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {
-    v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()
-}
+UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
 
 
 class LanceDBTypeMapper(TypeMapper):
@@ -182,15 +180,14 @@ def upload_batch(
             tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
             if not id_field_name:
-                raise ValueError(
-                    "To perform a merge update, 'id_field_name' must be specified."
-                )
+                raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
             tbl.merge_insert(
                 id_field_name
             ).when_matched_update_all().when_not_matched_insert_all().execute(records)
         else:
             raise DestinationTerminalException(
-                f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch failed AND WILL **NOT** BE RETRIED."
+                f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
+                " failed AND WILL **NOT** BE RETRIED."
             )
     except ArrowInvalid as e:
         raise DestinationTerminalException(
@@ -255,9 +252,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     @lancedb_error
-    def create_table(
-        self, table_name: str, schema: TArrowSchema, mode: str = "create"
-    ) -> Table:
+    def create_table(self, table_name: str, schema: TArrowSchema, mode: str = "create") -> Table:
         """Create a LanceDB Table from the provided LanceModel or PyArrow schema.
 
         Args:
@@ -360,9 +355,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         applied_update: TSchemaTables = {}
 
         try:
-            schema_info = self.get_stored_schema_by_hash(
-                self.schema.stored_version_hash
-            )
+            schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         except DestinationUndefinedEntity:
             schema_info = None
 
@@ -398,53 +391,54 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return True, table_schema
 
     @lancedb_error
-    def add_table_field(
-        self, table_name: str, field_schema: TArrowField
+    def add_table_fields(
+        self, table_name: str, field_schemas: List[TArrowField]
     ) -> Optional[Table]:
-        """Add a field to the LanceDB table.
-
-        Since arrow tables are immutable, this is done via a staging mechanism.
-        The data is stored in-memory in a staging arrow table, evolved then stored
-        written over the old table.
+        """Add multiple fields to the LanceDB table at once.
 
         Args:
-            table_name: The name of the table to create the field on.
-            field_schema: The field to create.
+            table_name: The name of the table to create the fields on.
+            field_schemas: The list of fields to create.
         """
         arrow_table = self.db_client.open_table(table_name).to_arrow()
 
-        # Create an array of null values for the new column.
-        null_array = pa.nulls(len(arrow_table), type=field_schema.type)
+        # Check if any of the new fields already exist in the table.
+        existing_fields = set(arrow_table.schema.names)
+        new_fields = [field for field in field_schemas if field.name not in existing_fields]
 
-        # Create staging Table with new column appended.
-        stage = arrow_table.append_column(field_schema, null_array)
+        if not new_fields:
+            # All fields already present, skip.
+            return None
+
+        null_arrays = [pa.nulls(len(arrow_table), type=field.type) for field in new_fields]
+
+        for field, null_array in zip(new_fields, null_arrays):
+            arrow_table = arrow_table.append_column(field, null_array)
 
         try:
-            return self.db_client.create_table(table_name, stage, mode="overwrite")
+            return self.db_client.create_table(table_name, arrow_table, mode="overwrite")
         except OSError:
-            # Field already present, skip.
+            # Error occurred while creating the table, skip.
             return None
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
-            new_columns = self.schema.get_new_table_columns(
-                table_name, existing_columns
-            )
+            new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
             embedding_fields: List[str] = get_columns_names_with_prop(
                 self.schema.get_table(table_name), VECTORIZE_HINT
             )
-            logger.info(
-                f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}"
-            )
+            logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if len(new_columns) > 0:
                 if exists:
-                    for column in new_columns:
-                        field_schema: TArrowField = make_arrow_field_schema(
+                    field_schemas: List[TArrowField] = [
+                        make_arrow_field_schema(
                             column["name"], column, self.type_mapper, embedding_fields
                         )
-                        fq_table_name = self.make_qualified_table_name(table_name)
-                        self.add_table_field(fq_table_name, field_schema)
+                        for column in new_columns
+                    ]
+                    fq_table_name = self.make_qualified_table_name(table_name)
+                    self.add_table_fields(fq_table_name, field_schemas)
                 else:
                     if table_name not in self.schema.dlt_table_names():
                         embedding_fields = get_columns_names_with_prop(
@@ -453,9 +447,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         vector_field_name = self.vector_field_name
                         id_field_name = self.id_field_name
                         embedding_model_func = self.model_func
-                        embedding_model_dimensions = (
-                            self.config.embedding_model_dimensions
-                        )
+                        embedding_model_dimensions = self.config.embedding_model_dimensions
                     else:
                         embedding_fields = None
                         vector_field_name = None
@@ -490,9 +482,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 "schema": json.dumps(self.schema.to_dict()),
             }
         ]
-        fq_version_table_name = self.make_qualified_table_name(
-            self.schema.version_table_name
-        )
+        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
@@ -506,12 +496,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
     @lancedb_error
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage by finding a load ID that was completed."""
-        fq_state_table_name = self.make_qualified_table_name(
-            self.schema.state_table_name
-        )
-        fq_loads_table_name = self.make_qualified_table_name(
-            self.schema.loads_table_name
-        )
+        fq_state_table_name = self.make_qualified_table_name(self.schema.state_table_name)
+        fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
 
         state_records = (
             self.db_client.open_table(fq_state_table_name)
@@ -532,18 +518,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 .to_list()
             ):
                 state["dlt_load_id"] = state.pop("_dlt_load_id")
-                return StateInfo(
-                    **{k: v for k, v in state.items() if k in StateInfo._fields}
-                )
+                return StateInfo(**{k: v for k, v in state.items() if k in StateInfo._fields})
         return None
 
     @lancedb_error
-    def get_stored_schema_by_hash(
-        self, schema_hash: str
-    ) -> Optional[StorageSchemaInfo]:
-        fq_version_table_name = self.make_qualified_table_name(
-            self.schema.version_table_name
-        )
+    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
         try:
             response = (
@@ -560,9 +540,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     @lancedb_error
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
-        fq_version_table_name = self.make_qualified_table_name(
-            self.schema.version_table_name
-        )
+        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
         try:
             response = (
@@ -598,9 +576,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 "schema_version_hash": None,  # Payload schema must match the target schema.
             }
         ]
-        fq_loads_table_name = self.make_qualified_table_name(
-            self.schema.loads_table_name
-        )
+        fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )
@@ -614,9 +590,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def start_file_load(
-        self, table: TTableSchema, file_path: str, load_id: str
-    ) -> LoadJob:
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadLanceDBJob(
             self.schema,
             table,
@@ -655,9 +629,7 @@ class LoadLanceDBJob(LoadJob):
         self.table_name: str = table_schema["name"]
         self.fq_table_name: str = fq_table_name
         self.unique_identifiers: Sequence[str] = list_unique_identifiers(table_schema)
-        self.embedding_fields: List[str] = get_columns_names_with_prop(
-            table_schema, VECTORIZE_HINT
-        )
+        self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.embedding_model_func: TextEmbeddingFunction = model_func
         self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
         self.id_field_name: str = client_config.id_field_name
