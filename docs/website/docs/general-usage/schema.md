@@ -239,7 +239,7 @@ settings:
 ```
 
 Alternatively you can add and remove detections from code:
-```python
+```py
   source = source()
   # remove iso time detector
   source.schema.remove_type_detection("iso_timestamp")
@@ -280,7 +280,7 @@ settings:
       - re:_timestamp$
 ```
 Above we add `partition` hint to all columns ending with `_timestamp`. You can do same thing in the code
-```python
+```py
   source = source()
   # this will update existing hints with the hints passed
   source.schema.merge_hints({"partition": ["re:_timestamp$"]})
@@ -306,7 +306,7 @@ settings:
 
 Above we prefer `timestamp` data type for all columns containing **timestamp** substring and define a few exact matches ie. **created_at**.
 Here's same thing in code
-```python
+```py
   source = source()
   source.schema.update_preferred_types(
     {

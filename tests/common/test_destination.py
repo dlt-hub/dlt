@@ -175,9 +175,11 @@ def test_instantiate_all_factories() -> None:
             assert dest.destination_name == "dummy_custom_destination"
         assert dest.spec
         assert dest.spec()
-        assert dest.capabilities()
         # partial configuration may always be created
-        assert dest.configuration(None, accept_partial=True)
+        init_config = dest.spec.credentials_type()()
+        init_config.__is_resolved__ = True
+        assert dest.configuration(init_config, accept_partial=True)
+        assert dest.capabilities()
 
         mod_dest = var_(
             destination_name="fake_name", environment="prod", naming_convention="duck_case"
