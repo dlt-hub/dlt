@@ -186,5 +186,13 @@ The LanceDB destination doesn't support dbt integration.
 
 The LanceDB destination supports syncing of the `dlt` state.
 
+## Current Limitations
+
+Adding new fields to an existing LanceDB table requires loading the entire table data into memory as a PyArrow table.
+This is because PyArrow tables are immutable, so adding fields requires creating a new table with the updated schema.
+
+For huge tables, this may impact performance and memory usage since the full table must be loaded into memory to add the new fields.
+Keep these considerations in mind when working with large datasets and monitor memory usage if adding fields to sizable existing tables.
+
 <!--@@@DLT_TUBA lancedb-->
 
