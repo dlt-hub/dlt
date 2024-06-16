@@ -271,10 +271,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         """
         self.db_client.drop_table(table_name)
 
-    def delete_all_tables(self) -> None:
-        """Delete all LanceDB tables from the LanceDB instance and all data associated with it."""
-        self.db_client.drop_database()
-
     def query_table(
         self,
         table_name: str,
@@ -529,14 +525,16 @@ class LanceDBClient(JobClientBase, WithStateSync):
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
         try:
-            response = (
+            schemas = (
                 self.db_client.open_table(fq_version_table_name)
                 .search()
-                .where(f'version_hash = "{schema_hash}" ORDER BY inserted_at DESC')
-                .limit(1)
-            )
-            record = response.to_list()[0]
-            return StorageSchemaInfo(**record)
+                .where(f'version_hash = "{schema_hash}"', prefilter=True)
+            ).to_list()
+
+            # LanceDB's ORDER BY clause doesn't seem to work.
+            # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
+            most_recent_schema = sorted(schemas, key=lambda x: x["inserted_at"], reverse=True)[0]
+            return StorageSchemaInfo(**most_recent_schema)
         except IndexError:
             return None
 
@@ -546,14 +544,16 @@ class LanceDBClient(JobClientBase, WithStateSync):
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
 
         try:
-            response = (
+            schemas = (
                 self.db_client.open_table(fq_version_table_name)
                 .search()
-                .where(f'schema_name = "{self.schema.name}" ORDER BY inserted_at DESC')
-                .limit(1)
-            )
-            record = response.to_list()[0]
-            return StorageSchemaInfo(**record)
+                .where(f'schema_name = "{self.schema.name}"', prefilter=True)
+            ).to_list()
+
+            # LanceDB's ORDER BY clause doesn't seem to work.
+            # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
+            most_recent_schema = sorted(schemas, key=lambda x: x["inserted_at"], reverse=True)[0]
+            return StorageSchemaInfo(**most_recent_schema)
         except IndexError:
             return None
 
