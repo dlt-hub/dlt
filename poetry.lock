@@ -9484,7 +9484,7 @@ duckdb = ["duckdb"]
 filesystem = ["botocore", "s3fs"]
 gcp = ["gcsfs", "google-cloud-bigquery", "grpcio"]
 gs = ["gcsfs"]
-lancedb = ["lancedb", "pyarrow"]
+lancedb-embeddings = ["lancedb", "pyarrow"]
 motherduck = ["duckdb", "pyarrow"]
 mssql = ["pyodbc"]
 parquet = ["pyarrow"]
@@ -9499,4 +9499,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "ccb23824d108abb5a2ccbae39864507f15e289c4a82b37db60c11aa2fa7d6489"
+content-hash = "ce87f8b65de9b6b66c94ebea1887d3e6033e059284aa778e3dba85fcaabe6969"
