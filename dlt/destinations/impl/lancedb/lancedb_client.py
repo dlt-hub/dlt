@@ -19,7 +19,7 @@ import pyarrow as pa
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
-from lancedb.table import Table  # type: ignore[import-untyped]
+from lancedb.table import Table  # type: ignore[import-untyped, import-not-found]
 from numpy import ndarray
 from pyarrow import Array, ChunkedArray, ArrowInvalid
 

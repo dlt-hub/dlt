@@ -3,7 +3,7 @@ from typing import (
     Any,
 )
 
-from lancedb.exceptions import MissingValueError, MissingColumnError  # type: ignore[import-untyped]
+from lancedb.exceptions import MissingValueError, MissingColumnError  # type: ignore[import-untyped, import-not-found]
 
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
