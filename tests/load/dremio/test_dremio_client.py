@@ -12,11 +12,11 @@ from tests.load.utils import empty_schema
 def dremio_client(empty_schema: Schema) -> DremioClient:
     creds = DremioCredentials()
     creds.database = "test_database"
-    return dremio().client(
+    # ignore any configured values
+    creds.resolve()
+    return dremio(credentials=creds).client(
         empty_schema,
-        DremioClientConfiguration(credentials=creds)._bind_dataset_name(
-            dataset_name="test_dataset"
-        ),
+        DremioClientConfiguration()._bind_dataset_name(dataset_name="test_dataset"),
     )
 
 

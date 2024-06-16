@@ -5,7 +5,7 @@ from time import sleep
 from unittest.mock import patch
 import pytest
 import datetime  # noqa: I251
-from typing import Iterator, Tuple, List, Dict, Any, Mapping, MutableMapping
+from typing import Iterator, Tuple, List, Dict, Any
 
 from dlt.common import json, pendulum
 from dlt.common.schema import Schema
@@ -41,6 +41,7 @@ from tests.load.utils import (
     cm_yield_client_with_storage,
     write_dataset,
     prepare_table,
+    normalize_storage_table_cols,
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
@@ -297,10 +298,11 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         assert len(schema_update[table_name]["columns"]) == 2
         assert schema_update[table_name]["columns"]["col3"]["data_type"] == "double"
         assert schema_update[table_name]["columns"]["col4"]["data_type"] == "timestamp"
-        _, storage_table = client.get_storage_table(table_name)
+        _, storage_table_cols = client.get_storage_table(table_name)
         # 4 columns
-        assert len(storage_table) == 4
-        assert storage_table["col4"]["data_type"] == "timestamp"
+        assert len(storage_table_cols) == 4
+        storage_table_cols = normalize_storage_table_cols(table_name, storage_table_cols, schema)
+        assert storage_table_cols["col4"]["data_type"] == "timestamp"
 
 
 @pytest.mark.parametrize(

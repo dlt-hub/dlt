@@ -26,7 +26,7 @@ from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -711,3 +711,15 @@ def sequence_generator() -> Generator[List[Dict[str, str]], None, None]:
     while True:
         yield [{"content": str(count + i)} for i in range(3)]
         count += 3
+
+
+def normalize_storage_table_cols(
+    table_name: str, cols: TTableSchemaColumns, schema: Schema
+) -> TTableSchemaColumns:
+    """Normalize storage table columns back into schema naming"""
+    # go back to schema naming convention. this is a hack - will work here to
+    # reverse snowflake UPPER case folding
+    storage_table = normalize_table_identifiers(
+        new_table(table_name, columns=cols.values()), schema.naming  # type: ignore[arg-type]
+    )
+    return storage_table["columns"]

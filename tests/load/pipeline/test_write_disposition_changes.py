@@ -124,9 +124,13 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         )
 
     # schemaless destinations allow adding of root key without the pipeline failing
-    # for now this is only the case for dremio
+    # they do not mind adding NOT NULL columns to tables with existing data (id NOT NULL is supported at all)
     # doing this will result in somewhat useless behavior
-    destination_allows_adding_root_key = destination_config.destination in ["dremio", "clickhouse"]
+    destination_allows_adding_root_key = destination_config.destination in [
+        "dremio",
+        "clickhouse",
+        "athena",
+    ]
 
     if destination_allows_adding_root_key and not with_root_key:
         pipeline.run(
