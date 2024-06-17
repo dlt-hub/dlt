@@ -29,7 +29,7 @@ using `primary_key`. Use `write_disposition='merge'`.
 
 <div style={{textAlign: 'center'}}>
 
-![write disposition flowchart](/img/write-dispo-choice.png)
+![write disposition flowchart](https://storage.googleapis.com/dlt-blog-images/flowchart_for_scd2.png)
 
 </div>
 
