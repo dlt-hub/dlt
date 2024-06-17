@@ -537,7 +537,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         # Join arrow tables in-memory.
         joined_table: pa.Table = state_table.join(
             loads_table, keys="_dlt_load_id", right_keys="load_id", join_type="inner"
-        ).sort_by([("_dlt_id", "descending")])
+        ).sort_by([("_dlt_load_id", "descending")])
 
         if joined_table.num_rows == 0:
             return None
