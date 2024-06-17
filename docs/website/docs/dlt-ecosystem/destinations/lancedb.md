@@ -11,6 +11,11 @@ This destination helps you load data into LanceDB from [dlt resources](../../gen
 
 ## Setup Guide
 
+### Choosing a Model Provider
+
+First, you need to decide which embedding model provider to use. You can find all supported providers by visiting the official [LanceDB docs](https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/).
+
+
 ### Install dlt with LanceDB
 
 To use LanceDB as a destination, make sure `dlt` is installed with the `lancedb` extra:
@@ -18,6 +23,10 @@ To use LanceDB as a destination, make sure `dlt` is installed with the `lancedb`
 ```sh
 pip install "dlt[lancedb]"
 ```
+
+the lancedb extra only installs `dlt` and `lancedb`. You will need to install your model provider's SDK.
+
+You can find which libraries you need to also referring to the [LanceDB docs](https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/).
 
 ### Configure the destination
 
