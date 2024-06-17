@@ -17,6 +17,8 @@ tags: [pandas, production, etl, etl]
 
 But if you want to load pandas dfs to production databases, with all the best practices built-in, check out this [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas) or this colab notebook that shows [easy handling of complex api data](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP#scrollTo=1wf1R0yQh7pv).
 
+Here are the best practices: [wishlist becomes reality](#our-dream-a-tool-that-meets-production-pipelines-requirements)
+
 Or check out more resources [at the end of the article](#call-to-action)
 :::
 
@@ -64,6 +66,8 @@ Except that particular function call is anything but data engineering complete. 
 ### Our dream: a tool that meets production pipelines requirements
 
 - Wouldn’t it be nice if we could auto-flatten and unpack nested structures into tables with generated join keys?
+
+
 - Wouldn’t it be nice if data types were properly defined and managed?
 - Wouldn’t it be nice if we could load the data incrementally, meaning retain some state to know where to start from?
 - Wouldn’t it be nice if this incremental load was bound to a way to do incremental extraction?
@@ -74,6 +78,12 @@ Except that particular function call is anything but data engineering complete. 
 - Wouldn’t it be nice if it ran on different databases too, from dev to prod?
 - Wouldn’t it be nice if it offered requests with built in retries for those nasty unreliable apis (Hey Zendesk, why you fail on call 99998/100000?)
 - Wouldn’t it be nice if we had some extraction helpers like pagination detection?
+
+Auto typing and unpacking with generated keys:
+![keys](https://storage.googleapis.com/dlt-blog-images/generated_keys.png)
+
+Performance [docs](https://dlthub.com/docs/reference/performance)
+
 
 ### The initial steps
 
@@ -116,41 +126,55 @@ We think this is a good thing, and a result of several factors.
 
 ### dlt = “pip install and go” - the fastest way to create a pipeline and source
 
-dlt offers a small number of verified sources, but encourages you to build your own.  As we mentioned, creating an ad hoc dlt [pipeline and source](https://dlthub.com/docs/walkthroughs/create-a-pipeline is [dramatically simpler](https://dlthub.com/docs/build-a-pipeline-tutorial#the-simplest-pipeline-1-liner-to-load-data-with-schema-evolution) compared to other python libraries.
+dlt offers a small number of verified sources, but encourages you to build your own.  As we
+mentioned, creating an ad hoc dlt [pipeline and source](https://dlthub.com/docs/tutorial/load-data-from-an-api) is
+[dramatically simpler](https://dlthub.com/docs/build-a-pipeline-tutorial#the-simplest-pipeline-1-liner-to-load-data-with-schema-evolution) compared to other python libraries.
 Maintaining a custom dlt source in production takes no time at all because the pipeline won't break unless the source stops existing.
 
 The sources you build and run that are not shared back into the verified sources are what we call “private sources”.
 
-By the end of 2023, our community had already built 1,000 private sources, [2,000 by early March](https://dlthub.com/docs/blog/code-vs-buy). We are now at the end of q2 2024 and we see 5,000 private sources.
+By the end of 2023, our community had already built 1,000 private sources, [2,000 by early March](https://dlthub.com/docs/blog/code-vs-buy). We
+are now at the end of q2 2024 and we see 5,000 private sources.
 
 ### Embracing  LLM-free code generation
 
-We recently launched additional tooling that helps our users build sources. If you wish to try our python-first dict-based declarative approach to building sources, check out the relevant post.
+We recently launched additional tooling that helps our users build sources. If you wish to try our python-first
+dict-based declarative approach to building sources, check out the relevant post.
 
 - Rest api connector
 - Openapi based pipeline generator that configures the rest api connector.
 
-Both tools are LLM-free pipeline generators. I stress LLM free, because in our experience, GPT can do some things to some extent - so if we ask it to complete 10 tasks to  produce a pipeline, each having 50-90% accuracy, we can expect very low success rates.
+Both tools are LLM-free pipeline generators. I stress LLM free, because in our experience, GPT can
+do some things to some extent - so if we ask it to complete 10 tasks to  produce a pipeline, each
+having 50-90% accuracy, we can expect very low success rates.
 
-To get around this problem, we built from the OpenAPI standard which contains information that can be turned into a pipeline algorithmically. OpenAPI is an Api spec that’s also used by FastAPI and constantly growing in popularity, with around 50% of apis currently supporting it.
+To get around this problem, we built from the OpenAPI standard which contains information that can
+be turned into a pipeline algorithmically. OpenAPI is an Api spec that’s also used by FastAPI and
+constantly growing in popularity, with around 50% of apis currently supporting it.
 
-By leveraging the data in the spec, we are able to have a basic pipeline. Our generator also infers some other pieces of information algorithmically to make the pipeline incremental and add some other useful details.
+By leveraging the data in the spec, we are able to have a basic pipeline. Our generator also infers
+some other pieces of information algorithmically to make the pipeline incremental and add some other useful details.
 
 ### When generation doesn’t work
 
-Of course, generation doesn’t always work but you can take the generated pipeline and make the final adjustments to have a standard REST API config-based pipeline that won’t suffer from code smells.
+Of course, generation doesn’t always work but you can take the generated pipeline and make the final
+adjustments to have a standard REST API config-based pipeline that won’t suffer from code smells.
 
 ### The benefit of minimalistic sources
 
-The real benefit of this declarative source is not at building time - A declarative interface requires more upfront knowledge. Instead, by having this option, we enable minimalistic pipelines that anyone could maintain, including non coders or human-assisted LLMs. After all, LLMs are particularly proficient at translating configurations back and forth.
+The real benefit of this declarative source is not at building time - A declarative interface requires
+more upfront knowledge. Instead, by having this option, we enable minimalistic pipelines that anyone could
+maintain, including non coders or human-assisted LLMs. After all, LLMs are particularly proficient at translating configurations back and forth.
 
 Want to influence us? we listen, so you’re welcome to discuss with us in our slack channel [**#4-discussions**](https://dlthub.com/community)
 
 ### Towards a paid offering
 
-dlt is an open core product, meaning it won’t be gated to push you to the paid version at some point. Instead, much like Kafka and Confluent, we will offer things around dlt to help you leverage it in your context.
+dlt is an open core product, meaning it won’t be gated to push you to the paid version at some point.
+Instead, much like Kafka and Confluent, we will offer things around dlt to help you leverage it in your context.
 
-If you are interested to help us research what’s needed, you can apply for our design partnership program, that aims to help you deploy dlt, while helping us learn about your challenges.
+If you are interested to help us research what’s needed, you can apply for our design partnership
+program, that aims to help you deploy dlt, while helping us learn about your challenges.
 
 ## Call to action.
 
@@ -160,13 +184,15 @@ If you like the idea of dlt, there is one thing that would help us:
 
 See resource below.
 
-We often hear variations of “oh i postponed dlt so long but it only took a few minutes to get going, wish I hadn’t installed [other tool] which took 2 weeks to set up properly and now we need to maintain or replace”, so don't be that guy.
+We often hear variations of “oh i postponed dlt so long but it only took a few minutes to get going, wish I hadn’t
+installed [other tool] which took 2 weeks to set up properly and now we need to maintain or replace”, so don't be that guy.
 
 
 Here are some notebooks and docs to open your appetite:
 
+
+- An [API pipeline step by step tutorial](https://dlthub.com/docs/tutorial/load-data-from-an-api) to build a production pipeline from an api
 - A colab demo of [schema evolution](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM) (2min read)
-- A [step by step tutorial](https://dlthub.com/docs/tutorial/load-data-from-an-api#load-only-new-data-incremental-loading) to build a production pipeline from an api
 - Docs: RestClient, the imperative class that powers the REST API source, featuring auto pagination https://dlthub.com/docs/general-usage/http/rest-client
 - Docs: [Build a simple pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
 - Docs: [Build a complex pipeline](https://dlthub.com/docs/walkthroughs/create-a-pipeline)
