@@ -30,7 +30,7 @@ However, they enable you to track things you could not before such as:
 - Most of the changes and when they occurred
 - Different versions of entities valid at different historical times
 
-## **What is Slowly Changing Dimension Type 2 (SCD2)? and why use it?**
+## What is Slowly Changing Dimension Type 2 (SCD2)? and why use it?
 
 The Type 2 subtype of Slowly Changing Dimensions (SCD) manages changes in data over time.
 When data changes, a new record is added to the database, but the old record remains unchanged.
