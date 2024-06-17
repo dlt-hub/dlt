@@ -124,12 +124,17 @@ The data is loaded using an internal Snowflake stage. We use the `PUT` command a
 * [insert-values](../file-formats/insert-format.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
 * [jsonl](../file-formats/jsonl.md) is supported
+* [csv](../file-formats/csv.md) is supported
 
 When staging is enabled:
 * [jsonl](../file-formats/jsonl.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
+* [csv](../file-formats/csv.md) is supported
 
-> ❗ When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+:::caution
+When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+:::
+
 
 ## Supported column hints
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):

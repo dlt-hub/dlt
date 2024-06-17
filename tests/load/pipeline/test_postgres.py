@@ -14,7 +14,7 @@ from tests.utils import TestDataItemFormat
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "snowflake"]),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("item_type", ["object", "table"])
@@ -80,7 +80,7 @@ def test_postgres_encoded_binary(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "snowflake"]),
     ids=lambda x: x.name,
 )
 def test_postgres_empty_csv_from_arrow(destination_config: DestinationTestConfiguration) -> None:
@@ -90,17 +90,20 @@ def test_postgres_empty_csv_from_arrow(destination_config: DestinationTestConfig
     table, _, _ = arrow_table_all_data_types("arrow-table", include_json=False)
 
     load_info = pipeline.run(
-        table.schema.empty_table(), table_name="table", loader_file_format="csv"
+        table.schema.empty_table(), table_name="arrow_table", loader_file_format="csv"
     )
     assert_load_info(load_info)
     assert len(load_info.load_packages[0].jobs["completed_jobs"]) == 1
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path
     assert job.endswith("csv")
-    assert_data_table_counts(pipeline, {"table": 0})
+    assert_data_table_counts(pipeline, {"arrow_table": 0})
     with pipeline.sql_client() as client:
-        with client.execute_query('SELECT * FROM "table"') as cur:
+        with client.execute_query("SELECT * FROM arrow_table") as cur:
             columns = [col.name for col in cur.description]
             assert len(cur.fetchall()) == 0
 
-    # all columns in order
-    assert columns == list(pipeline.default_schema.get_table_columns("table").keys())
+    # all columns in order, also casefold to the destination casing (we use cursor.description)
+    casefold = pipeline.destination.capabilities().casefold_identifier
+    assert columns == list(
+        map(casefold, pipeline.default_schema.get_table_columns("arrow_table").keys())
+    )

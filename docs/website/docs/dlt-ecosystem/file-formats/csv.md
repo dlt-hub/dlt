@@ -16,7 +16,7 @@ Internally we use two implementations:
 
 ## Supported Destinations
 
-Supported by: **Postgres**, **Filesystem**
+Supported by: **Postgres**, **Filesystem**, **snowflake**
 
 By setting the `loader_file_format` argument to `csv` in the run command, the pipeline will store your data in the csv format at the destination:
 

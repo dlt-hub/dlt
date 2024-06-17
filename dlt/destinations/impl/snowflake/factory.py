@@ -19,9 +19,9 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "jsonl"
-        caps.supported_loader_file_formats = ["jsonl", "parquet"]
+        caps.supported_loader_file_formats = ["jsonl", "parquet", "csv"]
         caps.preferred_staging_file_format = "jsonl"
-        caps.supported_staging_file_formats = ["jsonl", "parquet"]
+        caps.supported_staging_file_formats = ["jsonl", "parquet", "csv"]
         # snowflake is case sensitive but all unquoted identifiers are upper cased
         # so upper case identifiers are considered case insensitive
         caps.escape_identifier = escape_snowflake_identifier

@@ -163,9 +163,17 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             from_clause = f"FROM {stage_file_path}"
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
-        source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
+        if file_name.endswith("jsonl"):
+            source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
         if file_name.endswith("parquet"):
             source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
+        if file_name.endswith("csv"):
+            # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
+            source_format = (
+                "(TYPE = 'CSV', BINARY_FORMAT = 'UTF-8', PARSE_HEADER = TRUE,"
+                " FIELD_OPTIONALLY_ENCLOSED_BY = '\"', NULL_IF = (''),"
+                " ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE)"
+            )
 
         with client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
