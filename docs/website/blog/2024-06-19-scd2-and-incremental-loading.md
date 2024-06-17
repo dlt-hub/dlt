@@ -122,8 +122,8 @@ Below is a visual representation of steps discussed above:
 
 ### **Conclusion**
 
+Use SCD2 where it makes sense but keep in mind the shortcomings related to the read vs update frequency.
+Use dlt to do it at loading and keep everything downstream clean and simple.
 
-
-Implementing SCD2 during data loading, particularly with tools like DLT (Data Load Tool), ensures real-time, accurate capture of every data modification. This method directly integrates change tracking into the loading process, which simplifies the management of historical data within the warehouse. By handling historical versions at the point of data entry, it avoids later computational overhead and keeps the data model straightforward and efficient. This is crucial for environments where data integrity and quick access to both historical and current data are necessary for operational and compliance purposes.
-
-[Join the dlt slack community](https://dlthub.com/community) to take part in the conversation.
+Want to discuss?
+[Join the dlt slack community!](https://dlthub.com/community)
