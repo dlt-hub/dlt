@@ -12,8 +12,7 @@ tags: [scd2, incremental loading, slowly changing dimensions, python data pipeli
 
 
 :::info
-**TL;DR: Check this colab notebook for a short and sweet demo:
-[Colab demo](https://colab.research.google.com/drive/115cRdw1qvekZbXIQSXYkAZzLAqD9_x_I)
+**Check [this Colab Notebook](https://colab.research.google.com/drive/115cRdw1qvekZbXIQSXYkAZzLAqD9_x_I) for a short and sweet demo.**
 :::
 
 # What is a slowly changing dimension?
@@ -24,11 +23,11 @@ This technique only works if the dimensions change slower than we read the data,
 For example, if someone changes their address once in a blue moon, we will capture the changes with daily loads - but if
 they change their address 3x in a day, we will only see the last state and only capture 2 of the 4 versions of the address.
 
-However, they enable you to track things you could not before such as:
+However, they enable you to track things you could not before such as
 
-- Hard deletes.
-- Most of the changes and when they occurred.
-- Different versions of entities valid at different historical times.
+- Hard deletes
+- Most of the changes and when they occurred
+- Different versions of entities valid at different historical times
 
 ## What is Slowly Changing Dimension Type 2 (SCD2)? and why use it?
 
@@ -101,7 +100,6 @@ of a non-NULL `_dlt_valid_to` date indicates that this record is no longer activ
 Learn how to customise your column names and validity dates in our [SDC2 docs](https://dlthub.com/docs/general-usage/incremental-loading#scd2-strategy).
 
 
-
 ### Surrogate keys, what are they? Why use?
 
 Every record in the SCD2 table needs its own id. We call this a surrogate key. We use it to identify the specific
@@ -112,6 +110,7 @@ record or version of an entity, and we can use it when joining to our fact table
 This decision flowchart helps determine the most suitable data loading strategy and write disposition:
 
 1. Is your data stateful? Stateful data is subject to change, like your age. Stateless data does not change, for example, events that happened in the past are stateless.
+
     1. If your data is stateless, such as logs, you can just increment by appending new logs.
     2. If it is stateful, do you need to track changes to it?
         1. If yes, then use SCD2 to track changes.
