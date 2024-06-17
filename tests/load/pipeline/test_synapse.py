@@ -9,8 +9,12 @@ from dlt.common.configuration.specs.azure_credentials import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
+from tests.utils import skip_if_not_active
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import AZ_BUCKET
+
+
+skip_if_not_active("synapse")
 
 
 @pytest.mark.parametrize("credentials_type", ("sas", "service_principal", "managed_identity"))
