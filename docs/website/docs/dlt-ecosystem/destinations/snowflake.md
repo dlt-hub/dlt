@@ -73,7 +73,7 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 Snowflake destination accepts three authentication types:
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
-- external authentication
+- oauth authentication
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -81,6 +81,7 @@ You can also pass credentials as a database connection string. For example:
 ```toml
 # keep it at the top of your toml file! before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
+
 ```
 
 In **key pair authentication**, you replace the password with a private key string that should be in Base64-encoded DER format ([DBT also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections). The private key may also be encrypted. In that case, you must provide a passphrase alongside the private key.
@@ -100,16 +101,19 @@ If you pass a passphrase in the connection string, please URL encode it.
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
 
-In **external authentication**, you can use an OAuth provider like Okta or an external browser to authenticate. You pass your authenticator and refresh token as below:
+In **oauth authentication**, you can use an OAuth provider like Snowflake, Okta or an external browser to authenticate. In case of Snowflake, you pass your authenticator and refresh token as below:
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
 username = "loader"
-authenticator="..."
+password = "ignore"  # put a fake password until #1456 is fixed
+authenticator="oauth"
+[destination.snowflake.credentials.query]
 token="..."
 ```
 or in the connection string as query parameters.
-Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+In case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
 
 ## Write disposition
 All write dispositions are supported.
