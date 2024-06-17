@@ -12,8 +12,7 @@ tags: [scd2, incremental loading, slowly changing dimensions, python data pipeli
 
 
 :::info
-**TL;DR: Check this colab notebook for a short and sweet demo:
-[Colab demo](https://colab.research.google.com/drive/115cRdw1qvekZbXIQSXYkAZzLAqD9_x_I)
+**Check [this Colab Notebook](https://colab.research.google.com/drive/115cRdw1qvekZbXIQSXYkAZzLAqD9_x_I) for a short and sweet demo.**
 :::
 
 # What is a slowly changing dimension?
