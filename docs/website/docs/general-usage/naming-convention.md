@@ -8,12 +8,20 @@ keywords: [identifiers, snake case, ]
 `dlt` creates tables, child tables and column schemas from the data. The data being loaded,
 typically JSON documents, contains identifiers (i.e. key names in a dictionary) with any Unicode
 characters, any lengths and naming styles. On the other hand the destinations accept very strict
-namespaces for their identifiers. Like Redshift that accepts case-insensitive alphanumeric
+namespaces for their identifiers. Like [Redshift](../dlt-ecosystem/destinations/redshift.md#naming-convention) that accepts case-insensitive alphanumeric
 identifiers with maximum 127 characters.
 
 Each schema contains `naming convention` that tells `dlt` how to translate identifiers to the
 namespace that the destination understands.
 
+* Each destination has a preferred naming convention.
+* This naming convention is used when new schemas are created.
+* Schemas preserve naming convention when saved
+* `dlt` applies final naming convention in `normalize` stage. Naming convention comes from (1) explicit configuration (2) from destination capabilities. Naming convention
+in schema will be ignored.
+* You can change the naming convention in the capabilities: (name, case-folding, case sensitivity)
+
+## Case sensitivity
 
 
 ## Default naming convention (snake_case)
@@ -35,10 +43,14 @@ namespace that the destination understands.
 
 > 💡 Use simple, short small caps identifiers for everything!
 
+## Set and adjust naming convention explicitly
 
-## Change naming convention
+## Configure naming convention
 
 The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).
 
+## Available naming conventions
+
+## Write your own naming convention

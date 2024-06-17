@@ -126,6 +126,8 @@ Obviously, dlt will access the destination when you instantiate [sql_client](../
 1. Redshift - always lower case, no matter which naming convention used. case insensitive
 2. Athena - always lower case, no matter which naming convention used. uses different catalogue and query engines that are incompatible
 
+### Enable case sensitive mode
+
 
 ## Create new destination
 You have two ways to implement a new destination:
