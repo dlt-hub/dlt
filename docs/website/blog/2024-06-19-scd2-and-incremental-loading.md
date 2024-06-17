@@ -24,7 +24,7 @@ This technique only works if the dimensions change slower than we read the data,
 For example, if someone changes their address once in a blue moon, we will capture the changes with daily loads - but if
 they change their address 3x in a day, we will only see the last state and only capture 2 of the 4 versions of the address.
 
-However, they enable you to track things you could not before such as
+However, they enable you to track things you could not before such as:
 
 - Hard deletes
 - Most of the changes and when they occurred
