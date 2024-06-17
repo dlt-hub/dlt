@@ -247,10 +247,13 @@ def filter_new_jobs(
 
     # we must ensure there only is one job per table
     if parallelism_strategy == "table-sequential":
+        eligible_jobs = sorted(
+            eligible_jobs, key=lambda j: ParsedLoadJobFileName.parse(j).table_name
+        )
         eligible_jobs = [
             next(table_jobs)
             for _, table_jobs in groupby(
-                file_names, lambda j: ParsedLoadJobFileName.parse(j).table_name
+                eligible_jobs, lambda j: ParsedLoadJobFileName.parse(j).table_name
             )
         ]
 
