@@ -1,6 +1,6 @@
 ---
 slug: scd2-and-incremental-loading
-title: "Slowly Changing Dimensions and Incremental loading strategies"
+title: "Slowly Changing Dimension Type2: Explanation and code"
 authors:
   name: Aman Gupta
   title: Junior Data Engineer
@@ -10,10 +10,13 @@ tags: [scd2, incremental loading, slowly changing dimensions, python data pipeli
 ---
 
 
+
 :::info
 **TL;DR: Check this colab notebook for a short and sweet demo:
 [Colab demo](https://colab.research.google.com/drive/115cRdw1qvekZbXIQSXYkAZzLAqD9_x_I)
 :::
+
+# What is a slowly changing dimension?
 
 Slowly changing dimensions are a dimensional modelling technique created for historising changes in data.
 
