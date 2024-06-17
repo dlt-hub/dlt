@@ -12,7 +12,7 @@ tags: [pandas, production, etl, etl]
 
 
 
-:::tip
+:::info
 **TL;DR: We created a library to reduce friction between data engineers, data scientists, and the rest of the team. From Pandas to Production article tells the story of how we got here.**
 
 But if you want to load pandas dfs to production databases, with all the best practices built-in, check out this [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas) or this colab notebook that shows [easy handling of complex api data](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP#scrollTo=1wf1R0yQh7pv).
