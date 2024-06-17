@@ -41,7 +41,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key"
   Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/.
 - The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings.
 
-:::infoAvailable Model Providers
+:::info Available Model Providers
 - "gemini-text"
 - "bedrock-text"
 - "cohere"
@@ -59,7 +59,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key"
 
 For example:
 
-```python
+```py
 import dlt
 from dlt.destinations.adapters import lancedb_adapter
 
@@ -85,7 +85,7 @@ movies = [
 
 ### Create a pipeline:
 
-```python
+```py
 pipeline = dlt.pipeline(
   pipeline_name="movies",
   destination="lancedb",
@@ -95,7 +95,7 @@ pipeline = dlt.pipeline(
 
 ### Run the pipeline:
 
-```python
+```py
 info = pipeline.run(
   lancedb_adapter(
     movies,
@@ -113,7 +113,7 @@ function.
 
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
-```python
+```py
 lancedb_adapter(data, embed)
 ```
 
@@ -126,7 +126,7 @@ Returns: [dlt resource](../../general-usage/resource.md) object that you can pas
 
 Example:
 
-```python
+```py
 lancedb_adapter(
   resource,
   embed=["title", "description"],
@@ -141,7 +141,7 @@ All [write dispositions](../../general-usage/incremental-loading.md#choosing-a-w
 
 The [replace](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource.
 
-```python
+```py
 info = pipeline.run(
   lancedb_adapter(
     movies,
@@ -155,7 +155,7 @@ info = pipeline.run(
 
 The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination based on a unique identifier.
 
-```python
+```py
 pipeline.run(
   lancedb_adapter(
     movies,

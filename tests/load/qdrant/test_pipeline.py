@@ -316,8 +316,8 @@ def test_merge_github_nested() -> None:
         primary_key="id",
     )
     assert_load_info(info)
+
     # assert if schema contains tables with right names
-    print(p.default_schema.tables.keys())
     assert set(p.default_schema.tables.keys()) == {
         "_dlt_version",
         "_dlt_loads",
