@@ -1,5 +1,4 @@
 import uuid
-from dlt.common.pendulum import timedelta
 from types import TracebackType
 from typing import (
     ClassVar,
@@ -39,6 +38,7 @@ from dlt.common.destination.reference import (
     StateInfo,
     TLoadJobState,
 )
+from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import (
     TColumnType,
@@ -200,6 +200,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+    model_func: TextEmbeddingFunction
 
     def __init__(self, schema: Schema, config: LanceDBClientConfiguration) -> None:
         super().__init__(schema, config)
@@ -213,20 +214,29 @@ class LanceDBClient(JobClientBase, WithStateSync):
         self.type_mapper = LanceDBTypeMapper(self.capabilities)
         self.sentinel_table_name = config.sentinel_table_name
 
+        embedding_model_provider = self.config.embedding_model_provider
+
         # LanceDB doesn't provide a standardized way to set API keys across providers.
         # Some use ENV variables and others allow passing api key as an argument.
         # To account for this, we set provider environment variable as well.
         set_non_standard_providers_environment_variables(
-            self.config.embedding_model_provider,
+            embedding_model_provider,
             self.config.credentials.embedding_model_provider_api_key,
         )
-        self.model_func: TextEmbeddingFunction = self.registry.get(
-            self.config.embedding_model_provider
-        ).create(
-            name=self.config.embedding_model,
-            max_retries=self.config.options.max_retries,
-            api_key=self.config.credentials.api_key,
-        )
+        # Use the monkey-patched implementation if openai was chosen.
+        if embedding_model_provider == "openai":
+            from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
+
+            self.model_func = PatchedOpenAIEmbeddings(
+                max_retries=self.config.options.max_retries,
+                api_key=self.config.credentials.api_key,
+            )
+        else:
+            self.model_func = self.registry.get(embedding_model_provider).create(
+                name=self.config.embedding_model,
+                max_retries=self.config.options.max_retries,
+                api_key=self.config.credentials.api_key,
+            )
 
         self.vector_field_name = self.config.vector_field_name
         self.id_field_name = self.config.id_field_name
