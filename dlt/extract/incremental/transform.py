@@ -43,6 +43,7 @@ class IncrementalTransform:
     Subclasses must implement the `__call__` method which will be called
     for each data item in the extracted data.
     """
+
     def __init__(
         self,
         resource_name: str,
@@ -110,6 +111,7 @@ class IncrementalTransform:
 
 class JsonIncremental(IncrementalTransform):
     """Extracts incremental data from JSON data items."""
+
     def find_cursor_value(self, row: TDataItem) -> Any:
         """Finds value in row at cursor defined by self.cursor_path.
 
