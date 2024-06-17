@@ -144,6 +144,11 @@ dict-based declarative approach to building sources, check out the relevant post
 - Rest api connector
 - Openapi based pipeline generator that configures the rest api connector.
 
+Alena introduces the generator and troubleshoots the outcome in 4min:
+<iframe width="560" height="315" src="https://www.youtube.com/embed/b99qv9je12Q?si=veVVSlHkKQxDX3FX" title="OpenAPI tutorial" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
+Community videos for rest api source: [playlist](https://www.youtube.com/playlist?list=PLpTgUMBCn15rs2NkB4ise780UxLKImZTh).
+
 Both tools are LLM-free pipeline generators. I stress LLM free, because in our experience, GPT can
 do some things to some extent - so if we ask it to complete 10 tasks to  produce a pipeline, each
 having 50-90% accuracy, we can expect very low success rates.
