@@ -89,8 +89,6 @@ def test_get_schema_on_empty_storage(client: SqlJobClientBase) -> None:
 )
 def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     schema = client.schema
-    print(schema.stored_version)
-    print(schema.version)
     schema_update = client.update_stored_schema()
     # expect dlt tables in schema update
     assert set(schema_update.keys()) == {VERSION_TABLE_NAME, LOADS_TABLE_NAME, "event_slot"}
@@ -390,12 +388,9 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     # now get the actual schema from the db
     _, storage_table = list(client.get_storage_tables([table_name]))[0]
     assert len(storage_table) > 0
-    print(storage_table)
     # column order must match TABLE_UPDATE
     storage_columns = list(storage_table.values())
     for c, expected_c in zip(TABLE_UPDATE, storage_columns):
-        # print(c["name"])
-        # print(c["data_type"])
         # storage columns are returned with column names as in information schema
         assert client.capabilities.casefold_identifier(c["name"]) == expected_c["name"]
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
@@ -444,7 +439,6 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
                 col_name = client.sql_client.escape_ddl_identifier(c["name"])
             else:
                 col_name = client.sql_client.escape_column_name(c["name"])
-            print(col_name)
             # find column names
             idx = sql_.find(col_name, idx)
             assert idx > 0, f"column {col_name} not found in script"

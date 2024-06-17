@@ -45,7 +45,6 @@ from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo
-from dlt.common.typing import get_all_types_of_class_in_union
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -96,8 +95,23 @@ class DestinationClientConfiguration(BaseConfiguration):
         self.destination_name = self.destination_name or self.destination_type
 
     @classmethod
-    def credentials_type(cls) -> Type[CredentialsConfiguration]:
-        return extract_inner_hint(cls.get_resolvable_fields()["credentials"])
+    def credentials_type(
+        cls, config: "DestinationClientConfiguration" = None
+    ) -> Type[CredentialsConfiguration]:
+        """Figure out credentials type, using hint resolvers for dynamic types
+
+        For correct type resolution of filesystem, config should have bucket_url populated
+        """
+        key = "credentials"
+        type_ = cls.get_resolvable_fields()[key]
+        if key in cls.__hint_resolvers__ and config is not None:
+            try:
+                # Type hint for this field is created dynamically
+                type_ = cls.__hint_resolvers__[key](config)
+            except Exception:
+                # we suppress failed hint resolutions
+                pass
+        return extract_inner_hint(type_)
 
 
 @configspec
@@ -473,10 +487,17 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         # get explicit config if final config not passed
         if config is None:
             # create mock credentials to avoid credentials being resolved
-            credentials = self.spec.credentials_type()()
+            init_config = self.spec()
+            init_config.update(self.config_params)
+            credentials = self.spec.credentials_type(init_config)()
             credentials.__is_resolved__ = True
             config = self.spec(credentials=credentials)
-            config = self.configuration(config, accept_partial=True)
+            try:
+                config = self.configuration(config, accept_partial=True)
+            except Exception:
+                # in rare cases partial may fail ie. when invalid native value is present
+                # in that case we fallback to "empty" config
+                pass
         return self.adjust_capabilities(caps, config, naming)
 
     @abstractmethod

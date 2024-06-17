@@ -373,7 +373,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def get_storage_tables(
         self, table_names: Iterable[str]
     ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
-        print(self.sql_client.fully_qualified_dataset_name())
         """Gets table schemas from BigQuery using INFORMATION_SCHEMA or get_table for hidden datasets"""
         if not self.sql_client.is_hidden_dataset:
             return super().get_storage_tables(table_names)

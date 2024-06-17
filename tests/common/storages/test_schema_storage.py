@@ -115,11 +115,9 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     _, new_table = storage_schema.coerce_row("event_user", None, row)
     storage_schema.update_table(new_table)
     assert storage_schema.is_modified
-    print("SAVE SCHEMA")
     storage.save_schema(storage_schema)
     assert not storage_schema.is_modified
     # now use synced storage to load schema again
-    print("LOAD SCHEMA")
     reloaded_schema = synced_storage.load_schema("ethereum")
     # the schema was not overwritten
     assert "event_user" in reloaded_schema.tables

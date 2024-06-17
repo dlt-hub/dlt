@@ -351,7 +351,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
                 ):
                     job_client.complete_load(load_id)
-                    self._maybe_trancate_staging_dataset(schema, job_client)
+                    self._maybe_truncate_staging_dataset(schema, job_client)
 
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
@@ -504,7 +504,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
-    def _maybe_trancate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
+    def _maybe_truncate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
         """
         Truncate the staging dataset if one used,
         and configuration requests truncation.

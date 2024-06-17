@@ -1,6 +1,7 @@
 import pytest
 from typing import Dict
 
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.utils import digest128
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
@@ -99,6 +100,11 @@ def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
     assert c.is_resolved()
     assert not c.is_partial()
     assert c.aws_access_key_id == "fake_access_key"
+
+
+def test_aws_credentials_from_unknown_object() -> None:
+    with pytest.raises(InvalidBoto3Session):
+        AwsCredentials().parse_native_representation(CredentialsConfiguration())
 
 
 def test_aws_credentials_for_profile(environment: Dict[str, str]) -> None:
