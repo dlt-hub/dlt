@@ -1,4 +1,5 @@
 from typing import List, Set, Iterable, Callable, Optional, Sequence
+from itertools import groupby
 
 from dlt.common import logger
 from dlt.common.storages.load_package import LoadJobInfo, PackageStorage
@@ -226,36 +227,31 @@ def filter_new_jobs(
     config: LoaderConfiguration,
 ) -> Sequence[str]:
     """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
+    """NOTE: in the current setup we only filter based on settings for the final destination"""
+    """Support for differentiating staging destination jobs might come in the future if we need it"""
 
     # nothing to do
     if not file_names:
         return file_names
 
-    # destination can overwrite ps
-    parallelism_strategy = capabilities.loader_parallelism_strategy or config.parallelism_strategy
-
-    # we only always process one
-    if parallelism_strategy == "sequential":
-        return file_names[:1]
+    # config can overwrite destination settings, if nothing is set, code below defaults to parallel
+    parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
 
     # find real max workers value
-    max_workers = config.workers
+    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
     if mp := capabilities.max_parallel_load_jobs:
         max_workers = min(max_workers, mp)
 
-    # regular sequential will take max worker amount no matter the table
-    if parallelism_strategy == "parallel":
-        return file_names[:max_workers]
+    # regular sequential works on all jobs
+    eligible_jobs = file_names
 
     # we must ensure there only is one job per table
-    if parallelism_strategy == "table_sequential":
-        filtered_jobs: List[str] = []
-        seen_tables: Set[str] = set()
-        for job in file_names:
-            table_name = ParsedLoadJobFileName.parse(job).table_name
-            if table_name not in seen_tables:
-                filtered_jobs.append(job)
-                seen_tables.add(table_name)
-            if len(filtered_jobs) == max_workers:
-                break
-        return filtered_jobs
+    if parallelism_strategy == "table-sequential":
+        eligible_jobs = [
+            next(table_jobs)
+            for _, table_jobs in groupby(
+                file_names, lambda j: ParsedLoadJobFileName.parse(j).table_name
+            )
+        ]
+
+    return eligible_jobs[:max_workers]

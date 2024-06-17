@@ -1,17 +1,17 @@
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
-TLoaderParallelismStrategy = Literal["parallel", "table_sequential", "sequential"]
+TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
 
 
 @configspec
 class LoaderConfiguration(PoolRunnerConfiguration):
     workers: int = 20
     """how many parallel loads can be executed"""
-    parallelism_strategy: TLoaderParallelismStrategy = "parallel"
+    parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """Which parallelism strategy to use at load time"""
     pool_type: TPoolType = "thread"  # mostly i/o (upload) so may be thread pool
     raise_on_failed_jobs: bool = False

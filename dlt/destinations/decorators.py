@@ -59,7 +59,7 @@ def destination(
         skip_dlt_columns_and_tables: defines wether internal tables and columns will be fed into the custom destination function. This is set to True by default.
         spec: defines a configuration spec that will be used to to inject arguments into the decorated functions. Argument not in spec will not be injected
         max_parallel_load_jobs: how many load jobs at most will be running during the load
-        loader_parallelism_strategy: Can be "sequential" which equals max_parallel_load_jobs=1, "table_sequential" where each table will have at most one loadjob at any given time and "parallel"
+        loader_parallelism_strategy: Can be "sequential" which equals max_parallel_load_jobs=1, "table-sequential" where each table will have at most one loadjob at any given time and "parallel"
     Returns:
         A callable that can be used to create a dlt custom destination instance
     """

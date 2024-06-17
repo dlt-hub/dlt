@@ -93,7 +93,7 @@ def test_loading_strategy() -> None:
 
     # this strategy only allows one job per table max
     max_concurrent, max_concurrent_per_table = run_pipeline(
-        3, loader_parallelism_strategy="table_sequential"
+        3, loader_parallelism_strategy="table-sequential"
     )
     # we still have concurrent jobs but only one per table max
     assert max_concurrent <= 3 and max_concurrent >= 2

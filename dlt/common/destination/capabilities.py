@@ -30,7 +30,7 @@ from dlt.common.wei import EVM_DECIMAL_PRECISION
 # insert_values - insert SQL statements
 # sql - any sql statement
 TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
-TLoaderParallelismStrategy = Literal["parallel", "table_sequential", "sequential"]
+TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
 
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 

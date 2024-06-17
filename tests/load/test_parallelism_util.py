@@ -4,6 +4,7 @@ NOTE: there are tests in custom destination to check parallelism settings are ap
 """
 
 from typing import Tuple
+
 from dlt.load.utils import filter_new_jobs
 from dlt.load.configuration import LoaderConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -53,7 +54,7 @@ def test_table_sequential_parallelism_strategy() -> None:
     assert len(filter_new_jobs(job_names, caps, conf)) == 20
 
     # table sequential will give us 8, one for each table
-    conf.parallelism_strategy = "table_sequential"
+    conf.parallelism_strategy = "table-sequential"
     filtered = filter_new_jobs(job_names, caps, conf)
     assert len(filtered) == 8
     assert len({ParsedLoadJobFileName.parse(j).table_name for j in job_names}) == 8
@@ -61,10 +62,6 @@ def test_table_sequential_parallelism_strategy() -> None:
     # max workers also are still applied
     conf.workers = 3
     assert len(filter_new_jobs(job_names, caps, conf)) == 3
-
-    # destination caps can override
-    caps.loader_parallelism_strategy = "sequential"
-    assert len(filter_new_jobs(job_names, caps, conf)) == 1
 
 
 def test_strategy_preference() -> None:
@@ -74,17 +71,20 @@ def test_strategy_preference() -> None:
         job_names += [create_job_name(f"t{y}", i) for i in range(10)]
     caps, conf = get_caps_conf()
 
-    conf.parallelism_strategy = "table_sequential"
-    assert len(filter_new_jobs(job_names, caps, conf)) == 8
-
-    conf.parallelism_strategy = "sequential"
-    assert len(filter_new_jobs(job_names, caps, conf)) == 1
-
-    # destination may override (will go back to default 20)
-    caps.loader_parallelism_strategy = "parallel"
+    # nothing set will default to parallel
     assert len(filter_new_jobs(job_names, caps, conf)) == 20
 
-    caps.loader_parallelism_strategy = "table_sequential"
+    caps.loader_parallelism_strategy = "table-sequential"
+    assert len(filter_new_jobs(job_names, caps, conf)) == 8
+
+    caps.loader_parallelism_strategy = "sequential"
+    assert len(filter_new_jobs(job_names, caps, conf)) == 1
+
+    # config may override (will go back to default 20)
+    conf.parallelism_strategy = "parallel"
+    assert len(filter_new_jobs(job_names, caps, conf)) == 20
+
+    conf.parallelism_strategy = "table-sequential"
     assert len(filter_new_jobs(job_names, caps, conf)) == 8
 
 
