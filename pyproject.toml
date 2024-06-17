@@ -189,7 +189,6 @@ sentry-sdk = "^2.0.0"
 [tool.poetry.group.docs]
 optional = true
 
-
 [tool.poetry.group.dbt]
 optional = true
 [tool.poetry.group.dbt.dependencies]

@@ -1,6 +1,6 @@
 """Implements SupportsTracking"""
 import contextlib
-from typing import Any
+from typing import Any, List
 import humanize
 
 from dlt.common import logger
@@ -15,8 +15,11 @@ from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 
 try:
-    from sentry_sdk import Hub
-    from sentry_sdk.tracing import Span
+    from sentry_sdk import Scope
+    from sentry_sdk.tracing import Span, Transaction
+
+    _current_spans: List[Span] = []
+    _current_transactions: List[Transaction] = []
 
     def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
         span.set_tag("pipeline_name", pipeline.pipeline_name)
@@ -61,11 +64,12 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
     if pipeline.runtime_config.sentry_dsn:
-        # https://getsentry.github.io/sentry-python/api.html#sentry_sdk.Hub.capture_event
-        # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
-        transaction = Hub.current.start_transaction(name=step, op=step)
-        _add_sentry_tags(transaction, pipeline)
-        transaction.__enter__()
+        # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}"
+        global _current_transactions
+        transaction = Scope.get_current_scope().start_transaction(name=step, op=step)
+        if isinstance(transaction, Transaction):
+            _add_sentry_tags(transaction, pipeline)
+            _current_transactions.append(transaction.__enter__())
 
 
 def on_start_trace_step(
@@ -73,9 +77,10 @@ def on_start_trace_step(
 ) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
-        span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
-        span.op = step
+        global _current_spans
+        span = Scope.get_current_scope().start_span(description=step, op=step)
         _add_sentry_tags(span, pipeline)
+        _current_spans.append(span.__enter__())
 
 
 def on_end_trace_step(
@@ -87,8 +92,8 @@ def on_end_trace_step(
 ) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
-        with contextlib.suppress(Exception):
-            Hub.current.scope.span.__exit__(None, None, None)
+        global _current_spans
+        _current_spans.pop().__exit__(None, None, None)
     # disable automatic slack messaging until we can configure messages themselves
     # if step.step == "load":
     #     if pipeline.runtime_config.slack_incoming_hook and step.step_exception is None:
@@ -117,5 +122,5 @@ def on_end_trace_step(
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
-        with contextlib.suppress(Exception):
-            Hub.current.scope.span.__exit__(None, None, None)
+        global _current_transactions
+        _current_transactions.pop().__exit__(None, None, None)
