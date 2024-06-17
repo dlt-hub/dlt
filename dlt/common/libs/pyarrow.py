@@ -239,12 +239,14 @@ def should_normalize_arrow_schema(
         if norm_name in nullable_mapping and field.nullable != nullable_mapping[norm_name]:
             nullable_updates[norm_name] = nullable_mapping[norm_name]
 
-    dlt_tables = list(map(naming.normalize_table_identifier, ("_dlt_id", "_dlt_load_id")))
+    dlt_load_id_col = naming.normalize_table_identifier("_dlt_load_id")
+    dlt_id_col = naming.normalize_table_identifier("_dlt_id")
+    dlt_columns = {dlt_load_id_col, dlt_id_col}
 
     # Do we need to add a load id column?
-    if add_load_id and "_dlt_load_id" in columns:
+    if add_load_id and dlt_load_id_col in columns:
         try:
-            schema.field("_dlt_load_id")
+            schema.field(dlt_load_id_col)
             needs_load_id = False
         except KeyError:
             needs_load_id = True
@@ -256,7 +258,7 @@ def should_normalize_arrow_schema(
     columns = {
         name: column
         for name, column in columns.items()
-        if name not in dlt_tables or name in rev_mapping
+        if name not in dlt_columns or name in rev_mapping
     }
 
     # check if nothing to rename
@@ -332,7 +334,13 @@ def normalize_py_arrow_item(
     if needs_load_id and load_id:
         # Storage efficient type for a column with constant value
         load_id_type = pyarrow.dictionary(pyarrow.int8(), pyarrow.string())
-        new_fields.append(pyarrow.field("_dlt_load_id", load_id_type, nullable=False))
+        new_fields.append(
+            pyarrow.field(
+                naming.normalize_table_identifier("_dlt_load_id"),
+                load_id_type,
+                nullable=False,
+            )
+        )
         new_columns.append(pyarrow.array([load_id] * item.num_rows, type=load_id_type))
 
     # create desired type

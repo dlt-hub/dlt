@@ -342,15 +342,23 @@ class ArrowExtractor(Extractor):
             # normalize arrow table before merging
             arrow_table = self.schema.normalize_table_identifiers(arrow_table)
             # Add load_id column
+            dlt_load_id_col = self.naming.normalize_table_identifier("_dlt_load_id")
             if (
                 self._normalize_config.add_dlt_load_id
-                and "_dlt_load_id" not in arrow_table["columns"]
+                and dlt_load_id_col not in arrow_table["columns"]
             ):
-                arrow_table["columns"]["_dlt_load_id"] = {
-                    "name": "_dlt_load_id",
-                    "data_type": "text",
-                    "nullable": False,
-                }
+                self.schema.update_table(
+                    {
+                        "name": arrow_table["name"],
+                        "columns": {
+                            dlt_load_id_col: {
+                                "name": dlt_load_id_col,
+                                "data_type": "text",
+                                "nullable": False,
+                            }
+                        },
+                    }
+                )
             # issue warnings when overriding computed with arrow
             override_warn: bool = False
             for col_name, column in arrow_table["columns"].items():
