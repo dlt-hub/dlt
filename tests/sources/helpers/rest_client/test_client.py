@@ -264,19 +264,20 @@ class TestRESTClient:
 
     def test_oauth_token_expired_refresh(self, rest_client_immediate_oauth_expiry: RESTClient):
         rest_client = rest_client_immediate_oauth_expiry
-        assert rest_client.auth.access_token is None
+        auth = cast(OAuth2ClientCredentialsFlow, rest_client.auth)
+        assert auth.access_token is None
         response = rest_client.get("/protected/posts/bearer-token")
         assert response.status_code == 200
-        assert rest_client.auth.access_token is not None
-        expiry_0 = rest_client.auth.token_expiry
-        rest_client.auth.token_expiry = rest_client.auth.token_expiry.subtract(seconds=1)
-        expiry_1 = rest_client.auth.token_expiry
+        assert auth.access_token is not None
+        expiry_0 = auth.token_expiry
+        auth.token_expiry = auth.token_expiry.subtract(seconds=1)
+        expiry_1 = auth.token_expiry
         assert expiry_0 > expiry_1
-        assert rest_client.auth.is_token_expired()
+        assert auth.is_token_expired()
 
         response = rest_client.get("/protected/posts/bearer-token")
         assert response.status_code == 200
-        expiry_2 = rest_client.auth.token_expiry
+        expiry_2 = auth.token_expiry
         assert expiry_2 > expiry_1
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
 
