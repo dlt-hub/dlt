@@ -41,6 +41,8 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
             ),
             naming_convention=self.config_params.get("naming_convention", "direct"),
             max_table_nesting=self.config_params.get("max_table_nesting", None),
+            max_parallel_load_jobs=self.config_params.get("max_parallel_load_jobs", None),
+            loader_parallelism_strategy=self.config_params.get("loader_parallelism_strategy", None),
         )
 
     @property
