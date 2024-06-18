@@ -1,6 +1,6 @@
 ---
 slug: pandas-to-production
-title: "From Pandas to Production: why dlt is the right ELT tool for Normies"
+title: "From Pandas to Production: How we built dlt as the right ELT tool for Normies"
 image:  https://storage.googleapis.com/dlt-blog-images/i-am-normal.png
 authors:
   name: Adrian Brudaru
@@ -13,11 +13,17 @@ tags: [pandas, production, etl, etl]
 
 
 :::info
-**TL;DR: We created a library to reduce friction between data engineers, data scientists, and the rest of the team. From Pandas to Production article tells the story of how we got here.**
+**TL;DR: dlt is a library for Normies: Problem solvers with antipathy for black boxes, gratuitous complexity and external dependencies.
+
+This post tells the story of how we got here.**
+
+Try it in colab:
+* [Schema evolution](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
+* [Data Talks Club Open Source Spotlight](https://colab.research.google.com/drive/1D39_koejvi-eTtA_8AI33AHhMGGOklfb) + [Video](https://www.youtube.com/playlist?list=PL3MmuxUbc_hJ5t5nnjzC0F2zan76Dpsz0)
+* [Hackernews Api demo](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP)
+
 
 But if you want to load pandas dfs to production databases, with all the best practices built-in, check out this [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas) or this colab notebook that shows [easy handling of complex api data](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP#scrollTo=1wf1R0yQh7pv).
-
-Here are the best practices: [wishlist becomes reality](#our-dream-a-tool-that-meets-production-pipelines-requirements)
 
 Or check out more resources [at the end of the article](#call-to-action)
 :::
