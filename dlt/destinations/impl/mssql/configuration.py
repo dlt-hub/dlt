@@ -34,8 +34,6 @@ class MsSqlCredentials(ConnectionStringCredentials):
             self.query = {k.lower(): v for k, v in self.query.items()}  # Make case-insensitive.
         self.driver = self.query.get("driver", self.driver)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
-        if not self.is_partial():
-            self.resolve()
 
     def on_resolved(self) -> None:
         if self.driver not in self.SUPPORTED_DRIVERS:
@@ -45,10 +43,10 @@ class MsSqlCredentials(ConnectionStringCredentials):
             )
         self.database = self.database.lower()
 
-    def to_url(self) -> URL:
-        url = super().to_url()
-        url.update_query_pairs([("connect_timeout", str(self.connect_timeout))])
-        return url
+    def get_query(self) -> Dict[str, Any]:
+        query = dict(super().get_query())
+        query["connect_timeout"] = self.connect_timeout
+        return query
 
     def on_partial(self) -> None:
         self.driver = self._get_driver()
