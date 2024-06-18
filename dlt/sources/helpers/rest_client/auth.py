@@ -162,7 +162,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
         access_token_url: TSecretStrValue,
         client_id: TSecretStrValue,
         client_secret: TSecretStrValue,
-        access_token_request_data: Dict[str, Any] = dict(),
+        access_token_request_data: Dict[str, Any] = None,
         default_token_expiration: int = 3600,
     ) -> None:
         super().__init__()
