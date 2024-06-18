@@ -30,6 +30,8 @@ from dlt.common.wei import EVM_DECIMAL_PRECISION
 # insert_values - insert SQL statements
 # sql - any sql statement
 TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
+TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
+
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
 
@@ -88,6 +90,11 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
+
+    max_parallel_load_jobs: Optional[int] = None
+    """The destination can set the maxium amount of parallel load jobs being executed"""
+    loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
+    """The destination can override the parallelism strategy"""
 
     @property
     def escapers(self) -> Tuple[Callable[[str], str], Callable[[Any], Any]]:

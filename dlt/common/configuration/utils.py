@@ -178,7 +178,10 @@ def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ())
 
 
 def add_config_dict_to_env(
-    dict_: Mapping[str, Any], sections: Tuple[str, ...] = (), overwrite_keys: bool = False
+    dict_: Mapping[str, Any],
+    sections: Tuple[str, ...] = (),
+    overwrite_keys: bool = False,
+    destructure_dicts: bool = True,
 ) -> None:
     """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `sections` if specified. Does not overwrite existing keys by default"""
     for k, v in dict_.items():
@@ -193,5 +196,12 @@ def add_config_dict_to_env(
             if env_key not in os.environ or overwrite_keys:
                 if v is None:
                     os.environ.pop(env_key, None)
+                elif isinstance(v, dict) and destructure_dicts:
+                    add_config_dict_to_env(
+                        v,
+                        sections + (k,),
+                        overwrite_keys=overwrite_keys,
+                        destructure_dicts=destructure_dicts,
+                    )
                 else:
                     os.environ[env_key] = serialize_value(v)
