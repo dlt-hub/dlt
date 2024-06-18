@@ -179,18 +179,34 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row.update(extend)  # type: ignore
 
     def _add_row_id(
-        self, table: str, row: TDataItemRow, parent_row_id: str, pos: int, _r_lvl: int
+        self,
+        table: str,
+        dict_row: TDataItemRow,
+        flattened_row: TDataItemRow,
+        parent_row_id: str,
+        pos: int,
+        _r_lvl: int,
     ) -> str:
-        # row_id is always random, no matter if primary_key is present or not
-        row_id = generate_dlt_id()
-        if _r_lvl > 0:
-            primary_key = self.schema.filter_row_with_hint(table, "primary_key", row)
-            if not primary_key:
-                # child table row deterministic hash
-                row_id = DataItemNormalizer._get_child_row_hash(parent_row_id, table, pos)
-                # link to parent table
-                DataItemNormalizer._link_row(cast(TDataItemRowChild, row), parent_row_id, pos)
-        row["_dlt_id"] = row_id
+        row_id_type = self._get_row_id_type(self.schema, table, _r_lvl)
+
+        if row_id_type == "random":
+            row_id = generate_dlt_id()
+        else:
+            if _r_lvl == 0:  # root table
+                if row_id_type in ("key_hash", "row_hash"):
+                    subset = None
+                    if row_id_type == "key_hash":
+                        subset = self._get_primary_key(self.schema, table)
+                    row_id = self.get_row_hash(dict_row, subset=subset)  # type: ignore[arg-type]
+            elif _r_lvl > 0:  # child table
+                if row_id_type == "row_hash":
+                    row_id = DataItemNormalizer._get_child_row_hash(parent_row_id, table, pos)
+                    # link to parent table
+                    DataItemNormalizer._link_row(
+                        cast(TDataItemRowChild, flattened_row), parent_row_id, pos
+                    )
+
+        flattened_row["_dlt_id"] = row_id
         return row_id
 
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
@@ -259,15 +275,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         parent_row_id: Optional[str] = None,
         pos: Optional[int] = None,
         _r_lvl: int = 0,
-        row_id_type: TRowIdType = None,
     ) -> TNormalizedRowIterator:
         schema = self.schema
         table = schema.naming.shorten_fragments(*parent_path, *ident_path)
-        if row_id_type in ("key_hash", "row_hash"):
-            subset = None
-            if row_id_type == "key_hash":
-                subset = self._get_primary_key(schema, table)
-            dict_row["_dlt_id"] = self.get_row_hash(dict_row, subset=subset)  # type: ignore[arg-type]
         # flatten current row and extract all lists to recur into
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
@@ -275,7 +285,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get("_dlt_id", None)
         if not row_id:
-            row_id = self._add_row_id(table, flattened_row, parent_row_id, pos, _r_lvl)
+            row_id = self._add_row_id(table, dict_row, flattened_row, parent_row_id, pos, _r_lvl)
 
         # find fields to propagate to child tables in config
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))
@@ -357,7 +367,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             cast(TDataItemRowChild, row),
             {},
             (self.schema.naming.normalize_table_identifier(table_name),),
-            row_id_type=self._get_row_id_type(self.schema, table_name),
         )
 
     @classmethod
@@ -410,6 +419,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @staticmethod
     @lru_cache(maxsize=None)
     def _get_primary_key(schema: Schema, table_name: str) -> List[str]:
+        if table_name not in schema.tables:
+            return []
         table = schema.get_table(table_name)
         return get_columns_names_with_prop(table, "primary_key", include_incomplete=True)
 
@@ -420,16 +431,21 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _get_row_id_type(schema: Schema, table_name: str) -> TRowIdType:
-        merge_strategy = DataItemNormalizer._get_merge_strategy(schema, table_name)
-        if merge_strategy == "upsert":
-            return "key_hash"
-        elif merge_strategy == "scd2":
-            if (
-                schema.get_table(table_name)["columns"]
-                .get("_dlt_id", {})
-                .get("x-row-version", False)
-            ):
+    def _get_row_id_type(schema: Schema, table_name: str, _r_lvl: int = 0) -> TRowIdType:
+        if _r_lvl == 0:  # root table
+            merge_strategy = DataItemNormalizer._get_merge_strategy(schema, table_name)
+            if merge_strategy == "upsert":
+                return "key_hash"
+            elif merge_strategy == "scd2":
+                if (
+                    schema.get_table(table_name)["columns"]
+                    .get("_dlt_id", {})
+                    .get("x-row-version", False)
+                ):
+                    return "row_hash"
+        elif _r_lvl > 0:  # child table
+            primary_key = DataItemNormalizer._get_primary_key(schema, table_name)
+            if len(primary_key) == 0:
                 return "row_hash"
         return "random"
 
