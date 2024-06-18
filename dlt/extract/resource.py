@@ -1,4 +1,5 @@
 import inspect
+import time
 from functools import partial
 from typing import (
     AsyncIterable,
@@ -11,6 +12,7 @@ from typing import (
     Union,
     Any,
     Optional,
+    Literal,
 )
 from typing_extensions import TypeVar, Self
 
@@ -345,8 +347,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(FilterItem(item_filter), insert_at)
         return self
 
-    def add_limit(self: TDltResourceImpl, max_items: int) -> TDltResourceImpl:  # noqa: A003
-        """Adds a limit `max_items` to the resource pipe.
+    def add_limit(
+        self: TDltResourceImpl,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+        min_wait: Optional[float] = None,
+    ) -> TDltResourceImpl:  # noqa: A003
+        """Adds a limit `max_items` to the resource pipe
+
 
         This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
 
@@ -356,7 +364,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
 
         Args:
-            max_items (int): The maximum number of items to yield
+            max_items (int): The maximum number of items to yield, set to None for no limit
+            max_time (float): The maximum number of seconds for this generator to run after it was opened, set to None for no limit
+            min_wait (float): The minimum number of seconds to wait between iterations (usedful for rate limiting)
         Returns:
             "DltResource": returns self
         """
@@ -368,9 +378,21 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
 
+            if max_items >= 0 or max_time and not self.incremental:
+                from dlt.common import logger
+
+                logger.warning(
+                    f"You have added a max_items or max_time limit to resource {self.name}, but no"
+                    " incremental was declared."
+                )
+
             # zero items should produce empty generator
             if max_items == 0:
                 return
+
+            # vars needed for max time and rate limiting
+            start_time: float = time.time()
+            last_iteration: float = start_time
 
             count = 0
             is_async_gen = False
@@ -384,7 +406,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later
+                    # return item to caller
                     yield i
+
+                    # evaluate stop conditions
                     if i is not None:
                         count += 1
                         # async gen yields awaitable so we must count one awaitable more
@@ -392,6 +417,21 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                         # new awaitable will be cancelled
                         if count == max_items + int(is_async_gen):
                             return
+                        # if we crossed the max time, we will stop
+                        if max_time and time.time() - start_time > max_time:
+                            return
+
+                    # apply rate limiting
+                    if min_wait:
+                        while (last_iteration + min_wait) - time.time() > 0:
+                            # we give control back to the pipe iterator
+                            yield None
+                            time.sleep(0.1)
+
+                    # remember last iteration time
+                    if min_wait:
+                        last_iteration = time.time()
+
             finally:
                 if inspect.isgenerator(gen):
                     gen.close()
