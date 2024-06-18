@@ -21,7 +21,7 @@ Try it in colab:
 * [Schema evolution](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
 * [Data Talks Club Open Source Spotlight](https://colab.research.google.com/drive/1D39_koejvi-eTtA_8AI33AHhMGGOklfb) + [Video](https://www.youtube.com/playlist?list=PL3MmuxUbc_hJ5t5nnjzC0F2zan76Dpsz0)
 * [Hackernews Api demo](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP)
-
+* [LLM-free pipeline generation demo](https://colab.research.google.com/drive/1MRZvguOTZj1MlkEGzjiso8lQ_wr1MJRI) +[4min Video](https://www.youtube.com/watch?v=b99qv9je12Q)
 
 But if you want to load pandas dfs to production databases, with all the best practices built-in, check out this [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas) or this colab notebook that shows [easy handling of complex api data](https://colab.research.google.com/drive/1DhaKW0tiSTHDCVmPjM-eoyL47BJ30xmP#scrollTo=1wf1R0yQh7pv).
 
