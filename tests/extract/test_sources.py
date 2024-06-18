@@ -32,7 +32,7 @@ from dlt.extract.pipe import Pipe
 
 
 @pytest.fixture(autouse=True)
-def append_first():
+def switch_to_fifo():
     """most of the following tests rely on the old default fifo next item mode"""
     os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
     yield

@@ -824,7 +824,7 @@ def test_standalone_transformer() -> None:
         bound_tx(1)
     assert isinstance(bound_tx, DltResource)
     # the resource sets the start of the range of transformer + transformer init
-    assert list(standalone_signature(1, 3) | bound_tx) == [6, 7, 8, 9, 7, 8, 9]
+    assert list(standalone_signature(1, 3) | bound_tx) == [6, 7, 7, 8, 8, 9, 9]
 
     # wrong params to transformer
     with pytest.raises(TypeError):
