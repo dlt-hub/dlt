@@ -20,5 +20,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = False
     caps.alter_add_multi_column = False
     caps.supports_truncate_command = False
+    caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
     return caps

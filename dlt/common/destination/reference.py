@@ -43,7 +43,6 @@ from dlt.common.destination.exceptions import (
     InvalidDestinationReference,
     UnknownDestinationModule,
     DestinationSchemaTampered,
-    DestinationException,
 )
 from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
@@ -361,11 +360,6 @@ class JobClientBase(ABC):
                             " dlt will fall back to `append` for this table."
                         )
                 elif table.get("x-merge-strategy") == "upsert":
-                    if self.config.destination_name not in ("postgres", "snowflake"):
-                        raise DestinationException(
-                            "`upsert` merge strategy currently not (yet) supported"
-                            f" for `{self.config.destination_name}` destination."
-                        )
                     if not has_column_with_prop(table, "primary_key"):
                         raise SchemaException(
                             f"No primary key defined for table `{table['name']}`."

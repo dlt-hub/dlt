@@ -36,6 +36,7 @@ from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
+    DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
@@ -469,6 +470,28 @@ class Pipeline(SupportsPipeline):
                 step_info,
             ) from exc
 
+    def _verify_destination_capabilities(
+        self,
+        caps: DestinationCapabilitiesContext,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        # verify loader file format
+        if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
+            raise DestinationIncompatibleLoaderFileFormatException(
+                self.destination.destination_name,
+                (self.staging.destination_name if self.staging else None),
+                loader_file_format,
+                set(caps.supported_loader_file_formats),
+            )
+
+        # verify merge strategy
+        for table in self.default_schema.data_tables():
+            if "x-merge-strategy" in table and table["x-merge-strategy"] not in caps.supported_merge_strategies:  # type: ignore[typeddict-item]
+                raise DestinationCapabilitiesException(
+                    f"`{table.get('x-merge-strategy')}` merge strategy not supported"
+                    f" for `{self.destination.destination_name}` destination."
+                )
+
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
@@ -498,13 +521,8 @@ class Pipeline(SupportsPipeline):
         )
         # run with destination context
         with self._maybe_destination_capabilities() as caps:
-            if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
-                raise DestinationIncompatibleLoaderFileFormatException(
-                    self.destination.destination_name,
-                    (self.staging.destination_name if self.staging else None),
-                    loader_file_format,
-                    set(caps.supported_loader_file_formats),
-                )
+            self._verify_destination_capabilities(caps, loader_file_format)
+
             # shares schema storage with the pipeline so we do not need to install
             normalize_step: Normalize = Normalize(
                 collector=self.collector,

@@ -15,6 +15,7 @@ from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
+from dlt.common.destination import TDestination
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -27,10 +28,13 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
 
-def skip_unsupported_destinations(merge_strategy: TLoaderMergeStrategy, destination: str) -> None:
-    if merge_strategy == "upsert" and destination not in ("postgres", "snowflake"):
+def skip_if_not_supported(
+    merge_strategy: TLoaderMergeStrategy,
+    destination: TDestination,
+) -> None:
+    if merge_strategy not in destination.capabilities().supported_merge_strategies:
         pytest.skip(
-            f"`upsert` merge strategy currently not (yet) supported for `{destination}`"
+            f"`{merge_strategy}` merge strategy not supported for `{destination.destination_name}`"
             " destination."
         )
 
@@ -44,9 +48,9 @@ def test_merge_on_keys_in_schema(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    skip_unsupported_destinations(merge_strategy, destination_config.destination)
-
     p = destination_config.setup_pipeline("eth_2", dev_mode=True)
+
+    skip_if_not_supported(merge_strategy, p.destination)
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v5.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
@@ -115,9 +119,8 @@ def test_merge_on_ad_hoc_primary_key(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    skip_unsupported_destinations(merge_strategy, destination_config.destination)
-
     p = destination_config.setup_pipeline("github_1", dev_mode=True)
+    skip_if_not_supported(merge_strategy, p.destination)
 
     @dlt.resource(
         table_name="issues",
@@ -594,8 +597,6 @@ def test_complex_column_missing(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    skip_unsupported_destinations(merge_strategy, destination_config.destination)
-
     table_name = "test_complex_column_missing"
 
     @dlt.resource(
@@ -607,6 +608,7 @@ def test_complex_column_missing(
         yield data
 
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
+    skip_if_not_supported(merge_strategy, p.destination)
 
     data = [{"id": 1, "simple": "foo", "complex": [1, 2, 3]}]
     info = p.run(r(data), loader_file_format=destination_config.file_format)
@@ -634,8 +636,6 @@ def test_hard_delete_hint(
     key_type: str,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    skip_unsupported_destinations(merge_strategy, destination_config.destination)
-
     if merge_strategy == "upsert" and key_type != "primary_key":
         pytest.skip("`upsert` merge strategy requires `primary_key`")
     # no_key setting will have the effect that hard deletes have no effect, since hard delete records
@@ -659,6 +659,7 @@ def test_hard_delete_hint(
         pass
 
     p = destination_config.setup_pipeline(f"abstract_{key_type}", dev_mode=True)
+    skip_if_not_supported(merge_strategy, p.destination)
 
     # insert two records
     data = [
@@ -799,8 +800,6 @@ def test_hard_delete_hint_config(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    skip_unsupported_destinations(merge_strategy, destination_config.destination)
-
     table_name = "test_hard_delete_hint_non_bool"
 
     @dlt.resource(
@@ -815,6 +814,7 @@ def test_hard_delete_hint_config(
         yield data
 
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
+    skip_if_not_supported(merge_strategy, p.destination)
 
     # insert two records
     data = [

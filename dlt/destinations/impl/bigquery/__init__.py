@@ -27,5 +27,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = False
     caps.supports_clone_table = True
+    caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
     return caps

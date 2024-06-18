@@ -81,9 +81,10 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
-
     """Destination supports CREATE TABLE ... CLONE ... statements"""
     max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
+    supported_merge_strategies: Sequence["TLoaderMergeStrategy"] = None  # type: ignore[name-defined] # noqa: F821
+    # TODO: also add `supported_replace_strategies` capability
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False

@@ -124,3 +124,7 @@ class DestinationSchemaTampered(DestinationTerminalException):
             " schema in load package, you should first save it into schema storage. You can also"
             " use schema._bump_version() in test code to remove modified flag."
         )
+
+
+class DestinationCapabilitiesException(DestinationException):
+    pass

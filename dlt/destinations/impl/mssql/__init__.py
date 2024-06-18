@@ -25,5 +25,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = True
     caps.max_rows_per_insert = 1000
     caps.timestamp_precision = 7
+    caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
     return caps

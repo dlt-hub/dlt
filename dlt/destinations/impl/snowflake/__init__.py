@@ -22,4 +22,5 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = True
     caps.supports_clone_table = True
+    caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
     return caps
