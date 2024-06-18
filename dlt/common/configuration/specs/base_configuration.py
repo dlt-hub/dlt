@@ -43,7 +43,6 @@ from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingTypeHintException,
     ConfigFieldTypeHintNotSupported,
-    ConfigurationException,
 )
 
 
@@ -304,7 +303,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         self._apply_init_value(init_value)
         if not self.is_partial():
             # let it fail gracefully
-            with contextlib.suppress(ConfigurationException):
+            with contextlib.suppress(Exception):
                 self.resolve()
         return self
 

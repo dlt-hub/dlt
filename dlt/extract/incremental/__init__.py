@@ -269,6 +269,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self._primary_key = merged._primary_key
             self.allow_external_schedulers = merged.allow_external_schedulers
             self.row_order = merged.row_order
+            self.__is_resolved__ = self.__is_resolved__
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
@@ -489,7 +490,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         return rows
 
 
-Incremental.EMPTY = Incremental[Any]("")
+Incremental.EMPTY = Incremental[Any]()
+Incremental.EMPTY.__is_resolved__ = True
 
 
 class IncrementalResourceWrapper(ItemTransform[TDataItem]):

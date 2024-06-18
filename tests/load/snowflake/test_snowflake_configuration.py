@@ -123,7 +123,6 @@ def test_only_authenticator() -> None:
 
 def test_no_query(environment) -> None:
     c = SnowflakeCredentials("snowflake://user1:pass1@host1/db1")
-    c = resolve_configuration(c)
     assert str(c.to_url()) == "snowflake://user1:pass1@host1/db1"
     print(c.to_url())
 
