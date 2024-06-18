@@ -261,7 +261,10 @@ class TestRESTClient:
                         "Authorization": f"Basic {authentication}",
                         "Content-Type": "application/x-www-form-urlencoded",
                     },
-                    "data": self.access_token_request_data,
+                    "data": {
+                        "grant_type": "account_credentials",
+                        **self.access_token_request_data,
+                    },
                 }
 
         auth = OAuth2ClientCredentialsHTTPBasic(
@@ -269,7 +272,6 @@ class TestRESTClient:
             client_id=cast(TSecretStrValue, "test-account-id"),
             client_secret=cast(TSecretStrValue, "test-client-secret"),
             access_token_request_data={
-                "grant_type": "account_credentials",
                 "account_id": cast(TSecretStrValue, "test-account-id"),
             },
         )

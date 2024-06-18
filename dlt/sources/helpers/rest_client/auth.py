@@ -169,7 +169,10 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
         self.access_token_url = access_token_url
         self.client_id = client_id
         self.client_secret = client_secret
-        self.access_token_request_data = access_token_request_data
+        if access_token_request_data is None:
+            self.access_token_request_data = {}
+        else:
+            self.access_token_request_data = access_token_request_data
         self.default_token_expiration = default_token_expiration
         self.token_expiry: pendulum.DateTime = pendulum.now()
 
@@ -199,6 +202,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
                 "grant_type": "client_credentials",
+                **self.access_token_request_data
             },
         }
 
