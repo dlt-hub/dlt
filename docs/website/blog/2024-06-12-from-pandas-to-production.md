@@ -13,9 +13,9 @@ tags: [pandas, production, etl, etl]
 
 
 :::info
-**TL;DR: dlt is a library for Normies: Problem solvers with antipathy for black boxes, gratuitous complexity and external dependencies.
+**TL;DR: dlt is a library for Normies: Problem solvers with antipathy for black boxes, gratuitous complexity and external dependencies.**
 
-This post tells the story of how we got here.**
+**This post tells the story of how we got here.**
 
 Try it in colab:
 * [Schema evolution](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
