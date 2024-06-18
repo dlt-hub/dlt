@@ -522,7 +522,7 @@ def test_extract_adds_dlt_load_id(item_type: TPythonTableFormat) -> None:
     info = pipeline.extract(some_data())
 
     load_id = info.loads_ids[0]
-    jobs = info.load_packages[0].jobs['new_jobs']
+    jobs = info.load_packages[0].jobs["new_jobs"]
     extracted_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
 
     with pa.parquet.ParquetFile(extracted_file) as pq:
@@ -549,7 +549,7 @@ def test_extract_json_normalize_parquet_adds_dlt_load_id():
     n_info = pipeline.normalize(loader_file_format="parquet")
 
     load_id = n_info.loads_ids[0]
-    jobs = n_info.load_packages[0].jobs['new_jobs']
+    jobs = n_info.load_packages[0].jobs["new_jobs"]
     normalized_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
 
     with pa.parquet.ParquetFile(normalized_file) as pq:
