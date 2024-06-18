@@ -219,8 +219,8 @@ def test_secrets_toml_credentials_from_native_repr(
         " KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD+S\n...\n-----END"
         " PRIVATE KEY-----\n"
     )
-    # but project id got overridden from credentials.project_id
-    assert c.project_id.endswith("-credentials")
+    # project id taken from the same value, will not be overridden from any other configs
+    assert c.project_id.endswith("mock-project-id-source.credentials")
     # also try sql alchemy url (native repr)
     c2 = resolve.resolve_configuration(ConnectionStringCredentials(), sections=("databricks",))
     assert c2.drivername == "databricks+connector"

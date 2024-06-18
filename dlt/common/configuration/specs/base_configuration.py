@@ -43,14 +43,14 @@ from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingTypeHintException,
     ConfigFieldTypeHintNotSupported,
+    ConfigurationException,
 )
 
 
 # forward class declaration
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
-_T = TypeVar("_T", bound="BaseConfiguration")
-_C = TypeVar("_C", bound="CredentialsConfiguration")
+_B = TypeVar("_B", bound="BaseConfiguration")
 
 
 class NotResolved:
@@ -289,6 +289,33 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Typing for dataclass fields"""
     __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
 
+    @classmethod
+    def from_init_value(cls: Type[_B], init_value: Any = None) -> _B:
+        """Initializes credentials from `init_value`
+
+        Init value may be a native representation of the credentials or a dict. In case of native representation (for example a connection string or JSON with service account credentials)
+        a `parse_native_representation` method will be used to parse it. In case of a dict, the credentials object will be updated with key: values of the dict.
+        Unexpected values in the dict will be ignored.
+
+        Credentials will be marked as resolved if all required fields are set resolve() method is successful
+        """
+        # create an instance
+        self = cls()
+        self._apply_init_value(init_value)
+        if not self.is_partial():
+            # let it fail gracefully
+            with contextlib.suppress(ConfigurationException):
+                self.resolve()
+        return self
+
+    def _apply_init_value(self, init_value: Any = None) -> None:
+        if isinstance(init_value, C_Mapping):
+            self.update(init_value)
+        elif init_value is not None:
+            self.parse_native_representation(init_value)
+        else:
+            return
+
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
@@ -348,7 +375,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         self.call_method_in_mro("on_resolved")
         self.__is_resolved__ = True
 
-    def copy(self: _T) -> _T:
+    def copy(self: _B) -> _B:
         """Returns a deep copy of the configuration instance"""
         return copy.deepcopy(self)
 
@@ -426,37 +453,12 @@ class CredentialsConfiguration(BaseConfiguration):
 
     __section__: ClassVar[str] = "credentials"
 
-    @classmethod
-    def from_init_value(cls: Type[_C], init_value: Any = None) -> _C:
-        """Initializes credentials from `init_value`
-
-        Init value may be a native representation of the credentials or a dict. In case of native representation (for example a connection string or JSON with service account credentials)
-        a `parse_native_representation` method will be used to parse it. In case of a dict, the credentials object will be updated with key: values of the dict.
-        Unexpected values in the dict will be ignored.
-
-        Credentials will be marked as resolved if all required fields are set.
-        """
-        # create an instance
-        self = cls()
-        self._apply_init_value(init_value)
-        return self
-
     def to_native_credentials(self) -> Any:
         """Returns native credentials object.
 
         By default calls `to_native_representation` method.
         """
         return self.to_native_representation()
-
-    def _apply_init_value(self, init_value: Any = None) -> None:
-        if isinstance(init_value, C_Mapping):
-            self.update(init_value)
-        elif init_value is not None:
-            self.parse_native_representation(init_value)
-        else:
-            return
-        if not self.is_partial():
-            self.resolve()
 
     def __str__(self) -> str:
         """Get string representation of credentials to be displayed, with all secret parts removed"""

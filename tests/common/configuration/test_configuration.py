@@ -63,6 +63,7 @@ from dlt.common.configuration.utils import (
 )
 from dlt.common.pipeline import TRefreshMode
 
+from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
     MockProvider,
@@ -448,6 +449,43 @@ def test_invalid_native_config_value() -> None:
     assert py_ex.value.spec is InstrumentedConfiguration
     assert py_ex.value.native_value_type is int
     assert py_ex.value.embedded_sections == ()
+
+
+def test_maybe_use_explicit_value() -> None:
+    # pass through dict and configs
+    c = ConnectionStringCredentials()
+    dict_explicit = {"explicit": "is_dict"}
+    config_explicit = BaseConfiguration()
+    assert resolve._maybe_parse_native_value(c, dict_explicit, ()) is dict_explicit
+    assert resolve._maybe_parse_native_value(c, config_explicit, ()) is config_explicit
+
+    # postgres credentials have a default parameter (connect_timeout), which must be removed for explicit value
+    pg_c = PostgresCredentials()
+    explicit_value = resolve._maybe_parse_native_value(
+        pg_c, "postgres://loader@localhost:5432/dlt_data?a=b&c=d", ()
+    )
+    # NOTE: connect_timeout and password are not present
+    assert explicit_value == {
+        "drivername": "postgres",
+        "database": "dlt_data",
+        "username": "loader",
+        "host": "localhost",
+        "query": {"a": "b", "c": "d"},
+    }
+    pg_c = PostgresCredentials()
+    explicit_value = resolve._maybe_parse_native_value(
+        pg_c, "postgres://loader@localhost:5432/dlt_data?connect_timeout=33", ()
+    )
+    assert explicit_value["connect_timeout"] == 33
+
+
+def test_optional_params_resolved_if_complete_native_value(environment: Any) -> None:
+    # this native value fully resolves configuration
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data?a=b&c=d"
+    # still this config value will be injected
+    environment["CREDENTIALS__CONNECT_TIMEOUT"] = "300"
+    c = resolve.resolve_configuration(PostgresCredentials())
+    assert c.connect_timeout == 300
 
 
 def test_on_resolved(environment: Any) -> None:
