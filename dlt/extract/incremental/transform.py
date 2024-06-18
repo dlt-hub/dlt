@@ -321,9 +321,10 @@ class ArrowIncremental(IncrementalTransform):
                 # find rows with unique ids that were stored from previous run
                 remove_idx = pa.array(i for i, _ in unique_values_index)
                 # Filter the table
-                tbl = tbl.filter(
-                    pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
-                )
+                if remove_idx:
+                    tbl = tbl.filter(
+                        pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
+                    )
 
         if (
             self.last_value is None
