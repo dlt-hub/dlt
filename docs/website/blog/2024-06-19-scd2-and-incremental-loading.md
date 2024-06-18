@@ -1,6 +1,7 @@
 ---
 slug: scd2-and-incremental-loading
 title: "Slowly Changing Dimension Type2: Explanation and code"
+image:  https://storage.googleapis.com/dlt-blog-images/flowchart_for_scd2.png
 authors:
   name: Aman Gupta
   title: Junior Data Engineer
