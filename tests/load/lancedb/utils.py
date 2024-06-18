@@ -1,13 +1,9 @@
-import contextlib
 from typing import Union, List, Any, Dict
 
 import numpy as np
 from lancedb.embeddings import TextEmbeddingFunction  # type: ignore
 
 import dlt
-from dlt.common.configuration.container import Container
-from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.common.pipeline import PipelineContext
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
 
@@ -63,24 +59,6 @@ def assert_table(
     ]
 
     assert_unordered_dicts_equal(objects_without_dlt_or_special_keys, items)
-
-
-def drop_active_pipeline_data() -> None:
-    print("Dropping active pipeline data for test.")
-
-    def has_tables(client: LanceDBClient) -> bool:
-        schema = list(client.db_client.table_names())
-        return len(schema) > 0
-
-    if Container()[PipelineContext].is_active():
-        pipe = dlt.pipeline()
-        client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
-
-        if has_tables(client):
-            with contextlib.suppress(DestinationUndefinedEntity):
-                client.drop_storage()
-        pipe._wipe_working_folder()
-        Container()[PipelineContext].deactivate()
 
 
 class MockEmbeddingFunc(TextEmbeddingFunction):

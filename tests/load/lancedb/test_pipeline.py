@@ -11,7 +11,10 @@ from dlt.destinations.impl.lancedb.lancedb_adapter import (
     VECTORIZE_HINT,
 )
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-from tests.load.lancedb.utils import drop_active_pipeline_data, assert_table
+from tests.load.lancedb.utils import assert_table
+from tests.load.pipeline.utils import (
+    drop_active_pipeline_data,
+)
 from tests.load.utils import sequence_generator
 from tests.pipeline.utils import assert_load_info
 
