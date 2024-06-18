@@ -491,7 +491,7 @@ Unfortunately, most OAuth 2.0 implementations vary and thus you might need to su
 - `access_token_url`: The url to obtain the temporary access token.
 - `client_id`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
-- `access_token_request_data`: A dictionary with data required by the autorization server. Includes typically a key `grant_type`. Defaults to `{}`.
+- `access_token_request_data`: A dictionary with data required by the autorization server. Includes typically a key `grant_type`. Defaults to `None`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
 
 **Example:**
