@@ -187,7 +187,12 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         pos: int,
         _r_lvl: int,
     ) -> str:
-        row_id_type = self._get_row_id_type(self.schema, table, _r_lvl)
+        primary_key = False
+        if _r_lvl > 0:  # child table
+            primary_key = bool(
+                self.schema.filter_row_with_hint(table, "primary_key", flattened_row)
+            )
+        row_id_type = self._get_row_id_type(self.schema, table, primary_key, _r_lvl)
 
         if row_id_type == "random":
             row_id = generate_dlt_id()
@@ -431,7 +436,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     @lru_cache(maxsize=None)
-    def _get_row_id_type(schema: Schema, table_name: str, _r_lvl: int = 0) -> TRowIdType:
+    def _get_row_id_type(
+        schema: Schema, table_name: str, primary_key: bool, _r_lvl: int
+    ) -> TRowIdType:
         if _r_lvl == 0:  # root table
             merge_strategy = DataItemNormalizer._get_merge_strategy(schema, table_name)
             if merge_strategy == "upsert":
@@ -444,8 +451,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 ):
                     return "row_hash"
         elif _r_lvl > 0:  # child table
-            primary_key = DataItemNormalizer._get_primary_key(schema, table_name)
-            if len(primary_key) == 0:
+            if not primary_key:
                 return "row_hash"
         return "random"
 
