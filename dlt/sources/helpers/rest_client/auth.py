@@ -159,15 +159,17 @@ class OAuth2ClientCredentialsFlow(OAuth2AuthBase):
 
     def __init__(
         self,
-        access_token_request_data: Dict[str, Any],
+        access_token_url: TSecretStrValue,
         client_id: TSecretStrValue,
         client_secret: TSecretStrValue,
+        access_token_request_data: Dict[str, Any] = dict(),
         default_token_expiration: int = 3600,
     ) -> None:
         super().__init__()
-        self.access_token_request_data = access_token_request_data
+        self.access_token_url = access_token_url
         self.client_id = client_id
         self.client_secret = client_secret
+        self.access_token_request_data = access_token_request_data
         self.default_token_expiration = default_token_expiration
         self.token_expiry: pendulum.DateTime = pendulum.now()
 
@@ -181,16 +183,24 @@ class OAuth2ClientCredentialsFlow(OAuth2AuthBase):
         return pendulum.now() >= self.token_expiry
 
     def obtain_token(self) -> None:
-        response = requests.post(**self.build_access_token_request())
+        response = requests.post(self.access_token_url, **self.build_access_token_request())
         response.raise_for_status()
         response_json = response.json()
         self.parse_native_representation(self.parse_access_token(response_json))
         expires_in_seconds = self.parse_expiration_in_seconds(response_json)
         self.token_expiry = pendulum.now().add(seconds=expires_in_seconds)
 
-    @abstractmethod
     def build_access_token_request(self) -> Dict[str, Any]:
-        pass
+        return {
+            "headers": {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            "data": {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "client_credentials",
+            },
+        }
 
     def parse_expiration_in_seconds(self, response_json: Any) -> int:
         return int(response_json.get("expires_in", self.default_token_expiration))

@@ -483,28 +483,30 @@ response = client.get("/protected/resource")
 ### OAuth 2.0 authorization
 
 OAuth 2.0 is a common protocol for authorization. We have implemented two-legged authorization employed for server-to-server authorization because the end user (resource owner) does not need to grant approval.
-The REST client acts as the OAuth client which obtains a temporary access token from the authorization server. This access token is then sent to the resource server to access protected content.
+The REST client acts as the OAuth client which obtains a temporary access token from the authorization server. This access token is then sent to the resource server to access protected content. If the access token is expired, the OAuth client automatically refreshes it.
 
-Unfortunately, most OAuth 2.0 implementations vary and thus you need to subclass `OAuth2ClientCredentialsFlow` and implement `obtain_token()` to suite the requirements of the specific authorization server you want to interact with.
+Unfortunately, most OAuth 2.0 implementations vary and thus you might need to subclass `OAuth2ClientCredentialsFlow` and implement `build_access_token_request()` to suite the requirements of the specific authorization server you want to interact with.
 
 **Parameters:**
-
-- `access_token_request_data`: A dictionary with data required by the autorization server. Includes typically a key `grant_type`.
+- `access_token_url`: The url to obtain the temporary access token.
 - `client_id`: Client credential to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
+- `access_token_request_data`: A dictionary with data required by the autorization server. Includes typically a key `grant_type`. Defaults to `{}`.
 - `default_token_expiration`: The time in seconds after which the temporary access token expires. Defaults to 3600.
 
 **Example:**
 
 ```py
+from base64 import b64encode
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentialsFlow
 
 class OAuth2Zoom(OAuth2ClientCredentialsFlow):
     def build_access_token_request(self) -> Dict[str, Any]:
-        authentication: str = b64encode(f"{self.client_id}:{self.client_secret}".encode()).decode()
+        authentication: str = b64encode(
+            f"{self.client_id}:{self.client_secret}".encode()
+        ).decode()
         return {
-            "url": "https://zoom.us/oauth/token",
             "headers": {
                 "Authorization": f"Basic {authentication}",
                 "Content-Type": "application/x-www-form-urlencoded",
@@ -512,14 +514,14 @@ class OAuth2Zoom(OAuth2ClientCredentialsFlow):
             "data": self.access_token_request_data,
         }
 
-
 auth = OAuth2Zoom(
-          access_token_request_data={
-              "grant_type": "account_credentials",
-              "account_id": dlt.secrets["sources.zoom.account_id"],
-          },
-          client_id=dlt.secrets["sources.zoom.client_id"],
-          client_secret=dlt.secrets["sources.zoom.client_secret"],
+    access_token_url=dlt.secrets["sources.zoom.access_token_url"]  # "https://zoom.us/oauth/token"
+    client_id=dlt.secrets["sources.zoom.client_id"],
+    client_secret=dlt.secrets["sources.zoom.client_secret"],
+    access_token_request_data={
+        "grant_type": "account_credentials",
+        "account_id": dlt.secrets["sources.zoom.account_id"],
+    },
 )
 client = RESTClient(base_url="https://api.zoom.us/v2", auth=auth)
 

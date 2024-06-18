@@ -1,5 +1,6 @@
 import os
-from typing import Any, cast
+from base64 import b64encode
+from typing import Any, Dict, cast
 
 import pytest
 from requests import PreparedRequest, Request, Response
@@ -50,56 +51,22 @@ def rest_client() -> RESTClient:
 
 @pytest.fixture
 def rest_client_oauth() -> RESTClient:
-    auth = OAuth2ClientCredentialsExample(
-        access_token_request_data={
-            "grant_type": "client_credentials",
-        },
+    auth = OAuth2ClientCredentialsFlow(
+        access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
         client_id=cast(TSecretStrValue, "test-client-id"),
         client_secret=cast(TSecretStrValue, "test-client-secret"),
     )
     return build_rest_client(auth=auth)
-
-
-class OAuth2ClientCredentialsExample(OAuth2ClientCredentialsFlow):
-    def build_access_token_request(self):
-        return {
-            "url": "https://api.example.com/oauth/token",
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            "data": {
-                **self.access_token_request_data,
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-            },
-        }
 
 
 @pytest.fixture
 def rest_client_immediate_oauth_expiry(auth=None) -> RESTClient:
-    class OAuth2ClientCredentialsExpiringNow(OAuth2ClientCredentialsFlow):
-        def build_access_token_request(self):
-            return {
-                "url": "https://api.example.com/oauth/token-expires-now",
-                "headers": {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-                "data": {
-                    **self.access_token_request_data,
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                },
-            }
-
-    auth = OAuth2ClientCredentialsExpiringNow(
-        access_token_request_data={
-            "grant_type": "client_credentials",
-        },
+    credentials_expiring_now = OAuth2ClientCredentialsFlow(
+        access_token_url = cast(TSecretStrValue, "https://api.example.com/oauth/token-expires-now"),
         client_id=cast(TSecretStrValue, "test-client-id"),
         client_secret=cast(TSecretStrValue, "test-client-secret"),
     )
-
-    return build_rest_client(auth=auth)
+    return build_rest_client(auth=credentials_expiring_now)
 
 
 @pytest.mark.usefixtures("mock_api_server")
@@ -236,8 +203,8 @@ class TestRESTClient:
         assert_pagination(list(pages_iter))
 
     def test_oauth2_client_credentials_flow_wrong_client_id(self, rest_client: RESTClient):
-        auth = OAuth2ClientCredentialsExample(
-            access_token_request_data={"grant_type": "client_credentials"},
+        auth = OAuth2ClientCredentialsFlow(
+            access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
             client_id=cast(TSecretStrValue, "invalid-client-id"),
             client_secret=cast(TSecretStrValue, "test-client-secret"),
         )
@@ -248,8 +215,8 @@ class TestRESTClient:
         assert e.match("401 Client Error")
 
     def test_oauth2_client_credentials_flow_wrong_client_secret(self, rest_client: RESTClient):
-        auth = OAuth2ClientCredentialsExample(
-            access_token_request_data={"grant_type": "client_credentials"},
+        auth = OAuth2ClientCredentialsFlow(
+            access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
             client_id=cast(TSecretStrValue, "test-client-id"),
             client_secret=cast(TSecretStrValue, "invalid-client-secret"),
         )
@@ -280,6 +247,48 @@ class TestRESTClient:
         expiry_2 = auth.token_expiry
         assert expiry_2 > expiry_1
         assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
+
+    def test_oauth_customized_token_request(self, rest_client: RESTClient):
+        """Implements OAuth 2.0 as required by Zoom Video Communications, Inc."""
+
+        class OAuth2Zoom(OAuth2ClientCredentialsFlow):
+            def build_access_token_request(self) -> Dict[str, Any]:
+                authentication: str = b64encode(
+                    f"{self.client_id}:{self.client_secret}".encode()
+                ).decode()
+                return {
+                    "headers": {
+                        "Authorization": f"Basic {authentication}",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    "data": self.access_token_request_data,
+                }
+
+        auth = OAuth2Zoom(
+            access_token_url="https://api.example.com/custom-oauth/token",
+            client_id=cast(TSecretStrValue, "test-account-id"),
+            client_secret=cast(TSecretStrValue, "test-client-secret"),
+            access_token_request_data={
+                "grant_type": "account_credentials",
+                "account_id": cast(TSecretStrValue, "test-account-id"),
+            },
+        )
+
+        assert auth.build_access_token_request() == {
+            "headers": {
+                "Authorization": "Basic dGVzdC1hY2NvdW50LWlkOnRlc3QtY2xpZW50LXNlY3JldA==",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            "data": {
+                "grant_type": "account_credentials",
+                "account_id": "test-account-id",
+            },
+        }
+
+        rest_client.auth = auth
+        pages_iter = rest_client.paginate("/protected/posts/bearer-token")
+
+        assert_pagination(list(pages_iter))
 
     def test_oauth_jwt_auth_success(self, rest_client: RESTClient):
         auth = OAuthJWTAuth(
