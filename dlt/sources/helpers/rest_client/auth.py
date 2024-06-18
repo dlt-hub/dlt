@@ -147,7 +147,7 @@ class OAuth2AuthBase(AuthConfigBase):
 
 
 @configspec
-class OAuth2ClientCredentialsFlow(OAuth2AuthBase):
+class OAuth2ClientCredentials(OAuth2AuthBase):
     """
     This class implements OAuth2 Client Credentials flow where the autorization service
     gives permission without the end user approving.

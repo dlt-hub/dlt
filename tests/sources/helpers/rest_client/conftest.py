@@ -230,12 +230,13 @@ def mock_api_server():
         @router.post("/custom-oauth/token")
         def custom_oauth_token(request, context):
             qs = parse_qs(request.text)
-            breakpoint()
-            if (qs.get("grant_type")[0] == "account_credentials"
+            if (
+                qs.get("grant_type")[0] == "account_credentials"
                 and qs.get("account_id")[0] == "test-account-id"
-                and request.headers["Authorization"] == "Basic dGVzdC1hY2NvdW50LWlkOnRlc3QtY2xpZW50LXNlY3JldA=="
-                ):
-                    return {"access_token": "test-token", "expires_in": 3600}
+                and request.headers["Authorization"]
+                == "Basic dGVzdC1hY2NvdW50LWlkOnRlc3QtY2xpZW50LXNlY3JldA=="
+            ):
+                return {"access_token": "test-token", "expires_in": 3600}
             context.status_code = 401
             return {"error": "Unauthorized"}
 
