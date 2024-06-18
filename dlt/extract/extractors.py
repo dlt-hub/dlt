@@ -339,26 +339,22 @@ class ArrowExtractor(Extractor):
             else:
                 arrow_table = copy(computed_table)
             arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
-            # normalize arrow table before merging
-            arrow_table = self.schema.normalize_table_identifiers(arrow_table)
-            # Add load_id column
+
+            # Add load_id column if needed
             dlt_load_id_col = self.naming.normalize_table_identifier("_dlt_load_id")
             if (
                 self._normalize_config.add_dlt_load_id
                 and dlt_load_id_col not in arrow_table["columns"]
             ):
-                self.schema.update_table(
-                    {
-                        "name": arrow_table["name"],
-                        "columns": {
-                            dlt_load_id_col: {
-                                "name": dlt_load_id_col,
-                                "data_type": "text",
-                                "nullable": False,
-                            }
-                        },
-                    }
-                )
+                arrow_table["columns"][dlt_load_id_col] = {
+                    "name": dlt_load_id_col,
+                    "data_type": "text",
+                    "nullable": False,
+                }
+
+            # normalize arrow table before merging
+            arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+
             # issue warnings when overriding computed with arrow
             override_warn: bool = False
             for col_name, column in arrow_table["columns"].items():
@@ -384,6 +380,7 @@ class ArrowExtractor(Extractor):
             utils.merge_columns(
                 arrow_table["columns"], computed_table["columns"], merge_columns=True
             )
+
         return arrow_table
 
     def _compute_and_update_table(

@@ -532,6 +532,11 @@ def test_extract_adds_dlt_load_id(item_type: TPythonTableFormat) -> None:
         # Extracted file has _dlt_load_id
         assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
 
+        # Load ID in both schema and arrow tbl should be the last column
+        assert tbl.schema.names[-1] == "_dlt_load_id"
+        cols = list(pipeline.default_schema.tables["some_data"]["columns"])
+        assert cols[-1] == "_dlt_load_id"
+
 
 def test_extract_json_normalize_parquet_adds_dlt_load_id():
     """Extract jsonl data that gets written to parquet in normalizer. Check that _dlt_load_id is added."""
