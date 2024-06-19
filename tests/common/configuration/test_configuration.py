@@ -765,7 +765,7 @@ def test_find_all_keys() -> None:
 
 
 def test_coercion_to_hint_types(environment: Any) -> None:
-    add_config_dict_to_env(COERCIONS)
+    add_config_dict_to_env(COERCIONS, destructure_dicts=False)
 
     C = CoercionTestConfiguration()
     resolve._resolve_config_fields(
@@ -829,7 +829,7 @@ def test_values_serialization() -> None:
 
 def test_invalid_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    add_config_dict_to_env(INVALID_COERCIONS)
+    add_config_dict_to_env(INVALID_COERCIONS, destructure_dicts=False)
     for key, value in INVALID_COERCIONS.items():
         try:
             resolve._resolve_config_fields(
@@ -851,8 +851,8 @@ def test_invalid_coercions(environment: Any) -> None:
 
 def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    add_config_dict_to_env(COERCIONS)
-    add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
+    add_config_dict_to_env(COERCIONS, destructure_dicts=False)
+    add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True, destructure_dicts=False)
     resolve._resolve_config_fields(
         C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
     )
@@ -1296,6 +1296,15 @@ def test_add_config_to_env(environment: Dict[str, str]) -> None:
     environment.clear()
     add_config_to_env(c.sectioned)
     assert environment == {"DLT_TEST__PASSWORD": "PASS"}
+
+    # dicts should be added as sections
+    environment.clear()
+    c_s = ConnectionStringCredentials(
+        "mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
+    )
+    add_config_to_env(c_s, ("dlt",))
+    assert environment["DLT__CREDENTIALS__QUERY__ENCRYPT"] == "yes"
+    assert environment["DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE"] == "yes"
 
 
 def test_configuration_copy() -> None:

@@ -210,6 +210,10 @@ def resource():
 ...
 ```
 
+:::note
+Indexing is important for doing lookups by column value, especially for merge writes, to ensure acceptable performance in some destinations.
+:::
+
 #### Forcing root key propagation
 
 Merge write disposition requires that the `_dlt_id` of top level table is propagated to child

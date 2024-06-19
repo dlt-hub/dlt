@@ -1,6 +1,7 @@
 from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Union, Dict
 
+
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
     Connection as DatabricksSqlConnection,
@@ -37,7 +38,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks_lib.connect(**conn_params, schema=self.dataset_name)
+        self._conn = databricks_lib.connect(
+            **conn_params, schema=self.dataset_name, use_inline_params="silent"
+        )
         return self._conn
 
     @raise_open_connection_error
@@ -87,12 +90,14 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        curr: DBApiCursor = None
-        # TODO: databricks connector 3.0.0 will use :named paramstyle only
+        curr: DBApiCursor
+        # TODO: Inline param support will be dropped in future databricks driver, switch to :named paramstyle
+        # This will drop support for cluster runtime v13.x
+        # db_args: Optional[Dict[str, Any]]
         # if args:
         #     keys = [f"arg{i}" for i in range(len(args))]
         #     # Replace position arguments (%s) with named arguments (:arg0, :arg1, ...)
-        #     # query = query % tuple(f":{key}" for key in keys)
+        #     query = query % tuple(f":{key}" for key in keys)
         #     db_args = {}
         #     for key, db_arg in zip(keys, args):
         #         # Databricks connector doesn't accept pendulum objects
@@ -102,15 +107,10 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         #             db_arg = to_py_date(db_arg)
         #         db_args[key] = db_arg
         # else:
-        #     db_args = None
-        db_args: Optional[Union[Dict[str, Any], Sequence[Any]]]
-        if kwargs:
-            db_args = kwargs
-        elif args:
-            db_args = args
-        else:
-            db_args = None
-        with self._conn.cursor() as curr:
+        #     db_args = kwargs or None
+
+        db_args = args or kwargs or None
+        with self._conn.cursor() as curr:  # type: ignore[assignment]
             curr.execute(query, db_args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 

@@ -42,6 +42,14 @@ from tests.utils import (
 )
 
 
+@pytest.fixture(autouse=True)
+def switch_to_fifo():
+    """most of the following tests rely on the old default fifo next item mode"""
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+    yield
+    del os.environ["EXTRACT__NEXT_ITEM_MODE"]
+
+
 def test_detect_incremental_arg() -> None:
     def incr_1(incremental: dlt.sources.incremental):  # type: ignore[type-arg]
         pass
