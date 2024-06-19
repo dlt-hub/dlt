@@ -8,6 +8,7 @@ from unittest import mock
 from datetime import datetime  # noqa: I251
 from itertools import chain, count
 
+import bson
 import duckdb
 import pytest
 
@@ -776,6 +777,33 @@ def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> N
 
     p.run(some_data(True))
     p.run(some_data(False))
+
+
+@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"object", "pandas"})
+def test_empty_filter(item_type: TestDataItemFormat) -> None:
+    """Case when deduplication filter is empty for an Arrow table."""
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    now = pendulum.now()
+
+    data = [
+        {
+            "delta": str(i),
+            "ts": now.add(days=i),
+            "_id": "123123123123123123123123",
+        }
+        for i in range(-10, 10)
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(
+        last_timestamp=dlt.sources.incremental(
+            "ts", initial_value=now.add(days=-10), end_value=now.add(days=10), primary_key="_id"
+        ),
+    ):
+        yield from source_items
+
+    p.run(some_data())
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
