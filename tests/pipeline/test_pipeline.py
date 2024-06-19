@@ -28,11 +28,13 @@ from dlt.common.destination.exceptions import (
     DestinationNoStagingMode,
     DestinationTerminalException,
     UnknownDestinationModule,
+    DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
+from dlt.common.schema.exceptions import SchemaException
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
@@ -2260,3 +2262,39 @@ def test_staging_dataset_truncate(truncate) -> None:
 
         with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
             assert len(cur.fetchall()) == 3
+
+
+def test_merge_strategy_config() -> None:
+    # merge strategy invalid
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+    def r():
+        yield {"foo": "bar"}
+
+    p = dlt.pipeline(
+        pipeline_name="abstract",
+        destination="dummy",
+        full_refresh=True,
+    )
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaException)
+
+    # merge strategy not supported by destination
+    assert "delete-insert" not in p.destination.capabilities().supported_merge_strategies
+    p.drop()
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+    )
+    with pytest.raises(DestinationCapabilitiesException):
+        p.run(r())
+
+    # `upsert` merge strategy without `primary_key` should error
+    assert "upsert" in p.destination.capabilities().supported_merge_strategies
+    p.drop()
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+    )
+    assert "primary_key" not in r._hints
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaException)

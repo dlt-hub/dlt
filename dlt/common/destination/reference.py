@@ -26,7 +26,6 @@ import inspect
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import MERGE_STRATEGIES
 from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
     get_write_disposition,
@@ -344,11 +343,6 @@ class JobClientBase(ABC):
 
         def verify_merge_disposition(table: TTableSchema) -> None:
             if table.get("write_disposition") == "merge":
-                if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
-                    raise SchemaException(
-                        f'`{table["x-merge-strategy"]}` is not a valid merge strategy. '  # type: ignore[typeddict-item]
-                        f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
-                    )
                 if table.get("x-merge-strategy") == "delete-insert":
                     if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
                         table, "merge_key"

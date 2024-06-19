@@ -14,6 +14,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
+    MERGE_STRATEGIES,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -23,6 +24,7 @@ from dlt.common.schema.utils import (
     new_column,
     new_table,
 )
+from dlt.common.schema.exceptions import SchemaException
 from dlt.common.typing import TDataItem
 from dlt.common.utils import clone_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -428,9 +430,14 @@ class DltResourceHints:
 
         mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
         if mddict is not None:
-            dict_["x-merge-strategy"] = (
-                mddict["strategy"] if "strategy" in mddict else DEFAULT_MERGE_STRATEGY
-            )
+            dict_["x-merge-strategy"] = DEFAULT_MERGE_STRATEGY
+            if "strategy" in mddict:
+                if mddict["strategy"] not in MERGE_STRATEGIES:
+                    raise SchemaException(
+                        f'`{mddict["strategy"]}` is not a valid merge strategy. '
+                        f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                    )
+                dict_["x-merge-strategy"] = mddict["strategy"]
             # add columns for `scd2` merge strategy
             if dict_.get("x-merge-strategy") == "scd2":
                 if mddict.get("validity_column_names") is None:

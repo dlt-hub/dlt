@@ -1021,30 +1021,3 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r(), loader_file_format=destination_config.file_format)
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres"]),
-    ids=lambda x: x.name,
-)
-def test_invalid_input(destination_config: DestinationTestConfiguration) -> None:
-    # invalid merge strategy should error
-    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
-    def r():
-        yield {"foo": "bar"}
-
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(r())
-    assert isinstance(pip_ex.value.__context__, SchemaException)
-
-    # `upsert` merge strategy without `primary_key` should error
-    p.drop()  # remove `write_disposition` from previous test
-    r.apply_hints(
-        write_disposition={"disposition": "merge", "strategy": "upsert"},
-    )
-    assert "primary_key" not in r._hints
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(r())
-    assert isinstance(pip_ex.value.__context__, SchemaException)

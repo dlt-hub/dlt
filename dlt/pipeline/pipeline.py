@@ -1,6 +1,5 @@
 import contextlib
 import os
-import datetime  # noqa: 251
 from contextlib import contextmanager
 from functools import wraps
 from typing import (
@@ -12,7 +11,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
     cast,
     get_type_hints,
     ContextManager,
@@ -47,7 +45,6 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
-    TTableSchema,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -90,7 +87,6 @@ from dlt.common.pipeline import (
     LoadInfo,
     NormalizeInfo,
     PipelineContext,
-    StepInfo,
     TStepInfo,
     SupportsPipeline,
     TPipelineLocalState,
@@ -105,7 +101,7 @@ from dlt.common.utils import is_interactive
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 from dlt.common.versioned_state import json_encode_state, json_decode_state
 
-from dlt.extract import DltSource, DltResource
+from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
@@ -126,7 +122,6 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
     SqlClientNotAvailable,
     FSClientNotAvailable,
-    PipelineNeverRan,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
@@ -485,7 +480,7 @@ class Pipeline(SupportsPipeline):
             )
 
         # verify merge strategy
-        for table in self.default_schema.data_tables():
+        for table in self.default_schema.data_tables(include_incomplete=True):
             # temp solution to prevent raising exceptions for destinations such as
             # `fileystem` and `weaviate`, which do handle the `merge` write
             # disposition, but don't implement any of the defined merge strategies
