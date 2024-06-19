@@ -793,11 +793,13 @@ def test_empty_filter(item_type: TestDataItemFormat) -> None:
         for i in range(-10, 10)
     ]
     source_items = data_to_item_format(item_type, data)
+    start = now.add(days=-10)
+    end = now.add(days=10)
 
     @dlt.resource
     def some_data(
         last_timestamp=dlt.sources.incremental(
-            "ts", initial_value=now.add(days=-10), end_value=now.add(days=10), primary_key="_id"  # type: ignore
+            "ts", initial_value=start, end_value=end, primary_key="_id"
         ),
     ):
         yield from source_items
