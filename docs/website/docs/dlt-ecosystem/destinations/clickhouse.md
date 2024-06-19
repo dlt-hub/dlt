@@ -141,7 +141,7 @@ ClickHouse supports the following [column hints](../../general-usage/schema#tabl
 
 By default, tables are created using the `MergeTree` table engine in ClickHouse. You can specify an alternate table engine using the `table_engine_type` parameter with the clickhouse adapter:
 
-```python
+```py
 from dlt.destinations.adapters import clickhouse_adapter
 
 @dlt.resource()
