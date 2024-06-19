@@ -51,8 +51,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
-        next_item_mode: str = "fifo"
-
+        next_item_mode: str = "round_robin"
         __section__: ClassVar[str] = known_sections.EXTRACT
 
     def __init__(
@@ -82,7 +81,7 @@ class PipeIterator(Iterator[PipeItem]):
         max_parallel_items: int = 20,
         workers: int = 5,
         futures_poll_interval: float = 0.01,
-        next_item_mode: TPipeNextItemMode = "fifo",
+        next_item_mode: TPipeNextItemMode = "round_robin",
     ) -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
@@ -109,7 +108,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5,
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False,
-        next_item_mode: TPipeNextItemMode = "fifo",
+        next_item_mode: TPipeNextItemMode = "round_robin",
     ) -> "PipeIterator":
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         sources: List[SourcePipeItem] = []

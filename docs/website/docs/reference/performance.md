@@ -217,13 +217,11 @@ call `pipeline.activate()` to inject the right context into current thread.
 ## Resources extraction, `fifo` vs. `round robin`
 
 When extracting from resources, you have two options to determine what the order of queries to your
-resources are: `fifo` and `round_robin`.
+resources are: `round_robin` and `fifo`.
 
-`fifo` is the default option and will result in every resource being fully extracted before the next
-resource is extracted in the order that you added them to your source.
+`round_robin` is the default option and will result in extraction of one item from the first resource, then one item from the second resource etc, doing as many rounds as necessary until all resources are fully extracted. If you want to extract resources in parallel, you will need to keep `round_robin`.
 
-`round_robin` will result in extraction of one item from the first resource, then one item from the
-second resource etc, doing as many rounds as necessary until all resources are fully extracted.
+`fifo` is an option for sequential extraction. It will result in every resource being fully extracted until the resource generator is expired, or a configured limit is reached, then the next resource will be evaluated. Resources are extracted in the order that you added them to your source.
 
 You can change this setting in your `config.toml` as follows:
 
