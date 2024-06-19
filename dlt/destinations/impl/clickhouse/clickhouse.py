@@ -67,7 +67,10 @@ HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
 
 TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
     "merge_tree": "MergeTree",
+    "shared_merge_tree": "SharedMergeTree",
     "replicated_merge_tree": "ReplicatedMergeTree",
+    "stripe_log": "StripeLog",
+    "tiny_log": "TinyLog",
 }
 
 
@@ -350,10 +353,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if generate_alter:
             return sql
 
-        # Default to 'ReplicatedMergeTree' if user didn't explicitly set a table engine hint.
-        table_type = cast(
-            TTableEngineType, table.get(TABLE_ENGINE_TYPE_HINT, "replicated_merge_tree")
-        )
+        # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
+        # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
+        # so it will work on both local and cloud instances of CH.
+        table_type = cast(TTableEngineType, table.get(TABLE_ENGINE_TYPE_HINT, "merge_tree"))
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [

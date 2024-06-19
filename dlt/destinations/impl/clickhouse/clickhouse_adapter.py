@@ -5,7 +5,9 @@ from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
 
-TTableEngineType = Literal["merge_tree", "replicated_merge_tree"]
+TTableEngineType = Literal[
+    "merge_tree", "shared_merge_tree", "replicated_merge_tree", "stripe_log", "tiny_log"
+]
 
 """
 The table engine (type of table) determines:

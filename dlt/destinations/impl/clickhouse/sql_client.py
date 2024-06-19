@@ -93,13 +93,16 @@ class ClickHouseSqlClient(
             return None if curr.description is None else curr.fetchall()
 
     def create_dataset(self) -> None:
-        # We create a sentinel table which defines wether we consider the dataset created
+        # We create a sentinel table which defines whether we consider the dataset created.
         sentinel_table_name = self.make_qualified_table_name(
             self.credentials.dataset_sentinel_table_name
         )
-        self.execute_sql(
-            f"""CREATE TABLE {sentinel_table_name} (_dlt_id String NOT NULL PRIMARY KEY) ENGINE=ReplicatedMergeTree COMMENT 'internal dlt sentinel table'"""
-        )
+        # `MergeTree` is guaranteed to work in both self-managed and cloud setups.
+        self.execute_sql(f"""
+            CREATE TABLE {sentinel_table_name}
+            (_dlt_id String NOT NULL PRIMARY KEY)
+            ENGINE=MergeTree
+            COMMENT 'internal dlt sentinel table'""")
 
     def drop_dataset(self) -> None:
         # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
