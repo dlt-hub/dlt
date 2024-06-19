@@ -4,6 +4,7 @@ from typing import Set, Dict, Any, Optional, List
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
+from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -16,7 +17,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
-from dlt.extract.hints import HintsMeta
+from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
 from dlt.extract.items import TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
@@ -43,6 +44,23 @@ class MaterializedEmptyList(List[Any]):
 def materialize_schema_item() -> MaterializedEmptyList:
     """Yield this to materialize schema in the destination, even if there's no data."""
     return MaterializedEmptyList()
+
+
+class ImportFileMeta(HintsMeta):
+    __slots__ = ("file_path", "metrics", "with_extension")
+
+    def __init__(
+        self,
+        file_path: str,
+        metrics: DataWriterMetrics,
+        with_extension: str = None,
+        hints: TResourceHints = None,
+        create_table_variant: bool = None,
+    ) -> None:
+        super().__init__(hints, create_table_variant)
+        self.file_path = file_path
+        self.metrics = metrics
+        self.with_extension = with_extension
 
 
 class Extractor:
@@ -76,7 +94,7 @@ class Extractor:
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
-        if isinstance(meta, HintsMeta):
+        if isinstance(meta, HintsMeta) and meta.hints:
             # update the resource with new hints, remove all caches so schema is recomputed
             # and contracts re-applied
             resource.merge_hints(meta.hints, meta.create_table_variant)
@@ -91,7 +109,7 @@ class Extractor:
             self._write_to_static_table(resource, table_name, items, meta)
         else:
             # table has name or other hints depending on data items
-            self._write_to_dynamic_table(resource, items)
+            self._write_to_dynamic_table(resource, items, meta)
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
@@ -127,7 +145,24 @@ class Extractor:
             if isinstance(items, MaterializedEmptyList):
                 self.resources_with_empty.add(resource_name)
 
-    def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
+    def _import_item(
+        self,
+        table_name: str,
+        resource_name: str,
+        meta: ImportFileMeta,
+    ) -> None:
+        metrics = self.item_storage.import_items_file(
+            self.load_id,
+            self.schema.name,
+            table_name,
+            meta.file_path,
+            meta.metrics,
+            meta.with_extension,
+        )
+        self.collector.update(table_name, inc=metrics.items_count)
+        self.resources_with_items.add(resource_name)
+
+    def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         if not isinstance(items, list):
             items = [items]
 
@@ -141,7 +176,10 @@ class Extractor:
                 )
             # write to storage with inferred table name
             if table_name not in self._filtered_tables:
-                self._write_item(table_name, resource.name, item)
+                if isinstance(meta, ImportFileMeta):
+                    self._import_item(table_name, resource.name, meta)
+                else:
+                    self._write_item(table_name, resource.name, items)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
@@ -149,7 +187,10 @@ class Extractor:
         if table_name not in self._table_contracts:
             items = self._compute_and_update_table(resource, table_name, items, meta)
         if table_name not in self._filtered_tables:
-            self._write_item(table_name, resource.name, items)
+            if isinstance(meta, ImportFileMeta):
+                self._import_item(table_name, resource.name, meta)
+            else:
+                self._write_item(table_name, resource.name, items)
 
     def _compute_table(self, resource: DltResource, items: TDataItems, meta: Any) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
