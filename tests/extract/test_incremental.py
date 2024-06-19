@@ -797,7 +797,7 @@ def test_empty_filter(item_type: TestDataItemFormat) -> None:
     @dlt.resource
     def some_data(
         last_timestamp=dlt.sources.incremental(
-            "ts", initial_value=now.add(days=-10), end_value=now.add(days=10), primary_key="_id"
+            "ts", initial_value=now.add(days=-10), end_value=now.add(days=10), primary_key="_id"  # type: ignore
         ),
     ):
         yield from source_items
