@@ -24,9 +24,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
-import lancedb  # type: ignore[import-untyped]
-from lancedb.embeddings.registry import EmbeddingFunctionRegistry  # type: ignore[import-untyped]
-from lancedb.pydantic import LanceModel, Vector  # type: ignore[import-untyped]
+import lancedb  # type: ignore
+from lancedb.embeddings.registry import EmbeddingFunctionRegistry  # type: ignore
+from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
 from dlt.common.configuration import configspec
