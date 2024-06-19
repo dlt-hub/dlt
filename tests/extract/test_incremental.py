@@ -8,7 +8,6 @@ from unittest import mock
 from datetime import datetime  # noqa: I251
 from itertools import chain, count
 
-import bson
 import duckdb
 import pytest
 
