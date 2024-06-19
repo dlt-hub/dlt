@@ -26,7 +26,11 @@ from dlt.common.data_writers.exceptions import (
     FileSpecNotFound,
     InvalidDataItem,
 )
-from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.destination import (
+    DestinationCapabilitiesContext,
+    TLoaderFileFormat,
+    ALL_SUPPORTED_FILE_FORMATS,
+)
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
 
@@ -34,7 +38,7 @@ if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
 
 
-TDataItemFormat = Literal["arrow", "object"]
+TDataItemFormat = Literal["arrow", "object", "file"]
 TWriter = TypeVar("TWriter", bound="DataWriter")
 
 
@@ -124,6 +128,9 @@ class DataWriter(abc.ABC):
             return "object"
         elif extension == "parquet":
             return "arrow"
+        # those files may be imported by normalizer as is
+        elif extension in ALL_SUPPORTED_FILE_FORMATS:
+            return "file"
         else:
             raise ValueError(f"Cannot figure out data item format for extension {extension}")
 
@@ -132,6 +139,8 @@ class DataWriter(abc.ABC):
         try:
             return WRITER_SPECS[spec]
         except KeyError:
+            if spec.data_item_format == "file":
+                return ImportFileWriter
             raise FileSpecNotFound(spec.file_format, spec.data_item_format, spec)
 
     @staticmethod
@@ -145,6 +154,15 @@ class DataWriter(abc.ABC):
             if spec.file_format == file_format and spec.data_item_format == data_item_format:
                 return writer
         raise FileFormatForItemFormatNotFound(file_format, data_item_format)
+
+
+class ImportFileWriter(DataWriter):
+    """May only import files, fails on any open/write operations"""
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        raise NotImplementedError(
+            "ImportFileWriter cannot write any files. You have bug in your code."
+        )
 
 
 class JsonlWriter(DataWriter):
@@ -389,6 +407,7 @@ class CsvDataWriterConfiguration(BaseConfiguration):
     delimiter: str = ","
     include_header: bool = True
     quoting: CsvQuoting = "quote_needed"
+    on_error_continue: bool = False
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
 
@@ -783,3 +802,16 @@ def get_best_writer_spec(
         return DataWriter.class_factory(file_format, item_format, native_writers).writer_spec()
     except DataWriterNotFound:
         return DataWriter.class_factory(file_format, item_format, ALL_WRITERS).writer_spec()
+
+
+def create_import_spec(
+    item_file_format: TLoaderFileFormat,
+    possible_file_formats: Sequence[TLoaderFileFormat],
+) -> FileWriterSpec:
+    """Creates writer spec that may be used only to import files"""
+    # can the item file be directly imported?
+    if item_file_format not in possible_file_formats:
+        raise SpecLookupFailed("file", possible_file_formats, item_file_format)
+
+    spec = DataWriter.class_factory(item_file_format, "object", ALL_WRITERS).writer_spec()
+    return spec._replace(data_item_format="file")
