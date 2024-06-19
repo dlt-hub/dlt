@@ -84,7 +84,10 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
     """Destination supports CREATE TABLE ... CLONE ... statements"""
-    max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
+
+    max_table_nesting: Optional[int] = None
+    """Allows a destination to overwrite max_table_nesting from source"""
+
     supported_merge_strategies: Sequence["TLoaderMergeStrategy"] = None  # type: ignore[name-defined] # noqa: F821
     # TODO: also add `supported_replace_strategies` capability
 
