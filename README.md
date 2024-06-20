@@ -35,15 +35,8 @@ dlt supports Python 3.8+.
 pip install dlt
 ```
 
-**pixi:**
-```sh
-pixi add dlt
-```
+More options: [Install via Conda or Pixi](https://dlthub.com/docs/reference/installation#install-dlt-via-pixi-and-conda)
 
-**conda:**
-```sh
-conda install -c conda-forge dlt
-```
 
 ## Quick Start
 
