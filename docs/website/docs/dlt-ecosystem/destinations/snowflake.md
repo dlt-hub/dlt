@@ -71,9 +71,10 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 
 ### Authentication types
 Snowflake destination accepts three authentication types:
+Snowflake destination accepts three authentication types:
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
-- external authentication
+- oauth authentication
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -100,16 +101,32 @@ If you pass a passphrase in the connection string, please URL encode it.
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
 
-In **external authentication**, you can use an OAuth provider like Okta or an external browser to authenticate. You pass your authenticator and refresh token as below:
+In **oauth authentication**, you can use an OAuth provider like Snowflake, Okta or an external browser to authenticate. In case of Snowflake oauth, you pass your `authenticator` and refresh `token` as below:
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
 username = "loader"
-authenticator="..."
+authenticator="oauth"
 token="..."
 ```
 or in the connection string as query parameters.
-Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+In case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+### Additional connection options
+We pass all query parameters to `connect` function of Snowflake Python Connector. For example:
+```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+authenticator="oauth"
+[destination.snowflake.credentials.query]
+timezone="UTC"
+# keep session alive beyond 4 hours
+client_session_keep_alive=true
+```
+Will set the timezone and session keep alive. Mind that if you use `toml` your configuration is typed. The alternative:
+`"snowflake://loader/dlt_data?authenticator=oauth&timezone=UTC&client_session_keep_alive=true"`
+will pass `client_session_keep_alive` as string to the connect method (which we didn't verify if it works).
 
 ## Write disposition
 All write dispositions are supported.

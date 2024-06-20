@@ -21,7 +21,8 @@ from dlt.common.configuration.specs.exceptions import (
 )
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 
-from tests.utils import preserve_environ
+from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
+from tests.utils import TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.common.utils import json_case_path
 from tests.common.configuration.utils import environment
 
@@ -62,6 +63,17 @@ OAUTH_APP_USER_INFO = """
     "installed": %s
 }
 """ % OAUTH_USER_INFO
+
+
+def test_credentials_resolve_from_init_value() -> None:
+    c = SnowflakeCredentials.from_init_value("snowflake://loader:pass@localhost:5432/dlt_data")
+    assert c.is_resolved()
+    # incomplete not resolved
+    c = SnowflakeCredentials.from_init_value("snowflake://loader:pass@localhost")
+    assert c.is_resolved() is False
+    # invalid configuration that raises on resolve()
+    c = SnowflakeCredentials.from_init_value("snowflake://loader@localhost/dlt_data")
+    assert c.is_resolved() is False
 
 
 def test_connection_string_credentials_native_representation(environment) -> None:
@@ -158,10 +170,10 @@ def test_connection_string_resolved_from_native_representation_env(environment: 
     assert c.host == "aws.12.1"
 
 
-def test_connection_string_from_init() -> None:
+def test_connection_string_initializer() -> None:
     c = ConnectionStringCredentials("postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d")
     assert c.drivername == "postgres"
-    assert c.is_resolved()
+    assert not c.is_resolved()
     assert not c.is_partial()
 
     c = ConnectionStringCredentials(
@@ -182,8 +194,29 @@ def test_connection_string_from_init() -> None:
     assert c.port == 5432
     assert c.database == "dlt_data"
     assert c.query == {"a": "b", "c": "d"}
-    assert c.is_resolved()
+    assert not c.is_resolved()
     assert not c.is_partial()
+
+
+def test_query_additional_params() -> None:
+    c = ConnectionStringCredentials("snowflake://user1:pass1@host1/db1?keep_alive=true")
+    assert c.query["keep_alive"] == "true"
+    assert c.to_url().query["keep_alive"] == "true"
+
+    # try a typed param
+    with TEST_DICT_CONFIG_PROVIDER().values({"credentials": {"query": {"keep_alive": True}}}):
+        c = ConnectionStringCredentials("snowflake://user1:pass1@host1/db1")
+        assert c.is_resolved() is False
+        c = resolve_configuration(c)
+        assert c.query["keep_alive"] is True
+        assert c.get_query()["keep_alive"] is True
+        assert c.to_url().query["keep_alive"] == "True"
+
+
+def test_connection_string_str_repr() -> None:
+    c = ConnectionStringCredentials("postgres://loader:pass@localhost:5432/dlt_data?a=b&c=d")
+    # password and query string redacted
+    assert str(c) == "postgres://loader:***@localhost:5432/dlt_data"
 
 
 def test_gcp_service_credentials_native_representation(environment) -> None:
