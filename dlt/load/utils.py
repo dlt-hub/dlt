@@ -1,7 +1,7 @@
-from typing import List, Set, Iterable, Callable, Optional
+from typing import List, Set, Iterable, Callable, Optional, Tuple
 
 from dlt.common import logger
-from dlt.common.storages.load_package import LoadJobInfo, PackageStorage
+from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TJobState
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_child_tables,
@@ -19,7 +19,7 @@ from dlt.common.destination.reference import (
 
 def get_completed_table_chain(
     schema: Schema,
-    all_jobs: Iterable[LoadJobInfo],
+    all_jobs: Iterable[Tuple[TJobState, ParsedLoadJobFileName]],
     top_merged_table: TTableSchema,
     being_completed_job_id: str = None,
 ) -> List[TTableSchema]:
@@ -51,8 +51,8 @@ def get_completed_table_chain(
         else:
             # all jobs must be completed in order for merge to be created
             if any(
-                job.state not in ("failed_jobs", "completed_jobs")
-                and job.job_file_info.job_id() != being_completed_job_id
+                job[0] not in ("failed_jobs", "completed_jobs")
+                and job[1].job_id() != being_completed_job_id
                 for job in table_jobs
             ):
                 return None

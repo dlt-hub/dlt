@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING
-
 from dlt.common.configuration import configspec
 from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType

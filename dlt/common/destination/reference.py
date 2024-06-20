@@ -334,7 +334,7 @@ class JobClientBase(ABC):
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []

@@ -683,7 +683,7 @@ def prepare_load_package(
         shutil.copy(
             path,
             load_storage.new_packages.storage.make_full_path(
-                load_storage.new_packages.get_job_folder_path(load_id, "new_jobs")
+                load_storage.new_packages.get_job_state_folder_path(load_id, "new_jobs")
             ),
         )
     schema_path = Path("./tests/load/cases/loading/schema.json")

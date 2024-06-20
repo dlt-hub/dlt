@@ -179,7 +179,7 @@ class Extractor:
                 if isinstance(meta, ImportFileMeta):
                     self._import_item(table_name, resource.name, meta)
                 else:
-                    self._write_item(table_name, resource.name, items)
+                    self._write_item(table_name, resource.name, item)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
