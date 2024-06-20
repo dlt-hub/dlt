@@ -63,9 +63,6 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant -E bigquery -E postgres --with docs,sentry-sdk --without airflow
 
-      - name: Install additional dependencies
-        run: pip install lancedb && pip install cohere
-
       - name: create secrets.toml for examples
         run: pwd && echo "$DLT_SECRETS_TOML" > docs/examples/.dlt/secrets.toml
 
