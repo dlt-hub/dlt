@@ -86,7 +86,7 @@ class SpotifyAuth(AuthConfigBase):
 
 @dlt.source
 def spotify_shows(
-    client_id: str = dlt.config.value,
+    client_id: str = dlt.secrets.value,
     client_secret: str = dlt.secrets.value,
 ):
     spotify_base_api_url = "https://api.spotify.com/v1"
