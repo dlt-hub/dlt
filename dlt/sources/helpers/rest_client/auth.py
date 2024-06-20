@@ -176,8 +176,8 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
             self.access_token_request_data = access_token_request_data
         self.default_token_expiration = default_token_expiration
         self.token_expiry: pendulum.DateTime = pendulum.now()
-        if session is None:
-            self.session = requests.client.session
+
+        self.session = session if session is not None else requests.client.session
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         if self.access_token is None or self.is_token_expired():
@@ -189,7 +189,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
         return pendulum.now() >= self.token_expiry
 
     def obtain_token(self) -> None:
-        response = requests.post(self.access_token_url, **self.build_access_token_request())
+        response = self.session.post(self.access_token_url, **self.build_access_token_request())
         response.raise_for_status()
         response_json = response.json()
         self.parse_native_representation(self.parse_access_token(response_json))
@@ -205,7 +205,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
                 "grant_type": "client_credentials",
-                **self.access_token_request_data
+                **self.access_token_request_data,
             },
         }
 
