@@ -29,7 +29,7 @@ Create a Google Apps Script to send data from Google Sheets to a Notion database
 
 **Google Apps Script code:**
 
-```jsx
+```text
 function sendWebhookOnEdit(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   var range = sheet.getActiveRange();
