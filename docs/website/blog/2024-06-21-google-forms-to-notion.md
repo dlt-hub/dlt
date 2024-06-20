@@ -78,19 +78,18 @@ This pipeline uses  `@dlt.destination` decorator which is used to set up custom 
 
 **Python code for `main.py` (Google cloud functions) :**
 
-```python
-
+```py
 import dlt
-import requests
 from dlt.common import json
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from datetime import datetime
+from dlt.sources.helpers import requests
 
 @dlt.destination(name="notion", batch_size=1, naming_convention="direct", skip_dlt_columns_and_tables=True)
 def insert_into_notion(items: TDataItems, table: TTableSchema) -> None:
-    api_key = "your_notion_api_key"  // Replace with your Notion API Key
-    database_id = "your_notion_database_id"  // Replace with your Notion Database ID
+    api_key = "your_notion_api_key"  # Replace with your Notion API Key
+    database_id = "your_notion_database_id"  # Replace with your Notion Database ID
     url = "https://api.notion.com/v1/pages"
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -109,7 +108,7 @@ def insert_into_notion(items: TDataItems, table: TTableSchema) -> None:
                         "text": {"content": item.get('Timestamp')}
                     }]
                 },
-                // Add other properties here
+                # Add other properties here
             }
         }
         response = requests.post(url, headers=headers, data=json.dumps(data))
@@ -128,7 +127,6 @@ def your_webhook(request):
 
     pipeline.run(Event, table_name='webhook')
     return 'Event received and processed successfully.'
-
 ```
 
 ### Step 4: Automation and Real-Time updates
