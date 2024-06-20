@@ -55,6 +55,7 @@ def rest_client_oauth() -> RESTClient:
         access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
         client_id=cast(TSecretStrValue, "test-client-id"),
         client_secret=cast(TSecretStrValue, "test-client-secret"),
+        session=Client().session,
     )
     return build_rest_client(auth=auth)
 
@@ -65,6 +66,7 @@ def rest_client_immediate_oauth_expiry(auth=None) -> RESTClient:
         access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token-expires-now"),
         client_id=cast(TSecretStrValue, "test-client-id"),
         client_secret=cast(TSecretStrValue, "test-client-secret"),
+        session=Client().session,
     )
     return build_rest_client(auth=credentials_expiring_now)
 
@@ -207,6 +209,7 @@ class TestRESTClient:
             access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
             client_id=cast(TSecretStrValue, "invalid-client-id"),
             client_secret=cast(TSecretStrValue, "test-client-secret"),
+            session=Client().session,
         )
 
         with pytest.raises(HTTPError) as e:
@@ -219,6 +222,7 @@ class TestRESTClient:
             access_token_url=cast(TSecretStrValue, "https://api.example.com/oauth/token"),
             client_id=cast(TSecretStrValue, "test-client-id"),
             client_secret=cast(TSecretStrValue, "invalid-client-secret"),
+            session=Client().session,
         )
 
         with pytest.raises(HTTPError) as e:
@@ -274,6 +278,7 @@ class TestRESTClient:
             access_token_request_data={
                 "account_id": cast(TSecretStrValue, "test-account-id"),
             },
+            session=Client().session,
         )
 
         assert auth.build_access_token_request() == {

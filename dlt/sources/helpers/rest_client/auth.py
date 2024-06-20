@@ -164,6 +164,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
         client_secret: TSecretStrValue,
         access_token_request_data: Dict[str, Any] = None,
         default_token_expiration: int = 3600,
+        session: Annotated[BaseSession, NotResolved()] = None,
     ) -> None:
         super().__init__()
         self.access_token_url = access_token_url
@@ -175,6 +176,8 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
             self.access_token_request_data = access_token_request_data
         self.default_token_expiration = default_token_expiration
         self.token_expiry: pendulum.DateTime = pendulum.now()
+        if session is None:
+            self.session = requests.client.session
 
     def __call__(self, request: PreparedRequest) -> PreparedRequest:
         if self.access_token is None or self.is_token_expired():
@@ -233,7 +236,7 @@ class OAuthJWTAuth(BearerTokenAuth):
         self.scopes = self.scopes if isinstance(self.scopes, str) else " ".join(self.scopes)
         self.token = None
         self.token_expiry: Optional[pendulum.DateTime] = None
-        # use default system session is not specified
+        # use default system session unless specified otherwise
         if self.session is None:
             self.session = requests.client.session
 
