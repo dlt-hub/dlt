@@ -17,6 +17,7 @@ We'll learn how to:
 - Use the [custom destination](../dlt-ecosystem/destinations/destination.md)
 - Delegate the embeddings to LanceDB
 """
+__source_name__ = "spotify"
 
 import datetime  # noqa: I251
 import os
