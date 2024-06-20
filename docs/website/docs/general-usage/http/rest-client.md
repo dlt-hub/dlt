@@ -231,7 +231,7 @@ Note, that in this case, the `total_path` parameter is set explicitly to `None` 
 
 **Parameters:**
 
-- `initial_page`: The starting page number. Defaults to `1`.
+- `initial_page`: The starting page number. Defaults to `0`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
@@ -413,7 +413,7 @@ The available authentication methods are defined in the `dlt.sources.helpers.res
 - [APIKeyAuth](#api-key-authentication)
 - [HttpBasicAuth](#http-basic-authentication)
 
-For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the `AuthBase` class from the Requests library.
+For specific use cases, you can [implement custom authentication](#implementing-custom-authentication) by subclassing the [`AuthBase`](https://requests.readthedocs.io/en/latest/api/#requests.auth.AuthBase) class from the Requests library.
 
 ### Bearer token authentication
 
