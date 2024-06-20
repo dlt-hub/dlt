@@ -8,15 +8,12 @@ from urllib.parse import urlparse
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
-import dlt
 from dlt import config
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
-    GcpCredentials,
     AwsCredentialsWithoutDefaults,
 )
-from dlt.destinations.exceptions import DestinationTransientException
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
@@ -117,7 +114,8 @@ class ClickHouseTypeMapper(TypeMapper):
         if db_type == "DateTime('UTC')":
             db_type = "DateTime"
         if datetime_match := re.match(
-            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?", db_type
+            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?",
+            db_type,
         ):
             if datetime_match["precision"]:
                 precision = int(datetime_match["precision"])
@@ -135,7 +133,7 @@ class ClickHouseTypeMapper(TypeMapper):
             db_type = "Decimal"
 
         if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
-            return dict(data_type="wei")
+            return cast(TColumnType, dict(data_type="wei"))
 
         return super().from_db_type(db_type, precision, scale)
 
@@ -165,7 +163,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
 
         compression = "auto"
 
-        # Don't use dbapi driver for local files.
+        # Don't use the DBAPI driver for local files.
         if not bucket_path:
             # Local filesystem.
             if ext == "jsonl":
@@ -186,8 +184,8 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                         fmt=clickhouse_format,
                         settings={
                             "allow_experimental_lightweight_delete": 1,
-                            # "allow_experimental_object_type": 1,
                             "enable_http_compression": 1,
+                            "date_time_input_format": "best_effort",
                         },
                         compression=compression,
                     )
@@ -345,7 +343,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
     def _get_table_update_sql(
-        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
     ) -> List[str]:
         table: TTableSchema = self.prepare_load_table(table_name, self.in_staging_mode)
         sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
