@@ -2280,10 +2280,10 @@ def test_merge_strategy_config() -> None:
     assert isinstance(pip_ex.value.__context__, SchemaException)
 
     # merge strategy not supported by destination
-    assert "delete-insert" not in p.destination.capabilities().supported_merge_strategies
+    assert "scd2" not in p.destination.capabilities().supported_merge_strategies
     p.drop()
     r.apply_hints(
-        write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
     )
     with pytest.raises(DestinationCapabilitiesException):
         p.run(r())

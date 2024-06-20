@@ -35,6 +35,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.max_text_data_type_length = 65536
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = False
-    caps.supported_merge_strategies = ["upsert"]
+    caps.supported_merge_strategies = ["delete-insert", "upsert"]
 
     return caps
