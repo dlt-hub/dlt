@@ -7,9 +7,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        default_sql_configs=True
-    ),
+    destinations_configs(default_sql_configs=True),
     ids=lambda x: x.name,
 )
 def test_read_interfaces(destination_config: DestinationTestConfiguration) -> None:
@@ -23,12 +21,10 @@ def test_read_interfaces(destination_config: DestinationTestConfiguration) -> No
     )
 
     with pipeline.sql_client() as c:
-
         with c.execute_query("SELECT * FROM items") as cursor:
             df = DataFrame(cursor.fetchmany(10))
             df.columns = [x.name for x in cursor.description]
-            
-        print(df)
 
+        print(df)
 
     assert False

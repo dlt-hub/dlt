@@ -19,7 +19,7 @@ from typing import (
     TypeVar,
     Generic,
     Generator,
-    TYPE_CHECKING
+    TYPE_CHECKING,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -499,20 +499,20 @@ class SupportsDataAccess:
     """Add support for accessing data as arrow tables or pandas dataframes"""
 
     @abstractmethod
-    def df(self, table: str, batch_size: int = 1000) -> DataFrame:
-        ...
+    def df(self, *, sql: str = None, table: str = None, batch_size: int = 1000) -> DataFrame: ...
 
     @abstractmethod
-    def arrow(self, table: str, batch_size: int = 1000) -> Table:
-        ...
+    def arrow(self, *, sql: str = None, table: str = None, batch_size: int = 1000) -> Table: ...
 
     @abstractmethod
-    def iter_df(self, table: str, batch_size: int = 1000) -> Generator[DataFrame, None, None]:
-        ...
+    def iter_df(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[DataFrame, None, None]: ...
 
     @abstractmethod
-    def iter_arrow(self, table: str, batch_size: int = 1000) -> Generator[Table, None, None]:
-        ...
+    def iter_arrow(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[Table, None, None]: ...
 
 
 # TODO: type Destination properly
