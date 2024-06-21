@@ -8,7 +8,7 @@ from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.typing import TDataItems, TDataItem
+from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TSchemaContractDict,
@@ -19,7 +19,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
-from dlt.extract.items import TableNameMeta
+from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
 
 try:
@@ -47,20 +47,39 @@ def materialize_schema_item() -> MaterializedEmptyList:
 
 
 class ImportFileMeta(HintsMeta):
-    __slots__ = ("file_path", "metrics", "with_extension")
+    __slots__ = ("file_path", "metrics", "file_format")
 
     def __init__(
         self,
         file_path: str,
         metrics: DataWriterMetrics,
-        with_extension: str = None,
+        file_format: TLoaderFileFormat = None,
         hints: TResourceHints = None,
         create_table_variant: bool = None,
     ) -> None:
         super().__init__(hints, create_table_variant)
         self.file_path = file_path
         self.metrics = metrics
-        self.with_extension = with_extension
+        self.file_format = file_format
+
+
+def with_file_import(
+    item: TDataItems,
+    file_path: str,
+    file_format: TLoaderFileFormat = None,
+    items_count: int = 0,
+    hints: TResourceHints = None,
+) -> DataItemWithMeta:
+    """Marks `item` to correspond to a file under `file_path` which will be imported into extract storage. `item` may be used
+    for a schema inference (from arrow table / pandas) but it will not be saved into storage.
+
+    You can provide optional `hints` that will be applied to the current resource. Note that you should avoid schema inference at
+    runtime if possible and if that is not possible - to do that only once per extract process. Create `TResourceHints` with `make_hints`.
+
+    If number of records in `file_path` is known, pass it in `items_count` so `dlt` can generate correct extract metrics.
+    """
+    metrics = DataWriterMetrics(file_path, items_count, 0, 0, 0)
+    return DataItemWithMeta(ImportFileMeta(file_path, metrics, file_format, hints, False), item)
 
 
 class Extractor:
@@ -157,7 +176,7 @@ class Extractor:
             table_name,
             meta.file_path,
             meta.metrics,
-            meta.with_extension,
+            meta.file_format,
         )
         self.collector.update(table_name, inc=metrics.items_count)
         self.resources_with_items.add(resource_name)

@@ -35,6 +35,7 @@ from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import (
     TColumnNames,
+    TFileFormat,
     TWriteDisposition,
     TWriteDispositionConfig,
     TAnySchemaColumns,
@@ -302,6 +303,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -322,6 +324,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -342,6 +345,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -365,6 +369,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -384,6 +389,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -419,8 +425,9 @@ def resource(
         If not present, the name of the decorated function will be used.
 
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
-        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
 
         write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
         Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
@@ -439,7 +446,12 @@ def resource(
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
-        table_format (Literal["iceberg"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, other destinations ignore this hint.
+
+        table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
+        Other destinations ignore this hint.
+
+        file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
+        a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
@@ -470,6 +482,7 @@ def resource(
             merge_key=merge_key,
             schema_contract=schema_contract,
             table_format=table_format,
+            file_format=file_format,
         )
 
         resource = _impl_cls.from_data(
@@ -580,10 +593,14 @@ def transformer(
     data_from: TUnboundDltResource = DltResource.Empty,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
+    max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
+    table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -597,10 +614,14 @@ def transformer(
     data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
+    max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
+    table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -618,10 +639,14 @@ def transformer(
     data_from: TUnboundDltResource = DltResource.Empty,
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
+    max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
+    table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -635,10 +660,14 @@ def transformer(
     data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
+    max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
+    table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -652,10 +681,14 @@ def transformer(
     data_from: TUnboundDltResource = DltResource.Empty,
     name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
+    max_table_nesting: int = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
+    table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     parallelized: bool = False,
@@ -698,6 +731,8 @@ def transformer(
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
+        max_table_nesting (int, optional): A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+
         write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
@@ -709,6 +744,14 @@ def transformer(
 
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
+
+        table_format (Literal["iceberg", "delta"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, and "delta" on the filesystem.
+        Other destinations ignore this hint.
+
+        file_format (Literal["preferred", ...], optional): Format of the file in which resource data is stored. Useful when importing external files. Use `preferred` to force
+        a file format that is preferred by the destination used. This setting superseded the `load_file_format` passed to pipeline `run` method.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
@@ -728,10 +771,14 @@ def transformer(
         f,
         name=name,
         table_name=table_name,
+        max_table_nesting=max_table_nesting,
         write_disposition=write_disposition,
         columns=columns,
         primary_key=primary_key,
         merge_key=merge_key,
+        schema_contract=schema_contract,
+        table_format=table_format,
+        file_format=file_format,
         selected=selected,
         spec=spec,
         standalone=standalone,
