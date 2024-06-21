@@ -2,14 +2,15 @@ from typing import Iterator
 
 import pytest
 
-from tests.common.configuration.utils import environment
 from dlt.common.configuration import resolve_configuration
 from dlt.common.utils import digest128
-from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
+from dlt.destinations.impl.lancedb.configuration import (
+    LanceDBClientConfiguration,
+    LanceDBCredentials,
+)
 from tests.load.pipeline.utils import (
     drop_active_pipeline_data,
 )
-
 
 
 # Mark all tests as essential, do not remove.
@@ -22,11 +23,13 @@ def drop_lancedb_data() -> Iterator[None]:
     drop_active_pipeline_data()
 
 
-def test_lancedb_configuration(environment) -> None:
+def test_lancedb_configuration() -> None:
     # Ensure that api key and endpoint defaults are applied without exception.
 
     config = resolve_configuration(
-        LanceDBClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        LanceDBClientConfiguration(LanceDBCredentials())._bind_dataset_name(
+            dataset_name="dataset"
+        ),
         sections=("destination", "lancedb"),
     )
     assert config.embedding_model_provider == "cohere"
