@@ -50,14 +50,14 @@ The instructions below assume that you use the default account setup that you ge
 --create database with standard settings
 CREATE DATABASE dlt_data;
 -- create new user - set your password here
-CREATE USER loader WITH PASSWORD='<password>'
+CREATE USER loader WITH PASSWORD='<password>';
 -- we assign all permission to a role
 CREATE ROLE DLT_LOADER_ROLE;
 GRANT ROLE DLT_LOADER_ROLE TO USER loader;
 -- give database access to new role
 GRANT USAGE ON DATABASE dlt_data TO DLT_LOADER_ROLE;
 -- allow `dlt` to create new schemas
-GRANT CREATE SCHEMA ON DATABASE dlt_data TO ROLE DLT_LOADER_ROLE
+GRANT CREATE SCHEMA ON DATABASE dlt_data TO ROLE DLT_LOADER_ROLE;
 -- allow access to a warehouse named COMPUTE_WH
 GRANT USAGE ON WAREHOUSE COMPUTE_WH TO DLT_LOADER_ROLE;
 -- grant access to all future schemas and tables in the database
