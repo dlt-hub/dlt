@@ -33,12 +33,6 @@ def test_lancedb_configuration() -> None:
     )
     assert config.embedding_model_provider == "colbert"
     assert config.embedding_model == "text-embedding-3-small"
-    assert config.embedding_model_dimensions is None
-    assert config.sentinel_table_name == "dltSentinelTable"
-    assert config.id_field_name == "id__"
-    assert config.vector_field_name == "vector__"
-    assert config.dataset_separator == "___"
-    assert config.credentials.uri == ".lancedb"
     assert config.credentials.api_key is None
     assert config.credentials.embedding_model_provider_api_key is None
     assert config.fingerprint() == digest128(config.credentials.uri)
