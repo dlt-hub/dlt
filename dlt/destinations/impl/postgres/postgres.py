@@ -1,5 +1,11 @@
-from typing import ClassVar, Dict, Optional, Sequence, List, Any
+from typing import Dict, Optional, Sequence, List, Any
 
+from dlt.common import logger
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
+from dlt.common.destination.exceptions import (
+    DestinationInvalidFileFormat,
+    DestinationTerminalException,
+)
 from dlt.common.destination.reference import FollowupJob, LoadJob, NewLoadJob, TLoadJobState
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
@@ -105,21 +111,85 @@ class PostgresStagingCopyJob(SqlStagingCopyJob):
 
 
 class PostgresCsvCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: Psycopg2SqlClient) -> None:
+    def __init__(self, table: TTableSchema, file_path: str, client: "PostgresClient") -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        config = client.config
+        sql_client = client.sql_client
+        csv_format = config.csv_format or CsvFormatConfiguration()
+        table_name = table["name"]
+        sep = csv_format.delimiter
+        if csv_format.on_error_continue:
+            logger.warning(
+                f"When processing {file_path} on table {table_name} Postgres csv reader does not"
+                " support on_error_continue"
+            )
 
         with FileStorage.open_zipsafe_ro(file_path, "rb") as f:
-            # all headers in first line
-            headers = f.readline().decode("utf-8").strip()
-            # quote headers if not quoted - all special keywords like "binary" must be quoted
-            headers = ",".join(h if h.startswith('"') else f'"{h}"' for h in headers.split(","))
+            if csv_format.include_header:
+                # all headers in first line
+                headers_row: str = f.readline().decode(csv_format.encoding).strip()
+                split_headers = headers_row.split(sep)
+            else:
+                # read first row to figure out the headers
+                split_first_row: str = f.readline().decode(csv_format.encoding).strip().split(sep)
+                split_headers = list(client.schema.get_table_columns(table_name).keys())
+                if len(split_first_row) > len(split_headers):
+                    raise DestinationInvalidFileFormat(
+                        "postgres",
+                        "csv",
+                        file_path,
+                        f"First row {split_first_row} has more rows than columns {split_headers} in"
+                        f" table {table_name}",
+                    )
+                if len(split_first_row) < len(split_headers):
+                    logger.warning(
+                        f"First row {split_first_row} has less rows than columns {split_headers} in"
+                        f" table {table_name}. We will not load data to superfluous columns."
+                    )
+                    split_headers = split_headers[: len(split_first_row)]
+                # stream the first row again
+                f.seek(0)
+
+            # normalized and quoted headers
+            split_headers = [
+                sql_client.escape_column_name(h.strip('"'), escape=True) for h in split_headers
+            ]
+            split_null_headers = []
+            split_columns = []
+            # detect columns with NULL to use in FORCE NULL
+            # detect headers that are not in columns
+            for col in client.schema.get_table_columns(table_name).values():
+                norm_col = sql_client.escape_column_name(col["name"], escape=True)
+                split_columns.append(norm_col)
+                if norm_col in split_headers and col.get("nullable", True):
+                    split_null_headers.append(norm_col)
+            split_unknown_headers = set(split_headers).difference(split_columns)
+            if split_unknown_headers:
+                raise DestinationInvalidFileFormat(
+                    "postgres",
+                    "csv",
+                    file_path,
+                    f"Following headers {split_unknown_headers} cannot be matched to columns"
+                    f" {split_columns} of table {table_name}.",
+                )
+
+            # use comma to join
+            headers = ",".join(split_headers)
+            if split_null_headers:
+                null_headers = f"FORCE_NULL({','.join(split_null_headers)}),"
+            else:
+                null_headers = ""
+
             qualified_table_name = sql_client.make_qualified_table_name(table_name)
             copy_sql = (
-                "COPY %s (%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', NULL '', FORCE_NULL(%s))"
+                "COPY %s (%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', NULL '',"
+                " %s ENCODING '%s')"
                 % (
                     qualified_table_name,
                     headers,
-                    headers,
+                    sep,
+                    null_headers,
+                    csv_format.encoding,
                 )
             )
             with sql_client.begin_transaction():
@@ -152,7 +222,7 @@ class PostgresClient(InsertValuesJobClient):
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if not job and file_path.endswith("csv"):
-            job = PostgresCsvCopyJob(table["name"], file_path, self.sql_client)
+            job = PostgresCsvCopyJob(table, file_path, self)
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

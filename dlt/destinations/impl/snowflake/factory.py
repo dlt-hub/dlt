@@ -1,5 +1,6 @@
 import typing as t
 
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_snowflake_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -19,9 +20,9 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "jsonl"
-        caps.supported_loader_file_formats = ["jsonl", "parquet"]
+        caps.supported_loader_file_formats = ["jsonl", "parquet", "csv"]
         caps.preferred_staging_file_format = "jsonl"
-        caps.supported_staging_file_formats = ["jsonl", "parquet"]
+        caps.supported_staging_file_formats = ["jsonl", "parquet", "csv"]
         # snowflake is case sensitive but all unquoted identifiers are upper cased
         # so upper case identifiers are considered case insensitive
         caps.escape_identifier = escape_snowflake_identifier
@@ -53,6 +54,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         credentials: t.Union[SnowflakeCredentials, t.Dict[str, t.Any], str] = None,
         stage_name: t.Optional[str] = None,
         keep_staged_files: bool = True,
+        csv_format: t.Optional[CsvFormatConfiguration] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -71,6 +73,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             credentials=credentials,
             stage_name=stage_name,
             keep_staged_files=keep_staged_files,
+            csv_format=csv_format,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

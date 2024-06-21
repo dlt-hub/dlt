@@ -105,6 +105,28 @@ The Postgres destination creates UNIQUE indexes by default on columns with the `
 create_indexes=false
 ```
 
+### Setting up `csv` format
+You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
+```toml
+[destination.postgres.csv_format]
+delimiter="|"
+include_header=false
+```
+or
+```python
+from dlt.destinations import postgres
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
+
+csv_format = CsvFormatConfiguration(delimiter="|", include_header=False)
+
+dest_ = postgres(csv_format=csv_format)
+```
+Above we set `csv` file without header, with **|** as a separator.
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-postgres.
 

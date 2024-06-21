@@ -1,4 +1,4 @@
-from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Callable
+from typing import Iterator, TYPE_CHECKING
 import pytest
 
 import dlt

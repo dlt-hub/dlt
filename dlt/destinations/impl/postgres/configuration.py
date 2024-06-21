@@ -1,6 +1,7 @@
 import dataclasses
-from typing import Final, ClassVar, Any, List, TYPE_CHECKING, Union
+from typing import Final, ClassVar, Any, List, Optional
 
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.libs.sql_alchemy import URL
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -38,6 +39,9 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: PostgresCredentials = None
 
     create_indexes: bool = True
+
+    csv_format: Optional[CsvFormatConfiguration] = None
+    """Optional csv format configuration"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

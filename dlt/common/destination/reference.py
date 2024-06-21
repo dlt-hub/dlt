@@ -30,6 +30,7 @@ from dlt.common.destination.utils import verify_schema_capabilities
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
+    get_file_format,
     get_write_disposition,
     get_table_format,
 )
@@ -334,7 +335,7 @@ class JobClientBase(ABC):
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
@@ -374,6 +375,8 @@ class JobClientBase(ABC):
                 table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
+            if "file_format" not in table:
+                table["file_format"] = get_file_format(self.schema.tables, table_name)
             return table
         except KeyError:
             raise UnknownTableException(self.schema.name, table_name)

@@ -3,6 +3,7 @@ from dlt.common.data_writers.writers import (
     DataWriterMetrics,
     TDataItemFormat,
     FileWriterSpec,
+    create_import_spec,
     resolve_best_writer_spec,
     get_best_writer_spec,
     is_native_writer,
@@ -17,6 +18,7 @@ from dlt.common.data_writers.escape import (
 __all__ = [
     "DataWriter",
     "FileWriterSpec",
+    "create_import_spec",
     "resolve_best_writer_spec",
     "get_best_writer_spec",
     "is_native_writer",
