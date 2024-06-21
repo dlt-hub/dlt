@@ -402,12 +402,12 @@ You can also override the sql type by passing a `type_adapter_callback` function
 This function takes an `sqlalchemy` data type and returns a new type (or `None` to force the column to be skipped/inferred depending on backend).
 
 This is useful for example when:
-a) You're loading a data type which is not supported by the destination (e.g. you need JSON type columns to be coerced to string)
-b) You're using an sqlalchemy dialect which uses custom types that don't inherit from standard sqlalchemy types.
+- You're loading a data type which is not supported by the destination (e.g. you need JSON type columns to be coerced to string)
+- You're using an sqlalchemy dialect which uses custom types that don't inherit from standard sqlalchemy types.
 
 Example, when loading timestamps from Snowflake you can make sure they translate to `timestamp` columns in the result schema:
 
-```python
+```py
 import dlt
 from snowflake.sqlalchemy import TIMESTAMP_NTZ
 import sqlalchemy as sa
