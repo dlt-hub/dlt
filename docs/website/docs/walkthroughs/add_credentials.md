@@ -74,3 +74,72 @@ DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY
 DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL
 DESTINATION__BIGQUERY__LOCATION
 ```
+
+## Retrieving credentials from Google Cloud Secret Manager
+To retrieve secrets from Google Cloud Secret Manager using Python, and convert them into a dictionary format, you'll need to follow these steps. First, ensure that you have the necessary permissions to access the secrets on Google Cloud, and have the `google-cloud-secret-manager` library installed. If not, you can install it using pip:
+
+```sh
+pip install google-cloud-secret-manager
+```
+[Google Docs](https://cloud.google.com/secret-manager/docs/reference/libraries)
+
+Here's how you can retrieve secrets and convert them into a dictionary:
+
+1. **Set up the Secret Manager client**: Create a client that will interact with the Secret Manager API.
+2. **Access the secret**: Use the client to access the secret's latest version.
+3. **Convert to a dictionary**: If the secret is stored in a structured format (like JSON), parse it into a Python dictionary.
+
+Assume we store secrets in JSON format:
+```json
+{"api_token": "ghp_Kskdgf98dugjf98ghd...."}
+```
+
+In the script `dlt_with_google_secrets_pipeline.py` you can find an example how to use Google Secrets in `dlt` pipelines.
+
+### Points to Note:
+
+- **Permissions**: Ensure the service account or user credentials you are using have the necessary permissions to access the Secret Manager and the specific secrets.
+- **Secret Format**: This example assumes that the secret is stored in a JSON string format. If your secret is in a different format, you will need to adjust the parsing method accordingly.
+- **Google Cloud Authentication**: Make sure your environment is authenticated with Google Cloud. This can typically be done by setting credentials in `.dlt/secrets.toml` or setting the `GOOGLE_SECRETS__CREDENTIALS` environment variable to the path of your service account key file or the dict of credentials as a string.
+
+With this setup, you can effectively retrieve secrets stored in Google Cloud Secret Manager and use them in your `dlt` pipelines as dictionaries.
+
+You can use this function to retrieve the secrets stored in the secret manager:
+
+```py
+import json as json_lib  # Rename the json import to avoid name conflict
+
+import dlt
+from dlt.sources.helpers import requests
+from dlt.common.configuration.inject import with_config
+from dlt.common.configuration.specs import GcpServiceAccountCredentials
+from google.cloud import secretmanager
+
+
+@with_config(sections=("google_secrets",))
+def get_secret_dict(secret_id: str, credentials: GcpServiceAccountCredentials = dlt.secrets.value) -> dict:
+    """
+    Retrieve a secret from Google Cloud Secret Manager and convert it to a dictionary.
+    """
+    # Create the Secret Manager client with provided credentials
+    client = secretmanager.SecretManagerServiceClient(credentials=credentials.to_native_credentials())
+    
+    # Build the resource name of the secret version
+    name = f"projects/{credentials.project_id}/secrets/{secret_id}/versions/latest"
+
+    # Access the secret version
+    response = client.access_secret_version(request={"name": name})
+    
+    # Decode the payload to a string and convert it to a dictionary
+    secret_string = response.payload.data.decode("UTF-8")
+    secret_dict = json_lib.loads(secret_string)
+
+    return secret_dict
+
+# Retrieve secret data as a dictionary for use in other functions.
+secret_data = get_secret_dict("temp-secret")
+
+# Fetch the list of repositories from the specified organization using the provided API token.
+# The API token is retrieved from the secret data dictionary.
+data = get_repositories(api_token=secret_data["api_token"], organization="dlt-hub")
+```
