@@ -15,6 +15,7 @@ from typing import (
     Type,
     AnyStr,
     List,
+    Generator,
 )
 
 from dlt.common.typing import TFun
@@ -25,10 +26,18 @@ from dlt.destinations.exceptions import (
     DestinationConnectionError,
     LoadClientNotConnected,
 )
-from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+from dlt.destinations.typing import (
+    DBApi,
+    TNativeConn,
+    DBApiCursor,
+    DataFrame,
+    DBTransaction,
+    ArrowTable,
+)
+from dlt.common.destination.reference import SupportsDataAccess
 
 
-class SqlClientBase(ABC, Generic[TNativeConn]):
+class SqlClientBase(SupportsDataAccess, ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
     capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
@@ -199,6 +208,24 @@ SELECT 1
             return f"TRUNCATE TABLE {qualified_table_name};"
         else:
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
+
+    def iter_df(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[DataFrame, None, None]:
+        if not sql:
+            sql = f"SELECT * FROM {table}"
+
+        with self.execute_query(sql) as cursor:
+            df = DataFrame(cursor.fetchmany(batch_size))
+            df.columns = [x[0] for x in cursor.description]
+            yield df
+
+    def iter_arrow(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[ArrowTable, None, None]:
+        """Default implementation converts df to arrow"""
+        for df in self.iter_df(sql=sql, table=table, batch_size=batch_size):
+            yield ArrowTable.from_pandas(df)
 
 
 class DBApiCursorImpl(DBApiCursor):

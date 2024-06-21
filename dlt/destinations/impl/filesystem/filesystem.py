@@ -3,7 +3,18 @@ import os
 import base64
 
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
+from typing import (
+    ClassVar,
+    List,
+    Type,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    Sequence,
+    cast,
+    Generator,
+)
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -28,6 +39,7 @@ from dlt.common.destination.reference import (
     DoNothingFollowupJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.destinations.typing import DataFrame, ArrowTable
 from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -546,3 +558,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             jobs.extend(delta_jobs)
 
         return jobs
+
+    def iter_df(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[DataFrame, None, None]: ...
+
+    def iter_arrow(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[ArrowTable, None, None]: ...

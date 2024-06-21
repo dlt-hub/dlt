@@ -5,6 +5,12 @@ try:
 except ImportError:
     DataFrame: Type[Any] = None  # type: ignore
 
+
+try:
+    from pyarrow import Table as ArrowTable
+except ImportError:
+    ArrowTable: Type[Any] = None  # type: ignore
+
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound=Any)
 

@@ -1,5 +1,4 @@
 import pytest
-from pandas import DataFrame
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
@@ -16,15 +15,9 @@ def test_read_interfaces(destination_config: DestinationTestConfiguration) -> No
         "ibis_pipeline", dataset_name="ibis_test", dev_mode=True
     )
     pipeline.run(
-        [{"id": i + 10, "children": [{"id": i + 100}, {"id": i + 1000}]} for i in range(5)],
+        [{"id": i + 10, "children": [{"id": i + 100}, {"id": i + 1000}]} for i in range(300)],
         table_name="items",
     )
 
-    with pipeline.sql_client() as c:
-        with c.execute_query("SELECT * FROM items") as cursor:
-            df = DataFrame(cursor.fetchmany(10))
-            df.columns = [x.name for x in cursor.description]
-
-        print(df)
-
-    assert False
+    for df in pipeline.dataset.iter_df(table="items"):
+        assert len(df.index) == 300

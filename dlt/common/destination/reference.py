@@ -52,12 +52,6 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo
 
-if TYPE_CHECKING:
-    from pandas import DataFrame
-    from pyarrow import Table
-else:
-    DataFrame = Any
-    Table = Any
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -495,24 +489,18 @@ class SupportsStagingDestination:
         return True
 
 
-class SupportsDataAccess:
+class SupportsDataAccess(ABC):
     """Add support for accessing data as arrow tables or pandas dataframes"""
-
-    @abstractmethod
-    def df(self, *, sql: str = None, table: str = None, batch_size: int = 1000) -> DataFrame: ...
-
-    @abstractmethod
-    def arrow(self, *, sql: str = None, table: str = None, batch_size: int = 1000) -> Table: ...
 
     @abstractmethod
     def iter_df(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
-    ) -> Generator[DataFrame, None, None]: ...
+    ) -> Generator["DataFrame", None, None]: ...
 
     @abstractmethod
     def iter_arrow(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
-    ) -> Generator[Table, None, None]: ...
+    ) -> Generator["ArrowTable", None, None]: ...
 
 
 # TODO: type Destination properly

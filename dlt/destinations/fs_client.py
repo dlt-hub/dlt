@@ -1,9 +1,10 @@
 from typing import Iterable, cast, Any, List
 from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
+from dlt.common.destination.reference import SupportsDataAccess
 
 
-class FSClientBase(ABC):
+class FSClientBase(SupportsDataAccess, ABC):
     fs_client: AbstractFileSystem
 
     @property
