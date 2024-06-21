@@ -58,6 +58,7 @@ from dlt.extract.exceptions import (
     ResourceNotATransformer,
 )
 from dlt.extract.wrappers import wrap_additional_type
+from dlt.dataset import Dataset
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
@@ -104,6 +105,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._args_bound = args_bound
         self._explicit_args: DictStrAny = None
         self.source_name = None
+        self.dataset: Dataset = None
         super().__init__(hints)
 
     @classmethod

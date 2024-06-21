@@ -151,7 +151,7 @@ from dlt.pipeline.state_sync import (
 from dlt.pipeline.warnings import credentials_argument_deprecated
 from dlt.common.storages.load_package import TLoadPackageState
 from dlt.pipeline.helpers import refresh_source
-from dlt.destinations.dataset import Dataset
+from dlt.dataset import Dataset
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -448,6 +448,12 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
+                    # set dataset objects
+                    # TODO: find a better place..
+                    for _, resource in source.resources.items():
+                        resource.dataset = self.dataset
+                        resource.dataset.bind_table_name(resource.table_name)
+
                 # extract state
                 state: TPipelineStateDoc = None
                 if self.config.restore_from_destination:

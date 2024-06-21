@@ -216,10 +216,14 @@ SELECT 1
             table = self.make_qualified_table_name(table)
             sql = f"SELECT * FROM {table}"
 
+        # iterate over results in batch size chunks
         with self.execute_query(sql) as cursor:
-            df = DataFrame(list(cursor.fetchmany(batch_size)))
-            df.columns = [x[0] for x in cursor.description]
-            yield df
+            while True:
+                if not (result := cursor.fetchmany(batch_size)):
+                    return
+                df = DataFrame(result)
+                df.columns = [x[0] for x in cursor.description]
+                yield df
 
     def iter_arrow(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000

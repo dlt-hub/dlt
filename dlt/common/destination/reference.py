@@ -27,6 +27,7 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
+from dlt.common.typing import DataFrame, ArrowTable
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import MERGE_STRATEGIES
 from dlt.common.schema.exceptions import SchemaException
@@ -495,12 +496,12 @@ class SupportsDataAccess(ABC):
     @abstractmethod
     def iter_df(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
-    ) -> Generator["DataFrame", None, None]: ...
+    ) -> Generator[DataFrame, None, None]: ...
 
     @abstractmethod
     def iter_arrow(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
-    ) -> Generator["ArrowTable", None, None]: ...
+    ) -> Generator[ArrowTable, None, None]: ...
 
 
 # TODO: type Destination properly
