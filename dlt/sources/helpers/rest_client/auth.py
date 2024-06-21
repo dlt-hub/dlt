@@ -22,7 +22,6 @@ from dlt.common import logger
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.configuration.specs.base_configuration import configspec, NotResolved
 from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.common.configuration.specs.base_configuration import configspec
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
