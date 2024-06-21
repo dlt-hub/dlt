@@ -253,6 +253,29 @@ stage_name="DLT_STAGE"
 keep_staged_files=true
 ```
 
+### Setting up `csv` format
+You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
+```toml
+[destination.snowflake.csv_format]
+delimiter="|"
+include_header=false
+on_error_continue=true
+```
+or
+```python
+from dlt.destinations import snowflake
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
+
+csv_format = CsvFormatConfiguration(delimiter="|", include_header=False, on_error_continue=True)
+
+dest_ = snowflake(csv_format=csv_format)
+```
+Above we set `csv` file without header, with **|** as a separator and we request to ignore lines with errors.
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.
 

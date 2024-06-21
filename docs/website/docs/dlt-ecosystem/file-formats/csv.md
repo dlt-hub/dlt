@@ -59,6 +59,15 @@ NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
 ```
 
+### Destination settings
+A few additional settings are available when copying `csv` to destination tables:
+* **on_error_continue** - skip lines with errors (only Snowflake)
+* **encoding** - encoding of the `csv` file
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
+
 ## Limitations
 **arrow writer**
 
