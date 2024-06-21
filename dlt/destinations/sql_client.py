@@ -213,10 +213,11 @@ SELECT 1
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
     ) -> Generator[DataFrame, None, None]:
         if not sql:
+            table = self.make_qualified_table_name(table)
             sql = f"SELECT * FROM {table}"
 
         with self.execute_query(sql) as cursor:
-            df = DataFrame(cursor.fetchmany(batch_size))
+            df = DataFrame(list(cursor.fetchmany(batch_size)))
             df.columns = [x[0] for x in cursor.description]
             yield df
 

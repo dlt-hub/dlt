@@ -19,5 +19,5 @@ def test_read_interfaces(destination_config: DestinationTestConfiguration) -> No
         table_name="items",
     )
 
-    for df in pipeline.dataset.iter_df(table="items"):
-        assert len(df.index) == 300
+    for df in pipeline.dataset.iter_df(table="items", batch_size=5):
+        assert len(df.index) == 5
