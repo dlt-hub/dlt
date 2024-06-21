@@ -88,7 +88,7 @@ from dlt.sources.helpers import requests
 
 @dlt.destination(name="notion", batch_size=1, naming_convention="direct", skip_dlt_columns_and_tables=True)
 def insert_into_notion(items: TDataItems, table: TTableSchema) -> None:
-    api_key = "your_notion_api_key"  # Replace with your Notion API Key
+    api_key = dlt.secrets.value  # Add your notion API key to "secrets.toml"
     database_id = "your_notion_database_id"  # Replace with your Notion Database ID
     url = "https://api.notion.com/v1/pages"
     headers = {
