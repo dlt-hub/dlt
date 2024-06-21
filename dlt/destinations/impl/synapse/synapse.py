@@ -1,10 +1,10 @@
 import os
-from typing import Sequence, List, Dict, Any, Optional, cast
+from typing import Sequence, List, Dict, Any, Optional, cast, Union
 from copy import deepcopy
 from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
     NewLoadJob,
@@ -14,10 +14,13 @@ from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.utils import (
     table_schema_has_type,
     get_inherited_table_hint,
-    is_complete_column,
 )
 
-from dlt.common.configuration.specs import AzureCredentialsWithoutDefaults
+from dlt.common.configuration.exceptions import ConfigurationException
+from dlt.common.configuration.specs import (
+    AzureCredentialsWithoutDefaults,
+    AzureServicePrincipalCredentialsWithoutDefaults,
+)
 
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
@@ -162,7 +165,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
                 table,
                 file_path,
                 self.sql_client,
-                cast(AzureCredentialsWithoutDefaults, self.config.staging_config.credentials),
+                self.config.staging_config.credentials,  # type: ignore[arg-type]
                 self.config.staging_use_msi,
             )
         return job
@@ -174,7 +177,9 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         table: TTableSchema,
         file_path: str,
         sql_client: SqlClientBase[Any],
-        staging_credentials: Optional[AzureCredentialsWithoutDefaults] = None,
+        staging_credentials: Optional[
+            Union[AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults]
+        ] = None,
         staging_use_msi: bool = False,
     ) -> None:
         self.staging_use_msi = staging_use_msi
@@ -203,7 +208,10 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
 
         staging_credentials = self._staging_credentials
         assert staging_credentials is not None
-        assert isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+        assert isinstance(
+            staging_credentials,
+            (AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults),
+        )
         azure_storage_account_name = staging_credentials.azure_storage_account_name
         https_path = self._get_https_path(bucket_path, azure_storage_account_name)
         table_name = table["name"]
@@ -211,8 +219,21 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         if self.staging_use_msi:
             credential = "IDENTITY = 'Managed Identity'"
         else:
-            sas_token = staging_credentials.azure_storage_sas_token
-            credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
+            # re-use staging credentials for copy into Synapse
+            if isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                sas_token = staging_credentials.azure_storage_sas_token
+                credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
+            elif isinstance(staging_credentials, AzureServicePrincipalCredentialsWithoutDefaults):
+                tenant_id = staging_credentials.azure_tenant_id
+                endpoint = f"https://login.microsoftonline.com/{tenant_id}/oauth2/token"
+                identity = f"{staging_credentials.azure_client_id}@{endpoint}"
+                secret = staging_credentials.azure_client_secret
+                credential = f"IDENTITY = '{identity}', SECRET = '{secret}'"
+            else:
+                raise ConfigurationException(
+                    f"Credentials of type `{type(staging_credentials)}` not supported"
+                    " when loading data from staging into Synapse using `COPY INTO`."
+                )
 
         # Copy data from staging file into Synapse table.
         with self._sql_client.begin_transaction():

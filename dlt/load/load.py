@@ -53,7 +53,12 @@ from dlt.load.exceptions import (
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
 )
-from dlt.load.utils import _extend_tables_with_table_chain, get_completed_table_chain, init_client
+from dlt.load.utils import (
+    _extend_tables_with_table_chain,
+    get_completed_table_chain,
+    init_client,
+    filter_new_jobs,
+)
 
 
 class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
@@ -190,7 +195,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
-        load_files = self.load_storage.list_new_jobs(load_id)[: self.config.workers]
+        load_files = filter_new_jobs(
+            self.load_storage.list_new_jobs(load_id), self.destination.capabilities(), self.config
+        )
         file_count = len(load_files)
         if file_count == 0:
             logger.info(f"No new jobs found in {load_id}")

@@ -24,6 +24,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
+TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
 
@@ -81,12 +82,18 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
-
     """Destination supports CREATE TABLE ... CLONE ... statements"""
-    max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
+
+    max_table_nesting: Optional[int] = None
+    """Allows a destination to overwrite max_table_nesting from source"""
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
+
+    max_parallel_load_jobs: Optional[int] = None
+    """The destination can set the maxium amount of parallel load jobs being executed"""
+    loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
+    """The destination can override the parallelism strategy"""
 
     @staticmethod
     def generic_capabilities(

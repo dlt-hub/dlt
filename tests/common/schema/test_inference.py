@@ -563,3 +563,24 @@ def test_infer_on_incomplete_column(schema: Schema) -> None:
     assert i_column["x-special"] == "spec"  # type: ignore[typeddict-item]
     assert i_column["primary_key"] is True
     assert i_column["data_type"] == "text"
+
+
+def test_update_table_adds_at_end(schema: Schema) -> None:
+    row = {"evm": Wei(1)}
+    _, new_table = schema.coerce_row("eth", None, row)
+    schema.update_table(new_table)
+    schema.update_table(
+        {
+            "name": new_table["name"],
+            "columns": {
+                "_dlt_load_id": {
+                    "name": "_dlt_load_id",
+                    "data_type": "text",
+                    "nullable": False,
+                }
+            },
+        }
+    )
+    table = schema.tables["eth"]
+    # place new columns at the end
+    assert list(table["columns"].keys()) == ["evm", "_dlt_load_id"]

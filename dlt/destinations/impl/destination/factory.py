@@ -4,6 +4,7 @@ from importlib import import_module
 from types import ModuleType
 
 from dlt.common import logger
+from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.typing import AnyFun
@@ -42,6 +43,8 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         caps.supports_transactions = False
         caps.naming_convention = "direct"
         caps.max_table_nesting = 0
+        caps.max_parallel_load_jobs = 0
+        caps.loader_parallelism_strategy = None
         return caps
 
     @property

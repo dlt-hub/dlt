@@ -830,7 +830,10 @@ def standalone_transformer_returns(item: TDataItem, init: int = dlt.config.value
     return "A" * item * init
 
 
-def test_standalone_transformer() -> None:
+@pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
+def test_standalone_transformer(next_item_mode: str) -> None:
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = next_item_mode
+
     assert not isinstance(standalone_transformer, DltResource)
     assert callable(standalone_transformer)
     assert standalone_transformer.__doc__ == """Has fine transformer docstring"""
@@ -842,7 +845,8 @@ def test_standalone_transformer() -> None:
         bound_tx(1)
     assert isinstance(bound_tx, DltResource)
     # the resource sets the start of the range of transformer + transformer init
-    assert list(standalone_signature(1, 3) | bound_tx) == [6, 7, 8, 9, 7, 8, 9]
+    exp_result = [6, 7, 7, 8, 8, 9, 9] if next_item_mode == "round_robin" else [6, 7, 8, 9, 7, 8, 9]
+    assert list(standalone_signature(1, 3) | bound_tx) == exp_result
 
     # wrong params to transformer
     with pytest.raises(TypeError):

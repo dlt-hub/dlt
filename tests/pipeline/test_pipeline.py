@@ -647,8 +647,8 @@ def test_sentry_tracing() -> None:
 
     @dlt.resource
     def r_check_sentry():
-        assert sentry_sdk.Hub.current.scope.span.op == "extract"
-        assert sentry_sdk.Hub.current.scope.span.containing_transaction.name == "run"
+        assert sentry_sdk.Scope.get_current_scope().span.op == "extract"
+        assert sentry_sdk.Scope.get_current_scope().transaction.name == "run"
         yield [1, 2, 3]
 
     p.run(r_check_sentry)

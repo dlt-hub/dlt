@@ -1,4 +1,5 @@
-from typing import List, Set, Iterable, Callable, Optional, Tuple
+from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
+from itertools import groupby
 
 from dlt.common import logger
 from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TJobState
@@ -15,6 +16,8 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStagingDataset,
 )
+from dlt.load.configuration import LoaderConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
 
 
 def get_completed_table_chain(
@@ -216,3 +219,42 @@ def _extend_tables_with_table_chain(
                 continue
             result.add(chain_table_name)
     return result
+
+
+def filter_new_jobs(
+    file_names: Sequence[str],
+    capabilities: DestinationCapabilitiesContext,
+    config: LoaderConfiguration,
+) -> Sequence[str]:
+    """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
+    """NOTE: in the current setup we only filter based on settings for the final destination"""
+    """Support for differentiating staging destination jobs might come in the future if we need it"""
+
+    # nothing to do
+    if not file_names:
+        return file_names
+
+    # config can overwrite destination settings, if nothing is set, code below defaults to parallel
+    parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
+
+    # find real max workers value
+    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
+    if mp := capabilities.max_parallel_load_jobs:
+        max_workers = min(max_workers, mp)
+
+    # regular sequential works on all jobs
+    eligible_jobs = file_names
+
+    # we must ensure there only is one job per table
+    if parallelism_strategy == "table-sequential":
+        eligible_jobs = sorted(
+            eligible_jobs, key=lambda j: ParsedLoadJobFileName.parse(j).table_name
+        )
+        eligible_jobs = [
+            next(table_jobs)
+            for _, table_jobs in groupby(
+                eligible_jobs, lambda j: ParsedLoadJobFileName.parse(j).table_name
+            )
+        ]
+
+    return eligible_jobs[:max_workers]

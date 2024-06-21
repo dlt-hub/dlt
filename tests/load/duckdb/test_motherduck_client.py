@@ -28,7 +28,7 @@ def test_motherduck_configuration() -> None:
     assert cred.password == "TOKEN"
     assert cred.database == "dlt_data"
     assert cred.is_partial() is False
-    assert cred.is_resolved() is True
+    assert cred.is_resolved() is False
 
     cred = MotherDuckCredentials()
     cred.parse_native_representation("md:///?token=TOKEN")
