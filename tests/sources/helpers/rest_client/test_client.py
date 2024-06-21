@@ -1,6 +1,7 @@
 import os
 from base64 import b64encode
 from typing import Any, Dict, cast
+from unittest.mock import patch
 
 import pytest
 from requests import PreparedRequest, Request, Response
@@ -233,24 +234,29 @@ class TestRESTClient:
         assert e.type == HTTPError
         assert e.match("401 Client Error")
 
+
     def test_oauth_token_expired_refresh(self, rest_client_immediate_oauth_expiry: RESTClient):
         rest_client = rest_client_immediate_oauth_expiry
         auth = cast(OAuth2ClientCredentials, rest_client.auth)
-        assert auth.access_token is None
-        response = rest_client.get("/protected/posts/bearer-token")
-        assert response.status_code == 200
-        assert auth.access_token is not None
-        expiry_0 = auth.token_expiry
-        auth.token_expiry = auth.token_expiry.subtract(seconds=1)
-        expiry_1 = auth.token_expiry
-        assert expiry_0 > expiry_1
-        assert auth.is_token_expired()
 
-        response = rest_client.get("/protected/posts/bearer-token")
-        assert response.status_code == 200
-        expiry_2 = auth.token_expiry
-        assert expiry_2 > expiry_1
-        assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
+        with patch.object(auth, "obtain_token", wraps=auth.obtain_token) as mock_obtain_token:
+            assert auth.access_token is None
+            response = rest_client.get("/protected/posts/bearer-token")
+            mock_obtain_token.assert_called_once()
+            assert response.status_code == 200
+            assert auth.access_token is not None
+            expiry_0 = auth.token_expiry
+            auth.token_expiry = auth.token_expiry.subtract(seconds=1)
+            expiry_1 = auth.token_expiry
+            assert expiry_0 > expiry_1
+            assert auth.is_token_expired()
+
+            response = rest_client.get("/protected/posts/bearer-token")
+            assert mock_obtain_token.call_count == 2
+            assert response.status_code == 200
+            expiry_2 = auth.token_expiry
+            assert expiry_2 > expiry_1
+            assert response.json()["data"][0] == {"id": 0, "title": "Post 0"}
 
     def test_oauth_customized_token_request(self, rest_client: RESTClient):
         class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
