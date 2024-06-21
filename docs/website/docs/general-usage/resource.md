@@ -539,7 +539,8 @@ on_error_continue=true
 You can sniff the schema from the data ie. using `duckdb` to infer the table schema from csv file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at run time.
 
 :::note
-If you do not define any columns, the table will not be created in the destination. `dlt` will still attempt to load data into it, so you create a fitting table upfront, the load process will succeed.
+* If you do not define any columns, the table will not be created in the destination. `dlt` will still attempt to load data into it, so you create a fitting table upfront, the load process will succeed.
+* Files are imported using hard links if possible.
 :::
 
 ### Duplicate and rename resources
