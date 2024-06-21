@@ -106,7 +106,6 @@ from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from google.cloud import secretmanager
 
-
 @with_config(sections=("google_secrets",))
 def get_secret_dict(secret_id: str, credentials: GcpServiceAccountCredentials = dlt.secrets.value) -> dict:
     """
@@ -128,27 +127,28 @@ def get_secret_dict(secret_id: str, credentials: GcpServiceAccountCredentials = 
     return secret_dict
 
 # Retrieve secret data as a dictionary for use in other functions.
-secret_data = get_secret_dict("temp-secret")  
+secret_data = get_secret_dict("temp-secret")
 
 # Set up the request URL and headers
-url = f"https://api.github.com/orgs/dlt-hub/repos"  
-headers = {  
-    "Authorization": f"token {secret_data["api_token"]}",  
-     "Accept": "application/vnd.github+json",  
-}  
+url = "https://api.github.com/orgs/dlt-hub/repos"
+headers = {
+    "Authorization": f"token {secret_data['api_token']}",  # Use the API token from the secret data
+    "Accept": "application/vnd.github+json",  # Set the Accept header for GitHub API
+}
 
 # Make a request to the GitHub API to get the list of repositories
-response = requests.get(url, headers=headers)  
+response = requests.get(url, headers=headers)
 
 # Set up the DLT pipeline
-pipeline = dlt.pipeline(  
-        pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"  
-    )
+pipeline = dlt.pipeline(
+    pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
+)
 
-# Run the pipeline      
-load_info = pipeline.run(response.json())  
+# Run the pipeline with the data from the GitHub API response
+load_info = pipeline.run(response.json())
 
-print(load_info)  
+# Print the load information to check the results
+print(load_info)
 ```
 
 In the script `dlt_with_google_secrets_pipeline.py` you can find an example how to use Google Secrets in `dlt` pipelines.
