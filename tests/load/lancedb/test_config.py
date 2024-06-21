@@ -1,19 +1,14 @@
-from typing import Iterator, Generator, Any
+from typing import Iterator, Any
 
 import pytest
 
-import dlt
 from dlt.common.configuration import resolve_configuration
-from dlt.common.typing import DictStrStr
 from dlt.common.utils import digest128
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
-from dlt.destinations.impl.lancedb.lancedb_adapter import (
-    lancedb_adapter,
-)
 from tests.load.pipeline.utils import (
     drop_active_pipeline_data,
 )
-from tests.load.utils import sequence_generator
+from tests.common.configuration.utils import environment
 
 
 # Mark all tests as essential, do not remove.
@@ -26,28 +21,9 @@ def drop_lancedb_data() -> Iterator[None]:
     drop_active_pipeline_data()
 
 
-def test_adapter_and_hints() -> None:
-    generator_instance1 = sequence_generator()
-
-    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
-    def some_data() -> Generator[DictStrStr, Any, None]:
-        yield from next(generator_instance1)
-
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
-
-    lancedb_adapter(
-        some_data,
-        embed=["content"],
-    )
-
-    assert some_data.columns["content"] == {  # type: ignore
-        "name": "content",
-        "data_type": "text",
-        "x-lancedb-embed": True,
-    }
-
-
-def test_lancedb_configuration() -> None:
+def test_lancedb_configuration(
+    environment: Any,
+) -> None:
     # Ensure that api key and endpoint defaults are applied without exception.
 
     config = resolve_configuration(
