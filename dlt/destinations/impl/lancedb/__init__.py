@@ -1,4 +1,5 @@
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
 
 
 def capabilities() -> DestinationCapabilitiesContext:
