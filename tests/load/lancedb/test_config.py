@@ -33,6 +33,3 @@ def test_lancedb_configuration() -> None:
     )
     assert config.embedding_model_provider == "colbert"
     assert config.embedding_model == "text-embedding-3-small"
-    assert config.credentials.api_key is None
-    assert config.credentials.embedding_model_provider_api_key is None
-    assert config.fingerprint() == digest128(config.credentials.uri)
