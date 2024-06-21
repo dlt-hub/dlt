@@ -227,7 +227,7 @@ class LogCollector(Collector):
         self._log(self.log_level, log_message)
 
     def _log(self, log_level: int, log_message: str) -> None:
-        if isinstance(self.logger, logging.Logger):
+        if isinstance(self.logger, (logging.Logger, logging.LoggerAdapter)):
             self.logger.log(log_level, log_message)
         else:
             print(log_message, file=self.logger or sys.stdout)

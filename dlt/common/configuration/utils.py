@@ -100,7 +100,7 @@ def deserialize_value(key: str, value: Any, hint: Type[TAny]) -> TAny:
         raise ConfigValueCannotBeCoercedException(key, value, hint) from exc
 
 
-def serialize_value(value: Any) -> Any:
+def serialize_value(value: Any) -> str:
     if value is None:
         raise ValueError(value)
     # return literal for tuples
@@ -108,13 +108,13 @@ def serialize_value(value: Any) -> Any:
         return str(value)
     if isinstance(value, BaseConfiguration):
         try:
-            return value.to_native_representation()
+            return str(value.to_native_representation())
         except NotImplementedError:
             # no native representation: use dict
             value = dict(value)
     # coerce type to text which will use json for mapping and sequences
     value_dt = py_type_to_sc_type(type(value))
-    return coerce_value("text", value_dt, value)
+    return coerce_value("text", value_dt, value)  # type: ignore[no-any-return]
 
 
 def auto_cast(value: str) -> Any:
