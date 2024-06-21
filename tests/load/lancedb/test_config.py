@@ -25,13 +25,14 @@ def drop_lancedb_data() -> Iterator[None]:
 
 def test_lancedb_configuration() -> None:
     os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER"] = "colbert"
+    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL"] = "text-embedding-3-small"
 
     config = resolve_configuration(
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
         sections=("destination", "lancedb"),
     )
     assert config.embedding_model_provider == "colbert"
-    assert config.embedding_model == "embed-english-v3.0"
+    assert config.embedding_model == "text-embedding-3-small"
     assert config.embedding_model_dimensions is None
     assert config.sentinel_table_name == "dltSentinelTable"
     assert config.id_field_name == "id__"
