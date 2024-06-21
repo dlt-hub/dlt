@@ -13,7 +13,7 @@ from dlt.common.utils import digest128
 
 @configspec
 class LanceDBCredentials(CredentialsConfiguration):
-    uri: str = ".lancedb"
+    uri: Optional[str] = ".lancedb"
     """LanceDB database URI. Defaults to local, on-disk instance.
 
     The available schemas are:
@@ -21,9 +21,9 @@ class LanceDBCredentials(CredentialsConfiguration):
     - `/path/to/database` - local database.
     - `db://host:port` - remote database (LanceDB cloud).
     """
-    api_key: TSecretStrValue = None
+    api_key: Optional[TSecretStrValue] = None
     """API key for the remote connections (LanceDB cloud)."""
-    embedding_model_provider_api_key: str = None
+    embedding_model_provider_api_key: Optional[str] = None
     """API key for the embedding model provider."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [

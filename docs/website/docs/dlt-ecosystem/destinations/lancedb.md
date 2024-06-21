@@ -38,17 +38,17 @@ embedding_model_provider = "cohere"
 embedding_model = "embed-english-v3.0"
 [destination.lancedb.credentials]
 uri = ".lancedb"
-api_key = "api_key"
-embedding_model_provider_api_key = "embedding_model_provider_api_key"
+api_key = "api_key" # API key to connect to LanceDB Cloud. Leave out if you are using LanceDB OSS.
+embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not needed for providers that don't need authentication (ollama, sentence-transformers).
 ```
 
 - The `uri` specifies the location of your LanceDB instance. It defaults to a local, on-disk instance if not provided.
-- The `api_key` is required for remote LanceDB cloud connections. If you are using a local instance, you can ignore this configuration key and leave as is.
+- The `api_key` is your api key for LanceDB Cloud connections. If you're using LanceDB OSS, you don't need to supply this key.
 - The `embedding_model_provider` specifies the embedding provider used for generating embeddings. The default is `cohere`.
 - The `embedding_model` specifies the model used by the embedding provider for generating embeddings.
   Check with the embedding provider which options are available.
   Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/.
-- The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings.
+- The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, say ollama, you don't need to supply this key.
 
 :::info Available Model Providers
 - "gemini-text"
