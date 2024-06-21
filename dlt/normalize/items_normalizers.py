@@ -415,6 +415,13 @@ class FileImportNormalizer(ItemsNormalizer):
             f"Table {root_table_name} {self.item_storage.writer_spec.file_format} file"
             f" {extracted_items_file} will be directly imported without normalization"
         )
+        completed_columns = self.schema.get_table_columns(root_table_name)
+        if not completed_columns:
+            logger.warning(
+                f"Table {root_table_name} has no completed columns for imported file"
+                f" {extracted_items_file} and will not be created! Pass column hints to the"
+                " resource or with dlt.mark.with_hints or create the destination table yourself."
+            )
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:

@@ -7,6 +7,7 @@ from typing_extensions import get_type_hints, get_args
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import (
     StrAny,
+    get_literal_args,
     get_type_name,
     is_callable_type,
     is_literal_type,
@@ -114,7 +115,7 @@ def validate_dict(
                         failed_validations,
                     )
         elif is_literal_type(t):
-            a_l = get_args(t)
+            a_l = get_literal_args(t)
             if pv not in a_l:
                 raise DictValidationException(
                     f"field '{pk}' with value {pv} is not one of: {a_l}", path, t, pk, pv

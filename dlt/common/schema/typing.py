@@ -17,7 +17,7 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder, TAnyDateTime
+from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -68,6 +68,7 @@ TColumnHint = Literal[
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg", "delta"]
+TFileFormat = Literal[Literal["preferred"], TLoaderFileFormat]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
 ]
@@ -204,6 +205,7 @@ class TTableSchema(TTableProcessingHints, total=False):
     columns: TTableSchemaColumns
     resource: Optional[str]
     table_format: Optional[TTableFormat]
+    file_format: Optional[TFileFormat]
 
 
 class TPartialTableSchema(TTableSchema):

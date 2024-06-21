@@ -7,7 +7,7 @@ import os
 import random
 import threading
 from time import sleep
-from typing import Any, Tuple, cast
+from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
@@ -19,6 +19,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
+from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.destination.exceptions import (
@@ -32,6 +33,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
@@ -44,9 +46,11 @@ from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
+from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 
+from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT, skipifnotwindows
@@ -55,7 +59,9 @@ from tests.pipeline.utils import (
     assert_data_table_counts,
     assert_load_info,
     airtable_emojis,
+    assert_only_table_columns,
     load_data_table_counts,
+    load_tables_to_dicts,
     many_delayed,
 )
 
@@ -2262,3 +2268,136 @@ def test_staging_dataset_truncate(truncate) -> None:
 
         with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
             assert len(cur.fetchall()) == 3
+
+
+def test_import_jsonl_file() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        full_refresh=True,
+    )
+    columns: List[TColumnSchema] = [
+        {"name": "id", "data_type": "bigint", "nullable": False},
+        {"name": "name", "data_type": "text"},
+        {"name": "description", "data_type": "text"},
+        {"name": "ordered_at", "data_type": "date"},
+        {"name": "price", "data_type": "decimal"},
+    ]
+    import_file = "tests/load/cases/loading/header.jsonl"
+    info = pipeline.run(
+        [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2)],
+        table_name="no_header",
+        loader_file_format="jsonl",
+        columns=columns,
+    )
+    info.raise_on_failed_jobs()
+    print(info)
+    assert_imported_file(pipeline, "no_header", columns, 2)
+
+    # use hints to infer
+    hints = dlt.mark.make_hints(columns=columns)
+    info = pipeline.run(
+        [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2, hints=hints)],
+        table_name="no_header_2",
+    )
+    info.raise_on_failed_jobs()
+    assert_imported_file(pipeline, "no_header_2", columns, 2, expects_state=False)
+
+
+def test_import_file_without_sniff_schema() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        full_refresh=True,
+    )
+    import_file = "tests/load/cases/loading/header.jsonl"
+    info = pipeline.run(
+        [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2)],
+        table_name="no_header",
+    )
+    assert info.has_failed_jobs
+    print(info)
+
+
+def test_import_non_existing_file() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        full_refresh=True,
+    )
+    # this file does not exist
+    import_file = "tests/load/cases/loading/X_header.jsonl"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2)],
+            table_name="no_header",
+        )
+    inner_ex = pip_ex.value.__cause__
+    assert isinstance(inner_ex, FileImportNotFound)
+    assert inner_ex.import_file_path == import_file
+
+
+def test_import_unsupported_file_format() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        full_refresh=True,
+    )
+    # this file does not exist
+    import_file = "tests/load/cases/loading/csv_no_header.csv"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "csv", 2)],
+            table_name="no_header",
+        )
+    inner_ex = pip_ex.value.__cause__
+    assert isinstance(inner_ex, NormalizeJobFailed)
+    assert isinstance(inner_ex.__cause__, SpecLookupFailed)
+
+
+def test_import_unknown_file_format() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        full_refresh=True,
+    )
+    # this file does not exist
+    import_file = "tests/load/cases/loading/csv_no_header.csv"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "unknown", 2)],  # type: ignore[arg-type]
+            table_name="no_header",
+        )
+    inner_ex = pip_ex.value.__cause__
+    assert isinstance(inner_ex, NormalizeJobFailed)
+    # can't figure format from extension
+    assert isinstance(inner_ex.__cause__, ValueError)
+
+
+def assert_imported_file(
+    pipeline: Pipeline,
+    table_name: str,
+    columns: List[TColumnSchema],
+    expected_rows: int,
+    expects_state: bool = True,
+) -> None:
+    assert_only_table_columns(pipeline, table_name, [col["name"] for col in columns])
+    rows = load_tables_to_dicts(pipeline, table_name)
+    assert len(rows[table_name]) == expected_rows
+    # we should have twp files loaded
+    jobs = pipeline.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
+    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
+    assert ".jsonl" in job_extensions
+    if expects_state:
+        assert ".insert_values" in job_extensions
+    # check extract trace if jsonl is really there
+    extract_info = pipeline.last_trace.last_extract_info
+    jobs = extract_info.load_packages[0].jobs["new_jobs"]
+    # find jsonl job
+    jsonl_job = next(job for job in jobs if job.job_file_info.table_name == table_name)
+    assert jsonl_job.job_file_info.file_format == "jsonl"
+    # find metrics for table
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["table_metrics"][table_name].items_count
+        == expected_rows
+    )

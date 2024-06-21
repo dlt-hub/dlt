@@ -81,7 +81,7 @@ def w_normalize_files(
         load_storage = LoadStorage(False, supported_file_formats, loader_storage_config)
 
         def _get_items_normalizer(
-            parsed_file_name: ParsedLoadJobFileName, table_schema: Optional[TTableSchema]
+            parsed_file_name: ParsedLoadJobFileName, table_schema: TTableSchema
         ) -> ItemsNormalizer:
             item_format = DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
 
@@ -121,17 +121,31 @@ def w_normalize_files(
                     parsed_file_name.file_format, items_supported_file_formats  # type: ignore[arg-type]
                 )
 
-            if config.loader_file_format and best_writer_spec is None:
+            config_loader_file_format = config.loader_file_format
+            if table_schema.get("file_format"):
+                # resource has a file format defined so use it
+                if table_schema["file_format"] == "preferred":
+                    # use destination preferred
+                    config_loader_file_format = items_preferred_file_format
+                else:
+                    # use resource format
+                    config_loader_file_format = table_schema["file_format"]
+                logger.info(
+                    f"A file format for table {table_name} was specified in the resource so"
+                    f" {config_loader_file_format} format being used."
+                )
+
+            if config_loader_file_format and best_writer_spec is None:
                 # force file format
-                if config.loader_file_format in items_supported_file_formats:
+                if config_loader_file_format in items_supported_file_formats:
                     # TODO: pass supported_file_formats, when used in pipeline we already checked that
                     # but if normalize is used standalone `supported_loader_file_formats` may be unresolved
-                    best_writer_spec = get_best_writer_spec(item_format, config.loader_file_format)
+                    best_writer_spec = get_best_writer_spec(item_format, config_loader_file_format)
                 else:
                     logger.warning(
-                        f"The configured value `{config.loader_file_format}` "
+                        f"The configured value `{config_loader_file_format}` "
                         "for `loader_file_format` is not supported for table "
-                        f"`{table_schema['name']}` and will be ignored. Dlt "
+                        f"`{table_name}` and will be ignored. Dlt "
                         "will use a supported format instead."
                     )
 

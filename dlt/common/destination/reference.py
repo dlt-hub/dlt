@@ -30,6 +30,7 @@ from dlt.common.destination.utils import verify_schema_capabilities
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
+    get_file_format,
     get_write_disposition,
     get_table_format,
 )
@@ -374,6 +375,8 @@ class JobClientBase(ABC):
                 table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
+            if "file_format" not in table:
+                table["file_format"] = get_file_format(self.schema.tables, table_name)
             return table
         except KeyError:
             raise UnknownTableException(self.schema.name, table_name)

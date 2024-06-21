@@ -24,6 +24,7 @@ from dlt.common.schema.typing import (
     VERSION_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
     TColumnName,
+    TFileFormat,
     TPartialTableSchema,
     TSchemaTables,
     TSchemaUpdate,
@@ -678,6 +679,12 @@ def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:
     )
 
 
+def get_file_format(tables: TSchemaTables, table_name: str) -> TFileFormat:
+    return cast(
+        TFileFormat, get_inherited_table_hint(tables, table_name, "file_format", allow_none=True)
+    )
+
+
 def fill_hints_from_parent_and_clone_table(
     tables: TSchemaTables, table: TTableSchema
 ) -> TTableSchema:
@@ -689,6 +696,8 @@ def fill_hints_from_parent_and_clone_table(
         table["write_disposition"] = get_write_disposition(tables, table["name"])
     if "table_format" not in table:
         table["table_format"] = get_table_format(tables, table["name"])
+    if "file_format" not in table:
+        table["file_format"] = get_file_format(tables, table["name"])
     return table
 
 
@@ -800,6 +809,7 @@ def pipeline_state_table() -> TTableSchema:
     # WARNING: do not reorder the columns
     table = new_table(
         PIPELINE_STATE_TABLE_NAME,
+        write_disposition="append",
         columns=[
             {"name": "version", "data_type": "bigint", "nullable": False},
             {"name": "engine_version", "data_type": "bigint", "nullable": False},
@@ -809,8 +819,9 @@ def pipeline_state_table() -> TTableSchema:
             {"name": "version_hash", "data_type": "text", "nullable": True},
             {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
         ],
+        # always use caps preferred file format for processing
+        file_format="preferred",
     )
-    table["write_disposition"] = "append"
     table["description"] = "Created by DLT. Tracks pipeline state"
     return table
 
@@ -824,6 +835,7 @@ def new_table(
     resource: str = None,
     schema_contract: TSchemaContract = None,
     table_format: TTableFormat = None,
+    file_format: TFileFormat = None,
 ) -> TTableSchema:
     table: TTableSchema = {
         "name": table_name,
@@ -842,6 +854,8 @@ def new_table(
             table["schema_contract"] = schema_contract
         if table_format:
             table["table_format"] = table_format
+        if file_format:
+            table["file_format"] = file_format
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

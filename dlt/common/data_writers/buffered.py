@@ -7,6 +7,7 @@ from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers.exceptions import (
     BufferedDataWriterClosed,
     DestinationCapabilitiesRequired,
+    FileImportNotFound,
     InvalidFileNameTemplateException,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, DataWriterMetrics, FileWriterSpec
@@ -159,7 +160,11 @@ class BufferedDataWriter(Generic[TWriter]):
             spec = self.writer_spec._replace(file_extension=with_extension)
         with self.alternative_spec(spec):
             self._rotate_file()
-        FileStorage.link_hard_with_fallback(file_path, self._file_name)
+        try:
+            FileStorage.link_hard_with_fallback(file_path, self._file_name)
+        except FileNotFoundError as f_ex:
+            raise FileImportNotFound(file_path, self._file_name) from f_ex
+
         self._last_modified = time.time()
         metrics = metrics._replace(
             file_path=self._file_name,

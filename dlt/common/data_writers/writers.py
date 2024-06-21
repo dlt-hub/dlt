@@ -4,7 +4,6 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
-    ClassVar,
     Dict,
     List,
     Literal,
@@ -17,14 +16,18 @@ from typing import (
 )
 
 from dlt.common.json import json
-from dlt.common.configuration import configspec, known_sections, with_config
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration import with_config
 from dlt.common.data_writers.exceptions import (
     SpecLookupFailed,
     DataWriterNotFound,
     FileFormatForItemFormatNotFound,
     FileSpecNotFound,
     InvalidDataItem,
+)
+from dlt.common.data_writers.configuration import (
+    CsvFormatConfiguration,
+    CsvQuoting,
+    ParquetFormatConfiguration,
 )
 from dlt.common.destination import (
     DestinationCapabilitiesContext,
@@ -33,6 +36,7 @@ from dlt.common.destination import (
 )
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
+
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -164,6 +168,10 @@ class ImportFileWriter(DataWriter):
             "ImportFileWriter cannot write any files. You have bug in your code."
         )
 
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        raise NotImplementedError("ImportFileWriter has no single spec")
+
 
 class JsonlWriter(DataWriter):
     def write_data(self, rows: Sequence[Any]) -> None:
@@ -278,21 +286,8 @@ class InsertValuesWriter(DataWriter):
         )
 
 
-@configspec
-class ParquetDataWriterConfiguration(BaseConfiguration):
-    flavor: Optional[str] = None  # could be ie. "spark"
-    version: Optional[str] = "2.4"
-    data_page_size: Optional[int] = None
-    timestamp_timezone: str = "UTC"
-    row_group_size: Optional[int] = None
-    coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
-    allow_truncated_timestamps: bool = False
-
-    __section__: ClassVar[str] = known_sections.DATA_WRITER
-
-
 class ParquetDataWriter(DataWriter):
-    @with_config(spec=ParquetDataWriterConfiguration)
+    @with_config(spec=ParquetFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],
@@ -399,21 +394,8 @@ class ParquetDataWriter(DataWriter):
         )
 
 
-CsvQuoting = Literal["quote_all", "quote_needed"]
-
-
-@configspec
-class CsvDataWriterConfiguration(BaseConfiguration):
-    delimiter: str = ","
-    include_header: bool = True
-    quoting: CsvQuoting = "quote_needed"
-    on_error_continue: bool = False
-
-    __section__: ClassVar[str] = known_sections.DATA_WRITER
-
-
 class CsvWriter(DataWriter):
-    @with_config(spec=CsvDataWriterConfiguration)
+    @with_config(spec=CsvFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],
@@ -544,7 +526,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
 
 
 class ArrowToCsvWriter(DataWriter):
-    @with_config(spec=CsvDataWriterConfiguration)
+    @with_config(spec=CsvFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],

@@ -1,9 +1,9 @@
 import dataclasses
 import base64
-from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING, Union
+from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from dlt import version
-from dlt.common.data_writers.writers import CsvDataWriterConfiguration
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.libs.sql_alchemy import URL
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import TSecretStrValue
@@ -139,7 +139,7 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
 
-    csv_format: Optional[CsvDataWriterConfiguration] = None
+    csv_format: Optional[CsvFormatConfiguration] = None
     """Optional csv format configuration"""
 
     def fingerprint(self) -> str:

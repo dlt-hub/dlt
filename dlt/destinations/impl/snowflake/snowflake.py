@@ -1,7 +1,7 @@
-from typing import ClassVar, Optional, Sequence, Tuple, List, Any
+from typing import Optional, Sequence, List
 from urllib.parse import urlparse, urlunparse
 
-from dlt.common.data_writers.writers import CsvDataWriterConfiguration
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -15,7 +15,6 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
@@ -27,10 +26,8 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.sql_jobs import SqlJobParams
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -182,12 +179,12 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             )
         if file_name.endswith("csv"):
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
-            csv_format = config.csv_format or CsvDataWriterConfiguration()
+            csv_format = config.csv_format or CsvFormatConfiguration()
             source_format = (
                 "(TYPE = 'CSV', BINARY_FORMAT = 'UTF-8', PARSE_HEADER ="
                 f" {csv_format.include_header}, FIELD_OPTIONALLY_ENCLOSED_BY = '\"', NULL_IF ="
                 " (''), ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE,"
-                f" FIELD_DELIMITER='{csv_format.delimiter}')"
+                f" FIELD_DELIMITER='{csv_format.delimiter}', ENCODING='{csv_format.encoding}')"
             )
             # disable column match if headers are not provided
             if not csv_format.include_header:

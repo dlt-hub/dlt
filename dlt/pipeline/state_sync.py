@@ -100,12 +100,14 @@ def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
 
 def state_resource(state: TPipelineState, load_id: str) -> Tuple[DltResource, TPipelineStateDoc]:
     doc = state_doc(state, load_id)
+    state_table = pipeline_state_table()
     return (
         dlt.resource(
             [doc],
             name=PIPELINE_STATE_TABLE_NAME,
-            write_disposition="append",
-            columns=pipeline_state_table()["columns"],
+            write_disposition=state_table["write_disposition"],
+            file_format=state_table["file_format"],
+            columns=state_table["columns"],
         ),
         doc,
     )

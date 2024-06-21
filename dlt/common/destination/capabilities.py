@@ -11,7 +11,7 @@ from typing import (
     Union,
     get_args,
 )
-
+from dlt.common.typing import TLoaderFileFormat
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
@@ -24,12 +24,6 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
-# known loader file formats
-# jsonl - new line separated json documents
-# typed-jsonl - internal extract -> normalize format bases on jsonl
-# insert_values - insert SQL statements
-# sql - any sql statement
-TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 
 

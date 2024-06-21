@@ -106,6 +106,8 @@ TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
 TFileOrPath = Union[str, PathLike, IO[Any]]
 TSortOrder = Literal["asc", "desc"]
+TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
+"""known loader file formats"""
 
 
 class ConfigValueSentinel(NamedTuple):
@@ -256,6 +258,25 @@ def is_literal_type(hint: Type[Any]) -> bool:
         return is_literal_type(get_args(hint)[0])
 
     return False
+
+
+def get_literal_args(literal: Type[Any]) -> List[Any]:
+    """Recursively get arguments from nested Literal types and return an unified list."""
+    if not hasattr(literal, "__origin__") or literal.__origin__ is not Literal:
+        raise ValueError("Provided type is not a Literal")
+
+    unified_args = []
+
+    def _get_args(literal: Type[Any]) -> None:
+        for arg in get_args(literal):
+            if hasattr(arg, "__origin__") and arg.__origin__ is Literal:
+                _get_args(arg)
+            else:
+                unified_args.append(arg)
+
+    _get_args(literal)
+
+    return unified_args
 
 
 def is_newtype_type(t: Type[Any]) -> bool:

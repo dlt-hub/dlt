@@ -470,6 +470,61 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
     assert set(table.schema.names) == {"id", "name", "_dlt_load_id", "_dlt_id"}
 
 
+def test_resource_file_format() -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    def jsonl_data():
+        yield [
+            {
+                "id": 1,
+                "name": "item",
+                "description": "value",
+                "ordered_at": "2024-04-12",
+                "price": 128.4,
+            },
+            {
+                "id": 1,
+                "name": "item",
+                "description": "value with space",
+                "ordered_at": "2024-04-12",
+                "price": 128.4,
+            },
+        ]
+
+    # preferred file format will use destination preferred format
+    jsonl_preferred = dlt.resource(jsonl_data, file_format="preferred", name="jsonl_preferred")
+    assert jsonl_preferred.compute_table_schema()["file_format"] == "preferred"
+
+    jsonl_r = dlt.resource(jsonl_data, file_format="jsonl", name="jsonl_r")
+    assert jsonl_r.compute_table_schema()["file_format"] == "jsonl"
+
+    jsonl_pq = dlt.resource(jsonl_data, file_format="parquet", name="jsonl_pq")
+    assert jsonl_pq.compute_table_schema()["file_format"] == "parquet"
+
+    info = dlt.pipeline("example", destination="duckdb").run([jsonl_preferred, jsonl_r, jsonl_pq])
+    info.raise_on_failed_jobs()
+    # check file types on load jobs
+    load_jobs = {
+        job.job_file_info.table_name: job.job_file_info
+        for job in info.load_packages[0].jobs["completed_jobs"]
+    }
+    assert load_jobs["jsonl_r"].file_format == "jsonl"
+    assert load_jobs["jsonl_pq"].file_format == "parquet"
+    assert load_jobs["jsonl_preferred"].file_format == "insert_values"
+
+    # test not supported format
+    csv_r = dlt.resource(jsonl_data, file_format="csv", name="csv_r")
+    assert csv_r.compute_table_schema()["file_format"] == "csv"
+    info = dlt.pipeline("example", destination="duckdb").run(csv_r)
+    info.raise_on_failed_jobs()
+    # fallback to preferred
+    load_jobs = {
+        job.job_file_info.table_name: job.job_file_info
+        for job in info.load_packages[0].jobs["completed_jobs"]
+    }
+    assert load_jobs["csv_r"].file_format == "insert_values"
+
+
 def test_pick_matching_file_format(test_storage: FileStorage) -> None:
     from dlt.destinations import filesystem
 

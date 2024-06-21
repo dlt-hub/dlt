@@ -27,8 +27,10 @@ from dlt.common.data_writers.writers import (
     DataWriter,
     DataWriterMetrics,
     EMPTY_DATA_WRITER_METRICS,
+    ImportFileWriter,
     InsertValuesWriter,
     JsonlWriter,
+    create_import_spec,
     get_best_writer_spec,
     resolve_best_writer_spec,
     is_native_writer,
@@ -259,3 +261,14 @@ def test_get_best_writer() -> None:
     assert WRITER_SPECS[get_best_writer_spec("arrow", "insert_values")] == ArrowToInsertValuesWriter
     with pytest.raises(DataWriterNotFound):
         get_best_writer_spec("arrow", "tsv")  # type: ignore
+
+
+def test_import_file_writer() -> None:
+    spec = create_import_spec("jsonl", ["jsonl"])
+    assert spec.data_item_format == "file"
+    assert spec.file_format == "jsonl"
+    writer = DataWriter.writer_class_from_spec(spec)
+    assert writer is ImportFileWriter
+    w_ = writer(None)
+    with pytest.raises(NotImplementedError):
+        w_.write_header(None)
