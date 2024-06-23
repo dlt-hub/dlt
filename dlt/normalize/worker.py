@@ -122,17 +122,17 @@ def w_normalize_files(
                 )
 
             config_loader_file_format = config.loader_file_format
-            if table_schema.get("file_format"):
+            if file_format := table_schema.get("file_format"):
                 # resource has a file format defined so use it
-                if table_schema["file_format"] == "preferred":
+                if file_format == "preferred":
                     # use destination preferred
                     config_loader_file_format = items_preferred_file_format
                 else:
                     # use resource format
-                    config_loader_file_format = table_schema["file_format"]
+                    config_loader_file_format = file_format
                 logger.info(
-                    f"A file format for table {table_name} was specified in the resource so"
-                    f" {config_loader_file_format} format being used."
+                    f"A file format for table {table_name} was specified to {file_format} in the"
+                    f" resource so {config_loader_file_format} format being used."
                 )
 
             if config_loader_file_format and best_writer_spec is None:

@@ -174,8 +174,9 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
         if file_name.endswith("parquet"):
             source_format = (
-                "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE,"
-                " USE_VECTORIZED_SCANNER = TRUE)"
+                "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
+                # TODO: USE_VECTORIZED_SCANNER inserts null strings into VARIANT JSON
+                # " USE_VECTORIZED_SCANNER = TRUE)"
             )
         if file_name.endswith("csv"):
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL

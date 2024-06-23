@@ -30,8 +30,10 @@ def test_load_csv(
 ) -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
-    table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
+    # do not save state so the state job is not created
+    pipeline.config.restore_from_destination = False
 
+    table, shuffled_table, shuffled_removed_column = prepare_shuffled_tables()
     # convert to pylist when loading from objects, this will kick the csv-reader in
     if item_type == "object":
         table, shuffled_table, shuffled_removed_column = (
@@ -100,7 +102,9 @@ def test_custom_csv_no_header(
     assert len(jobs) == 2
     job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
     assert ".csv" in job_extensions
-    assert ".insert_values" in job_extensions
+    # we allow state to be saved to make sure it is not in csv format (which would broke)
+    # the loading. state is always saved in destination preferred format
+    assert pipeline.destination.capabilities().preferred_loader_file_format in job_extensions
 
 
 @pytest.mark.parametrize(

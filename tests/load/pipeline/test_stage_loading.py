@@ -65,12 +65,17 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         )
         == 4
     )
+    # pipeline state is loaded with preferred format, so allows (possibly) for two job formats
+    caps = pipeline.destination.capabilities()
+    # NOTE: preferred_staging_file_format goes first because here we test staged loading and
+    # default caps will be modified so preferred_staging_file_format is used as main
+    preferred_format = caps.preferred_staging_file_format or caps.preferred_loader_file_format
     assert (
         len(
             [
                 x
                 for x in package_info.jobs["completed_jobs"]
-                if x.job_file_info.file_format == destination_config.file_format
+                if x.job_file_info.file_format in (destination_config.file_format, preferred_format)
             ]
         )
         == 4

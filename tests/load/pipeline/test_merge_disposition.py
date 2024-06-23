@@ -321,6 +321,8 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
 )
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", dev_mode=True)
+    # do not save state to destination so jobs counting is easier
+    p.config.restore_from_destination = False
     github_data = github()
     # generate some complex types
     github_data.max_table_nesting = 2
