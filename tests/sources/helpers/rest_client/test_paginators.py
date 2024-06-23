@@ -12,7 +12,10 @@ from dlt.sources.helpers.rest_client.paginators import (
     JSONResponsePaginator,
 )
 
+from .conftest import assert_pagination
 
+
+@pytest.mark.usefixtures("mock_api_server")
 class TestHeaderLinkPaginator:
     def test_update_state_with_next(self):
         paginator = HeaderLinkPaginator()
@@ -28,6 +31,16 @@ class TestHeaderLinkPaginator:
         response.links = {}
         paginator.update_state(response)
         assert paginator.has_next_page is False
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_header_link",
+            paginator=HeaderLinkPaginator(),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
 
 
 class TestJSONResponsePaginator:
@@ -157,6 +170,18 @@ class TestJSONResponsePaginator:
         paginator.update_request(request)
         assert request.url == test_case["expected"]
 
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=JSONResponsePaginator(
+                next_url_path="next_page",
+            ),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
 
 class TestSinglePagePaginator:
     def test_update_state(self):
@@ -171,6 +196,16 @@ class TestSinglePagePaginator:
         response.links = {"next": {"url": "http://example.com/next"}}
         paginator.update_state(response)
         assert paginator.has_next_page is False
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=SinglePagePaginator(),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages, total_pages=1)
 
 
 class TestOffsetPaginator:
@@ -237,6 +272,16 @@ class TestOffsetPaginator:
         paginator.update_state(response)  # Offset 50 to 100
         assert paginator.current_value == 100
         assert paginator.has_next_page is False
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_offset_limit",
+            paginator=OffsetPaginator(offset=0, limit=10, total_path="total_records"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
 
 
 class TestPageNumberPaginator:
