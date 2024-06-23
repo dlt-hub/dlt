@@ -213,7 +213,7 @@ class ArrowIncremental(IncrementalTransform):
 
     def compute_unique_values_with_index(
         self, item: "TAnyArrowItem", unique_columns: List[str]
-    ) -> List[Tuple[int, str]]:
+    ) -> List[Tuple[Any, str]]:
         if not unique_columns:
             return []
         indices = item[self._dlt_index].to_pylist()
@@ -318,10 +318,9 @@ class ArrowIncremental(IncrementalTransform):
                     for i, uq_val in unique_values_index
                     if uq_val in self.start_unique_hashes
                 ]
-                # find rows with unique ids that were stored from previous run
-                remove_idx = pa.array(i for i, _ in unique_values_index)
-                # Filter the table
-                if remove_idx:
+                if len(unique_values_index) > 0:
+                    # find rows with unique ids that were stored from previous run
+                    remove_idx = pa.array(i for i, _ in unique_values_index)
                     tbl = tbl.filter(
                         pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
                     )
