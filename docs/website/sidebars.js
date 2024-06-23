@@ -161,16 +161,15 @@ const sidebars = {
         'general-usage/schema-evolution',
         {
           type: 'category',
-          label: 'Configuration',
-          link: {
-            type: 'generated-index',
-            title: 'Configuration',
-            slug: 'general-usage/credentials',
+          label: 'Configuration and secrets',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
           },
           items: [
-            'general-usage/credentials/configuration',
-            'general-usage/credentials/config_providers',
-            'general-usage/credentials/config_specs',
+            'general-usage/credentials/how_to_set_up_credentials',
+            'general-usage/credentials/using_config_in_code',
+            'general-usage/credentials/prebuilt_dlt_credential_types',
           ]
         },
         'build-a-pipeline-tutorial',

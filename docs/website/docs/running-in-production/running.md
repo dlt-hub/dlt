@@ -119,7 +119,7 @@ truncate_staging_dataset=true
 ## Using slack to send messages
 
 `dlt` provides basic support for sending slack messages. You can configure Slack incoming hook via
-[secrets.toml or environment variables](../general-usage/credentials/config_providers). Please note that **Slack
+[secrets.toml or environment variables](../general-usage/credentials/how_to_set_up_credentials). Please note that **Slack
 incoming hook is considered a secret and will be immediately blocked when pushed to github
 repository**. In `secrets.toml`:
 

@@ -8,7 +8,7 @@ keywords: [how to, create a pipeline, rest client]
 
 This guide walks you through creating a pipeline that uses our [REST API Client](../general-usage/http/rest-client)
 to connect to [DuckDB](../dlt-ecosystem/destinations/duckdb).
-:::tip 
+:::tip
 We're using DuckDB as a destination here, but you can adapt the steps to any [source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/) and [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/) by
 using the [command](../reference/command-line-interface#dlt-init) `dlt init <source> <destination>` and tweaking the pipeline accordingly.
 :::
@@ -63,7 +63,7 @@ api_secret_key = '<api key value>'
 This token will be used by `github_api_source()` to authenticate requests.
 
 The **secret name** corresponds to the **argument name** in the source function.
-Below `api_secret_key` [will get its value](../general-usage/credentials/configuration#allow-dlt-to-pass-the-config-and-secrets-automatically)
+Below `api_secret_key` [will get its value](../general-usage/credentials/using_config_in_code)
 from `secrets.toml` when `github_api_source()` is called.
 
 ```py
