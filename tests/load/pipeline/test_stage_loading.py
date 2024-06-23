@@ -8,15 +8,13 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TDataType
 
 from tests.load.pipeline.test_merge_disposition import github
-from tests.pipeline.utils import load_table_counts
-from tests.pipeline.utils import assert_load_info
+from tests.pipeline.utils import load_table_counts, assert_load_info
 from tests.load.utils import (
-    TABLE_ROW_ALL_DATA_TYPES,
-    TABLE_UPDATE_COLUMNS_SCHEMA,
+    destinations_configs,
+    DestinationTestConfiguration,
     assert_all_data_types_row,
 )
 from tests.cases import table_update_and_row
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
 @dlt.resource(

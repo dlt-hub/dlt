@@ -17,12 +17,11 @@ from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import arrow_table_all_data_types
-from tests.pipeline.utils import assert_load_info, load_table_counts
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.pipeline.utils import load_tables_to_dicts
+from tests.pipeline.utils import load_tables_to_dicts, assert_load_info, load_table_counts
 
 from tests.utils import TPythonTableFormat
 

@@ -22,8 +22,12 @@ from dlt.destinations.typing import TNativeConn
 from dlt.common.time import ensure_pendulum_datetime
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
-from tests.load.utils import yield_client_with_storage, prepare_table, AWS_BUCKET
-from tests.load.pipeline.utils import destinations_configs
+from tests.load.utils import (
+    yield_client_with_storage,
+    prepare_table,
+    AWS_BUCKET,
+    destinations_configs,
+)
 
 
 @pytest.fixture

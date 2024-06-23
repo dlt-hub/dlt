@@ -4,12 +4,12 @@ import dlt, os, pytest
 from dlt.common.utils import uniq_id
 
 from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     drop_active_pipeline_data,
     destinations_configs,
     DestinationTestConfiguration,
-    REPLACE_STRATEGIES,
 )
+from tests.load.pipeline.utils import REPLACE_STRATEGIES
 
 
 @pytest.mark.essential

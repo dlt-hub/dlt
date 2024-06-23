@@ -5,10 +5,7 @@ import pytest
 import dlt
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
-from tests.load.pipeline.utils import (
-    destinations_configs,
-    DestinationTestConfiguration,
-)
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import load_table_counts
 
 

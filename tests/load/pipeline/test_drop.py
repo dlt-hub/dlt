@@ -17,7 +17,7 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
 
 def _attach(pipeline: Pipeline) -> Pipeline:

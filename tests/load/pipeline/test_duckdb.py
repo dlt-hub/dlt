@@ -7,11 +7,8 @@ from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import airtable_emojis, load_table_counts
-from tests.load.pipeline.utils import (
-    destinations_configs,
-    DestinationTestConfiguration,
-)
 
 
 @pytest.mark.parametrize(

@@ -27,7 +27,7 @@ from dlt.pipeline.exceptions import (
     PipelineStepFailed,
 )
 
-from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
+from tests.utils import TEST_STORAGE_ROOT, data_to_item_format
 from tests.pipeline.utils import (
     assert_data_table_counts,
     assert_load_info,
@@ -41,12 +41,11 @@ from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
     delete_dataset,
-)
-from tests.load.pipeline.utils import (
     drop_active_pipeline_data,
-    REPLACE_STRATEGIES,
+    destinations_configs,
+    DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.pipeline.utils import REPLACE_STRATEGIES
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

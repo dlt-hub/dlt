@@ -42,8 +42,9 @@ from tests.load.utils import (
     write_dataset,
     prepare_table,
     normalize_storage_table_cols,
+    destinations_configs,
+    DestinationTestConfiguration,
 )
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
 @pytest.fixture

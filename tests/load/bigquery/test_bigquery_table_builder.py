@@ -30,12 +30,14 @@ from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfigura
 
 from dlt.extract import DltResource
 
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     drop_active_pipeline_data,
+    TABLE_UPDATE,
+    sequence_generator,
+    empty_schema,
 )
-from tests.load.utils import TABLE_UPDATE, sequence_generator, empty_schema
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

@@ -5,4 +5,4 @@ from tests.utils import (
     duckdb_pipeline_location,
 )
 from tests.pipeline.utils import drop_dataset_from_env
-from tests.load.pipeline.utils import drop_pipeline
+from tests.load.utils import drop_pipeline

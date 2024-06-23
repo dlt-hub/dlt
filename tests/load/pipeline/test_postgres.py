@@ -6,7 +6,7 @@ import pytest
 
 from dlt.common.utils import uniq_id
 
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
 from tests.utils import TestDataItemFormat
 

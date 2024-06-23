@@ -18,9 +18,12 @@ from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.load.utils import normalize_storage_table_cols
 from tests.pipeline.utils import assert_load_info, load_table_counts, select_data
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    normalize_storage_table_cols,
+    destinations_configs,
+    DestinationTestConfiguration,
+)
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts

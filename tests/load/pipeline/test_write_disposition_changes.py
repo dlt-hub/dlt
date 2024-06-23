@@ -1,7 +1,7 @@
 import pytest
 import dlt
 from typing import Any
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )

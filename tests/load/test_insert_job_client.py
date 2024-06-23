@@ -11,8 +11,12 @@ from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from tests.utils import TEST_STORAGE_ROOT, skipifpypy
-from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
-from tests.load.pipeline.utils import destinations_configs
+from tests.load.utils import (
+    expect_load_file,
+    prepare_table,
+    yield_client_with_storage,
+    destinations_configs,
+)
 
 DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "mssql", "synapse", "motherduck"]
 

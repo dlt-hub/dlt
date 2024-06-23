@@ -25,12 +25,12 @@ from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
-from tests.load.pipeline.utils import drop_active_pipeline_data
 from tests.pipeline.utils import assert_query_data
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     get_normalized_dataset_name,
+    drop_active_pipeline_data,
 )
 
 

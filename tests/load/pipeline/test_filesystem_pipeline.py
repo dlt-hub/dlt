@@ -20,7 +20,7 @@ from tests.cases import arrow_table_all_data_types, table_update_and_row, assert
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )

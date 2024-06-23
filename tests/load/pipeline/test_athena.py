@@ -10,14 +10,14 @@ from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
 from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.adapters import athena_partition, athena_adapter
-from dlt.destinations.fs_client import FSClientBase
 
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.utils import (
     TEST_FILE_LAYOUTS,
     FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
     FILE_LAYOUT_CLASSIC,
     FILE_LAYOUT_TABLE_NOT_FIRST,
+    destinations_configs,
+    DestinationTestConfiguration,
 )
 
 # mark all tests as essential, do not remove

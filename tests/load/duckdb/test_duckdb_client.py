@@ -15,7 +15,6 @@ from dlt.destinations import duckdb
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.pipeline.utils import drop_pipeline
 from tests.pipeline.utils import assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
 

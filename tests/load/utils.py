@@ -24,6 +24,7 @@ from dlt.common.destination.reference import (
 from dlt.common.destination import TLoaderFileFormat, Destination
 from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
+from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
@@ -31,6 +32,7 @@ from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStora
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
+from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -487,6 +489,59 @@ def destinations_configs(
         ]
 
     return destination_configs
+
+
+@pytest.fixture(autouse=True)
+def drop_pipeline(request) -> Iterator[None]:
+    yield
+    if "no_load" in request.keywords:
+        return
+    try:
+        drop_active_pipeline_data()
+    except CantExtractTablePrefix:
+        # for some tests we test that this exception is raised,
+        # so we suppress it here
+        pass
+
+
+def drop_active_pipeline_data() -> None:
+    """Drops all the datasets for currently active pipeline, wipes the working folder and then deactivated it."""
+    if Container()[PipelineContext].is_active():
+        try:
+            # take existing pipeline
+            p = dlt.pipeline()
+
+            def _drop_dataset(schema_name: str) -> None:
+                with p.destination_client(schema_name) as client:
+                    try:
+                        client.drop_storage()
+                        print("dropped")
+                    except Exception as exc:
+                        print(exc)
+                    if isinstance(client, WithStagingDataset):
+                        with client.with_staging_dataset():
+                            try:
+                                client.drop_storage()
+                                print("staging dropped")
+                            except Exception as exc:
+                                print(exc)
+
+            # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
+            # take all schemas and if destination was set
+            if p.destination:
+                if p.config.use_single_dataset:
+                    # drop just the dataset for default schema
+                    if p.default_schema_name:
+                        _drop_dataset(p.default_schema_name)
+                else:
+                    # for each schema, drop the dataset
+                    for schema_name in p.schema_names:
+                        _drop_dataset(schema_name)
+
+            # p._wipe_working_folder()
+        finally:
+            # always deactivate context, working directory will be wiped when the next test starts
+            Container()[PipelineContext].deactivate()
 
 
 @pytest.fixture

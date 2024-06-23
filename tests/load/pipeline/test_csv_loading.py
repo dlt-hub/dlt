@@ -8,7 +8,6 @@ from dlt.common.schema.typing import TColumnSchema
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 from tests.cases import arrow_table_all_data_types, prepare_shuffled_tables
 from tests.pipeline.utils import (
     assert_data_table_counts,
@@ -16,6 +15,7 @@ from tests.pipeline.utils import (
     assert_only_table_columns,
     load_tables_to_dicts,
 )
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.utils import TestDataItemFormat
 
 
@@ -104,7 +104,8 @@ def test_custom_csv_no_header(
     assert ".csv" in job_extensions
     # we allow state to be saved to make sure it is not in csv format (which would broke)
     # the loading. state is always saved in destination preferred format
-    assert pipeline.destination.capabilities().preferred_loader_file_format in job_extensions
+    preferred_ext = "." + pipeline.destination.capabilities().preferred_loader_file_format
+    assert preferred_ext in job_extensions
 
 
 @pytest.mark.parametrize(
