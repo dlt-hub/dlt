@@ -561,8 +561,33 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
     def iter_df(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
-    ) -> Generator[DataFrame, None, None]: ...
+    ) -> Generator[DataFrame, None, None]:
+        """Provide dataframes via duckdb"""
+        import duckdb
+
+        duckdb.register_filesystem(self.fs_client)
+
+        # create in memory table, for now we read all available files
+        db = duckdb.connect(":memory:")
+        files = self.list_table_files(table)
+        protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
+        files_string = ",".join([f"'{protocol}{f}'" for f in files])
+        db.sql(f"CREATE TABLE {table} AS SELECT * FROM read_json([{files_string}]);")
+
+        # yield in batches
+        offset = 0
+        while True:
+            df = db.sql(f"SELECT * FROM {table} OFFSET {offset} LIMIT {batch_size}").df()
+            if len(df.index) == 0:
+                break
+            yield df
+            offset += batch_size
 
     def iter_arrow(
         self, *, sql: str = None, table: str = None, batch_size: int = 1000
-    ) -> Generator[ArrowTable, None, None]: ...
+    ) -> Generator[ArrowTable, None, None]:
+        """Default implementation converts df to arrow"""
+
+        # TODO: duckdb supports iterating in batches natively..
+        for df in self.iter_df(sql=sql, table=table, batch_size=batch_size):
+            yield ArrowTable.from_pandas(df)

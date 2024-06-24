@@ -37,7 +37,7 @@ class Dataset:
             yield client
             return
 
-        raise Exception("Destination does not support data access")
+        raise Exception("Destination does not support data access.")
 
     def df(self, *, sql: str = None, table: str = None, batch_size: int = 1000) -> DataFrame:
         """Get first batch of table as dataframe"""
