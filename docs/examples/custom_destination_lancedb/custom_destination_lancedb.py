@@ -15,8 +15,9 @@ You can get a Spotify client ID and secret from https://developer.spotify.com/.
 
 We'll learn how to:
 - Use the [custom destination](../dlt-ecosystem/destinations/destination.md)
-- Delegate the embeddings to LanceDB
+- Delegate the embeddings to LanceDB using OpenAI Embeddings
 """
+
 __source_name__ = "spotify"
 
 import datetime  # noqa: I251
@@ -26,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import lancedb  # type: ignore
-from lancedb.embeddings.registry import EmbeddingFunctionRegistry  # type: ignore
+from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
@@ -36,11 +37,9 @@ from dlt.common.typing import TDataItems, TSecretStrValue
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
-
-os.environ["COHERE_API_KEY"] = dlt.secrets.get("destination.cohere.api_key")
-
-cohere = EmbeddingFunctionRegistry
-func = EmbeddingFunctionRegistry.get_instance().get("cohere").create(max_retries=1)
+# access secrets to get openai key and instantiate embedding function
+openai_api_key = dlt.secrets.get("destination.lancedb.credentials.embedding_model_provider_api_key")
+func = get_registry().get("openai").create(name="text-embedding-3-small", api_key=openai_api_key)
 
 
 class EpisodeSchema(LanceModel):
@@ -113,6 +112,12 @@ def spotify_shows(
 def lancedb_destination(items: TDataItems, table: TTableSchema) -> None:
     db_path = Path(dlt.config.get("lancedb.db_path"))
     db = lancedb.connect(db_path)
+
+    # since we are embedding the description field, we need to do some additional cleaning
+    # for openai. Openai will not accept empty strings or input with more than 8191 tokens
+    for item in items:
+        item["description"] = item.get("description") or "No Description"
+        item["description"] = item["description"][0:8000]
     try:
         tbl = db.open_table(table["name"])
     except FileNotFoundError:
