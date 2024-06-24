@@ -82,6 +82,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/mux',
             'dlt-ecosystem/verified-sources/notion',
             'dlt-ecosystem/verified-sources/personio',
+            'dlt-ecosystem/verified-sources/pg_replication',
             'dlt-ecosystem/verified-sources/pipedrive',
             'dlt-ecosystem/verified-sources/rest_api',
             'dlt-ecosystem/verified-sources/openapi-generator',
