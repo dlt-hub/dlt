@@ -491,7 +491,7 @@ You can emit columns as Pydantic model and use dynamic hints (ie. lambda for tab
 ### Import external files
 You can import external files ie. `csv`, `parquet` and `jsonl` by yielding items marked with `with_file_import`, optionally passing table schema corresponding
 the the imported file. `dlt` will not read, parse and normalize any names (ie. `csv` or `arrow` headers) and will attempt to copy the file into the destination as is.
-```python
+```py
 import os
 import dlt
 
@@ -595,7 +595,7 @@ pipeline.run([generate_rows(10), generate_rows(20)])
 
 ### Pick loader file format for a particular resource
 You can request a particular loader file format to be used for a resource.
-```python
+```py
 @dlt.resource(file_format="parquet")
 def generate_rows(nr):
 	for i in range(nr):

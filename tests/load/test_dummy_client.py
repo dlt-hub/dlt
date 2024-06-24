@@ -31,7 +31,6 @@ from tests.utils import (
     clean_test_storage,
     init_test_logging,
     TEST_DICT_CONFIG_PROVIDER,
-    preserve_environ,
 )
 from tests.load.utils import prepare_load_package
 from tests.utils import skip_if_not_active, TEST_STORAGE_ROOT

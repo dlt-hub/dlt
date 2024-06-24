@@ -653,8 +653,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     # test accessors for state
     s1 = c1.get_stored_state("p1")
     s2 = c1.get_stored_state("p2")
-    assert s1.dlt_load_id == load_id_1_2  # second load
-    assert s2.dlt_load_id == load_id_2_1  # first load
+    assert s1._dlt_load_id == load_id_1_2  # second load
+    assert s2._dlt_load_id == load_id_2_1  # first load
     assert s1_old.version != s1.version
     assert s2_old.version == s2.version
 

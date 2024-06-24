@@ -22,7 +22,7 @@ from dlt.destinations.impl.filesystem.configuration import (
 )
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
-from tests.utils import preserve_environ, autouse_test_storage
+from tests.utils import autouse_test_storage
 from .utils import self_signed_cert
 from tests.common.configuration.utils import environment
 

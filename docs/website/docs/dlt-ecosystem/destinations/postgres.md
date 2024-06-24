@@ -113,7 +113,7 @@ delimiter="|"
 include_header=false
 ```
 or
-```python
+```py
 from dlt.destinations import postgres
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 

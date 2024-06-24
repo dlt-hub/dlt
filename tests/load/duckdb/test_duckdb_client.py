@@ -16,7 +16,7 @@ from dlt.destinations import duckdb
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.pipeline.utils import assert_table
-from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
+from tests.utils import patch_home_dir, autouse_test_storage, TEST_STORAGE_ROOT
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -56,7 +56,7 @@ def test_duckdb_open_conn_default() -> None:
         delete_quack_db()
 
 
-def test_duckdb_in_memory_mode_via_factory(preserve_environ):
+def test_duckdb_in_memory_mode_via_factory():
     delete_quack_db()
     try:
         import duckdb

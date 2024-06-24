@@ -279,7 +279,7 @@ include_header=false
 on_error_continue=true
 ```
 or
-```python
+```py
 from dlt.destinations import snowflake
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 

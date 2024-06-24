@@ -19,7 +19,6 @@ from tests.cases import (
 )
 from tests.pipeline.utils import assert_only_table_columns, load_tables_to_dicts
 from tests.utils import (
-    preserve_environ,
     TPythonTableFormat,
     arrow_item_from_pandas,
     arrow_item_from_table,

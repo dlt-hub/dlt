@@ -398,7 +398,7 @@ def test_restore_state_pipeline(
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     # now attach locally
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     assert p.dataset_name == dataset_name
     assert p.default_schema_name is None
     # restore
@@ -502,7 +502,7 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_labels in schema.tables
 
     # re-attach the pipeline
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     p.run(
         ["C", "D", "E"], table_name="annotations", loader_file_format=destination_config.file_format
     )
@@ -639,7 +639,9 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     prod_state = production_p.state
     assert p.state["_state_version"] == prod_state["_state_version"] - 1
     # re-attach production and sync
-    ra_production_p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
+    ra_production_p = destination_config.attach_pipeline(
+        pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT
+    )
     ra_production_p.sync_destination()
     # state didn't change because production is ahead of local with its version
     # nevertheless this is potentially dangerous situation 🤷
@@ -712,7 +714,7 @@ def test_reset_pipeline_on_deleted_dataset(
     assert p.dataset_name == dataset_name
 
     print("---> no state sync last attach")
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     # this will prevent from creating of _dlt_pipeline_state
     p.config.restore_from_destination = False
     data4 = some_data("state4")
@@ -729,7 +731,7 @@ def test_reset_pipeline_on_deleted_dataset(
     assert p.state["_local"]["first_run"] is False
     # attach again to make the `run` method check the destination
     print("---> last attach")
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     p.config.restore_from_destination = True
     data5 = some_data("state4")
     data5.apply_hints(table_name="state1_data5")

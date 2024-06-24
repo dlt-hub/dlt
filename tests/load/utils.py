@@ -128,6 +128,7 @@ class DestinationTestConfiguration:
     force_iceberg: bool = False
     supports_dbt: bool = True
     disable_compression: bool = False
+    dev_mode: bool = False
 
     @property
     def name(self) -> str:
@@ -142,15 +143,26 @@ class DestinationTestConfiguration:
             name += f"-{self.extra_info}"
         return name
 
+    @property
+    def factory_kwargs(self) -> Dict[str, Any]:
+        return {
+            k: getattr(self, k)
+            for k in [
+                "bucket_url",
+                "stage_name",
+                "staging_iam_role",
+                "staging_use_msi",
+                "stage_name",
+            ]
+            if getattr(self, k, None) is not None
+        }
+
     def setup(self) -> None:
         """Sets up environment variables for this destination configuration"""
-        os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = self.bucket_url or ""
-        os.environ["DESTINATION__STAGE_NAME"] = self.stage_name or ""
-        os.environ["DESTINATION__STAGING_IAM_ROLE"] = self.staging_iam_role or ""
-        os.environ["DESTINATION__STAGING_USE_MSI"] = str(self.staging_use_msi) or ""
-        os.environ["DESTINATION__FORCE_ICEBERG"] = str(self.force_iceberg) or ""
+        for k, v in self.factory_kwargs.items():
+            os.environ[f"DESTINATION__{k.upper()}"] = str(v)
 
-        """For the filesystem destinations we disable compression to make analyzing the result easier"""
+        # For the filesystem destinations we disable compression to make analyzing the result easier
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
@@ -158,6 +170,7 @@ class DestinationTestConfiguration:
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
+        self.dev_mode = dev_mode
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
@@ -167,6 +180,13 @@ class DestinationTestConfiguration:
             dev_mode=dev_mode,
             **kwargs,
         )
+        return pipeline
+
+    def attach_pipeline(self, pipeline_name: str, dev_mode: bool = None, **kwargs) -> dlt.Pipeline:
+        """Attach to existing pipeline keeping the dev_mode"""
+        # remember dev_mode from setup_pipeline
+        dev_mode = dev_mode if dev_mode is not None else self.dev_mode
+        pipeline = dlt.attach(pipeline_name, dev_mode=dev_mode, **kwargs)
         return pipeline
 
 
@@ -492,7 +512,8 @@ def destinations_configs(
 
 
 @pytest.fixture(autouse=True)
-def drop_pipeline(request) -> Iterator[None]:
+def drop_pipeline(request, preserve_environ) -> Iterator[None]:
+    # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
     yield
     if "no_load" in request.keywords:
         return
