@@ -379,7 +379,6 @@ class QdrantClient(JobClientBase, WithStateSync):
                         ),
                     )
                     if load_records.count > 0:
-                        state["dlt_load_id"] = state.pop(p_dlt_load_id)
                         return StateInfo(**state)
             except Exception:
                 return None

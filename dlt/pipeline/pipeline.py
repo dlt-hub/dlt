@@ -1622,7 +1622,7 @@ class Pipeline(SupportsPipeline):
         extract: Extract = None,
         load_package_state_update: Optional[Dict[str, Any]] = None,
         schema: Optional[Schema] = None,
-    ) -> TPipelineStateDoc:
+    ) -> None:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
@@ -1657,8 +1657,6 @@ class Pipeline(SupportsPipeline):
             # commit only if we created storage
             if not extract:
                 extract_.commit_packages()
-            return doc
-        return None
 
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""

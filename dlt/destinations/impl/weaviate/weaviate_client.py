@@ -546,7 +546,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 )
                 # if there is a load for this state which was successful, return the state
                 if len(load_records):
-                    state["dlt_load_id"] = state.pop(p_dlt_load_id)
                     return StateInfo(**state)
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:

@@ -1,5 +1,4 @@
 from subprocess import CalledProcessError
-import sys
 import pytest
 import tempfile
 import shutil
@@ -20,14 +19,15 @@ from dlt.common.schema.typing import (
     TStoredSchema,
 )
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.destinations import duckdb
+from dlt.destinations import duckdb, filesystem
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
+from tests.pipeline.utils import load_table_counts
 from tests.utils import TEST_STORAGE_ROOT, test_storage
 
-if sys.version_info >= (3, 12):
-    pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
+# if sys.version_info >= (3, 12):
+#     pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
 
 
 GITHUB_PIPELINE_NAME = "dlt_github_pipeline"
@@ -52,7 +52,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     # load 20 issues
                     print(
                         venv.run_script(
-                            "../tests/pipeline/cases/github_pipeline/github_pipeline.py", "20"
+                            "../tests/pipeline/cases/github_pipeline/github_pipeline.py",
+                            "duckdb",
+                            "20",
                         )
                     )
                     # load schema and check _dlt_loads definition
@@ -107,7 +109,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 try:
                     print(
                         venv.run_script(
-                            "../tests/pipeline/cases/github_pipeline/github_pipeline.py"
+                            "../tests/pipeline/cases/github_pipeline/github_pipeline.py", "duckdb"
                         )
                     )
                 except CalledProcessError as cpe:
@@ -160,23 +162,82 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     assert rows[1][7] == state_dict["_version_hash"]
 
                 # attach to existing pipeline
-                pipeline = dlt.attach(GITHUB_PIPELINE_NAME, credentials=duckdb_cfg.credentials)
-                created_at_value = pipeline.state["sources"]["github"]["resources"]["load_issues"][
-                    "incremental"
-                ]["created_at"]["last_value"]
-                assert isinstance(created_at_value, pendulum.DateTime)
-                assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
-                pipeline = pipeline.drop()
-                # print(pipeline.working_dir)
-                assert pipeline.dataset_name == GITHUB_DATASET
-                assert pipeline.default_schema_name is None
-                # sync from destination
-                pipeline.sync_destination()
-                # print(pipeline.working_dir)
-                # we have updated schema
-                assert pipeline.default_schema.ENGINE_VERSION == 9
-                # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
-                assert pipeline.default_schema.stored_version_hash == github_schema["version_hash"]
+                pipeline = dlt.attach(
+                    GITHUB_PIPELINE_NAME, destination=duckdb(credentials=duckdb_cfg.credentials)
+                )
+                assert_github_pipeline_end_state(pipeline, github_schema, 2)
+
+
+def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
+    shutil.copytree("tests/pipeline/cases/github_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    # execute in test storage
+    with set_working_dir(TEST_STORAGE_ROOT):
+        # store dlt data in test storage (like patch_home_dir)
+        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+            # create virtual env with (0.4.9) where filesystem started to store state
+            with Venv.create(tempfile.mkdtemp(), ["dlt==0.4.9"]) as venv:
+                try:
+                    print(venv.run_script("github_pipeline.py", "filesystem", "20"))
+                except CalledProcessError as cpe:
+                    print(f"script stdout: {cpe.stdout}")
+                    print(f"script stderr: {cpe.stderr}")
+                    raise
+            # load all issues
+            venv = Venv.restore_current()
+            try:
+                print(venv.run_script("github_pipeline.py", "filesystem"))
+            except CalledProcessError as cpe:
+                print(f"script stdout: {cpe.stdout}")
+                print(f"script stderr: {cpe.stderr}")
+                raise
+            # hash hash in schema
+            github_schema = json.loads(
+                test_storage.load(
+                    f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/schemas/github.schema.json"
+                )
+            )
+            # attach to existing pipeline
+            pipeline = dlt.attach(GITHUB_PIPELINE_NAME, destination=filesystem("_storage/data"))
+            # assert end state
+            assert_github_pipeline_end_state(pipeline, github_schema, 2)
+            # load new state
+            fs_client = pipeline._fs_client()
+            state_files = sorted(fs_client.list_table_files("_dlt_pipeline_state"))
+            # first file is in old format
+            state_1 = json.loads(fs_client.read_text(state_files[0]))
+            assert "dlt_load_id" in state_1
+            # seconds is new
+            state_2 = json.loads(fs_client.read_text(state_files[1]))
+            assert "_dlt_load_id" in state_2
+
+
+def assert_github_pipeline_end_state(
+    pipeline: dlt.Pipeline, orig_schema: TStoredSchema, schema_updates: int
+) -> None:
+    # get tables counts
+    table_counts = load_table_counts(pipeline, *pipeline.default_schema.data_table_names())
+    assert table_counts == {"issues": 100, "issues__assignees": 31, "issues__labels": 34}
+    dlt_counts = load_table_counts(pipeline, *pipeline.default_schema.dlt_table_names())
+    assert dlt_counts == {"_dlt_version": schema_updates, "_dlt_loads": 2, "_dlt_pipeline_state": 2}
+
+    # check state
+    created_at_value = pipeline.state["sources"]["github"]["resources"]["load_issues"][
+        "incremental"
+    ]["created_at"]["last_value"]
+    assert isinstance(created_at_value, pendulum.DateTime)
+    assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
+    pipeline = pipeline.drop()
+    # print(pipeline.working_dir)
+    assert pipeline.dataset_name == GITHUB_DATASET
+    assert pipeline.default_schema_name is None
+    # sync from destination
+    pipeline.sync_destination()
+    # print(pipeline.working_dir)
+    # we have updated schema
+    assert pipeline.default_schema.ENGINE_VERSION == 9
+    # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
+    assert pipeline.default_schema.stored_version_hash == orig_schema["version_hash"]
 
 
 def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
@@ -201,7 +262,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                     )
                     print(
                         venv.run_script(
-                            "../tests/pipeline/cases/github_pipeline/github_normalize.py",
+                            "../tests/pipeline/cases/github_pipeline/github_normalize.py"
                         )
                     )
                 # switch to current version and make sure the load package loads and schema migrates

@@ -409,7 +409,15 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             row = cur.fetchone()
         if not row:
             return None
-        return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]), row[5])
+        # NOTE: we request order of columns in SELECT statement which corresponds to StateInfo
+        return StateInfo(
+            version=row[0],
+            engine_version=row[1],
+            pipeline_name=row[2],
+            state=row[3],
+            created_at=pendulum.instance(row[4]),
+            _dlt_load_id=row[5],
+        )
 
     def _norm_and_escape_columns(self, *columns: str) -> Iterator[str]:
         return map(

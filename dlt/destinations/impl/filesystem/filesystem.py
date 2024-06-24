@@ -12,7 +12,7 @@ from dlt.common import logger, time, json, pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
-from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName, TPipelineStateDoc
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -450,8 +450,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         # Load compressed state from destination
         if selected_path:
-            state_json = json.loads(self.fs_client.read_text(selected_path))
-            state_json.pop("version_hash")
+            state_json: TPipelineStateDoc = json.loads(self.fs_client.read_text(selected_path))
+            # we had dlt_load_id stored until version 0.5 and since we do not have any version control
+            # we always migrate
+            if load_id := state_json.pop("dlt_load_id", None):  # type: ignore[typeddict-item]
+                state_json["_dlt_load_id"] = load_id
             return StateInfo(**state_json)
 
         return None

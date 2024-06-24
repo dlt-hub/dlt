@@ -42,16 +42,13 @@ from dlt.common.schema.typing import (
     TSchemaContract,
     TTableFormat,
 )
-from dlt.extract.hints import make_hints
-from dlt.extract.utils import (
-    simulate_func_call,
-    wrap_compat_transformer,
-    wrap_resource_gen,
-)
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
+
+from dlt.extract.hints import make_hints
+from dlt.extract.utils import simulate_func_call
 from dlt.extract.exceptions import (
     CurrentSourceNotAvailable,
     DynamicNameNotStandaloneResource,
@@ -65,8 +62,6 @@ from dlt.extract.exceptions import (
     SourceNotAFunction,
     CurrentSourceSchemaNotAvailable,
 )
-from dlt.extract.incremental import IncrementalResourceWrapper
-
 from dlt.extract.items import TTableHintTemplate
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource, TUnboundDltResource, TDltResourceImpl

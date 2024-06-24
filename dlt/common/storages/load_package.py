@@ -67,9 +67,9 @@ class TPipelineStateDoc(TypedDict, total=False):
     engine_version: int
     pipeline_name: str
     state: str
-    version_hash: str
     created_at: datetime.datetime
-    dlt_load_id: NotRequired[str]
+    version_hash: str
+    _dlt_load_id: NotRequired[str]
 
 
 class TLoadPackageState(TVersionedState, total=False):

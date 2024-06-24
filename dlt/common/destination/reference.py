@@ -45,7 +45,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.storages.load_package import LoadJobInfo
+from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -64,13 +64,23 @@ class StorageSchemaInfo(NamedTuple):
     schema: str
 
 
-class StateInfo(NamedTuple):
+@dataclasses.dataclass
+class StateInfo:
     version: int
     engine_version: int
     pipeline_name: str
     state: str
     created_at: datetime.datetime
-    dlt_load_id: str
+    version_hash: Optional[str] = None
+    _dlt_load_id: Optional[str] = None
+
+    def as_doc(self) -> TPipelineStateDoc:
+        doc: TPipelineStateDoc = dataclasses.asdict(self)  # type: ignore[assignment]
+        if self._dlt_load_id is None:
+            doc.pop("_dlt_load_id")
+        if self.version_hash is None:
+            doc.pop("version_hash")
+        return doc
 
 
 @configspec

@@ -85,17 +85,16 @@ def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     state = copy(state)
     state.pop("_local")
     state_str = compress_state(state)
-    doc: TPipelineStateDoc = {
-        "version": state["_state_version"],
-        "engine_version": state["_state_engine_version"],
-        "pipeline_name": state["pipeline_name"],
-        "state": state_str,
-        "created_at": pendulum.now(),
-        "version_hash": state["_version_hash"],
-    }
-    if load_id:
-        doc["dlt_load_id"] = load_id
-    return doc
+    info = StateInfo(
+        version=state["_state_version"],
+        engine_version=state["_state_engine_version"],
+        pipeline_name=state["pipeline_name"],
+        state=state_str,
+        created_at=pendulum.now(),
+        version_hash=state["_version_hash"],
+        _dlt_load_id=load_id,
+    )
+    return info.as_doc()
 
 
 def state_resource(state: TPipelineState, load_id: str) -> Tuple[DltResource, TPipelineStateDoc]:
