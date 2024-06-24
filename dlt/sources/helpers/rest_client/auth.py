@@ -1,17 +1,18 @@
-from base64 import b64encode
-import dataclasses
 import math
+import dataclasses
+from abc import abstractmethod
+from base64 import b64encode
 from typing import (
-    List,
+    TYPE_CHECKING,
+    Any,
     Dict,
     Final,
+    Iterable,
+    List,
     Literal,
     Optional,
     Union,
-    Any,
     cast,
-    Iterable,
-    TYPE_CHECKING,
 )
 from typing_extensions import Annotated
 from requests.auth import AuthBase
@@ -24,7 +25,6 @@ from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import TSecretStrValue
-
 from dlt.sources.helpers import requests
 
 if TYPE_CHECKING:
@@ -145,6 +145,76 @@ class OAuth2AuthBase(AuthConfigBase):
 
 
 @configspec
+class OAuth2ClientCredentials(OAuth2AuthBase):
+    """
+    This class implements OAuth2 Client Credentials flow where the autorization service
+    gives permission without the end user approving.
+    This is often used for machine-to-machine authorization.
+    The client sends its client ID and client secret to the authorization service which replies
+    with a temporary access token.
+    With the access token, the client can access resource services.
+    """
+
+    def __init__(
+        self,
+        access_token_url: TSecretStrValue,
+        client_id: TSecretStrValue,
+        client_secret: TSecretStrValue,
+        access_token_request_data: Dict[str, Any] = None,
+        default_token_expiration: int = 3600,
+        session: Annotated[BaseSession, NotResolved()] = None,
+    ) -> None:
+        super().__init__()
+        self.access_token_url = access_token_url
+        self.client_id = client_id
+        self.client_secret = client_secret
+        if access_token_request_data is None:
+            self.access_token_request_data = {}
+        else:
+            self.access_token_request_data = access_token_request_data
+        self.default_token_expiration = default_token_expiration
+        self.token_expiry: pendulum.DateTime = pendulum.now()
+
+        self.session = session if session is not None else requests.client.session
+
+    def __call__(self, request: PreparedRequest) -> PreparedRequest:
+        if self.access_token is None or self.is_token_expired():
+            self.obtain_token()
+        request.headers["Authorization"] = f"Bearer {self.access_token}"
+        return request
+
+    def is_token_expired(self) -> bool:
+        return pendulum.now() >= self.token_expiry
+
+    def obtain_token(self) -> None:
+        response = self.session.post(self.access_token_url, **self.build_access_token_request())
+        response.raise_for_status()
+        response_json = response.json()
+        self.parse_native_representation(self.parse_access_token(response_json))
+        expires_in_seconds = self.parse_expiration_in_seconds(response_json)
+        self.token_expiry = pendulum.now().add(seconds=expires_in_seconds)
+
+    def build_access_token_request(self) -> Dict[str, Any]:
+        return {
+            "headers": {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            "data": {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "client_credentials",
+                **self.access_token_request_data,
+            },
+        }
+
+    def parse_expiration_in_seconds(self, response_json: Any) -> int:
+        return int(response_json.get("expires_in", self.default_token_expiration))
+
+    def parse_access_token(self, response_json: Any) -> str:
+        return str(response_json.get("access_token"))
+
+
+@configspec
 class OAuthJWTAuth(BearerTokenAuth):
     """This is a form of Bearer auth, actually there's not standard way to declare it in openAPI"""
 
@@ -164,7 +234,7 @@ class OAuthJWTAuth(BearerTokenAuth):
         self.scopes = self.scopes if isinstance(self.scopes, str) else " ".join(self.scopes)
         self.token = None
         self.token_expiry: Optional[pendulum.DateTime] = None
-        # use default system session is not specified
+        # use default system session unless specified otherwise
         if self.session is None:
             self.session = requests.client.session
 
