@@ -55,7 +55,10 @@ def test_create_pipeline_all_destinations(destination_config: DestinationTestCon
     )
     # are capabilities injected
     caps = p._container[DestinationCapabilitiesContext]
-    assert p.naming.name() == caps.naming_convention
+    if caps.naming_convention:
+        assert p.naming.name() == caps.naming_convention
+    else:
+        assert p.naming.name() == "snake_case"
 
     p.extract([1, "2", 3], table_name="data")
     # is default schema with right naming convention

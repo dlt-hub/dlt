@@ -20,6 +20,7 @@ from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import autouse_test_storage
@@ -199,7 +200,7 @@ def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert:
 
 def test_filesystem_destination_config_reports_unused_placeholders(mocker) -> None:
     with custom_environ({"DATASET_NAME": "BOBO"}):
-        extra_placeholders = {
+        extra_placeholders: TExtraPlaceholders = {
             "value": 1,
             "otters": "lab",
             "dlt": "labs",
@@ -211,7 +212,7 @@ def test_filesystem_destination_config_reports_unused_placeholders(mocker) -> No
             FilesystemDestinationClientConfiguration(
                 bucket_url="file:///tmp/dirbobo",
                 layout="{schema_name}/{table_name}/{otters}-x-{x}/{load_id}.{file_id}.{timestamp}.{ext}",
-                extra_placeholders=extra_placeholders,  # type: ignore
+                extra_placeholders=extra_placeholders,
             )
         )
         logger_spy.assert_called_once_with("Found unused layout placeholders: value, dlt, dlthub")
@@ -227,7 +228,7 @@ def test_filesystem_destination_passed_parameters_override_config_values() -> No
             "DESTINATION__FILESYSTEM__EXTRA_PLACEHOLDERS": json.dumps(config_extra_placeholders),
         }
     ):
-        extra_placeholders = {
+        extra_placeholders: TExtraPlaceholders = {
             "new_value": 1,
             "dlt": "labs",
             "dlthub": "platform",

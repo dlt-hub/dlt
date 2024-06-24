@@ -182,11 +182,10 @@ class DestinationTestConfiguration:
         )
         return pipeline
 
-    def attach_pipeline(self, pipeline_name: str, dev_mode: bool = None, **kwargs) -> dlt.Pipeline:
+    def attach_pipeline(self, pipeline_name: str, **kwargs) -> dlt.Pipeline:
         """Attach to existing pipeline keeping the dev_mode"""
         # remember dev_mode from setup_pipeline
-        dev_mode = dev_mode if dev_mode is not None else self.dev_mode
-        pipeline = dlt.attach(pipeline_name, dev_mode=dev_mode, **kwargs)
+        pipeline = dlt.attach(pipeline_name, **kwargs)
         return pipeline
 
 

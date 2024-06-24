@@ -14,6 +14,7 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
@@ -499,7 +500,7 @@ def test_filesystem_destination_extended_layout_placeholders(
 
         return count
 
-    extra_placeholders = {
+    extra_placeholders: TExtraPlaceholders = {
         "who": "marcin",
         "action": "says",
         "what": "no potato",

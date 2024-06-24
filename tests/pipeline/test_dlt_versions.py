@@ -283,7 +283,9 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                     )
                 )
                 # attach to existing pipeline
-                pipeline = dlt.attach(GITHUB_PIPELINE_NAME, credentials=duckdb_cfg.credentials)
+                pipeline = dlt.attach(
+                    GITHUB_PIPELINE_NAME, destination=duckdb(credentials=duckdb_cfg.credentials)
+                )
                 # get the schema from schema storage before we sync
                 github_schema = json.loads(
                     test_storage.load(

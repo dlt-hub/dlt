@@ -21,7 +21,7 @@ from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
 
 def _attach(pipeline: Pipeline) -> Pipeline:
-    return dlt.attach(pipeline.pipeline_name, pipeline.pipelines_dir, dev_mode=pipeline.dev_mode)
+    return dlt.attach(pipeline.pipeline_name, pipelines_dir=pipeline.pipelines_dir)
 
 
 @dlt.source(section="droppable", name="droppable")

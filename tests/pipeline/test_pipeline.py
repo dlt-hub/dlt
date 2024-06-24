@@ -207,7 +207,8 @@ def test_pipeline_context() -> None:
     assert ctx.pipeline() is p3
     assert p3.is_active is True
     assert p2.is_active is False
-    assert Container()[DestinationCapabilitiesContext].naming_convention == "snake_case"
+    # no default naming convention
+    assert Container()[DestinationCapabilitiesContext].naming_convention is None
 
     # restore previous
     p2 = dlt.attach("another pipeline")
