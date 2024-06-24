@@ -562,10 +562,10 @@ This is called [incremental loading](../../general-usage/incremental-loading.md)
 
 When the API endpoint supports incremental loading, you can configure dlt to load only the new or changed data using these two methods:
 
-1. Defining a special parameter in the `params` section.
-2. Specifying the `incremental` field.
+1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration).
+2. Specifying the `incremental` field in the endpoint configuration.
 
-Both are configured in the [endpoint configuration](#endpoint-configuration). Let's start with the first method.
+Let's start with the first method.
 
 ### Incremental loading in `params`
 
@@ -585,7 +585,7 @@ For example, if we query the endpoint with `https://api.example.com/posts?create
 }
 ```
 
-To enable the incremental loading for this endpoint, you can use the following configuration:
+To enable the incremental loading for this endpoint, you can use the following endpoint configuration:
 
 ```py
 {
@@ -604,37 +604,66 @@ To enable the incremental loading for this endpoint, you can use the following c
 After you run the pipeline, dlt will keep track of the last `created_at` from all the posts fetched and use it as the `created_since` parameter in the next request.
 So in our case, the next request will be made to `https://api.example.com/posts?created_since=2024-01-28` to fetch only the new posts created after `2024-01-28`.
 
-Now, let's break down the configuration. The `created_since` parameter is defined as an incremental parameter with the following fields:
+Let's break down the configuration.
+
+1. We explicitly set `data_selector` to `"results"` to select the list of posts from the response. This is optional, if not set, dlt will try to auto-detect the data location.
+2. We define the `created_since` parameter as an incremental parameter with the following fields:
 
 ```py
 {
-    "<parameter_name>": {
+    "created_since": {
         "type": "incremental",
-        "cursor_path": "<path_to_cursor_field>",
-        "initial_value": "<initial_value>",
+        "cursor_path": "created_at",
+        "initial_value": "2024-01-25",
     },
 }
 ```
 
-- `type`: The type of the incremental parameter. Set to `incremental`.
-- `cursor_path`: The JSONPath to the field within each item in the list that will be used as the cursor value. In this case, it's `created_at`. Note that the path starts from the root of the item (dict) and not from the root of the response.
-- `initial_value`: The initial value for the cursor. This is the value that will initialize the state of incremental loading. In this case, it's `2024-01-25`.
+- `type`: The type of the parameter definition. In this case, it must be set to `incremental`.
+- `cursor_path`: The JSONPath to the field within each item in the list. The value of this field will be used in the next request. In the example above our items look like `{"id": 1, "title": "Post 1", "created_at": "2024-01-26"}` so to track the created time we set `cursor_path` to `"created_at"`. Note that the JSONPath starts from the root of the item (dict) and not from the root of the response.
+- `initial_value`: The initial value for the cursor. This is the value that will initialize the state of incremental loading. In this case, it's `2024-01-25`. The value type should match the type of the field in the data item.
 
 ### Incremental loading using the `incremental` field
 
-The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). This method is more flexible and allows you to specify the start and end conditions for the incremental loading:
+The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). This method is more flexible and allows you to specify the start and end conditions for the incremental loading.
+
+Let's take the same example as above and configure it using the `incremental` field:
+
+```py
+{
+    "path": "posts",
+    "data_selector": "results",
+    "incremental": {
+        "start_param": "created_since",
+        "cursor_path": "created_at",
+        "initial_value": "2024-01-25",
+    },
+}
+```
+
+Note that we specify the query parameter name `created_since` in the `start_param` field and not in the `params` section.
+
+The full available configuration for the `incremental` field is:
 
 ```py
 {
     "incremental": {
-        "start_param": "<parameter_name>",
-        "end_param": "<parameter_name>",
+        "start_param": "<start_parameter_name>",
+        "end_param": "<end_parameter_name>",
         "cursor_path": "<path_to_cursor_field>",
         "initial_value": "<initial_value>",
         "end_value": "<end_value>",
     }
 }
 ```
+
+The fields are:
+
+- `start_param` (str): The name of the query parameter to be used as the start condition. If we use the example above, it would be `"created_since"`.
+- `end_param` (str): The name of the query parameter to be used as the end condition. This is optional and can be omitted if you only need to track the start condition. This is useful when you need to fetch data within a specific range and the API supports end conditions (like `created_before` query parameter).
+- `cursor_path` (str): The JSONPath to the field within each item in the list. This is the field that will be used to track the incremental loading. In the example above, it's `"created_at"`.
+- `initial_value` (str): The initial value for the cursor. This is the value that will initialize the state of incremental loading.
+- `end_value` (str): The end value for the cursor to stop the incremental loading. This is optional and can be omitted if you only need to track the start condition. If you set this field, `initial_value` needs to be set as well.
 
 See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
