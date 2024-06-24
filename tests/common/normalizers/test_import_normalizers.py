@@ -63,6 +63,17 @@ def test_import_normalizers() -> None:
     assert json_normalizer is CustomRelationalNormalizer
 
 
+@pytest.mark.parametrize("sections", ("", "SOURCES__", "SOURCES__TEST_SCHEMA__"))
+def test_config_sections(sections: str) -> None:
+    os.environ[f"{sections}SCHEMA__NAMING"] = "direct"
+    os.environ[f"{sections}SCHEMA__JSON_NORMALIZER"] = (
+        '{"module": "tests.common.normalizers.custom_normalizers"}'
+    )
+    config, _, _ = import_normalizers(explicit_normalizers(schema_name="test_schema"))
+    assert config["names"] == "direct"
+    assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}
+
+
 def test_import_normalizers_with_caps() -> None:
     # gets the naming convention from capabilities
     destination_caps = DestinationCapabilitiesContext.generic_capabilities()

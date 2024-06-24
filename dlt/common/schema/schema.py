@@ -732,7 +732,7 @@ class Schema:
         Default hints, preferred data types and normalize configs (ie. column propagation) are normalized as well. Regexes are included as long
         as textual parts can be extracted from an expression.
         """
-        normalizers = explicit_normalizers()
+        normalizers = explicit_normalizers(schema_name=self._schema_name)
         # set the current values as defaults
         normalizers["names"] = normalizers["names"] or self._normalizers_config["names"]
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
@@ -1086,7 +1086,7 @@ class Schema:
         self._add_standard_hints()
         # configure normalizers, including custom config if present
         if not normalizers:
-            normalizers = explicit_normalizers()
+            normalizers = explicit_normalizers(schema_name=self._schema_name)
         self._configure_normalizers(normalizers)
         # add version tables
         self._add_standard_tables()

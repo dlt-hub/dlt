@@ -1,9 +1,10 @@
 import inspect
 from importlib import import_module
-from typing import Any, Type, Tuple, Union, cast, List
+from typing import Any, Dict, Optional, Type, Tuple, Union, cast, List
 
 import dlt
 from dlt.common.configuration.inject import with_config
+from dlt.common.configuration.specs import known_sections
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.normalizers.configuration import NormalizersConfiguration
 from dlt.common.normalizers.json import SupportsDataItemNormalizer, DataItemNormalizer
@@ -16,13 +17,25 @@ DEFAULT_NAMING_MODULE = "dlt.common.normalizers.naming.snake_case"
 DLT_ID_LENGTH_BYTES = 10
 
 
-@with_config(spec=NormalizersConfiguration)
+def _section_for_schema(kwargs: Dict[str, Any]) -> Tuple[str, ...]:
+    """Uses the schema name to generate dynamic section normalizer settings"""
+    if schema_name := kwargs.get("schema_name"):
+        return (known_sections.SOURCES, schema_name)
+    else:
+        return (known_sections.SOURCES,)
+
+
+@with_config(spec=NormalizersConfiguration, sections=_section_for_schema)  # type: ignore[call-overload]
 def explicit_normalizers(
     naming: Union[str, NamingConvention] = dlt.config.value,
     json_normalizer: TJSONNormalizer = dlt.config.value,
     allow_identifier_change_on_table_with_data: bool = None,
+    schema_name: Optional[str] = None,
 ) -> TNormalizersConfig:
-    """Gets explicitly configured normalizers - via config or destination caps. May return None as naming or normalizer"""
+    """Gets explicitly configured normalizers - via config or destination caps. May return None as naming or normalizer
+
+    If `schema_name` is present, a section ("sources", schema_name, "schema") is used to inject the config
+    """
     norm_conf: TNormalizersConfig = {"names": naming, "json": json_normalizer}
     if allow_identifier_change_on_table_with_data is not None:
         norm_conf["allow_identifier_change_on_table_with_data"] = (

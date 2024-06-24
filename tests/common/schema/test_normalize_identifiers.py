@@ -72,18 +72,20 @@ def test_save_load_incomplete_column(
 
 def test_schema_config_normalizers(schema: Schema, schema_storage_no_import: SchemaStorage) -> None:
     # save snake case schema
+    assert schema._normalizers_config["names"] == "snake_case"
     schema_storage_no_import.save_schema(schema)
     # config direct naming convention
     os.environ["SCHEMA__NAMING"] = "direct"
     # new schema has direct naming convention
     schema_direct_nc = Schema("direct_naming")
+    schema_storage_no_import.save_schema(schema_direct_nc)
     assert schema_direct_nc._normalizers_config["names"] == "direct"
     # still after loading the config is "snake"
     schema = schema_storage_no_import.load_schema(schema.name)
     assert schema._normalizers_config["names"] == "snake_case"
     # provide capabilities context
     destination_caps = DestinationCapabilitiesContext.generic_capabilities()
-    destination_caps.naming_convention = "snake_case"
+    destination_caps.naming_convention = "sql_cs_v1"
     destination_caps.max_identifier_length = 127
     with Container().injectable_context(destination_caps):
         # caps are ignored if schema is configured
@@ -91,10 +93,91 @@ def test_schema_config_normalizers(schema: Schema, schema_storage_no_import: Sch
         assert schema_direct_nc._normalizers_config["names"] == "direct"
         # but length is there
         assert schema_direct_nc.naming.max_length == 127
-        # also for loaded schema
+        # when loading schema configuration is ignored
         schema = schema_storage_no_import.load_schema(schema.name)
         assert schema._normalizers_config["names"] == "snake_case"
         assert schema.naming.max_length == 127
+        # but if we ask to update normalizers config schema is applied
+        schema.update_normalizers()
+        assert schema._normalizers_config["names"] == "direct"
+
+        # load schema_direct_nc (direct)
+        schema_direct_nc = schema_storage_no_import.load_schema(schema_direct_nc.name)
+        assert schema_direct_nc._normalizers_config["names"] == "direct"
+
+        # drop config
+        del os.environ["SCHEMA__NAMING"]
+        schema_direct_nc = schema_storage_no_import.load_schema(schema_direct_nc.name)
+        assert schema_direct_nc._normalizers_config["names"] == "direct"
+
+
+def test_schema_normalizers_no_config(
+    schema: Schema, schema_storage_no_import: SchemaStorage
+) -> None:
+    # convert schema to direct and save
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
+    assert schema._normalizers_config["names"] == "direct"
+    schema_storage_no_import.save_schema(schema)
+    # make sure we drop the config correctly
+    del os.environ["SCHEMA__NAMING"]
+    schema_test = Schema("test")
+    assert schema_test.naming.name() == "snake_case"
+    # use capabilities without default naming convention
+    destination_caps = DestinationCapabilitiesContext.generic_capabilities()
+    assert destination_caps.naming_convention is None
+    destination_caps.max_identifier_length = 66
+    with Container().injectable_context(destination_caps):
+        schema_in_caps = Schema("schema_in_caps")
+        assert schema_in_caps._normalizers_config["names"] == "snake_case"
+        assert schema_in_caps.naming.name() == "snake_case"
+        assert schema_in_caps.naming.max_length == 66
+        schema_in_caps.update_normalizers()
+        assert schema_in_caps.naming.name() == "snake_case"
+        # old schema preserves convention when loaded
+        schema = schema_storage_no_import.load_schema(schema.name)
+        assert schema._normalizers_config["names"] == "direct"
+        # update normalizer no effect
+        schema.update_normalizers()
+        assert schema._normalizers_config["names"] == "direct"
+        assert schema.naming.max_length == 66
+
+    # use caps with default naming convention
+    destination_caps = DestinationCapabilitiesContext.generic_capabilities()
+    destination_caps.naming_convention = "sql_cs_v1"
+    destination_caps.max_identifier_length = 127
+    with Container().injectable_context(destination_caps):
+        schema_in_caps = Schema("schema_in_caps")
+        # new schema gets convention from caps
+        assert schema_in_caps._normalizers_config["names"] == "sql_cs_v1"
+        # old schema preserves convention when loaded
+        schema = schema_storage_no_import.load_schema(schema.name)
+        assert schema._normalizers_config["names"] == "direct"
+        # update changes to caps schema
+        schema.update_normalizers()
+        assert schema._normalizers_config["names"] == "sql_cs_v1"
+        assert schema.naming.max_length == 127
+
+
+@pytest.mark.parametrize("section", ("SOURCES__SCHEMA__NAMING", "SOURCES__THIS__SCHEMA__NAMING"))
+def test_config_with_section(section: str) -> None:
+    os.environ["SOURCES__OTHER__SCHEMA__NAMING"] = "direct"
+    os.environ[section] = "sql_cs_v1"
+    this_schema = Schema("this")
+    that_schema = Schema("that")
+    assert this_schema.naming.name() == "sql_cs_v1"
+    expected_that_schema = (
+        "snake_case" if section == "SOURCES__THIS__SCHEMA__NAMING" else "sql_cs_v1"
+    )
+    assert that_schema.naming.name() == expected_that_schema
+
+    # test update normalizers
+    os.environ[section] = "direct"
+    expected_that_schema = "snake_case" if section == "SOURCES__THIS__SCHEMA__NAMING" else "direct"
+    this_schema.update_normalizers()
+    assert this_schema.naming.name() == "direct"
+    that_schema.update_normalizers()
+    assert that_schema.naming.name() == expected_that_schema
 
 
 def test_normalize_table_identifiers() -> None:

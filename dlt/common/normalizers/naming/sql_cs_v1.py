@@ -2,6 +2,8 @@ from typing import Any, Sequence
 
 from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
 
+# TODO: not yet finished
+
 
 class NamingConvention(BaseNamingConvention):
     PATH_SEPARATOR = "__"

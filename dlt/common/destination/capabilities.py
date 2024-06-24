@@ -73,7 +73,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     is_max_text_data_type_length_in_bytes: bool = None
     supports_transactions: bool = None
     supports_ddl_transactions: bool = None
-    naming_convention: Union[str, NamingConvention] = "snake_case"
+    # use naming convention in the schema
+    naming_convention: Union[str, NamingConvention] = None
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
