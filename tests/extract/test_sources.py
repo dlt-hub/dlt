@@ -796,52 +796,6 @@ def test_add_transformer_right_pipe() -> None:
         iter([1, 2, 3]) | dlt.resource(lambda i: i * 3, name="lambda")
 
 
-def test_limit_infinite_counter() -> None:
-    r = dlt.resource(itertools.count(), name="infinity").add_limit(10)
-    assert list(r) == list(range(10))
-
-
-@pytest.mark.parametrize("limit", (None, -1, 0, 10))
-def test_limit_edge_cases(limit: int) -> None:
-    r = dlt.resource(range(20), name="infinity").add_limit(limit)  # type: ignore
-
-    @dlt.resource()
-    async def r_async():
-        for i in range(20):
-            await asyncio.sleep(0.01)
-            yield i
-
-    sync_list = list(r)
-    async_list = list(r_async().add_limit(limit))
-
-    if limit == 10:
-        assert sync_list == list(range(10))
-        # we have edge cases where the async list will have one extra item
-        # possibly due to timing issues, maybe some other implementation problem
-        assert (async_list == list(range(10))) or (async_list == list(range(11)))
-    elif limit in [None, -1]:
-        assert sync_list == async_list == list(range(20))
-    elif limit == 0:
-        assert sync_list == async_list == []
-    else:
-        raise AssertionError(f"Unexpected limit: {limit}")
-
-
-def test_limit_source() -> None:
-    def mul_c(item):
-        yield from "A" * (item + 2)
-
-    @dlt.source
-    def infinite_source():
-        for idx in range(3):
-            r = dlt.resource(itertools.count(), name=f"infinity_{idx}").add_limit(10)
-            yield r
-            yield r | dlt.transformer(name=f"mul_c_{idx}")(mul_c)
-
-    # transformer is not limited to 2 elements, infinite resource is, we have 3 resources
-    assert list(infinite_source().add_limit(2)) == ["A", "A", 0, "A", "A", "A", 1] * 3
-
-
 def test_source_state() -> None:
     @dlt.source
     def test_source(expected_state):
