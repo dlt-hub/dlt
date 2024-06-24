@@ -173,8 +173,6 @@ def attach(
     pipeline_name: str = None,
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
-    full_refresh: Optional[bool] = None,
-    dev_mode: bool = False,
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
@@ -184,7 +182,6 @@ def attach(
     Pre-configured `destination` and `staging` factories may be provided. If not present, default factories are created from pipeline state.
     """
     ensure_correct_pipeline_kwargs(attach, **injection_kwargs)
-    full_refresh_argument_deprecated("attach", full_refresh)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -208,7 +205,7 @@ def attach(
         None,
         None,
         None,
-        full_refresh if full_refresh is not None else dev_mode,
+        False,  # always False as dev_mode so we do not wipe the working folder
         progress,
         True,
         last_config(**injection_kwargs),
