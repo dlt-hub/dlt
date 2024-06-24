@@ -175,26 +175,37 @@ def attach(
     pipeline_salt: TSecretValue = None,
     full_refresh: Optional[bool] = None,
     dev_mode: bool = False,
-    credentials: Any = None,
+    destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     **injection_kwargs: Any,
 ) -> Pipeline:
-    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
+    """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder.
+    Pre-configured `destination` and `staging` factories may be provided. If not present, default factories are created from pipeline state.
+    """
     ensure_correct_pipeline_kwargs(attach, **injection_kwargs)
     full_refresh_argument_deprecated("attach", full_refresh)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
+    destination = Destination.from_reference(
+        destination or injection_kwargs["destination_type"],
+        destination_name=injection_kwargs["destination_name"],
+    )
+    staging = Destination.from_reference(
+        staging or injection_kwargs.get("staging_type", None),
+        destination_name=injection_kwargs.get("staging_name", None),
+    )
     # create new pipeline instance
     p = Pipeline(
         pipeline_name,
         pipelines_dir,
         pipeline_salt,
+        destination,
+        staging,
         None,
         None,
-        None,
-        credentials,
         None,
         None,
         full_refresh if full_refresh is not None else dev_mode,
