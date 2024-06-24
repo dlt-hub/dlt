@@ -44,7 +44,8 @@ astunparse = ">=1.6.3"
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
-orjson = {version = ">=3.6.7,<=3.9.10", markers="platform_python_implementation != 'PyPy'"}
+# exclude some versions because of segfault bugs in orjson
+orjson = {version = ">=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1", markers="platform_python_implementation != 'PyPy'"}
 tenacity = ">=8.0.2"
 jsonpath-ng = ">=1.5.3"
 fsspec = ">=2022.4.0"
