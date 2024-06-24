@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import lancedb  # type: ignore
-from lancedb.embeddings import get_registry
+from lancedb.embeddings import get_registry  # type: ignore
 from lancedb.pydantic import LanceModel, Vector  # type: ignore
 
 import dlt
@@ -38,7 +38,7 @@ from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient, AuthConfigBase
 
 # access secrets to get openai key and instantiate embedding function
-openai_api_key = dlt.secrets.get("destination.lancedb.credentials.embedding_model_provider_api_key")
+openai_api_key: str = dlt.secrets.get("destination.lancedb.credentials.embedding_model_provider_api_key")
 func = get_registry().get("openai").create(name="text-embedding-3-small", api_key=openai_api_key)
 
 
