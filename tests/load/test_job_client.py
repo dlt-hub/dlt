@@ -15,7 +15,7 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
     TTableSchema,
 )
-from dlt.common.schema.utils import new_table, new_column
+from dlt.common.schema.utils import new_table, new_column, pipeline_state_table
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.utils import uniq_id
@@ -26,10 +26,10 @@ from dlt.destinations.exceptions import (
 )
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.common.destination.reference import WithStagingDataset
+from dlt.common.destination.reference import StateInfo, WithStagingDataset
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, preserve_environ
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
@@ -45,6 +45,9 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
@@ -164,7 +167,6 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     assert this_schema == newest_schema
 
 
-@pytest.mark.essential
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
@@ -723,6 +725,53 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
     ) as client:
         assert client.sql_client.dataset_name == client.config.dataset_name + "_event"
         assert client.sql_client.has_dataset()
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+@pytest.mark.parametrize(
+    "naming_convention",
+    [
+        "tests.common.cases.normalizers.title_case",
+        "snake_case",
+    ],
+)
+def test_get_stored_state(
+    destination_config: DestinationTestConfiguration,
+    naming_convention: str,
+    file_storage: FileStorage,
+) -> None:
+    os.environ["SCHEMA__NAMING"] = naming_convention
+
+    with cm_yield_client_with_storage(
+        destination_config.destination, default_config_values={"default_schema_name": None}
+    ) as client:
+        # event schema with event table
+        if not client.capabilities.preferred_loader_file_format:
+            pytest.skip(
+                "preferred loader file format not set, destination will only work with staging"
+            )
+        # load pipeline state
+        state_table = pipeline_state_table()
+        partial = client.schema.update_table(state_table)
+        print(partial)
+        client.schema._bump_version()
+        client.update_stored_schema()
+
+        state_info = StateInfo(1, 4, "pipeline", "compressed", pendulum.now(), None, "_load_id")
+        doc = state_info.as_doc()
+        norm_doc = {client.schema.naming.normalize_identifier(k): v for k, v in doc.items()}
+        with io.BytesIO() as f:
+            # use normalized columns
+            write_dataset(client, f, [norm_doc], partial["columns"])
+            query = f.getvalue().decode()
+        expect_load_file(client, file_storage, query, partial["name"])
+        client.complete_load("_load_id")
+
+        # get state
+        stored_state = client.get_stored_state("pipeline")
+        assert doc == stored_state.as_doc()
 
 
 @pytest.mark.parametrize(
