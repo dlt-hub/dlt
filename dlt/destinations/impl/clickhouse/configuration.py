@@ -67,10 +67,9 @@ class ClickHouseCredentials(ConnectionStringCredentials):
                 "connect_timeout": str(self.connect_timeout),
                 "send_receive_timeout": str(self.send_receive_timeout),
                 "secure": 1 if self.secure else 0,
-                # Toggle experimental settings. These are necessary for certain datatypes and not optional.
                 "allow_experimental_lightweight_delete": 1,
-                # "allow_experimental_object_type": 1,
                 "enable_http_compression": 1,
+                "date_time_input_format": "best_effort",
             }
         )
         return query

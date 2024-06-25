@@ -203,13 +203,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                bucket_http_url = convert_storage_to_http_scheme(
-                    bucket_url, endpoint=staging_credentials.endpoint_url
-                )
-                access_key_id = staging_credentials.aws_access_key_id
-                secret_access_key = staging_credentials.aws_secret_access_key
-            else:
+            if not isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
                     file_path,
                     dedent(
@@ -221,6 +215,11 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                     ).strip(),
                 )
 
+            bucket_http_url = convert_storage_to_http_scheme(
+                bucket_url, endpoint=staging_credentials.endpoint_url
+            )
+            access_key_id = staging_credentials.aws_access_key_id
+            secret_access_key = staging_credentials.aws_secret_access_key
             auth = "NOSIGN"
             if access_key_id and secret_access_key:
                 auth = f"'{access_key_id}','{secret_access_key}'"
@@ -311,7 +310,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         # Build column definition.
         # The primary key and sort order definition is defined outside column specification.
-        hints_str = " ".join(
+        hints_ = " ".join(
             self.active_hints.get(hint)
             for hint in self.active_hints.keys()
             if c.get(hint, False) is True
@@ -328,7 +327,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
         return (
-            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_str}"
+            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_}"
             .strip()
         )
 
