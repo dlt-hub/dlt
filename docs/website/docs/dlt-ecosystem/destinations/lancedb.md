@@ -120,6 +120,8 @@ function.
 
 ## Using an Adapter to Specify Columns to Vectorise
 
+Out of the box, LanceDB will act as a normal database. To use LanceDB's embedding facilities, you'll need to specify which fields you'd like to embed in your dlt resource.
+
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
 ```py
@@ -141,6 +143,8 @@ lancedb_adapter(
   embed=["title", "description"],
 )
 ```
+
+Bear in mind that you can't use an adapter on a [dlt source](../../general-usage/source.md), only a [dlt resource](../../general-usage/resource.md).
 
 ## Write disposition
 
