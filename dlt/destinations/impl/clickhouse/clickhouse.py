@@ -2,7 +2,7 @@ import os
 import re
 from copy import deepcopy
 from textwrap import dedent
-from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
+from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple, Literal
 from urllib.parse import urlparse
 
 import clickhouse_connect
@@ -411,3 +411,4 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
+

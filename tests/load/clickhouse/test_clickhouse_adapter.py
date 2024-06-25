@@ -2,6 +2,7 @@ from typing import Generator, Dict
 
 import dlt
 from dlt.destinations.adapters import clickhouse_adapter
+from dlt.destinations.impl.clickhouse.sql_client import TDeployment
 from tests.pipeline.utils import assert_load_info
 
 
@@ -31,7 +32,15 @@ def test_clickhouse_adapter() -> None:
     clickhouse_adapter(replicated_merge_tree_resource, table_engine_type="replicated_merge_tree")
 
     pipe = dlt.pipeline(pipeline_name="adapter_test", destination="clickhouse", full_refresh=True)
-    pack = pipe.run([merge_tree_resource, replicated_merge_tree_resource, not_annotated_resource])
+
+    with pipe.sql_client() as client:
+        deployment_type: TDeployment = client._get_deployment_type()
+
+    if deployment_type == "ClickHouseCloud":
+        pack = pipe.run([merge_tree_resource, replicated_merge_tree_resource, not_annotated_resource])
+    else:
+        # `ReplicatedMergeTree` not supported if only a single node.
+        pack = pipe.run([merge_tree_resource, not_annotated_resource])
 
     assert_load_info(pack)
 
@@ -41,7 +50,10 @@ def test_clickhouse_adapter() -> None:
         for table in client._list_tables():
             if "resource" in table:
                 tables[table.split("___")[1]] = table
-        assert (len(tables.keys())) == 3
+        if deployment_type=="ClickHouseCloud":
+            assert (len(tables.keys())) == 3
+        else:
+            assert (len(tables.keys())) == 2
 
         # Check the table content.
         for full_table_name in tables.values():
@@ -60,16 +72,24 @@ def test_clickhouse_adapter() -> None:
                     "merge_tree_resource",
                     "replicated_merge_tree_resource",
                 ):
-                    assert tuple(res[0])[2] in (
-                        "MergeTree",
-                        "SharedMergeTree",
-                        "ReplicatedMergeTree",
-                    )
+                    if deployment_type == "ClickHouseCloud":
+                        assert tuple(res[0])[2] in (
+                            "MergeTree",
+                            "SharedMergeTree",
+                            "ReplicatedMergeTree",
+                        )
+                    else:
+                        assert tuple(res[0])[2] in (
+                            "MergeTree",
+                        )
                 else:
                     # Non annotated resource needs to default to detected installation
                     # type, i.e. cloud or self-managed.
                     # CI runs on CH cloud, so will be `SharedMergeTree`.
-                    assert tuple(res[0])[2] == "SharedMergeTree"
+                    if deployment_type == "ClickHouseCloud":
+                        assert tuple(res[0])[2] == "SharedMergeTree"
+                    else:
+                        assert tuple(res[0])[2] == "MergeTree"
 
     # We can check the generated table's SQL, though.
     with pipe.destination_client() as dest_client:

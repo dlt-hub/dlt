@@ -6,7 +6,7 @@ from typing import (
     List,
     Optional,
     Sequence,
-    ClassVar,
+    ClassVar, Literal,
 )
 
 import clickhouse_driver  # type: ignore[import-untyped]
@@ -32,6 +32,7 @@ from dlt.destinations.typing import DBTransaction, DBApi
 from dlt.destinations.utils import _convert_to_old_pyformat
 
 
+TDeployment = Literal["ClickHouseOSS", "ClickHouseCloud"]
 TRANSACTIONS_UNSUPPORTED_WARNING_MESSAGE = (
     "ClickHouse does not support transactions! Each statement is auto-committed separately."
 )
@@ -204,3 +205,9 @@ class ClickHouseSqlClient(
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, clickhouse_driver.dbapi.Error)
+
+    def _get_deployment_type(self) -> TDeployment:
+        cloud_mode = int(self.execute_sql("""
+            SELECT value FROM system.settings WHERE name = 'cloud_mode'
+        """)[0][0])
+        return "ClickHouseCloud" if cloud_mode else "ClickHouseOSS"

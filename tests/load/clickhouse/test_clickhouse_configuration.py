@@ -74,3 +74,6 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
 
         assert ("allow_experimental_lightweight_delete", "1") in res
         assert ("enable_http_compression", "1") in res
+        assert ("date_time_input_format", "best_effort") in res
+
+
