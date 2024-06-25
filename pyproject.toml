@@ -217,6 +217,8 @@ pandas = ">2"
 alive-progress = ">=3.0.1"
 pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
+lancedb = ">=0.6.13"
+openai = ">=1.35"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100
