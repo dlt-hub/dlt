@@ -1,18 +1,24 @@
 ---
 title: Naming Convention
 description: Control how dlt creates table, column and other identifiers
-keywords: [identifiers, snake case, ]
+keywords: [identifiers, snake case, case sensitive, case insensitive, naming]
 ---
 
 # Naming Convention
-`dlt` creates tables, child tables and column schemas from the data. The data being loaded,
+`dlt` creates tables, child tables and column identifiers from the data. The data source,
 typically JSON documents, contains identifiers (i.e. key names in a dictionary) with any Unicode
-characters, any lengths and naming styles. On the other hand the destinations accept very strict
+characters, any lengths and naming styles. On the other hand destinations accept very strict
 namespaces for their identifiers. Like [Redshift](../dlt-ecosystem/destinations/redshift.md#naming-convention) that accepts case-insensitive alphanumeric
 identifiers with maximum 127 characters.
 
-Each schema contains `naming convention` that tells `dlt` how to translate identifiers to the
-namespace that the destination understands.
+`dlt` groups tables belonging to [resources](resource.md) from a single [source](source.md) in a [schema](schema.md).
+
+Each schema contains **naming convention** that tells `dlt` how to translate identifiers to the
+namespace that the destination understands. Naming conventions are in essence functions translating strings from the source identifier format into destination identifier format. For example our **snake_case** (default) naming convention will translate `DealFlow` into `deal_flow` identifier.
+
+You have control over which naming convention to use and dlt provides a few to choose from ie. `sql_cs_v1`
+
+
 
 * Each destination has a preferred naming convention.
 * This naming convention is used when new schemas are created.
@@ -50,6 +56,8 @@ in schema will be ignored.
 The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).
+
+## Avoid identifier clashes
 
 ## Available naming conventions
 

@@ -75,11 +75,22 @@ You can create and pass partial credentials and `dlt` will fill the missing data
 Please read how to use [various built in credentials types](credentials/config_specs.md).
 :::
 
-### Pass additional parameters and change destination capabilities
-Destination factory accepts additional parameters that will be used to pre-configure it and change device capabilities.
+### Inspect destination capabilities
+[Destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) tell `dlt` what given destination can and cannot do. For example it tells which file formats it can load, what is maximum query or identifier length. Inspect destination capabilities as follows:
 ```py
+import dlt
+pipeline = dlt.pipeline("snowflake_test", destination="snowflake")
+print(dict(pipeline.destination.capabilities()))
 ```
-Example above is overriding `naming_convention` and `recommended_file_size` in the destination capabilities and
+
+### Pass additional parameters and change destination capabilities
+Destination factory accepts additional parameters that will be used to pre-configure it and change destination capabilities.
+```py
+import dlt
+duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
+print(dict(duck_.capabilities()))
+```
+Example above is overriding `naming_convention` and `recommended_file_size` in the destination capabilities.
 
 ### Configure multiple destinations in a pipeline
 To configure multiple destinations within a pipeline, you need to provide the credentials for each destination in the "secrets.toml" file. This example demonstrates how to configure a BigQuery destination named `destination_one`:
@@ -124,17 +135,55 @@ Obviously, dlt will access the destination when you instantiate [sql_client](../
 
 :::
 
-## Control how dlt creates table, column and other identifiers
+## Control how `dlt` creates table, column and other identifiers
+`dlt` maps identifiers found in the source data into destination identifiers (ie. table and columns names) using [naming conventions](naming-convention.md) which ensure that
+character set, identifier length and other properties fit into what given destination can handle. For example our [default naming convention (**snake case**)](naming-convention.md#default-naming-convention-snake_case) converts all names in the source (ie. JSON document fields) into snake case, case insensitive identifiers.
 
-- case folding
-- case sensitivity
+Each destination declares its preferred naming convention, support for case sensitive identifiers and case folding function that case insensitive identifiers follow. For example:
+1. Redshift - by default does not support case sensitive identifiers and converts all of them to lower case.
+2. Snowflake - supports case sensitive identifiers and considers upper cased identifiers as case insensitive (which is the default case folding)
+3. DuckDb - does not support case sensitive identifiers but does not case fold them so it preserves the original casing in the information schema.
+4. Athena - does not support case sensitive identifiers and converts all of them to lower case.
+5. BigQuery - all identifiers are case sensitive, there's no case insensitive mode available via case folding (but it can be enabled in dataset level).
 
-(TODO)
-1. Redshift - always lower case, no matter which naming convention used. case insensitive
-2. Athena - always lower case, no matter which naming convention used. uses different catalogue and query engines that are incompatible
+You can change the naming convention used in [many different ways](naming-convention.md#configure-naming-convention), below we set the preferred naming convention on the Snowflake destination to `sql_cs` to switch Snowflake to case sensitive mode:
+```py
+import dlt
+snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
+```
+Setting naming convention will impact all new schemas being created (ie. on first pipeline run) and will re-normalize all existing identifiers.
 
-### Enable case sensitive mode
+:::caution
+`dlt` prevents re-normalization of identifiers in tables that were already created at the destination. Use [refresh](pipeline.md#refresh-pipeline-data-and-state) mode to drop the data. You can also disable this behavior via [configuration](naming-convention.md#avoid-identifier-clashes)
+:::
 
+:::note
+Destinations that support case sensitive identifiers but use case folding convention to enable case insensitive identifiers are configured in case insensitive mode by default. Examples: Postgres, Snowflake, Oracle.
+:::
+
+:::caution
+If you use case sensitive naming convention with case insensitive destination, `dlt` will:
+1. Fail the load if it detects identifier clash due to case folding
+2. Warn if any case folding is applied by the destination.
+:::
+
+### Enable case sensitive identifiers support
+Selected destinations may be configured so they start accepting case sensitive identifiers. For example, it is possible to set case sensitive collation on **mssql** database and then tell `dlt` about it.
+```py
+from dlt.destinations import mssql
+dest_ = mssql(has_case_sensitive_identifiers=True, naming_convention="sql_cs_v1")
+```
+Above we can safely use case sensitive naming convention without worrying of name clashes.
+
+You can configure the case sensitivity, **but configuring destination capabilities is not currently supported**.
+```toml
+[destination.mssql]
+has_case_sensitive_identifiers=true
+```
+
+:::note
+In most cases setting the flag above just indicates to `dlt` that you switched the case sensitive option on a destination. `dlt` will not do that for you. Refer to destination documentation for details.
+:::
 
 ## Create new destination
 You have two ways to implement a new destination:

@@ -170,7 +170,7 @@ if __name__ == "__main__":
             pipeline_name=pipeline_name,
             destination="duckdb",
             dataset_name=target_schema_name,
-            full_refresh=True,
+            dev_mode=True,
             progress="alive_progress",
         )
     else:
@@ -178,8 +178,8 @@ if __name__ == "__main__":
             pipeline_name=pipeline_name,
             destination="postgres",
             dataset_name=target_schema_name,
-            full_refresh=False,
-        )  # full_refresh=False
+            dev_mode=False,
+        )  # dev_mode=False
 
     # start timer
     startTime = pendulum.now()

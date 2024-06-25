@@ -514,9 +514,8 @@ def orders(items: Iterator[FileItemDict]):
       dest_file = os.path.join(import_folder, item["file_name"])
       # download file
       item.fsspec.download(item["file_url"], dest_file)
-      # tell dlt to import the file, mind that `item` below will not be
-      # saved, dest_file will be imported instead
-      yield dlt.mark.with_file_import(item, dest_file, "csv")
+      # tell dlt to import the dest_file as `csv`
+      yield dlt.mark.with_file_import(dest_file, "csv")
 
 
 # use filesystem verified source to glob a bucket
@@ -536,11 +535,11 @@ include_header=false
 on_error_continue=true
 ```
 
-You can sniff the schema from the data ie. using `duckdb` to infer the table schema from csv file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at run time.
+You can sniff the schema from the data ie. using `duckdb` to infer the table schema from `csv` file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at run time.
 
 :::note
 * If you do not define any columns, the table will not be created in the destination. `dlt` will still attempt to load data into it, so you create a fitting table upfront, the load process will succeed.
-* Files are imported using hard links if possible.
+* Files are imported using hard links if possible to avoid copying and duplicating storage space needed.
 :::
 
 ### Duplicate and rename resources
