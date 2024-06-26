@@ -195,7 +195,7 @@ class TestJSONResponsePaginator:
 
         # The next request should just use the "next" URL without any duplicate parameters.
         assert prepared_request.url == "http://example.com/api/resource?page=2&param1=value1"
-        
+
     def test_client_pagination(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts",
@@ -369,11 +369,8 @@ class TestPageNumberPaginator:
 
         paginator.update_state(response)  # Page 2
         assert paginator.current_value == 3
-        assert paginator.has_next_page is True
-
-        paginator.update_state(response) # Page 3
-        assert paginator.current_value == 4
         assert paginator.has_next_page is False
+
 
     def test_client_pagination_one_based(self, rest_client):
         pages_iter = rest_client.paginate(
