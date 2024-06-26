@@ -1,6 +1,5 @@
 import base64
-
-from urllib.parse import urlsplit, urlunsplit, urlencode
+from urllib.parse import parse_qs, urlsplit, urlunsplit, urlencode
 
 import pytest
 import requests_mock
@@ -155,7 +154,17 @@ def mock_api_server():
 
         @router.post("/oauth/token")
         def oauth_token(request, context):
-            return {"access_token": "test-token", "expires_in": 3600}
+            if oauth_authorize(request):
+                return {"access_token": "test-token", "expires_in": 3600}
+            context.status_code = 401
+            return {"error": "Unauthorized"}
+
+        @router.post("/oauth/token-expires-now")
+        def oauth_token_expires_now(request, context):
+            if oauth_authorize(request):
+                return {"access_token": "test-token", "expires_in": 0}
+            context.status_code = 401
+            return {"error": "Unauthorized"}
 
         @router.post("/auth/refresh")
         def refresh_token(request, context):
@@ -164,6 +173,19 @@ def mock_api_server():
                 return {"access_token": "new-valid-token"}
             context.status_code = 401
             return {"error": "Invalid refresh token"}
+
+        @router.post("/custom-oauth/token")
+        def custom_oauth_token(request, context):
+            qs = parse_qs(request.text)
+            if (
+                qs.get("grant_type")[0] == "account_credentials"
+                and qs.get("account_id")[0] == "test-account-id"
+                and request.headers["Authorization"]
+                == "Basic dGVzdC1hY2NvdW50LWlkOnRlc3QtY2xpZW50LXNlY3JldA=="
+            ):
+                return {"access_token": "test-token", "expires_in": 3600}
+            context.status_code = 401
+            return {"error": "Unauthorized"}
 
         router.register_routes(m)
 
@@ -176,6 +198,18 @@ def rest_client() -> RESTClient:
         base_url="https://api.example.com",
         headers={"Accept": "application/json"},
     )
+
+
+def oauth_authorize(request):
+    qs = parse_qs(request.text)
+    grant_type = qs.get("grant_type")[0]
+    if "jwt-bearer" in grant_type:
+        return True
+    if "client_credentials" in grant_type:
+        return (
+            qs["client_secret"][0] == "test-client-secret"
+            and qs["client_id"][0] == "test-client-id"
+        )
 
 
 def assert_pagination(pages, page_size=5, total_pages=5):

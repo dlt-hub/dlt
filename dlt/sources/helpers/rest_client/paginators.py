@@ -433,6 +433,10 @@ class BaseNextUrlPaginator(BaseReferencePaginator):
 
         request.url = self._next_reference
 
+        # Clear the query parameters from the previous request otherwise they
+        # will be appended to the next URL in Session.prepare_request
+        request.params = None
+
 
 class HeaderLinkPaginator(BaseNextUrlPaginator):
     """A paginator that uses the 'Link' header in HTTP responses

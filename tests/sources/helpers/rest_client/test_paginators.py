@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from requests.models import Response, Request
+from requests import Session
 
 from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
@@ -171,6 +172,30 @@ class TestJSONResponsePaginator:
         paginator.update_request(request)
         assert request.url == test_case["expected"]
 
+    def test_no_duplicate_params_on_update_request(self):
+        paginator = JSONResponsePaginator()
+
+        request = Request(
+            method="GET",
+            url="http://example.com/api/resource",
+            params={"param1": "value1"},
+        )
+
+        session = Session()
+
+        response = Mock(Response, json=lambda: {"next": "/api/resource?page=2&param1=value1"})
+        paginator.update_state(response)
+        paginator.update_request(request)
+
+        assert request.url == "http://example.com/api/resource?page=2&param1=value1"
+
+        # RESTClient._send_request() calls Session.prepare_request() which
+        # updates the URL with the query parameters from the request object.
+        prepared_request = session.prepare_request(request)
+
+        # The next request should just use the "next" URL without any duplicate parameters.
+        assert prepared_request.url == "http://example.com/api/resource?page=2&param1=value1"
+        
     def test_client_pagination(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts",
