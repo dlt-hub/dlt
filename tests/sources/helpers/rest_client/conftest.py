@@ -174,7 +174,7 @@ def rest_client() -> RESTClient:
     )
 
 
-def assert_pagination(pages, expected_start=0, page_size=10, total_pages=10):
+def assert_pagination(pages, page_size=10, total_pages=10):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
-        assert page == [{"id": i, "title": f"Post {i}"} for i in range(i * 10, (i + 1) * 10)]
+        assert page == [{"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)]
