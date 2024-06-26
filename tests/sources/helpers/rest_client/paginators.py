@@ -30,7 +30,7 @@ class PageNumberPaginator(BasePaginator):
             records: List of records to paginate.
             page_number: Page number to return.
             page_size: Maximum number of records to return per page.
-            first_page: Number of the first page. E.g. zero-based
+            index_base: Index of the start page. E.g. zero-based
                 index or 1-based index.
         """
         super().__init__(records)
