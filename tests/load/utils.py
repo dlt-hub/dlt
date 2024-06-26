@@ -152,7 +152,7 @@ class DestinationTestConfiguration:
                 "stage_name",
                 "staging_iam_role",
                 "staging_use_msi",
-                "stage_name",
+                "force_iceberg",
             ]
             if getattr(self, k, None) is not None
         }
@@ -174,8 +174,8 @@ class DestinationTestConfiguration:
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
-            destination=self.destination,
-            staging=self.staging,
+            destination=kwargs.pop("destination", self.destination),
+            staging=kwargs.pop("staging", self.staging),
             dataset_name=dataset_name or pipeline_name,
             dev_mode=dev_mode,
             **kwargs,

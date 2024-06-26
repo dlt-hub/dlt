@@ -52,7 +52,7 @@ def airtable_emojis():
 
     @dlt.resource(name="🦚WidePeacock", selected=False)
     def wide_peacock():
-        yield [{"peacock": [1, 2, 3]}]
+        yield [{"Peacock": [1, 2, 3]}]
 
     return budget, schedule, peacock, wide_peacock
 

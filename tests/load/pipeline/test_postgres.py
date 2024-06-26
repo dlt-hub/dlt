@@ -30,7 +30,7 @@ def test_postgres_encoded_binary(
         blob_table = blob_table.to_pylist()
         print(blob_table)
 
-    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     load_info = pipeline.run(blob_table, table_name="table", loader_file_format="csv")
     assert_load_info(load_info)
     job = load_info.load_packages[0].jobs["completed_jobs"][0].file_path

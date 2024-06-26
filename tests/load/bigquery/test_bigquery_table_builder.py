@@ -952,7 +952,7 @@ def test_adapter_additional_table_hints_table_description_with_alter_table(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())

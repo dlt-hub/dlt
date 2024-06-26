@@ -179,7 +179,7 @@ def test_drop_command_only_state(destination_config: DestinationTestConfiguratio
 def test_drop_command_only_tables(destination_config: DestinationTestConfiguration) -> None:
     """Test drop only tables and makes sure that schema and state are synced"""
     source = droppable_source()
-    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("drop_test_" + uniq_id(), dev_mode=True)
     pipeline.run(source)
     sources_state = pipeline.state["sources"]
 

@@ -208,7 +208,7 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_athena_file_layouts(destination_config: DestinationTestConfiguration, layout) -> None:
     # test wether strange file layouts still work in all staging configs
-    pipeline = destination_config.setup_pipeline("athena_file_layout", full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_file_layout", dev_mode=True)
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
 
     resources = [
@@ -242,7 +242,7 @@ def test_athena_file_layouts(destination_config: DestinationTestConfiguration, l
 )
 def test_athena_partitioned_iceberg_table(destination_config: DestinationTestConfiguration):
     """Load an iceberg table with partition hints and verifiy partitions are created correctly."""
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     data_items = [
         (1, "A", datetime.date.fromisoformat("2021-01-01")),

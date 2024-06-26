@@ -35,7 +35,7 @@ skip_if_not_active("filesystem")
 @pytest.fixture
 def local_filesystem_pipeline() -> dlt.Pipeline:
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
-    return dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", full_refresh=True)
+    return dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", dev_mode=True)
 
 
 def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:

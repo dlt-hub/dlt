@@ -40,7 +40,7 @@ def test_iceberg_partition_hints():
         "athena_test",
         destination="athena",
         staging=filesystem("s3://not-a-real-bucket"),
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.extract([partitioned_table, not_partitioned_table])

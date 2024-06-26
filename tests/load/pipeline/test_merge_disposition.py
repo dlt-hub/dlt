@@ -992,7 +992,7 @@ def test_invalid_merge_strategy(destination_config: DestinationTestConfiguration
     def r():
         yield {"foo": "bar"}
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
     assert isinstance(pip_ex.value.__context__, SchemaException)
