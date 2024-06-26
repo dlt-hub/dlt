@@ -11,12 +11,14 @@ from .paginators import PageNumberPaginator, OffsetPaginator
 
 
 MOCK_BASE_URL = "https://api.example.com"
+DEFAULT_PAGE_SIZE = 5
+DEFAULT_TOTAL_PAGES = 5
 
 
 router = APIRouter(MOCK_BASE_URL)
 
 
-def generate_posts(count=25):
+def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
     return [{"id": i, "title": f"Post {i}"} for i in range(count)]
 
 
@@ -214,7 +216,7 @@ def oauth_authorize(request):
         )
 
 
-def assert_pagination(pages, page_size=5, total_pages=5):
+def assert_pagination(pages, page_size=DEFAULT_PAGE_SIZE, total_pages=DEFAULT_TOTAL_PAGES):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
         assert page == [
