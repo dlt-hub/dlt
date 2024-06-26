@@ -11,6 +11,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     PageNumberPaginator,
     HeaderLinkPaginator,
     JSONResponsePaginator,
+    JSONResponseCursorPaginator,
 )
 
 from .conftest import assert_pagination
@@ -395,6 +396,33 @@ class TestPageNumberPaginator:
         pages_iter = rest_client.paginate(
             "/posts_zero_based",
             paginator=PageNumberPaginator(index_base=0, page=0, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+@pytest.mark.usefixtures("mock_api_server")
+class TestJSONResponseCursorPaginator:
+    def test_update_state(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        response = Mock(Response, json=lambda: {"next_cursor": "cursor-2", "results": []})
+        paginator.update_state(response)
+        assert paginator._next_reference == "cursor-2"
+        assert paginator.has_next_page is True
+
+    def test_update_request(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        paginator._next_reference = "cursor-2"
+        request = Request(method="GET", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.params["cursor"] == "cursor-2"
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_cursor",
+            paginator=JSONResponseCursorPaginator(cursor_path="next_cursor"),
         )
 
         pages = list(pages_iter)

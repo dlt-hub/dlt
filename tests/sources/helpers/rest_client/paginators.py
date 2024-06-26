@@ -95,8 +95,10 @@ class OffsetPaginator(BasePaginator):
 
 
 class CursorPaginator(BasePaginator):
-    def __init__(self, records, cursor, limit=10):
+    def __init__(self, records, cursor, limit=5):
         """Paginate records by cursor.
+
+        Here, cursor is the index of the record to start slicing from.
 
         Args:
             records: List of records to paginate.
@@ -109,22 +111,15 @@ class CursorPaginator(BasePaginator):
 
     @property
     def page_records(self):
-        start_index = self.records.index(self.cursor)
-        return self.records[start_index : start_index + self.limit]
+        return self.records[self.cursor : self.cursor + self.limit]
 
     @property
     def metadata(self):
-        next_index = self.records.index(self.cursor) + self.limit
+        next_index = self.cursor + self.limit
 
         if next_index < len(self.records):
-            next_cursor = self.records[next_index]
+            next_cursor = next_index
         else:
             next_cursor = None
 
         return {"next_cursor": next_cursor}
-
-    @property
-    def next_page_url_params(self):
-        if self.metadata["next_cursor"]:
-            return {"cursor": self.metadata["next_cursor"], "limit": self.limit}
-        return {}

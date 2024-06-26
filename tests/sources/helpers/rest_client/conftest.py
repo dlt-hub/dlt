@@ -7,12 +7,13 @@ import requests_mock
 from dlt.sources.helpers.rest_client import RESTClient
 
 from .api_router import APIRouter
-from .paginators import PageNumberPaginator, OffsetPaginator
+from .paginators import PageNumberPaginator, OffsetPaginator, CursorPaginator
 
 
 MOCK_BASE_URL = "https://api.example.com"
 DEFAULT_PAGE_SIZE = 5
 DEFAULT_TOTAL_PAGES = 5
+DEFAULT_LIMIT = 10
 
 
 router = APIRouter(MOCK_BASE_URL)
@@ -90,8 +91,19 @@ def mock_api_server():
         def posts_offset_limit(request, context):
             records = generate_posts()
             offset = int(request.qs.get("offset", [0])[0])
-            limit = int(request.qs.get("limit", [10])[0])
+            limit = int(request.qs.get("limit", [DEFAULT_LIMIT])[0])
             paginator = OffsetPaginator(records, offset, limit)
+
+            return {
+                "data": paginator.page_records,
+                **paginator.metadata,
+            }
+
+        @router.get(r"/posts_cursor(\?cursor=\d+)?$")
+        def posts_cursor(request, context):
+            records = generate_posts()
+            cursor = int(request.qs.get("cursor", [0])[0])
+            paginator = CursorPaginator(records, cursor)
 
             return {
                 "data": paginator.page_records,
