@@ -24,7 +24,6 @@ def verify_schema_capabilities(
     * Checks if schema has collisions due to case sensitivity of the identifiers
     """
 
-    log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
     # combined casing function
@@ -78,7 +77,7 @@ def verify_schema_capabilities(
             )
 
         column_name_lookup: DictStrStr = {}
-        for column_name, column in dict(table["columns"]).items():
+        for column_name in dict(table["columns"]):
             # detect table name conflict
             cased_column_name = case_identifier(column_name)
             if cased_column_name in column_name_lookup:
