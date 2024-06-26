@@ -37,7 +37,9 @@ def test_clickhouse_adapter() -> None:
         deployment_type: TDeployment = client._get_deployment_type()
 
     if deployment_type == "ClickHouseCloud":
-        pack = pipe.run([merge_tree_resource, replicated_merge_tree_resource, not_annotated_resource])
+        pack = pipe.run(
+            [merge_tree_resource, replicated_merge_tree_resource, not_annotated_resource]
+        )
     else:
         # `ReplicatedMergeTree` not supported if only a single node.
         pack = pipe.run([merge_tree_resource, not_annotated_resource])
@@ -50,7 +52,7 @@ def test_clickhouse_adapter() -> None:
         for table in client._list_tables():
             if "resource" in table:
                 tables[table.split("___")[1]] = table
-        if deployment_type=="ClickHouseCloud":
+        if deployment_type == "ClickHouseCloud":
             assert (len(tables.keys())) == 3
         else:
             assert (len(tables.keys())) == 2
@@ -79,9 +81,7 @@ def test_clickhouse_adapter() -> None:
                             "ReplicatedMergeTree",
                         )
                     else:
-                        assert tuple(res[0])[2] in (
-                            "MergeTree",
-                        )
+                        assert tuple(res[0])[2] in ("MergeTree",)
                 else:
                     # Non annotated resource needs to default to detected installation
                     # type, i.e. cloud or self-managed.

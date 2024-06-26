@@ -411,4 +411,3 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
-

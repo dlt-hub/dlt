@@ -1,3 +1,4 @@
+import datetime  # noqa: I251
 from contextlib import contextmanager
 from typing import (
     Iterator,
@@ -6,15 +7,18 @@ from typing import (
     List,
     Optional,
     Sequence,
-    ClassVar, Literal,
+    ClassVar,
+    Literal,
 )
 
 import clickhouse_driver  # type: ignore[import-untyped]
 import clickhouse_driver.errors  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
-
+from pendulum import DateTime  # noqa: I251
+i
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.typing import DictStrAny
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DatabaseTransientException,
@@ -132,6 +136,15 @@ class ClickHouseSqlClient(
         )
         return [row[0] for row in rows]
 
+    @staticmethod
+    def _sanitise_dbargs(db_args: DictStrAny) -> DictStrAny:
+        """For ClickHouse OSS, the DBapi driver doesn't parse datetime types.
+        We remove timezone specifications in this case."""
+        for key, value in db_args.items():
+            if isinstance(value, (DateTime, datetime.datetime)):
+                db_args[key] = str(value.replace(microsecond=0, tzinfo=None))
+        return db_args
+
     @contextmanager
     @raise_database_error
     def execute_query(
@@ -139,11 +152,13 @@ class ClickHouseSqlClient(
     ) -> Iterator[ClickHouseDBApiCursorImpl]:
         assert isinstance(query, str), "Query must be a string."
 
-        db_args = kwargs.copy()
+        db_args: DictStrAny = kwargs.copy()
 
         if args:
             query, db_args = _convert_to_old_pyformat(query, args, OperationalError)
             db_args.update(kwargs)
+
+        db_args = self._sanitise_dbargs(db_args)
 
         with self._conn.cursor() as cursor:
             for query_line in query.split(";"):
