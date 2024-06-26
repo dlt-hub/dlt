@@ -42,7 +42,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
+from tests.common.utils import load_yml_case
 
 
 def test_default_resource() -> None:
@@ -107,7 +107,10 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    eth_v9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    # source removes processing hints so we do
+    reference_schema = Schema.from_dict(eth_v9, remove_processing_hints=True)
+    assert schema.stored_version_hash == reference_schema.stored_version_hash
 
 
 def test_unbound_parametrized_transformer() -> None:
@@ -341,6 +344,41 @@ def test_columns_from_pydantic() -> None:
     assert t["columns"]["b"]["data_type"] == "double"
 
 
+def test_not_normalized_identifiers_in_hints() -> None:
+    @dlt.resource(
+        primary_key="ID",
+        merge_key=["Month", "Day"],
+        columns=[{"name": "Col1", "data_type": "bigint"}],
+        table_name="🐫Camels",
+    )
+    def CamelResource():
+        yield ["🐫"] * 10
+
+    camels = CamelResource()
+    # original names are kept
+    assert camels.name == "CamelResource"
+    assert camels.table_name == "🐫Camels"
+    assert camels.columns == {"Col1": {"data_type": "bigint", "name": "Col1"}}
+    table = camels.compute_table_schema()
+    columns = table["columns"]
+    assert "ID" in columns
+    assert "Month" in columns
+    assert "Day" in columns
+    assert "Col1" in columns
+    assert table["name"] == "🐫Camels"
+
+    # define as part of a source
+    camel_source = DltSource(Schema("snake_case"), "camel_section", [camels])
+    schema = camel_source.discover_schema()
+    # all normalized
+    table = schema.get_table("_camels")
+    columns = table["columns"]
+    assert "id" in columns
+    assert "month" in columns
+    assert "day" in columns
+    assert "col1" in columns
+
+
 def test_resource_name_from_generator() -> None:
     def some_data():
         yield [1, 2, 3]
@@ -563,6 +601,21 @@ def test_source_schema_context() -> None:
         return dlt.resource([1, 2, 3], name="res")
 
     _assert_source_schema(created_global(), "global")
+
+
+def test_source_schema_removes_processing_hints() -> None:
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    assert "x-normalizer" in eth_V9["tables"]["blocks"]
+
+    @dlt.source(schema=Schema.from_dict(eth_V9))
+    def created_explicit():
+        schema = dlt.current.source_schema()
+        assert schema.name == "ethereum"
+        assert "x-normalizer" not in schema.tables["blocks"]
+        return dlt.resource([1, 2, 3], name="res")
+
+    source = created_explicit()
+    assert "x-normalizer" not in source.schema.tables["blocks"]
 
 
 def test_source_state_context() -> None:
@@ -847,6 +900,18 @@ def test_standalone_transformer(next_item_mode: str) -> None:
         "AAAAAA",
         "AAAAAAAA",
     ]
+
+
+def test_transformer_required_args() -> None:
+    @dlt.transformer
+    def path_params(id_, workspace_id, load_id, base: bool = False):
+        yield {"id": id_, "workspace_id": workspace_id, "load_id": load_id}
+
+    data = list([1, 2, 3] | path_params(121, 343))
+    assert len(data) == 3
+    assert data[0] == {"id": 1, "workspace_id": 121, "load_id": 343}
+
+    # @dlt
 
 
 @dlt.transformer(standalone=True, name=lambda args: args["res_name"])

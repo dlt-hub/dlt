@@ -17,12 +17,11 @@ from dlt.extract.resource import DltResource
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import arrow_table_all_data_types
-from tests.pipeline.utils import assert_load_info, load_table_counts
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.pipeline.utils import load_tables_to_dicts
+from tests.pipeline.utils import load_tables_to_dicts, assert_load_info, load_table_counts
 
 from tests.utils import TPythonTableFormat
 
@@ -104,7 +103,7 @@ def test_core_functionality(
     validity_column_names: List[str],
     active_record_timestamp: Optional[pendulum.DateTime],
 ) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         table_name="dim_test",
@@ -243,7 +242,7 @@ def test_core_functionality(
 )
 @pytest.mark.parametrize("simple", [True, False])
 def test_child_table(destination_config: DestinationTestConfiguration, simple: bool) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         table_name="dim_test", write_disposition={"disposition": "merge", "strategy": "scd2"}
@@ -386,7 +385,7 @@ def test_child_table(destination_config: DestinationTestConfiguration, simple: b
     ids=lambda x: x.name,
 )
 def test_grandchild_table(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         table_name="dim_test", write_disposition={"disposition": "merge", "strategy": "scd2"}
@@ -479,7 +478,7 @@ def test_grandchild_table(destination_config: DestinationTestConfiguration) -> N
     ids=lambda x: x.name,
 )
 def test_validity_column_name_conflict(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         table_name="dim_test",
@@ -525,7 +524,7 @@ def test_active_record_timestamp(
     destination_config: DestinationTestConfiguration,
     active_record_timestamp: Optional[TAnyDateTime],
 ) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         table_name="dim_test",
@@ -572,7 +571,7 @@ def test_arrow_custom_hash(
             },
         ).add_map(add_row_hash_to_table("row_hash"))
 
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
     info = p.run(_make_scd2_r(table), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     # make sure we have scd2 columns in schema
@@ -608,7 +607,7 @@ def test_arrow_custom_hash(
     ids=lambda x: x.name,
 )
 def test_user_provided_row_hash(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         table_name="dim_test",

@@ -1,15 +1,10 @@
-from typing import Mapping, cast
-
-from dlt.destinations.impl.duckdb import capabilities as duck_insert_caps
-from dlt.destinations.impl.redshift import capabilities as rd_insert_caps
-from dlt.destinations.impl.postgres import capabilities as pg_insert_caps
-from dlt.destinations.impl.bigquery import capabilities as jsonl_caps
-from dlt.destinations.impl.filesystem import capabilities as filesystem_caps
+from dlt.destinations import duckdb, redshift, postgres, bigquery, filesystem
 
 
-DEFAULT_CAPS = pg_insert_caps
-INSERT_CAPS = [duck_insert_caps, rd_insert_caps, pg_insert_caps]
-JSONL_CAPS = [jsonl_caps, filesystem_caps]
+# callables to capabilities
+DEFAULT_CAPS = postgres().capabilities
+INSERT_CAPS = [duckdb().capabilities, redshift().capabilities, DEFAULT_CAPS]
+JSONL_CAPS = [bigquery().capabilities, filesystem().capabilities]
 ALL_CAPABILITIES = INSERT_CAPS + JSONL_CAPS
 
 

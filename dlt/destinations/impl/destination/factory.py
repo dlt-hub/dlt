@@ -4,18 +4,20 @@ from importlib import import_module
 from types import ModuleType
 
 from dlt.common import logger
+from dlt.common.destination.capabilities import TLoaderParallelismStrategy
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.normalizers.naming.naming import NamingConvention
 from dlt.common.typing import AnyFun
 from dlt.common.destination import Destination, DestinationCapabilitiesContext, TLoaderFileFormat
 from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import get_callable_name, is_inner_callable
 
-from dlt.destinations.exceptions import DestinationTransientException
 from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
+    dummy_custom_destination,
     TDestinationCallable,
 )
-from dlt.destinations.impl.destination import capabilities
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.destination.destination import DestinationClient
@@ -34,16 +36,16 @@ _DESTINATIONS: t.Dict[str, DestinationInfo] = {}
 
 
 class destination(Destination[CustomDestinationClientConfiguration, "DestinationClient"]):
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities(
-            preferred_loader_file_format=self.config_params.get(
-                "loader_file_format", "typed-jsonl"
-            ),
-            naming_convention=self.config_params.get("naming_convention", "direct"),
-            max_table_nesting=self.config_params.get("max_table_nesting", None),
-            max_parallel_load_jobs=self.config_params.get("max_parallel_load_jobs", None),
-            loader_parallelism_strategy=self.config_params.get("loader_parallelism_strategy", None),
-        )
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        caps = DestinationCapabilitiesContext.generic_capabilities("typed-jsonl")
+        caps.supported_loader_file_formats = ["typed-jsonl", "parquet"]
+        caps.supports_ddl_transactions = False
+        caps.supports_transactions = False
+        caps.naming_convention = "direct"
+        caps.max_table_nesting = 0
+        caps.max_parallel_load_jobs = 0
+        caps.loader_parallelism_strategy = None
+        return caps
 
     @property
     def spec(self) -> t.Type[CustomDestinationClientConfiguration]:
@@ -68,7 +70,7 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         **kwargs: t.Any,
     ) -> None:
         if spec and not issubclass(spec, CustomDestinationClientConfiguration):
-            raise ValueError(
+            raise TerminalValueError(
                 "A SPEC for a sink destination must use CustomDestinationClientConfiguration as a"
                 " base."
             )
@@ -97,14 +99,7 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
                 "No destination callable provided, providing dummy callable which will fail on"
                 " load."
             )
-
-            def dummy_callable(*args: t.Any, **kwargs: t.Any) -> None:
-                raise DestinationTransientException(
-                    "You tried to load to a custom destination without a valid callable."
-                )
-
-            destination_callable = dummy_callable
-
+            destination_callable = dummy_custom_destination
         elif not callable(destination_callable):
             raise ConfigurationValueError("Resolved Sink destination callable is not a callable.")
 
@@ -138,9 +133,21 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         super().__init__(
             destination_name=destination_name,
             environment=environment,
+            # NOTE: `loader_file_format` is not a field in the caps so we had to hack the base class to allow this
             loader_file_format=loader_file_format,
             batch_size=batch_size,
             naming_convention=naming_convention,
             destination_callable=conf_callable,
             **kwargs,
         )
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: CustomDestinationClientConfiguration,
+        naming: t.Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        caps = super().adjust_capabilities(caps, config, naming)
+        caps.preferred_loader_file_format = config.loader_file_format
+        return caps

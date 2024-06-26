@@ -266,8 +266,9 @@ def test_shorten_fragments(convention: Type[NamingConvention]) -> None:
         assert naming.shorten_fragments(*RAW_PATH_WITH_EMPTY_IDENT) == norm_path
 
 
-# 'event__parse_data__response_selector__default__response__response_templates'
-# E         'event__parse_data__response_selector__default__response__responses'
+def test_naming_convention_name() -> None:
+    assert SnakeCaseNamingConvention.name() == "snake_case"
+    assert DirectNamingConvention.name() == "direct"
 
 
 def assert_short_path(norm_path: str, naming: NamingConvention) -> None:

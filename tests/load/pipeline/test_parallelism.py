@@ -55,7 +55,7 @@ def run_pipeline(
             yield {"num": i}
 
     # we load n items for 3 tables in one run
-    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     p.run(
         [
             dlt.resource(table_name="t1")(t),

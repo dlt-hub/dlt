@@ -30,13 +30,15 @@ from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
-    capabilities: ClassVar[DestinationCapabilitiesContext] = None
 
-    def __init__(self, database_name: str, dataset_name: str) -> None:
+    def __init__(
+        self, database_name: str, dataset_name: str, capabilities: DestinationCapabilitiesContext
+    ) -> None:
         if not dataset_name:
             raise ValueError(dataset_name)
         self.dataset_name = dataset_name
         self.database_name = database_name
+        self.capabilities = capabilities
 
     @abstractmethod
     def open_connection(self) -> TNativeConn:
@@ -75,9 +77,12 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
 SELECT 1
     FROM INFORMATION_SCHEMA.SCHEMATA
     WHERE """
-        db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
-        if len(db_params) == 2:
+        catalog_name, schema_name, _ = self._get_information_schema_components()
+        db_params: List[str] = []
+        if catalog_name is not None:
             query += " catalog_name = %s AND "
+            db_params.append(catalog_name)
+        db_params.append(schema_name)
         query += "schema_name = %s"
         rows = self.execute_sql(query, *db_params)
         return len(rows) > 0
@@ -137,16 +142,39 @@ SELECT 1
                     ret.append(result)
         return ret
 
-    @abstractmethod
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
+        # default is no catalogue component of the name, which typically means that
+        # connection is scoped to a current database
+        return None
+
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        pass
+        return ".".join(self.make_qualified_table_name_path(None, escape=escape))
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        return ".".join(self.make_qualified_table_name_path(table_name, escape=escape))
+
+    def make_qualified_table_name_path(
+        self, table_name: Optional[str], escape: bool = True
+    ) -> List[str]:
+        """Returns a list with path components leading from catalog to table_name.
+        Used to construct fully qualified names. `table_name` is optional.
+        """
+        path: List[str] = []
+        if catalog_name := self.catalog_name(escape=escape):
+            path.append(catalog_name)
+        dataset_name = self.capabilities.casefold_identifier(self.dataset_name)
         if escape:
-            table_name = self.capabilities.escape_identifier(table_name)
-        return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
+            dataset_name = self.capabilities.escape_identifier(dataset_name)
+        path.append(dataset_name)
+        if table_name:
+            table_name = self.capabilities.casefold_identifier(table_name)
+            if escape:
+                table_name = self.capabilities.escape_identifier(table_name)
+            path.append(table_name)
+        return path
 
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
+        column_name = self.capabilities.casefold_identifier(column_name)
         if escape:
             return self.capabilities.escape_identifier(column_name)
         return column_name
@@ -191,6 +219,18 @@ SELECT 1
     def make_staging_dataset_name(dataset_name: str) -> str:
         return dataset_name + "_staging"
 
+    def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
+        """Gets catalog name, schema name and name of the tables in format that can be directly
+        used to query INFORMATION_SCHEMA. catalog name is optional: in that case None is
+        returned in the first element of the tuple.
+        """
+        schema_path = self.make_qualified_table_name_path(None, escape=False)
+        return (
+            self.catalog_name(escape=False),
+            schema_path[-1],
+            [self.make_qualified_table_name_path(table, escape=False)[-1] for table in tables],
+        )
+
     #
     # generate sql statements
     #
@@ -220,6 +260,11 @@ class DBApiCursorImpl(DBApiCursor):
         return [c[0] for c in self.native_cursor.description]
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+        """Fetches results as data frame in full or in specified chunks.
+
+        May use native pandas/arrow reader if available. Depending on
+        the native implementation chunk size may vary.
+        """
         from dlt.common.libs.pandas_sql import _wrap_result
 
         columns = self._get_columns()

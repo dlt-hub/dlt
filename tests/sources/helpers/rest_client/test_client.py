@@ -234,7 +234,6 @@ class TestRESTClient:
         assert e.type == HTTPError
         assert e.match("401 Client Error")
 
-
     def test_oauth_token_expired_refresh(self, rest_client_immediate_oauth_expiry: RESTClient):
         rest_client = rest_client_immediate_oauth_expiry
         auth = cast(OAuth2ClientCredentials, rest_client.auth)

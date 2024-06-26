@@ -14,6 +14,7 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="bigquery", init=False, repr=False, compare=False)  # type: ignore
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"
+    has_case_sensitive_identifiers: bool = True
 
     http_timeout: float = 15.0  # connection timeout for http request to BigQuery api
     file_upload_timeout: float = 30 * 60.0  # a timeout for file upload when loading local files

@@ -3,7 +3,7 @@ from abc import abstractmethod, ABC
 from functools import lru_cache
 import math
 import hashlib
-from typing import Any, List, Protocol, Sequence, Type
+from typing import Sequence
 
 
 class NamingConvention(ABC):
@@ -11,7 +11,11 @@ class NamingConvention(ABC):
     _DEFAULT_COLLISION_PROB = 0.001
 
     def __init__(self, max_length: int = None) -> None:
+        """Initializes naming convention to generate identifier with `max_length` if specified. Base naming convention
+        is case sensitive by default
+        """
         self.max_length = max_length
+        self.is_case_sensitive = True
 
     @abstractmethod
     def normalize_identifier(self, identifier: str) -> str:
@@ -58,6 +62,14 @@ class NamingConvention(ABC):
         path_str = self.make_path(*normalized_idents)
         return self.shorten_identifier(path_str, path_str, self.max_length)
 
+    @classmethod
+    def name(cls) -> str:
+        """Naming convention name is the name of the module in which NamingConvention is defined"""
+        if cls.__module__.startswith("dlt.common.normalizers.naming."):
+            # return last component
+            return cls.__module__.split(".")[-1]
+        return cls.__module__
+
     @staticmethod
     @lru_cache(maxsize=None)
     def shorten_identifier(
@@ -100,10 +112,3 @@ class NamingConvention(ABC):
         )
         assert len(identifier) == max_length
         return identifier
-
-
-class SupportsNamingConvention(Protocol):
-    """Expected of modules defining naming convention"""
-
-    NamingConvention: Type[NamingConvention]
-    """A class with a name NamingConvention deriving from normalizers.naming.NamingConvention"""

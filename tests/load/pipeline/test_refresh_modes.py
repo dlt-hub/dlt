@@ -8,7 +8,7 @@ from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 from dlt.common.typing import DictStrAny
 from dlt.common.pipeline import pipeline_state as current_pipeline_state
 
-from tests.utils import clean_test_storage, preserve_environ
+from tests.utils import clean_test_storage
 from tests.pipeline.utils import (
     assert_load_info,
     load_tables_to_dicts,

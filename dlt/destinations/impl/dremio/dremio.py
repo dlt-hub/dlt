@@ -14,7 +14,6 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TC
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.dremio import capabilities
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration
 from dlt.destinations.impl.dremio.sql_client import DremioSqlClient
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
@@ -137,10 +136,15 @@ class DremioLoadJob(LoadJob, FollowupJob):
 
 
 class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: DremioClientConfiguration) -> None:
-        sql_client = DremioSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: DremioClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = DremioSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: DremioClientConfiguration = config
         self.sql_client: DremioSqlClient = sql_client  # type: ignore
@@ -172,7 +176,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not generate_alter:
             partition_list = [
-                self.capabilities.escape_identifier(c["name"])
+                self.sql_client.escape_column_name(c["name"])
                 for c in new_columns
                 if c.get("partition")
             ]
@@ -180,7 +184,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 sql[0] += "\nPARTITION BY (" + ",".join(partition_list) + ")"
 
             sort_list = [
-                self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("sort")
+                self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("sort")
             ]
             if sort_list:
                 sql[0] += "\nLOCALSORT BY (" + ",".join(sort_list) + ")"
@@ -193,44 +197,10 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(c["name"])
+        name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        def _null_to_bool(v: str) -> bool:
-            if v == "NO":
-                return False
-            elif v == "YES":
-                return True
-            raise ValueError(v)
-
-        fields = self._get_storage_table_query_columns()
-        table_schema = self.sql_client.fully_qualified_dataset_name(escape=False)
-        db_params = (table_schema, table_name)
-        query = f"""
-SELECT {",".join(fields)}
-    FROM INFORMATION_SCHEMA.COLUMNS
-WHERE
-    table_catalog = 'DREMIO' AND table_schema = %s AND table_name = %s ORDER BY ordinal_position;
-"""
-        rows = self.sql_client.execute_sql(query, *db_params)
-
-        # if no rows we assume that table does not exist
-        schema_table: TTableSchemaColumns = {}
-        if len(rows) == 0:
-            return False, schema_table
-        for c in rows:
-            numeric_precision = c[3]
-            numeric_scale = c[4]
-            schema_c: TColumnSchemaBase = {
-                "name": c[0],
-                "nullable": _null_to_bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),
-            }
-            schema_table[c[0]] = schema_c  # type: ignore
-        return True, schema_table
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]

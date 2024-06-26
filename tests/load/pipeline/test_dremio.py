@@ -12,9 +12,7 @@ from tests.load.utils import DestinationTestConfiguration, destinations_configs
     ids=lambda x: x.name,
 )
 def test_dremio(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline(
-        "dremio-test", dataset_name="bar", full_refresh=True
-    )
+    pipeline = destination_config.setup_pipeline("dremio-test", dataset_name="bar", dev_mode=True)
 
     @dlt.resource(name="items", write_disposition="replace")
     def items() -> Iterator[Any]:

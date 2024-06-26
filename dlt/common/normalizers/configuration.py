@@ -1,9 +1,9 @@
-from typing import ClassVar, Optional, TYPE_CHECKING
+from typing import ClassVar, Optional, Union
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.normalizers.typing import TJSONNormalizer
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.typing import DictStrAny
 
 
@@ -12,8 +12,9 @@ class NormalizersConfiguration(BaseConfiguration):
     # always in section
     __section__: ClassVar[str] = known_sections.SCHEMA
 
-    naming: Optional[str] = None
+    naming: Optional[Union[str, NamingConvention]] = None
     json_normalizer: Optional[DictStrAny] = None
+    allow_identifier_change_on_table_with_data: Optional[bool] = None
     destination_capabilities: Optional[DestinationCapabilitiesContext] = None  # injectable
 
     def on_resolved(self) -> None:

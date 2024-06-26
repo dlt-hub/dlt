@@ -12,7 +12,7 @@ from dlt.common import logger, time, json, pendulum
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
-from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName, TPipelineStateDoc
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -29,7 +29,6 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
-from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
@@ -153,15 +152,19 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
 class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStateSync):
     """filesystem client storing jobs in memory"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     fs_client: AbstractFileSystem
     # a path (without the scheme) to a location in the bucket where dataset is present
     bucket_path: str
     # name of the dataset
     dataset_name: str
 
-    def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: FilesystemDestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.fs_client, fs_path = fsspec_from_config(config)
         self.is_local_filesystem = config.protocol == "file"
         self.bucket_path = (
@@ -365,7 +368,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         dirname = self.pathlib.dirname(filepath)
         if not self.fs_client.isdir(dirname):
             return
-        self.fs_client.write_text(filepath, json.dumps(data), "utf-8")
+        self.fs_client.write_text(filepath, json.dumps(data), encoding="utf-8")
 
     def _to_path_safe_string(self, s: str) -> str:
         """for base64 strings"""
@@ -447,8 +450,13 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         # Load compressed state from destination
         if selected_path:
-            state_json = json.loads(self.fs_client.read_text(selected_path))
-            state_json.pop("version_hash")
+            state_json: TPipelineStateDoc = json.loads(
+                self.fs_client.read_text(selected_path, encoding="utf-8")
+            )
+            # we had dlt_load_id stored until version 0.5 and since we do not have any version control
+            # we always migrate
+            if load_id := state_json.pop("dlt_load_id", None):  # type: ignore[typeddict-item]
+                state_json["_dlt_load_id"] = load_id
             return StateInfo(**state_json)
 
         return None
@@ -491,7 +499,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 break
 
         if selected_path:
-            return StorageSchemaInfo(**json.loads(self.fs_client.read_text(selected_path)))
+            return StorageSchemaInfo(
+                **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+            )
 
         return None
 
@@ -528,19 +538,23 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         def get_table_jobs(
             table_jobs: Sequence[LoadJobInfo], table_name: str
         ) -> Sequence[LoadJobInfo]:
             return [job for job in table_jobs if job.job_file_info.table_name == table_name]
 
-        assert table_chain_jobs is not None
-        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
+        assert completed_table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
         table_format = table_chain[0].get("table_format")
         if table_format == "delta":
             delta_jobs = [
-                DeltaLoadFilesystemJob(self, table, get_table_jobs(table_chain_jobs, table["name"]))
+                DeltaLoadFilesystemJob(
+                    self, table, get_table_jobs(completed_table_chain_jobs, table["name"])
+                )
                 for table in table_chain
             ]
             jobs.extend(delta_jobs)
