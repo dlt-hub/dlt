@@ -37,7 +37,9 @@ def create_next_page_url(request, paginator, use_absolute_url=True):
         return f"{path}?{query}"
 
 
-def paginate_by_page_number(request, records, records_key="data", use_absolute_url=True, index_base=1):
+def paginate_by_page_number(
+    request, records, records_key="data", use_absolute_url=True, index_base=1
+):
     page_number = get_page_number(request.qs, default=index_base)
     paginator = PageNumberPaginator(records, page_number, index_base=index_base)
 
@@ -215,4 +217,6 @@ def oauth_authorize(request):
 def assert_pagination(pages, page_size=5, total_pages=5):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
-        assert page == [{"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)]
+        assert page == [
+            {"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)
+        ]

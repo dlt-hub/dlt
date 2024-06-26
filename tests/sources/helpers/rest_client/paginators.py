@@ -59,7 +59,11 @@ class PageNumberPaginator(BasePaginator):
 
     @property
     def next_page_number(self):
-        return self.page_number + 1 if self.page_number + 1 < self.total_pages + self.index_base else None
+        return (
+            self.page_number + 1
+            if self.page_number + 1 < self.total_pages + self.index_base
+            else None
+        )
 
 
 class OffsetPaginator(BasePaginator):

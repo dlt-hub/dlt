@@ -371,7 +371,6 @@ class TestPageNumberPaginator:
         assert paginator.current_value == 3
         assert paginator.has_next_page is False
 
-
     def test_client_pagination_one_based(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts",
@@ -391,7 +390,6 @@ class TestPageNumberPaginator:
         pages = list(pages_iter)
 
         assert_pagination(pages)
-
 
     def test_client_pagination_zero_based(self, rest_client):
         pages_iter = rest_client.paginate(
