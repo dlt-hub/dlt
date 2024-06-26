@@ -401,7 +401,7 @@ def get_generic_type_argument_from_instance(
     if cls_ := getattr(instance, "__orig_class__", None):
         # instance of generic class
         pass
-    elif bases_ := get_original_bases(instance):
+    elif bases_ := get_original_bases(instance.__class__):
         # instance of class deriving from generic
         cls_ = bases_[0]
     if cls_:
