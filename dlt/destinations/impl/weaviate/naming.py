@@ -7,8 +7,9 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCa
 class NamingConvention(SnakeCaseNamingConvention):
     """Normalizes identifiers according to Weaviate documentation: https://weaviate.io/developers/weaviate/config-refs/schema#class"""
 
-    def __init__(self, max_length: int = None, is_case_sensitive: bool = True) -> None:
-        super().__init__(max_length, is_case_sensitive)
+    def __init__(self, max_length: int = None) -> None:
+        super().__init__(max_length)
+        self.is_case_sensitive: bool = True
 
     RESERVED_PROPERTIES = {"id": "__id", "_id": "___id", "_additional": "__additional"}
     _RE_UNDERSCORES = re.compile("([^_])__+")

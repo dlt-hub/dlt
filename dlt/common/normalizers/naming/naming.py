@@ -10,12 +10,12 @@ class NamingConvention(ABC):
     _TR_TABLE = bytes.maketrans(b"/+", b"ab")
     _DEFAULT_COLLISION_PROB = 0.001
 
-    def __init__(self, max_length: int = None, is_case_sensitive: bool = True) -> None:
-        """Initializes naming convention producing identifiers with `max_length` and transforming input
-        in case sensitive or case insensitive manner.
+    def __init__(self, max_length: int = None) -> None:
+        """Initializes naming convention to generate identifier with `max_length` if specified. Base naming convention
+        is case sensitive by default
         """
         self.max_length = max_length
-        self.is_case_sensitive = is_case_sensitive
+        self.is_case_sensitive = True
 
     @abstractmethod
     def normalize_identifier(self, identifier: str) -> str:
