@@ -1,0 +1,22 @@
+---
+version: '3'
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    ports:
+      - "9000:9000"
+      - "8123:8123"
+    environment:
+      - CLICKHOUSE_DB=dlt_data
+      - CLICKHOUSE_USER=loader
+      - CLICKHOUSE_PASSWORD=loader
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse/
+      - clickhouse_logs:/var/log/clickhouse-server/
+    restart: unless-stopped
+
+volumes:
+  clickhouse_data:
+  clickhouse_logs:
