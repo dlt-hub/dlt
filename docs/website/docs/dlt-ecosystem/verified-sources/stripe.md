@@ -219,7 +219,7 @@ verified source.
     ```
     > For subsequent runs, the dlt module sets the previous "end_date" as "initial_start_date", ensuring incremental data retrieval.
 
-1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For `incremental_stripe_source`, the initial_start_date will auto-update to the last loaded date from the previous run.
+1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For `incremental_stripe_source`, the `initial_start_date` will auto-update to the last loaded date from the previous run.
 
     ```py
     source_single = stripe_source(
