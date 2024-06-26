@@ -90,7 +90,7 @@ p.extract([label1, label2, label3], name="labels")  # will use default schema "s
 
 **By default, one dataset can handle multiple schemas**.
 The pipeline configuration option `use_single_dataset` controls the dataset layout in the destination. By default it is set to True. In that case only one dataset is created at the destination - by default dataset name which is the same as pipeline name. The dataset name can also be explicitly provided into `dlt.pipeline` `dlt.run` and `Pipeline::load` methods.
-All the tables from all the schemas are stored in that dataset. The table names are **not prefixed** with schema names!. If there are any name clashes, tables in the destination will be unions of the fields of all the tables with same name in the schemas.
+All the tables from all the schemas are stored in that dataset. The table names are **not prefixed** with schema names!. If there are any name collisions, tables in the destination will be unions of the fields of all the tables with same name in the schemas.
 
 **Enabling one dataset per schema layout**
 If you set `use_single_dataset` to False:
