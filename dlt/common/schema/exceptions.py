@@ -239,20 +239,19 @@ class UnboundColumnException(SchemaException):
         self.column = column
         self.schema_name = schema_name
         self.table_name = table_name
-        nullable = column.get("nullable", True)
-        merge_key = column.get("merge_key", False)
-        primary_key = column.get("primary_key", False)
-        if merge_key:
-            col_type_msg = "merge key"
-        elif primary_key:
-            col_type_msg = "primary key"
-        elif nullable:
-            col_type_msg = "nullable"
-        else:
-            col_type_msg = "non-nullable"
-        super().__init__(
-            f"A {col_type_msg} column {column['name']} in table {table_name} in schema"
-            f" {schema_name} is incomplete. It was not bound to the data during normalizations"
-            " stage and its data type is unknown. Did you add this column manually in code? Make"
-            " sure spelling correctly matches the data."
+        nullable: bool = column.get("nullable", False)
+        key_type: str = ""
+        if column.get("merge_key"):
+            key_type = "merge key"
+        elif column.get("primary_key"):
+            key_type = "primary key"
+
+        msg = f"The column {column['name']} in table {table_name} did not receive any data during this load. "
+        if key_type or not nullable:
+            msg += f"It is marked as non-nullable{' '+key_type} and it must have values. "
+
+        msg += (
+            "This can happen if you specify the column manually, for example using the 'merge_key', 'primary_key' or 'columns' argument "
+            "but it does not exist in the data."
         )
+        super().__init__(schema_name, msg)
