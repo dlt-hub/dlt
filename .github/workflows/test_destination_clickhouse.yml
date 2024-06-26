@@ -20,7 +20,7 @@ env:
   DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   ACTIVE_DESTINATIONS: "[\"clickhouse\"]"
-  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
 
 jobs:
   get_docs_changes:
@@ -45,7 +45,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10.x"
+          python-version: "3.11.x"
 
       - name: Install Poetry
         uses: snok/install-poetry@v1.3.2
@@ -76,3 +76,21 @@ jobs:
           poetry run pytest tests/load
         name: Run all tests Linux
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
+
+      - name: Start ClickHouse
+        run: docker-compose -f ".github/clickhouse-compose.yml" up -d
+
+      - run: poetry run pytest tests/load && poetry run pytest tests/cli
+        name: Run all local tests Linux
+        env:
+          DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
+          DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
+          DESTINATION__CLICKHOUSE__CREDENTIALS__USERNAME: loader
+          DESTINATION__CLICKHOUSE__CREDENTIALS__PASSWORD: loader
+          DESTINATION__CLICKHOUSE__CREDENTIALS__PORT: 9000
+          DESTINATION__CLICKHOUSE__CREDENTIALS__HTTP_PORT: 8123
+          DESTINATION__CLICKHOUSE__CREDENTIALS__SECURE: 0
+
+      - name: Stop ClickHouse
+        if: always()
+        run: docker-compose -f ".github/clickhouse-compose.yml" down -v

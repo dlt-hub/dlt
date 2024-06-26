@@ -6,7 +6,7 @@ from dlt.extract.items import TTableHintTemplate
 
 
 TTableEngineType = Literal[
-    "merge_tree", "shared_merge_tree", "replicated_merge_tree", "stripe_log", "tiny_log"
+    "merge_tree", "shared_merge_tree", "replicated_merge_tree",
 ]
 
 """
