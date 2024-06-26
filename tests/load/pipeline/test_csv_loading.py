@@ -29,7 +29,7 @@ def test_load_csv(
     destination_config: DestinationTestConfiguration, item_type: TestDataItemFormat
 ) -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
-    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     # do not save state so the state job is not created
     pipeline.config.restore_from_destination = False
 
@@ -69,7 +69,7 @@ def test_custom_csv_no_header(
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = str(not compression)
     csv_format = CsvFormatConfiguration(delimiter="|", include_header=False)
     # apply to collected config
-    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     # this will apply this to config when client instance is created
     pipeline.destination.config_params["csv_format"] = csv_format
     # verify
@@ -88,7 +88,7 @@ def test_custom_csv_no_header(
     if compression:
         import_file += ".gz"
     info = pipeline.run(
-        [dlt.mark.with_file_import(None, import_file, "csv", 2, hints)],
+        [dlt.mark.with_file_import(import_file, "csv", 2, hints=hints)],
         table_name="no_header",
         loader_file_format=file_format,
     )
@@ -116,7 +116,7 @@ def test_custom_csv_no_header(
 def test_custom_wrong_header(destination_config: DestinationTestConfiguration) -> None:
     csv_format = CsvFormatConfiguration(delimiter="|", include_header=True)
     # apply to collected config
-    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     # this will apply this to config when client instance is created
     pipeline.destination.config_params["csv_format"] = csv_format
     # verify
@@ -134,7 +134,7 @@ def test_custom_wrong_header(destination_config: DestinationTestConfiguration) -
     import_file = "tests/load/cases/loading/csv_header.csv"
     # snowflake will pass here because we do not match
     info = pipeline.run(
-        [dlt.mark.with_file_import(None, import_file, "csv", 2, hints)],
+        [dlt.mark.with_file_import(import_file, "csv", 2, hints=hints)],
         table_name="no_header",
     )
     assert info.has_failed_jobs
@@ -149,7 +149,7 @@ def test_custom_wrong_header(destination_config: DestinationTestConfiguration) -
 def test_empty_csv_from_arrow(destination_config: DestinationTestConfiguration) -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
-    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("postgres_" + uniq_id(), dev_mode=True)
     table, _, _ = arrow_table_all_data_types("arrow-table", include_json=False)
 
     load_info = pipeline.run(

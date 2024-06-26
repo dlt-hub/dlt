@@ -511,7 +511,7 @@ def test_import_file_with_arrow_schema() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     # Define the schema based on the CSV input
@@ -540,7 +540,7 @@ def test_import_file_with_arrow_schema() -> None:
     # columns should be created from empty table
     import_file = "tests/load/cases/loading/header.jsonl"
     info = pipeline.run(
-        [dlt.mark.with_file_import(empty_table, import_file, "jsonl", 2)],
+        [dlt.mark.with_file_import(import_file, "jsonl", 2, hints=empty_table)],
         table_name="no_header",
     )
     info.raise_on_failed_jobs()

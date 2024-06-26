@@ -1,5 +1,5 @@
 from copy import copy
-from typing import Set, Dict, Any, Optional, List
+from typing import Set, Dict, Any, Optional, List, Union
 
 from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger
@@ -65,21 +65,29 @@ class ImportFileMeta(HintsMeta):
 
 
 def with_file_import(
-    item: TDataItems,
     file_path: str,
-    file_format: TLoaderFileFormat = None,
+    file_format: TLoaderFileFormat,
     items_count: int = 0,
-    hints: TResourceHints = None,
+    hints: Union[TResourceHints, TDataItem] = None,
 ) -> DataItemWithMeta:
-    """Marks `item` to correspond to a file under `file_path` which will be imported into extract storage. `item` may be used
-    for a schema inference (from arrow table / pandas) but it will not be saved into storage.
+    """Marks file under `file_path` to be associated with current resource and imported into the load package as a file of
+    type `file_format`.
 
     You can provide optional `hints` that will be applied to the current resource. Note that you should avoid schema inference at
-    runtime if possible and if that is not possible - to do that only once per extract process. Create `TResourceHints` with `make_hints`.
+    runtime if possible and if that is not possible - to do that only once per extract process. Use `make_hints` in `mark` module
+    to create hints. You can also pass Arrow table or Pandas data frame form which schema will be taken (but content discarded).
+    Create `TResourceHints` with `make_hints`.
 
     If number of records in `file_path` is known, pass it in `items_count` so `dlt` can generate correct extract metrics.
+
+    Note that `dlt` does not sniff schemas from data and will not guess right file format for you.
     """
     metrics = DataWriterMetrics(file_path, items_count, 0, 0, 0)
+    item: TDataItem = None
+    # if hints are dict assume that this is dlt schema, if not - that it is arrow table
+    if not isinstance(hints, dict):
+        item = hints
+        hints = None
     return DataItemWithMeta(ImportFileMeta(file_path, metrics, file_format, hints, False), item)
 
 
