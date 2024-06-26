@@ -150,7 +150,7 @@ class RangePaginator(BasePaginator):
         self.current_value += self.value_step
 
         if (total is not None and self.current_value >= total + self.index_base) or (
-            self.maximum_value is not None and self.current_value >= self.maximum_value + self.index_base
+            self.maximum_value is not None and self.current_value >= self.maximum_value
         ):
             self._has_next_page = False
 
@@ -223,17 +223,19 @@ class PageNumberPaginator(RangePaginator):
 
     def __init__(
         self,
-        initial_page: int = 0,
-        page: int = 0,
+        index_base: int = 0,
+        page: int = None,
         page_param: str = "page",
         total_path: jsonpath.TJsonPath = "total",
         maximum_page: Optional[int] = None,
     ):
         """
         Args:
-            initial_page (int): The initial page number, which is typically 0 or 1.
-                Defaults to 0.
-            page (int): The page number for the first request. Defaults to 0.
+            index_base (int): The index of the initial page. Defines the which
+                number the API server uses for the starting page. Normally, this is
+                0-based or 1-based indexing for the page number. Defaults to 0.
+            page (int): The page number for the first request. If not provided,
+                the initial value will be set to `index_base`.
             page_param (str): The query parameter name for the page number.
                 Defaults to 'page'.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
@@ -245,10 +247,13 @@ class PageNumberPaginator(RangePaginator):
         """
         if total_path is None and maximum_page is None:
             raise ValueError("Either `total_path` or `maximum_page` must be provided.")
+
+        page = page if page is not None else index_base
+
         super().__init__(
             param_name=page_param,
             initial_value=page,
-            index_base=initial_page,
+            index_base=index_base,
             total_path=total_path,
             value_step=1,
             maximum_value=maximum_page,

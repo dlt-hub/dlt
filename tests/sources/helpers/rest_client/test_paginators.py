@@ -279,7 +279,7 @@ class TestOffsetPaginator:
     def test_client_pagination(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts_offset_limit",
-            paginator=OffsetPaginator(offset=0, limit=10, total_path="total_records"),
+            paginator=OffsetPaginator(offset=0, limit=5, total_path="total_records"),
         )
 
         pages = list(pages_iter)
@@ -290,7 +290,7 @@ class TestOffsetPaginator:
 @pytest.mark.usefixtures("mock_api_server")
 class TestPageNumberPaginator:
     def test_update_state(self):
-        paginator = PageNumberPaginator(initial_page=1, page=1, total_path="total_pages")
+        paginator = PageNumberPaginator(index_base=1, page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {"total_pages": 3})
         paginator.update_state(response)
         assert paginator.current_value == 2
@@ -305,26 +305,26 @@ class TestPageNumberPaginator:
         assert paginator.has_next_page is False
 
     def test_update_state_with_string_total_pages(self):
-        paginator = PageNumberPaginator(initial_page=1, page=1)
+        paginator = PageNumberPaginator(index_base=1, page=1)
         response = Mock(Response, json=lambda: {"total": "3"})
         paginator.update_state(response)
         assert paginator.current_value == 2
         assert paginator.has_next_page is True
 
     def test_update_state_with_invalid_total_pages(self):
-        paginator = PageNumberPaginator(initial_page=1, page=1)
+        paginator = PageNumberPaginator(index_base=1, page=1)
         response = Mock(Response, json=lambda: {"total_pages": "invalid"})
         with pytest.raises(ValueError):
             paginator.update_state(response)
 
     def test_update_state_without_total_pages(self):
-        paginator = PageNumberPaginator(initial_page=1, page=1)
+        paginator = PageNumberPaginator(index_base=1, page=1)
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
             paginator.update_state(response)
 
     def test_update_request(self):
-        paginator = PageNumberPaginator(initial_page=1, page=1, page_param="page")
+        paginator = PageNumberPaginator(index_base=1, page=1, page_param="page")
         request = Mock(Request)
         response = Mock(Response, json=lambda: {"total": 3})
         paginator.update_state(response)
@@ -336,7 +336,7 @@ class TestPageNumberPaginator:
         assert request.params["page"] == 3
 
     def test_maximum_page(self):
-        paginator = PageNumberPaginator(initial_page=1, page=1, maximum_page=3, total_path=None)
+        paginator = PageNumberPaginator(index_base=1, page=1, maximum_page=3, total_path=None)
         response = Mock(Response, json=lambda: {"items": []})
         paginator.update_state(response)  # Page 1
         assert paginator.current_value == 2
@@ -350,10 +350,31 @@ class TestPageNumberPaginator:
         assert paginator.current_value == 4
         assert paginator.has_next_page is False
 
-    def test_client_pagination(self, rest_client):
+    def test_client_pagination_one_based(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=PageNumberPaginator(initial_page=1, page=1, total_path="total_pages"),
+            paginator=PageNumberPaginator(index_base=1, page=1, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_client_pagination_one_based_default_page(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=PageNumberPaginator(index_base=1, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+    def test_client_pagination_zero_based(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_zero_based",
+            paginator=PageNumberPaginator(index_base=0, page=0, total_path="total_pages"),
         )
 
         pages = list(pages_iter)

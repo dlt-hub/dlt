@@ -23,7 +23,7 @@ class BasePaginator:
 
 
 class PageNumberPaginator(BasePaginator):
-    def __init__(self, records, page_number, page_size=10, initial_page_number=1):
+    def __init__(self, records, page_number, page_size=5, index_base=1):
         """Paginate records by page number.
 
         Args:
@@ -35,12 +35,12 @@ class PageNumberPaginator(BasePaginator):
         """
         super().__init__(records)
         self.page_number = page_number
-        self.initial_page_number = initial_page_number
+        self.index_base = index_base
         self.page_size = page_size
 
     @property
     def page_records(self):
-        start_index = (self.page_number - self.initial_page_number) * self.page_size
+        start_index = (self.page_number - self.index_base) * self.page_size
         end_index = start_index + self.page_size
         return self.records[start_index:end_index]
 
@@ -59,7 +59,7 @@ class PageNumberPaginator(BasePaginator):
 
     @property
     def next_page_number(self):
-        return self.page_number + 1 if self.page_number < self.total_pages else None
+        return self.page_number + 1 if self.page_number + 1 < self.total_pages + self.index_base else None
 
 
 class OffsetPaginator(BasePaginator):

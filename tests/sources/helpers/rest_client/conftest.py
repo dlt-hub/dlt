@@ -17,7 +17,7 @@ MOCK_BASE_URL = "https://api.example.com"
 router = APIRouter(MOCK_BASE_URL)
 
 
-def generate_posts(count=100):
+def generate_posts(count=25):
     return [{"id": i, "title": f"Post {i}"} for i in range(count)]
 
 
@@ -38,9 +38,9 @@ def create_next_page_url(request, paginator, use_absolute_url=True):
         return f"{path}?{query}"
 
 
-def paginate_by_page_number(request, records, records_key="data", use_absolute_url=True):
-    page_number = get_page_number(request.qs)
-    paginator = PageNumberPaginator(records, page_number)
+def paginate_by_page_number(request, records, records_key="data", use_absolute_url=True, index_base=1):
+    page_number = get_page_number(request.qs, default=index_base)
+    paginator = PageNumberPaginator(records, page_number, index_base=index_base)
 
     response = {
         records_key: paginator.page_records,
@@ -60,6 +60,10 @@ def mock_api_server():
         @router.get(r"/posts(\?page=\d+)?$")
         def posts(request, context):
             return paginate_by_page_number(request, generate_posts())
+
+        @router.get(r"/posts_zero_based(\?page=\d+)?$")
+        def posts_zero_based(request, context):
+            return paginate_by_page_number(request, generate_posts(), index_base=0)
 
         @router.get(r"/posts_header_link(\?page=\d+)?$")
         def posts_header_link(request, context):
@@ -174,7 +178,7 @@ def rest_client() -> RESTClient:
     )
 
 
-def assert_pagination(pages, page_size=10, total_pages=10):
+def assert_pagination(pages, page_size=5, total_pages=5):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
         assert page == [{"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)]
