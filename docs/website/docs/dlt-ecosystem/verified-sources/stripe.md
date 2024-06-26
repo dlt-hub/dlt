@@ -233,6 +233,5 @@ verified source.
     print(load_info)
     ```
     > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](../../general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh), disrupting the metadata (state) tracking for [incremental data loading](../../general-usage/incremental-loading).
-    > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](../../general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh), disrupting the metadata (state) tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA stripe_analytics-->
