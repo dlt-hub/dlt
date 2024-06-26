@@ -3,7 +3,18 @@ import os
 import base64
 
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Iterator, Optional, Tuple, Sequence, cast
+from typing import (
+    ClassVar,
+    List,
+    Type,
+    Iterable,
+    Iterator,
+    Optional,
+    Tuple,
+    Sequence,
+    cast,
+    Generator,
+)
 from fsspec import AbstractFileSystem
 from contextlib import contextmanager
 
@@ -28,6 +39,7 @@ from dlt.common.destination.reference import (
     DoNothingFollowupJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.destinations.typing import DataFrame, ArrowTable
 from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
 from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
@@ -546,3 +558,59 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             jobs.extend(delta_jobs)
 
         return jobs
+
+    def iter_df(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[DataFrame, None, None]:
+        """Provide dataframes via duckdb"""
+        import duckdb
+        from duckdb import InvalidInputException
+
+        # create in memory table, for now we read all available files
+        db = duckdb.connect(":memory:")
+        db.register_filesystem(self.fs_client)
+        files = self.list_table_files(table)
+        if not files:
+            return None
+
+        file_type = os.path.splitext(files[0])[1][1:]
+        if file_type == "jsonl":
+            read_command = "read_json"
+        elif file_type == "parquet":
+            read_command = "read_parquet"
+        else:
+            raise AssertionError("Unknown filetype")
+
+        protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
+        files_string = ",".join([f"'{protocol}{f}'" for f in files])
+
+        def _build_sql_string(read_params: str = "") -> str:
+            return (
+                f"SELECT * FROM {read_command}([{files_string}]{read_params}) OFFSET {offset} LIMIT"
+                f" {batch_size}"
+            )
+
+        # yield in batches
+        offset = 0
+        while True:
+            try:
+                df = db.sql(_build_sql_string()).df()
+            except InvalidInputException:
+                # if jsonl and could not read, try with gzip setting
+                if file_type == "jsonl":
+                    df = db.sql(_build_sql_string(read_params=", compression = 'gzip'")).df()
+                else:
+                    raise
+            if len(df.index) == 0:
+                break
+            yield df
+            offset += batch_size
+
+    def iter_arrow(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[ArrowTable, None, None]:
+        """Default implementation converts df to arrow"""
+
+        # TODO: duckdb supports iterating in batches natively..
+        for df in self.iter_df(sql=sql, table=table, batch_size=batch_size):
+            yield ArrowTable.from_pandas(df)

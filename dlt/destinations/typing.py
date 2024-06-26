@@ -1,9 +1,6 @@
 from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar
 
-try:
-    from pandas import DataFrame
-except ImportError:
-    DataFrame: Type[Any] = None  # type: ignore
+from dlt.common.typing import DataFrame, ArrowTable
 
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound=Any)

@@ -18,6 +18,8 @@ from typing import (
     Any,
     TypeVar,
     Generic,
+    Generator,
+    TYPE_CHECKING,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
@@ -25,6 +27,7 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
+from dlt.common.typing import DataFrame, ArrowTable
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import MERGE_STRATEGIES
 from dlt.common.schema.exceptions import SchemaException
@@ -49,6 +52,7 @@ from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo
+
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -484,6 +488,20 @@ class SupportsStagingDestination:
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
         # the default is to truncate the tables on the staging destination...
         return True
+
+
+class SupportsDataAccess(ABC):
+    """Add support for accessing data as arrow tables or pandas dataframes"""
+
+    @abstractmethod
+    def iter_df(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[DataFrame, None, None]: ...
+
+    @abstractmethod
+    def iter_arrow(
+        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+    ) -> Generator[ArrowTable, None, None]: ...
 
 
 # TODO: type Destination properly
