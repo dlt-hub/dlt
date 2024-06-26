@@ -152,6 +152,19 @@ When staging is enabled:
 When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
 :::
 
+### Custom csv formats
+By default we support csv format [produced by our writers](../file-formats/csv.md#default-settings) which is comma delimited, with header and optionally quoted.
+
+You can configure your own formatting ie. when [importing](../../general-usage/resource.md#import-external-files) external `csv` files.
+```toml
+[destination.snowflake.csv_format]
+delimiter="|"
+include_header=false
+on_error_continue=true
+```
+Which will read, `|` delimited file, without header and will continue on errors.
+
+Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and we will insert NULL into them.
 
 ## Supported column hints
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):

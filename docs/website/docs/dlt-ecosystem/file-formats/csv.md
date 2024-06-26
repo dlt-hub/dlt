@@ -28,10 +28,22 @@ info = pipeline.run(some_source(), loader_file_format="csv")
 `dlt` attempts to make both writers to generate similarly looking files
 * separators are commas
 * quotes are **"** and are escaped as **""**
-* `NULL` values are empty strings
+* `NULL` values both are empty strings and empty tokens as in the example below
 * UNIX new lines are used
 * dates are represented as ISO 8601
 * quoting style is "when needed"
+
+Example of NULLs:
+```sh
+text1,text2,text3
+A,B,C
+A,,""
+```
+
+In the last row both `text2` and `text3` values are NULL. Python `csv` writer
+is not able to write unquoted `None` values so we had to settle for `""`
+
+Note: all destinations capable of writing csvs must support it.
 
 ### Change settings
 You can change basic **csv** settings, this may be handy when working with **filesystem** destination. Other destinations are tested
