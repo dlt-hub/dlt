@@ -39,7 +39,7 @@ class FSClientBase(ABC):
     def read_text(
         self,
         path: str,
-        encoding: Any = None,
+        encoding: Any = "utf-8",
         errors: Any = None,
         newline: Any = None,
         compression: str = None,

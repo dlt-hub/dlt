@@ -368,7 +368,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         dirname = self.pathlib.dirname(filepath)
         if not self.fs_client.isdir(dirname):
             return
-        self.fs_client.write_text(filepath, json.dumps(data), "utf-8")
+        self.fs_client.write_text(filepath, json.dumps(data), encoding="utf-8")
 
     def _to_path_safe_string(self, s: str) -> str:
         """for base64 strings"""
@@ -450,7 +450,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         # Load compressed state from destination
         if selected_path:
-            state_json: TPipelineStateDoc = json.loads(self.fs_client.read_text(selected_path))
+            state_json: TPipelineStateDoc = json.loads(
+                self.fs_client.read_text(selected_path, encoding="utf-8")
+            )
             # we had dlt_load_id stored until version 0.5 and since we do not have any version control
             # we always migrate
             if load_id := state_json.pop("dlt_load_id", None):  # type: ignore[typeddict-item]
@@ -497,7 +499,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 break
 
         if selected_path:
-            return StorageSchemaInfo(**json.loads(self.fs_client.read_text(selected_path)))
+            return StorageSchemaInfo(
+                **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+            )
 
         return None
 
