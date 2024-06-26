@@ -16,7 +16,7 @@ import clickhouse_driver.errors  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
 from pendulum import DateTime  # noqa: I251
-i
+
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import DictStrAny
 from dlt.destinations.exceptions import (
