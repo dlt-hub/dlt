@@ -33,6 +33,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
+from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.typing import DictStrAny
@@ -2252,7 +2253,7 @@ def test_staging_dataset_truncate(truncate) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_staging_cleared",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     info = pipeline.run(test_data, table_name="staging_cleared")
@@ -2271,11 +2272,59 @@ def test_staging_dataset_truncate(truncate) -> None:
             assert len(cur.fetchall()) == 3
 
 
+def test_change_naming_convention_name_clash() -> None:
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
+    caps = duck_.capabilities()
+    assert caps.naming_convention == "duck_case"
+    assert caps.recommended_file_size == 120000
+
+    # use duck case to load data into duckdb so casing and emoji are preserved
+    pipeline = dlt.pipeline("test_change_naming_convention_name_clash", destination=duck_)
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    assert_load_info(info)
+    # make sure that emojis got in
+    assert "🦚Peacock" in pipeline.default_schema.tables
+    assert "🔑id" in pipeline.default_schema.tables["🦚Peacock"]["columns"]
+    assert load_data_table_counts(pipeline) == {
+        "📆 Schedule": 3,
+        "🦚Peacock": 1,
+        "🦚WidePeacock": 1,
+        "🦚Peacock__peacock": 3,
+        "🦚WidePeacock__Peacock": 3,
+    }
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT 🔑id FROM 🦚Peacock")
+        # 🔑id value is 1
+        assert rows[0][0] == 1
+
+    # change naming convention and run pipeline again so we generate name clashes
+    os.environ["SOURCES__AIRTABLE_EMOJIS__SCHEMA__NAMING"] = "sql_ci_v1"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
+    assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
+
+    # all good if we drop tables
+    # info = pipeline.run(
+    #     airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+    #     refresh="drop_resources",
+    # )
+    # assert_load_info(info)
+    # assert load_data_table_counts(pipeline) == {
+    #     "📆 Schedule": 3,
+    #     "🦚Peacock": 1,
+    #     "🦚WidePeacock": 1,
+    #     "🦚Peacock__peacock": 3,
+    #     "🦚WidePeacock__Peacock": 3,
+    # }
+
+
 def test_import_jsonl_file() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
     columns: List[TColumnSchema] = [
         {"name": "id", "data_type": "bigint", "nullable": False},
@@ -2286,7 +2335,7 @@ def test_import_jsonl_file() -> None:
     ]
     import_file = "tests/load/cases/loading/header.jsonl"
     info = pipeline.run(
-        [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2)],
+        [dlt.mark.with_file_import(import_file, "jsonl", 2)],
         table_name="no_header",
         loader_file_format="jsonl",
         columns=columns,
@@ -2298,7 +2347,7 @@ def test_import_jsonl_file() -> None:
     # use hints to infer
     hints = dlt.mark.make_hints(columns=columns)
     info = pipeline.run(
-        [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2, hints=hints)],
+        [dlt.mark.with_file_import(import_file, "jsonl", 2, hints=hints)],
         table_name="no_header_2",
     )
     info.raise_on_failed_jobs()
@@ -2309,11 +2358,11 @@ def test_import_file_without_sniff_schema() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
     import_file = "tests/load/cases/loading/header.jsonl"
     info = pipeline.run(
-        [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2)],
+        [dlt.mark.with_file_import(import_file, "jsonl", 2)],
         table_name="no_header",
     )
     assert info.has_failed_jobs
@@ -2324,13 +2373,13 @@ def test_import_non_existing_file() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
     # this file does not exist
     import_file = "tests/load/cases/loading/X_header.jsonl"
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(
-            [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "jsonl", 2)],
+            [dlt.mark.with_file_import(import_file, "jsonl", 2)],
             table_name="no_header",
         )
     inner_ex = pip_ex.value.__cause__
@@ -2342,13 +2391,13 @@ def test_import_unsupported_file_format() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
     # this file does not exist
     import_file = "tests/load/cases/loading/csv_no_header.csv"
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(
-            [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "csv", 2)],
+            [dlt.mark.with_file_import(import_file, "csv", 2)],
             table_name="no_header",
         )
     inner_ex = pip_ex.value.__cause__
@@ -2360,13 +2409,13 @@ def test_import_unknown_file_format() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_jsonl_import",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
     # this file does not exist
     import_file = "tests/load/cases/loading/csv_no_header.csv"
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(
-            [dlt.mark.with_file_import([{"id": "IGNORED"}], import_file, "unknown", 2)],  # type: ignore[arg-type]
+            [dlt.mark.with_file_import(import_file, "unknown", 2)],  # type: ignore[arg-type]
             table_name="no_header",
         )
     inner_ex = pip_ex.value.__cause__
