@@ -798,13 +798,15 @@ def test_client_methods(
 
     # check opening of file
     values = []
-    for line in fs_client.read_text(t1_files[0]).split("\n"):
+    for line in fs_client.read_text(t1_files[0], encoding="utf-8").split("\n"):
         if line:
             values.append(json.loads(line)["value"])
     assert values == [1, 2, 3, 4, 5]
 
     # check binary read
-    assert fs_client.read_bytes(t1_files[0]) == str.encode(fs_client.read_text(t1_files[0]))
+    assert fs_client.read_bytes(t1_files[0]) == str.encode(
+        fs_client.read_text(t1_files[0], encoding="utf-8")
+    )
 
     # check truncate
     fs_client.truncate_tables(["table_1"])

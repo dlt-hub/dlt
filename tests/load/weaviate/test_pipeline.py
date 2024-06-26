@@ -6,7 +6,7 @@ import dlt
 from dlt.common import json
 from dlt.common.schema.exceptions import (
     SchemaCorruptedException,
-    SchemaIdentifierNormalizationClash,
+    SchemaIdentifierNormalizationCollision,
 )
 from dlt.common.utils import uniq_id
 
@@ -404,7 +404,7 @@ def test_vectorize_property_without_data() -> None:
             primary_key="vAlue",
             columns={"vAlue": {"data_type": "text"}},
         )
-    assert isinstance(pipe_ex.value.__context__, SchemaIdentifierNormalizationClash)
+    assert isinstance(pipe_ex.value.__context__, SchemaIdentifierNormalizationCollision)
 
     # set the naming convention to case insensitive
     os.environ["SCHEMA__NAMING"] = "dlt.destinations.impl.weaviate.ci_naming"

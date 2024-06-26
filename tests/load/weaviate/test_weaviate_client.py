@@ -5,7 +5,7 @@ from typing import Iterator, List
 from dlt.common.schema import Schema
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.schema.exceptions import SchemaIdentifierNormalizationClash
+from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
 
@@ -120,7 +120,7 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
         )
     )
     client.schema._bump_version()
-    with pytest.raises(SchemaIdentifierNormalizationClash) as clash_ex:
+    with pytest.raises(SchemaIdentifierNormalizationCollision) as clash_ex:
         client.update_stored_schema()
     assert clash_ex.value.identifier_type == "column"
     assert clash_ex.value.identifier_name == "coL1"
@@ -169,7 +169,7 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
         )
     )
     client.schema._bump_version()
-    with pytest.raises(SchemaIdentifierNormalizationClash):
+    with pytest.raises(SchemaIdentifierNormalizationCollision):
         client.update_stored_schema()
 
     # _, table_columns = client.get_storage_table("ColClass")

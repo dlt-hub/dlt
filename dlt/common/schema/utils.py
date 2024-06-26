@@ -510,7 +510,7 @@ def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -
     """Normalizes all table and column names in `table` schema according to current schema naming convention and returns
     new instance with modified table schema.
 
-    Naming convention like snake_case may produce name clashes with the column names. Clashing column schemas are merged
+    Naming convention like snake_case may produce name collisions with the column names. Colliding column schemas are merged
     where the column that is defined later in the dictionary overrides earlier column.
 
     Note that resource name is not normalized.
@@ -529,14 +529,14 @@ def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -
             origin_c_name = c["name"]
             new_col_name = c["name"] = naming.normalize_path(c["name"])
             # re-index columns as the name changed, if name space was reduced then
-            # some columns now clash with each other. so make sure that we merge columns that are already there
+            # some columns now collide with each other. so make sure that we merge columns that are already there
             if new_col_name in new_columns:
                 new_columns[new_col_name] = merge_column(
                     new_columns[new_col_name], c, merge_defaults=False
                 )
                 logger.warning(
                     f"In schema {naming} column {origin_c_name} got normalized into"
-                    f" {new_col_name} which clashes with other column. Both columns got merged"
+                    f" {new_col_name} which collides with other column. Both columns got merged"
                     " into one."
                 )
             else:

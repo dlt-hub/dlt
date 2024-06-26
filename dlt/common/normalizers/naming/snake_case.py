@@ -66,5 +66,5 @@ class NamingConvention(BaseNamingConvention):
         stripped_ident += "x" * strip_count
 
         # identifier = cls._RE_ENDING_UNDERSCORES.sub("x", identifier)
-        # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
+        # replace consecutive underscores with single one to prevent name collisions with PATH_SEPARATOR
         return cls._RE_UNDERSCORES.sub("_", stripped_ident)

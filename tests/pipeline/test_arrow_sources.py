@@ -9,7 +9,11 @@ import pyarrow as pa
 import dlt
 from dlt.common import json, Decimal
 from dlt.common.utils import uniq_id
-from dlt.common.libs.pyarrow import NameNormalizationClash, remove_columns, normalize_py_arrow_item
+from dlt.common.libs.pyarrow import (
+    NameNormalizationCollision,
+    remove_columns,
+    normalize_py_arrow_item,
+)
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -223,7 +227,7 @@ def test_arrow_clashing_names(item_type: TPythonTableFormat) -> None:
 
     with pytest.raises(PipelineStepFailed) as py_ex:
         pipeline.extract(data_frames())
-    assert isinstance(py_ex.value.__context__, NameNormalizationClash)
+    assert isinstance(py_ex.value.__context__, NameNormalizationCollision)
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])

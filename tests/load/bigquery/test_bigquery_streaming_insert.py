@@ -41,10 +41,12 @@ def test_bigquery_streaming_wrong_disposition():
 
     pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery")
     info = pipe.run(test_resource)
+    # pick the failed job
+    failed_job = info.load_packages[0].jobs["failed_jobs"][0]
     assert (
         """BigQuery streaming insert can only be used with `append`"""
         """ write_disposition, while the given resource has `merge`."""
-    ) in info.asdict()["load_packages"][0]["jobs"][0]["failed_message"]
+    ) in failed_job.failed_message
 
 
 def test_bigquery_streaming_nested_data():

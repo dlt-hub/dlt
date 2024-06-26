@@ -102,7 +102,7 @@ class SchemaCorruptedException(SchemaException):
     pass
 
 
-class SchemaIdentifierNormalizationClash(SchemaCorruptedException):
+class SchemaIdentifierNormalizationCollision(SchemaCorruptedException):
     def __init__(
         self,
         schema_name: str,
@@ -111,17 +111,17 @@ class SchemaIdentifierNormalizationClash(SchemaCorruptedException):
         identifier_name: str,
         conflict_identifier_name: str,
         naming_name: str,
-        clash_msg: str,
+        collision_msg: str,
     ) -> None:
         if identifier_type == "column":
             table_info = f"in table {table_name} "
         else:
             table_info = ""
         msg = (
-            f"A {identifier_type} name {identifier_name} {table_info}clashes with"
+            f"A {identifier_type} name {identifier_name} {table_info}collides with"
             f" {conflict_identifier_name} after normalization with {naming_name} naming"
             " convention. "
-            + clash_msg
+            + collision_msg
         )
         self.table_name = table_name
         self.identifier_type = identifier_type

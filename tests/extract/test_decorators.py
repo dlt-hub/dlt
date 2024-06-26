@@ -344,6 +344,41 @@ def test_columns_from_pydantic() -> None:
     assert t["columns"]["b"]["data_type"] == "double"
 
 
+def test_not_normalized_identifiers_in_hints() -> None:
+    @dlt.resource(
+        primary_key="ID",
+        merge_key=["Month", "Day"],
+        columns=[{"name": "Col1", "data_type": "bigint"}],
+        table_name="🐫Camels",
+    )
+    def CamelResource():
+        yield ["🐫"] * 10
+
+    camels = CamelResource()
+    # original names are kept
+    assert camels.name == "CamelResource"
+    assert camels.table_name == "🐫Camels"
+    assert camels.columns == {"Col1": {"data_type": "bigint", "name": "Col1"}}
+    table = camels.compute_table_schema()
+    columns = table["columns"]
+    assert "ID" in columns
+    assert "Month" in columns
+    assert "Day" in columns
+    assert "Col1" in columns
+    assert table["name"] == "🐫Camels"
+
+    # define as part of a source
+    camel_source = DltSource(Schema("snake_case"), "camel_section", [camels])
+    schema = camel_source.discover_schema()
+    # all normalized
+    table = schema.get_table("_camels")
+    columns = table["columns"]
+    assert "id" in columns
+    assert "month" in columns
+    assert "day" in columns
+    assert "col1" in columns
+
+
 def test_resource_name_from_generator() -> None:
     def some_data():
         yield [1, 2, 3]

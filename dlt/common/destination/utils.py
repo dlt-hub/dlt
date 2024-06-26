@@ -4,10 +4,8 @@ from dlt.common import logger
 from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import (
-    SchemaCorruptedException,
-    SchemaIdentifierNormalizationClash,
+    SchemaIdentifierNormalizationCollision,
 )
-from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import is_complete_column
 from dlt.common.typing import DictStrStr
 
@@ -24,7 +22,7 @@ def verify_schema_capabilities(
     It will log warnings by default. It is up to the caller to eventually raise exception
 
     * Checks all table and column name lengths against destination capabilities and raises on too long identifiers
-    * Checks if schema has clashes due to case sensitivity of the identifiers
+    * Checks if schema has collisions due to case sensitivity of the identifiers
     """
 
     log = logger.warning if warnings else logger.info
@@ -35,17 +33,17 @@ def verify_schema_capabilities(
         (str if capabilities.has_case_sensitive_identifiers else str.casefold)(ident)  # type: ignore
     )
     table_name_lookup: DictStrStr = {}
-    # name clash explanation
-    clash_msg = "Destination is case " + (
+    # name collision explanation
+    collision_msg = "Destination is case " + (
         "sensitive" if capabilities.has_case_sensitive_identifiers else "insensitive"
     )
     if capabilities.casefold_identifier is not str:
-        clash_msg += (
+        collision_msg += (
             f" but it uses {capabilities.casefold_identifier} to generate case insensitive"
             " identifiers. You may try to change the destination capabilities by changing the"
             " `casefold_identifier` to `str`"
         )
-    clash_msg += (
+    collision_msg += (
         ". Please clean up your data before loading so the entities have different name. You can"
         " also change to case insensitive naming convention. Note that in that case data from both"
         " columns will be merged into one."
@@ -59,14 +57,14 @@ def verify_schema_capabilities(
         if cased_table_name in table_name_lookup:
             conflict_table_name = table_name_lookup[cased_table_name]
             exception_log.append(
-                SchemaIdentifierNormalizationClash(
+                SchemaIdentifierNormalizationCollision(
                     schema.name,
                     table_name,
                     "table",
                     table_name,
                     conflict_table_name,
                     schema.naming.name(),
-                    clash_msg,
+                    collision_msg,
                 )
             )
         table_name_lookup[cased_table_name] = table_name
@@ -87,14 +85,14 @@ def verify_schema_capabilities(
             if cased_column_name in column_name_lookup:
                 conflict_column_name = column_name_lookup[cased_column_name]
                 exception_log.append(
-                    SchemaIdentifierNormalizationClash(
+                    SchemaIdentifierNormalizationCollision(
                         schema.name,
                         table_name,
                         "column",
                         column_name,
                         conflict_column_name,
                         schema.naming.name(),
-                        clash_msg,
+                        collision_msg,
                     )
                 )
             column_name_lookup[cased_column_name] = column_name

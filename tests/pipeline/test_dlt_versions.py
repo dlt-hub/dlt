@@ -1,3 +1,4 @@
+import sys
 from subprocess import CalledProcessError
 import pytest
 import tempfile
@@ -26,8 +27,8 @@ from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from tests.pipeline.utils import load_table_counts
 from tests.utils import TEST_STORAGE_ROOT, test_storage
 
-# if sys.version_info >= (3, 12):
-#     pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
+if sys.version_info >= (3, 12):
+    pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
 
 
 GITHUB_PIPELINE_NAME = "dlt_github_pipeline"
@@ -205,10 +206,10 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
             fs_client = pipeline._fs_client()
             state_files = sorted(fs_client.list_table_files("_dlt_pipeline_state"))
             # first file is in old format
-            state_1 = json.loads(fs_client.read_text(state_files[0]))
+            state_1 = json.loads(fs_client.read_text(state_files[0], encoding="utf-8"))
             assert "dlt_load_id" in state_1
             # seconds is new
-            state_2 = json.loads(fs_client.read_text(state_files[1]))
+            state_2 = json.loads(fs_client.read_text(state_files[1], encoding="utf-8"))
             assert "_dlt_load_id" in state_2
 
 

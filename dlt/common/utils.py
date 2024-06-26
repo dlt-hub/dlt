@@ -142,42 +142,6 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
     return o
 
 
-# def flatten_dicts_of_dicts(dicts: Mapping[str, Any]) -> Sequence[Any]:
-#     """
-#     Transform and object {K: {...}, L: {...}...} -> [{key:K, ....}, {key: L, ...}, ...]
-#     """
-#     o: List[Any] = []
-#     for k, v in dicts.items():
-#         if isinstance(v, list):
-#             # if v is a list then add "key" to each list element
-#             for lv in v:
-#                 lv["key"] = k
-#         else:
-#             # add as "key" to dict
-#             v["key"] = k
-
-#         o.append(v)
-#     return o
-
-
-# def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
-#     """
-#     Transform list of dictionaries with single key into single dictionary of {"key": orig_key, "value": orig_value}
-#     """
-#     for d in dicts:
-#         if len(d) > 1:
-#             raise ValueError(f"Tuplify requires one key dicts {d}")
-#         if len(d) == 1:
-#             key = next(iter(d))
-#             # delete key first to avoid name clashes
-#             value = d[key]
-#             del d[key]
-#             d["key"] = key
-#             d["value"] = value
-
-#     return dicts
-
-
 def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) -> Iterator[TAny]:
     for items in _iter:
         if isinstance(items, List):

@@ -2272,14 +2272,14 @@ def test_staging_dataset_truncate(truncate) -> None:
             assert len(cur.fetchall()) == 3
 
 
-def test_change_naming_convention_name_clash() -> None:
+def test_change_naming_convention_name_collision() -> None:
     duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
     caps = duck_.capabilities()
     assert caps.naming_convention == "duck_case"
     assert caps.recommended_file_size == 120000
 
     # use duck case to load data into duckdb so casing and emoji are preserved
-    pipeline = dlt.pipeline("test_change_naming_convention_name_clash", destination=duck_)
+    pipeline = dlt.pipeline("test_change_naming_convention_name_collision", destination=duck_)
     info = pipeline.run(
         airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
     )
@@ -2318,6 +2318,20 @@ def test_change_naming_convention_name_clash() -> None:
     #     "🦚Peacock__peacock": 3,
     #     "🦚WidePeacock__Peacock": 3,
     # }
+
+
+def test_change_naming_convention_column_collision() -> None:
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case")
+
+    data = {"Col": "A"}
+    pipeline = dlt.pipeline("test_change_naming_convention_column_collision", destination=duck_)
+    info = pipeline.run([data], table_name="data")
+    assert_load_info(info)
+
+    os.environ["SCHEMA__NAMING"] = "sql_ci_v1"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([data], table_name="data")
+    assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
 
 
 def test_import_jsonl_file() -> None:

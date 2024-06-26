@@ -323,10 +323,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         name_lookup = {
             folded_name: name for folded_name, name in zip(folded_table_names, table_names)
         }
-        # this should never happen: we verify schema for name clashes before loading
+        # this should never happen: we verify schema for name collisions before loading
         assert len(name_lookup) == len(table_names), (
             f"One or more of tables in {table_names} after applying"
-            f" {self.capabilities.casefold_identifier} produced a clashing name."
+            f" {self.capabilities.casefold_identifier} produced a name collision."
         )
 
         # rows = self.sql_client.execute_sql(query, *db_params)
