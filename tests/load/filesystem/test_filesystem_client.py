@@ -39,11 +39,17 @@ NORMALIZED_FILES = [
 ]
 
 
-def test_filesystem_destination_configuration() -> None:
-    assert FilesystemDestinationClientConfiguration().fingerprint() == ""
-    assert FilesystemDestinationClientConfiguration(
-        bucket_url="s3://cool"
-    ).fingerprint() == digest128("s3://cool")
+@pytest.mark.parametrize(
+    "url, exp",
+    (
+        (None, ""),
+        ("/path/path2", digest128("")),
+        ("s3://cool", digest128("s3://cool")),
+        ("s3://cool.domain/path/path2", digest128("s3://cool.domain")),
+    ),
+)
+def test_filesystem_destination_configuration(url, exp) -> None:
+    assert FilesystemDestinationClientConfiguration(bucket_url=url).fingerprint() == exp
 
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
