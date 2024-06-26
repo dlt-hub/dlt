@@ -564,20 +564,43 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     ) -> Generator[DataFrame, None, None]:
         """Provide dataframes via duckdb"""
         import duckdb
-
-        duckdb.register_filesystem(self.fs_client)
+        from duckdb import InvalidInputException
 
         # create in memory table, for now we read all available files
         db = duckdb.connect(":memory:")
+        db.register_filesystem(self.fs_client)
         files = self.list_table_files(table)
+        if not files:
+            return None
+
+        file_type = os.path.splitext(files[0])[1][1:]
+        if file_type == "jsonl":
+            read_command = "read_json"
+        elif file_type == "parquet":
+            read_command = "read_parquet"
+        else:
+            raise AssertionError("Unknown filetype")
+
         protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
         files_string = ",".join([f"'{protocol}{f}'" for f in files])
-        db.sql(f"CREATE TABLE {table} AS SELECT * FROM read_json([{files_string}]);")
+
+        def _build_sql_string(read_params: str = "") -> str:
+            return (
+                f"SELECT * FROM {read_command}([{files_string}]{read_params}) OFFSET {offset} LIMIT"
+                f" {batch_size}"
+            )
 
         # yield in batches
         offset = 0
         while True:
-            df = db.sql(f"SELECT * FROM {table} OFFSET {offset} LIMIT {batch_size}").df()
+            try:
+                df = db.sql(_build_sql_string()).df()
+            except InvalidInputException:
+                # if jsonl and could not read, try with gzip setting
+                if file_type == "jsonl":
+                    df = db.sql(_build_sql_string(read_params=", compression = 'gzip'")).df()
+                else:
+                    raise
             if len(df.index) == 0:
                 break
             yield df

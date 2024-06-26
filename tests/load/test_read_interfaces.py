@@ -79,15 +79,18 @@ def test_read_interfaces_filesystem(destination_config: DestinationTestConfigura
     # we force multiple files per table, they may only hold 50 items
     os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "50"
 
+    if destination_config.file_format not in ["parquet", "jsonl"]:
+        pytest.skip("Test only works for jsonl and parquet")
+
     pipeline = destination_config.setup_pipeline(
-        "read_pipeline", dataset_name="read_test", dev_mode=True
+        "read_pipeline",
+        dataset_name="read_test",
+        dev_mode=True,
     )
 
     # run source
     s = source()
-    pipeline.run(
-        s,
-    )
+    pipeline.run(s, loader_file_format=destination_config.file_format)
 
     # get one df
     df = pipeline.dataset.df(table="items", batch_size=5)
