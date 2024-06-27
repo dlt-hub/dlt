@@ -11,8 +11,8 @@ from dlt.helpers.dbt import create_venv
 from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesException
 
 from tests.pipeline.utils import select_data
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.utils import ACTIVE_SQL_DESTINATIONS
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts

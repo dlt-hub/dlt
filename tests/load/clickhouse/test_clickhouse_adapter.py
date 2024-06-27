@@ -31,7 +31,7 @@ def test_clickhouse_adapter() -> None:
     clickhouse_adapter(merge_tree_resource, table_engine_type="merge_tree")
     clickhouse_adapter(replicated_merge_tree_resource, table_engine_type="replicated_merge_tree")
 
-    pipe = dlt.pipeline(pipeline_name="adapter_test", destination="clickhouse", full_refresh=True)
+    pipe = dlt.pipeline(pipeline_name="adapter_test", destination="clickhouse", dev_mode=True)
 
     with pipe.sql_client() as client:
         deployment_type: TDeployment = client._get_deployment_type()

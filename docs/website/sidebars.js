@@ -157,6 +157,7 @@ const sidebars = {
         'general-usage/incremental-loading',
         'general-usage/full-loading',
         'general-usage/schema',
+        'general-usage/naming-convention',
         'general-usage/schema-contracts',
         'general-usage/schema-evolution',
         {

@@ -4,10 +4,9 @@ import pytest
 
 from dlt.common.configuration.container import Container
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.normalizers import explicit_normalizers, import_normalizers
+from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
-from dlt.common.normalizers.naming import snake_case
-from dlt.common.normalizers.naming import direct
+from dlt.common.normalizers.naming import snake_case, direct
 from dlt.common.normalizers.naming.exceptions import InvalidNamingModule, UnknownNamingModule
 
 from tests.common.normalizers.custom_normalizers import (
@@ -64,6 +63,17 @@ def test_import_normalizers() -> None:
     assert json_normalizer is CustomRelationalNormalizer
 
 
+@pytest.mark.parametrize("sections", ("", "SOURCES__", "SOURCES__TEST_SCHEMA__"))
+def test_config_sections(sections: str) -> None:
+    os.environ[f"{sections}SCHEMA__NAMING"] = "direct"
+    os.environ[f"{sections}SCHEMA__JSON_NORMALIZER"] = (
+        '{"module": "tests.common.normalizers.custom_normalizers"}'
+    )
+    config, _, _ = import_normalizers(explicit_normalizers(schema_name="test_schema"))
+    assert config["names"] == "direct"
+    assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}
+
+
 def test_import_normalizers_with_caps() -> None:
     # gets the naming convention from capabilities
     destination_caps = DestinationCapabilitiesContext.generic_capabilities()
@@ -83,5 +93,6 @@ def test_import_invalid_naming_module() -> None:
         import_normalizers(explicit_normalizers("dlt.common.tests"))
     assert py_ex.value.naming_module == "dlt.common.tests"
     with pytest.raises(InvalidNamingModule) as py_ex2:
-        import_normalizers(explicit_normalizers("dlt.pipeline"))
+        import_normalizers(explicit_normalizers("dlt.pipeline.helpers"))
     assert py_ex2.value.naming_module == "dlt.pipeline"
+    assert py_ex2.value.naming_class == "helpers"

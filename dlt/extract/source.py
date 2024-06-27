@@ -11,6 +11,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
+from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import (
@@ -245,26 +246,39 @@ class DltSource(Iterable[TDataItem]):
     @property
     def root_key(self) -> bool:
         """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
+        # this also check the normalizer type
         config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
         return (
             config is not None
             and "root" in config
-            and "_dlt_id" in config["root"]
-            and config["root"]["_dlt_id"] == "_dlt_root_id"
+            and data_normalizer.c_dlt_id in config["root"]
+            and config["root"][data_normalizer.c_dlt_id] == data_normalizer.c_dlt_root_id
         )
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
+        # this also check the normalizer type
+        config = RelationalNormalizer.get_normalizer_config(self._schema)
+        data_normalizer = self._schema.data_item_normalizer
+        assert isinstance(data_normalizer, RelationalNormalizer)
+
         if value is True:
             RelationalNormalizer.update_normalizer_config(
-                self._schema, {"propagation": {"root": {"_dlt_id": TColumnName("_dlt_root_id")}}}
+                self._schema,
+                {
+                    "propagation": {
+                        "root": {
+                            data_normalizer.c_dlt_id: TColumnName(data_normalizer.c_dlt_root_id)
+                        }
+                    }
+                },
             )
         else:
             if self.root_key:
-                propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)[
-                    "propagation"
-                ]
-                propagation_config["root"].pop("_dlt_id")  # type: ignore
+                propagation_config = config["propagation"]
+                propagation_config["root"].pop(data_normalizer.c_dlt_id)
 
     @property
     def resources(self) -> DltResourceDict:
@@ -291,8 +305,8 @@ class DltSource(Iterable[TDataItem]):
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                partial_table = self._schema.normalize_table_identifiers(
-                    r.compute_table_schema(item)
+                partial_table = normalize_table_identifiers(
+                    r.compute_table_schema(item), self._schema.naming
                 )
                 schema.update_table(partial_table)
         return schema

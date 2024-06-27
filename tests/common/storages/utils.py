@@ -21,8 +21,11 @@ from dlt.common.storages import (
 )
 from dlt.common.storages import DataItemStorage, FileStorage
 from dlt.common.storages.fsspec_filesystem import FileItem, FileItemDict
+from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
+
+from tests.common.utils import load_yml_case
 
 TEST_SAMPLE_FILES = "tests/common/storages/samples"
 MINIMALLY_EXPECTED_RELATIVE_PATHS = {
@@ -199,3 +202,12 @@ def assert_package_info(
     # get dict
     package_info.asdict()
     return package_info
+
+
+def prepare_eth_import_folder(storage: SchemaStorage) -> Schema:
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    # remove processing hints before installing as import schema
+    # ethereum schema is a "dirty" schema with processing hints
+    eth = Schema.from_dict(eth_V9, remove_processing_hints=True)
+    storage._export_schema(eth, storage.config.import_schema_path)
+    return eth

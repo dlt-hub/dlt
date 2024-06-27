@@ -18,26 +18,27 @@ We recommend that you declare the destination type when creating a pipeline inst
 
 Above we want to use **filesystem** built-in destination. You can use shorthand types only for built-ins.
 
-* Use full **destination class type**
+* Use full **destination factory type**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class_type-->
 
-Above we use built in **filesystem** destination by providing a class type `filesystem` from module `dlt.destinations`. You can pass [destinations from external modules](#declare-external-destination) as well.
+Above we use built in **filesystem** destination by providing a factory type `filesystem` from module `dlt.destinations`. You can pass [destinations from external modules](#declare-external-destination) as well.
 
-* Import **destination class**
+* Import **destination factory**
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class-->
 
-Above we import destination class for **filesystem** and pass it to the pipeline.
+Above we import destination factory for **filesystem** and pass it to the pipeline.
 
-All examples above will create the same destination class with default parameters and pull required config and secret values from [configuration](credentials/configuration.md) - they are equivalent.
+All examples above will create the same destination factory with default parameters and pull required config and secret values from [configuration](credentials/configuration.md) - they are equivalent.
 
 
 ### Pass explicit parameters and a name to a destination
-You can instantiate **destination class** yourself to configure it explicitly. When doing this you work with destinations the same way you work with [sources](source.md)
+You can instantiate **destination factory** yourself to configure it explicitly. When doing this you work with destinations the same way you work with [sources](source.md)
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::instance-->
 
-Above we import and instantiate the `filesystem` destination class. We pass explicit url of the bucket and name the destination to `production_az_bucket`.
+Above we import and instantiate the `filesystem` destination factory. We pass explicit url of the bucket and name the destination to `production_az_bucket`.
 
-If destination is not named, its shorthand type (the Python class name) serves as a destination name. Name your destination explicitly if you need several separate configurations of destinations of the same type (i.e. you wish to maintain credentials for development, staging and production storage buckets in the same config file). Destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces so use them also when you need more descriptive names (other than, for example, `filesystem`).
+If destination is not named, its shorthand type (the Python factory name) serves as a destination name. Name your destination explicitly if you need several separate configurations of destinations of the same type (i.e. you wish to maintain credentials for development, staging and production storage buckets in the same config file). Destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces so use them also when you need more descriptive names (other than, for example, `filesystem`).
+
 
 ## Configure a destination
 We recommend to pass the credentials and other required parameters to configuration via TOML files, environment variables or other [config providers](credentials/config_providers.md). This allows you, for example, to  easily switch to production destinations after deployment.
@@ -59,7 +60,7 @@ For named destinations you use their names in the config section
 Note that when you use [`dlt init` command](../walkthroughs/add-a-verified-source.md) to create or add a data source, `dlt` creates a sample configuration for selected destination.
 
 ### Pass explicit credentials
-You can pass credentials explicitly when creating destination class instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods - which is now deprecated. You can pass the required credentials object, its dictionary representation or the supported native form like below:
+You can pass credentials explicitly when creating destination factory instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods - which is now deprecated. You can pass the required credentials object, its dictionary representation or the supported native form like below:
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_explicit-->
 
 
@@ -74,6 +75,23 @@ You can create and pass partial credentials and `dlt` will fill the missing data
 Please read how to use [various built in credentials types](credentials/config_specs.md).
 :::
 
+### Inspect destination capabilities
+[Destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) tell `dlt` what given destination can and cannot do. For example it tells which file formats it can load, what is maximum query or identifier length. Inspect destination capabilities as follows:
+```py
+import dlt
+pipeline = dlt.pipeline("snowflake_test", destination="snowflake")
+print(dict(pipeline.destination.capabilities()))
+```
+
+### Pass additional parameters and change destination capabilities
+Destination factory accepts additional parameters that will be used to pre-configure it and change destination capabilities.
+```py
+import dlt
+duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
+print(dict(duck_.capabilities()))
+```
+Example above is overriding `naming_convention` and `recommended_file_size` in the destination capabilities.
+
 ### Configure multiple destinations in a pipeline
 To configure multiple destinations within a pipeline, you need to provide the credentials for each destination in the "secrets.toml" file. This example demonstrates how to configure a BigQuery destination named `destination_one`:
 
@@ -86,7 +104,7 @@ private_key = "please set me up!"
 client_email = "please set me up!"
 ```
 
-You can then use this destination in your pipeline as follows: 
+You can then use this destination in your pipeline as follows:
 ```py
 import dlt
 from dlt.common.destination import Destination
@@ -115,6 +133,56 @@ Obviously, dlt will access the destination when you instantiate [sql_client](../
 
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::late_destination_access-->
 
+:::
+
+## Control how `dlt` creates table, column and other identifiers
+`dlt` maps identifiers found in the source data into destination identifiers (ie. table and columns names) using [naming conventions](naming-convention.md) which ensure that
+character set, identifier length and other properties fit into what given destination can handle. For example our [default naming convention (**snake case**)](naming-convention.md#default-naming-convention-snake_case) converts all names in the source (ie. JSON document fields) into snake case, case insensitive identifiers.
+
+Each destination declares its preferred naming convention, support for case sensitive identifiers and case folding function that case insensitive identifiers follow. For example:
+1. Redshift - by default does not support case sensitive identifiers and converts all of them to lower case.
+2. Snowflake - supports case sensitive identifiers and considers upper cased identifiers as case insensitive (which is the default case folding)
+3. DuckDb - does not support case sensitive identifiers but does not case fold them so it preserves the original casing in the information schema.
+4. Athena - does not support case sensitive identifiers and converts all of them to lower case.
+5. BigQuery - all identifiers are case sensitive, there's no case insensitive mode available via case folding (but it can be enabled in dataset level).
+
+You can change the naming convention used in [many different ways](naming-convention.md#configure-naming-convention), below we set the preferred naming convention on the Snowflake destination to `sql_cs` to switch Snowflake to case sensitive mode:
+```py
+import dlt
+snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
+```
+Setting naming convention will impact all new schemas being created (ie. on first pipeline run) and will re-normalize all existing identifiers.
+
+:::caution
+`dlt` prevents re-normalization of identifiers in tables that were already created at the destination. Use [refresh](pipeline.md#refresh-pipeline-data-and-state) mode to drop the data. You can also disable this behavior via [configuration](naming-convention.md#avoid-identifier-collisions)
+:::
+
+:::note
+Destinations that support case sensitive identifiers but use case folding convention to enable case insensitive identifiers are configured in case insensitive mode by default. Examples: Postgres, Snowflake, Oracle.
+:::
+
+:::caution
+If you use case sensitive naming convention with case insensitive destination, `dlt` will:
+1. Fail the load if it detects identifier collision due to case folding
+2. Warn if any case folding is applied by the destination.
+:::
+
+### Enable case sensitive identifiers support
+Selected destinations may be configured so they start accepting case sensitive identifiers. For example, it is possible to set case sensitive collation on **mssql** database and then tell `dlt` about it.
+```py
+from dlt.destinations import mssql
+dest_ = mssql(has_case_sensitive_identifiers=True, naming_convention="sql_cs_v1")
+```
+Above we can safely use case sensitive naming convention without worrying of name collisions.
+
+You can configure the case sensitivity, **but configuring destination capabilities is not currently supported**.
+```toml
+[destination.mssql]
+has_case_sensitive_identifiers=true
+```
+
+:::note
+In most cases setting the flag above just indicates to `dlt` that you switched the case sensitive option on a destination. `dlt` will not do that for you. Refer to destination documentation for details.
 :::
 
 ## Create new destination

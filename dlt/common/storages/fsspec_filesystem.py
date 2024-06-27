@@ -5,7 +5,6 @@ import mimetypes
 import pathlib
 import posixpath
 from io import BytesIO
-from gzip import GzipFile
 from typing import (
     Literal,
     cast,

@@ -317,16 +317,28 @@ verified source.
 1. To load a selected collection and rename it in the destination:
 
    ```py
-    # Create the MongoDB source and select the "collection_1" collection
-    source = mongodb().with_resources("collection_1")
+   # Create the MongoDB source and select the "collection_1" collection
+   source = mongodb().with_resources("collection_1")
 
-    # Apply the hint to rename the table in the destination
-    source.resources["collection_1"].apply_hints(table_name="loaded_data_1")
+   # Apply the hint to rename the table in the destination
+   source.resources["collection_1"].apply_hints(table_name="loaded_data_1")
 
-    # Run the pipeline
-    info = pipeline.run(source, write_disposition="replace")
-    print(info)
+   # Run the pipeline
+   info = pipeline.run(source, write_disposition="replace")
+   print(info)
    ```
 
+1. To load a selected collection, using Apache Arrow for data conversion:
+   ```py
+   # Load collection "movies", using Apache Arrow for converion
+   movies = mongodb_collection(
+      collection="movies",
+      data_item_format="arrow",
+   )
+
+   # Run the pipeline
+   info = pipeline.run(source)
+   print(info)
+   ```
 
 <!--@@@DLT_TUBA mongodb-->

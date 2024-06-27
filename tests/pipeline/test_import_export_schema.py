@@ -117,7 +117,7 @@ def test_import_schema_is_respected() -> None:
         destination=dummy(completed_prob=1),
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,
-        full_refresh=True,
+        dev_mode=True,
     )
     p.extract(EXAMPLE_DATA, table_name="person")
     # starts with import schema v 1 that is dirty -> 2
@@ -153,7 +153,7 @@ def test_only_explicit_hints_in_import_schema() -> None:
         destination=dummy(completed_prob=1),
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,
-        full_refresh=True,
+        dev_mode=True,
     )
     p.run(source())
 
