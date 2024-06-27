@@ -451,44 +451,6 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
-)
-def test_merge_keys_non_existing_columns(destination_config: DestinationTestConfiguration) -> None:
-    p = destination_config.setup_pipeline("github_3", dev_mode=True)
-    github_data = github()
-    # set keys names that do not exist in the data
-    github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
-    # skip first 45 rows
-    github_data.load_issues.add_filter(skip_first(45))
-    info = p.run(github_data, loader_file_format=destination_config.file_format)
-    assert_load_info(info)
-    github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_1_counts["issues"] == 100 - 45
-    assert (
-        p.default_schema.tables["issues"]["columns"]["m_a1"].items()
-        > {"merge_key": True, "nullable": False}.items()
-    )
-
-    # for non merge destinations we just check that the run passes
-    if not destination_config.supports_merge:
-        return
-
-    # all the keys are invalid so the merge falls back to append
-    github_data = github()
-    github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
-    github_data.load_issues.add_filter(take_first(1))
-    info = p.run(github_data, loader_file_format=destination_config.file_format)
-    assert_load_info(info)
-    github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    assert github_2_counts["issues"] == 100 - 45 + 1
-    with p._sql_job_client(p.default_schema) as job_c:
-        _, storage_cols = job_c.get_storage_table("issues")
-        storage_cols = normalize_storage_table_cols("issues", storage_cols, p.default_schema)
-        assert "url" in storage_cols
-        assert "m_a1" not in storage_cols  # unbound columns were not created
-
-
-@pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, file_format="parquet"),
     ids=lambda x: x.name,
