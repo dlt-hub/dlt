@@ -1,19 +1,17 @@
-from copy import deepcopy
 import os
-from typing import List, Sequence, cast
+from typing import Dict, List, Sequence
 import pytest
+from copy import deepcopy
 
 from dlt.common import pendulum
-from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.container import Container
+from dlt.common.json import json
+from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.migrations import migrate_schema
-from dlt.common.storages import SchemaStorageConfiguration
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import DictValidationException
-from dlt.common.normalizers.naming import snake_case, direct
+from dlt.common.normalizers.naming import snake_case
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
-from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils, TColumnHint
+from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
 from dlt.common.schema.exceptions import (
     InvalidSchemaName,
     ParentTableNotFoundException,
@@ -28,48 +26,10 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import SchemaStorage
 
-from tests.utils import autouse_test_storage, preserve_environ
 from tests.common.utils import load_json_case, load_yml_case, COMMON_TEST_CASES_PATH
 
 SCHEMA_NAME = "event"
 EXPECTED_FILE_NAME = f"{SCHEMA_NAME}.schema.json"
-
-
-@pytest.fixture
-def schema_storage() -> SchemaStorage:
-    C = resolve_configuration(
-        SchemaStorageConfiguration(),
-        explicit_value={
-            "import_schema_path": "tests/common/cases/schemas/rasa",
-            "external_schema_format": "json",
-        },
-    )
-    return SchemaStorage(C, makedirs=True)
-
-
-@pytest.fixture
-def schema_storage_no_import() -> SchemaStorage:
-    C = resolve_configuration(SchemaStorageConfiguration())
-    return SchemaStorage(C, makedirs=True)
-
-
-@pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def cn_schema() -> Schema:
-    return Schema(
-        "column_default",
-        {
-            "names": "tests.common.normalizers.custom_normalizers",
-            "json": {
-                "module": "tests.common.normalizers.custom_normalizers",
-                "config": {"not_null": ["fake_id"]},
-            },
-        },
-    )
 
 
 def test_normalize_schema_name(schema: Schema) -> None:
@@ -100,38 +60,6 @@ def test_new_schema(schema: Schema) -> None:
     assert stored_schema["version_hash"] is None
     with pytest.raises(DictValidationException):
         utils.validate_stored_schema(stored_schema)
-
-
-def test_new_schema_custom_normalizers(cn_schema: Schema) -> None:
-    assert_is_new_schema(cn_schema)
-    assert_new_schema_props_custom_normalizers(cn_schema)
-
-
-def test_schema_config_normalizers(schema: Schema, schema_storage_no_import: SchemaStorage) -> None:
-    # save snake case schema
-    schema_storage_no_import.save_schema(schema)
-    # config direct naming convention
-    os.environ["SCHEMA__NAMING"] = "direct"
-    # new schema has direct naming convention
-    schema_direct_nc = Schema("direct_naming")
-    assert schema_direct_nc._normalizers_config["names"] == "direct"
-    # still after loading the config is "snake"
-    schema = schema_storage_no_import.load_schema(schema.name)
-    assert schema._normalizers_config["names"] == "snake_case"
-    # provide capabilities context
-    destination_caps = DestinationCapabilitiesContext.generic_capabilities()
-    destination_caps.naming_convention = "snake_case"
-    destination_caps.max_identifier_length = 127
-    with Container().injectable_context(destination_caps):
-        # caps are ignored if schema is configured
-        schema_direct_nc = Schema("direct_naming")
-        assert schema_direct_nc._normalizers_config["names"] == "direct"
-        # but length is there
-        assert schema_direct_nc.naming.max_length == 127
-        # also for loaded schema
-        schema = schema_storage_no_import.load_schema(schema.name)
-        assert schema._normalizers_config["names"] == "snake_case"
-        assert schema.naming.max_length == 127
 
 
 def test_simple_regex_validator() -> None:
@@ -394,33 +322,6 @@ def test_save_store_schema(schema: Schema, schema_storage: SchemaStorage) -> Non
     assert_new_schema_props(schema_copy)
 
 
-def test_save_store_schema_custom_normalizers(
-    cn_schema: Schema, schema_storage: SchemaStorage
-) -> None:
-    schema_storage.save_schema(cn_schema)
-    schema_copy = schema_storage.load_schema(cn_schema.name)
-    assert_new_schema_props_custom_normalizers(schema_copy)
-
-
-def test_save_load_incomplete_column(
-    schema: Schema, schema_storage_no_import: SchemaStorage
-) -> None:
-    # make sure that incomplete column is saved and restored without default hints
-    incomplete_col = utils.new_column("I", nullable=False)
-    incomplete_col["primary_key"] = True
-    incomplete_col["x-special"] = "spec"  # type: ignore[typeddict-unknown-key]
-    table = utils.new_table("table", columns=[incomplete_col])
-    schema.update_table(table)
-    schema_storage_no_import.save_schema(schema)
-    schema_copy = schema_storage_no_import.load_schema("event")
-    assert schema_copy.get_table("table")["columns"]["I"] == {
-        "name": "I",
-        "nullable": False,
-        "primary_key": True,
-        "x-special": "spec",
-    }
-
-
 def test_upgrade_engine_v1_schema() -> None:
     schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
     # ensure engine v1
@@ -479,7 +380,7 @@ def test_unknown_engine_upgrade() -> None:
 def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
     # python dicts are ordered from v3.6, add 50 column with random names
     update: List[TColumnSchema] = [
-        schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)
+        schema._infer_column("t" + uniq_id(), pendulum.now().timestamp()) for _ in range(50)
     ]
     schema.update_table(utils.new_table("event_test_order", columns=update))
 
@@ -496,7 +397,7 @@ def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) ->
     verify_items(table, update)
     # add more columns
     update2: List[TColumnSchema] = [
-        schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)
+        schema._infer_column("t" + uniq_id(), pendulum.now().timestamp()) for _ in range(50)
     ]
     loaded_schema.update_table(utils.new_table("event_test_order", columns=update2))
     table = loaded_schema.get_table_columns("event_test_order")
@@ -648,6 +549,79 @@ def test_merge_hints(schema: Schema) -> None:
     for k in expected_hints:
         assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])  # type: ignore[index]
 
+    # make sure that re:^_dlt_id$ and _dlt_id are equivalent when merging so we can use both forms
+    alt_form_hints = {
+        "not_null": ["re:^_dlt_id$"],
+        "foreign_key": ["_dlt_parent_id"],
+    }
+    schema.merge_hints(alt_form_hints)  # type: ignore[arg-type]
+    # we keep the older forms so nothing changed
+    assert len(expected_hints) == len(schema._settings["default_hints"])
+    for k in expected_hints:
+        assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])  # type: ignore[index]
+
+    # check normalize some regex forms
+    upper_hints = {
+        "not_null": [
+            "_DLT_ID",
+        ],
+        "foreign_key": ["re:^_DLT_PARENT_ID$"],
+    }
+    schema.merge_hints(upper_hints)  # type: ignore[arg-type]
+    # all upper form hints can be automatically converted to lower form
+    assert len(expected_hints) == len(schema._settings["default_hints"])
+    for k in expected_hints:
+        assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])  # type: ignore[index]
+
+    # this form cannot be converted
+    upper_hints = {
+        "not_null": [
+            "re:TU[b-b]a",
+        ],
+    }
+    schema.merge_hints(upper_hints)  # type: ignore[arg-type]
+    assert "re:TU[b-b]a" in schema.settings["default_hints"]["not_null"]
+
+
+def test_update_preferred_types(schema: Schema) -> None:
+    # no preferred types in the schema
+    assert "preferred_types" not in schema.settings
+
+    expected: Dict[TSimpleRegex, TDataType] = {
+        TSimpleRegex("_dlt_id"): "bigint",
+        TSimpleRegex("re:^timestamp$"): "timestamp",
+    }
+    schema.update_preferred_types(expected)
+    assert schema.settings["preferred_types"] == expected
+    # no changes
+    schema.update_preferred_types(expected)
+    assert schema.settings["preferred_types"] == expected
+
+    # add and replace, canonical form used to update / replace
+    updated: Dict[TSimpleRegex, TDataType] = {
+        TSimpleRegex("_dlt_id"): "decimal",
+        TSimpleRegex("timestamp"): "date",
+        TSimpleRegex("re:TU[b-c]a"): "text",
+    }
+    schema.update_preferred_types(updated)
+    assert schema.settings["preferred_types"] == {
+        "_dlt_id": "decimal",
+        "re:^timestamp$": "date",
+        "re:TU[b-c]a": "text",
+    }
+
+    # will normalize some form of regex
+    updated = {
+        TSimpleRegex("_DLT_id"): "text",
+        TSimpleRegex("re:^TIMESTAMP$"): "timestamp",
+    }
+    schema.update_preferred_types(updated)
+    assert schema.settings["preferred_types"] == {
+        "_dlt_id": "text",
+        "re:^timestamp$": "timestamp",
+        "re:TU[b-c]a": "text",
+    }
+
 
 def test_default_table_resource() -> None:
     """Parent tables without `resource` set default to table name"""
@@ -766,9 +740,9 @@ def test_normalize_table_identifiers() -> None:
     assert "reactions___1" in schema.tables["issues"]["columns"]
     issues_table = deepcopy(schema.tables["issues"])
     # this schema is already normalized so normalization is idempotent
-    assert schema.tables["issues"] == schema.normalize_table_identifiers(issues_table)
-    assert schema.tables["issues"] == schema.normalize_table_identifiers(
-        schema.normalize_table_identifiers(issues_table)
+    assert schema.tables["issues"] == utils.normalize_table_identifiers(issues_table, schema.naming)
+    assert schema.tables["issues"] == utils.normalize_table_identifiers(
+        utils.normalize_table_identifiers(issues_table, schema.naming), schema.naming
     )
 
 
@@ -780,7 +754,10 @@ def test_normalize_table_identifiers_merge_columns() -> None:
     ]
     # schema normalizing to snake case will conflict on case and Case
     table = utils.new_table("blend", columns=table_create)  # type: ignore[arg-type]
-    norm_table = Schema("norm").normalize_table_identifiers(table)
+    table_str = json.dumps(table)
+    norm_table = utils.normalize_table_identifiers(table, Schema("norm").naming)
+    # nothing got changed in original table
+    assert table_str == json.dumps(table)
     # only one column
     assert len(norm_table["columns"]) == 1
     assert norm_table["columns"]["case"] == {
@@ -859,20 +836,21 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     schema.update_table(utils.new_table("a_events", columns=[]))
     schema.update_table(utils.new_table("b_events", columns=[]))
     schema.update_table(utils.new_table("c_products", columns=[], resource="products"))
-    schema.update_table(utils.new_table("a_events__1", columns=[], parent_table_name="a_events"))
+    schema.update_table(utils.new_table("a_events___1", columns=[], parent_table_name="a_events"))
     schema.update_table(
-        utils.new_table("a_events__1__2", columns=[], parent_table_name="a_events__1")
+        utils.new_table("a_events___1___2", columns=[], parent_table_name="a_events___1")
     )
-    schema.update_table(utils.new_table("b_events__1", columns=[], parent_table_name="b_events"))
+    schema.update_table(utils.new_table("b_events___1", columns=[], parent_table_name="b_events"))
+    # print(schema.to_pretty_yaml())
 
     # All resources without filter
     expected_tables = {
         "a_events": [
             schema.tables["a_events"],
-            schema.tables["a_events__1"],
-            schema.tables["a_events__1__2"],
+            schema.tables["a_events___1"],
+            schema.tables["a_events___1___2"],
         ],
-        "b_events": [schema.tables["b_events"], schema.tables["b_events__1"]],
+        "b_events": [schema.tables["b_events"], schema.tables["b_events___1"]],
         "products": [schema.tables["c_products"]],
         "_dlt_version": [schema.tables["_dlt_version"]],
         "_dlt_loads": [schema.tables["_dlt_loads"]],
@@ -887,10 +865,10 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     assert result == {
         "a_events": [
             schema.tables["a_events"],
-            schema.tables["a_events__1"],
-            schema.tables["a_events__1__2"],
+            schema.tables["a_events___1"],
+            schema.tables["a_events___1___2"],
         ],
-        "b_events": [schema.tables["b_events"], schema.tables["b_events__1"]],
+        "b_events": [schema.tables["b_events"], schema.tables["b_events___1"]],
     }
 
     # With resources that has many top level tables
@@ -919,3 +897,41 @@ def test_group_tables_by_resource(schema: Schema) -> None:
             {"columns": {}, "name": "mc_products__sub", "parent": "mc_products"},
         ]
     }
+
+
+def test_remove_processing_hints() -> None:
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    # here tables contain processing hints
+    schema = Schema.from_dict(eth_V9)
+    assert "x-normalizer" in schema.tables["blocks"]
+
+    # clone with hints removal, note that clone does not bump version
+    cloned = schema.clone(remove_processing_hints=True)
+    assert "x-normalizer" not in cloned.tables["blocks"]
+    # clone does not touch original schema
+    assert "x-normalizer" in schema.tables["blocks"]
+
+    # to string
+    to_yaml = schema.to_pretty_yaml()
+    assert "x-normalizer" in to_yaml
+    to_yaml = schema.to_pretty_yaml(remove_processing_hints=True)
+    assert "x-normalizer" not in to_yaml
+    to_json = schema.to_pretty_json()
+    assert "x-normalizer" in to_json
+    to_json = schema.to_pretty_json(remove_processing_hints=True)
+    assert "x-normalizer" not in to_json
+
+    # load without hints
+    no_hints = schema.from_dict(eth_V9, remove_processing_hints=True, bump_version=False)
+    assert no_hints.stored_version_hash == cloned.stored_version_hash
+
+    # now load without hints but with version bump
+    cloned._bump_version()
+    no_hints = schema.from_dict(eth_V9, remove_processing_hints=True)
+    assert no_hints.stored_version_hash == cloned.stored_version_hash
+
+
+# def test_get_new_table_columns() -> None:
+#     pytest.fail(reason="must implement!")
+#     pass
+# get_new_table_columns()

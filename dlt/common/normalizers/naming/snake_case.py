@@ -1,5 +1,5 @@
 import re
-from typing import Any, List, Sequence
+from typing import Sequence
 from functools import lru_cache
 
 from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
@@ -17,6 +17,13 @@ class NamingConvention(BaseNamingConvention):
 
     # subsequent nested fields will be separated with the string below, applies both to field and table names
     PATH_SEPARATOR = "__"
+
+    def __init__(self, max_length: int = None) -> None:
+        """Case insensitive naming convention, converting source identifiers into snake case. Uses __ as path separator.
+        Multiple underscores are contracted to one.
+        """
+        super().__init__(max_length)
+        self.is_case_sensitive = False
 
     def normalize_identifier(self, identifier: str) -> str:
         identifier = super().normalize_identifier(identifier)
@@ -59,5 +66,5 @@ class NamingConvention(BaseNamingConvention):
         stripped_ident += "x" * strip_count
 
         # identifier = cls._RE_ENDING_UNDERSCORES.sub("x", identifier)
-        # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
+        # replace consecutive underscores with single one to prevent name collisions with PATH_SEPARATOR
         return cls._RE_UNDERSCORES.sub("_", stripped_ident)

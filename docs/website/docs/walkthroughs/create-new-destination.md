@@ -88,6 +88,10 @@ The default `escape_identifier` function identifier escapes `"` and '\' and quot
 
 You should avoid providing a custom `escape_literal` function by not enabling `insert-values` for your destination.
 
+### Enable / disable case sensitive identifiers
+Specify if destination supports case sensitive identifiers by setting `has_case_sensitive_identifiers` to `True` (or `False` if otherwise). Some case sensitive destinations (ie. **Snowflake** or **Postgres**) support case insensitive identifiers via. case folding ie. **Snowflake** considers all upper case identifiers as case insensitive (set `casefold_identifier` to `str.upper`), **Postgres** does the same with lower case identifiers (`str.lower`).
+Some case insensitive destinations (ie. **Athena** or **Redshift**) case-fold (ie. lower case) all identifiers and store them as such. In that case set `casefold_identifier` to `str.lower` as well.
+
 ## 4. Adjust the SQL client
 **sql client** is a wrapper over `dbapi` and its main role is to provide consistent interface for executing SQL statements, managing transactions and (probably the most important) to help handling errors via classifying exceptions. Here's a few things you should pay attention to:
 

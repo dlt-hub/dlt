@@ -4,11 +4,11 @@ from time import sleep
 from unittest import mock
 import pytest
 from unittest.mock import patch
-from typing import List
+from typing import List, Tuple
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
-from dlt.common.storages.load_package import LoadJobInfo
+from dlt.common.storages.load_package import LoadJobInfo, TJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination.reference import LoadJob, TDestination
 from dlt.common.schema.utils import (
@@ -31,7 +31,6 @@ from tests.utils import (
     clean_test_storage,
     init_test_logging,
     TEST_DICT_CONFIG_PROVIDER,
-    preserve_environ,
 )
 from tests.load.utils import prepare_load_package
 from tests.utils import skip_if_not_active, TEST_STORAGE_ROOT
@@ -96,16 +95,12 @@ def test_unsupported_write_disposition() -> None:
     load.load_storage.normalized_packages.save_schema(load_id, schema)
     with ThreadPoolExecutor() as pool:
         load.run(pool)
-    # job with unsupported write disp. is failed and job is completed already
-    exception_file = [
-        f
-        for f in load.load_storage.loaded_packages.list_failed_jobs(load_id)
-        if f.endswith(".exception")
-    ][0]
-    assert (
-        "LoadClientUnsupportedWriteDisposition"
-        in load.load_storage.loaded_packages.storage.load(exception_file)
+    # job with unsupported write disp. is failed
+    failed_job = load.load_storage.normalized_packages.list_failed_jobs(load_id)[0]
+    failed_message = load.load_storage.normalized_packages.get_job_failed_message(
+        load_id, ParsedLoadJobFileName.parse(failed_job)
     )
+    assert "LoadClientUnsupportedWriteDisposition" in failed_message
 
 
 def test_get_new_jobs_info() -> None:
@@ -125,7 +120,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
         schema.tables[table_name] = fill_hints_from_parent_and_clone_table(schema.tables, table)
 
     top_job_table = get_top_level_table(schema.tables, "event_user")
-    all_jobs = load.load_storage.normalized_packages.list_all_jobs(load_id)
+    all_jobs = load.load_storage.normalized_packages.list_all_jobs_with_states(load_id)
     assert get_completed_table_chain(schema, all_jobs, top_job_table) is None
     # fake being completed
     assert (
@@ -144,12 +139,12 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     load.load_storage.normalized_packages.start_job(
         load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     )
-    all_jobs = load.load_storage.normalized_packages.list_all_jobs(load_id)
+    all_jobs = load.load_storage.normalized_packages.list_all_jobs_with_states(load_id)
     assert get_completed_table_chain(schema, all_jobs, loop_top_job_table) is None
     load.load_storage.normalized_packages.complete_job(
         load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     )
-    all_jobs = load.load_storage.normalized_packages.list_all_jobs(load_id)
+    all_jobs = load.load_storage.normalized_packages.list_all_jobs_with_states(load_id)
     assert get_completed_table_chain(schema, all_jobs, loop_top_job_table) == [
         schema.get_table("event_loop_interrupted")
     ]
@@ -482,9 +477,7 @@ def test_extend_table_chain() -> None:
     # no jobs for bot
     assert _extend_tables_with_table_chain(schema, ["event_bot"], ["event_user"]) == set()
     # skip unseen tables
-    del schema.tables["event_user__parse_data__entities"][  # type:ignore[typeddict-item]
-        "x-normalizer"
-    ]
+    del schema.tables["event_user__parse_data__entities"]["x-normalizer"]
     entities_chain = {
         name
         for name in schema.data_table_names()
@@ -530,25 +523,15 @@ def test_get_completed_table_chain_cases() -> None:
     # child completed, parent not
     event_user = schema.get_table("event_user")
     event_user_entities = schema.get_table("event_user__parse_data__entities")
-    event_user_job = LoadJobInfo(
+    event_user_job: Tuple[TJobState, ParsedLoadJobFileName] = (
         "started_jobs",
-        "path",
-        0,
-        None,
-        0,
         ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl"),
-        None,
     )
-    event_user_entities_job = LoadJobInfo(
+    event_user_entities_job: Tuple[TJobState, ParsedLoadJobFileName] = (
         "completed_jobs",
-        "path",
-        0,
-        None,
-        0,
         ParsedLoadJobFileName(
             "event_user__parse_data__entities", "event_user__parse_data__entities_id", 0, "jsonl"
         ),
-        None,
     )
     chain = get_completed_table_chain(schema, [event_user_job, event_user_entities_job], event_user)
     assert chain is None
@@ -558,24 +541,21 @@ def test_get_completed_table_chain_cases() -> None:
         schema,
         [event_user_job, event_user_entities_job],
         event_user,
-        event_user_job.job_file_info.job_id(),
+        event_user_job[1].job_id(),
     )
     # full chain
     assert chain == [event_user, event_user_entities]
 
     # parent failed, child completed
     chain = get_completed_table_chain(
-        schema, [event_user_job._replace(state="failed_jobs"), event_user_entities_job], event_user
+        schema, [("failed_jobs", event_user_job[1]), event_user_entities_job], event_user
     )
     assert chain == [event_user, event_user_entities]
 
     # both failed
     chain = get_completed_table_chain(
         schema,
-        [
-            event_user_job._replace(state="failed_jobs"),
-            event_user_entities_job._replace(state="failed_jobs"),
-        ],
+        [("failed_jobs", event_user_job[1]), ("failed_jobs", event_user_entities_job[1])],
         event_user,
     )
     assert chain == [event_user, event_user_entities]
@@ -586,16 +566,16 @@ def test_get_completed_table_chain_cases() -> None:
         event_user["write_disposition"] = w_d  # type:ignore[typeddict-item]
 
         chain = get_completed_table_chain(
-            schema, [event_user_job], event_user, event_user_job.job_file_info.job_id()
+            schema, [event_user_job], event_user, event_user_job[1].job_id()
         )
         assert chain == user_chain
 
         # but if child is present and incomplete...
         chain = get_completed_table_chain(
             schema,
-            [event_user_job, event_user_entities_job._replace(state="new_jobs")],
+            [event_user_job, ("new_jobs", event_user_entities_job[1])],
             event_user,
-            event_user_job.job_file_info.job_id(),
+            event_user_job[1].job_id(),
         )
         # noting is returned
         assert chain is None
@@ -604,9 +584,9 @@ def test_get_completed_table_chain_cases() -> None:
     deep_child = schema.tables[
         "event_user__parse_data__response_selector__default__response__response_templates"
     ]
-    del deep_child["x-normalizer"]  # type:ignore[typeddict-item]
+    del deep_child["x-normalizer"]
     chain = get_completed_table_chain(
-        schema, [event_user_job], event_user, event_user_job.job_file_info.job_id()
+        schema, [event_user_job], event_user, event_user_job[1].job_id()
     )
     user_chain.remove(deep_child)
     assert chain == user_chain
@@ -766,7 +746,7 @@ def assert_complete_job(load: Load, should_delete_completed: bool = False) -> No
             assert not load.load_storage.storage.has_folder(
                 load.load_storage.get_normalized_package_path(load_id)
             )
-            completed_path = load.load_storage.loaded_packages.get_job_folder_path(
+            completed_path = load.load_storage.loaded_packages.get_job_state_folder_path(
                 load_id, "completed_jobs"
             )
 

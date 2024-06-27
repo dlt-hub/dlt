@@ -32,20 +32,6 @@ class LiveSchemaStorage(SchemaStorage):
         # also remove the live schema
         self.live_schemas.pop(name, None)
 
-    def save_import_schema_if_not_exists(self, schema: Schema) -> bool:
-        """Saves import schema, if not exists. If schema was saved, link itself as imported from"""
-        if self.config.import_schema_path:
-            try:
-                self._load_import_schema(schema.name)
-            except FileNotFoundError:
-                # save import schema only if it not exist
-                self._export_schema(schema, self.config.import_schema_path)
-                # if import schema got saved then add own version hash as import version hash
-                schema._imported_version_hash = schema.version_hash
-                return True
-
-        return False
-
     def commit_live_schema(self, name: str) -> str:
         """Saves live schema in storage if it was modified"""
         if not self.is_live_schema_committed(name):

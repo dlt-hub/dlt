@@ -1,7 +1,7 @@
 from typing import Dict, List, cast
 
 from dlt.common.data_types import TDataType
-from dlt.common.normalizers import explicit_normalizers
+from dlt.common.normalizers.utils import explicit_normalizers
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
@@ -14,7 +14,7 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.exceptions import SchemaEngineNoUpgradePathException
 
 from dlt.common.normalizers.utils import import_normalizers
-from dlt.common.schema.utils import new_table, version_table, load_table
+from dlt.common.schema.utils import new_table, version_table, loads_table
 
 
 def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
@@ -92,11 +92,11 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
     if from_engine == 4 and to_engine > 4:
         # replace schema versions table
         schema_dict["tables"][VERSION_TABLE_NAME] = version_table()
-        schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
+        schema_dict["tables"][LOADS_TABLE_NAME] = loads_table()
         from_engine = 5
     if from_engine == 5 and to_engine > 5:
         # replace loads table
-        schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
+        schema_dict["tables"][LOADS_TABLE_NAME] = loads_table()
         from_engine = 6
     if from_engine == 6 and to_engine > 6:
         # migrate from sealed properties to schema evolution settings

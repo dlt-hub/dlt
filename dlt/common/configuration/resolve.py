@@ -126,14 +126,21 @@ def _maybe_parse_native_value(
         not isinstance(explicit_value, C_Mapping) or isinstance(explicit_value, BaseConfiguration)
     ):
         try:
+            # parse the native value anyway because there are configs with side effects
             config.parse_native_representation(explicit_value)
+            default_value = config.__class__()
+            # parse native value and convert it into dict, extract the diff and use it as exact value
+            # NOTE: as those are the same dataclasses, the set of keys must be the same
+            explicit_value = {
+                k: v
+                for k, v in config.__class__.from_init_value(explicit_value).items()
+                if default_value[k] != v
+            }
         except ValueError as v_err:
             # provide generic exception
             raise InvalidNativeValue(type(config), type(explicit_value), embedded_sections, v_err)
         except NotImplementedError:
             pass
-        # explicit value was consumed
-        explicit_value = None
     return explicit_value
 
 
@@ -336,7 +343,11 @@ def _resolve_config_field(
             # print(f"{embedded_config} IS RESOLVED with VALUE {value}")
             # injected context will be resolved
             if value is not None:
-                _maybe_parse_native_value(embedded_config, value, embedded_sections + (key,))
+                from_native_explicit = _maybe_parse_native_value(
+                    embedded_config, value, embedded_sections + (key,)
+                )
+                if from_native_explicit is not value:
+                    embedded_config.update(from_native_explicit)
             value = embedded_config
         else:
             # only config with sections may look for initial values

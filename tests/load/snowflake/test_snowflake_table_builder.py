@@ -5,12 +5,12 @@ import sqlfluff
 
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
+from dlt.destinations import snowflake
 from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
-from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.essential
 def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
-    return SnowflakeClient(
+    return snowflake().client(
         empty_schema,
         SnowflakeClientConfiguration(credentials=creds)._bind_dataset_name(
             dataset_name="test_" + uniq_id()

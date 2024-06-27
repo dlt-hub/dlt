@@ -15,5 +15,7 @@ TLayoutPlaceholderCallback: TypeAlias = Callable[[str, str, str, str, str], str]
 `schema name`, `table name`, `load_id`, `file_id` and an `extension`
 """
 
-TExtraPlaceholders: TypeAlias = Dict[str, Union[str, TLayoutPlaceholderCallback]]
+TExtraPlaceholders: TypeAlias = Dict[
+    str, Union[Union[str, int, DateTime], TLayoutPlaceholderCallback]
+]
 """Extra placeholders for filesystem layout"""

@@ -1,6 +1,7 @@
 import dataclasses
-from typing import Final, ClassVar, Any, List, TYPE_CHECKING, Union
+from typing import Dict, Final, ClassVar, Any, List, Optional
 
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.libs.sql_alchemy import URL
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -23,13 +24,11 @@ class PostgresCredentials(ConnectionStringCredentials):
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
-        if not self.is_partial():
-            self.resolve()
 
-    def to_url(self) -> URL:
-        url = super().to_url()
-        url.update_query_pairs([("connect_timeout", str(self.connect_timeout))])
-        return url
+    def get_query(self) -> Dict[str, Any]:
+        query = dict(super().get_query())
+        query["connect_timeout"] = self.connect_timeout
+        return query
 
 
 @configspec
@@ -38,6 +37,9 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: PostgresCredentials = None
 
     create_indexes: bool = True
+
+    csv_format: Optional[CsvFormatConfiguration] = None
+    """Optional csv format configuration"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

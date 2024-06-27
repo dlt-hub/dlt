@@ -232,7 +232,7 @@ Here is an example of how to use the `bigquery_adapter` method to apply hints to
 from datetime import date, timedelta
 
 import dlt
-from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter
 
 
 @dlt.resource(

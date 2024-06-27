@@ -6,6 +6,8 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ, digest128
 from dlt.common.utils import uniq_id
+
+from dlt.destinations import clickhouse
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
@@ -18,7 +20,7 @@ from tests.load.utils import TABLE_UPDATE, empty_schema
 def clickhouse_client(empty_schema: Schema) -> ClickHouseClient:
     # Return a client without opening connection.
     creds = ClickHouseCredentials()
-    return ClickHouseClient(
+    return clickhouse().client(
         empty_schema,
         ClickHouseClientConfiguration(credentials=creds)._bind_dataset_name(f"test_{uniq_id()}"),
     )

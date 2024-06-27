@@ -160,6 +160,10 @@ class FilterItem(ItemTransform[bool]):
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if isinstance(item, list):
+            # preserve empty lists
+            if len(item) == 0:
+                return item
+
             if self._f_meta:
                 item = [i for i in item if self._f_meta(i, meta)]
             else:

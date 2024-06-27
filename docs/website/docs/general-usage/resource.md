@@ -488,6 +488,59 @@ be adjusted after the `batch` is processed in the extract pipeline but before an
 You can emit columns as Pydantic model and use dynamic hints (ie. lambda for table name) as well. You should avoid redefining `Incremental` this way.
 :::
 
+### Import external files
+You can import external files ie. `csv`, `parquet` and `jsonl` by yielding items marked with `with_file_import`, optionally passing table schema corresponding
+the the imported file. `dlt` will not read, parse and normalize any names (ie. `csv` or `arrow` headers) and will attempt to copy the file into the destination as is.
+```py
+import os
+import dlt
+
+from filesystem import filesystem
+
+columns: List[TColumnSchema] = [
+    {"name": "id", "data_type": "bigint"},
+    {"name": "name", "data_type": "text"},
+    {"name": "description", "data_type": "text"},
+    {"name": "ordered_at", "data_type": "date"},
+    {"name": "price", "data_type": "decimal"},
+]
+
+import_folder = "/tmp/import"
+
+@dlt.transformer(columns=columns)
+def orders(items: Iterator[FileItemDict]):
+  for item in items:
+    # copy file locally
+      dest_file = os.path.join(import_folder, item["file_name"])
+      # download file
+      item.fsspec.download(item["file_url"], dest_file)
+      # tell dlt to import the dest_file as `csv`
+      yield dlt.mark.with_file_import(dest_file, "csv")
+
+
+# use filesystem verified source to glob a bucket
+downloader = filesystem(
+  bucket_url="s3://my_bucket/csv",
+  file_glob="today/*.csv.gz") | orders
+
+info = pipeline.run(orders, destination="snowflake")
+```
+In the example above, we glob all zipped csv files present on **my_bucket/csv/today** (using `filesystem` verified source) and send file descriptors to `orders` transformer. Transformer downloads and imports the files into extract package. At the end, `dlt` sends them to snowflake (the table will be created because we use `column` hints to define the schema).
+
+If imported `csv` files are not in `dlt` [default format](../dlt-ecosystem/file-formats/csv.md#default-settings), you may need to pass additional configuration.
+```toml
+[destination.snowflake.csv_format]
+delimiter="|"
+include_header=false
+on_error_continue=true
+```
+
+You can sniff the schema from the data ie. using `duckdb` to infer the table schema from `csv` file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at run time.
+
+:::note
+* If you do not define any columns, the table will not be created in the destination. `dlt` will still attempt to load data into it, so you create a fitting table upfront, the load process will succeed.
+* Files are imported using hard links if possible to avoid copying and duplicating storage space needed.
+:::
 
 ### Duplicate and rename resources
 There are cases when you your resources are generic (ie. bucket filesystem) and you want to load several instances of it (ie. files from different folders) to separate tables. In example below we use `filesystem` source to load csvs from two different folders into separate tables:
@@ -538,12 +591,30 @@ pipeline.run(generate_rows(10))
 # load a list of resources
 pipeline.run([generate_rows(10), generate_rows(20)])
 ```
+
+### Pick loader file format for a particular resource
+You can request a particular loader file format to be used for a resource.
+```py
+@dlt.resource(file_format="parquet")
+def generate_rows(nr):
+	for i in range(nr):
+		yield {'id':i, 'example_string':'abc'}
+```
+Resource above will be saved and loaded from a `parquet` file (if destination supports it).
+
+:::note
+A special `file_format`: **preferred** will load resource using a format that is preferred by a destination. This settings supersedes the `loader_file_format` passed to `run` method.
+:::
+
 ### Do a full refresh
 
-To do a full refresh of an `append` or `merge` resources you temporarily change the write
-disposition to replace. You can use `apply_hints` method of a resource or just provide alternative
-write disposition when loading:
+To do a full refresh of an `append` or `merge` resources you set the `refresh` argument on `run` method to `drop_data`. This will truncate the tables without dropping them.
 
 ```py
-p.run(merge_source(), write_disposition="replace")
+p.run(merge_source(), refresh="drop_data")
+```
+
+You can also [fully drop the tables](pipeline.md#refresh-pipeline-data-and-state) in the `merge_source`:
+```py
+p.run(merge_source(), refresh="drop_sources")
 ```
