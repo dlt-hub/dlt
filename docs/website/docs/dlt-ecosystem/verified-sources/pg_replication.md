@@ -71,9 +71,9 @@ To get started with your data pipeline, follow these steps:
    ```sh
    dlt init sql_database duckdb
    ```
+   > It is important to note that this is only needed when a user needs to pass `persist_snaphots=True` for inital load.
     
 4. After running these two commands, a new directory will be created with the necessary files and configuration settings to get started.
-   
    
    For more information, read the guide on [how to add a verified source](https://dlthub.com/docs/walkthroughs/add-a-verified-source).
 
@@ -89,7 +89,7 @@ To get started with your data pipeline, follow these steps:
     
    ```toml
    [sources.pg_replication.credentials]
-   drivername = "drivername" # please set me up!
+   drivername = "postgresql" # please set me up!
    database = "database" # please set me up!
    password = "password" # please set me up!
    username = "username" # please set me up!
@@ -100,12 +100,12 @@ To get started with your data pipeline, follow these steps:
 2. Credentials can be set as shown above. Alternatively, you can provide credentials in the `secrets.toml` file as follows:
     
    ```toml
-   sources.pg_replication.credentials="drivername://username@password.host:port/database"
+   sources.pg_replication.credentials="postgresql://username@password.host:port/database"
    ```
 
 3. Finally, follow the instructions in [Destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed.
 
-For more information, read the [General Usage: Credentials.](https://dlthub.com/docs/general-usage/credentials)
+For more information, read the [Configuration section.](https://dlthub.com/docs/general-usage/credentials)
 
 ## Run the pipeline
 
@@ -153,6 +153,7 @@ def replication_resource(
 ```
 
 `slot_name`: Replication slot name to consume messages.
+
 `pub_name`: Publication slot name to publish messages.
 
 `include_columns`: Maps table name(s) to sequence of names of columns to include in the generated data items. Any column not in the sequence is excluded. If not provided, all columns are included
@@ -178,10 +179,14 @@ If you wish to create your own pipelines, you can leverage source and resource m
        dev_mode=True,
    )
    ```
-    
-   :::note 
+
    You can configure and use the `get_postgres_pipeline()` function available in the `pg_replication_pipeline.py` file to achieve the same functionality. 
+
+   :::note IMPORTANT
+   The source pipeline is mainly for testing and development. In production, another process will likely be mutating 
+   the Postgres database.
    :::
+
     
 2. Similarly, define the destination pipeline.
     
@@ -201,11 +206,11 @@ If you wish to create your own pipelines, you can leverage source and resource m
    pub_name = "example_pub"
    ```
     
-4. For the initial replication of the table to the destination, use the `init_replication` function:
+4. To initialize replication, you can use the `init_replication` function. A user can use this function to let `dlt` configure Postgres and make it ready for replication.
     
    ```py
    # requires the Postgres user to have the REPLICATION attribute assigned
-   initial_load = init_replication(  
+   init_replication(  
        slot_name=slot_name,
        pub_name=pub_name,
        schema_name=src_pl.dataset_name,
@@ -217,14 +222,26 @@ If you wish to create your own pipelines, you can leverage source and resource m
    :::note
    To replicate the entire schema, you can omit the `table_names` argument from the `init_replication` function.
    :::
-    
-5. To load data to the destination, run the destination pipeline:
+
+5. To snapshot the data to the destination during the initial load, you can use the `persist_snapshots=True` argument as follows:
+   ```py
+   snapshot = init_replication(  # requires the Postgres user to have the REPLICATION attribute assigned
+        slot_name=slot_name,
+        pub_name=pub_name,
+        schema_name=src_pl.dataset_name,
+        table_names="my_source_table",
+        persist_snapshots=True,  # persist snapshot table(s) and let function return resource(s) for initial load
+        reset=True,
+    )
+   ```
+
+6. To load this snapshot to the destination, run the destination pipeline as:
     
    ```py
-   dest_pl.run(initial_load)
+   dest_pl.run(snapshot)
    ```
     
-6. After changes are made to the source, you can replicate the changes to the destination using the `replication_resource`, and run the pipeline as:
+7. After changes are made to the source, you can replicate the changes to the destination using the `replication_resource`, and run the pipeline as:
     
    ```py
    # Create a resource that generates items for each change in the source table
@@ -234,7 +251,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    dest_pl.run(changes)
    ```
     
-7. To replicate tables with selected columns you can use the `include_columns` argument as follows:
+8. To replicate tables with selected columns you can use the `include_columns` argument as follows:
     
    ```py
    # requires the Postgres user to have the REPLICATION attribute assigned
