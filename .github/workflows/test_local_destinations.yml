@@ -21,7 +21,7 @@ env:
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_ENDPOINT: ${{ secrets.RUNTIME__DLTHUB_TELEMETRY_ENDPOINT }}
-  ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\"]"
+  ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\", \"qdrant\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
 
   DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
@@ -63,6 +63,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      qdrant:
+        image: qdrant/qdrant:v.1.8.4
+        ports:
+          - 6333:6333
+
     steps:
       - name: Check out
         uses: actions/checkout@master
@@ -100,6 +105,7 @@ jobs:
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
+          DESTINATION__QDRANT__CREDENTIALS__location: http://localhost:6333
 
       - name: Stop weaviate
         if: always()
