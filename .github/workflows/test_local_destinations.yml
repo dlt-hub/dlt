@@ -64,7 +64,7 @@ jobs:
           --health-retries 5
 
       qdrant:
-        image: qdrant/qdrant:v.1.8.4
+        image: qdrant/qdrant:v1.8.4
         ports:
           - 6333:6333
 
