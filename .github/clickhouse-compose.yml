@@ -1,6 +1,4 @@
 ---
-version: '3'
-
 services:
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -16,6 +14,12 @@ services:
       - clickhouse_data:/var/lib/clickhouse/
       - clickhouse_logs:/var/log/clickhouse-server/
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
 
 volumes:
   clickhouse_data:

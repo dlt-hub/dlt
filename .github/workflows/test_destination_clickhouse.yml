@@ -1,4 +1,3 @@
-
 name: test | clickhouse
 
 on:
@@ -8,7 +7,7 @@ on:
       - devel
   workflow_dispatch:
   schedule:
-    - cron:  '0 2 * * *'
+    - cron: '0 2 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -77,8 +76,13 @@ jobs:
         name: Run all tests Linux
         if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
 
-      - name: Start ClickHouse
-        run: docker-compose -f ".github/clickhouse-compose.yml" up -d
+      - run: |
+          docker-compose -f ".github/clickhouse-compose.yml" up -d
+          echo "Waiting for ClickHouse to be healthy..."
+          timeout 30s bash -c 'until docker-compose -f ".github/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
+          echo "ClickHouse is up and running"
+        name: Start ClickHouse
+
 
       - run: poetry run pytest tests/load && poetry run pytest tests/cli
         name: Run all local tests Linux
