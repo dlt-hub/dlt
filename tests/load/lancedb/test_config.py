@@ -8,7 +8,7 @@ from dlt.common.utils import digest128
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     drop_active_pipeline_data,
 )
 

@@ -49,7 +49,6 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage
 from dlt.common.typing import DictStrAny
-from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
@@ -199,11 +198,15 @@ def upload_batch(
 class LanceDBClient(JobClientBase, WithStateSync):
     """LanceDB destination handler."""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     model_func: TextEmbeddingFunction
 
-    def __init__(self, schema: Schema, config: LanceDBClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: LanceDBClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.config: LanceDBClientConfiguration = config
         self.db_client: DBConnection = lancedb.connect(
             uri=self.config.credentials.uri,
@@ -404,8 +407,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         field: TArrowField
         for field in arrow_schema:
-            table_schema[field.type] = {
-                "name": self.schema.naming.normalize_identifier(field.name),
+            name = self.schema.naming.normalize_identifier(field.name)
+            print(field.type)
+            print(field.name)
+            table_schema[name] = {
+                "name": name,
                 **self.type_mapper.from_db_type(field.type),
             }
         return True, table_schema
@@ -447,6 +453,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
             new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
+            print(table_name)
+            print(new_columns)
             embedding_fields: List[str] = get_columns_names_with_prop(
                 self.schema.get_table(table_name), VECTORIZE_HINT
             )
@@ -494,18 +502,25 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def update_schema_in_storage(self) -> None:
         records = [
             {
-                "version": self.schema.version,
-                "engine_version": self.schema.ENGINE_VERSION,
-                "inserted_at": str(pendulum.now()),
-                "schema_name": self.schema.name,
-                "version_hash": self.schema.stored_version_hash,
-                "schema": json.dumps(self.schema.to_dict()),
+                self.schema.naming.normalize_identifier("version"): self.schema.version,
+                self.schema.naming.normalize_identifier(
+                    "engine_version"
+                ): self.schema.ENGINE_VERSION,
+                self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
+                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
+                self.schema.naming.normalize_identifier(
+                    "version_hash"
+                ): self.schema.stored_version_hash,
+                self.schema.naming.normalize_identifier("schema"): json.dumps(
+                    self.schema.to_dict()
+                ),
             }
         ]
         fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
+        print("UPLOAD")
         upload_batch(
             records,
             db_client=self.db_client,
@@ -525,27 +540,44 @@ class LanceDBClient(JobClientBase, WithStateSync):
         loads_table_: Table = self.db_client.open_table(fq_loads_table_name)
         loads_table_.checkout_latest()
 
+        # normalize property names
+        p_load_id = self.schema.naming.normalize_identifier("load_id")
+        p_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
+        p_status = self.schema.naming.normalize_identifier("status")
+        p_version = self.schema.naming.normalize_identifier("version")
+        p_engine_version = self.schema.naming.normalize_identifier("engine_version")
+        p_state = self.schema.naming.normalize_identifier("state")
+        p_created_at = self.schema.naming.normalize_identifier("created_at")
+        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
+
         # Read the tables into memory as Arrow tables, with pushdown predicates, so we pull as less
         # data into memory as possible.
         state_table = (
             state_table_.search()
-            .where(f"pipeline_name = '{pipeline_name}'", prefilter=True)
+            .where(f"`{p_pipeline_name}` = '{pipeline_name}'", prefilter=True)
             .to_arrow()
         )
-        loads_table = loads_table_.search().where("status = 0", prefilter=True).to_arrow()
+        loads_table = loads_table_.search().where(f"`{p_status}` = 0", prefilter=True).to_arrow()
 
         # Join arrow tables in-memory.
         joined_table: pa.Table = state_table.join(
-            loads_table, keys="_dlt_load_id", right_keys="load_id", join_type="inner"
-        ).sort_by([("_dlt_load_id", "descending")])
+            loads_table, keys=p_dlt_load_id, right_keys=p_load_id, join_type="inner"
+        ).sort_by([(p_dlt_load_id, "descending")])
 
         if joined_table.num_rows == 0:
             return None
 
         state = joined_table.take([0]).to_pylist()[0]
-        state["dlt_load_id"] = state.pop("_dlt_load_id")
-        state["created_at"] = pendulum.instance(state["created_at"])
-        return StateInfo(**{k: v for k, v in state.items() if k in StateInfo._fields})
+        return StateInfo(
+            version=state[p_version],
+            engine_version=state[p_engine_version],
+            pipeline_name=state[p_pipeline_name],
+            state=state[p_state],
+            created_at=pendulum.instance(state[p_created_at]),
+            version_hash=state[p_version_hash],
+            _dlt_load_id=state[p_dlt_load_id],
+        )
 
     @lancedb_error
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
@@ -553,16 +585,31 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         version_table: Table = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
+        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
+        p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
+        p_schema_name = self.schema.naming.normalize_identifier("schema_name")
+        p_version = self.schema.naming.normalize_identifier("version")
+        p_engine_version = self.schema.naming.normalize_identifier("engine_version")
+        p_schema = self.schema.naming.normalize_identifier("schema")
 
         try:
             schemas = (
-                version_table.search().where(f'version_hash = "{schema_hash}"', prefilter=True)
+                version_table.search().where(
+                    f'`{p_version_hash}` = "{schema_hash}"', prefilter=True
+                )
             ).to_list()
 
             # LanceDB's ORDER BY clause doesn't seem to work.
             # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
-            most_recent_schema = sorted(schemas, key=lambda x: x["inserted_at"], reverse=True)[0]
-            return StorageSchemaInfo(**most_recent_schema)
+            most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
+            return StorageSchemaInfo(
+                version_hash=most_recent_schema[p_version_hash],
+                schema_name=most_recent_schema[p_schema_name],
+                version=most_recent_schema[p_version],
+                engine_version=most_recent_schema[p_engine_version],
+                inserted_at=most_recent_schema[p_inserted_at],
+                schema=most_recent_schema[p_schema],
+            )
         except IndexError:
             return None
 
@@ -573,16 +620,31 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         version_table: Table = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
+        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
+        p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
+        p_schema_name = self.schema.naming.normalize_identifier("schema_name")
+        p_version = self.schema.naming.normalize_identifier("version")
+        p_engine_version = self.schema.naming.normalize_identifier("engine_version")
+        p_schema = self.schema.naming.normalize_identifier("schema")
 
         try:
             schemas = (
-                version_table.search().where(f'schema_name = "{self.schema.name}"', prefilter=True)
+                version_table.search().where(
+                    f'`{p_schema_name}` = "{self.schema.name}"', prefilter=True
+                )
             ).to_list()
 
             # LanceDB's ORDER BY clause doesn't seem to work.
             # See https://github.com/dlt-hub/dlt/pull/1375#issuecomment-2171909341
-            most_recent_schema = sorted(schemas, key=lambda x: x["inserted_at"], reverse=True)[0]
-            return StorageSchemaInfo(**most_recent_schema)
+            most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
+            return StorageSchemaInfo(
+                version_hash=most_recent_schema[p_version_hash],
+                schema_name=most_recent_schema[p_schema_name],
+                version=most_recent_schema[p_version],
+                engine_version=most_recent_schema[p_engine_version],
+                inserted_at=most_recent_schema[p_inserted_at],
+                schema=most_recent_schema[p_schema],
+            )
         except IndexError:
             return None
 
@@ -601,11 +663,13 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def complete_load(self, load_id: str) -> None:
         records = [
             {
-                "load_id": load_id,
-                "schema_name": self.schema.name,
-                "status": 0,
-                "inserted_at": str(pendulum.now()),
-                "schema_version_hash": None,  # Payload schema must match the target schema.
+                self.schema.naming.normalize_identifier("load_id"): load_id,
+                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
+                self.schema.naming.normalize_identifier("status"): 0,
+                self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
+                self.schema.naming.normalize_identifier(
+                    "schema_version_hash"
+                ): None,  # Payload schema must match the target schema.
             }
         ]
         fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)

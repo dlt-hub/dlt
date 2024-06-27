@@ -1,7 +1,6 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.destinations.impl.lancedb import capabilities
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBCredentials,
     LanceDBClientConfiguration,
@@ -15,8 +14,23 @@ if t.TYPE_CHECKING:
 class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
     spec = LanceDBClientConfiguration
 
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities()
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        caps = DestinationCapabilitiesContext()
+        caps.preferred_loader_file_format = "jsonl"
+        caps.supported_loader_file_formats = ["jsonl"]
+
+        caps.max_identifier_length = 200
+        caps.max_column_identifier_length = 1024
+        caps.max_query_length = 8 * 1024 * 1024
+        caps.is_max_query_length_in_bytes = False
+        caps.max_text_data_type_length = 8 * 1024 * 1024
+        caps.is_max_text_data_type_length_in_bytes = False
+        caps.supports_ddl_transactions = False
+
+        caps.decimal_precision = (38, 18)
+        caps.timestamp_precision = 6
+
+        return caps
 
     @property
     def client_class(self) -> t.Type["LanceDBClient"]:
