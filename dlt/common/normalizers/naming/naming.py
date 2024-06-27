@@ -3,19 +3,27 @@ from abc import abstractmethod, ABC
 from functools import lru_cache
 import math
 import hashlib
-from typing import Sequence
+from typing import Sequence, ClassVar
 
 
 class NamingConvention(ABC):
-    _TR_TABLE = bytes.maketrans(b"/+", b"ab")
-    _DEFAULT_COLLISION_PROB = 0.001
+    """Initializes naming convention to generate identifier with `max_length` if specified. Base naming convention
+    is case sensitive by default
+    """
+
+    _TR_TABLE: ClassVar[bytes] = bytes.maketrans(b"/+", b"ab")
+    _DEFAULT_COLLISION_PROB: ClassVar[float] = 0.001
+    PATH_SEPARATOR: ClassVar[str] = "__"
+    """Subsequent nested fields will be separated with the string below, applies both to field and table names"""
 
     def __init__(self, max_length: int = None) -> None:
-        """Initializes naming convention to generate identifier with `max_length` if specified. Base naming convention
-        is case sensitive by default
-        """
         self.max_length = max_length
-        self.is_case_sensitive = True
+
+    @property
+    @abstractmethod
+    def is_case_sensitive(self) -> bool:
+        """Tells if given naming convention is producing case insensitive or case sensitive identifiers."""
+        pass
 
     @abstractmethod
     def normalize_identifier(self, identifier: str) -> str:
@@ -31,15 +39,13 @@ class NamingConvention(ABC):
         """Normalizes and shortens identifier that will function as a dataset, table or schema name, defaults to `normalize_identifier`"""
         return self.normalize_identifier(identifier)
 
-    @abstractmethod
     def make_path(self, *identifiers: str) -> str:
         """Builds path out of identifiers. Identifiers are neither normalized nor shortened"""
-        pass
+        return self.PATH_SEPARATOR.join(filter(lambda x: x.strip(), identifiers))
 
-    @abstractmethod
     def break_path(self, path: str) -> Sequence[str]:
         """Breaks path into sequence of identifiers"""
-        pass
+        return [ident for ident in path.split(self.PATH_SEPARATOR) if ident.strip()]
 
     def normalize_path(self, path: str) -> str:
         """Breaks path into identifiers, normalizes components, reconstitutes and shortens the path"""
@@ -69,6 +75,13 @@ class NamingConvention(ABC):
             # return last component
             return cls.__module__.split(".")[-1]
         return cls.__module__
+
+    def __str__(self) -> str:
+        name = self.name()
+        name += "_cs" if self.is_case_sensitive else "_ci"
+        if self.max_length:
+            name += f"_{self.max_length}"
+        return name
 
     @staticmethod
     @lru_cache(maxsize=None)

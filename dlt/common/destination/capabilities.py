@@ -8,9 +8,9 @@ from typing import (
     Tuple,
     Set,
     Protocol,
-    Union,
     get_args,
 )
+from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
@@ -74,7 +74,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_transactions: bool = None
     supports_ddl_transactions: bool = None
     # use naming convention in the schema
-    naming_convention: Union[str, NamingConvention] = None
+    naming_convention: TNamingConventionReferenceArg = None
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
@@ -99,7 +99,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     @staticmethod
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
-        naming_convention: Union[str, NamingConvention] = None,
+        naming_convention: TNamingConventionReferenceArg = None,
         loader_file_format_adapter: LoaderFileFormatAdapter = None,
         supported_table_formats: Sequence["TTableFormat"] = None,  # type: ignore[name-defined] # noqa: F821
     ) -> "DestinationCapabilitiesContext":

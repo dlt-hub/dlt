@@ -29,7 +29,8 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         # current version of the schema
         current = cast(TStoredSchema, schema_dict)
         # add default normalizers and root hash propagation
-        current["normalizers"], _, _ = import_normalizers(explicit_normalizers())
+        normalizers = explicit_normalizers()
+        current["normalizers"], _, _ = import_normalizers(normalizers, normalizers)
         current["normalizers"]["json"]["config"] = {
             "propagation": {"root": {"_dlt_id": "_dlt_root_id"}}
         }
