@@ -17,6 +17,8 @@ MAIN_CLAUSE = 'if __name__ == "__main__":'
 
 # some stuff to insert for setting up and tearing down fixtures
 TEST_HEADER = """
+import pytest
+
 from tests.utils import skipifgithubfork
 
 """
