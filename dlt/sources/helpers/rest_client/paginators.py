@@ -91,7 +91,7 @@ class RangePaginator(BasePaginator):
         param_name: str,
         initial_value: int,
         value_step: int,
-        index_base: int = 0,
+        base_index: int = 0,
         maximum_value: Optional[int] = None,
         total_path: Optional[jsonpath.TJsonPath] = None,
         error_message_items: str = "items",
@@ -102,7 +102,7 @@ class RangePaginator(BasePaginator):
                 For example, 'page'.
             initial_value (int): The initial value of the numeric parameter.
             value_step (int): The step size to increment the numeric parameter.
-            index_base (int, optional): The index of the initial element.
+            base_index (int, optional): The index of the initial element.
                 Used to define 0-based or 1-based indexing. Defaults to 0.
             maximum_value (int, optional): The maximum value for the numeric parameter.
                 If provided, pagination will stop once this value is reached
@@ -122,7 +122,7 @@ class RangePaginator(BasePaginator):
         self.param_name = param_name
         self.current_value = initial_value
         self.value_step = value_step
-        self.index_base = index_base
+        self.base_index = base_index
         self.maximum_value = maximum_value
         self.total_path = jsonpath.compile_path(total_path) if total_path else None
         self.error_message_items = error_message_items
@@ -149,7 +149,7 @@ class RangePaginator(BasePaginator):
 
         self.current_value += self.value_step
 
-        if (total is not None and self.current_value >= total + self.index_base) or (
+        if (total is not None and self.current_value >= total + self.base_index) or (
             self.maximum_value is not None and self.current_value >= self.maximum_value
         ):
             self._has_next_page = False
@@ -223,7 +223,7 @@ class PageNumberPaginator(RangePaginator):
 
     def __init__(
         self,
-        index_base: int = 0,
+        base_page: int = 0,
         page: int = None,
         page_param: str = "page",
         total_path: jsonpath.TJsonPath = "total",
@@ -231,11 +231,12 @@ class PageNumberPaginator(RangePaginator):
     ):
         """
         Args:
-            index_base (int): The index of the initial page. Defines the which
-                number the API server uses for the starting page. Normally, this is
-                0-based or 1-based indexing for the page number. Defaults to 0.
+            base_page (int): The index of the initial page from the API perspective.
+                Determines the page number that the API server uses for the starting
+                page. Normally, this is 0-based or 1-based (e.g., 1, 2, 3, ...)
+                indexing for the pages. Defaults to 0.
             page (int): The page number for the first request. If not provided,
-                the initial value will be set to `index_base`.
+                the initial value will be set to `base_page`.
             page_param (str): The query parameter name for the page number.
                 Defaults to 'page'.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
@@ -248,12 +249,12 @@ class PageNumberPaginator(RangePaginator):
         if total_path is None and maximum_page is None:
             raise ValueError("Either `total_path` or `maximum_page` must be provided.")
 
-        page = page if page is not None else index_base
+        page = page if page is not None else base_page
 
         super().__init__(
             param_name=page_param,
             initial_value=page,
-            index_base=index_base,
+            base_index=base_page,
             total_path=total_path,
             value_step=1,
             maximum_value=maximum_page,
