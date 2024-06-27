@@ -54,8 +54,12 @@ if __name__ == "__main__":
             os.unlink(test_example_file)
             continue
 
-        with open(example_file, "r", encoding="utf-8") as f:
-            lines = f.read().split("\n")
+        try:
+            with open(example_file, "r", encoding="utf-8") as f:
+                lines = f.read().split("\n")
+        except FileNotFoundError:
+            print(f"Example file {example_file} not found, test prep will be skipped")
+            continue
 
         processed_lines = TEST_HEADER.split("\n")
         main_clause_found = False
@@ -64,8 +68,8 @@ if __name__ == "__main__":
             # convert the main clause to a test function
             if line.startswith(MAIN_CLAUSE):
                 main_clause_found = True
-                processed_lines.append("@skipifgithubfork") # skip on forks
-                processed_lines.append("@pytest.mark.forked") # skip on forks
+                processed_lines.append("@skipifgithubfork")  # skip on forks
+                processed_lines.append("@pytest.mark.forked")  # skip on forks
                 processed_lines.append(f"def test_{example}():")
             else:
                 processed_lines.append(line)
