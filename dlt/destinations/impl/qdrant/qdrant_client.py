@@ -46,6 +46,7 @@ class LoadQdrantJob(LoadJob):
         self.config = client_config
 
         with FileStorage.open_zipsafe_ro(local_path) as f:
+            ids: List[str]
             docs, payloads, ids = [], [], []
 
             for line in f:
@@ -53,7 +54,7 @@ class LoadQdrantJob(LoadJob):
                 point_id = (
                     self._generate_uuid(data, self.unique_identifiers, self.collection_name)
                     if self.unique_identifiers
-                    else uuid.uuid4()
+                    else str(uuid.uuid4())
                 )
                 payloads.append(data)
                 ids.append(point_id)
