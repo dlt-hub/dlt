@@ -62,7 +62,8 @@ if __name__ == "__main__":
             # convert the main clause to a test function
             if line.startswith(MAIN_CLAUSE):
                 main_clause_found = True
-                processed_lines.append("@skipifgithubfork")
+                processed_lines.append("@skipifgithubfork") # skip on forks
+                processed_lines.append("@pytest.mark.forked") # skip on forks
                 processed_lines.append(f"def test_{example}():")
             else:
                 processed_lines.append(line)
