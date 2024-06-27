@@ -279,6 +279,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination="weaviate"),
             DestinationTestConfiguration(destination="lancedb"),
+            DestinationTestConfiguration(destination="qdrant"),
         ]
 
     if default_staging_configs or all_staging_configs:
