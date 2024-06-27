@@ -10,7 +10,7 @@ from dlt.common.typing import REPattern
 class NamingConvention(SqlNamingConvention):
     """Case sensitive naming convention which allows basic unicode characters, including latin 2 characters"""
 
-    RE_NON_ALPHANUMERIC: ClassVar[REPattern] = re.compile(r"[^\p{Latin}\d_]+")
+    RE_NON_ALPHANUMERIC: ClassVar[REPattern] = re.compile(r"[^\p{Latin}\d_]+")  # type: ignore
 
     def normalize_identifier(self, identifier: str) -> str:
         # typically you'd change how a single

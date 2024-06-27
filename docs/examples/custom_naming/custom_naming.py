@@ -21,7 +21,7 @@ With this example you will learn to:
 * Use naming convention by explicitly passing it to `duckdb` destination factory
 * Use naming convention by configuring it config.toml
 * Changing the declared case sensitivity by overriding `is_case_sensitive` property
-* Providing custom normalization logic by overriding `normalize_identifer` method
+* Providing custom normalization logic by overriding `normalize_identifier` method
 
 """
 
@@ -29,7 +29,7 @@ import dlt
 
 if __name__ == "__main__":
     # sql_cs_latin2 module
-    import sql_cs_latin2
+    import sql_cs_latin2  # type: ignore[import-not-found]
 
     # create postgres destination with a custom naming convention. pass sql_cs_latin2 as module
     # NOTE: ql_cs_latin2 is case sensitive and postgres accepts UNICODE letters in identifiers
@@ -43,7 +43,6 @@ if __name__ == "__main__":
         dataset_name="example_data",
         dev_mode=True,
     )
-    schema = dlt.Schema("test")
     # Extract, normalize, and load the data
     load_info = pipeline.run([{"StückId": 1}], table_name="Ausrüstung")
     print(load_info)
