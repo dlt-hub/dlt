@@ -9,6 +9,7 @@ from typing import (
     Sequence,
     ClassVar,
     Literal,
+    Tuple,
 )
 
 import clickhouse_driver  # type: ignore[import-untyped]

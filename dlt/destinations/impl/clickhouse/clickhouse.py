@@ -2,7 +2,7 @@ import os
 import re
 from copy import deepcopy
 from textwrap import dedent
-from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple, Literal
+from typing import Optional, Dict, List, Sequence, cast
 from urllib.parse import urlparse
 
 import clickhouse_connect
@@ -28,12 +28,9 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TColumnHint,
     TColumnType,
-    TTableSchemaColumns,
-    TColumnSchemaBase,
 )
 from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
     TABLE_ENGINE_TYPE_HINT,
@@ -324,8 +321,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
         return (
-            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_str}"
-            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_}"
+            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_}"
             .strip()
         )
 
