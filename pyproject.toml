@@ -78,6 +78,7 @@ qdrant-client = {version = ">=1.8", optional = true, extras = ["fastembed"]}
 databricks-sql-connector = {version = ">=2.9.3", optional = true}
 clickhouse-driver = { version = ">=0.2.7", optional = true }
 clickhouse-connect = { version = ">=0.7.7", optional = true }
+lancedb = { version = ">=0.8.2", optional = true, markers = "python_version >= '3.9'" }
 deltalake = { version = ">=0.17.4", optional = true }
 
 [tool.poetry.extras]
@@ -103,7 +104,9 @@ qdrant = ["qdrant-client"]
 databricks = ["databricks-sql-connector"]
 clickhouse = ["clickhouse-driver", "clickhouse-connect", "s3fs", "gcsfs", "adlfs", "pyarrow"]
 dremio = ["pyarrow"]
+lancedb = ["lancedb", "pyarrow"]
 deltalake = ["deltalake", "pyarrow"]
+
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
