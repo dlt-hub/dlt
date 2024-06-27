@@ -11,10 +11,14 @@ from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from tests.utils import TEST_STORAGE_ROOT, skipifpypy
-from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
-from tests.load.pipeline.utils import destinations_configs
+from tests.load.utils import (
+    expect_load_file,
+    prepare_table,
+    yield_client_with_storage,
+    destinations_configs,
+)
 
-DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "mssql", "synapse"]
+DEFAULT_SUBSET = ["duckdb", "redshift", "postgres", "mssql", "synapse", "motherduck"]
 
 
 @pytest.fixture
@@ -176,7 +180,6 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
     ids=lambda x: x.name,
 )
 def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
-    mocked_caps = client.sql_client.__class__.capabilities
     writer_type = client.capabilities.insert_values_writer_type
     insert_sql = prepare_insert_statement(10, writer_type)
 
@@ -185,10 +188,10 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     elif writer_type == "select_union":
         pre, post, sep = ("SELECT ", "", " UNION ALL\n")
 
+    # caps are instance and are attr of sql client instance so it is safe to mock them
+    client.sql_client.capabilities.max_query_length = 2
     # this guarantees that we execute inserts line by line
-    with patch.object(mocked_caps, "max_query_length", 2), patch.object(
-        client.sql_client, "execute_fragments"
-    ) as mocked_fragments:
+    with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
         # print(mocked_fragments.mock_calls)
@@ -211,9 +214,8 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
 
     # set query length so it reads data until separator ("," or " UNION ALL") (followed by \n)
     query_length = (idx - start_idx - 1) * 2
-    with patch.object(mocked_caps, "max_query_length", query_length), patch.object(
-        client.sql_client, "execute_fragments"
-    ) as mocked_fragments:
+    client.sql_client.capabilities.max_query_length = query_length
+    with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
     # split in 2 on ','
@@ -221,9 +223,8 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
 
     # so it reads until "\n"
     query_length = (idx - start_idx) * 2
-    with patch.object(mocked_caps, "max_query_length", query_length), patch.object(
-        client.sql_client, "execute_fragments"
-    ) as mocked_fragments:
+    client.sql_client.capabilities.max_query_length = query_length
+    with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
     # split in 2 on separator ("," or " UNION ALL")
@@ -235,9 +236,8 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     elif writer_type == "select_union":
         offset = 1
     query_length = (len(insert_sql) - start_idx - offset) * 2
-    with patch.object(mocked_caps, "max_query_length", query_length), patch.object(
-        client.sql_client, "execute_fragments"
-    ) as mocked_fragments:
+    client.sql_client.capabilities.max_query_length = query_length
+    with patch.object(client.sql_client, "execute_fragments") as mocked_fragments:
         user_table_name = prepare_table(client)
         expect_load_file(client, file_storage, insert_sql, user_table_name)
     # split in 2 on ','
@@ -251,22 +251,21 @@ def assert_load_with_max_query(
     max_query_length: int,
 ) -> None:
     # load and check for real
-    mocked_caps = client.sql_client.__class__.capabilities
-    with patch.object(mocked_caps, "max_query_length", max_query_length):
-        user_table_name = prepare_table(client)
-        insert_sql = prepare_insert_statement(
-            insert_lines, client.capabilities.insert_values_writer_type
-        )
-        expect_load_file(client, file_storage, insert_sql, user_table_name)
-        canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
-        rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
-        assert rows_count == insert_lines
-        # get all uniq ids in order
-        rows = client.sql_client.execute_sql(
-            f"SELECT _dlt_id FROM {canonical_name} ORDER BY timestamp ASC;"
-        )
-        v_ids = list(map(lambda i: i[0], rows))
-        assert list(map(str, range(0, insert_lines))) == v_ids
+    client.sql_client.capabilities.max_query_length = max_query_length
+    user_table_name = prepare_table(client)
+    insert_sql = prepare_insert_statement(
+        insert_lines, client.capabilities.insert_values_writer_type
+    )
+    expect_load_file(client, file_storage, insert_sql, user_table_name)
+    canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+    rows_count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
+    assert rows_count == insert_lines
+    # get all uniq ids in order
+    rows = client.sql_client.execute_sql(
+        f"SELECT _dlt_id FROM {canonical_name} ORDER BY timestamp ASC;"
+    )
+    v_ids = list(map(lambda i: i[0], rows))
+    assert list(map(str, range(0, insert_lines))) == v_ids
     client.sql_client.execute_sql(f"DELETE FROM {canonical_name}")
 
 

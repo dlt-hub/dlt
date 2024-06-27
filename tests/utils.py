@@ -182,7 +182,7 @@ def unload_modules() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def wipe_pipeline() -> Iterator[None]:
+def wipe_pipeline(preserve_environ) -> Iterator[None]:
     """Wipes pipeline local state and deactivates it"""
     container = Container()
     if container[PipelineContext].is_active():

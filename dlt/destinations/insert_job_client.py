@@ -36,6 +36,10 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         # the procedure below will split the inserts into max_query_length // 2 packs
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
+            # format and casefold header
+            header = self._sql_client.capabilities.casefold_identifier(header).format(
+                qualified_table_name
+            )
             writer_type = self._sql_client.capabilities.insert_values_writer_type
             if writer_type == "default":
                 sep = ","
@@ -70,7 +74,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # Chunk by max_rows - 1 for simplicity because one more row may be added
                     for chunk in chunks(values_rows, max_rows - 1):
                         processed += len(chunk)
-                        insert_sql.append(header.format(qualified_table_name))
+                        insert_sql.append(header)
                         if writer_type == "default":
                             insert_sql.append(values_mark)
                         if processed == len_rows:
@@ -82,11 +86,9 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                 else:
                     # otherwise write all content in a single INSERT INTO
                     if writer_type == "default":
-                        insert_sql.extend(
-                            [header.format(qualified_table_name), values_mark, content + until_nl]
-                        )
+                        insert_sql.extend([header, values_mark, content + until_nl])
                     elif writer_type == "select_union":
-                        insert_sql.extend([header.format(qualified_table_name), content + until_nl])
+                        insert_sql.extend([header, content + until_nl])
 
                 # actually this may be empty if we were able to read a full file into content
                 if not is_eof:

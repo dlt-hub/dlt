@@ -8,12 +8,13 @@ import inspect
 
 from copy import deepcopy
 from dlt.common.configuration.specs.base_configuration import configspec
+from dlt.common.schema.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
 from dlt.common.destination.exceptions import InvalidDestinationReference
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -38,7 +39,7 @@ def _run_through_sink(
     batch_size: int = 10,
 ) -> List[Tuple[TDataItems, TTableSchema]]:
     """
-    runs a list of items through the sink destination and returns colleceted calls
+    runs a list of items through the sink destination and returns collected calls
     """
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
@@ -55,7 +56,7 @@ def _run_through_sink(
         nonlocal items
         yield items
 
-    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     p.run([items_resource()])
 
     return calls
@@ -126,6 +127,34 @@ def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
     global_calls.append((items, table))
 
 
+def test_capabilities() -> None:
+    # test default caps
+    dest = dlt.destination()(global_sink_func)()
+    caps = dest.capabilities()
+    assert caps.preferred_loader_file_format == "typed-jsonl"
+    assert caps.supported_loader_file_formats == ["typed-jsonl", "parquet"]
+    assert caps.naming_convention == "direct"
+    assert caps.max_table_nesting == 0
+    client_caps = dest.client(Schema("schema")).capabilities
+    assert dict(caps) == dict(client_caps)
+
+    # test modified caps
+    dest = dlt.destination(
+        loader_file_format="parquet",
+        batch_size=0,
+        name="my_name",
+        naming_convention="snake_case",
+        max_table_nesting=10,
+    )(global_sink_func)()
+    caps = dest.capabilities()
+    assert caps.preferred_loader_file_format == "parquet"
+    assert caps.supported_loader_file_formats == ["typed-jsonl", "parquet"]
+    assert caps.naming_convention == "snake_case"
+    assert caps.max_table_nesting == 10
+    client_caps = dest.client(Schema("schema")).capabilities
+    assert dict(caps) == dict(client_caps)
+
+
 def test_instantiation() -> None:
     # also tests _DESTINATIONS
     calls: List[Tuple[TDataItems, TTableSchema]] = []
@@ -140,23 +169,23 @@ def test_instantiation() -> None:
 
     # test decorator
     calls = []
-    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), dev_mode=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert not _DESTINATIONS
+    assert "local_sink_func" not in _DESTINATIONS
 
     # test passing via from_reference
     calls = []
     p = dlt.pipeline(
         "sink_test",
         destination=Destination.from_reference("destination", destination_callable=local_sink_func),
-        full_refresh=True,
+        dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
     # local func does not create entry in destinations
-    assert not _DESTINATIONS
+    assert "local_sink_func" not in _DESTINATIONS
 
     # test passing string reference
     global global_calls
@@ -167,7 +196,7 @@ def test_instantiation() -> None:
             "destination",
             destination_callable="tests.destinations.test_custom_destination.global_sink_func",
         ),
-        full_refresh=True,
+        dev_mode=True,
     )
     p.run([1, 2, 3], table_name="items")
     assert len(global_calls) == 1
@@ -182,9 +211,9 @@ def test_instantiation() -> None:
     p = dlt.pipeline(
         "sink_test",
         destination=Destination.from_reference("destination", destination_callable=None),
-        full_refresh=True,
+        dev_mode=True,
     )
-    with pytest.raises(PipelineStepFailed):
+    with pytest.raises(ConfigurationValueError):
         p.run([1, 2, 3], table_name="items")
 
     # pass invalid string reference will fail on instantiation
@@ -194,7 +223,7 @@ def test_instantiation() -> None:
             destination=Destination.from_reference(
                 "destination", destination_callable="does.not.exist"
             ),
-            full_refresh=True,
+            dev_mode=True,
         )
 
     # using decorator without args will also work
@@ -206,7 +235,7 @@ def test_instantiation() -> None:
         assert my_val == "something"
         calls.append((items, table))
 
-    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, full_refresh=True)  # type: ignore
+    p = dlt.pipeline("sink_test", destination=simple_decorator_sink, dev_mode=True)  # type: ignore
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
 
@@ -265,7 +294,7 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
             assert str(i) in collected_items
 
     # no errors are set, all items should be processed
-    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     load_id = p.run([items(), items2()]).loads_ids[0]
     assert_items_in_range(calls["items"], 0, 100)
     assert_items_in_range(calls["items2"], 0, 100)
@@ -278,7 +307,7 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     # provoke errors
     calls = {}
     provoke_error = {"items": 25, "items2": 45}
-    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     with pytest.raises(PipelineStepFailed):
         p.run([items(), items2()])
 
@@ -335,7 +364,7 @@ def test_naming_convention() -> None:
         assert table["columns"]["snake_case"]["name"] == "snake_case"
         assert table["columns"]["camel_case"]["name"] == "camel_case"
 
-    dlt.pipeline("sink_test", destination=snake_sink, full_refresh=True).run(resource())
+    dlt.pipeline("sink_test", destination=snake_sink, dev_mode=True).run(resource())
 
     # check default (which is direct)
     @dlt.destination()
@@ -345,7 +374,7 @@ def test_naming_convention() -> None:
         assert table["columns"]["snake_case"]["name"] == "snake_case"
         assert table["columns"]["camelCase"]["name"] == "camelCase"
 
-    dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(resource())
+    dlt.pipeline("sink_test", destination=direct_sink, dev_mode=True).run(resource())
 
 
 def test_file_batch() -> None:
@@ -368,7 +397,7 @@ def test_file_batch() -> None:
         with pyarrow.parquet.ParquetFile(file_path) as reader:
             assert reader.metadata.num_rows == (100 if table["name"] == "person" else 50)
 
-    dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(
+    dlt.pipeline("sink_test", destination=direct_sink, dev_mode=True).run(
         [resource1(), resource2()]
     )
 
@@ -384,25 +413,23 @@ def test_config_spec() -> None:
 
     # if no value is present, it should raise
     with pytest.raises(ConfigFieldMissingException):
-        dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
+        dlt.pipeline("sink_test", destination=my_sink, dev_mode=True).run(
             [1, 2, 3], table_name="items"
         )
 
     # we may give the value via __callable__ function
-    dlt.pipeline("sink_test", destination=my_sink(my_val="something"), full_refresh=True).run(
+    dlt.pipeline("sink_test", destination=my_sink(my_val="something"), dev_mode=True).run(
         [1, 2, 3], table_name="items"
     )
 
     # right value will pass
     os.environ["DESTINATION__MY_SINK__MY_VAL"] = "something"
-    dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
-        [1, 2, 3], table_name="items"
-    )
+    dlt.pipeline("sink_test", destination=my_sink, dev_mode=True).run([1, 2, 3], table_name="items")
 
     # wrong value will raise
     os.environ["DESTINATION__MY_SINK__MY_VAL"] = "wrong"
     with pytest.raises(PipelineStepFailed):
-        dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
+        dlt.pipeline("sink_test", destination=my_sink, dev_mode=True).run(
             [1, 2, 3], table_name="items"
         )
 
@@ -413,13 +440,13 @@ def test_config_spec() -> None:
 
     # if no value is present, it should raise
     with pytest.raises(ConfigFieldMissingException):
-        dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
+        dlt.pipeline("sink_test", destination=other_sink, dev_mode=True).run(
             [1, 2, 3], table_name="items"
         )
 
     # right value will pass
     os.environ["DESTINATION__SOME_NAME__MY_VAL"] = "something"
-    dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
+    dlt.pipeline("sink_test", destination=other_sink, dev_mode=True).run(
         [1, 2, 3], table_name="items"
     )
 
@@ -437,7 +464,7 @@ def test_config_spec() -> None:
 
     # missing spec
     with pytest.raises(ConfigFieldMissingException):
-        dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
+        dlt.pipeline("sink_test", destination=my_gcp_sink, dev_mode=True).run(
             [1, 2, 3], table_name="items"
         )
 
@@ -447,7 +474,7 @@ def test_config_spec() -> None:
     os.environ["CREDENTIALS__USERNAME"] = "my_user_name"
 
     # now it will run
-    dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
+    dlt.pipeline("sink_test", destination=my_gcp_sink, dev_mode=True).run(
         [1, 2, 3], table_name="items"
     )
 
@@ -471,14 +498,14 @@ def test_destination_with_spec() -> None:
 
     # call fails because `my_predefined_val` is required part of spec, even if not injected
     with pytest.raises(ConfigFieldMissingException):
-        info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), full_refresh=True).run(
+        info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), dev_mode=True).run(
             [1, 2, 3], table_name="items"
         )
         info.raise_on_failed_jobs()
 
     # call happens now
     os.environ["MY_PREDEFINED_VAL"] = "VAL"
-    info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), full_refresh=True).run(
+    info = dlt.pipeline("sink_test", destination=sink_func_with_spec(), dev_mode=True).run(
         [1, 2, 3], table_name="items"
     )
     info.raise_on_failed_jobs()
@@ -550,7 +577,7 @@ def test_remove_internal_tables_and_columns(loader_file_format, remove_stuff) ->
                     found_dlt_column_value = True
 
     # test with and without removing
-    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     p.run([{"id": 1, "value": "1"}], table_name="some_table")
 
     assert found_dlt_column != remove_stuff
@@ -579,7 +606,7 @@ def test_max_nesting_level(nesting: int) -> None:
     def source():
         yield dlt.resource(data, name="data")
 
-    p = dlt.pipeline("sink_test_max_nesting", destination=nesting_sink, full_refresh=True)
+    p = dlt.pipeline("sink_test_max_nesting", destination=nesting_sink, dev_mode=True)
     p.run(source())
 
     # fall back to source setting

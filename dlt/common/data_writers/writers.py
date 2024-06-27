@@ -4,7 +4,6 @@ from typing import (
     IO,
     TYPE_CHECKING,
     Any,
-    ClassVar,
     Dict,
     List,
     Literal,
@@ -17,8 +16,7 @@ from typing import (
 )
 
 from dlt.common.json import json
-from dlt.common.configuration import configspec, known_sections, with_config
-from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.configuration import with_config
 from dlt.common.data_writers.exceptions import (
     SpecLookupFailed,
     DataWriterNotFound,
@@ -26,15 +24,25 @@ from dlt.common.data_writers.exceptions import (
     FileSpecNotFound,
     InvalidDataItem,
 )
-from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.data_writers.configuration import (
+    CsvFormatConfiguration,
+    CsvQuoting,
+    ParquetFormatConfiguration,
+)
+from dlt.common.destination import (
+    DestinationCapabilitiesContext,
+    TLoaderFileFormat,
+    ALL_SUPPORTED_FILE_FORMATS,
+)
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
+
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
 
 
-TDataItemFormat = Literal["arrow", "object"]
+TDataItemFormat = Literal["arrow", "object", "file"]
 TWriter = TypeVar("TWriter", bound="DataWriter")
 
 
@@ -124,6 +132,9 @@ class DataWriter(abc.ABC):
             return "object"
         elif extension == "parquet":
             return "arrow"
+        # those files may be imported by normalizer as is
+        elif extension in ALL_SUPPORTED_FILE_FORMATS:
+            return "file"
         else:
             raise ValueError(f"Cannot figure out data item format for extension {extension}")
 
@@ -132,6 +143,8 @@ class DataWriter(abc.ABC):
         try:
             return WRITER_SPECS[spec]
         except KeyError:
+            if spec.data_item_format == "file":
+                return ImportFileWriter
             raise FileSpecNotFound(spec.file_format, spec.data_item_format, spec)
 
     @staticmethod
@@ -145,6 +158,19 @@ class DataWriter(abc.ABC):
             if spec.file_format == file_format and spec.data_item_format == data_item_format:
                 return writer
         raise FileFormatForItemFormatNotFound(file_format, data_item_format)
+
+
+class ImportFileWriter(DataWriter):
+    """May only import files, fails on any open/write operations"""
+
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        raise NotImplementedError(
+            "ImportFileWriter cannot write any files. You have bug in your code."
+        )
+
+    @classmethod
+    def writer_spec(cls) -> FileWriterSpec:
+        raise NotImplementedError("ImportFileWriter has no single spec")
 
 
 class JsonlWriter(DataWriter):
@@ -260,21 +286,8 @@ class InsertValuesWriter(DataWriter):
         )
 
 
-@configspec
-class ParquetDataWriterConfiguration(BaseConfiguration):
-    flavor: Optional[str] = None  # could be ie. "spark"
-    version: Optional[str] = "2.4"
-    data_page_size: Optional[int] = None
-    timestamp_timezone: str = "UTC"
-    row_group_size: Optional[int] = None
-    coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
-    allow_truncated_timestamps: bool = False
-
-    __section__: ClassVar[str] = known_sections.DATA_WRITER
-
-
 class ParquetDataWriter(DataWriter):
-    @with_config(spec=ParquetDataWriterConfiguration)
+    @with_config(spec=ParquetFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],
@@ -381,20 +394,8 @@ class ParquetDataWriter(DataWriter):
         )
 
 
-CsvQuoting = Literal["quote_all", "quote_needed"]
-
-
-@configspec
-class CsvDataWriterConfiguration(BaseConfiguration):
-    delimiter: str = ","
-    include_header: bool = True
-    quoting: CsvQuoting = "quote_needed"
-
-    __section__: ClassVar[str] = known_sections.DATA_WRITER
-
-
 class CsvWriter(DataWriter):
-    @with_config(spec=CsvDataWriterConfiguration)
+    @with_config(spec=CsvFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],
@@ -525,7 +526,7 @@ class ArrowToParquetWriter(ParquetDataWriter):
 
 
 class ArrowToCsvWriter(DataWriter):
-    @with_config(spec=CsvDataWriterConfiguration)
+    @with_config(spec=CsvFormatConfiguration)
     def __init__(
         self,
         f: IO[Any],
@@ -783,3 +784,16 @@ def get_best_writer_spec(
         return DataWriter.class_factory(file_format, item_format, native_writers).writer_spec()
     except DataWriterNotFound:
         return DataWriter.class_factory(file_format, item_format, ALL_WRITERS).writer_spec()
+
+
+def create_import_spec(
+    item_file_format: TLoaderFileFormat,
+    possible_file_formats: Sequence[TLoaderFileFormat],
+) -> FileWriterSpec:
+    """Creates writer spec that may be used only to import files"""
+    # can the item file be directly imported?
+    if item_file_format not in possible_file_formats:
+        raise SpecLookupFailed("file", possible_file_formats, item_file_format)
+
+    spec = DataWriter.class_factory(item_file_format, "object", ALL_WRITERS).writer_spec()
+    return spec._replace(data_item_format="file")

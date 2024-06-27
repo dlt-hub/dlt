@@ -1,4 +1,3 @@
-from copy import deepcopy
 import inspect
 from functools import partial
 from typing import (
@@ -14,6 +13,7 @@ from typing import (
 )
 from typing_extensions import TypeVar, Self
 
+from dlt.common import logger
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
@@ -394,6 +394,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             else:
                 # keep function as function to not evaluate generators before pipe starts
                 self._pipe.replace_gen(partial(_gen_wrap, gen))
+        else:
+            logger.warning(
+                f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
+                " the top level resource."
+            )
         return self
 
     def parallelize(self: TDltResourceImpl) -> TDltResourceImpl:

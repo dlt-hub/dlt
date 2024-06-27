@@ -16,6 +16,7 @@ from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractStorage
 from dlt.normalize import Normalize
+from dlt.normalize.worker import group_worker_files
 from dlt.normalize.exceptions import NormalizeJobFailed
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
@@ -510,28 +511,28 @@ def test_collect_metrics_on_exception(raw_normalize: Normalize) -> None:
 def test_group_worker_files() -> None:
     files = ["f%03d" % idx for idx in range(0, 100)]
 
-    assert Normalize.group_worker_files([], 4) == []
-    assert Normalize.group_worker_files(["f001"], 1) == [["f001"]]
-    assert Normalize.group_worker_files(["f001"], 100) == [["f001"]]
-    assert Normalize.group_worker_files(files[:4], 4) == [["f000"], ["f001"], ["f002"], ["f003"]]
-    assert Normalize.group_worker_files(files[:5], 4) == [
+    assert group_worker_files([], 4) == []
+    assert group_worker_files(["f001"], 1) == [["f001"]]
+    assert group_worker_files(["f001"], 100) == [["f001"]]
+    assert group_worker_files(files[:4], 4) == [["f000"], ["f001"], ["f002"], ["f003"]]
+    assert group_worker_files(files[:5], 4) == [
         ["f000"],
         ["f001"],
         ["f002"],
         ["f003", "f004"],
     ]
-    assert Normalize.group_worker_files(files[:8], 4) == [
+    assert group_worker_files(files[:8], 4) == [
         ["f000", "f001"],
         ["f002", "f003"],
         ["f004", "f005"],
         ["f006", "f007"],
     ]
-    assert Normalize.group_worker_files(files[:8], 3) == [
+    assert group_worker_files(files[:8], 3) == [
         ["f000", "f001"],
         ["f002", "f003", "f006"],
         ["f004", "f005", "f007"],
     ]
-    assert Normalize.group_worker_files(files[:5], 3) == [
+    assert group_worker_files(files[:5], 3) == [
         ["f000"],
         ["f001", "f003"],
         ["f002", "f004"],
@@ -539,7 +540,7 @@ def test_group_worker_files() -> None:
 
     # check if sorted
     files = ["tab1.1", "chd.3", "tab1.2", "chd.4", "tab1.3"]
-    assert Normalize.group_worker_files(files, 3) == [
+    assert group_worker_files(files, 3) == [
         ["chd.3"],
         ["chd.4", "tab1.2"],
         ["tab1.1", "tab1.3"],
@@ -730,19 +731,22 @@ def test_removal_of_normalizer_schema_section_and_add_seen_data(raw_normalize: N
     extracted_schema.tables["event__random_table"] = new_table("event__random_table")
 
     # add x-normalizer info (and other block to control)
-    extracted_schema.tables["event"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
+    extracted_schema.tables["event"]["x-normalizer"] = {"evolve-columns-once": True}
     extracted_schema.tables["event"]["x-other-info"] = "blah"  # type: ignore
-    extracted_schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] = {"seen-data": True, "random-entry": 1234}  # type: ignore
-    extracted_schema.tables["event__random_table"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
+    extracted_schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] = {
+        "seen-data": True,
+        "random-entry": 1234,
+    }
+    extracted_schema.tables["event__random_table"]["x-normalizer"] = {"evolve-columns-once": True}
 
     normalize_pending(raw_normalize, extracted_schema)
     schema = raw_normalize.schema_storage.load_schema("event")
     # seen data gets added, schema settings get removed
-    assert schema.tables["event"]["x-normalizer"] == {"seen-data": True}  # type: ignore
-    assert schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] == {  # type: ignore
+    assert schema.tables["event"]["x-normalizer"] == {"seen-data": True}
+    assert schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] == {
         "seen-data": True,
         "random-entry": 1234,
     }
     # no data seen here, so seen-data is not set and evolve settings stays until first data is seen
-    assert schema.tables["event__random_table"]["x-normalizer"] == {"evolve-columns-once": True}  # type: ignore
+    assert schema.tables["event__random_table"]["x-normalizer"] == {"evolve-columns-once": True}
     assert "x-other-info" in schema.tables["event"]

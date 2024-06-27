@@ -93,6 +93,7 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: MsSqlCredentials = None
 
     create_indexes: bool = False
+    has_case_sensitive_identifiers: bool = False
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

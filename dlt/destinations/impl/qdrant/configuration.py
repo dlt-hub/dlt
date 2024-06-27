@@ -18,6 +18,8 @@ class QdrantCredentials(CredentialsConfiguration):
     location: Optional[str] = None
     # API key for authentication in Qdrant Cloud. Default: `None`
     api_key: Optional[str] = None
+    # Persistence path for QdrantLocal. Default: `None`
+    path: Optional[str] = None
 
     def __str__(self) -> str:
         return self.location or "localhost"
@@ -44,7 +46,7 @@ class QdrantClientOptions(BaseConfiguration):
     # Default: `None`
     host: Optional[str] = None
     # Persistence path for QdrantLocal. Default: `None`
-    path: Optional[str] = None
+    # path: Optional[str] = None
 
 
 @configspec

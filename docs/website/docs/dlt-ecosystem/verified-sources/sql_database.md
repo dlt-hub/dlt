@@ -271,7 +271,7 @@ pipeline = dlt.pipeline(
     pipeline_name="unsw_download",
     destination=filesystem(os.path.abspath("../_storage/unsw")),
     progress="log",
-    full_refresh=True,
+    dev_mode=True,
 )
 
 info = pipeline.run(

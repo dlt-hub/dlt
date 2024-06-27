@@ -5,7 +5,6 @@ from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingC
 
 class NamingConvention(BaseNamingConvention):
     PATH_SEPARATOR = "▶"
-
     _CLEANUP_TABLE = str.maketrans(".\n\r'\"▶", "______")
 
     def normalize_identifier(self, identifier: str) -> str:

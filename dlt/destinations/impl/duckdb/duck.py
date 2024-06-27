@@ -12,7 +12,6 @@ from dlt.common.utils import maybe_context
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
-from dlt.destinations.impl.duckdb import capabilities
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
@@ -151,10 +150,15 @@ class DuckDbCopyJob(LoadJob, FollowupJob):
 
 
 class DuckDbClient(InsertValuesJobClient):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: DuckDbClientConfiguration) -> None:
-        sql_client = DuckDbSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: DuckDbClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = DuckDbSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: DuckDbClientConfiguration = config
         self.sql_client: DuckDbSqlClient = sql_client  # type: ignore
@@ -173,7 +177,7 @@ class DuckDbClient(InsertValuesJobClient):
             for h in self.active_hints.keys()
             if c.get(h, False) is True
         )
-        column_name = self.capabilities.escape_identifier(c["name"])
+        column_name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )

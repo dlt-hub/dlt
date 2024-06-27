@@ -1,20 +1,25 @@
 import os
 import shutil
+from typing_extensions import get_type_hints
 import pytest
 
 import dlt
-
+from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import (
     PipelineStateNotAvailable,
     ResourceNameNotAvailable,
 )
 from dlt.common.schema import Schema
+from dlt.common.schema.utils import pipeline_state_table
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
+from dlt.common.storages.load_package import TPipelineStateDoc
 from dlt.common.utils import uniq_id
-from dlt.common.destination.reference import Destination
+from dlt.common.destination.reference import Destination, StateInfo
 
+from dlt.common.validation import validate_dict
+from dlt.destinations.utils import get_pipeline_state_query_columns
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
@@ -39,6 +44,56 @@ def some_data_resource_state():
     last_value = dlt.current.resource_state().get("last_value", 0)
     yield [1, 2, 3]
     dlt.current.resource_state()["last_value"] = last_value + 1
+
+
+def test_state_repr() -> None:
+    """Verify that all possible state representations match"""
+    table = pipeline_state_table()
+    state_doc_hints = get_type_hints(TPipelineStateDoc)
+    sync_class_hints = get_type_hints(StateInfo)
+    info = StateInfo(1, 4, "pipeline", "compressed", pendulum.now(), "hash", "_load_id")
+    state_doc = info.as_doc()
+    # just in case hardcode column order
+    reference_cols = [
+        "version",
+        "engine_version",
+        "pipeline_name",
+        "state",
+        "created_at",
+        "version_hash",
+        "_dlt_load_id",
+    ]
+    # doc and table must be in the same order with the same name
+    assert (
+        len(table["columns"])
+        == len(state_doc_hints)
+        == len(sync_class_hints)
+        == len(state_doc)
+        == len(reference_cols)
+    )
+    for col, hint, class_hint, val, ref_col in zip(
+        table["columns"].values(), state_doc_hints, sync_class_hints, state_doc, reference_cols
+    ):
+        assert col["name"] == hint == class_hint == val == ref_col
+
+    # validate info
+    validate_dict(TPipelineStateDoc, state_doc, "$")
+
+    info = StateInfo(1, 4, "pipeline", "compressed", pendulum.now())
+    state_doc = info.as_doc()
+    assert "_dlt_load_id" not in state_doc
+    assert "version_hash" not in state_doc
+
+    # we drop hash in query
+    compat_table = get_pipeline_state_query_columns()
+    assert list(compat_table["columns"].keys()) == [
+        "version",
+        "engine_version",
+        "pipeline_name",
+        "state",
+        "created_at",
+        "_dlt_load_id",
+    ]
 
 
 def test_restore_state_props() -> None:

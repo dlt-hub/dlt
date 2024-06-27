@@ -6,6 +6,7 @@ from dlt.common.utils import uniq_id, custom_environ, digest128
 from dlt.common.schema import Schema
 from dlt.common.configuration import resolve_configuration
 
+from dlt.destinations import redshift
 from dlt.destinations.impl.redshift.redshift import RedshiftClient
 from dlt.destinations.impl.redshift.configuration import (
     RedshiftClientConfiguration,
@@ -21,7 +22,7 @@ pytestmark = pytest.mark.essential
 @pytest.fixture
 def client(empty_schema: Schema) -> RedshiftClient:
     # return client without opening connection
-    return RedshiftClient(
+    return redshift().client(
         empty_schema,
         RedshiftClientConfiguration(credentials=RedshiftCredentials())._bind_dataset_name(
             dataset_name="test_" + uniq_id()

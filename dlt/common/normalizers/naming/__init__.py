@@ -1,3 +1,3 @@
-from .naming import SupportsNamingConvention, NamingConvention
+from .naming import NamingConvention
 
-__all__ = ["SupportsNamingConvention", "NamingConvention"]
+__all__ = ["NamingConvention"]

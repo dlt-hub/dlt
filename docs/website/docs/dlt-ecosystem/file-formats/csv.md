@@ -16,7 +16,7 @@ Internally we use two implementations:
 
 ## Supported Destinations
 
-Supported by: **Postgres**, **Filesystem**
+Supported by: **Postgres**, **Filesystem**, **snowflake**
 
 By setting the `loader_file_format` argument to `csv` in the run command, the pipeline will store your data in the csv format at the destination:
 
@@ -28,10 +28,22 @@ info = pipeline.run(some_source(), loader_file_format="csv")
 `dlt` attempts to make both writers to generate similarly looking files
 * separators are commas
 * quotes are **"** and are escaped as **""**
-* `NULL` values are empty strings
+* `NULL` values both are empty strings and empty tokens as in the example below
 * UNIX new lines are used
 * dates are represented as ISO 8601
 * quoting style is "when needed"
+
+Example of NULLs:
+```sh
+text1,text2,text3
+A,B,C
+A,,""
+```
+
+In the last row both `text2` and `text3` values are NULL. Python `csv` writer
+is not able to write unquoted `None` values so we had to settle for `""`
+
+Note: all destinations capable of writing csvs must support it.
 
 ### Change settings
 You can change basic **csv** settings, this may be handy when working with **filesystem** destination. Other destinations are tested
@@ -58,6 +70,15 @@ NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
 ```
+
+### Destination settings
+A few additional settings are available when copying `csv` to destination tables:
+* **on_error_continue** - skip lines with errors (only Snowflake)
+* **encoding** - encoding of the `csv` file
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
 
 ## Limitations
 **arrow writer**
