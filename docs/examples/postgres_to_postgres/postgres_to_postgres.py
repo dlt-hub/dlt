@@ -91,7 +91,7 @@ def pg_resource_chunked(
     order_date: str,
     load_type: str = "merge",
     columns: str = "*",
-    credentials: ConnectionStringCredentials = dlt.secrets["sources.postgres.credentials"],
+    credentials: ConnectionStringCredentials = None,
 ):
     print(
         f"dlt.resource write_disposition: `{load_type}` -- ",
@@ -162,6 +162,7 @@ if __name__ == "__main__":
                 table["order_date"],
                 load_type=load_type,
                 columns=table["columns"],
+                credentials=dlt.secrets["sources.postgres.credentials"],
             )
         )
 

@@ -11,6 +11,13 @@ class NamingConvention(SnakeCaseNamingConvention):
         return "column_" + identifier.lower()
 
 
+class ColumnNamingConvention(SnakeCaseNamingConvention):
+    def normalize_identifier(self, identifier: str) -> str:
+        if identifier.startswith("column_"):
+            return identifier
+        return "column_" + identifier.lower()
+
+
 class DataItemNormalizer(RelationalNormalizer):
     def extend_schema(self) -> None:
         json_config = self.schema._normalizers_config["json"]["config"]
