@@ -413,9 +413,9 @@ class SqlMergeJob(SqlBaseJob):
             escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
         # get top level table full identifiers
-        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        with sql_client.with_staging_dataset(staging=True):
-            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
 
         # get merge and primary keys from top level
         primary_keys = cls._escape_list(
@@ -529,9 +529,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # insert from staging to dataset
         for table in table_chain:
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            with sql_client.with_staging_dataset(staging=True):
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
             insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
             if (len(primary_keys) > 0 and len(table_chain) > 1) or (
@@ -648,9 +646,9 @@ class SqlMergeJob(SqlBaseJob):
         """
         sql: List[str] = []
         root_table = table_chain[0]
-        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        with sql_client.with_staging_dataset(staging=True):
-            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
 
         # get column names
         caps = sql_client.capabilities
@@ -720,9 +718,7 @@ class SqlMergeJob(SqlBaseJob):
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in child_tables:
-                table_name = sql_client.make_qualified_table_name(table["name"])
-                with sql_client.with_staging_dataset(staging=True):
-                    staging_table_name = sql_client.make_qualified_table_name(table["name"])
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}
                     SELECT *
