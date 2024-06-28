@@ -65,9 +65,10 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         with pytest.raises(DestinationUndefinedEntity):
             load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        # sync the schema
-        p.sync_schema()
-        # check if schema exists
+    # sync the schema
+    p.sync_schema()
+    # check if schema exists
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema()
         assert stored_schema is not None
         # dataset exists, still no table
@@ -93,77 +94,87 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # so dlt in normalize stage infers _state_version table again but with different column order and the column order in schema is different
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
-        p.sync_schema()
+    p.sync_schema()
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema()
         assert stored_schema is not None
         # table is there but no state
         assert load_pipeline_state_from_destination(p.pipeline_name, job_client) is None
-        # extract state
-        with p.managed_state(extract_state=True):
-            pass
-        # just run the existing extract
-        p.normalize(loader_file_format=destination_config.file_format)
-        p.load()
+
+    # extract state
+    with p.managed_state(extract_state=True):
+        pass
+    # just run the existing extract
+    p.normalize(loader_file_format=destination_config.file_format)
+    p.load()
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        local_state = p._get_state()
-        local_state.pop("_local")
-        assert stored_state == local_state
-        # extract state again
-        with p.managed_state(extract_state=True) as managed_state:
-            # this will be saved
-            managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
-        p.normalize(loader_file_format=destination_config.file_format)
-        p.load()
+    local_state = p._get_state()
+    local_state.pop("_local")
+    assert stored_state == local_state
+    # extract state again
+    with p.managed_state(extract_state=True) as managed_state:
+        # this will be saved
+        managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
+    p.normalize(loader_file_format=destination_config.file_format)
+    p.load()
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
-        local_state = p._get_state()
-        local_state.pop("_local")
-        assert stored_state == local_state
-        # use the state context manager again but do not change state
-        with p.managed_state(extract_state=True):
-            pass
-        # version not changed
-        new_local_state = p._get_state()
-        new_local_state.pop("_local")
-        assert local_state == new_local_state
-        p.normalize(loader_file_format=destination_config.file_format)
-        info = p.load()
-        assert len(info.loads_ids) == 0
+    assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
+    local_state = p._get_state()
+    local_state.pop("_local")
+    assert stored_state == local_state
+    # use the state context manager again but do not change state
+    with p.managed_state(extract_state=True):
+        pass
+    # version not changed
+    new_local_state = p._get_state()
+    new_local_state.pop("_local")
+    assert local_state == new_local_state
+    p.normalize(loader_file_format=destination_config.file_format)
+    info = p.load()
+    assert len(info.loads_ids) == 0
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         new_stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        # new state should not be stored
-        assert new_stored_state == stored_state
+    # new state should not be stored
+    assert new_stored_state == stored_state
 
-        # change the state in context manager but there's no extract
-        with p.managed_state(extract_state=False) as managed_state:
-            managed_state["sources"] = {"source": "test2"}  # type: ignore[dict-item]
-        new_local_state = p._get_state()
-        new_local_state_local = new_local_state.pop("_local")
-        assert local_state != new_local_state
-        # version increased
-        assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
-        # last extracted hash does not match current version hash
-        assert new_local_state_local["_last_extracted_hash"] != new_local_state["_version_hash"]
+    # change the state in context manager but there's no extract
+    with p.managed_state(extract_state=False) as managed_state:
+        managed_state["sources"] = {"source": "test2"}  # type: ignore[dict-item]
+    new_local_state = p._get_state()
+    new_local_state_local = new_local_state.pop("_local")
+    assert local_state != new_local_state
+    # version increased
+    assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
+    # last extracted hash does not match current version hash
+    assert new_local_state_local["_last_extracted_hash"] != new_local_state["_version_hash"]
 
-        # use the state context manager again but do not change state
-        # because _last_extracted_hash is not present (or different), the version will not change but state will be extracted anyway
-        with p.managed_state(extract_state=True):
-            pass
-        new_local_state_2 = p._get_state()
-        new_local_state_2_local = new_local_state_2.pop("_local")
-        assert new_local_state == new_local_state_2
-        # there's extraction timestamp
-        assert "_last_extracted_at" in new_local_state_2_local
-        # and extract hash is == hash
-        assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
-        # but the version didn't change
-        assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
-        p.normalize(loader_file_format=destination_config.file_format)
-        info = p.load()
-        assert len(info.loads_ids) == 1
+    # use the state context manager again but do not change state
+    # because _last_extracted_hash is not present (or different), the version will not change but state will be extracted anyway
+    with p.managed_state(extract_state=True):
+        pass
+    new_local_state_2 = p._get_state()
+    new_local_state_2_local = new_local_state_2.pop("_local")
+    assert new_local_state == new_local_state_2
+    # there's extraction timestamp
+    assert "_last_extracted_at" in new_local_state_2_local
+    # and extract hash is == hash
+    assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
+    # but the version didn't change
+    assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
+    p.normalize(loader_file_format=destination_config.file_format)
+    info = p.load()
+    assert len(info.loads_ids) == 1
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         new_stored_state_2 = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        # the stored state changed to next version
-        assert new_stored_state != new_stored_state_2
-        assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
+    # the stored state changed to next version
+    assert new_stored_state != new_stored_state_2
+    assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
 
 
 @pytest.mark.parametrize(
@@ -224,9 +235,10 @@ def test_get_schemas_from_destination(
 
     default_schema = Schema("state")
     p._inject_schema(default_schema)
+
+    # just sync schema without name - will use default schema
+    p.sync_schema()
     with p.destination_client() as job_client:
-        # just sync schema without name - will use default schema
-        p.sync_schema()
         assert get_normalized_dataset_name(
             job_client
         ) == default_schema.naming.normalize_table_identifier(dataset_name)
@@ -242,9 +254,9 @@ def test_get_schemas_from_destination(
         ) == schema_two.naming.normalize_table_identifier(_make_dn_name("two"))
     schema_three = Schema("three")
     p._inject_schema(schema_three)
+    # sync schema with a name
+    p.sync_schema(schema_three.name)
     with p._get_destination_clients(schema_three)[0] as job_client:
-        # sync schema with a name
-        p.sync_schema(schema_three.name)
         assert get_normalized_dataset_name(
             job_client
         ) == schema_three.naming.normalize_table_identifier(_make_dn_name("three"))

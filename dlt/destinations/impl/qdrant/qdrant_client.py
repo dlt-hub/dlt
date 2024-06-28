@@ -381,6 +381,10 @@ class QdrantClient(JobClientBase, WithStateSync):
                 if e.status_code == 404:
                     raise DestinationUndefinedEntity(str(e)) from e
                 raise
+            except ValueError as e:  # Local qdrant error
+                if "not found" in str(e):
+                    raise DestinationUndefinedEntity(str(e)) from e
+                raise
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
@@ -403,13 +407,20 @@ class QdrantClient(JobClientBase, WithStateSync):
                 order_by=models.OrderBy(
                     key=p_inserted_at,
                     direction=models.Direction.DESC,
-                )
+                ),
             )
-            record = response[0][0].payload
-            return StorageSchemaInfo(**record)
-        except Exception:
-            # TODO: Catch specific "not found" exceptions
-            return None
+            if not response[0]:
+                return None
+            row = list(response[0][0].payload.values())
+            return StorageSchemaInfo(row[4], row[3], row[0], row[1], row[2], row[5])
+        except UnexpectedResponse as e:
+            if e.status_code == 404:
+                raise DestinationUndefinedEntity(str(e)) from e
+            raise
+        except ValueError as e:  # Local qdrant error
+            if "not found" in str(e):
+                raise DestinationUndefinedEntity(str(e)) from e
+            raise
 
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         try:
@@ -427,11 +438,18 @@ class QdrantClient(JobClientBase, WithStateSync):
                 ),
                 limit=1,
             )
-            record = response[0][0].payload
-            return StorageSchemaInfo(**record)
-        except Exception:
-            # TODO: Handle specific "not found" exceptions (different in server vs local)
-            return None
+            if not response[0]:
+                return None
+            row = list(response[0][0].payload.values())
+            return StorageSchemaInfo(row[4], row[3], row[0], row[1], row[2], row[5])
+        except UnexpectedResponse as e:
+            if e.status_code == 404:
+                return None
+            raise
+        except ValueError as e:  # Local qdrant error
+            if "not found" in str(e):
+                return None
+            raise
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadQdrantJob(
@@ -453,7 +471,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         self._create_point_no_vector(properties, loads_table_name)
 
     def __enter__(self) -> "QdrantClient":
-        self.db_client = QdrantClient._create_db_client(self.config)
+        self.db_client = self.config.get_client()
         return self
 
     def __exit__(
@@ -463,7 +481,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         exc_tb: TracebackType,
     ) -> None:
         if self.db_client:
-            self.db_client.close()
+            self.config.close_client()
             self.db_client = None
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
