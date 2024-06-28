@@ -11,11 +11,12 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
-from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import TDestination
+from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -1028,3 +1029,61 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r(), loader_file_format=destination_config.file_format)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["postgres"]),
+    ids=lambda x: x.name,
+)
+def test_merge_strategy_config(destination_config: DestinationTestConfiguration, capsys) -> None:
+    # merge strategy invalid
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+    def r():
+        yield {"foo": "bar"}
+
+    p = dlt.pipeline(
+        pipeline_name="dummy_pipeline",
+        destination="dummy",
+        full_refresh=True,
+    )
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, ValueError)
+
+    # merge strategy not supported by destination
+    assert "scd2" not in p.destination.capabilities().supported_merge_strategies
+    p.drop()
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    with pytest.raises(DestinationCapabilitiesException):
+        p.run(r())
+
+    # `upsert` merge strategy without `primary_key` should error
+    # this check only happens for SQL destinations
+    p = destination_config.setup_pipeline("sql_pipeline", dev_mode=True)
+    # assert "upsert" in p.destination.capabilities().supported_merge_strategies
+    p.drop()
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+    )
+    assert "primary_key" not in r._hints
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run(r())
+    assert isinstance(pip_ex.value.__context__, SchemaCorruptedException)
+
+    # `upsert` merge strategy with `merge_key` should log warning
+    p.drop()
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="foo",
+        merge_key="foo",
+    )
+    assert "primary_key" in r._hints
+    assert "merge_key" in r._hints
+    p.run(r())
+    assert (
+        "Merge key is not supported for this strategy and will be ignored."
+        in capsys.readouterr().err
+    )
