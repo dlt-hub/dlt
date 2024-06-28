@@ -29,7 +29,6 @@ from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.utils import verify_schema_capabilities
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
     get_file_format,
     get_write_disposition,
