@@ -36,6 +36,7 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
         caps.supports_ddl_transactions = False
         caps.alter_add_multi_column = False
         caps.supports_truncate_command = False
+        caps.supported_merge_strategies = ["delete-insert", "upsert"]
 
         return caps
 
