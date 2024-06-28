@@ -6,7 +6,6 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.reference import (
     DestinationClientDwhWithStagingConfiguration,
 )
-from dlt.common.libs.sql_alchemy import URL
 from dlt.common.utils import digest128
 
 
@@ -36,8 +35,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
-    dataset_sentinel_table_name: str = "dlt_sentinel_table"
-    """Special table to mark dataset as existing"""
     gcp_access_key_id: Optional[str] = None
     """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
     gcp_secret_access_key: Optional[str] = None
@@ -86,7 +83,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string."""
+        """Returns a fingerprint of the host part of a connection string."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
