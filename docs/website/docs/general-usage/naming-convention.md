@@ -21,24 +21,16 @@ You can pick which naming convention to use. `dlt` provides a few to [choose fro
 :::
 
 ### Use default naming convention (snake_case)
-`dlt` most used and tested with default, case insensitive, lower case naming convention called **snake_case**
+Case insensitive naming convention, converting source identifiers into lower case snake case with reduced alphabet.
 
-1. Converts identifiers to **snake_case**, small caps. Removes all ascii characters except ascii
-   alphanumerics and underscores.
-1. Adds `_` if name starts with number.
-1. Multiples of `_` are converted into single `_`.
-1. The parent-child relation is expressed as double `_` in names.
-1. It shorts the identifier if it exceed the length at the destination.
+- Spaces around identifier are trimmed
+- Keeps ascii alphanumerics and underscores, replaces all other characters with underscores (with the exceptions below)
+- Replaces `+` and `*` with `x`, `-` with `_`, `@` with `a` and `|` with `l`
+- Prepends `_` if name starts with number.
+- Multiples of `_` are converted into single `_`.
+- Replaces all trailing `_` with `x`
 
-> 💡 Standard behavior of `dlt` is to **use the same naming convention for all destinations** so
-> users see always the same tables and columns in their databases.
-
-> 💡 If you provide any schema elements that contain identifiers via decorators or arguments (i.e.
-> `table_name` or `columns`) all the names used will be converted via the naming convention when
-> adding to the schema. For example if you execute `dlt.run(... table_name="CamelCase")` the data
-> will be loaded into `camel_case`.
-
-> 💡 Use simple, short small caps identifiers for everything!
+Uses __ as patent-child separator for tables and flattened column names.
 
 :::tip
 If you do not like **snake_case** your next safe option is **sql_ci** which generates SQL-safe, lower-case, case-insensitive identifiers without any
@@ -55,7 +47,7 @@ naming="sql_ci_v1"
 ### Pick the right identifier form when defining resources
 `dlt` keeps source (not normalized) identifiers during data [extraction](../reference/explainers/how-dlt-works.md#extract) and translates them during [normalization](../reference/explainers/how-dlt-works.md#normalize). For you it means:
 1. If you write a [transformer](resource.md#process-resources-with-dlttransformer) or a [mapping/filtering function](resource.md#filter-transform-and-pivot-data), you will see the original data, without any normalization. Use the source key names to access the dicts!
-2. If you define a `primary_key` or `cursor` that participate in [incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field) use the source identifiers (as `dlt` will inspect the source data).
+2. If you define a `primary_key` or `cursor` that participate in [cursor field incremental loading](incremental-loading.md#incremental-loading-with-a-cursor-field) use the source identifiers (`dlt` uses them to inspect source data, `Incremental` class is a filtering function).
 3. When defining any other hints ie. `columns` or `merge_key` you can pick source or destination identifiers. `dlt` normalizes all hints together with your data.
 4. `Schema` object (ie. obtained from the pipeline or from `dlt` source via `discover_schema`) **always contains destination (normalized) identifiers**.
 
@@ -66,16 +58,20 @@ In the snippet below, we define a resource with various "illegal" unicode charac
 ### Understand the identifier normalization
 Identifiers are translated from source to destination form in **normalize** step. Here's how `dlt` picks the right naming convention:
 
-* Each destination has a preferred naming convention.
-* This naming convention is used when new schemas are created.
-* Schemas preserve naming convention when saved
-* `dlt` applies final naming convention in `normalize` step. Naming convention comes from (1) explicit configuration (2) from destination capabilities. Naming convention
-in schema will be ignored.
-* You can change the naming convention in the capabilities: (name, case-folding, case sensitivity)
+* Each destination may define a preferred naming convention (ie. Weaviate), otherwise **snake case** will be used
+* This naming convention is used when new schemas are created. This happens when pipeline is run for a first time.
+* Schemas preserve naming convention when saved. Your running pipelines will maintain existing naming conventions if not requested otherwise
+* `dlt` applies final naming convention in `normalize` step. Naming convention comes from (1) explicit configuration (2) from destination capabilities.
+* Naming convention will be used to put destination is case sensitive/insensitive mode and apply the right case folding function.
+
+:::caution
+If you change naming convention and `dlt` detects that it changes the destination identifiers for tables/collection/files that already exist and store data,
+the normalize process will fail.
+:::
 
 ### Case sensitive and insensitive destinations
 Naming conventions come in two types.
-* **case sensitive** naming convention normalize source identifiers into case sensitive identifiers where character
+* **case sensitive**
 * **case insensitive**
 
 Case sensitive naming convention will put a destination in [case sensitive mode](destination.md#control-how-dlt-creates-table-column-and-other-identifiers). Identifiers that
@@ -90,24 +86,43 @@ too long. The default shortening behavior generates short deterministic hashes o
 ## Pick your own naming convention
 
 ### Configure naming convention
-The naming convention is configurable and users can easily create their own
-conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
-DuckDB).
+tbd.
 
 
 ### Available naming conventions
 
+* snake_case
+* duck_case - case sensitive, allows all unicode characters like emoji 💥
+* direct - case sensitive, allows all unicode characters, does not contract underscores
+* `sql_cs_v1` - case sensitive, generates sql-safe identifiers
+* `sql_ci_v1` - case insensitive, generates sql-safe lower case identifiers
+
 ### Set and adjust naming convention explicitly
+tbd.
 
 ## Avoid identifier collisions
-
-
 `dlt` detects various types of collisions and ignores the others.
+1. `dlt` detects collisions if case sensitive naming convention is used on case insensitive destination
+2. `dlt` detects collisions if change of naming convention changes the identifiers of tables already created in the destination
+3. `dlt` detects collisions when naming convention is applied to column names of arrow tables
+
+`dlt` will not detect collision when normalizing source data. If you have a dictionary, keys will be merged if they collide after being normalized.
+You can use a naming convention that does not generate collisions, see examples below.
 
 
 ## Write your own naming convention
-Naming conventions reside in separate Python modules, are classes with `NamingConvention` name and must derive from `BaseNamingConvention`. We include two examples of
-naming conventions that you may find useful
+Custom naming conventions are classes that derive from `NamingConvention` that you can import from `dlt.common.normalizers.naming`. We recommend the following module layout:
+1. Each naming convention resides in a separate Python module (file)
+2. The class is always named `NamingConvention`
+
+In that case you can use a fully qualified module name in [schema configuration](#configure-naming-convention) or pass module [explicitly](#set-and-adjust-naming-convention-explicitly).
+
+We include [two examples](../examples/custom_naming) of naming conventions that you may find useful:
 
 1. A variant of `sql_ci` that generates identifier collisions with a low (user defined) probability by appending a deterministic tag to each name.
-2. A variant of `sql_cs` that allows for LATIN-2 (ie. umlaut) characters
+2. A variant of `sql_cs` that allows for LATIN (ie. umlaut) characters
+
+:::note
+Note that a fully qualified name of your custom naming convention will be stored in the `Schema` and `dlt` will attempt to import it when schema is loaded from storage.
+You should distribute your custom naming conventions with your pipeline code via an installable package with a defined namespace.
+:::

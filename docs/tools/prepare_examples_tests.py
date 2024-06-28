@@ -54,8 +54,12 @@ if __name__ == "__main__":
             os.unlink(test_example_file)
             continue
 
-        with open(example_file, "r", encoding="utf-8") as f:
-            lines = f.read().split("\n")
+        try:
+            with open(example_file, "r", encoding="utf-8") as f:
+                lines = f.read().split("\n")
+        except FileNotFoundError:
+            print(f"Example file {example_file} not found, test prep will be skipped")
+            continue
 
         processed_lines = TEST_HEADER.split("\n")
         main_clause_found = False
