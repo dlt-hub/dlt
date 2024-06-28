@@ -77,17 +77,32 @@ def verify_sql_job_client_schema(schema: Schema, warnings: bool = True) -> List[
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}.""",
                     )
                 )
-            if (
-                table.get("x-merge-strategy") == "delete-insert"
-                and not has_column_with_prop(table, "primary_key")
-                and not has_column_with_prop(table, "merge_key")
-            ):
-                log(
-                    f"Table {table_name} has `write_disposition` set to `merge`"
-                    " and `merge_strategy` set to `delete-insert`, but no primary or"
-                    " merge keys defined."
-                    " dlt will fall back to `append` for this table."
-                )
+            if table.get("x-merge-strategy") == "delete-insert":
+                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
+                    table, "merge_key"
+                ):
+                    log(
+                        f"Table {table_name} has `write_disposition` set to `merge`"
+                        " and `merge_strategy` set to `delete-insert`, but no primary or"
+                        " merge keys defined."
+                        " dlt will fall back to `append` for this table."
+                    )
+            elif table.get("x-merge-strategy") == "upsert":
+                if not has_column_with_prop(table, "primary_key"):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            schema.name,
+                            f"No primary key defined for table `{table['name']}`."
+                            " `primary_key` needs to be set when using the `upsert`"
+                            " merge strategy.",
+                        )
+                    )
+                if has_column_with_prop(table, "merge_key"):
+                    log(
+                        f"Found `merge_key` for table `{table['name']}` with"
+                        " `upsert` merge strategy. Merge key is not supported"
+                        " for this strategy and will be ignored."
+                    )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                 exception_log.append(
