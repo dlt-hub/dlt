@@ -25,7 +25,6 @@ from dlt.common.schema.utils import (
     new_column,
     new_table,
 )
-from dlt.common.schema.exceptions import SchemaException
 from dlt.common.typing import TDataItem
 from dlt.common.utils import clone_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
