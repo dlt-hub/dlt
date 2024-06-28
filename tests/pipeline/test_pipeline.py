@@ -2274,7 +2274,7 @@ def test_staging_dataset_truncate(truncate) -> None:
             assert len(cur.fetchall()) == 3
 
 
-def test_merge_strategy_config() -> None:
+def test_merge_strategy_config(capsys) -> None:
     # merge strategy invalid
     @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
     def r():
@@ -2314,6 +2314,21 @@ def test_merge_strategy_config() -> None:
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
     assert isinstance(pip_ex.value.__context__, SchemaCorruptedException)
+
+    # `upsert` merge strategy with `merge_key` should log warning
+    p.drop()
+    r.apply_hints(
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="foo",
+        merge_key="foo",
+    )
+    assert "primary_key" in r._hints
+    assert "merge_key" in r._hints
+    p.run(r())
+    assert (
+        "Merge key is not supported for this strategy and will be ignored."
+        in capsys.readouterr().err
+    )
 
 
 def test_change_naming_convention_name_collision() -> None:
