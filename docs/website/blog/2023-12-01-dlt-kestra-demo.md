@@ -45,7 +45,7 @@ Wanna jump to the [GitHub repo](https://github.com/dlt-hub/dlt-kestra-demo)?
 
 ## HOW IT WORKS
 
-To lay it all out clearly: Everything's automated in **`Kestra`**, with hassle-free data loading thanks to **`dlt`**, and the analytical thinking handled by OpenAI. Here's a diagram to help you understand the general outline of the entire process. 
+To lay it all out clearly: Everything's automated in **`Kestra`**, with hassle-free data loading thanks to **`dlt`**, and the analytical thinking handled by OpenAI. Here's a diagram to help you understand the general outline of the entire process.
 
 ![overview](https://storage.googleapis.com/dlt-blog-images/dlt_kestra_workflow_overview.png)
 
@@ -59,12 +59,12 @@ Once you’ve opened [http://localhost:8080/](http://localhost:8080/) in your br
 
 ![Kestra](https://storage.googleapis.com/dlt-blog-images/dlt_kestra_kestra_ui.png)
 
-Now, all you need to do is [create your flows](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) and execute them. 
+Now, all you need to do is [create your flows](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) and execute them.
 
 The great thing about **`Kestra`** is its ease of use - it's UI-based, declarative, and language-agnostic. Unless you're using a task like a [Python script](https://kestra.io/plugins/plugin-script-python/tasks/io.kestra.plugin.scripts.python.script), you don't even need to know how to code.
 
 
-:::tip 
+:::tip
 If you're already considering ways to use **`Kestra`** for your projects, consult their [documentation](https://kestra.io/docs) and the [plugin](https://kestra.io/plugins) pages for further insights.
 :::
 
@@ -84,7 +84,7 @@ pipeline = dlt.pipeline(
     pipeline_name="standard_inbox",
     destination='bigquery',
     dataset_name="messages_data",
-    full_refresh=False,
+    dev_mode=False,
 )
 
 # Set table name

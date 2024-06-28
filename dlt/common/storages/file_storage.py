@@ -6,7 +6,7 @@ import errno
 import tempfile
 import shutil
 import pathvalidate
-from typing import IO, Any, Optional, List, cast, overload
+from typing import IO, Any, Optional, List, cast
 from dlt.common.typing import AnyFun
 
 from dlt.common.utils import encoding_for_mode, uniq_id
@@ -18,7 +18,7 @@ FILE_COMPONENT_INVALID_CHARACTERS = re.compile(r"[.%{}]")
 class FileStorage:
     def __init__(self, storage_path: str, file_type: str = "t", makedirs: bool = False) -> None:
         # make it absolute path
-        self.storage_path = os.path.realpath(storage_path)  # os.path.join(, '')
+        self.storage_path = os.path.realpath(storage_path)
         self.file_type = file_type
         if makedirs:
             os.makedirs(storage_path, exist_ok=True)
@@ -243,7 +243,8 @@ class FileStorage:
             FileStorage.move_atomic_to_file(external_file_path, dest_file_path)
         )
 
-    def in_storage(self, path: str) -> bool:
+    def is_path_in_storage(self, path: str) -> bool:
+        """Checks if a given path is below storage root, without checking for item existence"""
         assert path is not None
         # all paths are relative to root
         if not os.path.isabs(path):
@@ -256,25 +257,30 @@ class FileStorage:
     def to_relative_path(self, path: str) -> str:
         if path == "":
             return ""
-        if not self.in_storage(path):
+        if not self.is_path_in_storage(path):
             raise ValueError(path)
         if not os.path.isabs(path):
             path = os.path.realpath(os.path.join(self.storage_path, path))
         # for abs paths find the relative
         return os.path.relpath(path, start=self.storage_path)
 
-    def make_full_path(self, path: str) -> str:
+    def make_full_path_safe(self, path: str) -> str:
+        """Verifies that path is under storage root and then returns normalized absolute path"""
         # try to make a relative path if paths are absolute or overlapping
         path = self.to_relative_path(path)
         # then assume that it is a path relative to storage root
         return os.path.realpath(os.path.join(self.storage_path, path))
+
+    def make_full_path(self, path: str) -> str:
+        """Joins path with storage root. Intended for path known to be relative to storage root"""
+        return os.path.join(self.storage_path, path)
 
     def from_wd_to_relative_path(self, wd_relative_path: str) -> str:
         path = os.path.realpath(wd_relative_path)
         return self.to_relative_path(path)
 
     def from_relative_path_to_wd(self, relative_path: str) -> str:
-        return os.path.relpath(self.make_full_path(relative_path), start=".")
+        return os.path.relpath(self.make_full_path_safe(relative_path), start=".")
 
     @staticmethod
     def get_file_name_from_file_path(file_path: str) -> str:

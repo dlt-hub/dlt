@@ -4,7 +4,7 @@ from typing import Iterator
 import pytest
 import asyncio
 
-import dlt
+import dlt, os
 from dlt.common.configuration.container import Container
 from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
 from dlt.common.pipeline import StateInjectableContext, source_state
@@ -29,6 +29,14 @@ from dlt.extract.exceptions import (
     ResourcesNotFoundError,
 )
 from dlt.extract.pipe import Pipe
+
+
+@pytest.fixture(autouse=True)
+def switch_to_fifo():
+    """most of the following tests rely on the old default fifo next item mode"""
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+    yield
+    del os.environ["EXTRACT__NEXT_ITEM_MODE"]
 
 
 def test_call_data_resource() -> None:
@@ -1266,6 +1274,8 @@ def test_apply_hints() -> None:
         primary_key=["a", "b"],
         merge_key=["c", "a"],
         schema_contract="freeze",
+        table_format="delta",
+        file_format="jsonl",
     )
     table = empty_r.compute_table_schema()
     assert table["columns"]["a"] == {
@@ -1280,11 +1290,15 @@ def test_apply_hints() -> None:
     assert table["parent"] == "parent"
     assert empty_r.table_name == "table"
     assert table["schema_contract"] == "freeze"
+    assert table["table_format"] == "delta"
+    assert table["file_format"] == "jsonl"
 
     # reset
     empty_r.apply_hints(
         table_name="",
         parent_table_name="",
+        table_format="",
+        file_format="",
         primary_key=[],
         merge_key="",
         columns={},

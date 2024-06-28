@@ -51,7 +51,7 @@ or via the env variable `SCHEMA__NAMING` or directly in the code:
 dlt.config["schema.naming"] = "duck_case"
 ```
 :::caution
-**duckdb** identifiers are **case insensitive** but display names preserve case. This may create name clashes if, for example, you load JSON with
+**duckdb** identifiers are **case insensitive** but display names preserve case. This may create name collisions if, for example, you load JSON with
 `{"Column": 1, "column": 2}` as it will map data to a single column.
 :::
 

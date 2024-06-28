@@ -128,3 +128,16 @@ class DestinationSchemaTampered(DestinationTerminalException):
 
 class DestinationCapabilitiesException(DestinationException):
     pass
+
+
+class DestinationInvalidFileFormat(DestinationTerminalException):
+    def __init__(
+        self, destination_type: str, file_format: str, file_name: str, message: str
+    ) -> None:
+        self.destination_type = destination_type
+        self.file_format = file_format
+        self.message = message
+        super().__init__(
+            f"Destination {destination_type} cannot process file {file_name} with format"
+            f" {file_format}: {message}"
+        )

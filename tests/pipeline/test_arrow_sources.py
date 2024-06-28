@@ -9,7 +9,11 @@ import pyarrow as pa
 import dlt
 from dlt.common import json, Decimal
 from dlt.common.utils import uniq_id
-from dlt.common.libs.pyarrow import NameNormalizationClash, remove_columns, normalize_py_arrow_item
+from dlt.common.libs.pyarrow import (
+    NameNormalizationCollision,
+    remove_columns,
+    normalize_py_arrow_item,
+)
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -17,8 +21,8 @@ from tests.cases import (
     arrow_table_all_data_types,
     prepare_shuffled_tables,
 )
+from tests.pipeline.utils import assert_only_table_columns, load_tables_to_dicts
 from tests.utils import (
-    preserve_environ,
     TPythonTableFormat,
     arrow_item_from_pandas,
     arrow_item_from_table,
@@ -223,7 +227,7 @@ def test_arrow_clashing_names(item_type: TPythonTableFormat) -> None:
 
     with pytest.raises(PipelineStepFailed) as py_ex:
         pipeline.extract(data_frames())
-    assert isinstance(py_ex.value.__context__, NameNormalizationClash)
+    assert isinstance(py_ex.value.__context__, NameNormalizationCollision)
 
 
 @pytest.mark.parametrize("item_type", ["arrow-table", "arrow-batch"])
@@ -505,3 +509,103 @@ def test_empty_arrow(item_type: TPythonTableFormat) -> None:
     assert len(pipeline.list_extracted_resources()) == 1
     norm_info = pipeline.normalize()
     assert norm_info.row_counts["items"] == 0
+
+
+def test_import_file_with_arrow_schema() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    # Define the schema based on the CSV input
+    schema = pa.schema(
+        [
+            ("id", pa.int64()),
+            ("name", pa.string()),
+            ("description", pa.string()),
+            ("ordered_at", pa.date32()),
+            ("price", pa.float64()),
+        ]
+    )
+
+    # Create empty arrays for each field
+    empty_arrays = [
+        pa.array([], type=pa.int64()),
+        pa.array([], type=pa.string()),
+        pa.array([], type=pa.string()),
+        pa.array([], type=pa.date32()),
+        pa.array([], type=pa.float64()),
+    ]
+
+    # Create an empty table with the defined schema
+    empty_table = pa.Table.from_arrays(empty_arrays, schema=schema)
+
+    # columns should be created from empty table
+    import_file = "tests/load/cases/loading/header.jsonl"
+    info = pipeline.run(
+        [dlt.mark.with_file_import(import_file, "jsonl", 2, hints=empty_table)],
+        table_name="no_header",
+    )
+    info.raise_on_failed_jobs()
+    assert_only_table_columns(pipeline, "no_header", schema.names)
+    rows = load_tables_to_dicts(pipeline, "no_header")
+    assert len(rows["no_header"]) == 2
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "arrow-table", "arrow-batch"])
+def test_extract_adds_dlt_load_id(item_type: TPythonTableFormat) -> None:
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    item, _, _ = arrow_table_all_data_types(item_type, num_rows=5432)
+
+    @dlt.resource
+    def some_data():
+        yield item
+
+    pipeline: dlt.Pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+    info = pipeline.extract(some_data())
+
+    load_id = info.loads_ids[0]
+    jobs = info.load_packages[0].jobs["new_jobs"]
+    extracted_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
+
+    with pa.parquet.ParquetFile(extracted_file) as pq:
+        tbl = pq.read()
+        assert len(tbl) == 5432
+
+        # Extracted file has _dlt_load_id
+        assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()
+
+        # Load ID in both schema and arrow tbl should be the last column
+        assert tbl.schema.names[-1] == "_dlt_load_id"
+        cols = list(pipeline.default_schema.tables["some_data"]["columns"])
+        assert cols[-1] == "_dlt_load_id"
+
+
+def test_extract_json_normalize_parquet_adds_dlt_load_id():
+    """Extract jsonl data that gets written to parquet in normalizer. Check that _dlt_load_id is added."""
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+
+    rows, _, _ = arrow_table_all_data_types("object", num_rows=1001)
+
+    @dlt.resource
+    def some_data():
+        yield rows
+
+    pipeline: dlt.Pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
+
+    pipeline.extract(some_data())
+    n_info = pipeline.normalize(loader_file_format="parquet")
+
+    load_id = n_info.loads_ids[0]
+    jobs = n_info.load_packages[0].jobs["new_jobs"]
+    normalized_file = [job for job in jobs if "some_data" in job.file_path][0].file_path
+
+    with pa.parquet.ParquetFile(normalized_file) as pq:
+        tbl = pq.read()
+        assert len(tbl) == 1001
+
+        # Normalized file has _dlt_load_id
+        assert pa.compute.all(pa.compute.equal(tbl["_dlt_load_id"], load_id)).as_py()

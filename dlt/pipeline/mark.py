@@ -2,6 +2,7 @@
 from dlt.extract import (
     with_table_name,
     with_hints,
+    with_file_import,
     make_hints,
     materialize_schema_item as materialize_table_schema,
 )

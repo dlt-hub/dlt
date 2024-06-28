@@ -21,7 +21,11 @@ from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info, load_table_counts, select_data
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import (
+    normalize_storage_table_cols,
+    destinations_configs,
+    DestinationTestConfiguration,
+)
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
@@ -57,7 +61,7 @@ def test_merge_on_keys_in_schema(
 
     # make block uncles unseen to trigger filtering loader in loader for child tables
     if has_table_seen_data(schema.tables["blocks__uncles"]):
-        del schema.tables["blocks__uncles"]["x-normalizer"]  # type: ignore[typeddict-item]
+        del schema.tables["blocks__uncles"]["x-normalizer"]
         assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
     @dlt.resource(
@@ -331,9 +335,10 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_2_counts["issues"] == 100 - 45 + 1
     with p._sql_job_client(p.default_schema) as job_c:
-        _, table_schema = job_c.get_storage_table("issues")
-        assert "url" in table_schema
-        assert "m_a1" not in table_schema  # unbound columns were not created
+        _, storage_cols = job_c.get_storage_table("issues")
+        storage_cols = normalize_storage_table_cols("issues", storage_cols, p.default_schema)
+        assert "url" in storage_cols
+        assert "m_a1" not in storage_cols  # unbound columns were not created
 
 
 @pytest.mark.parametrize(
@@ -343,6 +348,8 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
 )
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", dev_mode=True)
+    # do not save state to destination so jobs counting is easier
+    p.config.restore_from_destination = False
     github_data = github()
     # generate some complex types
     github_data.max_table_nesting = 2

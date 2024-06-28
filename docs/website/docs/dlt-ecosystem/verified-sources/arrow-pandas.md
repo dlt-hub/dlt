@@ -84,7 +84,10 @@ add_dlt_load_id = true
 add_dlt_id = true
 ```
 
-Keep in mind that enabling these incurs some performance overhead because the `parquet` file needs to be read back from disk in chunks, processed and rewritten with new columns.
+Keep in mind that enabling these incurs some performance overhead:
+
+- `add_dlt_load_id` has minimal overhead since the column is added to arrow table in memory during `extract` stage, before parquet file is written to disk
+- `add_dlt_id` adds the column during `normalize` stage after file has been extracted to disk. The file needs to be read back from disk in chunks, processed and rewritten with new columns
 
 ## Incremental loading with Arrow tables
 

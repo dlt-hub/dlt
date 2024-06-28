@@ -1,13 +1,44 @@
+import os
 import pyodbc
 import pytest
 
 from dlt.common.configuration import resolve_configuration, ConfigFieldMissingException
 from dlt.common.exceptions import SystemConfigurationException
+from dlt.common.schema import Schema
 
-from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
+from dlt.destinations import mssql
+from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
+
+
+def test_mssql_factory() -> None:
+    schema = Schema("schema")
+    dest = mssql()
+    client = dest.client(schema, MsSqlClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.create_indexes is False
+    assert client.config.has_case_sensitive_identifiers is False
+    assert client.capabilities.has_case_sensitive_identifiers is False
+    assert client.capabilities.casefold_identifier is str
+
+    # set args explicitly
+    dest = mssql(has_case_sensitive_identifiers=True, create_indexes=True)
+    client = dest.client(schema, MsSqlClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.create_indexes is True
+    assert client.config.has_case_sensitive_identifiers is True
+    assert client.capabilities.has_case_sensitive_identifiers is True
+    assert client.capabilities.casefold_identifier is str
+
+    # set args via config
+    os.environ["DESTINATION__CREATE_INDEXES"] = "True"
+    os.environ["DESTINATION__HAS_CASE_SENSITIVE_IDENTIFIERS"] = "True"
+    dest = mssql()
+    client = dest.client(schema, MsSqlClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.create_indexes is True
+    assert client.config.has_case_sensitive_identifiers is True
+    assert client.capabilities.has_case_sensitive_identifiers is True
+    assert client.capabilities.casefold_identifier is str
 
 
 def test_mssql_credentials_defaults() -> None:

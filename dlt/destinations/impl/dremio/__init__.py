@@ -10,6 +10,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
     caps.escape_identifier = escape_dremio_identifier
+    # all identifiers are case insensitive but are stored as is
+    # https://docs.dremio.com/current/sonar/data-sources
+    caps.has_case_sensitive_identifiers = False
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 255
