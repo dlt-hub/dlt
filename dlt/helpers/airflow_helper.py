@@ -1,5 +1,6 @@
 import functools
 import os
+import shutil
 from tempfile import gettempdir
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
@@ -336,6 +337,7 @@ class PipelineTasksGroup(TaskGroup):
             if self.wipe_local_data:
                 logger.info(f"Removing folder {pipeline.working_dir}")
                 task_pipeline._wipe_working_folder()
+                shutil.rmtree(os.environ["DLT_DATA_DIR"])
 
     @with_telemetry("helper", "airflow_add_run", False, "decompose")
     def add_run(
