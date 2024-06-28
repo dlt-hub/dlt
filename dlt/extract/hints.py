@@ -445,7 +445,7 @@ class DltResourceHints:
             dict_["x-merge-strategy"] = DEFAULT_MERGE_STRATEGY
             if "strategy" in mddict:
                 if mddict["strategy"] not in MERGE_STRATEGIES:
-                    raise SchemaException(
+                    raise ValueError(
                         f'`{mddict["strategy"]}` is not a valid merge strategy. '
                         f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
                     )
