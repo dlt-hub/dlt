@@ -201,13 +201,6 @@ This article outlines 10 APIs, detailing their use cases, any free tier limitati
 - Free: Unlimited.
 - Auth: None.
 
-### 26. OpenAQ API
-
-- URL: [OpenAQ API](https://docs.openaq.org/reference/introduction-1).
-- Use: Access air quality data for environmental analysis.
-- **Free:** Unlimited.
-- **Auth:** None.
-
 Each API offers unique insights for data engineering, from ingestion to visualization. Check each API's documentation for up-to-date details on limitations and authentication.
 
 ## Using the above sources
