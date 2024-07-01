@@ -70,7 +70,7 @@ jobs:
       - run: |
           docker-compose -f ".github/clickhouse-compose.yml" up -d
           echo "Waiting for ClickHouse to be healthy..."
-          timeout 30s bash -c 'until docker-compose -f ".github/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
+          timeout 30s bash -c 'until docker-compose -f "tests/load/clickhouse/clickhouse-compose.yml" ps | grep -q "healthy"; do sleep 1; done'
           echo "ClickHouse is up and running"
         name: Start ClickHouse OSS
 
@@ -101,7 +101,7 @@ jobs:
 
       - name: Stop ClickHouse OSS
         if: always()
-        run: docker-compose -f ".github/clickhouse-compose.yml" down -v
+        run: docker-compose -f "tests/load/clickhouse/clickhouse-compose.yml" down -v
 
       # ClickHouse Cloud
       - run: |
