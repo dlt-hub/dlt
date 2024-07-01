@@ -47,7 +47,9 @@ def airtable_emojis():
 
     @dlt.resource(name="🦚Peacock", selected=False, primary_key="🔑id")
     def peacock():
-        dlt.current.resource_state()["🦚🦚🦚"] = "🦚"
+        r_state = dlt.current.resource_state()
+        r_state.setdefault("🦚🦚🦚", "")
+        r_state["🦚🦚🦚"] += "🦚"
         yield [{"peacock": [1, 2, 3], "🔑id": 1}]
 
     @dlt.resource(name="🦚WidePeacock", selected=False)

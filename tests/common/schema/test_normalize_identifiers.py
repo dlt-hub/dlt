@@ -352,7 +352,9 @@ def test_raise_on_change_identifier_table_with_data() -> None:
     os.environ["SCHEMA__NAMING"] = "tests.common.cases.normalizers.sql_upper"
     with pytest.raises(TableIdentifiersFrozen) as fr_ex:
         schema.update_normalizers()
-    assert fr_ex.value.table_name == "issues"
+    # _dlt_version is the first table to be normalized, and since there are tables
+    # that have seen data, we consider _dlt_version also be materialized
+    assert fr_ex.value.table_name == "_dlt_version"
     assert isinstance(fr_ex.value.from_naming, snake_case.NamingConvention)
     assert isinstance(fr_ex.value.to_naming, sql_upper.NamingConvention)
     # try again, get exception (schema was not partially modified)
