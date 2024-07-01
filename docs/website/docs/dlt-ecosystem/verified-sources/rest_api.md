@@ -9,6 +9,54 @@ import Header from './_source-info-header.md';
 
 This is a generic dlt source you can use to extract data from any REST API. It uses [declarative configuration](#source-configuration) to define the API endpoints, their [relationships](#define-resource-relationships), how to handle [pagination](#pagination), and [authentication](#authentication).
 
+### Quick example
+
+Here's an example of how to configure the REST API source to load posts and related comments from a hypothetical blog API:
+
+```py
+import dlt
+from rest_api import rest_api_source
+
+source = rest_api_source({
+    "client": {
+        "base_url": "https://api.example.com/",
+        "auth": {
+            "token": dlt.secrets["your_api_token"],
+        },
+        "paginator": {
+            "type": "json_response",
+            "next_url_path": "paging.next",
+        },
+    },
+    "resources": [
+        "posts",
+        {
+            "name": "comments",
+            "endpoint": {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {
+                        "type": "resolve",
+                        "resource": "posts",
+                        "field": "id",
+                    }
+                },
+            },
+        },
+    ],
+})
+
+pipeline = dlt.pipeline(
+    pipeline_name="rest_api_example",
+    destination="duckdb",
+    dataset_name="rest_api_data",
+)
+
+load_info = pipeline.run(source)
+```
+
+Running this pipeline will create two tables in the DuckDB: `posts` and `comments` with the data from the respective API endpoints.
+
 ## Setup guide
 
 ### Initialize the verified source
