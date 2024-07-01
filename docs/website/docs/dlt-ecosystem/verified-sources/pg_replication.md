@@ -185,8 +185,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    You can configure and use the `get_postgres_pipeline()` function available in the `pg_replication_pipeline.py` file to achieve the same functionality. 
 
    :::note IMPORTANT
-   The source pipeline is mainly for testing and development. In production, another process will likely be mutating 
-   the Postgres database.
+    When working with large datasets from a Postgres database, it's important to consider the relevance of the source pipeline. For testing purposes, using the source pipeline can be beneficial to try out the data flow. However, in production use cases, there will likely be another process that mutates the Postgres database. In such cases, the user generally only needs to define a destination pipeline.
    :::
 
     
