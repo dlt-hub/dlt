@@ -77,6 +77,7 @@ jobs:
 
       - run: poetry run pytest tests/load -m "essential"
         name: Run essential tests Linux (ClickHouse OSS)
+        if: ${{ ! (contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule')}}
         env:
           DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
           DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
@@ -88,6 +89,7 @@ jobs:
 
       - run: poetry run pytest tests/load
         name: Run all tests Linux (ClickHouse OSS)
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'ci full') || github.event_name == 'schedule'}}
         env:
           DESTINATION__CLICKHOUSE__CREDENTIALS__HOST: localhost
           DESTINATION__CLICKHOUSE__CREDENTIALS__DATABASE: dlt_data
