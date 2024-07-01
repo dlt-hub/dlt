@@ -71,7 +71,9 @@ To get started with your data pipeline, follow these steps:
    ```sh
    dlt init sql_database duckdb
    ```
-   > It is important to note that this is only needed when a user needs to pass `persist_snaphots=True` for inital load.
+   :::note
+   It is important to note that It is now only required if a user performs an initial load, specifically when `persist_snapshots` is set to `True`.
+   :::
     
 4. After running these two commands, a new directory will be created with the necessary files and configuration settings to get started.
    
