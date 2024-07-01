@@ -46,6 +46,7 @@ def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[st
     remainder_l = len(chunk_files) - no_groups
     l_idx = 0
     while remainder_l > 0:
+        idx = 0
         for idx, file in enumerate(reversed(chunk_files.pop())):
             chunk_files[-l_idx - idx - remainder_l].append(file)  # type: ignore
         remainder_l -= 1

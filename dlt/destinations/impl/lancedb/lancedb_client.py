@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Dict,
     Sequence,
+    TYPE_CHECKING,
 )
 
 import lancedb  # type: ignore
@@ -70,6 +71,11 @@ from dlt.destinations.impl.lancedb.utils import (
 )
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.type_mapping import TypeMapper
+
+if TYPE_CHECKING:
+    NDArray = ndarray[Any, Any]
+else:
+    NDArray = ndarray
 
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
@@ -292,9 +298,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def query_table(
         self,
         table_name: str,
-        query: Union[
-            List[Any], ndarray[Any, Any], Array, ChunkedArray, str, Tuple[Any], None
-        ] = None,
+        query: Union[List[Any], NDArray, Array, ChunkedArray, str, Tuple[Any], None] = None,
     ) -> LanceQueryBuilder:
         """Query a LanceDB table.
 
@@ -408,8 +412,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         field: TArrowField
         for field in arrow_schema:
             name = self.schema.naming.normalize_identifier(field.name)
-            print(field.type)
-            print(field.name)
             table_schema[name] = {
                 "name": name,
                 **self.type_mapper.from_db_type(field.type),
@@ -453,8 +455,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
             new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
-            print(table_name)
-            print(new_columns)
             embedding_fields: List[str] = get_columns_names_with_prop(
                 self.schema.get_table(table_name), VECTORIZE_HINT
             )
@@ -520,7 +520,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
-        print("UPLOAD")
         upload_batch(
             records,
             db_client=self.db_client,

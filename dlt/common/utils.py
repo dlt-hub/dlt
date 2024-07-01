@@ -137,7 +137,7 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
         else:
             key = str(e)
             if key in o:
-                raise KeyError(f"Cannot flatten with duplicate key {k}")
+                raise KeyError(f"Cannot flatten with duplicate key {key}")
             o[key] = None
     return o
 

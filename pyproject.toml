@@ -153,6 +153,7 @@ ruff = "^0.3.2"
 pyjwt = "^2.8.0"
 pytest-mock = "^3.14.0"
 types-regex = "^2024.5.15.20240519"
+flake8-print = "^5.0.0"
 
 [tool.poetry.group.pipeline]
 optional = true
