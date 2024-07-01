@@ -559,7 +559,7 @@ client = RESTClient(
 
 ## Advanced usage
 
-`RESTClient.paginate()` allows to specify a [custom hook function ](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks)that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
+`RESTClient.paginate()` allows to specify a [custom hook function](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks)that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
 ```py
 def custom_response_handler(response):
