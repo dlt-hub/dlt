@@ -217,9 +217,3 @@ class ClickHouseSqlClient(
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, clickhouse_driver.dbapi.Error)
-
-    def _get_deployment_type(self) -> TDeployment:
-        cloud_mode = int(self.execute_sql("""
-            SELECT value FROM system.settings WHERE name = 'cloud_mode'
-        """)[0][0])
-        return "ClickHouseCloud" if cloud_mode else "ClickHouseOSS"
