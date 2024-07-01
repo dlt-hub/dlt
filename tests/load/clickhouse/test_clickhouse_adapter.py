@@ -1,8 +1,8 @@
-from typing import Generator, Dict
+from typing import Generator, Dict, cast
 
 import dlt
 from dlt.destinations.adapters import clickhouse_adapter
-from dlt.destinations.impl.clickhouse.sql_client import TDeployment
+from dlt.destinations.impl.clickhouse.sql_client import TDeployment, ClickHouseSqlClient
 from tests.load.clickhouse.utils import get_deployment_type
 from tests.pipeline.utils import assert_load_info
 
@@ -35,7 +35,7 @@ def test_clickhouse_adapter() -> None:
     pipe = dlt.pipeline(pipeline_name="adapter_test", destination="clickhouse", dev_mode=True)
 
     with pipe.sql_client() as client:
-        deployment_type: TDeployment = get_deployment_type(client)
+        deployment_type: TDeployment = get_deployment_type(cast(ClickHouseSqlClient, client))
 
     if deployment_type == "ClickHouseCloud":
         pack = pipe.run(
