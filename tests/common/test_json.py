@@ -6,6 +6,7 @@ import pytest
 
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
+from dlt.common import known_env
 from dlt.common.json import (
     _DECIMAL,
     _WEI,
@@ -306,7 +307,7 @@ def test_garbage_pua_string(json_impl: SupportsJson) -> None:
 def test_change_pua_start() -> None:
     import inspect
 
-    os.environ["DLT_JSON_TYPED_PUA_START"] = "0x0FA179"
+    os.environ[known_env.DLT_JSON_TYPED_PUA_START] = "0x0FA179"
     from importlib import reload
 
     try:
@@ -316,7 +317,7 @@ def test_change_pua_start() -> None:
         assert MOD_PUA_START == int("0x0FA179", 16)
     finally:
         # restore old start
-        os.environ["DLT_JSON_TYPED_PUA_START"] = hex(PUA_START)
+        os.environ[known_env.DLT_JSON_TYPED_PUA_START] = hex(PUA_START)
         from importlib import reload
 
         reload(inspect.getmodule(SupportsJson))
