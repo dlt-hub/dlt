@@ -14,7 +14,7 @@ Planning to use dlt in production and need a source that isn't listed? We're hap
 * [Join our Slack community](https://dlthub.com/community) and ask in the tech help channel.
 
 :::tip
-If you're looking for a source that isn't listed and it provides a REST API, be sure to check out our [REST API generic source](verified-sources/rest_api)
+If you're looking for a source that isn't listed and it provides a REST API, be sure to check out our [REST API generic source](rest_api)
  source.
 :::
 
