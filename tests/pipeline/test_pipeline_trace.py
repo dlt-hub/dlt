@@ -45,7 +45,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) 
     ):
         @dlt.resource(write_disposition="replace", primary_key="id")
         def data():
-            yield [1, 2, 3]
+            yield [{"id": 1}, {"id": 2}, {"id": 3}]
 
         return data()
 

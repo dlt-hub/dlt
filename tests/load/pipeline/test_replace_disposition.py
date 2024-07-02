@@ -58,7 +58,7 @@ def test_replace_disposition(
     offset = 1000
 
     # keep merge key with unknown column to test replace SQL generator
-    @dlt.resource(name="items", write_disposition="replace", primary_key="id", merge_key="NA")
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items():
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items

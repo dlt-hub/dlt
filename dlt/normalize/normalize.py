@@ -34,6 +34,7 @@ from dlt.common.storages.load_package import LoadPackageInfo
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.worker import w_normalize_files, group_worker_files, TWorkerRV
+from dlt.normalize.schema import verify_normalized_schema
 
 
 # normalize worker wrapping function signature
@@ -195,6 +196,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 x_normalizer["seen-data"] = True
         # schema is updated, save it to schema volume
         if schema.is_modified:
+            verify_normalized_schema(schema)
             logger.info(
                 f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
             )
