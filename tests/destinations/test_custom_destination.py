@@ -18,6 +18,8 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException, Con
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.utils import digest128
+from dlt.destinations import duckdb
 
 from dlt.destinations.impl.destination.factory import _DESTINATIONS
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
@@ -28,6 +30,7 @@ from tests.load.utils import (
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
 )
+from tests.utils import IMPLEMENTED_DESTINATIONS, TEST_STORAGE_ROOT
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "typed-jsonl"]
 
@@ -58,8 +61,53 @@ def _run_through_sink(
 
     p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
     p.run([items_resource()])
-
     return calls
+
+
+def test_custom_destination_info():
+    @dlt.destination
+    def test_sink(items: TDataItems, table: TTableSchema) -> None:
+        pass
+
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
+    assert p.destination.destination_info == {
+        "destination_name": "test_sink",
+        "destination_type": "dlt.destinations.destination",
+        "environment": None,
+        "fingerprint": digest128("test_sink"),
+        "repr": "test_sink(dlt.destinations.destination)",
+    }
+
+
+@pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
+def test_destination_info(destination_name):
+    p = dlt.pipeline(
+        pipeline_name="dest_info",
+        destination=destination_name,
+        dataset_name="dest_info_data",
+    )
+    assert p.destination.destination_info == {
+        "destination_name": p.destination.destination_name,
+        "destination_type": p.destination.destination_type,
+        "environment": None,
+        "fingerprint": p.destination.configuration(None).fingerprint(),
+        "repr": p.destination.destination_description,
+    }
+
+
+def test_destination_info_environment():
+    duck = duckdb(
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"),
+        destination_name="duck1",
+        environment="production",
+    )
+    assert duck.destination_info == {
+        "destination_name": "duck1",
+        "destination_type": "dlt.destinations.duckdb",
+        "environment": "production",
+        "fingerprint": duck.configuration(None).fingerprint(),
+        "repr": "duck1(dlt.destinations.duckdb)",
+    }
 
 
 @pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)

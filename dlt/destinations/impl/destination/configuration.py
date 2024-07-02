@@ -9,6 +9,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
+from dlt.common.utils import digest128
 
 TDestinationCallable = Callable[[Union[TDataItems, str], TTableSchema], None]
 TDestinationCallableParams = ParamSpec("TDestinationCallableParams")
@@ -26,6 +27,14 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
     batch_size: int = 10
     skip_dlt_columns_and_tables: bool = True
     max_table_nesting: Optional[int] = 0
+
+    def fingerprint(self) -> str:
+        """Returns fingerprint of the custom destination.
+
+        Returns:
+            str: The custom destination fingerprint.
+        """
+        return digest128(self.destination_callable.__name__)
 
     def ensure_callable(self) -> None:
         """Makes sure that valid callable was provided"""
