@@ -1,22 +1,21 @@
+import contextlib
 import os
 import re
 from copy import deepcopy
 from textwrap import dedent
-from typing import ClassVar, Optional, Dict, List, Sequence, cast, Tuple
+from typing import Optional, Dict, List, Sequence, cast
 from urllib.parse import urlparse
 
 import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
-import dlt
 from dlt import config
+from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
-    GcpCredentials,
     AwsCredentialsWithoutDefaults,
 )
-from dlt.destinations.exceptions import DestinationTransientException
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
@@ -31,10 +30,15 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TColumnHint,
     TColumnType,
-    TTableSchemaColumns,
-    TColumnSchemaBase,
 )
 from dlt.common.storages import FileStorage
+from dlt.common.storages.load_package import (
+    LoadPackageStateInjectableContext,
+    commit_load_package_state,
+)
+from dlt.common.storages.load_package import (
+    TLoadPackageState,
+)
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
@@ -66,6 +70,7 @@ HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
 
 TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
     "merge_tree": "MergeTree",
+    "shared_merge_tree": "SharedMergeTree",
     "replicated_merge_tree": "ReplicatedMergeTree",
 }
 
@@ -113,7 +118,8 @@ class ClickHouseTypeMapper(TypeMapper):
         if db_type == "DateTime('UTC')":
             db_type = "DateTime"
         if datetime_match := re.match(
-            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?", db_type
+            r"DateTime64(?:\((?P<precision>\d+)(?:,?\s*'(?P<timezone>UTC)')?\))?",
+            db_type,
         ):
             if datetime_match["precision"]:
                 precision = int(datetime_match["precision"])
@@ -131,7 +137,7 @@ class ClickHouseTypeMapper(TypeMapper):
             db_type = "Decimal"
 
         if db_type == "Decimal" and (precision, scale) == self.capabilities.wei_precision:
-            return dict(data_type="wei")
+            return cast(TColumnType, dict(data_type="wei"))
 
         return super().from_db_type(db_type, precision, scale)
 
@@ -161,7 +167,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
 
         compression = "auto"
 
-        # Don't use dbapi driver for local files.
+        # Don't use the DBAPI driver for local files.
         if not bucket_path:
             # Local filesystem.
             if ext == "jsonl":
@@ -182,8 +188,8 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                         fmt=clickhouse_format,
                         settings={
                             "allow_experimental_lightweight_delete": 1,
-                            # "allow_experimental_object_type": 1,
                             "enable_http_compression": 1,
+                            "date_time_input_format": "best_effort",
                         },
                         compression=compression,
                     )
@@ -201,13 +207,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                bucket_http_url = convert_storage_to_http_scheme(
-                    bucket_url, endpoint=staging_credentials.endpoint_url
-                )
-                access_key_id = staging_credentials.aws_access_key_id
-                secret_access_key = staging_credentials.aws_secret_access_key
-            else:
+            if not isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
                     file_path,
                     dedent(
@@ -219,6 +219,11 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                     ).strip(),
                 )
 
+            bucket_http_url = convert_storage_to_http_scheme(
+                bucket_url, endpoint=staging_credentials.endpoint_url
+            )
+            access_key_id = staging_credentials.aws_access_key_id
+            secret_access_key = staging_credentials.aws_secret_access_key
             auth = "NOSIGN"
             if access_key_id and secret_access_key:
                 auth = f"'{access_key_id}','{secret_access_key}'"
@@ -302,13 +307,50 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = ClickHouseTypeMapper(self.capabilities)
 
+    def has_dataset(self) -> bool:
+        try:
+            container = Container()
+            state_ctx = container[LoadPackageStateInjectableContext]
+            datasets = cast(List[str], state_ctx.state.get("datasets", []))
+            return self.sql_client.dataset_name in datasets
+        except KeyError:
+            return False
+
+    def create_dataset(self) -> None:
+        with contextlib.suppress(KeyError):
+            container = Container()
+            state_ctx = container[LoadPackageStateInjectableContext]
+            datasets = cast(List[str], state_ctx.state.get("datasets", []))
+            if self.sql_client.dataset_name not in datasets:
+                datasets.append(self.sql_client.dataset_name)
+                state: TLoadPackageState = state_ctx.state
+                state["datasets"] = datasets  # type: ignore[typeddict-unknown-key]
+                commit_load_package_state()
+
+    def drop_dataset(self) -> None:
+        with contextlib.suppress(KeyError):
+            container = Container()
+            state_ctx = container[LoadPackageStateInjectableContext]
+            datasets = cast(List[str], state_ctx.state.get("datasets", []))
+            if self.sql_client.dataset_name in datasets:
+                datasets.remove(self.sql_client.dataset_name)
+                state: TLoadPackageState = state_ctx.state
+                state["datasets"] = datasets  # type: ignore[typeddict-unknown-key]
+                commit_load_package_state()
+
+        to_drop_results = self.sql_client._list_tables()
+        for table in to_drop_results:
+            self.sql_client.execute_sql(
+                f"""DROP TABLE {self.sql_client.catalog_name()}.{self.capabilities.escape_identifier(table)} SYNC"""
+            )
+
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         # Build column definition.
         # The primary key and sort order definition is defined outside column specification.
-        hints_str = " ".join(
+        hints_ = " ".join(
             self.active_hints.get(hint)
             for hint in self.active_hints.keys()
             if c.get(hint, False) is True
@@ -325,7 +367,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
         return (
-            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_str}"
+            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_}"
             .strip()
         )
 
@@ -340,7 +382,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
     def _get_table_update_sql(
-        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
     ) -> List[str]:
         table: TTableSchema = self.prepare_load_table(table_name, self.in_staging_mode)
         sql = SqlJobClientBase._get_table_update_sql(self, table_name, new_columns, generate_alter)
@@ -348,10 +393,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if generate_alter:
             return sql
 
-        # Default to 'ReplicatedMergeTree' if user didn't explicitly set a table engine hint.
-        table_type = cast(
-            TTableEngineType, table.get(TABLE_ENGINE_TYPE_HINT, "replicated_merge_tree")
-        )
+        # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
+        # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
+        # so it will work on both local and cloud instances of CH.
+        table_type = cast(TTableEngineType, table.get(TABLE_ENGINE_TYPE_HINT, "merge_tree"))
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [

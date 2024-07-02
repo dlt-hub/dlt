@@ -27,8 +27,8 @@ def client() -> Iterator[ClickHouseClient]:
 def test_clickhouse_connection_string_with_all_params() -> None:
     url = (
         "clickhouse://user1:pass1@host1:9000/testdb?allow_experimental_lightweight_delete=1&"
-        "allow_experimental_object_type=1&connect_timeout=230&enable_http_compression=1&secure=0"
-        "&send_receive_timeout=1000"
+        "allow_experimental_object_type=1&connect_timeout=230&date_time_input_format=best_effort&"
+        "enable_http_compression=1&secure=0&send_receive_timeout=1000"
     )
 
     creds = ClickHouseCredentials()
@@ -74,3 +74,4 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
 
         assert ("allow_experimental_lightweight_delete", "1") in res
         assert ("enable_http_compression", "1") in res
+        assert ("date_time_input_format", "best_effort") in res
