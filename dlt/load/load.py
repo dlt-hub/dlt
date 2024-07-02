@@ -81,7 +81,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.initial_client_config = initial_client_config
         self.initial_staging_client_config = initial_staging_client_config
         self.destination = destination
-        self.capabilities = destination.capabilities()
         self.staging_destination = staging_destination
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
@@ -89,7 +88,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         super().__init__()
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
-        supported_file_formats = self.capabilities.supported_loader_file_formats
+        supported_file_formats = self.destination.capabilities().supported_loader_file_formats
         if self.staging_destination:
             supported_file_formats = (
                 self.staging_destination.capabilities().supported_loader_file_formats
@@ -151,7 +150,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if job_info.file_format not in self.load_storage.supported_job_file_formats:
                     raise LoadClientUnsupportedFileFormats(
                         job_info.file_format,
-                        self.capabilities.supported_loader_file_formats,
+                        self.destination.capabilities().supported_loader_file_formats,
                         file_path,
                     )
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
@@ -199,14 +198,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self, load_id: str, schema: Schema, running_jobs_count: int
     ) -> List[LoadJob]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
-        load_files = self.load_storage.list_new_jobs(load_id)
+        load_files = filter_new_jobs(
+            self.load_storage.list_new_jobs(load_id),
+            self.destination.capabilities(),
+            self.config,
+            running_jobs_count,
+        )
         file_count = len(load_files)
         if file_count == 0:
             logger.info(f"No new jobs found in {load_id}")
             return []
 
-        load_files = filter_new_jobs(load_files, self.capabilities, self.config, running_jobs_count)
-        file_count = len(load_files)
         logger.info(f"Will load additional {file_count}, creating jobs")
         param_chunk = [(id(self), file, load_id, schema) for file in load_files]
         # exceptions should not be raised, None as job is a temporary failure
@@ -263,13 +265,19 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     schema.tables, starting_job.job_file_info().table_name
                 )
                 # if all tables of chain completed, create follow  up jobs
-                all_jobs = self.load_storage.normalized_packages.list_all_jobs(load_id)
+                all_jobs_states = self.load_storage.normalized_packages.list_all_jobs_with_states(
+                    load_id
+                )
                 if table_chain := get_completed_table_chain(
-                    schema, all_jobs, top_job_table, starting_job.job_file_info().job_id()
+                    schema, all_jobs_states, top_job_table, starting_job.job_file_info().job_id()
                 ):
                     table_chain_names = [table["name"] for table in table_chain]
                     table_chain_jobs = [
-                        job for job in all_jobs if job.job_file_info.table_name in table_chain_names
+                        self.load_storage.normalized_packages.job_to_job_info(load_id, *job_state)
+                        for job_state in all_jobs_states
+                        if job_state[1].table_name in table_chain_names
+                        # job being completed is still in started_jobs
+                        and job_state[0] in ("completed_jobs", "started_jobs")
                     ]
                     if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
                         table_chain, table_chain_jobs
@@ -385,7 +393,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
                 ):
                     job_client.complete_load(load_id)
-                    self._maybe_trancate_staging_dataset(schema, job_client)
+                    self._maybe_truncate_staging_dataset(schema, job_client)
 
         self.load_storage.complete_load_package(load_id, aborted)
         # collect package info
@@ -399,10 +407,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def update_loadpackage_info(self, load_id: str) -> None:
         # update counter we only care about the jobs that are scheduled to be loaded
-        package_info = self.load_storage.normalized_packages.get_load_package_info(load_id)
-        total_jobs = reduce(lambda p, c: p + len(c), package_info.jobs.values(), 0)
-        no_failed_jobs = len(package_info.jobs["failed_jobs"])
-        no_completed_jobs = len(package_info.jobs["completed_jobs"]) + no_failed_jobs
+        package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
+        total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
+        no_failed_jobs = len(package_jobs["failed_jobs"])
+        no_completed_jobs = len(package_jobs["completed_jobs"]) + no_failed_jobs
         self.collector.update("Jobs", no_completed_jobs, total_jobs)
         if no_failed_jobs > 0:
             self.collector.update(
@@ -527,7 +535,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
-    def _maybe_trancate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
+    def _maybe_truncate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
         """
         Truncate the staging dataset if one used,
         and configuration requests truncation.
