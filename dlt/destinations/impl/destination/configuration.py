@@ -34,7 +34,12 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
         Returns:
             str: The custom destination fingerprint.
         """
-        return digest128(self.destination_callable.__name__)
+        name = (
+            self.destination_callable
+            if isinstance(str, self.destination_callable)
+            else self.destination_callable.__name__
+        )
+        return digest128(name)
 
     def ensure_callable(self) -> None:
         """Makes sure that valid callable was provided"""
