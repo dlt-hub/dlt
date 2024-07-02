@@ -1,6 +1,8 @@
 import dataclasses
-from typing import Optional, Final
-from typing_extensions import Annotated
+from typing import Optional, Final, Any
+from typing_extensions import Annotated, TYPE_CHECKING, Iterator
+import threading
+from contextlib import contextmanager
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import (
@@ -8,6 +10,9 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
 )
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
+
+if TYPE_CHECKING:
+    from qdrant_client import QdrantClient
 
 
 @configspec
@@ -20,6 +25,53 @@ class QdrantCredentials(CredentialsConfiguration):
     api_key: Optional[str] = None
     # Persistence path for QdrantLocal. Default: `None`
     path: Optional[str] = None
+
+    # __client: Optional[Any] = None
+    # if TYPE_CHECKING:
+    #     __client: Optional["QdrantClient"] = None
+    # __external_client: bool = False
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        try:
+            from qdrant_client import QdrantClient
+
+            if isinstance(native_value, QdrantClient):
+                self._client = native_value
+                self._external_client = True
+                self.resolve()
+        except ModuleNotFoundError:
+            pass
+
+        super().parse_native_representation(native_value)
+
+    def get_client(self, model: str, **options: Any) -> "QdrantClient":
+        if not hasattr(self, "_client_lock"):
+            self._client_lock = threading.Lock()
+
+        with self._client_lock:
+            client = getattr(self, "_client", None)
+            borrow_count = getattr(self, "_client_borrow_count", 0)
+            self._client_borrow_count = borrow_count + 1
+            if client is not None:
+                return client  # type: ignore[no-any-return]
+
+            from qdrant_client import QdrantClient
+
+            client = self._client = QdrantClient(**dict(self), **options)
+            client.set_model(model)
+            return client  # type: ignore[no-any-return]
+
+    def close_client(self) -> None:
+        """Close client if not external"""
+        if getattr(self, "_external_client", False):
+            return
+        with self._client_lock:
+            borrow_count = getattr(self, "_client_borrow_count", 1)
+            client = getattr(self, "_client", None)
+            borrow_count = self._client_borrow_count = borrow_count - 1
+            if borrow_count == 0 and client is not None:
+                client.close()
+                self._client = None
 
     def __str__(self) -> str:
         return self.location or "localhost"
@@ -80,6 +132,12 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     # FlagEmbedding model to use
     # Find the list here. https://qdrant.github.io/fastembed/examples/Supported_Models/.
     model: str = "BAAI/bge-small-en"
+
+    def get_client(self) -> "QdrantClient":
+        return self.credentials.get_client(self.model, **dict(self.options))
+
+    def close_client(self) -> None:
+        self.credentials.close_client()
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of a connection string"""
