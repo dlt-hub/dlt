@@ -29,7 +29,13 @@ source = rest_api_source({
         },
     },
     "resources": [
+        # "posts" will be used as the endpoint path, the resource name,
+        # and the table name in the destination. The HTTP client will send
+        # a request to "https://api.example.com/posts".
         "posts",
+
+        # The explicit configuration allows you to link resources
+        # and define parameters.
         {
             "name": "comments",
             "endpoint": {
@@ -39,7 +45,8 @@ source = rest_api_source({
                         "type": "resolve",
                         "resource": "posts",
                         "field": "id",
-                    }
+                    },
+                    "sort": "created_at",
                 },
             },
         },
@@ -55,7 +62,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(source)
 ```
 
-Running this pipeline will create two tables in the DuckDB: `posts` and `comments` with the data from the respective API endpoints.
+Running this pipeline will create two tables in the DuckDB: `posts` and `comments` with the data from the respective API endpoints. The `comments` resource will fetch comments for each post by using the `id` field from the `posts` resource.
 
 ## Setup guide
 
