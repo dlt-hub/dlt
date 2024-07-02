@@ -63,9 +63,11 @@ def test_spool_job_started() -> None:
     assert len(files) == 2
     jobs: List[LoadJob] = []
     for f in files:
-        job = Load.w_spool_job(load, f, load_id, schema)
+        job = load.get_job(f, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
-        assert job.state() == "running"
+        # jobs runs, but is not moved yet (loader will do this)
+        assert job.state() == "completed"
         assert load.load_storage.normalized_packages.storage.has_file(
             load.load_storage.normalized_packages.get_job_file_path(
                 load_id, PackageStorage.STARTED_JOBS_FOLDER, job.file_name()
@@ -248,7 +250,7 @@ def test_spool_job_retry_spool_new() -> None:
     # call higher level function that returns jobs and counts
     with ThreadPoolExecutor() as pool:
         load.pool = pool
-        jobs = load.spool_new_jobs(load_id, schema, 0)
+        jobs = load.start_new_jobs(load_id, schema, 0)
         assert len(jobs) == 2
 
 
@@ -308,7 +310,7 @@ def test_try_retrieve_job() -> None:
     # new load package
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     load.pool = ThreadPoolExecutor()
-    jobs = load.spool_new_jobs(load_id, schema, 0)
+    jobs = load.start_new_jobs(load_id, schema, 0)
     assert len(jobs) == 2
     # now jobs are known
     with load.destination.client(schema, load.initial_client_config) as c:
