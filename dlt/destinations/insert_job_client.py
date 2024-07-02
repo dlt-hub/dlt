@@ -2,20 +2,20 @@ import os
 import abc
 from typing import Any, Iterator, List
 
-from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+from dlt.common.destination.reference import LoadJob, FollowupJob
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.utils import chunks
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging, SqlJobClientBase
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
-    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._sql_client = sql_client
+    def __init__(self, job_client: SqlJobClientBase, table_name: str, file_path: str) -> None:
+        super().__init__(job_client, file_path)
+        self._sql_client = job_client.sql_client
         self.table_name = table_name
 
     def run(self) -> None:
@@ -118,5 +118,5 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
         if not job:
             # this is using sql_client internally and will raise a right exception
             if file_path.endswith("insert_values"):
-                job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
+                job = InsertValuesLoadJob(self, table["name"], file_path)
         return job

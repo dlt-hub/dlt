@@ -219,15 +219,17 @@ class LoadJob(BaseLoadJob):
     immediately transition job into "failed" or "retry" state respectively.
     """
 
-    def __init__(self, file_name: str) -> None:
+    def __init__(self, job_client: "JobClientBase", file_path: str) -> None:
         """
         File name is also a job id (or job id is deterministically derived) so it must be globally unique
         """
         # ensure file name
-        super().__init__(file_name)
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self._file_path = file_path
         self._state = "ready"
         self._exception: Exception = None
-        self._job_client: JobClientBase = None  # TODO: move to constructor or something
+        self._job_client = job_client
+        assert self._file_name != self._file_path
 
     # TODO: find a better name for this method
     def run_wrapped(self, file_path: str) -> None:

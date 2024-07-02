@@ -161,7 +161,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.load_storage.normalized_packages.storage.make_full_path(file_path),
                 load_id,
             )
-            job._job_client = client
 
         if job is None:
             raise DestinationTerminalException(

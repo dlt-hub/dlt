@@ -67,9 +67,9 @@ DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 class SqlLoadJob(LoadJob):
     """A job executing sql statement, without followup trait"""
 
-    def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._sql_client = sql_client
+    def __init__(self, job_client: "SqlJobClientBase", file_path: str) -> None:
+        super().__init__(job_client, file_path)
+        self._sql_client = job_client.sql_client
 
     def run(self) -> None:
         # execute immediately if client present
@@ -255,7 +255,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
-            return SqlLoadJob(file_path, self.sql_client)
+            return SqlLoadJob(self, file_path)
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
