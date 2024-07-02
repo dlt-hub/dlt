@@ -43,6 +43,7 @@ from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
 )
+from dlt.common.runtime import signals
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -129,90 +130,100 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         else:
             yield
 
-    @staticmethod
-    @workermethod
-    def w_spool_job(
-        self: "Load", file_path: str, load_id: str, schema: Schema
-    ) -> Optional[LoadJob]:
+    def get_job(self, file_path: str, load_id: str, schema: Schema) -> LoadJob:
         job: LoadJob = None
-        try:
-            is_staging_destination_job = self.is_staging_destination_job(file_path)
-            job_client = self.get_destination_client(schema)
 
-            # if we have a staging destination and the file is not a reference, send to staging
-            with (
-                self.get_staging_destination_client(schema)
-                if is_staging_destination_job
-                else job_client
-            ) as client:
-                job_info = ParsedLoadJobFileName.parse(file_path)
-                if job_info.file_format not in self.load_storage.supported_job_file_formats:
-                    raise LoadClientUnsupportedFileFormats(
-                        job_info.file_format,
-                        self.destination.capabilities().supported_loader_file_formats,
-                        file_path,
-                    )
-                logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
-                table = client.prepare_load_table(job_info.table_name)
-                if table["write_disposition"] not in ["append", "replace", "merge"]:
-                    raise LoadClientUnsupportedWriteDisposition(
-                        job_info.table_name, table["write_disposition"], file_path
-                    )
+        is_staging_destination_job = self.is_staging_destination_job(file_path)
+        job_client = self.get_destination_client(schema)
 
-                if is_staging_destination_job:
-                    use_staging_dataset = isinstance(
-                        job_client, SupportsStagingDestination
-                    ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(
-                        table
-                    )
-                else:
-                    use_staging_dataset = isinstance(
-                        job_client, WithStagingDataset
-                    ) and job_client.should_load_data_to_staging_dataset(table)
+        # if we have a staging destination and the file is not a reference, send to staging
+        with (
+            self.get_staging_destination_client(schema)
+            if is_staging_destination_job
+            else job_client
+        ) as client:
+            job_info = ParsedLoadJobFileName.parse(file_path)
+            if job_info.file_format not in self.load_storage.supported_job_file_formats:
+                raise LoadClientUnsupportedFileFormats(
+                    job_info.file_format,
+                    self.destination.capabilities().supported_loader_file_formats,
+                    file_path,
+                )
+            logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+            table = client.prepare_load_table(job_info.table_name)
+            if table["write_disposition"] not in ["append", "replace", "merge"]:
+                raise LoadClientUnsupportedWriteDisposition(
+                    job_info.table_name, table["write_disposition"], file_path
+                )
 
-                with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                    job = client.start_file_load(
-                        table,
-                        self.load_storage.normalized_packages.storage.make_full_path(file_path),
-                        load_id,
-                    )
-        except (DestinationTerminalException, TerminalValueError):
-            # if job irreversibly cannot be started, mark it as failed
-            logger.exception(f"Terminal problem when adding job {file_path}")
-            job = EmptyLoadJob.from_file_path(file_path, "failed", pretty_format_exception())
-        except (DestinationTransientException, Exception):
-            # return no job so file stays in new jobs (root) folder
-            logger.exception(f"Temporary problem when adding job {file_path}")
-            job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
+            job = client.get_load_job(
+                table,
+                self.load_storage.normalized_packages.storage.make_full_path(file_path),
+                load_id,
+            )
+            job._job_client = client
+
         if job is None:
             raise DestinationTerminalException(
                 f"Destination could not create a job for file {file_path}. Typically the file"
                 " extension could not be associated with job type and that indicates an error in"
                 " the code."
             )
-        self.load_storage.normalized_packages.start_job(load_id, job.file_name())
+
         return job
 
-    def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
+    @staticmethod
+    @workermethod
+    def w_start_job(self: "Load", job: LoadJob, load_id: str, schema: Schema) -> None:
+        """
+        Start a load job in a separate thread
+        """
+        file_path = self.load_storage.normalized_packages.start_job(load_id, job.file_name())
+        job_client = self.get_destination_client(schema)
+        job_info = ParsedLoadJobFileName.parse(file_path)
+
+        with job._job_client as client:
+            table = client.prepare_load_table(job_info.table_name)
+
+            if self.is_staging_destination_job(file_path):
+                use_staging_dataset = isinstance(
+                    job_client, SupportsStagingDestination
+                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
+            else:
+                use_staging_dataset = isinstance(
+                    job_client, WithStagingDataset
+                ) and job_client.should_load_data_to_staging_dataset(table)
+
+            with self.maybe_with_staging_dataset(client, use_staging_dataset):
+                job.run_wrapped(file_path=file_path)
+
+    def start_new_jobs(
+        self, load_id: str, schema: Schema, running_jobs_count: int
+    ) -> List[LoadJob]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         load_files = filter_new_jobs(
-            self.load_storage.list_new_jobs(load_id), self.destination.capabilities(), self.config
+            self.load_storage.list_new_jobs(load_id),
+            self.destination.capabilities(),
+            self.config,
+            running_jobs_count,
         )
         file_count = len(load_files)
         if file_count == 0:
             logger.info(f"No new jobs found in {load_id}")
-            return 0, []
-        logger.info(f"Will load {file_count}, creating jobs")
-        param_chunk = [(id(self), file, load_id, schema) for file in load_files]
-        # exceptions should not be raised, None as job is a temporary failure
-        # other jobs should not be affected
-        jobs = self.pool.map(Load.w_spool_job, *zip(*param_chunk))
-        # remove None jobs and check the rest
-        return file_count, [job for job in jobs if job is not None]
+            return []
+
+        logger.info(f"Will load additional {file_count}, creating jobs")
+        jobs: List[LoadJob] = []
+        for file in load_files:
+            job = self.get_job(file, load_id, schema)
+            jobs.append(job)
+            self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))
+
+        return jobs
 
     def retrieve_jobs(
         self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None
-    ) -> Tuple[int, List[LoadJob]]:
+    ) -> List[LoadJob]:
         jobs: List[LoadJob] = []
 
         # list all files that were started but not yet completed
@@ -220,7 +231,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         logger.info(f"Found {len(started_jobs)} that are already started and should be continued")
         if len(started_jobs) == 0:
-            return 0, jobs
+            return jobs
 
         for file_path in started_jobs:
             try:
@@ -236,7 +247,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 raise
             jobs.append(job)
 
-        return len(jobs), jobs
+        return jobs
 
     def get_new_jobs_info(self, load_id: str) -> List[ParsedLoadJobFileName]:
         return [
@@ -265,7 +276,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     schema, all_jobs_states, top_job_table, starting_job.job_file_info().job_id()
                 ):
                     table_chain_names = [table["name"] for table in table_chain]
-                    # create job infos that contain full path to job
                     table_chain_jobs = [
                         self.load_storage.normalized_packages.job_to_job_info(load_id, *job_state)
                         for job_state in all_jobs_states
@@ -280,14 +290,19 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             jobs = jobs + starting_job.create_followup_jobs(state)
         return jobs
 
-    def complete_jobs(self, load_id: str, jobs: List[LoadJob], schema: Schema) -> List[LoadJob]:
+    def complete_jobs(
+        self, load_id: str, jobs: List[LoadJob], schema: Schema
+    ) -> Tuple[List[LoadJob], Exception]:
         """Run periodically in the main thread to collect job execution statuses.
 
         After detecting change of status, it commits the job state by moving it to the right folder
         May create one or more followup jobs that get scheduled as new jobs. New jobs are created
         only in terminal states (completed / failed)
         """
+        # list of jobs still running
         remaining_jobs: List[LoadJob] = []
+        # if an exception condition was met, return it to the main runner
+        pending_exception: Exception = None
 
         def _schedule_followup_jobs(followup_jobs: Iterable[NewLoadJob]) -> None:
             for followup_job in followup_jobs:
@@ -329,6 +344,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
                 )
+                # schedule exception on job failure
+                if self.config.raise_on_failed_jobs:
+                    pending_exception = LoadClientJobFailed(
+                        load_id,
+                        job.job_file_info().job_id(),
+                        failed_message,
+                    )
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.exception()
@@ -337,6 +359,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 logger.warning(
                     f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
                 )
+                # possibly schedule exception on too many retries
+                if self.config.raise_on_max_retries:
+                    r_c = job.job_file_info().retry_count + 1
+                    if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
+                        pending_exception = LoadClientJobRetry(
+                            load_id,
+                            job.job_file_info().job_id(),
+                            r_c,
+                            self.config.raise_on_max_retries,
+                        )
             elif state == "completed":
                 # create followup jobs
                 _schedule_followup_jobs(self.create_followup_jobs(load_id, state, job, schema))
@@ -352,7 +384,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         "Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed"
                     )
 
-        return remaining_jobs
+        return remaining_jobs, pending_exception
 
     def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
         # do not commit load id for aborted packages
@@ -376,6 +408,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
+
+    def update_loadpackage_info(self, load_id: str) -> None:
+        # update counter we only care about the jobs that are scheduled to be loaded
+        package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
+        total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
+        no_failed_jobs = len(package_jobs["failed_jobs"])
+        no_completed_jobs = len(package_jobs["completed_jobs"]) + no_failed_jobs
+        self.collector.update("Jobs", no_completed_jobs, total_jobs)
+        if no_failed_jobs > 0:
+            self.collector.update(
+                "Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed"
+            )
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         new_jobs = self.get_new_jobs_info(load_id)
@@ -420,73 +464,48 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             drop_tables=dropped_tables,
                             truncate_tables=truncated_tables,
                         )
-
                 self.load_storage.commit_schema_update(load_id, applied_update)
 
-            # initialize staging destination and spool or retrieve unfinished jobs
+            # collect all unfinished jobs
+            running_jobs: List[LoadJob] = []
             if self.staging_destination:
                 with self.get_staging_destination_client(schema) as staging_client:
-                    jobs_count, jobs = self.retrieve_jobs(job_client, load_id, staging_client)
-            else:
-                jobs_count, jobs = self.retrieve_jobs(job_client, load_id)
+                    running_jobs += self.retrieve_jobs(job_client, load_id, staging_client)
+            running_jobs += self.retrieve_jobs(job_client, load_id)
 
-        if not jobs:
-            # jobs count is a total number of jobs including those that could not be initialized
-            jobs_count, jobs = self.spool_new_jobs(load_id, schema)
-        # if there are no existing or new jobs we complete the package
-        if jobs_count == 0:
-            self.complete_package(load_id, schema, False)
-            return
-        # update counter we only care about the jobs that are scheduled to be loaded
-        package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(load_id)
-        total_jobs = reduce(lambda p, c: p + len(c), package_jobs.values(), 0)
-        no_failed_jobs = len(package_jobs["failed_jobs"])
-        no_completed_jobs = len(package_jobs["completed_jobs"]) + no_failed_jobs
-        self.collector.update("Jobs", no_completed_jobs, total_jobs)
-        if no_failed_jobs > 0:
-            self.collector.update(
-                "Jobs", no_failed_jobs, message="WARNING: Some of the jobs failed!", label="Failed"
-            )
         # loop until all jobs are processed
         while True:
             try:
-                remaining_jobs = self.complete_jobs(load_id, jobs, schema)
-                if len(remaining_jobs) == 0:
-                    # get package status
-                    package_jobs = self.load_storage.normalized_packages.get_load_package_jobs(
-                        load_id
-                    )
-                    # possibly raise on failed jobs
-                    if self.config.raise_on_failed_jobs:
-                        if package_jobs["failed_jobs"]:
-                            failed_job = package_jobs["failed_jobs"][0]
-                            raise LoadClientJobFailed(
-                                load_id,
-                                failed_job.job_id(),
-                                self.load_storage.normalized_packages.get_job_failed_message(
-                                    load_id, failed_job
-                                ),
-                            )
-                    # possibly raise on too many retries
-                    if self.config.raise_on_max_retries:
-                        for new_job in package_jobs["new_jobs"]:
-                            r_c = new_job.retry_count
-                            if r_c > 0 and r_c % self.config.raise_on_max_retries == 0:
-                                raise LoadClientJobRetry(
-                                    load_id,
-                                    new_job.job_id(),
-                                    r_c,
-                                    self.config.raise_on_max_retries,
-                                )
+                # we continously spool new jobs and complete finished ones
+                running_jobs, pending_exception = self.complete_jobs(load_id, running_jobs, schema)
+                # do not spool new jobs if there was a signal
+                if not signals.signal_received() and not pending_exception:
+                    running_jobs += self.start_new_jobs(load_id, schema, len(running_jobs))
+                self.update_loadpackage_info(load_id)
+
+                if len(running_jobs) == 0:
+                    # if a pending exception was discovered during completion of jobs
+                    # we can raise it now
+                    if pending_exception:
+                        raise pending_exception
                     break
-                # process remaining jobs again
-                jobs = remaining_jobs
                 # this will raise on signal
-                sleep(1)
+                sleep(0.1)  #  TODO: figure out correct value
             except LoadClientJobFailed:
                 # the package is completed and skipped
+                self.update_loadpackage_info(load_id)
                 self.complete_package(load_id, schema, True)
                 raise
+
+        # always update load package info
+        self.update_loadpackage_info(load_id)
+
+        # complete the package if no new or started jobs present after loop exit
+        if (
+            len(self.load_storage.list_new_jobs(load_id)) == 0
+            and len(self.load_storage.normalized_packages.list_started_jobs(load_id)) == 0
+        ):
+            self.complete_package(load_id, schema, False)
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool

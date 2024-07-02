@@ -4,7 +4,13 @@ import tempfile  # noqa: 251
 from typing import Dict, Iterable, List, Optional
 
 from dlt.common.json import json
-from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import (
+    NewLoadJob,
+    FollowupJob,
+    TLoadJobState,
+    LoadJob,
+    BaseLoadJob,
+)
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
@@ -17,7 +23,7 @@ from dlt.destinations.impl.destination.configuration import (
 from dlt.pipeline.current import commit_load_package_state
 
 
-class EmptyLoadJobWithoutFollowup(LoadJob):
+class EmptyLoadJobWithoutFollowup(BaseLoadJob):
     def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
         self._status = status
         self._exception = exception
@@ -40,7 +46,7 @@ class EmptyLoadJob(EmptyLoadJobWithoutFollowup, FollowupJob):
     pass
 
 
-class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
+class NewLoadJobImpl(EmptyLoadJobWithoutFollowup):
     def _save_text_file(self, data: str) -> None:
         temp_file = os.path.join(tempfile.gettempdir(), self._file_name)
         with open(temp_file, "w", encoding="utf-8") as f:
@@ -84,7 +90,6 @@ class DestinationLoadJob(LoadJob, ABC):
         skipped_columns: List[str],
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._file_path = file_path
         self._config = config
         self._table = table
         self._schema = schema
@@ -93,28 +98,30 @@ class DestinationLoadJob(LoadJob, ABC):
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         self.skipped_columns = skipped_columns
+        self.destination_state = destination_state
+
+    def run(self) -> Iterable[TDataItems]:
+        # update filepath, it will be in running jobs now
         try:
             if self._config.batch_size == 0:
                 # on batch size zero we only call the callable with the filename
                 self.call_callable_with_items(self._file_path)
             else:
-                current_index = destination_state.get(self._storage_id, 0)
-                for batch in self.run(current_index):
+                current_index = self.destination_state.get(self._storage_id, 0)
+                for batch in self.get_batches(current_index):
                     self.call_callable_with_items(batch)
                     current_index += len(batch)
-                    destination_state[self._storage_id] = current_index
+                    self.destination_state[self._storage_id] = current_index
 
             self._state = "completed"
         except Exception as e:
-            self._state = "retry"
+            self._state = (  # TODO: raise a transient exception here to be handled in the parent class
+                "retry"
+            )
             raise e
         finally:
             # save progress
             commit_load_package_state()
-
-    @abstractmethod
-    def run(self, start_index: int) -> Iterable[TDataItems]:
-        pass
 
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:
@@ -125,12 +132,9 @@ class DestinationLoadJob(LoadJob, ABC):
     def state(self) -> TLoadJobState:
         return self._state
 
-    def exception(self) -> str:
-        raise NotImplementedError()
-
 
 class DestinationParquetLoadJob(DestinationLoadJob):
-    def run(self, start_index: int) -> Iterable[TDataItems]:
+    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
         # stream items
         from dlt.common.libs.pyarrow import pyarrow
 
@@ -154,7 +158,7 @@ class DestinationParquetLoadJob(DestinationLoadJob):
 
 
 class DestinationJsonlLoadJob(DestinationLoadJob):
-    def run(self, start_index: int) -> Iterable[TDataItems]:
+    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
         current_batch: TDataItems = []
 
         # stream items

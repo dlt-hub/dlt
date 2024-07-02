@@ -329,8 +329,8 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             .strip()
         )
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return super().start_file_load(table, file_path, load_id) or ClickHouseLoadJob(
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        return super().get_load_job(table, file_path, load_id) or ClickHouseLoadJob(
             file_path,
             table["name"],
             self.sql_client,

@@ -69,31 +69,26 @@ class SqlLoadJob(LoadJob):
 
     def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self._sql_client = sql_client
+
+    def run(self) -> None:
         # execute immediately if client present
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
         # Some clients (e.g. databricks) do not support multiple statements in one execute call
-        if not sql_client.capabilities.supports_multiple_statements:
-            sql_client.execute_many(self._split_fragments(sql))
+        if not self._sql_client.capabilities.supports_multiple_statements:
+            self._sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
         elif (
             not self._string_contains_ddl_queries(sql)
-            or sql_client.capabilities.supports_ddl_transactions
+            or self._sql_client.capabilities.supports_ddl_transactions
         ):
             # with sql_client.begin_transaction():
-            sql_client.execute_sql(sql)
+            self._sql_client.execute_sql(sql)
         else:
             # sql_client.execute_sql(sql)
-            sql_client.execute_many(self._split_fragments(sql))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
+            self._sql_client.execute_many(self._split_fragments(sql))
 
     def _string_contains_ddl_queries(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:
@@ -256,7 +251,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             jobs.extend(self._create_replace_followup_jobs(table_chain))
         return jobs
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
@@ -266,7 +261,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or None to let derived classes to handle their specific jobs
 
-        Returns completed jobs as SqlLoadJob is executed atomically in start_file_load so any jobs that should be recreated are already completed.
+        Returns completed jobs as SqlLoadJob is executed atomically in get_load_job so any jobs that should be recreated are already completed.
         Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
 
         Args:

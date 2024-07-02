@@ -55,7 +55,7 @@ class DestinationClient(JobClientBase):
     ) -> Optional[TSchemaTables]:
         return super().update_stored_schema(only_tables, expected_update)
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:

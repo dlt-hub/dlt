@@ -16,20 +16,15 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
+        self.table_name = table_name
+
+    def run(self) -> None:
         # insert file content immediately
         with self._sql_client.begin_transaction():
             for fragments in self._insert(
-                sql_client.make_qualified_table_name(table_name), file_path
+                self._sql_client.make_qualified_table_name(self.table_name), self._file_path
             ):
                 self._sql_client.execute_fragments(fragments)
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
@@ -104,7 +99,7 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or InsertValuesJob
 
-        Returns completed jobs as SqlLoadJob and InsertValuesJob executed atomically in start_file_load so any jobs that should be recreated are already completed.
+        Returns completed jobs as SqlLoadJob and InsertValuesJob executed atomically in get_load_job so any jobs that should be recreated are already completed.
         Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
 
         Args:
@@ -118,8 +113,8 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
             job = EmptyLoadJob.from_file_path(file_path, "completed")
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().get_load_job(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
             if file_path.endswith("insert_values"):

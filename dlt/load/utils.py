@@ -225,6 +225,7 @@ def filter_new_jobs(
     file_names: Sequence[str],
     capabilities: DestinationCapabilitiesContext,
     config: LoaderConfiguration,
+    running_jobs_count: int,
 ) -> Sequence[str]:
     """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
     """NOTE: in the current setup we only filter based on settings for the final destination"""
@@ -242,6 +243,11 @@ def filter_new_jobs(
     if mp := capabilities.max_parallel_load_jobs:
         max_workers = min(max_workers, mp)
 
+    # if all slots are full, do not create new jobs
+    if running_jobs_count >= max_workers:
+        return []
+    max_jobs = max_workers - running_jobs_count
+
     # regular sequential works on all jobs
     eligible_jobs = file_names
 
@@ -257,4 +263,4 @@ def filter_new_jobs(
             )
         ]
 
-    return eligible_jobs[:max_workers]
+    return eligible_jobs[:max_jobs]

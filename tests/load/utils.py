@@ -604,7 +604,7 @@ def expect_load_file(
     ).file_name()
     file_storage.save(file_name, query.encode("utf-8"))
     table = client.prepare_load_table(table_name)
-    job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
+    job = client.get_load_job(table, file_storage.make_full_path(file_name), uniq_id())
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name

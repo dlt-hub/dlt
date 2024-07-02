@@ -258,7 +258,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
     # start a job with non-existing file
     with pytest.raises(FileNotFoundError):
-        client.start_file_load(
+        client.get_load_job(
             client.schema.get_table(user_table_name),
             f"{uniq_id()}.",
             uniq_id(),
@@ -267,7 +267,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     # start a job with invalid name
     dest_path = file_storage.save("!!aaaa", b"data")
     with pytest.raises(LoadJobTerminalException):
-        client.start_file_load(client.schema.get_table(user_table_name), dest_path, uniq_id())
+        client.get_load_job(client.schema.get_table(user_table_name), dest_path, uniq_id())
 
     user_table_name = prepare_table(client)
     load_json = {
@@ -279,7 +279,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
     # start a job from the same file. it should be a fallback to retrieve a job silently
-    r_job = client.start_file_load(
+    r_job = client.get_load_job(
         client.schema.get_table(user_table_name),
         file_storage.make_full_path(job.file_name()),
         uniq_id(),
@@ -302,7 +302,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage, client) -> 
         job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
         # start a job from the same file. it should be a fallback to retrieve a job silently
-        client.start_file_load(
+        client.get_load_job(
             client.schema.get_table(user_table_name),
             file_storage.make_full_path(job.file_name()),
             uniq_id(),
