@@ -6,7 +6,7 @@ keywords: ['verified source']
 import DocCardList from '@theme/DocCardList';
 import Link from '../../_book-onboarding-call.md';
 
-Choose from our collection of verified sources, which dlt team developed and maintains. Each source is rigorously tested with real data and provided as Python code for easy customization.
+Choose from our collection of verified sources, developed and maintained by the dlt team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
 
 Planning to use dlt in production and need a source that isn't listed? We're happy to build it for you: <Link />.
 * Source missing? [Request a new verified source.](https://github.com/dlt-hub/verified-sources/issues/new?template=source-request.md)
