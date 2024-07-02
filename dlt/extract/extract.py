@@ -95,6 +95,7 @@ def data_to_sources(
     # a list of sources or a list of resources may be passed as data
     sources: List[DltSource] = []
     resources: List[DltResource] = []
+    data_resources: List[DltResource] = []
 
     def append_data(data_item: Any) -> None:
         if isinstance(data_item, DltSource):
@@ -103,13 +104,11 @@ def data_to_sources(
                 data_item.schema = schema
             sources.append(data_item)
         elif isinstance(data_item, DltResource):
-            # do not set section to prevent source that represent a standalone resource
-            # to overwrite other standalone resources (ie. parents) in that source
-            sources.append(DltSource(effective_schema, "", [data_item]))
+            resources.append(data_item)
         else:
             # iterator/iterable/generator
             # create resource first without table template
-            resources.append(
+            data_resources.append(
                 DltResource.from_data(data_item, name=table_name, section=pipeline.pipeline_name)
             )
 
@@ -123,9 +122,15 @@ def data_to_sources(
     else:
         append_data(data)
 
-    # add all the appended resources in one source
+    # add all appended resource instances in one source
     if resources:
-        sources.append(DltSource(effective_schema, pipeline.pipeline_name, resources))
+        # do not set section to prevent source that represent a standalone resource
+        # to overwrite other standalone resources (ie. parents) in that source
+        sources.append(DltSource(effective_schema, "", resources))
+
+    # add all the appended data-like items in one source
+    if data_resources:
+        sources.append(DltSource(effective_schema, pipeline.pipeline_name, data_resources))
 
     # apply hints and settings
     for source in sources:

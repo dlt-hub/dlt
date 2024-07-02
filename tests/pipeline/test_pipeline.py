@@ -1428,7 +1428,7 @@ def test_resource_rename_same_table():
     assert generic(0).with_name("state2").state["start"] == 20
 
     # NOTE: only one resource will be set in table
-    assert pipeline.default_schema.get_table("single_table")["resource"] == "state2"
+    assert pipeline.default_schema.get_table("single_table")["resource"] == "state1"
 
     # now load only state1
     load_info = pipeline.run(
@@ -2436,6 +2436,48 @@ def test_import_unknown_file_format() -> None:
     assert isinstance(inner_ex, NormalizeJobFailed)
     # can't figure format from extension
     assert isinstance(inner_ex.__cause__, ValueError)
+
+
+def test_resource_transformer_standalone() -> None:
+    page = 1
+
+    @dlt.resource(name="pages")
+    def gen_pages():
+        nonlocal page
+        while True:
+            yield {"page": page}
+            if page == 10:
+                return
+            page += 1
+
+    @dlt.transformer(name="subpages")
+    def get_subpages(page_item):
+        yield from [
+            {
+                "page": page_item["page"],
+                "subpage": subpage,
+            }
+            for subpage in range(1, 11)
+        ]
+
+    pipeline = dlt.pipeline("test_resource_transformer_standalone", destination="duckdb")
+    # here we must combine resources and transformers using the same instance
+    info = pipeline.run([gen_pages, gen_pages | get_subpages])
+    assert_load_info(info)
+    # this works because we extract transformer and resource above in a single source so dlt optimizes
+    # dag and extracts gen_pages only once.
+    assert load_data_table_counts(pipeline) == {"subpages": 100, "pages": 10}
+
+    # for two separate sources we have the following
+    page = 1
+    schema = Schema("test")
+    info = pipeline.run(
+        [DltSource(schema, "", [gen_pages]), DltSource(schema, "", [gen_pages | get_subpages])],
+        dataset_name="new_dataset",
+    )
+    assert_load_info(info, 2)
+    # ten subpages because only 1 page is extracted in the second source (see gen_pages exit condition)
+    assert load_data_table_counts(pipeline) == {"subpages": 10, "pages": 10}
 
 
 def assert_imported_file(
