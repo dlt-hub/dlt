@@ -1,41 +1,46 @@
 import re
-from typing import Sequence
 from functools import lru_cache
+from typing import ClassVar
 
 from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingConvention
+from dlt.common.normalizers.naming.sql_cs_v1 import (
+    RE_UNDERSCORES,
+    RE_LEADING_DIGITS,
+    RE_NON_ALPHANUMERIC,
+)
+from dlt.common.typing import REPattern
 
 
 class NamingConvention(BaseNamingConvention):
-    _RE_UNDERSCORES = re.compile("__+")
-    _RE_LEADING_DIGITS = re.compile(r"^\d+")
-    # _RE_ENDING_UNDERSCORES = re.compile(r"_+$")
-    _RE_NON_ALPHANUMERIC = re.compile(r"[^a-zA-Z\d_]+")
+    """Case insensitive naming convention, converting source identifiers into lower case snake case with reduced alphabet.
+
+    - Spaces around identifier are trimmed
+    - Removes all ascii characters except ascii alphanumerics and underscores
+    - Prepends `_` if name starts with number.
+    - Multiples of `_` are converted into single `_`.
+    - Replaces all trailing `_` with `x`
+    - Replaces `+` and `*` with `x`, `-` with `_`, `@` with `a` and `|` with `l`
+
+    Uses __ as patent-child separator for tables and flattened column names.
+    """
+
+    RE_UNDERSCORES: ClassVar[REPattern] = RE_UNDERSCORES
+    RE_LEADING_DIGITS: ClassVar[REPattern] = RE_LEADING_DIGITS
+    RE_NON_ALPHANUMERIC: ClassVar[REPattern] = RE_NON_ALPHANUMERIC
+
     _SNAKE_CASE_BREAK_1 = re.compile("([^_])([A-Z][a-z]+)")
     _SNAKE_CASE_BREAK_2 = re.compile("([a-z0-9])([A-Z])")
     _REDUCE_ALPHABET = ("+-*@|", "x_xal")
     _TR_REDUCE_ALPHABET = str.maketrans(_REDUCE_ALPHABET[0], _REDUCE_ALPHABET[1])
 
-    # subsequent nested fields will be separated with the string below, applies both to field and table names
-    PATH_SEPARATOR = "__"
-
-    def __init__(self, max_length: int = None) -> None:
-        """Case insensitive naming convention, converting source identifiers into snake case. Uses __ as path separator.
-        Multiple underscores are contracted to one.
-        """
-        super().__init__(max_length)
-        self.is_case_sensitive = False
+    @property
+    def is_case_sensitive(self) -> bool:
+        return False
 
     def normalize_identifier(self, identifier: str) -> str:
         identifier = super().normalize_identifier(identifier)
         # print(f"{identifier} -> {self.shorten_identifier(identifier, self.max_length)} ({self.max_length})")
         return self._normalize_identifier(identifier, self.max_length)
-
-    def make_path(self, *identifiers: str) -> str:
-        # only non empty identifiers participate
-        return self.PATH_SEPARATOR.join(filter(lambda x: x.strip(), identifiers))
-
-    def break_path(self, path: str) -> Sequence[str]:
-        return [ident for ident in path.split(self.PATH_SEPARATOR) if ident.strip()]
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -43,7 +48,7 @@ class NamingConvention(BaseNamingConvention):
         """Normalizes the identifier according to naming convention represented by this function"""
         # all characters that are not letters digits or a few special chars are replaced with underscore
         normalized_ident = identifier.translate(NamingConvention._TR_REDUCE_ALPHABET)
-        normalized_ident = NamingConvention._RE_NON_ALPHANUMERIC.sub("_", normalized_ident)
+        normalized_ident = NamingConvention.RE_NON_ALPHANUMERIC.sub("_", normalized_ident)
 
         # shorten identifier
         return NamingConvention.shorten_identifier(
@@ -57,7 +62,7 @@ class NamingConvention(BaseNamingConvention):
         identifier = cls._SNAKE_CASE_BREAK_2.sub(r"\1_\2", identifier).lower()
 
         # leading digits will be prefixed (if regex is defined)
-        if cls._RE_LEADING_DIGITS and cls._RE_LEADING_DIGITS.match(identifier):
+        if cls.RE_LEADING_DIGITS and cls.RE_LEADING_DIGITS.match(identifier):
             identifier = "_" + identifier
 
         # replace trailing _ with x
@@ -67,4 +72,4 @@ class NamingConvention(BaseNamingConvention):
 
         # identifier = cls._RE_ENDING_UNDERSCORES.sub("x", identifier)
         # replace consecutive underscores with single one to prevent name collisions with PATH_SEPARATOR
-        return cls._RE_UNDERSCORES.sub("_", stripped_ident)
+        return cls.RE_UNDERSCORES.sub("_", stripped_ident)

@@ -13,7 +13,7 @@ from typing import (
 )
 from dlt.common.schema.migrations import migrate_schema
 
-from dlt.common.utils import extend_list_deduplicated, get_full_class_name
+from dlt.common.utils import extend_list_deduplicated
 from dlt.common.typing import (
     DictStrAny,
     StrAny,
@@ -648,13 +648,6 @@ class Schema:
         remove_processing_hints: bool = False,
         bump_version: bool = True,
     ) -> TStoredSchema:
-        # prepare normalizers
-        if isinstance(self._normalizers_config["names"], NamingConvention):
-            normalizers_config = deepcopy(self._normalizers_config)
-            normalizers_config["names"] = get_full_class_name(normalizers_config["names"])
-        else:
-            normalizers_config = self._normalizers_config
-
         stored_schema: TStoredSchema = {
             "version": self._stored_version,
             "version_hash": self._stored_version_hash,
@@ -662,7 +655,7 @@ class Schema:
             "name": self._schema_name,
             "tables": self._schema_tables,
             "settings": self._settings,
-            "normalizers": normalizers_config,
+            "normalizers": self._normalizers_config,
             "previous_hashes": self._stored_previous_hashes,
         }
         if self._imported_version_hash and not remove_defaults:
@@ -732,11 +725,7 @@ class Schema:
         Default hints, preferred data types and normalize configs (ie. column propagation) are normalized as well. Regexes are included as long
         as textual parts can be extracted from an expression.
         """
-        normalizers = explicit_normalizers(schema_name=self._schema_name)
-        # set the current values as defaults
-        normalizers["names"] = normalizers["names"] or self._normalizers_config["names"]
-        normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
-        self._configure_normalizers(normalizers)
+        self._configure_normalizers(explicit_normalizers(schema_name=self._schema_name))
         self._compile_settings()
 
     def set_schema_contract(self, settings: TSchemaContract) -> None:
@@ -1051,10 +1040,12 @@ class Schema:
         if preferred_types := self.settings.get("preferred_types"):
             self._settings["preferred_types"] = self._normalize_preferred_types(preferred_types)
 
-    def _configure_normalizers(self, normalizers: TNormalizersConfig) -> None:
+    def _configure_normalizers(self, explicit_normalizers: TNormalizersConfig) -> None:
         """Gets naming and item normalizer from schema yaml, config providers and destination capabilities and applies them to schema."""
         # import desired modules
-        normalizers_config, to_naming, item_normalizer_class = import_normalizers(normalizers)
+        normalizers_config, to_naming, item_normalizer_class = import_normalizers(
+            explicit_normalizers, self._normalizers_config
+        )
         self._renormalize_schema_identifiers(normalizers_config, to_naming, self.naming)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
