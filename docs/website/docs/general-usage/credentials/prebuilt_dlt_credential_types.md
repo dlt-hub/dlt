@@ -1,23 +1,25 @@
 ---
-title: Configuration specs
-description: How to specify complex custom configurations
+title: Prebuilt credential types
+description: How to specify complex custom credentials.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, specs]
 ---
 
-Configuration Specs in `dlt` are Python dataclasses that define how complex configuration values,
-particularly credentials, should be handled.
-They specify the types, defaults, and parsing methods for these values.
+Often, credentials do not consist of just one `api_key`, but instead can be quite a complex structure. In this section, you'll learn how dlt supports different credential types and authentication options.
+
+:::tip
+Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../http/rest-client.md#authentication).
+:::
+
+`dlt` supports different credential types by providing various Python data classes called Configuration Specs. These classes define how complex configuration values, particularly credentials, should be handled. They specify the types, defaults, and parsing methods for these values.
 
 ## Working with credentials (and other complex configuration values)
 
-For example, a spec like `GcpServiceAccountCredentials` manages Google Cloud Platform
-service account credentials, while `ConnectionStringCredentials` handles database connection strings.
+For example, a spec like `GcpServiceAccountCredentials` manages Google Cloud Platform service account credentials, while `ConnectionStringCredentials` handles database connection strings.
 
 ### Example
 
-As an example, let's use `ConnectionStringCredentials` which represents a database connection
-string.
+As an example, let's use `ConnectionStringCredentials` which represents a database connection string.
 
 ```py
 from dlt.sources.credentials import ConnectionStringCredentials
@@ -27,9 +29,7 @@ def query(sql: str, dsn: ConnectionStringCredentials = dlt.secrets.value):
   ...
 ```
 
-The source above executes the `sql` against database defined in `dsn`. `ConnectionStringCredentials`
-makes sure you get the correct values with correct types and understands the relevant native form of
-the credentials.
+The source above executes the `sql` against the database defined in `dsn`. `ConnectionStringCredentials` ensures you get the correct values with the correct types and understands the relevant native form of the credentials.
 
 Below are examples of how you can set credentials in `secrets.toml` and `config.toml` files.
 
@@ -49,8 +49,7 @@ Example 2. Use the **native** form.
 dsn="postgres://loader:loader@localhost:5432/dlt_data"
 ```
 
-Example 3. Use the **mixed** form: the password is missing in explicit dsn and will be taken from the
-`secrets.toml`.
+Example 3. Use the **mixed** form: the password is missing in the explicit dsn and will be taken from the `secrets.toml`.
 
 ```toml
 dsn.password="loader"
@@ -64,7 +63,7 @@ query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"})
 ```
 
-## Built in credentials
+## Built-in credentials
 
 We have some ready-made credentials you can reuse:
 
@@ -78,11 +77,7 @@ from dlt.sources.credentials import AzureCredentials
 
 ### ConnectionStringCredentials
 
-The `ConnectionStringCredentials` class handles connection string
-credentials for SQL database connections.
-It includes attributes for the driver name, database name, username, password, host, port,
-and additional query parameters.
-This class provides methods for parsing and generating connection strings.
+The `ConnectionStringCredentials` class handles connection string credentials for SQL database connections. It includes attributes for the driver name, database name, username, password, host, port, and additional query parameters. This class provides methods for parsing and generating connection strings.
 
 #### Usage
 ```py
@@ -96,7 +91,7 @@ credentials.password = "my_password"  # type: ignore
 credentials.host = "localhost"
 credentials.port = 5432
 
-# Convert credentials to connection string
+# Convert credentials to a connection string
 connection_string = credentials.to_native_representation()
 
 # Parse a connection string and update credentials
@@ -110,9 +105,7 @@ Above, you can find an example of how to use this spec with sources and TOML fil
 
 ### OAuth2Credentials
 
-The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID,
-client secret, refresh token, and access token.
-It also allows for the addition of scopes and provides methods for client authentication.
+The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID, client secret, refresh token, and access token. It also allows for the addition of scopes and provides methods for client authentication.
 
 Usage:
 ```py
@@ -130,25 +123,22 @@ credentials.auth()
 credentials.add_scopes(["scope3", "scope4"])
 ```
 
-`OAuth2Credentials` is a base class to implement actual OAuth, for example,
-it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
+`OAuth2Credentials` is a base class to implement actual OAuth; for example, it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
 
 ### GCP Credentials
 
 - [GcpServiceAccountCredentials](#gcpserviceaccountcredentials).
 - [GcpOAuthCredentials](#gcpoauthcredentials).
 
-[Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py):
-the example how to use GCP Credentials.
+[Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): the example of how to use GCP Credentials.
 
 #### GcpServiceAccountCredentials
 
-The `GcpServiceAccountCredentials` class manages GCP Service Account credentials.
-This class provides methods to retrieve native credentials for Google clients.
+The `GcpServiceAccountCredentials` class manages GCP Service Account credentials. This class provides methods to retrieve native credentials for Google clients.
 
 ##### Usage
 
-- You may just pass the `service.json` as string or dictionary (in code and via config providers).
+- You may just pass the `service.json` as a string or dictionary (in code and via config providers).
 - Or default credentials will be used.
 
 ```py
@@ -179,7 +169,7 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -195,11 +185,7 @@ property_id = "213025502"
 
 #### GcpOAuthCredentials
 
-The `GcpOAuthCredentials` class is responsible for handling OAuth2 credentials for
-desktop applications in Google Cloud Platform (GCP).
-It can parse native values either as `GoogleOAuth2Credentials` or as
-serialized OAuth client secrets JSON.
-This class provides methods for authentication and obtaining access tokens.
+The `GcpOAuthCredentials` class is responsible for handling OAuth2 credentials for desktop applications in Google Cloud Platform (GCP). It can parse native values either as `GoogleOAuth2Credentials` or as serialized OAuth client secrets JSON. This class provides methods for authentication and obtaining access tokens.
 
 ##### Usage
 ```py
@@ -233,7 +219,7 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -247,32 +233,22 @@ and `config.toml`:
 property_id = "213025502"
 ```
 
-In order for `auth()` method to succeed:
+In order for the `auth()` method to succeed:
 
-- You must provide valid `client_id` and `client_secret`,
-  `refresh_token` and `project_id` in order to get a current
-  **access token** and authenticate with OAuth.
-  Mind that the `refresh_token` must contain all the scopes that you require for your access.
-- If `refresh_token` is not provided, and you run the pipeline from a console or a notebook,
-  `dlt` will use InstalledAppFlow to run the desktop authentication flow.
+- You must provide valid `client_id` and `client_secret`, `refresh_token`, and `project_id to get a current **access token** and authenticate with OAuth. Keep in mind that the `refresh_token` must contain all the scopes that you require for your access.
+- If the `refresh_token` is not provided, and you run the pipeline from a console or a notebook, `dlt` will use InstalledAppFlow to run the desktop authentication flow.
 
 [Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
 
 #### Defaults
 
-If configuration values are missing, `dlt` will use the default Google credentials (from `default()`) if available.
-Read more about [Google defaults.](https://googleapis.dev/python/google-auth/latest/user-guide.html#application-default-credentials)
+If configuration values are missing, `dlt` will use the default Google credentials (from `default()`) if available. Read more about [Google defaults.](https://googleapis.dev/python/google-auth/latest/user-guide.html#application-default-credentials)
 
-- `dlt` will try to fetch the `project_id` from default credentials.
-  If the project id is missing, it will look for `project_id` in the secrets.
-  So it is normal practice to pass partial credentials (just `project_id`) and take the rest from defaults.
+- `dlt` will try to fetch the `project_id` from default credentials. If the project id is missing, it will look for `project_id` in the secrets. So it is normal practice to pass partial credentials (just `project_id`) and take the rest from defaults.
 
 ### AwsCredentials
 
-The `AwsCredentials` class is responsible for handling AWS credentials,
-including access keys, session tokens, profile names, region names, and endpoint URLs.
-It inherits the ability to manage default credentials and extends it with methods
-for handling partial credentials and converting credentials to a botocore session.
+The `AwsCredentials` class is responsible for handling AWS credentials, including access keys, session tokens, profile names, region names, and endpoint URLs. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a botocore session.
 
 #### Usage
 ```py
@@ -309,7 +285,7 @@ def aws_readers(
     print(aws_credentials.access_key)
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.aws_readers.credentials]
 aws_access_key_id = "key_id"
@@ -325,17 +301,13 @@ bucket_url = "bucket_url"
 #### Defaults
 
 If configuration is not provided, `dlt` uses the default AWS credentials (from `.aws/credentials`) as present on the machine:
+
 - It works by creating an instance of botocore Session.
-- If `profile_name` is specified, the credentials for that profile are used.
-  If not - the default profile is used.
+- If `profile_name` is specified, the credentials for that profile are used. If not, the default profile is used.
 
 ### AzureCredentials
 
-The `AzureCredentials` class is responsible for handling Azure Blob Storage credentials,
-including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions.
-It inherits the ability to manage default credentials and extends it with methods for
-handling partial credentials and converting credentials to a format suitable
-for interacting with Azure Blob Storage using the adlfs library.
+The `AzureCredentials` class is responsible for handling Azure Blob Storage credentials, including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a format suitable for interacting with Azure Blob Storage using the adlfs library.
 
 #### Usage
 ```py
@@ -363,7 +335,7 @@ def azure_readers(
     # to_native_credentials() is not yet implemented
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.azure_readers.credentials]
 azure_storage_account_name = "account_name"
@@ -374,34 +346,31 @@ and `config.toml`:
 [sources.azure_readers]
 bucket_url = "bucket_url"
 ```
+
 #### Defaults
 
 If configuration is not provided, `dlt` uses the default credentials using `DefaultAzureCredential`.
 
 ## Working with alternatives of credentials (Union types)
 
-If your source/resource allows for many authentication methods, you can support those seamlessly for
-your user. The user just passes the right credentials and `dlt` will inject the right type into your
-decorated function.
+If your source/resource allows for many authentication methods, you can support those seamlessly for your user. The user just passes the right credentials, and `dlt` will inject the right type into your decorated function.
 
 Example:
 
 ```py
 @dlt.source
 def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
-  # depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in `credentials` argument
-  # both classes implement `auth` so you can always call it
+  # Depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in the `credentials` argument. Both classes implement `auth` so you can always call it.
   credentials.auth()
   return dlt.resource([credentials], name="credentials")
 
-# pass native value
+# Pass native value
 os.environ["CREDENTIALS"] = "email:mx:pwd"
 assert list(zen_source())[0].email == "mx"
 
-# pass explicit native value
+# Pass explicit native value
 assert list(zen_source("secret:🔑:secret"))[0].api_secret == "secret"
-
-# pass explicit dict
+```# pass explicit dict
 assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
 
 ```
@@ -427,7 +396,7 @@ of credentials that derive from the common class, so you can handle it seamlessl
 
 This is used a lot in the `dlt` core and may become useful for complicated sources.
 
-In fact, for each decorated function a spec is synthesized. In case of `google_sheets` following
+In fact, for each decorated function a spec is synthesized. In the case of `google_sheets`, the following
 class is created:
 
 ```py
@@ -435,7 +404,7 @@ from dlt.sources.config import configspec, with_config
 
 @configspec
 class GoogleSheetsConfiguration(BaseConfiguration):
-  tab_names: List[str] = None  # manadatory
+  tab_names: List[str] = None  # mandatory
   credentials: GcpServiceAccountCredentials = None # mandatory secret
   only_strings: Optional[bool] = False
 ```

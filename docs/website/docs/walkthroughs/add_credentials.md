@@ -41,12 +41,12 @@ Read more about [credential configuration.](../general-usage/credentials)
 To add credentials to your deployment,
 
 - either use one of the `dlt deploy` commands;
-- or follow the instructions to [pass credentials via code](../general-usage/credentials/configuration#pass-credentials-as-code)
-or [environment](../general-usage/credentials/config_providers#environment-provider).
+- or follow the instructions to [pass credentials via code](../general-usage/credentials/using_config_in_code#examples)
+or [environment](../general-usage/credentials/how_to_set_up_credentials#env-variables).
 
 ### Reading credentials from environment variables
 
-`dlt` supports reading credentials from environment. For example, our `.dlt/secrets.toml` might look like:
+`dlt` supports reading credentials from the environment. For example, our `.dlt/secrets.toml` might look like:
 
 ```toml
 [sources.pipedrive]
@@ -63,7 +63,7 @@ client_email = "client_email" # please set me up!
 
 If dlt tries to read this from environment variables, it will use a different naming convention.
 
-For environment variables all names are capitalized and sections are separated with a double underscore "__".
+For environment variables, all names are capitalized and sections are separated with a double underscore "__".
 
 For example, for the secrets mentioned above, we would need to set them in the environment:
 
