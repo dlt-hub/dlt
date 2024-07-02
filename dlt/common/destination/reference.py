@@ -27,6 +27,7 @@ import inspect
 from dlt.common import logger
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.utils import (
@@ -41,6 +42,8 @@ from dlt.common.destination.exceptions import (
     InvalidDestinationReference,
     UnknownDestinationModule,
     DestinationSchemaTampered,
+    DestinationTransientException,
+    DestinationTerminalException,
 )
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
@@ -194,7 +197,7 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
     """configuration of the staging, if present, injected at runtime"""
 
 
-TLoadJobState = Literal["running", "failed", "retry", "completed"]
+TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
 class LoadJob:
@@ -217,11 +220,40 @@ class LoadJob:
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
         self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+        self._state = "ready"
+        self._exception: Exception = None
+
+    # TODO: find a better name for this method
+    def run_wrapped(self, file_path: str) -> None:
+        """
+        wrapper around the user implemented run method
+        """
+        # filepath is now moved to running
+        self._file_path = file_path
+        try:
+            self._state = "running"
+            self.run()
+            self._state = "completed"
+        except (DestinationTerminalException, TerminalValueError) as e:
+            logger.exception(f"Terminal problem when starting job {self.file_name}")
+            self._state = "failed"
+            self._exception = e
+        except (DestinationTransientException, Exception) as e:
+            logger.exception(f"Temporary problem when starting job {self.file_name}")
+            self._state = "retry"
+            self._exception = e
 
     @abstractmethod
+    def run(self) -> None:
+        """
+        run the actual job, this will be executed on a thread and should be implemented by the user
+        exception will be handled outside of this function
+        """
+        pass
+
     def state(self) -> TLoadJobState:
         """Returns current state. Should poll external resource if necessary."""
-        pass
+        return self._state
 
     def file_name(self) -> str:
         """A name of the job file"""
@@ -234,10 +266,9 @@ class LoadJob:
     def job_file_info(self) -> ParsedLoadJobFileName:
         return self._parsed_file_name
 
-    @abstractmethod
     def exception(self) -> str:
         """The exception associated with failed or retry states"""
-        pass
+        return self._exception
 
 
 class NewLoadJob(LoadJob):

@@ -130,69 +130,65 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         else:
             yield
 
-    @staticmethod
-    @workermethod
-    def w_spool_job(
-        self: "Load", file_path: str, load_id: str, schema: Schema
-    ) -> Optional[LoadJob]:
+    def get_job(self, file_path: str, load_id: str, schema: Schema) -> LoadJob:
         job: LoadJob = None
-        try:
-            is_staging_destination_job = self.is_staging_destination_job(file_path)
-            job_client = self.get_destination_client(schema)
 
-            # if we have a staging destination and the file is not a reference, send to staging
-            with (
-                self.get_staging_destination_client(schema)
-                if is_staging_destination_job
-                else job_client
-            ) as client:
-                job_info = ParsedLoadJobFileName.parse(file_path)
-                if job_info.file_format not in self.load_storage.supported_job_file_formats:
-                    raise LoadClientUnsupportedFileFormats(
-                        job_info.file_format,
-                        self.destination.capabilities().supported_loader_file_formats,
-                        file_path,
-                    )
-                logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
-                table = client.prepare_load_table(job_info.table_name)
-                if table["write_disposition"] not in ["append", "replace", "merge"]:
-                    raise LoadClientUnsupportedWriteDisposition(
-                        job_info.table_name, table["write_disposition"], file_path
-                    )
+        is_staging_destination_job = self.is_staging_destination_job(file_path)
+        job_client = self.get_destination_client(schema)
 
-                if is_staging_destination_job:
-                    use_staging_dataset = isinstance(
-                        job_client, SupportsStagingDestination
-                    ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(
-                        table
-                    )
-                else:
-                    use_staging_dataset = isinstance(
-                        job_client, WithStagingDataset
-                    ) and job_client.should_load_data_to_staging_dataset(table)
+        # if we have a staging destination and the file is not a reference, send to staging
+        with (
+            self.get_staging_destination_client(schema)
+            if is_staging_destination_job
+            else job_client
+        ) as client:
+            job_info = ParsedLoadJobFileName.parse(file_path)
+            if job_info.file_format not in self.load_storage.supported_job_file_formats:
+                raise LoadClientUnsupportedFileFormats(
+                    job_info.file_format,
+                    self.destination.capabilities().supported_loader_file_formats,
+                    file_path,
+                )
+            logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+            table = client.prepare_load_table(job_info.table_name)
+            if table["write_disposition"] not in ["append", "replace", "merge"]:
+                raise LoadClientUnsupportedWriteDisposition(
+                    job_info.table_name, table["write_disposition"], file_path
+                )
 
-                with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                    job = client.start_file_load(
-                        table,
-                        self.load_storage.normalized_packages.storage.make_full_path(file_path),
-                        load_id,
-                    )
-        except (DestinationTerminalException, TerminalValueError):
-            # if job irreversibly cannot be started, mark it as failed
-            logger.exception(f"Terminal problem when adding job {file_path}")
-            job = EmptyLoadJob.from_file_path(file_path, "failed", pretty_format_exception())
-        except (DestinationTransientException, Exception):
-            # return no job so file stays in new jobs (root) folder
-            logger.exception(f"Temporary problem when adding job {file_path}")
-            job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
+            if is_staging_destination_job:
+                use_staging_dataset = isinstance(
+                    job_client, SupportsStagingDestination
+                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
+            else:
+                use_staging_dataset = isinstance(
+                    job_client, WithStagingDataset
+                ) and job_client.should_load_data_to_staging_dataset(table)
+
+            with self.maybe_with_staging_dataset(client, use_staging_dataset):
+                job = client.start_file_load(
+                    table,
+                    self.load_storage.normalized_packages.storage.make_full_path(file_path),
+                    load_id,
+                )
+
         if job is None:
             raise DestinationTerminalException(
                 f"Destination could not create a job for file {file_path}. Typically the file"
                 " extension could not be associated with job type and that indicates an error in"
                 " the code."
             )
-        self.load_storage.normalized_packages.start_job(load_id, job.file_name())
+
         return job
+
+    @staticmethod
+    @workermethod
+    def w_start_job(self: "Load", job: LoadJob, load_id: str) -> None:
+        """
+        Start a load job in a separate thread
+        """
+        file_path = self.load_storage.normalized_packages.start_job(load_id, job.file_name())
+        job.run_wrapped(file_path=file_path)
 
     def spool_new_jobs(
         self, load_id: str, schema: Schema, running_jobs_count: int
@@ -210,12 +206,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             return []
 
         logger.info(f"Will load additional {file_count}, creating jobs")
-        param_chunk = [(id(self), file, load_id, schema) for file in load_files]
-        # exceptions should not be raised, None as job is a temporary failure
-        # other jobs should not be affected
-        jobs = self.pool.map(Load.w_spool_job, *zip(*param_chunk))
-        # remove None jobs and check the rest
-        return [job for job in jobs if job is not None]
+        jobs: List[LoadJob] = []
+        for file in load_files:
+            job = self.get_job(file, load_id, schema)
+            jobs.append(job)
+            self.pool.submit(Load.w_start_job, *(id(self), job, load_id))
+
+        return jobs
 
     def retrieve_jobs(
         self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None
@@ -486,7 +483,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         raise pending_exception
                     break
                 # this will raise on signal
-                sleep(0.1) #  TODO: figure out correct value
+                sleep(0.1)  #  TODO: figure out correct value
             except LoadClientJobFailed:
                 # the package is completed and skipped
                 self.update_loadpackage_info(load_id)
