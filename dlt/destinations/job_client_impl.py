@@ -69,31 +69,26 @@ class SqlLoadJob(LoadJob):
 
     def __init__(self, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self._sql_client = sql_client
+
+    def run(self) -> None:
         # execute immediately if client present
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
         # Some clients (e.g. databricks) do not support multiple statements in one execute call
-        if not sql_client.capabilities.supports_multiple_statements:
-            sql_client.execute_many(self._split_fragments(sql))
+        if not self._sql_client.capabilities.supports_multiple_statements:
+            self._sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
         elif (
             not self._string_contains_ddl_queries(sql)
-            or sql_client.capabilities.supports_ddl_transactions
+            or self._sql_client.capabilities.supports_ddl_transactions
         ):
             # with sql_client.begin_transaction():
-            sql_client.execute_sql(sql)
+            self._sql_client.execute_sql(sql)
         else:
             # sql_client.execute_sql(sql)
-            sql_client.execute_many(self._split_fragments(sql))
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
+            self._sql_client.execute_many(self._split_fragments(sql))
 
     def _string_contains_ddl_queries(self, sql: str) -> bool:
         for cmd in DDL_COMMANDS:

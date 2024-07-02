@@ -4,7 +4,13 @@ import tempfile  # noqa: 251
 from typing import Dict, Iterable, List, Optional
 
 from dlt.common.json import json
-from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import (
+    NewLoadJob,
+    FollowupJob,
+    TLoadJobState,
+    LoadJob,
+    BaseLoadJob,
+)
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
@@ -17,7 +23,7 @@ from dlt.destinations.impl.destination.configuration import (
 from dlt.pipeline.current import commit_load_package_state
 
 
-class EmptyLoadJobWithoutFollowup(LoadJob):
+class EmptyLoadJobWithoutFollowup(BaseLoadJob):
     def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
         self._status = status
         self._exception = exception
@@ -40,7 +46,7 @@ class EmptyLoadJob(EmptyLoadJobWithoutFollowup, FollowupJob):
     pass
 
 
-class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
+class NewLoadJobImpl(EmptyLoadJobWithoutFollowup):
     def _save_text_file(self, data: str) -> None:
         temp_file = os.path.join(tempfile.gettempdir(), self._file_name)
         with open(temp_file, "w", encoding="utf-8") as f:

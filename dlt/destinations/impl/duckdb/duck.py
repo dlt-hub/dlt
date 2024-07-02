@@ -116,9 +116,12 @@ class DuckDbTypeMapper(TypeMapper):
 class DuckDbCopyJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        self.table_name = table_name
+        self.sql_client = sql_client
 
-        qualified_table_name = sql_client.make_qualified_table_name(table_name)
-        if file_path.endswith("parquet"):
+    def run(self) -> None:
+        qualified_table_name = self.sql_client.make_qualified_table_name(self.table_name)
+        if self._file_path.endswith("parquet"):
             source_format = "PARQUET"
             options = ""
             # lock when creating a new lock
@@ -127,26 +130,20 @@ class DuckDbCopyJob(LoadJob, FollowupJob):
                 lock: threading.Lock = TABLES_LOCKS.setdefault(
                     qualified_table_name, threading.Lock()
                 )
-        elif file_path.endswith("jsonl"):
+        elif self._file_path.endswith("jsonl"):
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "JSON"  # newline delimited, compression auto
-            options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(file_path) else ""
+            options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(self._file_path) else ""
             lock = None
         else:
-            raise ValueError(file_path)
+            raise ValueError(self._file_path)
 
         with maybe_context(lock):
-            with sql_client.begin_transaction():
-                sql_client.execute_sql(
-                    f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT"
+            with self.sql_client.begin_transaction():
+                self.sql_client.execute_sql(
+                    f"COPY {qualified_table_name} FROM '{self._file_path}' ( FORMAT"
                     f" {source_format} {options});"
                 )
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class DuckDbClient(InsertValuesJobClient):

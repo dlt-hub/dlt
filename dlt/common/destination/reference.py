@@ -200,8 +200,15 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
-class LoadJob:
-    """Represents a job that loads a single file
+class BaseLoadJob(ABC):
+    def __init__(self, file_name: str) -> None:
+        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
+        self._file_name = file_name
+        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+
+
+class LoadJob(BaseLoadJob):
+    """Represents a runnable job that loads a single file
 
     Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
     Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
@@ -217,11 +224,10 @@ class LoadJob:
         File name is also a job id (or job id is deterministically derived) so it must be globally unique
         """
         # ensure file name
-        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
-        self._file_name = file_name
-        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+        super().__init__(file_name)
         self._state = "ready"
         self._exception: Exception = None
+        self._job_client: JobClientBase = None  # TODO: move to constructor or something
 
     # TODO: find a better name for this method
     def run_wrapped(self, file_path: str) -> None:
@@ -252,7 +258,7 @@ class LoadJob:
         run the actual job, this will be executed on a thread and should be implemented by the user
         exception will be handled outside of this function
         """
-        pass
+        raise NotImplementedError()
 
     def state(self) -> TLoadJobState:
         """Returns current state. Should poll external resource if necessary."""
@@ -274,7 +280,7 @@ class LoadJob:
         return self._exception
 
 
-class NewLoadJob(LoadJob):
+class NewLoadJob:
     """Adds a trait that allows to save new job file"""
 
     @abstractmethod

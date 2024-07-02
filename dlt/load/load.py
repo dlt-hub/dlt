@@ -156,21 +156,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     job_info.table_name, table["write_disposition"], file_path
                 )
 
-            if is_staging_destination_job:
-                use_staging_dataset = isinstance(
-                    job_client, SupportsStagingDestination
-                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
-            else:
-                use_staging_dataset = isinstance(
-                    job_client, WithStagingDataset
-                ) and job_client.should_load_data_to_staging_dataset(table)
-
-            with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job = client.get_load_job(
-                    table,
-                    self.load_storage.normalized_packages.storage.make_full_path(file_path),
-                    load_id,
-                )
+            job = client.get_load_job(
+                table,
+                self.load_storage.normalized_packages.storage.make_full_path(file_path),
+                load_id,
+            )
+            job._job_client = client
 
         if job is None:
             raise DestinationTerminalException(
@@ -183,14 +174,30 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     @staticmethod
     @workermethod
-    def w_start_job(self: "Load", job: LoadJob, load_id: str) -> None:
+    def w_start_job(self: "Load", job: LoadJob, load_id: str, schema: Schema) -> None:
         """
         Start a load job in a separate thread
         """
         file_path = self.load_storage.normalized_packages.start_job(load_id, job.file_name())
-        job.run_wrapped(file_path=file_path)
+        job_client = self.get_destination_client(schema)
+        job_info = ParsedLoadJobFileName.parse(file_path)
 
-    def spool_new_jobs(
+        with job._job_client as client:
+            table = client.prepare_load_table(job_info.table_name)
+
+            if self.is_staging_destination_job(file_path):
+                use_staging_dataset = isinstance(
+                    job_client, SupportsStagingDestination
+                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
+            else:
+                use_staging_dataset = isinstance(
+                    job_client, WithStagingDataset
+                ) and job_client.should_load_data_to_staging_dataset(table)
+
+            with self.maybe_with_staging_dataset(client, use_staging_dataset):
+                job.run_wrapped(file_path=file_path)
+
+    def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs_count: int
     ) -> List[LoadJob]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
@@ -210,7 +217,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         for file in load_files:
             job = self.get_job(file, load_id, schema)
             jobs.append(job)
-            self.pool.submit(Load.w_start_job, *(id(self), job, load_id))
+            self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))
 
         return jobs
 
@@ -473,7 +480,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 running_jobs, pending_exception = self.complete_jobs(load_id, running_jobs, schema)
                 # do not spool new jobs if there was a signal
                 if not signals.signal_received() and not pending_exception:
-                    running_jobs += self.spool_new_jobs(load_id, schema, len(running_jobs))
+                    running_jobs += self.start_new_jobs(load_id, schema, len(running_jobs))
                 self.update_loadpackage_info(load_id)
 
                 if len(running_jobs) == 0:

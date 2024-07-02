@@ -16,20 +16,15 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._sql_client = sql_client
+        self.table_name = table_name
+
+    def run(self) -> None:
         # insert file content immediately
         with self._sql_client.begin_transaction():
             for fragments in self._insert(
-                sql_client.make_qualified_table_name(table_name), file_path
+                self._sql_client.make_qualified_table_name(self.table_name), self._file_path
             ):
                 self._sql_client.execute_fragments(fragments)
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         # WARNING: maximum redshift statement is 16MB https://docs.aws.amazon.com/redshift/latest/dg/c_redshift-sql.html
