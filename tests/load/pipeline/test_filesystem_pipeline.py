@@ -14,13 +14,14 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
@@ -34,7 +35,7 @@ skip_if_not_active("filesystem")
 @pytest.fixture
 def local_filesystem_pipeline() -> dlt.Pipeline:
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
-    return dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", full_refresh=True)
+    return dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", dev_mode=True)
 
 
 def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
@@ -499,7 +500,7 @@ def test_filesystem_destination_extended_layout_placeholders(
 
         return count
 
-    extra_placeholders = {
+    extra_placeholders: TExtraPlaceholders = {
         "who": "marcin",
         "action": "says",
         "what": "no potato",
@@ -653,8 +654,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     # test accessors for state
     s1 = c1.get_stored_state("p1")
     s2 = c1.get_stored_state("p2")
-    assert s1.dlt_load_id == load_id_1_2  # second load
-    assert s2.dlt_load_id == load_id_2_1  # first load
+    assert s1._dlt_load_id == load_id_1_2  # second load
+    assert s2._dlt_load_id == load_id_2_1  # first load
     assert s1_old.version != s1.version
     assert s2_old.version == s2.version
 
@@ -797,13 +798,15 @@ def test_client_methods(
 
     # check opening of file
     values = []
-    for line in fs_client.read_text(t1_files[0]).split("\n"):
+    for line in fs_client.read_text(t1_files[0], encoding="utf-8").split("\n"):
         if line:
             values.append(json.loads(line)["value"])
     assert values == [1, 2, 3, 4, 5]
 
     # check binary read
-    assert fs_client.read_bytes(t1_files[0]) == str.encode(fs_client.read_text(t1_files[0]))
+    assert fs_client.read_bytes(t1_files[0]) == str.encode(
+        fs_client.read_text(t1_files[0], encoding="utf-8")
+    )
 
     # check truncate
     fs_client.truncate_tables(["table_1"])

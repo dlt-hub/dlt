@@ -6,13 +6,18 @@ from unittest.mock import patch
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.resolve import resolve_configuration
+from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DatabaseTerminalException
-from dlt.destinations.impl.redshift.configuration import RedshiftCredentials
+from dlt.destinations import redshift
+from dlt.destinations.impl.redshift.configuration import (
+    RedshiftCredentials,
+    RedshiftClientConfiguration,
+)
 from dlt.destinations.impl.redshift.redshift import RedshiftClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
@@ -40,6 +45,34 @@ def test_postgres_and_redshift_credentials_defaults() -> None:
     assert RedshiftCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     resolve_configuration(red_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
     assert red_cred.port == 5439
+
+
+def test_redshift_factory() -> None:
+    schema = Schema("schema")
+    dest = redshift()
+    client = dest.client(schema, RedshiftClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.staging_iam_role is None
+    assert client.config.has_case_sensitive_identifiers is False
+    assert client.capabilities.has_case_sensitive_identifiers is False
+    assert client.capabilities.casefold_identifier is str.lower
+
+    # set args explicitly
+    dest = redshift(has_case_sensitive_identifiers=True, staging_iam_role="LOADER")
+    client = dest.client(schema, RedshiftClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.staging_iam_role == "LOADER"
+    assert client.config.has_case_sensitive_identifiers is True
+    assert client.capabilities.has_case_sensitive_identifiers is True
+    assert client.capabilities.casefold_identifier is str
+
+    # set args via config
+    os.environ["DESTINATION__STAGING_IAM_ROLE"] = "LOADER"
+    os.environ["DESTINATION__HAS_CASE_SENSITIVE_IDENTIFIERS"] = "True"
+    dest = redshift()
+    client = dest.client(schema, RedshiftClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.staging_iam_role == "LOADER"
+    assert client.config.has_case_sensitive_identifiers is True
+    assert client.capabilities.has_case_sensitive_identifiers is True
+    assert client.capabilities.casefold_identifier is str
 
 
 @skipifpypy

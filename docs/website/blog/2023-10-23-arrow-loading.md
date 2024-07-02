@@ -50,7 +50,7 @@ chat_messages = dlt.resource(
 In this demo I just extract and normalize data and skip the loading step.
 
 ```py
-pipeline = dlt.pipeline(destination="duckdb", full_refresh=True)
+pipeline = dlt.pipeline(destination="duckdb", dev_mode=True)
 # extract first
 pipeline.extract(chat_messages)
 info = pipeline.normalize()
@@ -98,7 +98,7 @@ chat_messages = dlt.resource(
     write_disposition="append",
 )("postgresql://loader:loader@localhost:5432/dlt_data")
 
-pipeline = dlt.pipeline(destination="duckdb", full_refresh=True)
+pipeline = dlt.pipeline(destination="duckdb", dev_mode=True)
 # extract first
 pipeline.extract(chat_messages)
 info = pipeline.normalize(workers=3, loader_file_format="parquet")

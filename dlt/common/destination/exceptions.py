@@ -124,3 +124,16 @@ class DestinationSchemaTampered(DestinationTerminalException):
             " schema in load package, you should first save it into schema storage. You can also"
             " use schema._bump_version() in test code to remove modified flag."
         )
+
+
+class DestinationInvalidFileFormat(DestinationTerminalException):
+    def __init__(
+        self, destination_type: str, file_format: str, file_name: str, message: str
+    ) -> None:
+        self.destination_type = destination_type
+        self.file_format = file_format
+        self.message = message
+        super().__init__(
+            f"Destination {destination_type} cannot process file {file_name} with format"
+            f" {file_format}: {message}"
+        )

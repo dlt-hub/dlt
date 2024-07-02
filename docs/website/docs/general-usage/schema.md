@@ -42,8 +42,9 @@ characters, any lengths and naming styles. On the other hand the destinations ac
 namespaces for their identifiers. Like Redshift that accepts case-insensitive alphanumeric
 identifiers with maximum 127 characters.
 
-Each schema contains `naming convention` that tells `dlt` how to translate identifiers to the
-namespace that the destination understands.
+Each schema contains [naming convention](naming-convention.md) that tells `dlt` how to translate identifiers to the
+namespace that the destination understands. This convention can be configured, changed in code or enforced via
+destination.
 
 The default naming convention:
 
@@ -214,7 +215,7 @@ The precision for **bigint** is mapped to available integer types ie. TINYINT, I
 ## Schema settings
 
 The `settings` section of schema file lets you define various global rules that impact how tables
-and columns are inferred from data.
+and columns are inferred from data. For example you can assign **primary_key** hint to all columns with name `id` or force **timestamp** data type on all columns containing `timestamp` with an use of regex pattern.
 
 > 💡 It is the best practice to use those instead of providing the exact column schemas via `columns`
 > argument or by pasting them in `yaml`.
@@ -222,8 +223,9 @@ and columns are inferred from data.
 ### Data type autodetectors
 
 You can define a set of functions that will be used to infer the data type of the column from a
-value. The functions are run from top to bottom on the lists. Look in [`detections.py`](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/schema/detections.py) to see what is
-available.
+value. The functions are run from top to bottom on the lists. Look in `detections.py` to see what is
+available. **iso_timestamp** detector that looks for ISO 8601 strings and converts them to **timestamp**
+is enabled by default.
 
 ```yaml
 settings:
@@ -236,12 +238,24 @@ settings:
     - wei_to_double
 ```
 
+Alternatively you can add and remove detections from code:
+```py
+  source = data_source()
+  # remove iso time detector
+  source.schema.remove_type_detection("iso_timestamp")
+  # convert UNIX timestamp (float, withing a year from NOW) into timestamp
+  source.schema.add_type_detection("timestamp")
+```
+Above we modify a schema that comes with a source to detect UNIX timestamps with **timestamp** detector.
+
 ### Column hint rules
 
 You can define a global rules that will apply hints of a newly inferred columns. Those rules apply
-to normalized column names. You can use column names directly or with regular expressions.
+to normalized column names. You can use column names directly or with regular expressions. `dlt` is matching
+the column names **after they got normalized with naming convention**.
 
-Example from ethereum schema:
+By default, schema adopts hints rules from json(relational) normalizer to support correct hinting
+of columns added by normalizer:
 
 ```yaml
 settings:
@@ -249,36 +263,59 @@ settings:
     foreign_key:
       - _dlt_parent_id
     not_null:
-      - re:^_dlt_id$
+      - _dlt_id
       - _dlt_root_id
       - _dlt_parent_id
       - _dlt_list_idx
+      - _dlt_load_id
     unique:
       - _dlt_id
-    cluster:
-      - block_hash
+    root_key:
+      - _dlt_root_id
+```
+Above we require exact column name match for a hint to apply. You can also use regular expression (which we call `SimpleRegex`) as follows:
+```yaml
+settings:
     partition:
-      - block_timestamp
+      - re:_timestamp$
+```
+Above we add `partition` hint to all columns ending with `_timestamp`. You can do same thing in the code
+```py
+  source = data_source()
+  # this will update existing hints with the hints passed
+  source.schema.merge_hints({"partition": ["re:_timestamp$"]})
 ```
 
 ### Preferred data types
 
 You can define rules that will set the data type for newly created columns. Put the rules under
 `preferred_types` key of `settings`. On the left side there's a rule on a column name, on the right
-side is the data type.
-
-> ❗See the column hint rules for naming convention!
+side is the data type. You can use column names directly or with regular expressions.
+`dlt` is matching the column names **after they got normalized with naming convention**.
 
 Example:
 
 ```yaml
 settings:
   preferred_types:
-    timestamp: timestamp
-    re:^inserted_at$: timestamp
-    re:^created_at$: timestamp
-    re:^updated_at$: timestamp
-    re:^_dlt_list_idx$: bigint
+    re:timestamp: timestamp
+    inserted_at: timestamp
+    created_at: timestamp
+    updated_at: timestamp
+```
+
+Above we prefer `timestamp` data type for all columns containing **timestamp** substring and define a few exact matches ie. **created_at**.
+Here's same thing in code
+```py
+  source = data_source()
+  source.schema.update_preferred_types(
+    {
+      "re:timestamp": "timestamp",
+      "inserted_at": "timestamp",
+      "created_at": "timestamp",
+      "updated_at": "timestamp",
+    }
+  )
 ```
 ### Applying data types directly with `@dlt.resource` and `apply_hints`
 `dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
@@ -364,7 +401,6 @@ def textual(nesting_level: int):
     schema.remove_type_detection("iso_timestamp")
     # convert UNIX timestamp (float, withing a year from NOW) into timestamp
     schema.add_type_detection("timestamp")
-    schema._compile_settings()
 
     return dlt.resource([])
 ```

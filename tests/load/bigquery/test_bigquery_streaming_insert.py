@@ -1,7 +1,7 @@
 import pytest
 
 import dlt
-from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter
 from tests.pipeline.utils import assert_load_info
 
 
@@ -12,7 +12,7 @@ def test_bigquery_adapter_streaming_insert():
 
     bigquery_adapter(test_resource, insert_api="streaming")
 
-    pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery", full_refresh=True)
+    pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery", dev_mode=True)
     pack = pipe.run(test_resource, table_name="test_streaming_items44")
 
     assert_load_info(pack)
@@ -41,10 +41,12 @@ def test_bigquery_streaming_wrong_disposition():
 
     pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery")
     info = pipe.run(test_resource)
+    # pick the failed job
+    failed_job = info.load_packages[0].jobs["failed_jobs"][0]
     assert (
         """BigQuery streaming insert can only be used with `append`"""
         """ write_disposition, while the given resource has `merge`."""
-    ) in info.asdict()["load_packages"][0]["jobs"][0]["failed_message"]
+    ) in failed_job.failed_message
 
 
 def test_bigquery_streaming_nested_data():
@@ -54,7 +56,7 @@ def test_bigquery_streaming_nested_data():
 
     bigquery_adapter(test_resource, insert_api="streaming")
 
-    pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery", full_refresh=True)
+    pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery", dev_mode=True)
     pack = pipe.run(test_resource, table_name="test_streaming_items")
 
     assert_load_info(pack)

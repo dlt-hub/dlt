@@ -117,7 +117,7 @@ class SqlStagingCopyJob(SqlBaseJob):
             table_name = sql_client.make_qualified_table_name(table["name"])
             columns = ", ".join(
                 map(
-                    sql_client.capabilities.escape_identifier,
+                    sql_client.escape_column_name,
                     get_columns_names_with_prop(table, "name"),
                 )
             )
@@ -361,10 +361,8 @@ class SqlMergeJob(SqlBaseJob):
         sql: List[str] = []
         root_table = table_chain[0]
 
-        escape_id = sql_client.capabilities.escape_identifier
+        escape_column_id = sql_client.escape_column_name
         escape_lit = sql_client.capabilities.escape_literal
-        if escape_id is None:
-            escape_id = DestinationCapabilitiesContext.generic_capabilities().escape_identifier
         if escape_lit is None:
             escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
@@ -376,13 +374,13 @@ class SqlMergeJob(SqlBaseJob):
         # get merge and primary keys from top level
         primary_keys = list(
             map(
-                escape_id,
+                escape_column_id,
                 get_columns_names_with_prop(root_table, "primary_key"),
             )
         )
         merge_keys = list(
             map(
-                escape_id,
+                escape_column_id,
                 get_columns_names_with_prop(root_table, "merge_key"),
             )
         )
@@ -419,7 +417,7 @@ class SqlMergeJob(SqlBaseJob):
                         f" {root_table['name']} so it is not possible to link child tables to it.",
                     )
                 # get first unique column
-                unique_column = escape_id(unique_columns[0])
+                unique_column = escape_column_id(unique_columns[0])
                 # create temp table with unique identifier
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
@@ -442,14 +440,14 @@ class SqlMergeJob(SqlBaseJob):
                             f" {table['name']} so it is not possible to refer to top level table"
                             f" {root_table['name']} unique column {unique_column}",
                         )
-                    root_key_column = escape_id(root_key_columns[0])
+                    root_key_column = escape_column_id(root_key_columns[0])
                     sql.append(
                         cls.gen_delete_from_sql(
                             table_name, root_key_column, delete_temp_table_name, unique_column
                         )
                     )
 
-                # delete from top table now that child tables have been prcessed
+                # delete from top table now that child tables have been processed
                 sql.append(
                     cls.gen_delete_from_sql(
                         root_table_name, unique_column, delete_temp_table_name, unique_column
@@ -461,10 +459,10 @@ class SqlMergeJob(SqlBaseJob):
         hard_delete_col = get_first_column_name_with_prop(root_table, "hard_delete")
         if hard_delete_col is not None:
             # any value indicates a delete for non-boolean columns
-            not_deleted_cond = f"{escape_id(hard_delete_col)} IS NULL"
+            not_deleted_cond = f"{escape_column_id(hard_delete_col)} IS NULL"
             if root_table["columns"][hard_delete_col]["data_type"] == "bool":
                 # only True values indicate a delete for boolean columns
-                not_deleted_cond += f" OR {escape_id(hard_delete_col)} = {escape_lit(False)}"
+                not_deleted_cond += f" OR {escape_column_id(hard_delete_col)} = {escape_lit(False)}"
 
         # get dedup sort information
         dedup_sort = get_dedup_sort_tuple(root_table)
@@ -503,7 +501,7 @@ class SqlMergeJob(SqlBaseJob):
                 uniq_column = unique_column if table.get("parent") is None else root_key_column
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
 
-            columns = list(map(escape_id, get_columns_names_with_prop(table, "name")))
+            columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
             col_str = ", ".join(columns)
             select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
             if len(primary_keys) > 0 and len(table_chain) == 1:
@@ -534,9 +532,11 @@ class SqlMergeJob(SqlBaseJob):
 
         # get column names
         caps = sql_client.capabilities
-        escape_id = caps.escape_identifier
-        from_, to = list(map(escape_id, get_validity_column_names(root_table)))  # validity columns
-        hash_ = escape_id(
+        escape_column_id = sql_client.escape_column_name
+        from_, to = list(
+            map(escape_column_id, get_validity_column_names(root_table))
+        )  # validity columns
+        hash_ = escape_column_id(
             get_first_column_name_with_prop(root_table, "x-row-version")
         )  # row hash column
 
@@ -568,7 +568,7 @@ class SqlMergeJob(SqlBaseJob):
         """)
 
         # insert new active records in root table
-        columns = map(escape_id, list(root_table["columns"].keys()))
+        columns = map(escape_column_id, list(root_table["columns"].keys()))
         col_str = ", ".join([c for c in columns if c not in (from_, to)])
         sql.append(f"""
             INSERT INTO {root_table_name} ({col_str}, {from_}, {to})
@@ -592,7 +592,7 @@ class SqlMergeJob(SqlBaseJob):
                     " it is not possible to link child tables to it.",
                 )
             # get first unique column
-            unique_column = escape_id(unique_columns[0])
+            unique_column = escape_column_id(unique_columns[0])
             # TODO: - based on deterministic child hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage

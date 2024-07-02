@@ -33,7 +33,7 @@ def test_complete_successful_package(load_storage: LoadStorage) -> None:
     # but completed packages are deleted
     load_storage.maybe_remove_completed_jobs(load_id)
     assert not load_storage.loaded_packages.storage.has_folder(
-        load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
+        load_storage.loaded_packages.get_job_state_folder_path(load_id, "completed_jobs")
     )
     assert_package_info(load_storage, load_id, "loaded", "completed_jobs", jobs_count=0)
     # delete completed package
@@ -56,7 +56,7 @@ def test_complete_successful_package(load_storage: LoadStorage) -> None:
     )
     # has completed loads
     assert load_storage.loaded_packages.storage.has_folder(
-        load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
+        load_storage.loaded_packages.get_job_state_folder_path(load_id, "completed_jobs")
     )
     load_storage.delete_loaded_package(load_id)
     assert not load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
@@ -82,14 +82,14 @@ def test_complete_package_failed_jobs(load_storage: LoadStorage) -> None:
     assert load_storage.storage.has_folder(load_storage.get_loaded_package_path(load_id))
     # has completed loads
     assert load_storage.loaded_packages.storage.has_folder(
-        load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
+        load_storage.loaded_packages.get_job_state_folder_path(load_id, "completed_jobs")
     )
     assert_package_info(load_storage, load_id, "loaded", "failed_jobs")
 
     # get failed jobs info
     failed_files = sorted(load_storage.loaded_packages.list_failed_jobs(load_id))
-    # job + message
-    assert len(failed_files) == 2
+    # only jobs
+    assert len(failed_files) == 1
     assert load_storage.loaded_packages.storage.has_file(failed_files[0])
     failed_info = load_storage.list_failed_jobs_in_loaded_package(load_id)
     assert failed_info[0].file_path == load_storage.loaded_packages.storage.make_full_path(
@@ -117,7 +117,7 @@ def test_abort_package(load_storage: LoadStorage) -> None:
     assert_package_info(load_storage, load_id, "normalized", "failed_jobs")
     load_storage.complete_load_package(load_id, True)
     assert load_storage.loaded_packages.storage.has_folder(
-        load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
+        load_storage.loaded_packages.get_job_state_folder_path(load_id, "completed_jobs")
     )
     assert_package_info(load_storage, load_id, "aborted", "failed_jobs")
 

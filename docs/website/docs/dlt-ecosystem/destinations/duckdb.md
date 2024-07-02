@@ -37,7 +37,7 @@ All write dispositions are supported.
 
 ### Names normalization
 `dlt` uses the standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. If you want to use the **duckdb** wide range of characters (i.e., emojis) for table and column names, you can switch to the **duck_case** naming convention, which accepts almost any string as an identifier:
-* `\n` `\r`  and `" are translated to `_`
+* `\n` `\r`  and `"` are translated to `_`
 * multiple `_` are translated to a single `_`
 
 Switch the naming convention using `config.toml`:
@@ -51,7 +51,7 @@ or via the env variable `SCHEMA__NAMING` or directly in the code:
 dlt.config["schema.naming"] = "duck_case"
 ```
 :::caution
-**duckdb** identifiers are **case insensitive** but display names preserve case. This may create name clashes if, for example, you load JSON with
+**duckdb** identifiers are **case insensitive** but display names preserve case. This may create name collisions if, for example, you load JSON with
 `{"Column": 1, "column": 2}` as it will map data to a single column.
 :::
 

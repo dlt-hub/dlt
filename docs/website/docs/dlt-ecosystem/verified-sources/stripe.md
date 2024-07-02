@@ -175,24 +175,7 @@ def incremental_stripe_source(
 
 After each run, 'initial_start_date' updates to the last loaded date. Subsequent runs then retrieve only new data using append mode, streamlining the process and preventing redundant data downloads.
 
-For more information, read the [General Usage: Incremental loading](../../general-usage/incremental-loading).
-
-### Resource `metrics_resource`
-
-This function loads a dictionary with calculated metrics, including MRR and Churn rate, along with the current timestamp.
-
-```py
-@dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
-def metrics_resource() -> Iterable[TDataItem]:
-   ...
-```
-
-Abrevations MRR and Churn rate are as follows:
-- Monthly Recurring Revenue (MRR):
-  - Measures the predictable monthly revenue from all active subscriptions. It's the sum of the monthly-normalized subscription amounts.
-- Churn rate:
-  - Indicates the rate subscribers leave a service over a specific period. Calculated by dividing the number of recent cancellations by the total subscribers from 30 days ago, adjusted for new subscribers.
-
+For more information, read the [Incremental loading](../../general-usage/incremental-loading).
 
 ## Customization
 ### Create your own pipeline
@@ -236,7 +219,7 @@ verified source.
     ```
     > For subsequent runs, the dlt module sets the previous "end_date" as "initial_start_date", ensuring incremental data retrieval.
 
-1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For incremental_stripe_source, the initial_start_date will auto-update to the last loaded date from the previous run.
+1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For `incremental_stripe_source`, the `initial_start_date` will auto-update to the last loaded date from the previous run.
 
     ```py
     source_single = stripe_source(
@@ -249,21 +232,6 @@ verified source.
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
     ```
-    > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](https://dlthub.com/docs/general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh), disrupting the metadata (state) tracking for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
-
-1. To load important metrics and store them in database:
-
-   ```py
-   # Event is an endpoint with uneditable data, so we can use 'incremental_stripe_source'.
-   source_event = incremental_stripe_source(endpoints=("Event",))
-   # Subscription is an endpoint with editable data, use stripe_source.
-   source_subs = stripe_source(endpoints=("Subscription",))
-   load_info = pipeline.run(data=[source_subs, source_event])
-   print(load_info)
-   resource = metrics_resource()
-   print(list(resource))
-   load_info = pipeline.run(resource)
-   print(load_info)
-   ```
+    > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](../../general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh), disrupting the metadata (state) tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA stripe_analytics-->

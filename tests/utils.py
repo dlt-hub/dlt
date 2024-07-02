@@ -45,13 +45,22 @@ IMPLEMENTED_DESTINATIONS = {
     "motherduck",
     "mssql",
     "qdrant",
+    "lancedb",
     "destination",
     "synapse",
     "databricks",
     "clickhouse",
     "dremio",
 }
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "destination"}
+NON_SQL_DESTINATIONS = {
+    "filesystem",
+    "weaviate",
+    "dummy",
+    "motherduck",
+    "qdrant",
+    "lancedb",
+    "destination",
+}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
@@ -173,7 +182,7 @@ def unload_modules() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def wipe_pipeline() -> Iterator[None]:
+def wipe_pipeline(preserve_environ) -> Iterator[None]:
     """Wipes pipeline local state and deactivates it"""
     container = Container()
     if container[PipelineContext].is_active():

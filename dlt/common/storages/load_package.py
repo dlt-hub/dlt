@@ -5,7 +5,7 @@ import threading
 
 import datetime  # noqa: 251
 import humanize
-from pathlib import Path
+from pathlib import PurePath
 from pendulum.datetime import DateTime
 from typing import (
     ClassVar,
@@ -37,7 +37,12 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TTableSchema
 from dlt.common.storages import FileStorage
-from dlt.common.storages.exceptions import LoadPackageNotFound, CurrentLoadPackageStateNotAvailable
+from dlt.common.storages.exceptions import (
+    LoadPackageAlreadyCompleted,
+    LoadPackageNotCompleted,
+    LoadPackageNotFound,
+    CurrentLoadPackageStateNotAvailable,
+)
 from dlt.common.typing import DictStrAny, SupportsHumanize
 from dlt.common.utils import flatten_list_or_items
 from dlt.common.versioned_state import (
@@ -52,6 +57,7 @@ from dlt.common.time import precise_time
 
 TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 """Loader file formats with internal job types"""
+JOB_EXCEPTION_EXTENSION = ".exception"
 
 
 class TPipelineStateDoc(TypedDict, total=False):
@@ -61,9 +67,9 @@ class TPipelineStateDoc(TypedDict, total=False):
     engine_version: int
     pipeline_name: str
     state: str
-    version_hash: str
     created_at: datetime.datetime
-    dlt_load_id: NotRequired[str]
+    version_hash: str
+    _dlt_load_id: NotRequired[str]
 
 
 class TLoadPackageState(TVersionedState, total=False):
@@ -165,7 +171,7 @@ class ParsedLoadJobFileName(NamedTuple):
 
     @staticmethod
     def parse(file_name: str) -> "ParsedLoadJobFileName":
-        p = Path(file_name)
+        p = PurePath(file_name)
         parts = p.name.split(".")
         if len(parts) != 4:
             raise TerminalValueError(parts)
@@ -319,13 +325,16 @@ class PackageStorage:
     #
 
     def get_package_path(self, load_id: str) -> str:
+        """Gets path of the package relative to storage root"""
         return load_id
 
-    def get_job_folder_path(self, load_id: str, folder: TJobState) -> str:
-        return os.path.join(self.get_package_path(load_id), folder)
+    def get_job_state_folder_path(self, load_id: str, state: TJobState) -> str:
+        """Gets path to the jobs in `state` in package `load_id`, relative to the storage root"""
+        return os.path.join(self.get_package_path(load_id), state)
 
-    def get_job_file_path(self, load_id: str, folder: TJobState, file_name: str) -> str:
-        return os.path.join(self.get_job_folder_path(load_id, folder), file_name)
+    def get_job_file_path(self, load_id: str, state: TJobState, file_name: str) -> str:
+        """Get path to job with `file_name` in `state` in package `load_id`, relative to the storage root"""
+        return os.path.join(self.get_job_state_folder_path(load_id, state), file_name)
 
     def list_packages(self) -> Sequence[str]:
         """Lists all load ids in storage, earliest first
@@ -338,29 +347,42 @@ class PackageStorage:
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         new_jobs = self.storage.list_folder_files(
-            self.get_job_folder_path(load_id, PackageStorage.NEW_JOBS_FOLDER)
+            self.get_job_state_folder_path(load_id, PackageStorage.NEW_JOBS_FOLDER)
         )
         return new_jobs
 
     def list_started_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(
-            self.get_job_folder_path(load_id, PackageStorage.STARTED_JOBS_FOLDER)
+            self.get_job_state_folder_path(load_id, PackageStorage.STARTED_JOBS_FOLDER)
         )
 
     def list_failed_jobs(self, load_id: str) -> Sequence[str]:
-        return self.storage.list_folder_files(
-            self.get_job_folder_path(load_id, PackageStorage.FAILED_JOBS_FOLDER)
-        )
+        return [
+            file
+            for file in self.storage.list_folder_files(
+                self.get_job_state_folder_path(load_id, PackageStorage.FAILED_JOBS_FOLDER)
+            )
+            if not file.endswith(JOB_EXCEPTION_EXTENSION)
+        ]
 
-    def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
-        return self.filter_jobs_for_table(self.list_all_jobs(load_id), table_name)
+    def list_job_with_states_for_table(
+        self, load_id: str, table_name: str
+    ) -> Sequence[Tuple[TJobState, ParsedLoadJobFileName]]:
+        return self.filter_jobs_for_table(self.list_all_jobs_with_states(load_id), table_name)
 
-    def list_all_jobs(self, load_id: str) -> Sequence[LoadJobInfo]:
-        info = self.get_load_package_info(load_id)
-        return [job for job in flatten_list_or_items(iter(info.jobs.values()))]  # type: ignore
+    def list_all_jobs_with_states(
+        self, load_id: str
+    ) -> Sequence[Tuple[TJobState, ParsedLoadJobFileName]]:
+        info = self.get_load_package_jobs(load_id)
+        state_jobs = []
+        for state, jobs in info.items():
+            state_jobs.extend([(state, job) for job in jobs])
+        return state_jobs
 
     def list_failed_jobs_infos(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a load package with `load_id`"""
+        if not self.is_package_completed(load_id):
+            raise LoadPackageNotCompleted(load_id)
         failed_jobs: List[LoadJobInfo] = []
         package_path = self.get_package_path(load_id)
         package_created_at = pendulum.from_timestamp(
@@ -371,11 +393,18 @@ class PackageStorage:
             )
         )
         for file in self.list_failed_jobs(load_id):
-            if not file.endswith(".exception"):
-                failed_jobs.append(
-                    self._read_job_file_info("failed_jobs", file, package_created_at)
+            failed_jobs.append(
+                self._read_job_file_info(
+                    load_id, "failed_jobs", ParsedLoadJobFileName.parse(file), package_created_at
                 )
+            )
         return failed_jobs
+
+    def is_package_completed(self, load_id: str) -> bool:
+        package_path = self.get_package_path(load_id)
+        return self.storage.has_file(
+            os.path.join(package_path, PackageStorage.PACKAGE_COMPLETED_FILE_NAME)
+        )
 
     #
     # Move jobs
@@ -385,7 +414,9 @@ class PackageStorage:
         self, load_id: str, job_file_path: str, job_state: TJobState = "new_jobs"
     ) -> None:
         """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
-        self.storage.atomic_import(job_file_path, self.get_job_folder_path(load_id, job_state))
+        self.storage.atomic_import(
+            job_file_path, self.get_job_state_folder_path(load_id, job_state)
+        )
 
     def start_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(
@@ -397,7 +428,7 @@ class PackageStorage:
         if failed_message:
             self.storage.save(
                 self.get_job_file_path(
-                    load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + ".exception"
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, file_name + JOB_EXCEPTION_EXTENSION
                 ),
                 failed_message,
             )
@@ -455,6 +486,8 @@ class PackageStorage:
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
         load_path = self.get_package_path(load_id)
+        if self.is_package_completed(load_id):
+            raise LoadPackageAlreadyCompleted(load_id)
         # save marker file
         self.storage.save(
             os.path.join(load_path, PackageStorage.PACKAGE_COMPLETED_FILE_NAME), load_state
@@ -468,7 +501,7 @@ class PackageStorage:
         # delete completed jobs
         if not has_failed_jobs:
             self.storage.delete_folder(
-                self.get_job_folder_path(load_id, PackageStorage.COMPLETED_JOBS_FOLDER),
+                self.get_job_state_folder_path(load_id, PackageStorage.COMPLETED_JOBS_FOLDER),
                 recursively=True,
             )
 
@@ -533,11 +566,32 @@ class PackageStorage:
     # Get package info
     #
 
-    def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
-        """Gets information on normalized/completed package with given load_id, all jobs and their statuses."""
+    def get_load_package_jobs(self, load_id: str) -> Dict[TJobState, List[ParsedLoadJobFileName]]:
+        """Gets all jobs in a package and returns them as lists assigned to a particular state."""
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise LoadPackageNotFound(load_id)
+        all_jobs: Dict[TJobState, List[ParsedLoadJobFileName]] = {}
+        for state in WORKING_FOLDERS:
+            jobs: List[ParsedLoadJobFileName] = []
+            with contextlib.suppress(FileNotFoundError):
+                # we ignore if load package lacks one of working folders. completed_jobs may be deleted on archiving
+                for file in self.storage.list_folder_files(
+                    self.get_job_state_folder_path(load_id, state), to_root=False
+                ):
+                    if not file.endswith(JOB_EXCEPTION_EXTENSION):
+                        jobs.append(ParsedLoadJobFileName.parse(file))
+            all_jobs[state] = jobs
+        return all_jobs
+
+    def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
+        """Gets information on normalized/completed package with given load_id, all jobs and their statuses.
+
+        Will reach to the file system to get additional stats, mtime, also collects exceptions for failed jobs.
+        NOTE: do not call this function often. it should be used only to generate metrics
+        """
+        package_path = self.get_package_path(load_id)
+        package_jobs = self.get_load_package_jobs(load_id)
 
         package_created_at: DateTime = None
         package_state = self.initial_state
@@ -560,15 +614,11 @@ class PackageStorage:
         schema = Schema.from_dict(self._load_schema(load_id))
 
         # read jobs with all statuses
-        all_jobs: Dict[TJobState, List[LoadJobInfo]] = {}
-        for state in WORKING_FOLDERS:
-            jobs: List[LoadJobInfo] = []
-            with contextlib.suppress(FileNotFoundError):
-                # we ignore if load package lacks one of working folders. completed_jobs may be deleted on archiving
-                for file in self.storage.list_folder_files(os.path.join(package_path, state)):
-                    if not file.endswith(".exception"):
-                        jobs.append(self._read_job_file_info(state, file, package_created_at))
-            all_jobs[state] = jobs
+        all_job_infos: Dict[TJobState, List[LoadJobInfo]] = {}
+        for state, jobs in package_jobs.items():
+            all_job_infos[state] = [
+                self._read_job_file_info(load_id, state, job, package_created_at) for job in jobs
+            ]
 
         return LoadPackageInfo(
             load_id,
@@ -577,15 +627,46 @@ class PackageStorage:
             schema,
             applied_update,
             package_created_at,
-            all_jobs,
+            all_job_infos,
         )
 
-    def _read_job_file_info(self, state: TJobState, file: str, now: DateTime = None) -> LoadJobInfo:
-        try:
-            failed_message = self.storage.load(file + ".exception")
-        except FileNotFoundError:
-            failed_message = None
-        full_path = self.storage.make_full_path(file)
+    def get_job_failed_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:
+        """Get exception message of a failed job."""
+        rel_path = self.get_job_file_path(load_id, "failed_jobs", job.file_name())
+        if not self.storage.has_file(rel_path):
+            raise FileNotFoundError(rel_path)
+        failed_message: str = None
+        with contextlib.suppress(FileNotFoundError):
+            failed_message = self.storage.load(rel_path + JOB_EXCEPTION_EXTENSION)
+        return failed_message
+
+    def job_to_job_info(
+        self, load_id: str, state: TJobState, job: ParsedLoadJobFileName
+    ) -> LoadJobInfo:
+        """Creates partial job info by converting job object. size, mtime and failed message will not be populated"""
+        full_path = os.path.join(
+            self.storage.storage_path, self.get_job_file_path(load_id, state, job.file_name())
+        )
+        return LoadJobInfo(
+            state,
+            full_path,
+            0,
+            None,
+            0,
+            job,
+            None,
+        )
+
+    def _read_job_file_info(
+        self, load_id: str, state: TJobState, job: ParsedLoadJobFileName, now: DateTime = None
+    ) -> LoadJobInfo:
+        """Creates job info by reading additional props from storage"""
+        failed_message = None
+        if state == "failed_jobs":
+            failed_message = self.get_job_failed_message(load_id, job)
+        full_path = os.path.join(
+            self.storage.storage_path, self.get_job_file_path(load_id, state, job.file_name())
+        )
         st = os.stat(full_path)
         return LoadJobInfo(
             state,
@@ -593,7 +674,7 @@ class PackageStorage:
             st.st_size,
             pendulum.from_timestamp(st.st_mtime),
             PackageStorage._job_elapsed_time_seconds(full_path, now.timestamp() if now else None),
-            ParsedLoadJobFileName.parse(file),
+            job,
             failed_message,
         )
 
@@ -611,10 +692,11 @@ class PackageStorage:
     ) -> str:
         # ensure we move file names, not paths
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
-        load_path = self.get_package_path(load_id)
-        dest_path = os.path.join(load_path, dest_folder, new_file_name or file_name)
-        self.storage.atomic_rename(os.path.join(load_path, source_folder, file_name), dest_path)
-        # print(f"{join(load_path, source_folder, file_name)} -> {dest_path}")
+
+        dest_path = self.get_job_file_path(load_id, dest_folder, new_file_name or file_name)
+        self.storage.atomic_rename(
+            self.get_job_file_path(load_id, source_folder, file_name), dest_path
+        )
         return self.storage.make_full_path(dest_path)
 
     def _load_schema(self, load_id: str) -> DictStrAny:
@@ -659,9 +741,9 @@ class PackageStorage:
 
     @staticmethod
     def filter_jobs_for_table(
-        all_jobs: Iterable[LoadJobInfo], table_name: str
-    ) -> Sequence[LoadJobInfo]:
-        return [job for job in all_jobs if job.job_file_info.table_name == table_name]
+        all_jobs: Iterable[Tuple[TJobState, ParsedLoadJobFileName]], table_name: str
+    ) -> Sequence[Tuple[TJobState, ParsedLoadJobFileName]]:
+        return [job for job in all_jobs if job[1].table_name == table_name]
 
 
 @configspec

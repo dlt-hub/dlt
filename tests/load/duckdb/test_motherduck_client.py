@@ -14,7 +14,7 @@ from dlt.destinations.impl.motherduck.configuration import (
     MotherDuckClientConfiguration,
 )
 
-from tests.utils import patch_home_dir, preserve_environ, skip_if_not_active
+from tests.utils import patch_home_dir, skip_if_not_active
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

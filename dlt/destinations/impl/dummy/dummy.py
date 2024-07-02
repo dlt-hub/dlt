@@ -36,7 +36,6 @@ from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
     LoadJobInvalidStateTransitionException,
 )
-from dlt.destinations.impl.dummy import capabilities
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 
@@ -110,10 +109,13 @@ CREATED_FOLLOWUP_JOBS: Dict[str, NewLoadJob] = {}
 class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset):
     """dummy client storing jobs in memory"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: DummyClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: DummyClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.in_staging_context = False
         self.config: DummyClientConfiguration = config
 
@@ -160,7 +162,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []

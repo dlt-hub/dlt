@@ -11,7 +11,7 @@ from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.postgres.sql_client import psycopg2
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy, preserve_environ
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 from tests.common.configuration.utils import environment
 

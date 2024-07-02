@@ -86,7 +86,7 @@ Data loading happens by copying a staged parquet files from an object storage bu
 
 Dremio does not support `CREATE SCHEMA` DDL statements.
 
-Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the dlt pipeline. `full_refresh=True` is unsupported for these data sources.
+Therefore, "Metastore" data sources, such as Hive or Glue, require that the dataset schema exists prior to running the dlt pipeline. `dev_mode=True` is unsupported for these data sources.
 
 "Object Storage" data sources do not have this limitation.
 

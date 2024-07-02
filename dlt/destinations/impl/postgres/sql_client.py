@@ -26,15 +26,18 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
-from dlt.destinations.impl.postgres import capabilities
 
 
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
     dbapi: ClassVar[DBApi] = psycopg2
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: PostgresCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: PostgresCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, capabilities)
         self._conn: psycopg2.connection = None
         self.credentials = credentials
 
@@ -111,11 +114,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         # compose the statements using psycopg2 library
         composed = Composed(sql if isinstance(sql, Composable) else SQL(sql) for sql in fragments)
         return self.execute_sql(composed, *args, **kwargs)
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
 
     def _reset_connection(self) -> None:
         # self._conn.autocommit = True

@@ -116,6 +116,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/snowflake',
             'dlt-ecosystem/destinations/athena',
             'dlt-ecosystem/destinations/weaviate',
+            'dlt-ecosystem/destinations/lancedb',
             'dlt-ecosystem/destinations/qdrant',
             'dlt-ecosystem/destinations/dremio',
             'dlt-ecosystem/destinations/destination',
@@ -157,6 +158,7 @@ const sidebars = {
         'general-usage/incremental-loading',
         'general-usage/full-loading',
         'general-usage/schema',
+        'general-usage/naming-convention',
         'general-usage/schema-contracts',
         'general-usage/schema-evolution',
         {

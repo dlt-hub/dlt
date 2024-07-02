@@ -6,6 +6,7 @@ from dlt.common.json import json
 from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.schema.utils import has_table_seen_data
@@ -149,7 +150,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             continue
                         # theres a new table or new columns in existing table
                         # update schema and save the change
-                        schema.update_table(partial_table)
+                        schema.update_table(partial_table, normalize_identifiers=False)
                         table_updates = schema_update.setdefault(table_name, [])
                         table_updates.append(partial_table)
 
@@ -200,6 +201,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 )
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
+            # empty json files are when replace write disposition is used in order to truncate table(s)
             if line is None and root_table_name in self.schema.tables:
                 # TODO: we should push the truncate jobs via package state
                 # not as empty jobs. empty jobs should be reserved for
@@ -234,8 +236,9 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         load_id = self.load_id
         schema_update: TSchemaUpdate = {}
+        data_normalizer = schema.data_item_normalizer
 
-        if add_dlt_id:
+        if add_dlt_id and isinstance(data_normalizer, RelationalNormalizer):
             table_update = schema.update_table(
                 {
                     "name": root_table_name,
@@ -249,7 +252,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
             new_columns.append(
                 (
                     -1,
-                    pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
+                    pa.field(data_normalizer.c_dlt_id, pyarrow.pyarrow.string(), nullable=False),
                     lambda batch: pa.array(generate_dlt_ids(batch.num_rows)),
                 )
             )
@@ -375,3 +378,32 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         )
 
         return base_schema_update
+
+
+class FileImportNormalizer(ItemsNormalizer):
+    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        logger.info(
+            f"Table {root_table_name} {self.item_storage.writer_spec.file_format} file"
+            f" {extracted_items_file} will be directly imported without normalization"
+        )
+        completed_columns = self.schema.get_table_columns(root_table_name)
+        if not completed_columns:
+            logger.warning(
+                f"Table {root_table_name} has no completed columns for imported file"
+                f" {extracted_items_file} and will not be created! Pass column hints to the"
+                " resource or with dlt.mark.with_hints or create the destination table yourself."
+            )
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "rb"
+        ) as f:
+            # TODO: sniff the schema depending on a file type
+            file_metrics = DataWriterMetrics(extracted_items_file, 0, f.tell(), 0, 0)
+        parts = ParsedLoadJobFileName.parse(extracted_items_file)
+        self.item_storage.import_items_file(
+            self.load_id,
+            self.schema.name,
+            parts.table_name,
+            self.normalize_storage.extracted_packages.storage.make_full_path(extracted_items_file),
+            file_metrics,
+        )
+        return []

@@ -2,13 +2,22 @@ import posixpath
 import os
 from unittest import mock
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
+from dlt.common.configuration.specs.azure_credentials import AzureCredentials
+from dlt.common.configuration.specs.base_configuration import (
+    CredentialsConfiguration,
+    extract_inner_hint,
+)
+from dlt.common.schema.schema import Schema
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
+from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import (
     FilesystemDestinationClientConfiguration,
     INIT_FILE_NAME,
@@ -50,6 +59,32 @@ NORMALIZED_FILES = [
 )
 def test_filesystem_destination_configuration(url, exp) -> None:
     assert FilesystemDestinationClientConfiguration(bucket_url=url).fingerprint() == exp
+
+
+def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
+    proto = urlparse(with_gdrive_buckets_env).scheme
+    credentials_type = extract_inner_hint(
+        FilesystemConfiguration.PROTOCOL_CREDENTIALS.get(proto, CredentialsConfiguration)
+    )
+
+    # test factory figuring out the right credentials
+    filesystem_ = filesystem(with_gdrive_buckets_env)
+    client = filesystem_.client(
+        Schema("test"),
+        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
+    )
+    assert client.config.protocol == proto or "file"
+    assert isinstance(client.config.credentials, credentials_type)
+    assert issubclass(client.config.credentials_type(client.config), credentials_type)
+    assert filesystem_.capabilities()
+
+    # factory gets initial credentials
+    filesystem_ = filesystem(with_gdrive_buckets_env, credentials=credentials_type())
+    client = filesystem_.client(
+        Schema("test"),
+        initial_config=FilesystemDestinationClientConfiguration()._bind_dataset_name("test"),
+    )
+    assert isinstance(client.config.credentials, credentials_type)
 
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))

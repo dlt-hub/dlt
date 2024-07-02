@@ -348,13 +348,13 @@ def normalize_py_arrow_item(
 
 
 def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingConvention) -> StrStr:
-    """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
+    """Normalizes schema field names and returns mapping from original to normalized name. Raises on name collisions"""
     norm_f = naming.normalize_identifier
     name_mapping = {n.name: norm_f(n.name) for n in schema}
     # verify if names uniquely normalize
     normalized_names = set(name_mapping.values())
     if len(name_mapping) != len(normalized_names):
-        raise NameNormalizationClash(
+        raise NameNormalizationCollision(
             f"Arrow schema fields normalized from {list(name_mapping.keys())} to"
             f" {list(normalized_names)}"
         )
@@ -497,7 +497,7 @@ def cast_arrow_schema_types(
     return schema
 
 
-class NameNormalizationClash(ValueError):
+class NameNormalizationCollision(ValueError):
     def __init__(self, reason: str) -> None:
-        msg = f"Arrow column name clash after input data normalization. {reason}"
+        msg = f"Arrow column name collision after input data normalization. {reason}"
         super().__init__(msg)
