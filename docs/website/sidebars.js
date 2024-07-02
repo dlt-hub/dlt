@@ -46,11 +46,8 @@ const sidebars = {
       type: 'category',
       label: 'Integrations',
       link: {
-        type: 'generated-index',
-        title: 'Integrations',
-        description: 'dlt fits everywhere where the data flows. check out our curated data sources, destinations and unexpected places where dlt runs',
-        slug: 'dlt-ecosystem',
-        keywords: ['getting started'],
+        type: 'doc',
+        id: 'dlt-ecosystem/index',
       },
       items: [
         {
