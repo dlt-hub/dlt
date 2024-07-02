@@ -486,7 +486,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         raise pending_exception
                     break
                 # this will raise on signal
-                sleep(0.5)
+                sleep(0.1) #  TODO: figure out correct value
             except LoadClientJobFailed:
                 # the package is completed and skipped
                 self.update_loadpackage_info(load_id)
