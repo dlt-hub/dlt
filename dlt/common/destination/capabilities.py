@@ -88,6 +88,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     max_table_nesting: Optional[int] = None
     """Allows a destination to overwrite max_table_nesting from source"""
 
+    supported_merge_strategies: Sequence["TLoaderMergeStrategy"] = None  # type: ignore[name-defined] # noqa: F821
+    # TODO: also add `supported_replace_strategies` capability
+
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
 

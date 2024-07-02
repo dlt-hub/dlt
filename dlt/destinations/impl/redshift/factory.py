@@ -40,6 +40,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
         caps.alter_add_multi_column = False
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
         return caps
 

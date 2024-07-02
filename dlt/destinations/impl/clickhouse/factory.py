@@ -67,6 +67,8 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
         caps.supports_truncate_command = True
 
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
+
         return caps
 
     @property

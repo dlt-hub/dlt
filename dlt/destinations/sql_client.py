@@ -173,6 +173,12 @@ SELECT 1
             path.append(table_name)
         return path
 
+    def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
+        """Returns qualified names for table and corresponding staging table as tuple."""
+        with self.with_staging_dataset(staging=True):
+            staging_table_name = self.make_qualified_table_name(table_name, escape)
+        return self.make_qualified_table_name(table_name, escape), staging_table_name
+
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
         column_name = self.capabilities.casefold_identifier(column_name)
         if escape:

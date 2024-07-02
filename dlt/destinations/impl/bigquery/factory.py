@@ -42,6 +42,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.supports_ddl_transactions = False
         caps.supports_clone_table = True
         caps.schema_supports_numeric_precision = False  # no precision information in BigQuery
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
         return caps
 
