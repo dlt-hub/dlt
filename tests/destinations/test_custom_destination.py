@@ -69,7 +69,7 @@ def test_custom_destination_info():
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
         pass
 
-    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)
+    p = dlt.pipeline("sink_test", destination=test_sink, dev_mode=True)  # type: ignore
     assert p.destination.destination_info == {
         "destination_name": "test_sink",
         "destination_type": "dlt.destinations.destination",
