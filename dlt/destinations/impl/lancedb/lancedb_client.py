@@ -686,7 +686,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadLanceDBJob(
             self.schema,
             table,

@@ -242,6 +242,9 @@ class LoadJob:
             logger.exception(f"Temporary problem when starting job {self.file_name}")
             self._state = "retry"
             self._exception = e
+        finally:
+            # sanity check
+            assert self._state not in ("running", "ready")
 
     @abstractmethod
     def run(self) -> None:
@@ -361,7 +364,7 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Creates and starts a load job for a particular `table` with content in `file_path`"""
         pass
 

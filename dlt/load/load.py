@@ -166,7 +166,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 ) and job_client.should_load_data_to_staging_dataset(table)
 
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job = client.start_file_load(
+                job = client.get_load_job(
                     table,
                     self.load_storage.normalized_packages.storage.make_full_path(file_path),
                     load_id,

@@ -256,7 +256,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             jobs.extend(self._create_replace_followup_jobs(table_chain))
         return jobs
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
@@ -266,7 +266,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or None to let derived classes to handle their specific jobs
 
-        Returns completed jobs as SqlLoadJob is executed atomically in start_file_load so any jobs that should be recreated are already completed.
+        Returns completed jobs as SqlLoadJob is executed atomically in get_load_job so any jobs that should be recreated are already completed.
         Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
 
         Args:

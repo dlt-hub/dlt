@@ -104,7 +104,7 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or InsertValuesJob
 
-        Returns completed jobs as SqlLoadJob and InsertValuesJob executed atomically in start_file_load so any jobs that should be recreated are already completed.
+        Returns completed jobs as SqlLoadJob and InsertValuesJob executed atomically in get_load_job so any jobs that should be recreated are already completed.
         Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
 
         Args:
@@ -118,8 +118,8 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
             job = EmptyLoadJob.from_file_path(file_path, "completed")
         return job
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().start_file_load(table, file_path, load_id)
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().get_load_job(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
             if file_path.endswith("insert_values"):

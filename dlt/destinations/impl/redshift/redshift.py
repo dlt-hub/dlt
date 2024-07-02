@@ -252,9 +252,9 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        job = super().start_file_load(table, file_path, load_id)
+        job = super().get_load_job(table, file_path, load_id)
         if not job:
             assert NewReferenceJob.is_reference_job(
                 file_path

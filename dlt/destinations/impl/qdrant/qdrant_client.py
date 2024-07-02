@@ -436,7 +436,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         except Exception:
             return None
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadQdrantJob(
             table,
             file_path,

@@ -678,7 +678,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             **extra_kv,
         }
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadWeaviateJob(
             self.schema,
             table,
