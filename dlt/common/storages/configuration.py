@@ -111,8 +111,19 @@ class FilesystemConfiguration(BaseConfiguration):
         return self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of bucket_url"""
-        return digest128(self.bucket_url) if self.bucket_url else ""
+        """Returns a fingerprint of bucket schema and netloc.
+
+        Returns:
+            str: Fingerprint.
+        """
+        if not self.bucket_url:
+            return ""
+
+        if self.is_local_path(self.bucket_url):
+            return digest128("")
+
+        uri = urlparse(self.bucket_url)
+        return digest128(self.bucket_url.replace(uri.path, ""))
 
     def __str__(self) -> str:
         """Return displayable destination location"""
