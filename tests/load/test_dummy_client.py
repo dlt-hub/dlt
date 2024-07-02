@@ -96,8 +96,8 @@ def test_unsupported_write_disposition() -> None:
     with ThreadPoolExecutor() as pool:
         load.run(pool)
     # job with unsupported write disp. is failed
-    failed_job = load.load_storage.normalized_packages.list_failed_jobs(load_id)[0]
-    failed_message = load.load_storage.normalized_packages.get_job_failed_message(
+    failed_job = load.load_storage.loaded_packages.list_failed_jobs(load_id)[0]
+    failed_message = load.load_storage.loaded_packages.get_job_failed_message(
         load_id, ParsedLoadJobFileName.parse(failed_job)
     )
     assert "LoadClientUnsupportedWriteDisposition" in failed_message
