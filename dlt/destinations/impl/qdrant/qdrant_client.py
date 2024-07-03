@@ -1,5 +1,6 @@
 from types import TracebackType
 from typing import Optional, Sequence, List, Dict, Type, Iterable, Any
+import threading
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -181,22 +182,6 @@ class QdrantClient(JobClientBase, WithStateSync):
     def sentinel_collection(self) -> str:
         return self.dataset_name or "DltSentinelCollection"
 
-    @staticmethod
-    def _create_db_client(config: QdrantClientConfiguration) -> QC:
-        """Generates a Qdrant client from the 'qdrant_client' package.
-
-        Args:
-            config (QdrantClientConfiguration): Credentials and options for the Qdrant client.
-
-        Returns:
-            QdrantClient: A Qdrant client instance.
-        """
-        credentials = dict(config.credentials)
-        options = dict(config.options)
-        client = QC(**credentials, **options)
-        client.set_model(config.model)
-        return client
-
     def _make_qualified_collection_name(self, table_name: str) -> str:
         """Generates a qualified collection name.
 
@@ -377,15 +362,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                     )
                     if load_records.count == 0:
                         return None
-                    row = list(state.values())
-                    return StateInfo(
-                        version=row[0],
-                        engine_version=row[1],
-                        pipeline_name=row[2],
-                        state=row[3],
-                        created_at=row[4],
-                        _dlt_load_id=row[5],
-                    )
+                    return StateInfo.from_normalized_mapping(state, self.schema.naming)
             except UnexpectedResponse as e:
                 if e.status_code == 404:
                     raise DestinationUndefinedEntity(str(e)) from e

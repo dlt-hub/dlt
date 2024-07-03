@@ -17,7 +17,6 @@ if TYPE_CHECKING:
 
 @configspec
 class QdrantCredentials(CredentialsConfiguration):
-    # If `:memory:` - use in-memory Qdrant instance.
     # If `str` - use it as a `url` parameter.
     # If `None` - use default values for `host` and `port`
     location: Optional[str] = None
@@ -26,10 +25,8 @@ class QdrantCredentials(CredentialsConfiguration):
     # Persistence path for QdrantLocal. Default: `None`
     path: Optional[str] = None
 
-    # __client: Optional[Any] = None
-    # if TYPE_CHECKING:
-    #     __client: Optional["QdrantClient"] = None
-    # __external_client: bool = False
+    def is_local(self) -> bool:
+        return self.path is not None
 
     def parse_native_representation(self, native_value: Any) -> None:
         try:
@@ -44,7 +41,19 @@ class QdrantCredentials(CredentialsConfiguration):
 
         super().parse_native_representation(native_value)
 
+    def _create_client(self, model: str, **options: Any) -> "QdrantClient":
+        from qdrant_client import QdrantClient
+
+        client = QdrantClient(**dict(self), **options)
+        client.set_model(model)
+        return client
+
     def get_client(self, model: str, **options: Any) -> "QdrantClient":
+        if not self.is_local():
+            return self._create_client(model, **options)
+
+        # QdrantLocal creates flock on data dir, only one instance can be created
+        # Generally there is only one instance of this config
         if not hasattr(self, "_client_lock"):
             self._client_lock = threading.Lock()
 
@@ -55,11 +64,8 @@ class QdrantCredentials(CredentialsConfiguration):
             if client is not None:
                 return client  # type: ignore[no-any-return]
 
-            from qdrant_client import QdrantClient
-
-            client = self._client = QdrantClient(**dict(self), **options)
-            client.set_model(model)
-            return client  # type: ignore[no-any-return]
+            ret = self._create_client(model, **options)
+            return ret
 
     def close_client(self) -> None:
         """Close client if not external"""

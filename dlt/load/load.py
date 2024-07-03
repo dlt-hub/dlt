@@ -196,7 +196,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         load_files = filter_new_jobs(
-            self.load_storage.list_new_jobs(load_id), self.destination.capabilities(), self.config
+            self.load_storage.list_new_jobs(load_id),
+            self.destination.capabilities(self.initial_client_config),
+            self.config,
         )
         file_count = len(load_files)
         if file_count == 0:

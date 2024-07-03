@@ -82,6 +82,29 @@ class StateInfo:
             doc.pop("version_hash")
         return doc
 
+    @classmethod
+    def from_normalized_mapping(
+        cls, normalized_doc: Dict[str, Any], naming_convention: NamingConvention
+    ) -> "StateInfo":
+        """Instantiate this class from mapping where keys are normalized according to given naming convention
+
+        Args:
+            normalized_doc: Mapping with normalized keys (e.g. {Version: ..., PipelineName: ...})
+            naming_convention: Naming convention that was used to normalize keys
+
+        Returns:
+            StateInfo: Instance of this class
+        """
+        return cls(
+            version=normalized_doc[naming_convention.normalize_identifier("version")],
+            engine_version=normalized_doc[naming_convention.normalize_identifier("engine_version")],
+            pipeline_name=normalized_doc[naming_convention.normalize_identifier("pipeline_name")],
+            state=normalized_doc[naming_convention.normalize_identifier("state")],
+            created_at=normalized_doc[naming_convention.normalize_identifier("created_at")],
+            version_hash=normalized_doc.get(naming_convention.normalize_identifier("version_hash")),
+            _dlt_load_id=normalized_doc.get(naming_convention.normalize_identifier("_dlt_load_id")),
+        )
+
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
