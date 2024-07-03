@@ -13,12 +13,12 @@ from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
-from dlt.common.schema.utils import pipeline_state_table
+from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations import filesystem, redshift
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract import DltSource
 from dlt.pipeline.exceptions import (
@@ -569,6 +569,19 @@ def test_pipeline_explicit_destination_credentials(
     inner_c = p.destination_client()
     assert inner_c.config.credentials is cred
 
+    # with staging
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        staging=filesystem("_storage"),
+        destination=redshift(credentials="redshift://loader:password@localhost:5432/dlt_data"),
+    )
+    config = p.destination_client().config
+    assert config.credentials.is_resolved()
+    assert (
+        config.credentials.to_native_representation()
+        == "redshift://loader:password@localhost:5432/dlt_data?connect_timeout=15"
+    )
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -609,7 +622,6 @@ def test_destination_explicit_filesystem_credentials(
     )
     config = p.destination_client().config
     assert config.credentials.is_resolved()
-    print(dict(config.credentials))
     assert isinstance(config.credentials, GcpOAuthCredentials)
 
 

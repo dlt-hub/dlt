@@ -267,25 +267,16 @@ def test_deterministic_salt(environment) -> None:
 
 
 def test_destination_explicit_credentials(environment: Any) -> None:
+    from dlt.destinations import motherduck
+
     # test redshift
     p = dlt.pipeline(
         pipeline_name="postgres_pipeline",
-        destination=redshift(credentials="redshift://loader:password@localhost:5432/dlt_data"),
+        destination=motherduck(credentials="md://user:password@/dlt_data"),
     )
     config = p.destination_client().config
     assert config.credentials.is_resolved()
-    assert (
-        config.credentials.to_native_representation()
-        == "redshift://loader:password@localhost:5432/dlt_data?connect_timeout=15"
-    )
-    # with staging
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        staging=filesystem("_storage"),
-        destination=redshift(credentials="redshift://loader:password@localhost:5432/dlt_data"),
-    )
-    config = p.destination_client().config
-    assert config.credentials.is_resolved()
+    assert config.credentials.to_native_representation() == "md://user:password@/dlt_data"
 
 
 def test_destination_staging_config(environment: Any) -> None:
