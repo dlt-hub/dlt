@@ -106,7 +106,7 @@ You've noticed that there's a lot of code duplication in the `get_issues` and `g
 
 ```py
 import dlt
-from dlt.sources.helpers import requests
+from dlt.sources.helpers import paginate
 
 BASE_GITHUB_URL = "https://api.github.com/repos/dlt-hub/dlt"
 
