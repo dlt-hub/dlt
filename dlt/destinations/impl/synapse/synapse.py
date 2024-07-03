@@ -162,9 +162,9 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
                 file_path
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(
+                self,
                 table,
                 file_path,
-                self.sql_client,
                 self.config.staging_config.credentials,  # type: ignore[arg-type]
                 self.config.staging_use_msi,
             )
@@ -174,22 +174,22 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
+        client: SqlJobClientBase,
         table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[
             Union[AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults]
         ] = None,
         staging_use_msi: bool = False,
     ) -> None:
         self.staging_use_msi = staging_use_msi
-        super().__init__(table, file_path, sql_client, staging_credentials)
+        super().__init__(client, table, file_path, staging_credentials)
 
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
+    def run(self) -> None:
         # get format
-        ext = os.path.splitext(bucket_path)[1][1:]
+        ext = os.path.splitext(self._bucket_path)[1][1:]
         if ext == "parquet":
-            if table_schema_has_type(table, "time"):
+            if table_schema_has_type(self._table, "time"):
                 # Synapse interprets Parquet TIME columns as bigint, resulting in
                 # an incompatibility error.
                 raise LoadJobTerminalException(
@@ -213,8 +213,8 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
             (AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults),
         )
         azure_storage_account_name = staging_credentials.azure_storage_account_name
-        https_path = self._get_https_path(bucket_path, azure_storage_account_name)
-        table_name = table["name"]
+        https_path = self._get_https_path(self._bucket_path, azure_storage_account_name)
+        table_name = self._table["name"]
 
         if self.staging_use_msi:
             credential = "IDENTITY = 'Managed Identity'"
@@ -248,10 +248,6 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
                 )
             """)
             self._sql_client.execute_sql(sql)
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
 
     def _get_https_path(self, bucket_path: str, storage_account_name: str) -> str:
         """

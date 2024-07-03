@@ -18,7 +18,6 @@ from dlt.common.schema.utils import (
 )
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations import dummy, filesystem
 from dlt.destinations.impl.dummy import dummy as dummy_impl
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
@@ -64,6 +63,7 @@ def test_spool_job_started() -> None:
     jobs: List[LoadJob] = []
     for f in files:
         job = load.get_job(f, load_id, schema)
+        assert job.state() == "ready"
         Load.w_start_job(load, job, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
         # jobs runs, but is not moved yet (loader will do this)
@@ -162,8 +162,9 @@ def test_spool_job_failed() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[LoadJob] = []
     for f in files:
-        job = Load.w_spool_job(load, f, load_id, schema)
-        assert type(job) is EmptyLoadJob
+        job = load.get_job(f, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)
+        assert type(job) is dummy_impl.LoadDummyJob
         assert job.state() == "failed"
         assert load.load_storage.normalized_packages.storage.has_file(
             load.load_storage.normalized_packages.get_job_file_path(
@@ -239,7 +240,8 @@ def test_spool_job_retry_new() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     for f in files:
-        job = Load.w_spool_job(load, f, load_id, schema)
+        job = load.get_job(f, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)
         assert job.state() == "retry"
 
 
@@ -262,16 +264,17 @@ def test_spool_job_retry_started() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[LoadJob] = []
     for f in files:
-        job = Load.w_spool_job(load, f, load_id, schema)
+        job = load.get_job(f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
-        assert job.state() == "running"
+        assert job.state() == "ready"
+        # mock job config to make it retry
+        job.config.retry_prob = 1.0
+        Load.w_start_job(load, job, load_id, schema)
         assert load.load_storage.normalized_packages.storage.has_file(
             load.load_storage.normalized_packages.get_job_file_path(
                 load_id, PackageStorage.STARTED_JOBS_FOLDER, job.file_name()
             )
         )
-        # mock job config to make it retry
-        job.config.retry_prob = 1.0
         jobs.append(job)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     assert len(files) == 0
@@ -286,9 +289,13 @@ def test_spool_job_retry_started() -> None:
     for fn in load.load_storage.normalized_packages.list_new_jobs(load_id):
         # we failed when already running the job so retry count will increase
         assert ParsedLoadJobFileName.parse(fn).retry_count == 1
+
+    # this time it will pass
     for f in files:
-        job = Load.w_spool_job(load, f, load_id, schema)
-        assert job.state() == "running"
+        job = load.get_job(f, load_id, schema)
+        assert job.state() == "ready"
+        Load.w_start_job(load, job, load_id, schema)
+        assert job.state() == "completed"
 
 
 def test_try_retrieve_job() -> None:
@@ -317,7 +324,7 @@ def test_try_retrieve_job() -> None:
         jobs = load.retrieve_jobs(c, load_id)
         assert len(jobs) == 2
         for j in jobs:
-            assert j.state() == "running"
+            assert j.state() == "completed"
 
 
 def test_completed_loop() -> None:

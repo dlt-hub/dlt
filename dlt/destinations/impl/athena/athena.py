@@ -43,7 +43,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import LoadJob, DoNothingFollowupJob, DoNothingJob
+from dlt.common.destination.reference import LoadJob, DoNothingHasFollowUpJobs, DoNothingJob
 from dlt.common.destination.reference import NewLoadJob, SupportsStagingDestination
 from dlt.common.data_writers.escape import escape_hive_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
@@ -467,9 +467,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         job = super().get_load_job(table, file_path, load_id)
         if not job:
             job = (
-                DoNothingFollowupJob(file_path)
+                DoNothingHasFollowUpJobs(self, file_path)
                 if self._is_iceberg_table(self.prepare_load_table(table["name"]))
-                else DoNothingJob(file_path)
+                else DoNothingJob(self, file_path)
             )
         return job
 

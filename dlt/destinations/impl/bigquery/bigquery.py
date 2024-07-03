@@ -13,7 +13,7 @@ from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
+    HasFollowupJobs,
     NewLoadJob,
     TLoadJobState,
     LoadJob,
@@ -103,9 +103,10 @@ class BigQueryTypeMapper(TypeMapper):
         return super().from_db_type(*parse_db_data_type_str_with_precision(db_type))
 
 
-class BigQueryLoadJob(LoadJob, FollowupJob):
+class BigQueryLoadJob(LoadJob, HasFollowupJobs):
     def __init__(
         self,
+        client: "BigQueryClient",
         file_name: str,
         bq_load_job: bigquery.LoadJob,
         http_timeout: float,
@@ -114,7 +115,11 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
         self.bq_load_job = bq_load_job
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self.http_timeout = http_timeout
-        super().__init__(file_name)
+        super().__init__(client, file_name)
+
+    def run(self) -> None:
+        # bq load job works remotely and does not need to do anything on the thread (TODO: check wether this is true)
+        pass
 
     def state(self) -> TLoadJobState:
         if not self.bq_load_job.done(retry=self.default_retry, timeout=self.http_timeout):
@@ -212,6 +217,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if not job:
             try:
                 job = BigQueryLoadJob(
+                    self,
                     FileStorage.get_file_name_from_file_path(file_path),
                     self._retrieve_load_job(file_path),
                     self.config.http_timeout,
@@ -252,6 +258,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         )
 
                     job = job_cls(
+                        self,
                         table,
                         file_path,
                         self.config,  # type: ignore
@@ -262,6 +269,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     )
                 else:
                     job = BigQueryLoadJob(
+                        self,
                         FileStorage.get_file_name_from_file_path(file_path),
                         self._create_load_job(table, file_path),
                         self.config.http_timeout,

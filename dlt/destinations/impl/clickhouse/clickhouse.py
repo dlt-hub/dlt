@@ -21,7 +21,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TLoadJobState,
-    FollowupJob,
+    HasFollowupJobs,
     LoadJob,
     NewLoadJob,
 )
@@ -136,22 +136,28 @@ class ClickHouseTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class ClickHouseLoadJob(LoadJob, FollowupJob):
+class ClickHouseLoadJob(LoadJob, HasFollowupJobs):
     def __init__(
         self,
+        client: SqlJobClientBase,
         file_path: str,
         table_name: str,
-        client: ClickHouseSqlClient,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
+        super().__init__(client, file_name)
+        self.sql_client = cast(ClickHouseSqlClient, client.sql_client)
+        self.table_name = table_name
+        self.staging_credentials = staging_credentials
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
+    def run(self) -> None:
+        client = self.sql_client
+
+        qualified_table_name = client.make_qualified_table_name(self.table_name)
         bucket_path = None
 
-        if NewReferenceJob.is_reference_job(file_path):
-            bucket_path = NewReferenceJob.resolve_reference(file_path)
+        if NewReferenceJob.is_reference_job(self._file_path):
+            bucket_path = NewReferenceJob.resolve_reference(self._file_path)
             file_name = FileStorage.get_file_name_from_file_path(bucket_path)
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
@@ -165,7 +171,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
         if not bucket_path:
             # Local filesystem.
             if ext == "jsonl":
-                compression = "gz" if FileStorage.is_gzipped(file_path) else "none"
+                compression = "gz" if FileStorage.is_gzipped(self._file_path) else "none"
             try:
                 with clickhouse_connect.create_client(
                     host=client.credentials.host,
@@ -178,7 +184,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                     insert_file(
                         clickhouse_connect_client,
                         qualified_table_name,
-                        file_path,
+                        self._file_path,
                         fmt=clickhouse_format,
                         settings={
                             "allow_experimental_lightweight_delete": 1,
@@ -189,7 +195,7 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
                     )
             except clickhouse_connect.driver.exceptions.Error as e:
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     f"ClickHouse connection failed due to {e}.",
                 ) from e
             return
@@ -201,15 +207,15 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            if isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+            if isinstance(self.staging_credentials, AwsCredentialsWithoutDefaults):
                 bucket_http_url = convert_storage_to_http_scheme(
-                    bucket_url, endpoint=staging_credentials.endpoint_url
+                    bucket_url, endpoint=self.staging_credentials.endpoint_url
                 )
-                access_key_id = staging_credentials.aws_access_key_id
-                secret_access_key = staging_credentials.aws_secret_access_key
+                access_key_id = self.staging_credentials.aws_access_key_id
+                secret_access_key = self.staging_credentials.aws_secret_access_key
             else:
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     dedent(
                         """
                         Google Cloud Storage buckets must be configured using the S3 compatible access pattern.
@@ -228,36 +234,28 @@ class ClickHouseLoadJob(LoadJob, FollowupJob):
             )
 
         elif bucket_scheme in ("az", "abfs"):
-            if not isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+            if not isinstance(self.staging_credentials, AzureCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
                 )
 
             # Authenticated access.
-            account_name = staging_credentials.azure_storage_account_name
-            storage_account_url = (
-                f"https://{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
-            )
-            account_key = staging_credentials.azure_storage_account_key
+            account_name = self.staging_credentials.azure_storage_account_name
+            storage_account_url = f"https://{self.staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            account_key = self.staging_credentials.azure_storage_account_key
 
             # build table func
             table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
         else:
             raise LoadJobTerminalException(
-                file_path,
+                self._file_path,
                 f"ClickHouse loader does not support '{bucket_scheme}' filesystem.",
             )
 
         statement = f"INSERT INTO {qualified_table_name} SELECT * FROM {table_function}"
         with client.begin_transaction():
             client.execute_sql(statement)
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class ClickHouseMergeJob(SqlMergeJob):
@@ -331,9 +329,9 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return super().get_load_job(table, file_path, load_id) or ClickHouseLoadJob(
+            self,
             file_path,
             table["name"],
-            self.sql_client,
             staging_credentials=(
                 self.config.staging_config.credentials if self.config.staging_config else None
             ),

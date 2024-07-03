@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
+    HasFollowupJobs,
     TLoadJobState,
     LoadJob,
     SupportsStagingDestination,
@@ -83,23 +83,26 @@ class DremioMergeJob(SqlMergeJob):
         return "NULL"
 
 
-class DremioLoadJob(LoadJob, FollowupJob):
+class DremioLoadJob(LoadJob, HasFollowupJobs):
     def __init__(
         self,
+        client: "DremioClient",
         file_path: str,
         table_name: str,
-        client: DremioSqlClient,
         stage_name: Optional[str] = None,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
+        super().__init__(client, file_path)
+        self.sql_client = client.sql_client
+        self.table_name = table_name
+        self.stage_name = stage_name
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
+    def run(self) -> None:
+        qualified_table_name = self.sql_client.make_qualified_table_name(self.table_name)
 
         # extract and prepare some vars
         bucket_path = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
+            NewReferenceJob.resolve_reference(self._file_path)
+            if NewReferenceJob.is_reference_job(self._file_path)
             else ""
         )
 
@@ -107,32 +110,28 @@ class DremioLoadJob(LoadJob, FollowupJob):
             raise RuntimeError("Could not resolve bucket path.")
 
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else self._file_name
         )
 
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
-        if bucket_scheme == "s3" and stage_name:
+        if bucket_scheme == "s3" and self.stage_name:
             from_clause = (
-                f"FROM '@{stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
+                f"FROM '@{self.stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
             )
         else:
             raise LoadJobTerminalException(
-                file_path, "Only s3 staging currently supported in Dremio destination"
+                self._file_path, "Only s3 staging currently supported in Dremio destination"
             )
 
         source_format = file_name.split(".")[-1]
 
-        client.execute_sql(f"""COPY INTO {qualified_table_name}
+        self.sql_client.execute_sql(f"""COPY INTO {qualified_table_name}
             {from_clause}
             FILE_FORMAT '{source_format}'
             """)
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
@@ -155,9 +154,9 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not job:
             job = DremioLoadJob(
+                self,
                 file_path=file_path,
                 table_name=table["name"],
-                client=self.sql_client,
                 stage_name=self.config.staging_data_source,
             )
         return job

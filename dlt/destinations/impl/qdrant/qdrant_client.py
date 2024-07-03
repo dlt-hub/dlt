@@ -31,21 +31,24 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 class LoadQdrantJob(LoadJob):
     def __init__(
         self,
+        client: "QdrantClient",
         table_schema: TTableSchema,
         local_path: str,
-        db_client: QC,
         client_config: QdrantClientConfiguration,
         collection_name: str,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-        self.db_client = db_client
+        super().__init__(client, file_name)
+
+        self.db_client = client.db_client
         self.collection_name = collection_name
         self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.unique_identifiers = self._list_unique_identifiers(table_schema)
         self.config = client_config
+        self.local_path = local_path
 
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+    def run(self) -> None:
+        with FileStorage.open_zipsafe_ro(self.local_path) as f:
             docs, payloads, ids = [], [], []
 
             for line in f:
@@ -61,7 +64,9 @@ class LoadQdrantJob(LoadJob):
                     docs.append(self._get_embedding_doc(data))
 
             if len(self.embedding_fields) > 0:
-                embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
+                embedding_model = self.db_client._get_or_init_model(
+                    self.db_client.embedding_model_name
+                )
                 embeddings = list(
                     embedding_model.embed(
                         docs,
@@ -69,7 +74,7 @@ class LoadQdrantJob(LoadJob):
                         parallel=self.config.embedding_parallelism,
                     )
                 )
-                vector_name = db_client.get_vector_field_name()
+                vector_name = self.db_client.get_vector_field_name()
                 embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             else:
                 embeddings = [{}] * len(ids)
@@ -139,12 +144,6 @@ class LoadQdrantJob(LoadJob):
         """
         data_id = "_".join(str(data[key]) for key in unique_identifiers)
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, collection_name + data_id))
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class QdrantClient(JobClientBase, WithStateSync):
@@ -438,9 +437,9 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadQdrantJob(
+            self,
             table,
             file_path,
-            db_client=self.db_client,
             client_config=self.config,
             collection_name=self._make_qualified_collection_name(table["name"]),
         )

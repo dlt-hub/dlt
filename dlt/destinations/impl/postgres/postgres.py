@@ -6,7 +6,7 @@ from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import FollowupJob, LoadJob, NewLoadJob, TLoadJobState
+from dlt.common.destination.reference import HasFollowupJobs, LoadJob, NewLoadJob, TLoadJobState
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
@@ -110,21 +110,25 @@ class PostgresStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class PostgresCsvCopyJob(LoadJob, FollowupJob):
-    def __init__(self, table: TTableSchema, file_path: str, client: "PostgresClient") -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        config = client.config
-        sql_client = client.sql_client
-        csv_format = config.csv_format or CsvFormatConfiguration()
-        table_name = table["name"]
+class PostgresCsvCopyJob(LoadJob, HasFollowupJobs):
+    def __init__(self, client: "PostgresClient", table: TTableSchema, file_path: str) -> None:
+        super().__init__(client, FileStorage.get_file_name_from_file_path(file_path))
+        self.config = client.config
+        self.table = table
+        self._job_client: PostgresClient = client
+
+    def run(self) -> None:
+        sql_client = self._job_client.sql_client
+        csv_format = self.config.csv_format or CsvFormatConfiguration()
+        table_name = self.table["name"]
         sep = csv_format.delimiter
         if csv_format.on_error_continue:
             logger.warning(
-                f"When processing {file_path} on table {table_name} Postgres csv reader does not"
-                " support on_error_continue"
+                f"When processing {self._file_path} on table {table_name} Postgres csv reader does"
+                " not support on_error_continue"
             )
 
-        with FileStorage.open_zipsafe_ro(file_path, "rb") as f:
+        with FileStorage.open_zipsafe_ro(self._file_path, "rb") as f:
             if csv_format.include_header:
                 # all headers in first line
                 headers_row: str = f.readline().decode(csv_format.encoding).strip()
@@ -132,12 +136,12 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
             else:
                 # read first row to figure out the headers
                 split_first_row: str = f.readline().decode(csv_format.encoding).strip().split(sep)
-                split_headers = list(client.schema.get_table_columns(table_name).keys())
+                split_headers = list(self._job_client.schema.get_table_columns(table_name).keys())
                 if len(split_first_row) > len(split_headers):
                     raise DestinationInvalidFileFormat(
                         "postgres",
                         "csv",
-                        file_path,
+                        self._file_path,
                         f"First row {split_first_row} has more rows than columns {split_headers} in"
                         f" table {table_name}",
                     )
@@ -158,7 +162,7 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
             split_columns = []
             # detect columns with NULL to use in FORCE NULL
             # detect headers that are not in columns
-            for col in client.schema.get_table_columns(table_name).values():
+            for col in self._job_client.schema.get_table_columns(table_name).values():
                 norm_col = sql_client.escape_column_name(col["name"], escape=True)
                 split_columns.append(norm_col)
                 if norm_col in split_headers and col.get("nullable", True):
@@ -168,7 +172,7 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
                 raise DestinationInvalidFileFormat(
                     "postgres",
                     "csv",
-                    file_path,
+                    self._file_path,
                     f"Following headers {split_unknown_headers} cannot be matched to columns"
                     f" {split_columns} of table {table_name}.",
                 )
@@ -196,12 +200,6 @@ class PostgresCsvCopyJob(LoadJob, FollowupJob):
                 with sql_client.native_connection.cursor() as cursor:
                     cursor.copy_expert(copy_sql, f, size=8192)
 
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
-
 
 class PostgresClient(InsertValuesJobClient):
     def __init__(
@@ -222,7 +220,7 @@ class PostgresClient(InsertValuesJobClient):
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().get_load_job(table, file_path, load_id)
         if not job and file_path.endswith("csv"):
-            job = PostgresCsvCopyJob(table, file_path, self)
+            job = PostgresCsvCopyJob(self, table, file_path)
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

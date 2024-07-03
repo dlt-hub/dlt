@@ -2,7 +2,7 @@ import os
 import abc
 from typing import Any, Iterator, List
 
-from dlt.common.destination.reference import LoadJob, FollowupJob
+from dlt.common.destination.reference import LoadJob, HasFollowupJobs
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.utils import chunks
@@ -12,7 +12,7 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging, SqlJobClientBase
 
 
-class InsertValuesLoadJob(LoadJob, FollowupJob):
+class InsertValuesLoadJob(LoadJob, HasFollowupJobs):
     def __init__(self, job_client: SqlJobClientBase, table_name: str, file_path: str) -> None:
         super().__init__(job_client, file_path)
         self._sql_client = job_client.sql_client

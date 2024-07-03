@@ -19,13 +19,13 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     LoadJob,
     JobClientBase,
-    FollowupJob,
+    HasFollowupJobs,
     WithStagingDataset,
     WithStateSync,
     StorageSchemaInfo,
     StateInfo,
     DoNothingJob,
-    DoNothingFollowupJob,
+    DoNothingHasFollowUpJobs,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
@@ -46,23 +46,24 @@ class LoadFilesystemJob(LoadJob):
         load_id: str,
         table: TTableSchema,
     ) -> None:
-        self.client = client
+        self._job_client: FilesystemClient = client
         self.table = table
         self.is_local_filesystem = client.config.protocol == "file"
+        self.load_id = load_id
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
+        self.localpath = local_path
+        super().__init__(client, local_path)
 
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
-
+    def run(self) -> None:
         self.destination_file_name = path_utils.create_path(
-            client.config.layout,
-            file_name,
-            client.schema.name,
-            load_id,
-            current_datetime=client.config.current_datetime,
+            self._job_client.config.layout,
+            self._file_name,
+            self._job_client.schema.name,
+            self.load_id,
+            current_datetime=self._job_client.config.current_datetime,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
-            extra_placeholders=client.config.extra_placeholders,
+            extra_placeholders=self._job_client.config.extra_placeholders,
         )
         # We would like to avoid failing for local filesystem where
         # deeply nested directory will not exist before writing a file.
@@ -71,23 +72,17 @@ class LoadFilesystemJob(LoadJob):
         # remote_path = f"{client.config.protocol}://{posixpath.join(dataset_path, destination_file_name)}"
         remote_path = self.make_remote_path()
         if self.is_local_filesystem:
-            client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
-        client.fs_client.put_file(local_path, remote_path)
+            self._job_client.fs_client.makedirs(self.pathlib.dirname(remote_path), exist_ok=True)
+        self._job_client.fs_client.put_file(self._file_path, remote_path)
 
     def make_remote_path(self) -> str:
         """Returns path on the remote filesystem to which copy the file, without scheme. For local filesystem a native path is used"""
         # path.join does not normalize separators and available
         # normalization functions are very invasive and may string the trailing separator
         return self.pathlib.join(  # type: ignore[no-any-return]
-            self.client.dataset_path,
+            self._job_client.dataset_path,
             path_utils.normalize_path_sep(self.pathlib, self.destination_file_name),
         )
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class DeltaLoadFilesystemJob(NewReferenceJob):
@@ -132,18 +127,15 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         # directory path, not file path
         return self.client.get_table_dir(self.table["name"])
 
-    def state(self) -> TLoadJobState:
-        return "completed"
 
-
-class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
+class FollowupFilesystemJob(HasFollowupJobs, LoadFilesystemJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
             ref_job = NewReferenceJob(
                 file_name=self.file_name(),
                 status="running",
-                remote_path=self.client.make_remote_uri(self.make_remote_path()),
+                remote_path=self._job_client.make_remote_uri(self.make_remote_path()),
             )
             jobs.append(ref_job)
         return jobs
@@ -324,11 +316,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # this does not apply to scenarios where we are using filesystem as staging
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging:
-            return DoNothingJob(file_path)
+            return DoNothingJob(self, file_path)
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
-            return DoNothingFollowupJob(file_path)
+            return DoNothingHasFollowUpJobs(self, file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         return cls(self, file_path, load_id, table)

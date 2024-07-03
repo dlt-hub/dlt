@@ -23,7 +23,7 @@ from dlt.common.destination.exceptions import (
     DestinationTransientException,
 )
 from dlt.common.destination.reference import (
-    FollowupJob,
+    HasFollowupJobs,
     NewLoadJob,
     SupportsStagingDestination,
     TLoadJobState,
@@ -41,43 +41,45 @@ from dlt.destinations.job_impl import NewReferenceJob
 
 
 class LoadDummyBaseJob(LoadJob):
-    def __init__(self, client: "DummyClient", file_name: str, config: DummyClientConfiguration) -> None:
+    def __init__(
+        self, client: "DummyClient", file_name: str, config: DummyClientConfiguration
+    ) -> None:
         self.config = copy(config)
-        self._state: TLoadJobState = "running"
-        self._exception: str = None
         self.start_time: float = pendulum.now().timestamp()
         super().__init__(client, file_name)
-        if config.fail_in_init:
+
+        if self.config.fail_in_init:
             s = self.state()
             if s == "failed":
                 raise DestinationTerminalException(self._exception)
             if s == "retry":
                 raise DestinationTransientException(self._exception)
-            
+
     def run(self) -> None:
         # this should poll the server for a job status, here we simulate various outcomes
-        if self._state == "running":
+        c_r = random.random()
+        if self.config.exception_prob >= c_r:
+            # this will make the job go to a retry state
+            raise DestinationTransientException("Dummy job status raised exception")
+        n = pendulum.now().timestamp()
+        if n - self.start_time > self.config.timeout:
+            # this will make the the job go to a failed state
+            raise DestinationTerminalException("failed due to timeout")
+        else:
             c_r = random.random()
-            if self.config.exception_prob >= c_r:
-                raise DestinationTransientException("Dummy job status raised exception")
-            n = pendulum.now().timestamp()
-            if n - self.start_time > self.config.timeout:
-                self._state = "failed"
-                self._exception = "failed due to timeout"
+            if self.config.completed_prob >= c_r:
+                # this will make the run function exit and the job go to a completed state
+                return
             else:
                 c_r = random.random()
-                if self.config.completed_prob >= c_r:
-                    self._state = "completed"
+                if self.config.retry_prob >= c_r:
+                    # this will make the job go to a retry state
+                    raise DestinationTransientException("a random retry occured")
                 else:
                     c_r = random.random()
-                    if self.config.retry_prob >= c_r:
-                        self._state = "retry"
-                        self._exception = "a random retry occured"
-                    else:
-                        c_r = random.random()
-                        if self.config.fail_prob >= c_r:
-                            self._state = "failed"
-                            self._exception = "a random fail occured"
+                    if self.config.fail_prob >= c_r:
+                        # this will make the the job go to a failed state
+                        raise DestinationTerminalException("a random fail occured")
 
     def retry(self) -> None:
         if self._state != "retry":
@@ -85,7 +87,7 @@ class LoadDummyBaseJob(LoadJob):
         self._state = "retry"
 
 
-class LoadDummyJob(LoadDummyBaseJob, FollowupJob):
+class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
         if self.config.create_followup_jobs and final_state == "completed":
             new_job = NewReferenceJob(

@@ -408,8 +408,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         field: TArrowField
         for field in arrow_schema:
             name = self.schema.naming.normalize_identifier(field.name)
-            print(field.type)
-            print(field.name)
             table_schema[name] = {
                 "name": name,
                 **self.type_mapper.from_db_type(field.type),
@@ -453,8 +451,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
             new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
-            print(table_name)
-            print(new_columns)
+
             embedding_fields: List[str] = get_columns_names_with_prop(
                 self.schema.get_table(table_name), VECTORIZE_HINT
             )
@@ -520,7 +517,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
-        print("UPLOAD")
         upload_batch(
             records,
             db_client=self.db_client,
@@ -688,11 +684,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadLanceDBJob(
+            self,
             self.schema,
             table,
-            file_path,
+            file_path=file_path,
             type_mapper=self.type_mapper,
-            db_client=self.db_client,
             client_config=self.config,
             model_func=self.model_func,
             fq_table_name=self.make_qualified_table_name(table["name"]),
@@ -707,20 +703,19 @@ class LoadLanceDBJob(LoadJob):
 
     def __init__(
         self,
+        client: LanceDBClient,
         schema: Schema,
         table_schema: TTableSchema,
-        local_path: str,
+        file_path: str,
         type_mapper: LanceDBTypeMapper,
-        db_client: DBConnection,
         client_config: LanceDBClientConfiguration,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
+        super().__init__(client, file_path)
         self.schema: Schema = schema
         self.table_schema: TTableSchema = table_schema
-        self.db_client: DBConnection = db_client
+        self.db_client: DBConnection = client.db_client
         self.type_mapper: TypeMapper = type_mapper
         self.table_name: str = table_schema["name"]
         self.fq_table_name: str = fq_table_name
@@ -733,7 +728,8 @@ class LoadLanceDBJob(LoadJob):
             TWriteDisposition, self.table_schema.get("write_disposition", "append")
         )
 
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+    def run(self) -> None:
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             records: List[DictStrAny] = [json.loads(line) for line in f]
 
         if self.table_schema not in self.schema.dlt_tables():
@@ -754,14 +750,8 @@ class LoadLanceDBJob(LoadJob):
 
         upload_batch(
             records,
-            db_client=db_client,
+            db_client=self.db_client,
             table_name=self.fq_table_name,
             write_disposition=self.write_disposition,
             id_field_name=self.id_field_name,
         )
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()

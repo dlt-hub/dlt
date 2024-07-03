@@ -1,15 +1,16 @@
 from abc import ABC, abstractmethod
 import os
 import tempfile  # noqa: 251
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List
 
 from dlt.common.json import json
 from dlt.common.destination.reference import (
-    NewLoadJob,
-    FollowupJob,
+    HasFollowupJobs,
     TLoadJobState,
     LoadJob,
     BaseLoadJob,
+    JobClientBase,
+    NewLoadJob,
 )
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
@@ -23,11 +24,11 @@ from dlt.destinations.impl.destination.configuration import (
 from dlt.pipeline.current import commit_load_package_state
 
 
-class EmptyLoadJobWithoutFollowup(BaseLoadJob):
+class EmptyLoadJobWithoutFollowup(LoadJob):
     def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
         self._status = status
         self._exception = exception
-        super().__init__(file_name)
+        super().__init__(None, file_name)
 
     @classmethod
     def from_file_path(
@@ -42,11 +43,11 @@ class EmptyLoadJobWithoutFollowup(BaseLoadJob):
         return self._exception
 
 
-class EmptyLoadJob(EmptyLoadJobWithoutFollowup, FollowupJob):
+class EmptyLoadJob(EmptyLoadJobWithoutFollowup, HasFollowupJobs):
     pass
 
 
-class NewLoadJobImpl(EmptyLoadJobWithoutFollowup):
+class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
     def _save_text_file(self, data: str) -> None:
         temp_file = os.path.join(tempfile.gettempdir(), self._file_name)
         with open(temp_file, "w", encoding="utf-8") as f:
@@ -60,7 +61,11 @@ class NewLoadJobImpl(EmptyLoadJobWithoutFollowup):
 
 class NewReferenceJob(NewLoadJobImpl):
     def __init__(
-        self, file_name: str, status: TLoadJobState, exception: str = None, remote_path: str = None
+        self,
+        file_name: str,
+        status: TLoadJobState,
+        exception: str = None,
+        remote_path: str = None,
     ) -> None:
         file_name = os.path.splitext(file_name)[0] + ".reference"
         super().__init__(file_name, status, exception)
@@ -77,10 +82,15 @@ class NewReferenceJob(NewLoadJobImpl):
             # Reading from a file
             return f.read()
 
+    def run(self) -> None:
+        # TODO: this needs to not inherit from loadjob...
+        pass
+
 
 class DestinationLoadJob(LoadJob, ABC):
     def __init__(
         self,
+        client: JobClientBase,
         table: TTableSchema,
         file_path: str,
         config: CustomDestinationClientConfiguration,
@@ -89,18 +99,17 @@ class DestinationLoadJob(LoadJob, ABC):
         destination_callable: TDestinationCallable,
         skipped_columns: List[str],
     ) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        super().__init__(client, file_path)
         self._config = config
         self._table = table
         self._schema = schema
         # we create pre_resolved callable here
         self._callable = destination_callable
-        self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         self.skipped_columns = skipped_columns
         self.destination_state = destination_state
 
-    def run(self) -> Iterable[TDataItems]:
+    def run(self) -> None:
         # update filepath, it will be in running jobs now
         try:
             if self._config.batch_size == 0:
@@ -112,13 +121,6 @@ class DestinationLoadJob(LoadJob, ABC):
                     self.call_callable_with_items(batch)
                     current_index += len(batch)
                     self.destination_state[self._storage_id] = current_index
-
-            self._state = "completed"
-        except Exception as e:
-            self._state = (  # TODO: raise a transient exception here to be handled in the parent class
-                "retry"
-            )
-            raise e
         finally:
             # save progress
             commit_load_package_state()
@@ -129,8 +131,9 @@ class DestinationLoadJob(LoadJob, ABC):
         # call callable
         self._callable(items, self._table)
 
-    def state(self) -> TLoadJobState:
-        return self._state
+    @abstractmethod
+    def get_batches(self, start_index: int) -> Iterable[TDataItems]:
+        pass
 
 
 class DestinationParquetLoadJob(DestinationLoadJob):

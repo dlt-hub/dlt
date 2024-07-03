@@ -54,7 +54,8 @@ def perform_load(
     try:
         jobs = []
         for f in files:
-            job = Load.w_spool_job(load, f, load_id, schema)
+            job = load.get_job(f, load_id, schema)
+            Load.w_start_job(load, job, load_id, schema)
             # job execution failed
             if isinstance(job, EmptyLoadJob):
                 raise RuntimeError(job.exception())

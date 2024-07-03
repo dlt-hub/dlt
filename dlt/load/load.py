@@ -28,7 +28,7 @@ from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
-    FollowupJob,
+    HasFollowupJobs,
     JobClientBase,
     WithStagingDataset,
     Destination,
@@ -194,7 +194,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 ) and job_client.should_load_data_to_staging_dataset(table)
 
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job.run_wrapped(file_path=file_path)
+                job.run_managed(file_path=file_path)
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs_count: int
@@ -216,7 +216,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         for file in load_files:
             job = self.get_job(file, load_id, schema)
             jobs.append(job)
-            self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))
+            self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))  # type: ignore
 
         return jobs
 
@@ -258,7 +258,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
     ) -> List[NewLoadJob]:
         jobs: List[NewLoadJob] = []
-        if isinstance(starting_job, FollowupJob):
+        if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
             # NOTE: we may move that logic to the interface
             starting_job_file_name = starting_job.file_name()
@@ -304,22 +304,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         pending_exception: Exception = None
 
         def _schedule_followup_jobs(followup_jobs: Iterable[NewLoadJob]) -> None:
+            # we import all follow up jobs into the new_jobs folder so they may be picked
+            # up by the loader
             for followup_job in followup_jobs:
-                # running should be moved into "new jobs", other statuses into started
-                folder: TJobState = (
-                    "new_jobs" if followup_job.state() == "running" else "started_jobs"
-                )
                 # save all created jobs
                 self.load_storage.normalized_packages.import_job(
-                    load_id, followup_job.new_file_path(), job_state=folder
+                    load_id, followup_job.new_file_path(), job_state="new_jobs"
                 )
                 logger.info(
                     f"Job {job.job_id()} CREATED a new FOLLOWUP JOB"
-                    f" {followup_job.new_file_path()} placed in {folder}"
+                    f" {followup_job.new_file_path()} placed in new_jobs"
                 )
-                # if followup job is not "running" place it in current queue to be finalized
-                if not followup_job.state() == "running":
-                    remaining_jobs.append(followup_job)
 
         logger.info(f"Will complete {len(jobs)} for {load_id}")
         for ii in range(len(jobs)):

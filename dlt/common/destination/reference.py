@@ -200,11 +200,15 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
-class BaseLoadJob(ABC):
+class BaseLoadJob:
     def __init__(self, file_name: str) -> None:
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
         self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+
+    def job_id(self) -> str:
+        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        return self._parsed_file_name.job_id()
 
 
 class LoadJob(BaseLoadJob):
@@ -226,16 +230,19 @@ class LoadJob(BaseLoadJob):
         # ensure file name
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
-        self._state = "ready"
-        self._exception: Exception = None
+        self._state: TLoadJobState = "ready"
+        self._exception: str = None
         self._job_client = job_client
         assert self._file_name != self._file_path
 
-    # TODO: find a better name for this method
-    def run_wrapped(self, file_path: str) -> None:
+    def run_managed(self, file_path: str) -> None:
         """
         wrapper around the user implemented run method
         """
+        # only jobs that are not running or have not reached a final state
+        # may be started
+        assert self._state in ("ready", "retry")
+
         # filepath is now moved to running
         self._file_path = file_path
         try:
@@ -245,11 +252,11 @@ class LoadJob(BaseLoadJob):
         except (DestinationTerminalException, TerminalValueError) as e:
             logger.exception(f"Terminal problem when starting job {self.file_name}")
             self._state = "failed"
-            self._exception = e
+            self._exception = str(e)
         except (DestinationTransientException, Exception) as e:
             logger.exception(f"Temporary problem when starting job {self.file_name}")
             self._state = "retry"
-            self._exception = e
+            self._exception = str(e)
         finally:
             # sanity check
             assert self._state not in ("running", "ready")
@@ -270,10 +277,6 @@ class LoadJob(BaseLoadJob):
         """A name of the job file"""
         return self._file_name
 
-    def job_id(self) -> str:
-        """The job id that is derived from the file name and does not changes during job lifecycle"""
-        return self._parsed_file_name.job_id()
-
     def job_file_info(self) -> ParsedLoadJobFileName:
         return self._parsed_file_name
 
@@ -291,8 +294,8 @@ class NewLoadJob:
         pass
 
 
-class FollowupJob:
-    """Adds a trait that allows to create a followup job"""
+class HasFollowupJobs:
+    """Adds a trait that allows to create single or table chain followup jobs"""
 
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
         """Return list of new jobs. `final_state` is state to which this job transits"""
@@ -302,19 +305,14 @@ class FollowupJob:
 class DoNothingJob(LoadJob):
     """The most lazy class of dlt"""
 
-    def __init__(self, file_path: str) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+    def __init__(self, job_client: "JobClientBase", file_path: str) -> None:
+        super().__init__(job_client, file_path)
 
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
-
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
+    def run(self) -> None:
+        pass
 
 
-class DoNothingFollowupJob(DoNothingJob, FollowupJob):
+class DoNothingHasFollowUpJobs(DoNothingJob, HasFollowupJobs):
     """The second most lazy class of dlt"""
 
     pass

@@ -123,16 +123,17 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
+        client: "RedshiftClient",
         table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
     ) -> None:
         self._staging_iam_role = staging_iam_role
-        super().__init__(table, file_path, sql_client, staging_credentials)
+        self._table = table
+        super().__init__(client, table, file_path, staging_credentials)
 
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
+    def run(self) -> None:
         # we assume s3 credentials where provided for the staging
         credentials = ""
         if self._staging_iam_role:
@@ -148,11 +149,11 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             )
 
         # get format
-        ext = os.path.splitext(bucket_path)[1][1:]
+        ext = os.path.splitext(self._bucket_path)[1][1:]
         file_type = ""
         dateformat = ""
         compression = ""
-        if table_schema_has_type(table, "time"):
+        if table_schema_has_type(self._table, "time"):
             raise LoadJobTerminalException(
                 self.file_name(),
                 f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file"
@@ -160,7 +161,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 " `datetime.datetime`",
             )
         if ext == "jsonl":
-            if table_schema_has_type(table, "binary"):
+            if table_schema_has_type(self._table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
                     "Redshift cannot load VARBYTE columns from json files. Switch to parquet to"
@@ -170,7 +171,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
-            if table_schema_has_type_with_precision(table, "binary"):
+            if table_schema_has_type_with_precision(self._table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
                     f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to"
@@ -179,7 +180,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             file_type = "PARQUET"
             # if table contains complex types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
-            if table_schema_has_type(table, "complex"):
+            if table_schema_has_type(self._table, "complex"):
                 file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
@@ -187,8 +188,8 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
             self._sql_client.execute_sql(f"""
-                COPY {self._sql_client.make_qualified_table_name(table['name'])}
-                FROM '{bucket_path}'
+                COPY {self._sql_client.make_qualified_table_name(self._table['name'])}
+                FROM '{self._bucket_path}'
                 {file_type}
                 {dateformat}
                 {compression}
@@ -260,9 +261,9 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
                 file_path
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(
+                self,
                 table,
                 file_path,
-                self.sql_client,
                 staging_credentials=self.config.staging_config.credentials,
                 staging_iam_role=self.config.staging_iam_role,
             )

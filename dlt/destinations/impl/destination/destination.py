@@ -60,7 +60,7 @@ class DestinationClient(JobClientBase):
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             if table["name"].startswith(self.schema._dlt_tables_prefix):
-                return DoNothingJob(file_path)
+                return DoNothingJob(self, file_path)
             table = deepcopy(table)
             for column in list(table["columns"].keys()):
                 if column.startswith(self.schema._dlt_tables_prefix):
@@ -71,6 +71,7 @@ class DestinationClient(JobClientBase):
         load_state = destination_state()
         if file_path.endswith("parquet"):
             return DestinationParquetLoadJob(
+                self,
                 table,
                 file_path,
                 self.config,
@@ -81,6 +82,7 @@ class DestinationClient(JobClientBase):
             )
         if file_path.endswith("jsonl"):
             return DestinationJsonlLoadJob(
+                self,
                 table,
                 file_path,
                 self.config,

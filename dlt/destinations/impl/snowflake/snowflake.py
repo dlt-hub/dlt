@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urlunparse
 from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
+    HasFollowupJobs,
     NewLoadJob,
     TLoadJobState,
     LoadJob,
@@ -76,31 +76,42 @@ class SnowflakeTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class SnowflakeLoadJob(LoadJob, FollowupJob):
+class SnowflakeLoadJob(LoadJob, HasFollowupJobs):
     def __init__(
         self,
+        client: "SnowflakeClient",
         file_path: str,
         table_name: str,
         load_id: str,
-        client: SnowflakeSqlClient,
         config: SnowflakeClientConfiguration,
         stage_name: Optional[str] = None,
         keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
+        super().__init__(client, file_name)
+        self._job_client: "SnowflakeClient" = client
+        self._sql_client = client.sql_client
+        self._table_name = table_name
+        self._keep_staged_files = keep_staged_files
+        self._load_id = load_id
+        self._staging_credentials = staging_credentials
+        self._config = config
+        self._stage_name = stage_name
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
+    def run(self) -> None:
+        qualified_table_name = self._sql_client.make_qualified_table_name(self._table_name)
 
         # extract and prepare some vars
         bucket_path = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
+            NewReferenceJob.resolve_reference(self._file_path)
+            if NewReferenceJob.is_reference_job(self._file_path)
             else ""
         )
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else self._file_name
         )
         from_clause = ""
         credentials_clause = ""
@@ -110,7 +121,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
         case_folding = (
             "CASE_SENSITIVE"
-            if client.capabilities.casefold_identifier is str
+            if self._sql_client.capabilities.casefold_identifier is str
             else "CASE_INSENSITIVE"
         )
         column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
@@ -119,31 +130,31 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
             # referencing an external s3/azure stage does not require explicit AWS credentials
-            if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
-                from_clause = f"FROM '@{stage_name}'"
+            if bucket_scheme in ["s3", "az", "abfs"] and self._stage_name:
+                from_clause = f"FROM '@{self._stage_name}'"
                 files_clause = f"FILES = ('{bucket_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             elif (
                 bucket_scheme == "s3"
-                and staging_credentials
-                and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
+                and self._staging_credentials
+                and isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults)
             ):
-                credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
+                credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{self._staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{self._staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
             elif (
                 bucket_scheme in ["az", "abfs"]
-                and staging_credentials
-                and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+                and self._staging_credentials
+                and isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults)
             ):
                 # Explicit azure credentials are needed to load from bucket without a named stage
-                credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
+                credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{self._staging_credentials.azure_storage_sas_token}')"
                 # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
                 # as required by snowflake
                 _path = "/" + bucket_url.netloc + bucket_url.path
                 bucket_path = urlunparse(
                     bucket_url._replace(
                         scheme="azure",
-                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
+                        netloc=f"{self._staging_credentials.azure_storage_account_name}.blob.core.windows.net",
                         path=_path,
                     )
                 )
@@ -151,22 +162,24 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             else:
                 # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake
                 bucket_path = bucket_path.replace("gs://", "gcs://")
-                if not stage_name:
+                if not self._stage_name:
                     # when loading from bucket stage must be given
                     raise LoadJobTerminalException(
-                        file_path,
+                        self._file_path,
                         f"Cannot load from bucket path {bucket_path} without a stage name. See"
                         " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for"
                         " instructions on setting up the `stage_name`",
                     )
-                from_clause = f"FROM @{stage_name}/"
+                from_clause = f"FROM @{self._stage_name}/"
                 files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
         else:
             # this means we have a local file
-            if not stage_name:
+            if not self._stage_name:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
-                stage_name = client.make_qualified_table_name("%" + table_name)
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
+                self._stage_name = self._sql_client.make_qualified_table_name(
+                    "%" + self._table_name
+                )
+            stage_file_path = f'@{self._stage_name}/"{self._load_id}"/{file_name}'
             from_clause = f"FROM {stage_file_path}"
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
@@ -180,7 +193,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             )
         if file_name.endswith("csv"):
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
-            csv_format = config.csv_format or CsvFormatConfiguration()
+            csv_format = self._config.csv_format or CsvFormatConfiguration()
             source_format = (
                 "(TYPE = 'CSV', BINARY_FORMAT = 'UTF-8', PARSE_HEADER ="
                 f" {csv_format.include_header}, FIELD_OPTIONALLY_ENCLOSED_BY = '\"', NULL_IF ="
@@ -193,14 +206,14 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             if csv_format.on_error_continue:
                 on_error_clause = "ON_ERROR = CONTINUE"
 
-        with client.begin_transaction():
+        with self._sql_client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
             if not bucket_path:
-                client.execute_sql(
-                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
-                    " AUTO_COMPRESS = FALSE"
+                self._sql_client.execute_sql(
+                    f'PUT file://{self._file_path} @{self._stage_name}/"{self._load_id}" OVERWRITE'
+                    " = TRUE, AUTO_COMPRESS = FALSE"
                 )
-            client.execute_sql(f"""COPY INTO {qualified_table_name}
+            self._sql_client.execute_sql(f"""COPY INTO {qualified_table_name}
                 {from_clause}
                 {files_clause}
                 {credentials_clause}
@@ -208,14 +221,8 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 {column_match_clause}
                 {on_error_clause}
                 """)
-            if stage_file_path and not keep_staged_files:
-                client.execute_sql(f"REMOVE {stage_file_path}")
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+            if stage_file_path and not self._keep_staged_files:
+                self._sql_client.execute_sql(f"REMOVE {stage_file_path}")
 
 
 class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
@@ -238,10 +245,10 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not job:
             job = SnowflakeLoadJob(
+                self,
                 file_path,
                 table["name"],
                 load_id,
-                self.sql_client,
                 self.config,
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,

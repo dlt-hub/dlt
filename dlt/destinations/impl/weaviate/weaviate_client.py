@@ -146,6 +146,7 @@ def wrap_grpc_error(f: TFun) -> TFun:
 class LoadWeaviateJob(LoadJob):
     def __init__(
         self,
+        client: "WeaviateClient",
         schema: Schema,
         table_schema: TTableSchema,
         local_path: str,
@@ -154,7 +155,9 @@ class LoadWeaviateJob(LoadJob):
         class_name: str,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(file_name)
+        super().__init__(client, file_name)
+        self._job_client: WeaviateClient = client
+        self.local_path = local_path
         self.client_config = client_config
         self.db_client = db_client
         self.table_name = table_schema["name"]
@@ -170,7 +173,9 @@ class LoadWeaviateJob(LoadJob):
             for i, field in schema.get_table_columns(self.table_name).items()
             if field["data_type"] == "date"
         ]
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+
+    def run(self) -> None:
+        with FileStorage.open_zipsafe_ro(self.local_path) as f:
             self.load_batch(f)
 
     @wrap_weaviate_error
@@ -227,12 +232,6 @@ class LoadWeaviateJob(LoadJob):
     ) -> str:
         data_id = "_".join([str(data[key]) for key in unique_identifiers])
         return generate_uuid5(data_id, class_name)  # type: ignore
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
 
 
 class WeaviateClient(JobClientBase, WithStateSync):
@@ -680,6 +679,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadWeaviateJob(
+            self,
             self.schema,
             table,
             file_path,

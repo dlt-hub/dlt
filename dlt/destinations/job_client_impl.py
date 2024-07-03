@@ -45,7 +45,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     LoadJob,
     JobClientBase,
-    FollowupJob,
+    HasFollowupJobs,
     CredentialsConfiguration,
 )
 
@@ -104,27 +104,19 @@ class SqlLoadJob(LoadJob):
         return os.path.splitext(file_path)[1][1:] == "sql"
 
 
-class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
+class CopyRemoteFileLoadJob(LoadJob, HasFollowupJobs):
     def __init__(
         self,
+        client: "SqlJobClientBase",
         table: TTableSchema,
         file_path: str,
-        sql_client: SqlClientBase[Any],
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
-        self._sql_client = sql_client
+        super().__init__(client, FileStorage.get_file_name_from_file_path(file_path))
+        self._sql_client = client.sql_client
         self._staging_credentials = staging_credentials
-
-        self.execute(table, NewReferenceJob.resolve_reference(file_path))
-
-    def execute(self, table: TTableSchema, bucket_path: str) -> None:
-        # implement in child implementations
-        raise NotImplementedError()
-
-    def state(self) -> TLoadJobState:
-        # this job is always done
-        return "completed"
+        self._bucket_path = NewReferenceJob.resolve_reference(file_path)
+        self._table = table
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):

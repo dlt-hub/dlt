@@ -4,7 +4,7 @@ from urllib.parse import urlparse, urlunparse
 from dlt import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
+    HasFollowupJobs,
     NewLoadJob,
     TLoadJobState,
     LoadJob,
@@ -103,30 +103,35 @@ class DatabricksTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class DatabricksLoadJob(LoadJob, FollowupJob):
+class DatabricksLoadJob(LoadJob, HasFollowupJobs):
     def __init__(
         self,
+        client: "DatabricksClient",
         table: TTableSchema,
         file_path: str,
         table_name: str,
         load_id: str,
-        client: DatabricksSqlClient,
         staging_config: FilesystemConfiguration,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
-        staging_credentials = staging_config.credentials
+        super().__init__(client, file_path)
+        self.staging_config = staging_config
+        self.staging_credentials = staging_config.credentials
+        self.table = table
+        self.qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
+        self.load_id = load_id
+        self.sql_client = client.sql_client
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
-
+    def run(self) -> None:
         # extract and prepare some vars
         bucket_path = orig_bucket_path = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
+            NewReferenceJob.resolve_reference(self._file_path)
+            if NewReferenceJob.is_reference_job(self._file_path)
             else ""
         )
         file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+            FileStorage.get_file_name_from_file_path(bucket_path)
+            if bucket_path
+            else self._file_name
         )
         from_clause = ""
         credentials_clause = ""
@@ -137,9 +142,9 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             bucket_scheme = bucket_url.scheme
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             if bucket_scheme == "s3" and isinstance(
-                staging_credentials, AwsCredentialsWithoutDefaults
+                self.staging_credentials, AwsCredentialsWithoutDefaults
             ):
-                s3_creds = staging_credentials.to_session_credentials()
+                s3_creds = self.staging_credentials.to_session_credentials()
                 credentials_clause = f"""WITH(CREDENTIAL(
                 AWS_ACCESS_KEY='{s3_creds["aws_access_key_id"]}',
                 AWS_SECRET_KEY='{s3_creds["aws_secret_access_key"]}',
@@ -149,30 +154,30 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 """
                 from_clause = f"FROM '{bucket_path}'"
             elif bucket_scheme in ["az", "abfs"] and isinstance(
-                staging_credentials, AzureCredentialsWithoutDefaults
+                self.staging_credentials, AzureCredentialsWithoutDefaults
             ):
                 # Explicit azure credentials are needed to load from bucket without a named stage
-                credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
+                credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{self.staging_credentials.azure_storage_sas_token}'))"""
                 # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
                 # as required by snowflake
                 _path = bucket_url.path
                 bucket_path = urlunparse(
                     bucket_url._replace(
                         scheme="abfss",
-                        netloc=f"{bucket_url.netloc}@{staging_credentials.azure_storage_account_name}.dfs.core.windows.net",
+                        netloc=f"{bucket_url.netloc}@{self.staging_credentials.azure_storage_account_name}.dfs.core.windows.net",
                         path=_path,
                     )
                 )
                 from_clause = f"FROM '{bucket_path}'"
             else:
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and"
                     " azure buckets are supported",
                 )
         else:
             raise LoadJobTerminalException(
-                file_path,
+                self._file_path,
                 "Cannot load from local file. Databricks does not support loading from local files."
                 " Configure staging with an s3 or azure storage bucket.",
             )
@@ -183,32 +188,32 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         elif file_name.endswith(".jsonl"):
             if not config.get("data_writer.disable_compression"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader does not support gzip compressed JSON files. Please disable"
                     " compression in the data writer configuration:"
                     " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
-            if table_schema_has_type(table, "decimal"):
+            if table_schema_has_type(self.table, "decimal"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load DECIMAL type columns from json files. Switch to"
                     " parquet format to load decimals.",
                 )
-            if table_schema_has_type(table, "binary"):
+            if table_schema_has_type(self.table, "binary"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load BINARY type columns from json files. Switch to"
                     " parquet format to load byte values.",
                 )
-            if table_schema_has_type(table, "complex"):
+            if table_schema_has_type(self.table, "complex"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load complex columns (lists and dicts) from json"
                     " files. Switch to parquet format to load complex types.",
                 )
-            if table_schema_has_type(table, "date"):
+            if table_schema_has_type(self.table, "date"):
                 raise LoadJobTerminalException(
-                    file_path,
+                    self._file_path,
                     "Databricks loader cannot load DATE type columns from json files. Switch to"
                     " parquet format to load dates.",
                 )
@@ -216,24 +221,18 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             source_format = "JSON"
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
             # Databricks fails when trying to load empty json files, so we have to check the file size
-            fs, _ = fsspec_from_config(staging_config)
+            fs, _ = fsspec_from_config(self.staging_config)
             file_size = fs.size(orig_bucket_path)
             if file_size == 0:  # Empty file, do nothing
                 return
 
-        statement = f"""COPY INTO {qualified_table_name}
+        statement = f"""COPY INTO {self.qualified_table_name}
             {from_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
             {format_options_clause}
             """
-        client.execute_sql(statement)
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+        self.sql_client.execute_sql(statement)
 
 
 class DatabricksMergeJob(SqlMergeJob):
@@ -273,11 +272,11 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
         if not job:
             job = DatabricksLoadJob(
+                self,
                 table,
                 file_path,
                 table["name"],
                 load_id,
-                self.sql_client,
                 staging_config=cast(FilesystemConfiguration, self.config.staging_config),
             )
         return job
