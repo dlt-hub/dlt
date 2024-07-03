@@ -13,6 +13,7 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
@@ -129,6 +130,7 @@ class DestinationTestConfiguration:
     supports_dbt: bool = True
     disable_compression: bool = False
     dev_mode: bool = False
+    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
 
     @property
     def name(self) -> str:
@@ -153,6 +155,7 @@ class DestinationTestConfiguration:
                 "staging_iam_role",
                 "staging_use_msi",
                 "force_iceberg",
+                "credentials",
             ]
             if getattr(self, k, None) is not None
         }
@@ -279,7 +282,10 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination="weaviate"),
             DestinationTestConfiguration(destination="lancedb"),
-            DestinationTestConfiguration(destination="qdrant"),
+            DestinationTestConfiguration(
+                destination="qdrant", credentials=dict(path=FILE_BUCKET), extra_info="local-file"
+            ),
+            DestinationTestConfiguration(destination="qdrant", extra_info="server"),
         ]
 
     if default_staging_configs or all_staging_configs:
