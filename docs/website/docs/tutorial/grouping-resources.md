@@ -231,7 +231,7 @@ The next step is to make our dlt GitHub source reusable so it can load data from
 
 ```py
 import dlt
-from dlt.sources.helpers import requests
+from dlt.sources.helpers import paginate
 
 BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
 
