@@ -14,5 +14,5 @@ Speed up the process of creating data pipelines by using dlt's multiple pre-buil
 <DocCardList />
 
 :::tip
-Most source-destination pairs work seamlessly together. Where a merge [write disposition](../general-usage/incremental-loading#choosing-a-write-disposition) is unsupported, data still loads and appends but may require additional adjustment.
+Most source-destination pairs work seamlessly together. If the merge [write disposition](../general-usage/incremental-loading#choosing-a-write-disposition) is not supported by a destination (for example, [file sytem destination](destinations/filesystem)), dlt will automatically fall back to the [append](../general-usage/incremental-loading#append) write disposition.
 :::
