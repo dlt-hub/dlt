@@ -597,6 +597,7 @@ When the API endpoint supports incremental loading, you can configure the source
             "type": "incremental",
             "cursor_path": "<path_to_cursor_field>",
             "initial_value": "<initial_value>",
+            "transform": "<a_callable>",
         },
     }
     ```
@@ -608,28 +609,56 @@ When the API endpoint supports incremental loading, you can configure the source
         "since": {
             "type": "incremental",
             "cursor_path": "updated_at",
-            "initial_value": "2024-01-25T11:21:28Z",
+            "initial_value": "2024-01-25T00:00:00Z",
         },
     }
     ```
 
-    This configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter in subsequent requests.
+    This configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter in subsequent requests. The query string will be: `?since=2024-01-25T00%3A00%3A00Z`
+
+    If you need to transform the values in the cursor field before passing them to the API endpoint, you can specify a callable under the key `transform`. For example, the API might return UNIX epoch timestamps but expects to be queried with an ISO 8601 date. To achieve that, we can specify a transform function that converts from the date format returned by the API to the date format required for API requests.
+
+    ```py
+    "since": {
+        "type": "incremental",
+        "cursor_path": "updated_at",
+        "initial_value": "1704067200",
+        "transform": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+    },
+    ```
+
+    In the above example, `1704067200` is returned from the API in the field `updated_at` but the API will be called with `?since=2024-01-01`.
 
 2. Specifying the `incremental` field in the [endpoint configuration](#endpoint-configuration):
 
     ```py
     {
         "incremental": {
-            "start_param": "<parameter_name>",
-            "end_param": "<parameter_name>",
             "cursor_path": "<path_to_cursor_field>",
-            "initial_value": "<initial_value>",
-            "end_value": "<end_value>",
+            "start_param": "<parameter_name>",
+            "initial_value": "<initial_value>", # optional
+            "end_param": "<parameter_name>",    # optional
+            "end_value": "<end_value>",         # optional
+            "transform": a_callable,            # optional
         }
     }
     ```
 
-    This configuration is more flexible and allows you to specify the start and end conditions for the incremental loading.
+    This configuration is more powerful than the method shown above because it also allows you to specify not only the start parameter and value but also the end parameter and value for the incremental loading.
+
+    The following configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter and in subsequent requests. The query string will be: `?since=2024-01-01&until=2024-02-01`
+
+    ```py
+    {
+        "incremental": {
+            "cursor_path": "updated_at",
+            "initial_value": "2024-01-01",
+            "start_param": "since",
+            "end_param": "until",
+            "end_value": "2024-02-01",
+        }
+    }
+    ```
 
 See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
