@@ -42,7 +42,6 @@ from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     NewLoadJob,
     WithStagingDataset,
-    TLoadJobState,
     LoadJob,
     JobClientBase,
     HasFollowupJobs,

@@ -682,9 +682,6 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
     r_job = client.restore_file_load(file_storage.make_full_path(job.file_name()))
     assert r_job.state() == "completed"
-    # use just file name to restore
-    r_job = client.restore_file_load(job.file_name())
-    assert r_job.state() == "completed"
 
 
 @pytest.mark.parametrize(

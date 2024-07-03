@@ -233,6 +233,7 @@ class LoadJob(BaseLoadJob):
         self._state: TLoadJobState = "ready"
         self._exception: str = None
         self._job_client = job_client
+        # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
 
     def run_managed(self, file_path: str) -> None:
@@ -242,6 +243,7 @@ class LoadJob(BaseLoadJob):
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
+        assert file_path != self._file_name
 
         # filepath is now moved to running
         self._file_path = file_path

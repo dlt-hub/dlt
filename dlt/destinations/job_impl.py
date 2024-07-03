@@ -25,16 +25,16 @@ from dlt.pipeline.current import commit_load_package_state
 
 
 class EmptyLoadJobWithoutFollowup(LoadJob):
-    def __init__(self, file_name: str, status: TLoadJobState, exception: str = None) -> None:
+    def __init__(self, file_path: str, status: TLoadJobState, exception: str = None) -> None:
         self._status = status
         self._exception = exception
-        super().__init__(None, file_name)
+        super().__init__(None, file_path)
 
     @classmethod
     def from_file_path(
         cls, file_path: str, status: TLoadJobState, message: str = None
     ) -> "EmptyLoadJobWithoutFollowup":
-        return cls(FileStorage.get_file_name_from_file_path(file_path), status, exception=message)
+        return cls(file_path, status, exception=message)
 
     def state(self) -> TLoadJobState:
         return self._status
