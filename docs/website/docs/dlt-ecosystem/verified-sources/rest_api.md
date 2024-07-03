@@ -596,8 +596,8 @@ When the API endpoint supports incremental loading, you can configure the source
         "<parameter_name>": {
             "type": "incremental",
             "cursor_path": "<path_to_cursor_field>",
-            "initial_value": "<initial_value>",
-            "transform": "<a_callable>",
+            "initial_value": "<initial_value>",  # optional
+            "transform": "<a_callable>",         # optional
         },
     }
     ```
