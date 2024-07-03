@@ -350,7 +350,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                         ]
                     ),
                     order_by=models.OrderBy(
-                        key="created_at",
+                        key=p_created_at,
                         direction=models.Direction.DESC,
                     ),
                     limit=limit,
@@ -375,8 +375,17 @@ class QdrantClient(JobClientBase, WithStateSync):
                             ]
                         ),
                     )
-                    if load_records.count > 0:
-                        return StateInfo(**state)
+                    if load_records.count == 0:
+                        return None
+                    row = list(state.values())
+                    return StateInfo(
+                        version=row[0],
+                        engine_version=row[1],
+                        pipeline_name=row[2],
+                        state=row[3],
+                        created_at=row[4],
+                        _dlt_load_id=row[5],
+                    )
             except UnexpectedResponse as e:
                 if e.status_code == 404:
                     raise DestinationUndefinedEntity(str(e)) from e
