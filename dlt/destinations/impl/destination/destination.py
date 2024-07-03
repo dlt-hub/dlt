@@ -3,7 +3,7 @@ from types import TracebackType
 from typing import ClassVar, Optional, Type, Iterable, cast, List
 
 from dlt.common.destination.reference import LoadJob
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.common.typing import AnyFun
 from dlt.pipeline.current import destination_state
 from dlt.common.configuration import create_resolved_partial
@@ -94,7 +94,7 @@ class DestinationClient(JobClientBase):
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None: ...
 

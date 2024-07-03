@@ -23,7 +23,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     HasFollowupJobs,
     LoadJob,
-    NewLoadJob,
+    FollowupJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -53,8 +53,8 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStaging,
 )
-from dlt.destinations.job_impl import NewReferenceJob, EmptyLoadJob
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.job_impl import ReferenceFollowupJob, EmptyLoadJobWithFollowupJobs
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -155,8 +155,8 @@ class ClickHouseLoadJob(LoadJob, HasFollowupJobs):
         qualified_table_name = client.make_qualified_table_name(self.table_name)
         bucket_path = None
 
-        if NewReferenceJob.is_reference_job(self._file_path):
-            bucket_path = NewReferenceJob.resolve_reference(self._file_path)
+        if ReferenceFollowupJob.is_reference_job(self._file_path):
+            bucket_path = ReferenceFollowupJob.resolve_reference(self._file_path)
             file_name = FileStorage.get_file_name_from_file_path(bucket_path)
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
@@ -257,7 +257,7 @@ class ClickHouseLoadJob(LoadJob, HasFollowupJobs):
             client.execute_sql(statement)
 
 
-class ClickHouseMergeJob(SqlMergeJob):
+class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"CREATE TABLE {temp_table_name} ENGINE = Memory AS {select_sql};"
@@ -299,7 +299,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = ClickHouseTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
@@ -374,4 +374,4 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(ch_t, precision, scale)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")

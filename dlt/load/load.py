@@ -33,7 +33,7 @@ from dlt.common.destination.reference import (
     WithStagingDataset,
     Destination,
     LoadJob,
-    NewLoadJob,
+    FollowupJob,
     TLoadJobState,
     DestinationClientConfiguration,
     SupportsStagingDestination,
@@ -45,7 +45,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.runtime import signals
 
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
@@ -239,7 +239,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 job = client.restore_file_load(file_path)
             except DestinationTerminalException:
                 logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
-                job = EmptyLoadJob.from_file_path(file_path, "failed", pretty_format_exception())
+                job = EmptyLoadJobWithFollowupJobs.from_file_path(
+                    file_path, "failed", pretty_format_exception()
+                )
                 # proceed to appending job, do not reraise
             except (DestinationTransientException, Exception):
                 # raise on all temporary exceptions, typically network / server problems
@@ -256,8 +258,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def create_followup_jobs(
         self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
-    ) -> List[NewLoadJob]:
-        jobs: List[NewLoadJob] = []
+    ) -> List[FollowupJob]:
+        jobs: List[FollowupJob] = []
         if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
             # NOTE: we may move that logic to the interface
@@ -303,7 +305,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # if an exception condition was met, return it to the main runner
         pending_exception: Exception = None
 
-        def _schedule_followup_jobs(followup_jobs: Iterable[NewLoadJob]) -> None:
+        def _schedule_followup_jobs(followup_jobs: Iterable[FollowupJob]) -> None:
             # we import all follow up jobs into the new_jobs folder so they may be picked
             # up by the loader
             for followup_job in followup_jobs:

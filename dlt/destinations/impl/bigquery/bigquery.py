@@ -14,7 +14,7 @@ from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    NewLoadJob,
+    FollowupJob,
     TLoadJobState,
     LoadJob,
     SupportsStagingDestination,
@@ -46,8 +46,8 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
 from dlt.pipeline.current import destination_state
@@ -161,7 +161,7 @@ class BigQueryLoadJob(LoadJob, HasFollowupJobs):
         return Path(file_path).name.replace(".", "_")
 
 
-class BigQueryMergeJob(SqlMergeJob):
+class BigQueryMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -198,7 +198,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
         self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -445,8 +445,8 @@ WHERE """
         # determine whether we load from local or uri
         bucket_path = None
         ext: str = os.path.splitext(file_path)[1][1:]
-        if NewReferenceJob.is_reference_job(file_path):
-            bucket_path = NewReferenceJob.resolve_reference(file_path)
+        if ReferenceFollowupJob.is_reference_job(file_path):
+            bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 
         # Select a correct source format

@@ -24,7 +24,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    NewLoadJob,
+    FollowupJob,
     SupportsStagingDestination,
     TLoadJobState,
     LoadJob,
@@ -37,7 +37,7 @@ from dlt.destinations.exceptions import (
     LoadJobInvalidStateTransitionException,
 )
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 
 
 class LoadDummyBaseJob(LoadJob):
@@ -88,18 +88,16 @@ class LoadDummyBaseJob(LoadJob):
 
 
 class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         if self.config.create_followup_jobs and final_state == "completed":
-            new_job = NewReferenceJob(
-                file_name=self.file_name(), status="running", remote_path=self._file_name
-            )
+            new_job = ReferenceFollowupJob(file_name=self.file_name(), remote_path=self._file_name)
             CREATED_FOLLOWUP_JOBS[new_job.job_id()] = new_job
             return [new_job]
         return []
 
 
 JOBS: Dict[str, LoadDummyBaseJob] = {}
-CREATED_FOLLOWUP_JOBS: Dict[str, NewLoadJob] = {}
+CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
 
 
 class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset):
@@ -158,7 +156,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 
@@ -185,7 +183,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         pass
 
     def _create_job(self, job_id: str) -> LoadDummyBaseJob:
-        if NewReferenceJob.is_reference_job(job_id):
+        if ReferenceFollowupJob.is_reference_job(job_id):
             return LoadDummyBaseJob(self, job_id, config=self.config)
         else:
             return LoadDummyJob(self, job_id, config=self.config)

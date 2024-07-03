@@ -40,7 +40,7 @@ from dlt.common.destination.reference import (
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    NewLoadJob,
+    FollowupJob,
     WithStagingDataset,
     LoadJob,
     JobClientBase,
@@ -49,8 +49,8 @@ from dlt.common.destination.reference import (
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
+from dlt.destinations.job_impl import EmptyLoadJob, ReferenceFollowupJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.utils import (
@@ -114,7 +114,7 @@ class CopyRemoteFileLoadJob(LoadJob, HasFollowupJobs):
         super().__init__(client, file_path)
         self._sql_client = client.sql_client
         self._staging_credentials = staging_credentials
-        self._bucket_path = NewReferenceJob.resolve_reference(file_path)
+        self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
         self._table = table
 
 
@@ -208,19 +208,23 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             and self.config.replace_strategy == "truncate-and-insert"
         )
 
-    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_append_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[FollowupJob]:
         return []
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
+        return [SqlMergeFollowupJob.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
-        jobs: List[NewLoadJob] = []
+    ) -> List[FollowupJob]:
+        jobs: List[FollowupJob] = []
         if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
             jobs.append(
-                SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
+                SqlStagingCopyFollowupJob.from_table_chain(
+                    table_chain, self.sql_client, {"replace": True}
+                )
             )
         return jobs
 
@@ -228,7 +232,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
@@ -262,7 +266,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             LoadJob: A restored job or none
         """
         if SqlLoadJob.is_sql_job(file_path):
-            return EmptyLoadJobWithoutFollowup.from_file_path(file_path, "completed")
+            return EmptyLoadJob.from_file_path(file_path, "completed")
         return None
 
     def complete_load(self, load_id: str) -> None:

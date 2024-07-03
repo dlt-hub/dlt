@@ -5,7 +5,7 @@ from dlt import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    NewLoadJob,
+    FollowupJob,
     TLoadJobState,
     LoadJob,
     CredentialsConfiguration,
@@ -25,12 +25,12 @@ from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.sql_jobs import SqlMergeJob
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -124,8 +124,8 @@ class DatabricksLoadJob(LoadJob, HasFollowupJobs):
     def run(self) -> None:
         # extract and prepare some vars
         bucket_path = orig_bucket_path = (
-            NewReferenceJob.resolve_reference(self._file_path)
-            if NewReferenceJob.is_reference_job(self._file_path)
+            ReferenceFollowupJob.resolve_reference(self._file_path)
+            if ReferenceFollowupJob.is_reference_job(self._file_path)
             else ""
         )
         file_name = (
@@ -235,7 +235,7 @@ class DatabricksLoadJob(LoadJob, HasFollowupJobs):
         self.sql_client.execute_sql(statement)
 
 
-class DatabricksMergeJob(SqlMergeJob):
+class DatabricksMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
@@ -282,9 +282,9 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(

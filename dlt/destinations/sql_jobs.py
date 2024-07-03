@@ -19,7 +19,7 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
-from dlt.destinations.job_impl import NewLoadJobImpl
+from dlt.destinations.job_impl import FollowupJobImpl
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.pipeline.current import load_package as current_load_package
 
@@ -32,7 +32,7 @@ class SqlJobParams(TypedDict, total=False):
 DEFAULTS: SqlJobParams = {"replace": False}
 
 
-class SqlBaseJob(NewLoadJobImpl):
+class SqlFollowupJob(FollowupJobImpl):
     """Sql base job for jobs that rely on the whole tablechain"""
 
     failed_text: str = ""
@@ -43,7 +43,7 @@ class SqlBaseJob(NewLoadJobImpl):
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
         params: Optional[SqlJobParams] = None,
-    ) -> NewLoadJobImpl:
+    ) -> FollowupJobImpl:
         """Generates a list of sql statements, that will be executed by the sql client when the job is executed in the loader.
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
@@ -60,7 +60,7 @@ class SqlBaseJob(NewLoadJobImpl):
                 " ".join(stmt.splitlines())
                 for stmt in cls.generate_sql(table_chain, sql_client, params)
             ]
-            job = cls(file_info.file_name(), "running")
+            job = cls(file_info.file_name())
             job._save_text_file("\n".join(sql))
         except Exception:
             # return failed job
@@ -81,7 +81,7 @@ class SqlBaseJob(NewLoadJobImpl):
         pass
 
 
-class SqlStagingCopyJob(SqlBaseJob):
+class SqlStagingCopyFollowupJob(SqlFollowupJob):
     """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
 
     failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
@@ -140,7 +140,7 @@ class SqlStagingCopyJob(SqlBaseJob):
         return cls._generate_insert_sql(table_chain, sql_client, params)
 
 
-class SqlMergeJob(SqlBaseJob):
+class SqlMergeFollowupJob(SqlFollowupJob):
     """
     Generates a list of sql statements that merge the data from staging dataset into destination dataset.
     If no merge keys are discovered, falls back to append.

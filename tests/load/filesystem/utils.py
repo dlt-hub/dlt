@@ -18,7 +18,7 @@ from dlt.common.destination.reference import LoadJob
 from dlt.common.pendulum import timedelta, __utcnow
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.load import Load
 from tests.load.utils import prepare_load_package
 
@@ -57,7 +57,7 @@ def perform_load(
             job = load.get_job(f, load_id, schema)
             Load.w_start_job(load, job, load_id, schema)
             # job execution failed
-            if isinstance(job, EmptyLoadJob):
+            if isinstance(job, EmptyLoadJobWithFollowupJobs):
                 raise RuntimeError(job.exception())
             jobs.append(job)
 

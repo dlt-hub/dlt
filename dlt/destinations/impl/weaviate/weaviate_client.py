@@ -42,7 +42,7 @@ from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBa
 from dlt.common.storages import FileStorage
 
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateGrpcError
@@ -687,7 +687,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:

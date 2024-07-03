@@ -8,9 +8,9 @@ from dlt.common.destination.reference import (
     HasFollowupJobs,
     TLoadJobState,
     LoadJob,
-    BaseLoadJob,
     JobClientBase,
-    NewLoadJob,
+    FollowupJob,
+    BaseLoadJob,
 )
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
@@ -24,16 +24,19 @@ from dlt.destinations.impl.destination.configuration import (
 from dlt.pipeline.current import commit_load_package_state
 
 
-class EmptyLoadJobWithoutFollowup(LoadJob):
+class EmptyLoadJob(LoadJob):
+    """Special Load Job that should never get started and just indicates a job being in a final state"""
+
     def __init__(self, file_path: str, status: TLoadJobState, exception: str = None) -> None:
         self._status = status
         self._exception = exception
+        assert self._status in ("completed", "failed")
         super().__init__(None, file_path)
 
     @classmethod
     def from_file_path(
         cls, file_path: str, status: TLoadJobState, message: str = None
-    ) -> "EmptyLoadJobWithoutFollowup":
+    ) -> "EmptyLoadJob":
         return cls(file_path, status, exception=message)
 
     def state(self) -> TLoadJobState:
@@ -43,32 +46,38 @@ class EmptyLoadJobWithoutFollowup(LoadJob):
         return self._exception
 
 
-class EmptyLoadJob(EmptyLoadJobWithoutFollowup, HasFollowupJobs):
+class EmptyLoadJobWithFollowupJobs(EmptyLoadJob, HasFollowupJobs):
     pass
 
 
-class NewLoadJobImpl(EmptyLoadJobWithoutFollowup, NewLoadJob):
+class FollowupJobImpl(FollowupJob, BaseLoadJob):
+    def __init__(
+        self, file_name: str, status: TLoadJobState = "ready", exception: str = None
+    ) -> None:
+        self._state = status
+        self._exception = exception
+        super().__init__(file_name)
+        self._new_file_path = os.path.join(tempfile.gettempdir(), self._file_name)
+        # we only accept jobs that we can schedule or mark as failed..
+        assert status in ("ready", "failed")
+
     def _save_text_file(self, data: str) -> None:
-        temp_file = os.path.join(tempfile.gettempdir(), self._file_name)
-        with open(temp_file, "w", encoding="utf-8") as f:
+        with open(self._new_file_path, "w", encoding="utf-8") as f:
             f.write(data)
-        self._new_file_path = temp_file
 
     def new_file_path(self) -> str:
         """Path to a newly created temporary job file"""
         return self._new_file_path
 
 
-class NewReferenceJob(NewLoadJobImpl):
+class ReferenceFollowupJob(FollowupJobImpl):
     def __init__(
         self,
         file_name: str,
-        status: TLoadJobState,
-        exception: str = None,
         remote_path: str = None,
     ) -> None:
         file_name = os.path.splitext(file_name)[0] + ".reference"
-        super().__init__(file_name, status, exception)
+        super().__init__(file_name)
         self._remote_path = remote_path
         self._save_text_file(remote_path)
 
@@ -81,10 +90,6 @@ class NewReferenceJob(NewLoadJobImpl):
         with open(file_path, "r+", encoding="utf-8") as f:
             # Reading from a file
             return f.read()
-
-    def run(self) -> None:
-        # TODO: this needs to not inherit from loadjob...
-        pass
 
 
 class DestinationLoadJob(LoadJob, ABC):

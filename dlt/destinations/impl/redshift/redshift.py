@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Sequence, Any, Tuple
 
 
 from dlt.common.destination.reference import (
-    NewLoadJob,
+    FollowupJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
 )
@@ -27,12 +27,12 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TT
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_jobs import SqlMergeJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -200,7 +200,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         raise NotImplementedError()
 
 
-class RedshiftMergeJob(SqlMergeJob):
+class RedshiftMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -219,7 +219,7 @@ class RedshiftMergeJob(SqlMergeJob):
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
-        return SqlMergeJob.gen_key_table_clauses(
+        return SqlMergeFollowupJob.gen_key_table_clauses(
             root_table_name, staging_root_table_name, key_clauses, for_delete
         )
 
@@ -239,7 +239,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
@@ -257,7 +257,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
         job = super().get_load_job(table, file_path, load_id)
         if not job:
-            assert NewReferenceJob.is_reference_job(
+            assert ReferenceFollowupJob.is_reference_job(
                 file_path
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(

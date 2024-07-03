@@ -211,7 +211,7 @@ class BaseLoadJob:
         return self._parsed_file_name.job_id()
 
 
-class LoadJob(BaseLoadJob):
+class LoadJob(BaseLoadJob, ABC):
     """Represents a runnable job that loads a single file
 
     Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
@@ -287,8 +287,8 @@ class LoadJob(BaseLoadJob):
         return self._exception
 
 
-class NewLoadJob:
-    """Adds a trait that allows to save new job file"""
+class FollowupJob:
+    """Base class for follow up jobs that should be created"""
 
     @abstractmethod
     def new_file_path(self) -> str:
@@ -299,7 +299,7 @@ class NewLoadJob:
 class HasFollowupJobs:
     """Adds a trait that allows to create single or table chain followup jobs"""
 
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         """Return list of new jobs. `final_state` is state to which this job transits"""
         return []
 
@@ -314,7 +314,7 @@ class DoNothingJob(LoadJob):
         pass
 
 
-class DoNothingHasFollowUpJobs(DoNothingJob, HasFollowupJobs):
+class DoNothingHasFollowupJobs(DoNothingJob, HasFollowupJobs):
     """The second most lazy class of dlt"""
 
     pass
@@ -388,7 +388,7 @@ class JobClientBase(ABC):
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 

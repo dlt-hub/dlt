@@ -5,7 +5,7 @@ from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    NewLoadJob,
+    FollowupJob,
     TLoadJobState,
     LoadJob,
     CredentialsConfiguration,
@@ -21,13 +21,13 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -103,8 +103,8 @@ class SnowflakeLoadJob(LoadJob, HasFollowupJobs):
 
         # extract and prepare some vars
         bucket_path = (
-            NewReferenceJob.resolve_reference(self._file_path)
-            if NewReferenceJob.is_reference_job(self._file_path)
+            ReferenceFollowupJob.resolve_reference(self._file_path)
+            if ReferenceFollowupJob.is_reference_job(self._file_path)
             else ""
         )
         file_name = (
@@ -258,7 +258,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None

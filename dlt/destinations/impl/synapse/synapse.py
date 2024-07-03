@@ -7,7 +7,7 @@ from urllib.parse import urlparse, urlunparse
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
-    NewLoadJob,
+    FollowupJob,
 )
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
@@ -22,7 +22,7 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
 
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
@@ -128,7 +128,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         return SqlJobClientBase._create_replace_followup_jobs(self, table_chain)
 
     def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
@@ -158,7 +158,7 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().get_load_job(table, file_path, load_id)
         if not job:
-            assert NewReferenceJob.is_reference_job(
+            assert ReferenceFollowupJob.is_reference_job(
                 file_path
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(

@@ -6,14 +6,14 @@ from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import HasFollowupJobs, LoadJob, NewLoadJob, TLoadJobState
+from dlt.common.destination.reference import HasFollowupJobs, LoadJob, FollowupJob, TLoadJobState
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlJobParams
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration
@@ -85,7 +85,7 @@ class PostgresTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class PostgresStagingCopyJob(SqlStagingCopyJob):
+class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
     @classmethod
     def generate_sql(
         cls,
@@ -236,7 +236,7 @@ class PostgresClient(InsertValuesJobClient):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         if self.config.replace_strategy == "staging-optimized":
             return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)

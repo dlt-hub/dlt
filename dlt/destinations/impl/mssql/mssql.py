@@ -1,12 +1,12 @@
 from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.destination.reference import NewLoadJob
+from dlt.common.destination.reference import FollowupJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlStagingCopyFollowupJob, SqlMergeFollowupJob, SqlJobParams
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -85,7 +85,7 @@ class MsSqlTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class MsSqlStagingCopyJob(SqlStagingCopyJob):
+class MsSqlStagingCopyJob(SqlStagingCopyFollowupJob):
     @classmethod
     def generate_sql(
         cls,
@@ -110,7 +110,7 @@ class MsSqlStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class MsSqlMergeJob(SqlMergeJob):
+class MsSqlMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_key_table_clauses(
         cls,
@@ -127,7 +127,7 @@ class MsSqlMergeJob(SqlMergeJob):
                 f" {staging_root_table_name} WHERE"
                 f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
             ]
-        return SqlMergeJob.gen_key_table_clauses(
+        return SqlMergeFollowupJob.gen_key_table_clauses(
             root_table_name, staging_root_table_name, key_clauses, for_delete
         )
 
@@ -137,7 +137,7 @@ class MsSqlMergeJob(SqlMergeJob):
 
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
-        name = SqlMergeJob._new_temp_table_name(name_prefix, sql_client)
+        name = SqlMergeFollowupJob._new_temp_table_name(name_prefix, sql_client)
         return "#" + name
 
 
@@ -157,7 +157,7 @@ class MsSqlJobClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
-    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(
@@ -186,7 +186,7 @@ class MsSqlJobClient(InsertValuesJobClient):
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         if self.config.replace_strategy == "staging-optimized":
             return [MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)

@@ -16,7 +16,7 @@ from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBa
 from dlt.common.storages import FileStorage
 from dlt.common.time import precise_time
 
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 
 from dlt.destinations.utils import get_pipeline_state_query_columns
@@ -443,7 +443,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None:
         values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]

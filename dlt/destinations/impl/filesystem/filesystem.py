@@ -15,7 +15,7 @@ from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName, TPipelineStateDoc
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    NewLoadJob,
+    FollowupJob,
     TLoadJobState,
     LoadJob,
     JobClientBase,
@@ -25,12 +25,12 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     DoNothingJob,
-    DoNothingHasFollowUpJobs,
+    DoNothingHasFollowupJobs,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs, ReferenceFollowupJob
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.job_impl import NewReferenceJob
+from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 
@@ -84,7 +84,7 @@ class LoadFilesystemJob(LoadJob):
         )
 
 
-class DeltaLoadFilesystemJob(NewReferenceJob):
+class DeltaLoadFilesystemJob(ReferenceFollowupJob):
     def __init__(
         self,
         client: "FilesystemClient",
@@ -100,7 +100,6 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         ).file_name()
         super().__init__(
             file_name=ref_file_name,
-            status="running",
             remote_path=self.client.make_remote_uri(self.make_remote_path()),
         )
 
@@ -128,12 +127,11 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
 
 class FollowupFilesystemJob(HasFollowupJobs, LoadFilesystemJob):
-    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
-            ref_job = NewReferenceJob(
+            ref_job = ReferenceFollowupJob(
                 file_name=self.file_name(),
-                status="running",
                 remote_path=self._job_client.make_remote_uri(self.make_remote_path()),
             )
             jobs.append(ref_job)
@@ -319,13 +317,13 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
-            return DoNothingHasFollowUpJobs(self, file_path)
+            return DoNothingHasFollowupJobs(self, file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""
@@ -530,7 +528,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         self,
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
-    ) -> List[NewLoadJob]:
+    ) -> List[FollowupJob]:
         def get_table_jobs(
             table_jobs: Sequence[LoadJobInfo], table_name: str
         ) -> Sequence[LoadJobInfo]:

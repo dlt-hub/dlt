@@ -8,7 +8,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.utils import chunks
 
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging, SqlJobClientBase
 
 
@@ -110,7 +110,7 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
         """
         job = super().restore_file_load(file_path)
         if not job:
-            job = EmptyLoadJob.from_file_path(file_path, "completed")
+            job = EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
         return job
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
