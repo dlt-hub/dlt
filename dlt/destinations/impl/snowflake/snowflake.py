@@ -88,8 +88,7 @@ class SnowflakeLoadJob(LoadJob, HasFollowupJobs):
         keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(client, file_name)
+        super().__init__(client, file_path)
         self._job_client: "SnowflakeClient" = client
         self._sql_client = client.sql_client
         self._table_name = table_name

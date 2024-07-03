@@ -112,7 +112,7 @@ class CopyRemoteFileLoadJob(LoadJob, HasFollowupJobs):
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(client, FileStorage.get_file_name_from_file_path(file_path))
+        super().__init__(client, file_path)
         self._sql_client = client.sql_client
         self._staging_credentials = staging_credentials
         self._bucket_path = NewReferenceJob.resolve_reference(file_path)

@@ -33,22 +33,20 @@ class LoadQdrantJob(LoadJob):
         self,
         client: "QdrantClient",
         table_schema: TTableSchema,
-        local_path: str,
+        file_path: str,
         client_config: QdrantClientConfiguration,
         collection_name: str,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(client, file_name)
+        super().__init__(client, file_path)
 
         self.db_client = client.db_client
         self.collection_name = collection_name
         self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.unique_identifiers = self._list_unique_identifiers(table_schema)
         self.config = client_config
-        self.local_path = local_path
 
     def run(self) -> None:
-        with FileStorage.open_zipsafe_ro(self.local_path) as f:
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             docs, payloads, ids = [], [], []
 
             for line in f:

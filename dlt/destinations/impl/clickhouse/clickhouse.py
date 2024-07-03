@@ -144,8 +144,7 @@ class ClickHouseLoadJob(LoadJob, HasFollowupJobs):
         table_name: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(client, file_name)
+        super().__init__(client, file_path)
         self.sql_client = cast(ClickHouseSqlClient, client.sql_client)
         self.table_name = table_name
         self.staging_credentials = staging_credentials

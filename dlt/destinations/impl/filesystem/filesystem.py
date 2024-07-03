@@ -42,7 +42,7 @@ class LoadFilesystemJob(LoadJob):
     def __init__(
         self,
         client: "FilesystemClient",
-        local_path: str,
+        file_path: str,
         load_id: str,
         table: TTableSchema,
     ) -> None:
@@ -52,8 +52,7 @@ class LoadFilesystemJob(LoadJob):
         self.load_id = load_id
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
-        self.localpath = local_path
-        super().__init__(client, local_path)
+        super().__init__(client, file_path)
 
     def run(self) -> None:
         self.destination_file_name = path_utils.create_path(

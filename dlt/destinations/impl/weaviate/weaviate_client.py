@@ -149,15 +149,13 @@ class LoadWeaviateJob(LoadJob):
         client: "WeaviateClient",
         schema: Schema,
         table_schema: TTableSchema,
-        local_path: str,
+        file_path: str,
         db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
         class_name: str,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(local_path)
-        super().__init__(client, file_name)
+        super().__init__(client, file_path)
         self._job_client: WeaviateClient = client
-        self.local_path = local_path
         self.client_config = client_config
         self.db_client = db_client
         self.table_name = table_schema["name"]
@@ -175,7 +173,7 @@ class LoadWeaviateJob(LoadJob):
         ]
 
     def run(self) -> None:
-        with FileStorage.open_zipsafe_ro(self.local_path) as f:
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             self.load_batch(f)
 
     @wrap_weaviate_error
