@@ -397,8 +397,8 @@ class QdrantClient(JobClientBase, WithStateSync):
             )
             if not response[0]:
                 return None
-            row = list(response[0][0].payload.values())
-            return StorageSchemaInfo(row[4], row[3], row[0], row[1], row[2], row[5])
+            payload = response[0][0].payload
+            return StorageSchemaInfo.from_normalized_mapping(payload, self.schema.naming)
         except UnexpectedResponse as e:
             if e.status_code == 404:
                 raise DestinationUndefinedEntity(str(e)) from e
@@ -426,8 +426,8 @@ class QdrantClient(JobClientBase, WithStateSync):
             )
             if not response[0]:
                 return None
-            row = list(response[0][0].payload.values())
-            return StorageSchemaInfo(row[4], row[3], row[0], row[1], row[2], row[5])
+            payload = response[0][0].payload
+            return StorageSchemaInfo.from_normalized_mapping(payload, self.schema.naming)
         except UnexpectedResponse as e:
             if e.status_code == 404:
                 return None
@@ -467,7 +467,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         exc_tb: TracebackType,
     ) -> None:
         if self.db_client:
-            self.config.close_client()
+            self.config.close_client(self.db_client)
             self.db_client = None
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
@@ -486,6 +486,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         self._create_point_no_vector(properties, version_table_name)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
+        is_local = self.config.credentials.is_local()
         for table_name in only_tables or self.schema.tables:
             exists = self._collection_exists(table_name)
 
@@ -494,18 +495,20 @@ class QdrantClient(JobClientBase, WithStateSync):
                 self._create_collection(
                     full_collection_name=qualified_collection_name,
                 )
-            if table_name == self.schema.state_table_name:
-                self.db_client.create_payload_index(
-                    collection_name=qualified_collection_name,
-                    field_name=self.schema.naming.normalize_identifier("created_at"),
-                    field_schema="datetime",
-                )
-            elif table_name == self.schema.version_table_name:
-                self.db_client.create_payload_index(
-                    collection_name=qualified_collection_name,
-                    field_name=self.schema.naming.normalize_identifier("inserted_at"),
-                    field_schema="datetime",
-                )
+            if not is_local:  # Indexes don't work in local Qdrant (trigger log warning)
+                # Create indexes to enable order_by in state and schema tables
+                if table_name == self.schema.state_table_name:
+                    self.db_client.create_payload_index(
+                        collection_name=qualified_collection_name,
+                        field_name=self.schema.naming.normalize_identifier("created_at"),
+                        field_schema="datetime",
+                    )
+                elif table_name == self.schema.version_table_name:
+                    self.db_client.create_payload_index(
+                        collection_name=qualified_collection_name,
+                        field_name=self.schema.naming.normalize_identifier("inserted_at"),
+                        field_schema="datetime",
+                    )
 
         self._update_schema_in_storage(self.schema)
 

@@ -1,8 +1,6 @@
 import dataclasses
 from typing import Optional, Final, Any
-from typing_extensions import Annotated, TYPE_CHECKING, Iterator
-import threading
-from contextlib import contextmanager
+from typing_extensions import Annotated, TYPE_CHECKING
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import (
@@ -10,6 +8,7 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
 )
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
 
 if TYPE_CHECKING:
     from qdrant_client import QdrantClient
@@ -17,6 +16,9 @@ if TYPE_CHECKING:
 
 @configspec
 class QdrantCredentials(CredentialsConfiguration):
+    if TYPE_CHECKING:
+        _external_client: "QdrantClient"
+
     # If `str` - use it as a `url` parameter.
     # If `None` - use default values for `host` and `port`
     location: Optional[str] = None
@@ -28,13 +30,16 @@ class QdrantCredentials(CredentialsConfiguration):
     def is_local(self) -> bool:
         return self.path is not None
 
+    def on_resolved(self) -> None:
+        if self.location == ":memory:":
+            raise InvalidInMemoryQdrantCredentials()
+
     def parse_native_representation(self, native_value: Any) -> None:
         try:
             from qdrant_client import QdrantClient
 
             if isinstance(native_value, QdrantClient):
-                self._client = native_value
-                self._external_client = True
+                self._external_client = native_value
                 self.resolve()
         except ModuleNotFoundError:
             pass
@@ -44,40 +49,24 @@ class QdrantCredentials(CredentialsConfiguration):
     def _create_client(self, model: str, **options: Any) -> "QdrantClient":
         from qdrant_client import QdrantClient
 
-        client = QdrantClient(**dict(self), **options)
+        creds = dict(self)
+        if creds["path"]:
+            del creds["location"]
+
+        client = QdrantClient(**creds, **options)
         client.set_model(model)
         return client
 
     def get_client(self, model: str, **options: Any) -> "QdrantClient":
-        if not self.is_local():
-            return self._create_client(model, **options)
+        client = getattr(self, "_external_client", None)
+        return client or self._create_client(model, **options)
 
-        # QdrantLocal creates flock on data dir, only one instance can be created
-        # Generally there is only one instance of this config
-        if not hasattr(self, "_client_lock"):
-            self._client_lock = threading.Lock()
-
-        with self._client_lock:
-            client = getattr(self, "_client", None)
-            borrow_count = getattr(self, "_client_borrow_count", 0)
-            self._client_borrow_count = borrow_count + 1
-            if client is not None:
-                return client  # type: ignore[no-any-return]
-
-            ret = self._create_client(model, **options)
-            return ret
-
-    def close_client(self) -> None:
+    def close_client(self, client: "QdrantClient") -> None:
         """Close client if not external"""
-        if getattr(self, "_external_client", False):
+        if getattr(self, "_external_client", None) is client:
+            # Do not close client created externally
             return
-        with self._client_lock:
-            borrow_count = getattr(self, "_client_borrow_count", 1)
-            client = getattr(self, "_client", None)
-            borrow_count = self._client_borrow_count = borrow_count - 1
-            if borrow_count == 0 and client is not None:
-                client.close()
-                self._client = None
+        client.close()
 
     def __str__(self) -> str:
         return self.location or "localhost"
@@ -142,8 +131,8 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     def get_client(self) -> "QdrantClient":
         return self.credentials.get_client(self.model, **dict(self.options))
 
-    def close_client(self) -> None:
-        self.credentials.close_client()
+    def close_client(self, client: "QdrantClient") -> None:
+        self.credentials.close_client(client)
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of a connection string"""

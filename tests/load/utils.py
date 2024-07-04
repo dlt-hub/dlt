@@ -155,7 +155,6 @@ class DestinationTestConfiguration:
                 "staging_iam_role",
                 "staging_use_msi",
                 "force_iceberg",
-                "credentials",
             ]
             if getattr(self, k, None) is not None
         }
@@ -168,6 +167,10 @@ class DestinationTestConfiguration:
         # For the filesystem destinations we disable compression to make analyzing the result easier
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+
+        if self.credentials is not None:
+            for key, value in dict(self.credentials).items():
+                os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
 
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
@@ -283,10 +286,25 @@ def destinations_configs(
             DestinationTestConfiguration(destination="weaviate"),
             DestinationTestConfiguration(destination="lancedb"),
             DestinationTestConfiguration(
-                destination="qdrant", credentials=dict(path=FILE_BUCKET), extra_info="local-file"
+                destination="qdrant",
+                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                extra_info="local-file",
             ),
             DestinationTestConfiguration(destination="qdrant", extra_info="server"),
         ]
+        # try:
+        #     from qdrant_client import QdrantClient
+
+        #     destination_configs.append(
+        #         DestinationTestConfiguration(
+        #             destination="qdrant",
+        #             credentials=lambda: QdrantClient(":memory:"),
+        #             extra_info="memory",
+        #         )
+        #     )
+        # except ModuleNotFoundError:
+        #     # ignore Qdrant not installed, we will get an error later if any qdrant tests are supposed to run
+        #     pass
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
