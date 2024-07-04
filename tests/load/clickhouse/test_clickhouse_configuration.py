@@ -1,8 +1,8 @@
-from typing import Any, Iterator
+import os
+from typing import Iterator
 
 import pytest
 
-import dlt
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.libs.sql_alchemy import make_url
 from dlt.common.utils import digest128
@@ -11,11 +11,6 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
-from dlt.destinations.impl.snowflake.configuration import (
-    SnowflakeClientConfiguration,
-    SnowflakeCredentials,
-)
-from tests.common.configuration.utils import environment
 from tests.load.utils import yield_client_with_storage
 
 
@@ -53,15 +48,17 @@ def test_clickhouse_configuration() -> None:
     # def empty fingerprint
     assert ClickHouseClientConfiguration().fingerprint() == ""
     # based on host
-    c = resolve_configuration(
-        SnowflakeCredentials(),
+    config = resolve_configuration(
+        ClickHouseCredentials(),
         explicit_value="clickhouse://user1:pass1@host1:9000/db1",
     )
-    assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
+    assert ClickHouseClientConfiguration(credentials=config).fingerprint() == digest128(
+        "host1"
+    )
 
 
 def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
-    """Test experimental settings are set correctly for session."""
+    """Test experimental settings are set correctly for the session."""
     conn = client.sql_client.open_connection()
     cursor1 = conn.cursor()
     cursor2 = conn.cursor()
@@ -75,3 +72,23 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
         assert ("allow_experimental_lightweight_delete", "1") in res
         assert ("enable_http_compression", "1") in res
         assert ("date_time_input_format", "best_effort") in res
+
+
+def test_clickhouse_table_engine_configuration() -> None:
+    os.environ["DESTINATION__CLICKHOUSE__CREDENTIALS__HOST"] = "localhost"
+
+    # Test the default engine.
+    config = resolve_configuration(
+        ClickHouseClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "clickhouse"),
+    )
+    assert config.credentials.table_engine_type == "merge_tree"
+
+    # Test user provided engine.
+    os.environ["DESTINATION__CLICKHOUSE__TABLE_ENGINE_TYPE"] = "replicated_merge_tree"
+
+    config = resolve_configuration(
+        ClickHouseClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+        sections=("destination", "clickhouse"),
+    )
+    assert config.credentials.table_engine_type == "replicated_merge_tree"
