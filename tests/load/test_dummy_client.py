@@ -252,7 +252,7 @@ def test_spool_job_retry_spool_new() -> None:
     # call higher level function that returns jobs and counts
     with ThreadPoolExecutor() as pool:
         load.pool = pool
-        jobs = load.start_new_jobs(load_id, schema, 0)
+        jobs = load.start_new_jobs(load_id, schema, [])
         assert len(jobs) == 2
 
 
@@ -317,7 +317,7 @@ def test_try_retrieve_job() -> None:
     # new load package
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     load.pool = ThreadPoolExecutor()
-    jobs = load.start_new_jobs(load_id, schema, 0)  # type: ignore
+    jobs = load.start_new_jobs(load_id, schema, [])  # type: ignore
     assert len(jobs) == 2
     # now jobs are known
     with load.destination.client(schema, load.initial_client_config) as c:

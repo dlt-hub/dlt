@@ -198,14 +198,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 job.run_managed(file_path=file_path)
 
     def start_new_jobs(
-        self, load_id: str, schema: Schema, running_jobs_count: int
+        self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
     ) -> Sequence[LoadJob]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
             self.destination.capabilities(),
             self.config,
-            running_jobs_count,
+            running_jobs,
         )
         file_count = len(load_files)
         if file_count == 0:
@@ -479,7 +479,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 running_jobs, pending_exception = self.complete_jobs(load_id, running_jobs, schema)
                 # do not spool new jobs if there was a signal
                 if not signals.signal_received() and not pending_exception:
-                    running_jobs += self.start_new_jobs(load_id, schema, len(running_jobs))
+                    running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
                 self.update_loadpackage_info(load_id)
 
                 if len(running_jobs) == 0:

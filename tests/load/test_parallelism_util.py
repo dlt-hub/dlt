@@ -3,7 +3,7 @@ Tests to test the parallelism settings on the loader
 NOTE: there are tests in custom destination to check parallelism settings are applied
 """
 
-from typing import Tuple
+from typing import Tuple, Any, cast
 
 from dlt.load.utils import filter_new_jobs
 from dlt.load.configuration import LoaderConfiguration
@@ -26,19 +26,19 @@ def test_max_workers() -> None:
     caps, conf = get_caps_conf()
 
     # default is 20
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 20
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 20
 
     # we can change it
     conf.workers = 35
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 35
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 35
 
     # destination may override this
     caps.max_parallel_load_jobs = 15
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 15
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 15
 
     # lowest value will prevail
     conf.workers = 5
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 5
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 5
 
 
 def test_table_sequential_parallelism_strategy() -> None:
@@ -51,17 +51,17 @@ def test_table_sequential_parallelism_strategy() -> None:
     caps, conf = get_caps_conf()
 
     # default is 20
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 20
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 20
 
     # table sequential will give us 8, one for each table
     conf.parallelism_strategy = "table-sequential"
-    filtered = filter_new_jobs(job_names, caps, conf, 0)
+    filtered = filter_new_jobs(job_names, caps, conf, [])
     assert len(filtered) == 8
     assert len({ParsedLoadJobFileName.parse(j).table_name for j in job_names}) == 8
 
     # max workers also are still applied
     conf.workers = 3
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 3
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 3
 
 
 def test_strategy_preference() -> None:
@@ -72,25 +72,25 @@ def test_strategy_preference() -> None:
     caps, conf = get_caps_conf()
 
     # nothing set will default to parallel
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 20
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 20
 
     caps.loader_parallelism_strategy = "table-sequential"
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 8
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 8
 
     caps.loader_parallelism_strategy = "sequential"
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 1
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 1
 
     # config may override (will go back to default 20)
     conf.parallelism_strategy = "parallel"
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 20
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 20
 
     conf.parallelism_strategy = "table-sequential"
-    assert len(filter_new_jobs(job_names, caps, conf, 0)) == 8
+    assert len(filter_new_jobs(job_names, caps, conf, [])) == 8
 
 
 def test_no_input() -> None:
     caps, conf = get_caps_conf()
-    assert filter_new_jobs([], caps, conf, 0) == []
+    assert filter_new_jobs([], caps, conf, []) == []
 
 
 def test_existing_jobs_count() -> None:
@@ -98,14 +98,15 @@ def test_existing_jobs_count() -> None:
     caps, conf = get_caps_conf()
 
     # default is 20 jobs
-    assert len(filter_new_jobs(jobs, caps, conf, 0)) == 20
+    assert len(filter_new_jobs(jobs, caps, conf, [])) == 20
 
     # if 5 are already running, just return 15
-    assert len(filter_new_jobs(jobs, caps, conf, 5)) == 15
+    # NOTE: we can just use a range instead of actual jobs here
+    assert len(filter_new_jobs(jobs, caps, conf, cast(Any, range(5)))) == 15
 
     # ...etc
-    assert len(filter_new_jobs(jobs, caps, conf, 16)) == 4
+    assert len(filter_new_jobs(jobs, caps, conf, cast(Any, range(16)))) == 4
 
-    assert len(filter_new_jobs(jobs, caps, conf, 300)) == 0
-    assert len(filter_new_jobs(jobs, caps, conf, 20)) == 0
-    assert len(filter_new_jobs(jobs, caps, conf, 19)) == 1
+    assert len(filter_new_jobs(jobs, caps, conf, cast(Any, range(300)))) == 0
+    assert len(filter_new_jobs(jobs, caps, conf, cast(Any, range(20)))) == 0
+    assert len(filter_new_jobs(jobs, caps, conf, cast(Any, range(19)))) == 1

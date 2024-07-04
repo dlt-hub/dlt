@@ -12,10 +12,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.destination.reference import (
-    JobClientBase,
-    WithStagingDataset,
-)
+from dlt.common.destination.reference import JobClientBase, WithStagingDataset, LoadJob
 from dlt.load.configuration import LoaderConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 
@@ -225,7 +222,7 @@ def filter_new_jobs(
     file_names: Sequence[str],
     capabilities: DestinationCapabilitiesContext,
     config: LoaderConfiguration,
-    running_jobs_count: int,
+    running_jobs: Sequence[LoadJob],
 ) -> Sequence[str]:
     """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
     """NOTE: in the current setup we only filter based on settings for the final destination"""
@@ -244,23 +241,29 @@ def filter_new_jobs(
         max_workers = min(max_workers, mp)
 
     # if all slots are full, do not create new jobs
-    if running_jobs_count >= max_workers:
+    if len(running_jobs) >= max_workers:
         return []
-    max_jobs = max_workers - running_jobs_count
+    max_jobs = max_workers - len(running_jobs)
 
     # regular sequential works on all jobs
     eligible_jobs = file_names
 
     # we must ensure there only is one job per table
     if parallelism_strategy == "table-sequential":
+        # TODO: this whole code block may be quite inefficient for long lists of jobs
+
+        # find table names of all currently running jobs
+        running_tables = {j._parsed_file_name.table_name for j in running_jobs}
+
         eligible_jobs = sorted(
             eligible_jobs, key=lambda j: ParsedLoadJobFileName.parse(j).table_name
         )
         eligible_jobs = [
             next(table_jobs)
-            for _, table_jobs in groupby(
+            for table_name, table_jobs in groupby(
                 eligible_jobs, lambda j: ParsedLoadJobFileName.parse(j).table_name
             )
+            if table_name not in running_tables
         ]
 
     return eligible_jobs[:max_jobs]
