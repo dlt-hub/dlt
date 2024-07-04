@@ -723,6 +723,7 @@ class Pipeline(SupportsPipeline):
         try:
             try:
                 restored_schemas: Sequence[Schema] = None
+
                 remote_state = self._restore_state_from_destination()
 
                 # if remote state is newer or same

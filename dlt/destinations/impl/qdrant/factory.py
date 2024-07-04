@@ -1,6 +1,8 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
+from dlt.common.destination.reference import TDestinationConfig
+from dlt.common.normalizers.naming import NamingConvention
 
 from dlt.destinations.impl.qdrant.configuration import QdrantCredentials, QdrantClientConfiguration
 
@@ -24,6 +26,20 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
         caps.is_max_text_data_type_length_in_bytes = False
         caps.supports_ddl_transactions = False
 
+        return caps
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: QdrantClientConfiguration,
+        naming: t.Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        caps = super(qdrant, cls).adjust_capabilities(caps, config, naming)
+        if config.credentials.is_local():
+            # Local qdrant can not load in parallel
+            caps.loader_parallelism_strategy = "sequential"
+            caps.max_parallel_load_jobs = 1
         return caps
 
     @property
