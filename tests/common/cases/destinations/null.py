@@ -14,7 +14,7 @@ class null(Destination[DestinationClientConfiguration, "JobClientBase"]):
 
     spec = DestinationClientConfiguration
 
-    def capabilities(self) -> DestinationCapabilitiesContext:
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         return DestinationCapabilitiesContext.generic_capabilities()
 
     @property

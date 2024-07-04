@@ -1,6 +1,7 @@
 import pytest
 from typing import Dict
 
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
 from dlt.common.utils import digest128
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
@@ -8,7 +9,7 @@ from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
 
 from tests.common.configuration.utils import environment
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
-from tests.utils import preserve_environ, autouse_test_storage
+from tests.utils import autouse_test_storage
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -101,6 +102,11 @@ def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
     assert c.aws_access_key_id == "fake_access_key"
 
 
+def test_aws_credentials_from_unknown_object() -> None:
+    with pytest.raises(InvalidBoto3Session):
+        AwsCredentials().parse_native_representation(CredentialsConfiguration())
+
+
 def test_aws_credentials_for_profile(environment: Dict[str, str]) -> None:
     import botocore.exceptions
 
@@ -134,6 +140,24 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
         "endpoint_url": "https://123.r2.cloudflarestorage.com",
         "client_kwargs": {"region_name": "eu-central-1"},
     }
+
+
+def test_explicit_filesystem_credentials() -> None:
+    import dlt
+    from dlt.destinations import filesystem
+
+    # try filesystem which uses union of credentials that requires bucket_url to resolve
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        destination=filesystem(
+            bucket_url="s3://test",
+            destination_name="uniq_s3_bucket",
+            credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
+        ),
+    )
+    config = p.destination_client().config
+    assert isinstance(config.credentials, AwsCredentials)
+    assert config.credentials.is_resolved()
 
 
 def set_aws_credentials_env(environment: Dict[str, str]) -> None:

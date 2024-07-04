@@ -21,17 +21,23 @@ from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
+
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
+from dlt.destinations import bigquery
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
-from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+from dlt.destinations.adapters import bigquery_adapter
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+
 from dlt.extract import DltResource
-from tests.load.pipeline.utils import (
+
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     drop_active_pipeline_data,
+    TABLE_UPDATE,
+    sequence_generator,
+    empty_schema,
 )
-from tests.load.utils import TABLE_UPDATE, sequence_generator, empty_schema
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -58,7 +64,7 @@ def gcp_client(empty_schema: Schema) -> BigQueryClient:
     creds = GcpServiceAccountCredentials()
     creds.project_id = "test_project_id"
     # noinspection PydanticTypeChecker
-    return BigQueryClient(
+    return bigquery().client(
         empty_schema,
         BigQueryClientConfiguration(credentials=creds)._bind_dataset_name(
             dataset_name=f"test_{uniq_id()}"
@@ -89,9 +95,9 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
-    assert "`col1` INTEGER NOT NULL" in sql
+    assert "`col1` INT64 NOT NULL" in sql
     assert "`col2` FLOAT64 NOT NULL" in sql
-    assert "`col3` BOOLEAN NOT NULL" in sql
+    assert "`col3` BOOL NOT NULL" in sql
     assert "`col4` TIMESTAMP NOT NULL" in sql
     assert "`col5` STRING " in sql
     assert "`col6` NUMERIC(38,9) NOT NULL" in sql
@@ -100,7 +106,7 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     assert "`col9` JSON NOT NULL" in sql
     assert "`col10` DATE" in sql
     assert "`col11` TIME" in sql
-    assert "`col1_precision` INTEGER NOT NULL" in sql
+    assert "`col1_precision` INT64 NOT NULL" in sql
     assert "`col4_precision` TIMESTAMP NOT NULL" in sql
     assert "`col5_precision` STRING(25) " in sql
     assert "`col6_precision` NUMERIC(6,2) NOT NULL" in sql
@@ -119,9 +125,9 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert sql.startswith("ALTER TABLE")
     assert sql.count("ALTER TABLE") == 1
     assert "event_test_table" in sql
-    assert "ADD COLUMN `col1` INTEGER NOT NULL" in sql
+    assert "ADD COLUMN `col1` INT64 NOT NULL" in sql
     assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
-    assert "ADD COLUMN `col3` BOOLEAN NOT NULL" in sql
+    assert "ADD COLUMN `col3` BOOL NOT NULL" in sql
     assert "ADD COLUMN `col4` TIMESTAMP NOT NULL" in sql
     assert "ADD COLUMN `col5` STRING" in sql
     assert "ADD COLUMN `col6` NUMERIC(38,9) NOT NULL" in sql
@@ -130,7 +136,7 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col9` JSON NOT NULL" in sql
     assert "ADD COLUMN `col10` DATE" in sql
     assert "ADD COLUMN `col11` TIME" in sql
-    assert "ADD COLUMN `col1_precision` INTEGER NOT NULL" in sql
+    assert "ADD COLUMN `col1_precision` INT64 NOT NULL" in sql
     assert "ADD COLUMN `col4_precision` TIMESTAMP NOT NULL" in sql
     assert "ADD COLUMN `col5_precision` STRING(25)" in sql
     assert "ADD COLUMN `col6_precision` NUMERIC(6,2) NOT NULL" in sql
@@ -946,7 +952,7 @@ def test_adapter_additional_table_hints_table_description_with_alter_table(
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(sources())

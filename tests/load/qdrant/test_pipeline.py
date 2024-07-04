@@ -5,6 +5,7 @@ import dlt
 from dlt.common import json
 from dlt.common.utils import uniq_id
 
+from dlt.destinations.adapters import qdrant_adapter
 from dlt.destinations.impl.qdrant.qdrant_adapter import qdrant_adapter, VECTORIZE_HINT
 from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
 from tests.pipeline.utils import assert_load_info
@@ -68,6 +69,8 @@ def test_basic_state_and_schema() -> None:
         assert schema
         state = client.get_stored_state("test_pipeline_append")
         assert state
+        state = client.get_stored_state("unknown_pipeline")
+        assert state is None
 
 
 def test_pipeline_append() -> None:
@@ -316,8 +319,8 @@ def test_merge_github_nested() -> None:
         primary_key="id",
     )
     assert_load_info(info)
+
     # assert if schema contains tables with right names
-    print(p.default_schema.tables.keys())
     assert set(p.default_schema.tables.keys()) == {
         "_dlt_version",
         "_dlt_loads",

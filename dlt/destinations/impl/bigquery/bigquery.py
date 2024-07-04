@@ -1,7 +1,7 @@
 import functools
 import os
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type, cast
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -35,7 +35,6 @@ from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
     LoadJobTerminalException,
 )
-from dlt.destinations.impl.bigquery import capabilities
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
     PARTITION_HINT,
     CLUSTER_HINT,
@@ -50,6 +49,7 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.utils import parse_db_data_type_str_with_precision
 from dlt.pipeline.current import destination_state
 
 
@@ -58,10 +58,10 @@ class BigQueryTypeMapper(TypeMapper):
         "complex": "JSON",
         "text": "STRING",
         "double": "FLOAT64",
-        "bool": "BOOLEAN",
+        "bool": "BOOL",
         "date": "DATE",
         "timestamp": "TIMESTAMP",
-        "bigint": "INTEGER",
+        "bigint": "INT64",
         "binary": "BYTES",
         "wei": "BIGNUMERIC",  # non-parametrized should hold wei values
         "time": "TIME",
@@ -74,11 +74,11 @@ class BigQueryTypeMapper(TypeMapper):
 
     dbt_to_sct = {
         "STRING": "text",
-        "FLOAT": "double",
-        "BOOLEAN": "bool",
+        "FLOAT64": "double",
+        "BOOL": "bool",
         "DATE": "date",
         "TIMESTAMP": "timestamp",
-        "INTEGER": "bigint",
+        "INT64": "bigint",
         "BYTES": "binary",
         "NUMERIC": "decimal",
         "BIGNUMERIC": "decimal",
@@ -97,9 +97,10 @@ class BigQueryTypeMapper(TypeMapper):
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
-        if db_type == "BIGNUMERIC" and precision is None:
+        # precision is present in the type name
+        if db_type == "BIGNUMERIC":
             return dict(data_type="wei")
-        return super().from_db_type(db_type, precision, scale)
+        return super().from_db_type(*parse_db_data_type_str_with_precision(db_type))
 
 
 class BigQueryLoadJob(LoadJob, FollowupJob):
@@ -173,12 +174,16 @@ class BigQueryMergeJob(SqlMergeJob):
 
 
 class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: BigQueryClientConfiguration) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        config: BigQueryClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
         sql_client = BigQuerySqlClient(
             config.normalize_dataset_name(schema),
             config.credentials,
+            capabilities,
             config.get_location(),
             config.http_timeout,
             config.retry_deadline,
@@ -266,7 +271,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise UnknownTableException(table["name"]) from gace
+                    raise UnknownTableException(self.schema.name, table["name"]) from gace
                 elif (
                     reason == "duplicate"
                 ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
@@ -292,15 +297,15 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
         ]:
             if len(partition_list) > 1:
-                col_names = [self.capabilities.escape_identifier(c["name"]) for c in partition_list]
+                col_names = [self.sql_client.escape_column_name(c["name"]) for c in partition_list]
                 raise DestinationSchemaWillNotUpdate(
                     canonical_name, col_names, "Partition requested for more than one column"
                 )
             elif (c := partition_list[0])["data_type"] == "date":
-                sql[0] += f"\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
+                sql[0] += f"\nPARTITION BY {self.sql_client.escape_column_name(c['name'])}"
             elif (c := partition_list[0])["data_type"] == "timestamp":
                 sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+                    f"{sql[0]}\nPARTITION BY DATE({self.sql_client.escape_column_name(c['name'])})"
                 )
             # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
@@ -309,12 +314,12 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
             elif (c := partition_list[0])["data_type"] == "bigint":
                 sql[0] += (
-                    f"\nPARTITION BY RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
+                    f"\nPARTITION BY RANGE_BUCKET({self.sql_client.escape_column_name(c['name'])},"
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
         if cluster_list := [
-            self.capabilities.escape_identifier(c["name"])
+            self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]:
@@ -365,8 +370,57 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 )
         return table
 
+    def get_storage_tables(
+        self, table_names: Iterable[str]
+    ) -> Iterable[Tuple[str, TTableSchemaColumns]]:
+        """Gets table schemas from BigQuery using INFORMATION_SCHEMA or get_table for hidden datasets"""
+        if not self.sql_client.is_hidden_dataset:
+            return super().get_storage_tables(table_names)
+
+        # use the api to get storage tables for hidden dataset
+        schema_tables: List[Tuple[str, TTableSchemaColumns]] = []
+        for table_name in table_names:
+            try:
+                schema_table: TTableSchemaColumns = {}
+                table = self.sql_client.native_connection.get_table(
+                    self.sql_client.make_qualified_table_name(table_name, escape=False),
+                    retry=self.sql_client._default_retry,
+                    timeout=self.config.http_timeout,
+                )
+                for c in table.schema:
+                    schema_c: TColumnSchema = {
+                        "name": c.name,
+                        "nullable": c.is_nullable,
+                        **self._from_db_type(c.field_type, c.precision, c.scale),
+                    }
+                    schema_table[c.name] = schema_c
+                schema_tables.append((table_name, schema_table))
+            except gcp_exceptions.NotFound:
+                # table is not present
+                schema_tables.append((table_name, {}))
+        return schema_tables
+
+    def _get_info_schema_columns_query(
+        self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
+    ) -> Tuple[str, List[Any]]:
+        """Bigquery needs to scope the INFORMATION_SCHEMA.COLUMNS with project and dataset name so standard query generator cannot be used."""
+        # escape schema and catalog names
+        catalog_name = self.capabilities.escape_identifier(catalog_name)
+        schema_name = self.capabilities.escape_identifier(schema_name)
+
+        query = f"""
+SELECT {",".join(self._get_storage_table_query_columns())}
+    FROM {catalog_name}.{schema_name}.INFORMATION_SCHEMA.COLUMNS
+WHERE """
+
+        # placeholder for each table
+        table_placeholders = ",".join(["%s"] * len(folded_table_names))
+        query += f"table_name IN ({table_placeholders}) ORDER BY table_name, ordinal_position;"
+
+        return query, folded_table_names
+
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(column["name"])
+        name = self.sql_client.escape_column_name(column["name"])
         column_def_sql = (
             f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
         )
@@ -375,32 +429,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):
             column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
         return column_def_sql
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        schema_table: TTableSchemaColumns = {}
-        try:
-            table = self.sql_client.native_connection.get_table(
-                self.sql_client.make_qualified_table_name(table_name, escape=False),
-                retry=self.sql_client._default_retry,
-                timeout=self.config.http_timeout,
-            )
-            partition_field = table.time_partitioning.field if table.time_partitioning else None
-            for c in table.schema:
-                schema_c: TColumnSchema = {
-                    "name": c.name,
-                    "nullable": c.is_nullable,
-                    "unique": False,
-                    "sort": False,
-                    "primary_key": False,
-                    "foreign_key": False,
-                    "cluster": c.name in (table.clustering_fields or []),
-                    "partition": c.name == partition_field,
-                    **self._from_db_type(c.field_type, c.precision, c.scale),
-                }
-                schema_table[c.name] = schema_c
-            return True, schema_table
-        except gcp_exceptions.NotFound:
-            return False, schema_table
 
     def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
         # append to table for merge loads (append to stage) and regular appends.

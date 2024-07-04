@@ -7,11 +7,9 @@ from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
 from dlt.common.typing import AnyFun
 
-# from dlt.destinations.postgres import capabilities
-from dlt.destinations.impl.redshift import capabilities as redshift_caps
 from dlt.common.data_writers.escape import (
     escape_redshift_identifier,
-    escape_bigquery_identifier,
+    escape_hive_identifier,
     escape_redshift_literal,
     escape_postgres_literal,
     escape_duckdb_literal,
@@ -29,8 +27,10 @@ from dlt.common.data_writers.writers import (
     DataWriter,
     DataWriterMetrics,
     EMPTY_DATA_WRITER_METRICS,
+    ImportFileWriter,
     InsertValuesWriter,
     JsonlWriter,
+    create_import_spec,
     get_best_writer_spec,
     resolve_best_writer_spec,
     is_native_writer,
@@ -51,8 +51,10 @@ class _BytesIOWriter(DataWriter):
 
 @pytest.fixture
 def insert_writer() -> Iterator[DataWriter]:
+    from dlt.destinations import redshift
+
     with io.StringIO() as f:
-        yield InsertValuesWriter(f, caps=redshift_caps())
+        yield InsertValuesWriter(f, caps=redshift().capabilities())
 
 
 @pytest.fixture
@@ -154,7 +156,7 @@ def test_identifier_escape() -> None:
 
 def test_identifier_escape_bigquery() -> None:
     assert (
-        escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-")
+        escape_hive_identifier(", NULL'); DROP TABLE\"` -\\-")
         == "`, NULL'); DROP TABLE\"\\` -\\\\-`"
     )
 
@@ -259,3 +261,14 @@ def test_get_best_writer() -> None:
     assert WRITER_SPECS[get_best_writer_spec("arrow", "insert_values")] == ArrowToInsertValuesWriter
     with pytest.raises(DataWriterNotFound):
         get_best_writer_spec("arrow", "tsv")  # type: ignore
+
+
+def test_import_file_writer() -> None:
+    spec = create_import_spec("jsonl", ["jsonl"])
+    assert spec.data_item_format == "file"
+    assert spec.file_format == "jsonl"
+    writer = DataWriter.writer_class_from_spec(spec)
+    assert writer is ImportFileWriter
+    w_ = writer(None)
+    with pytest.raises(NotImplementedError):
+        w_.write_header(None)

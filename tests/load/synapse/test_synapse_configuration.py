@@ -1,8 +1,11 @@
+import os
 import pytest
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.exceptions import SystemConfigurationException
+from dlt.common.schema import Schema
 
+from dlt.destinations import synapse
 from dlt.destinations.impl.synapse.configuration import (
     SynapseClientConfiguration,
     SynapseCredentials,
@@ -14,7 +17,42 @@ pytestmark = pytest.mark.essential
 
 def test_synapse_configuration() -> None:
     # By default, unique indexes should not be created.
-    assert SynapseClientConfiguration().create_indexes is False
+    c = SynapseClientConfiguration()
+    assert c.create_indexes is False
+    assert c.has_case_sensitive_identifiers is False
+    assert c.staging_use_msi is False
+
+
+def test_synapse_factory() -> None:
+    schema = Schema("schema")
+    dest = synapse()
+    client = dest.client(schema, SynapseClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.create_indexes is False
+    assert client.config.staging_use_msi is False
+    assert client.config.has_case_sensitive_identifiers is False
+    assert client.capabilities.has_case_sensitive_identifiers is False
+    assert client.capabilities.casefold_identifier is str
+
+    # set args explicitly
+    dest = synapse(has_case_sensitive_identifiers=True, create_indexes=True, staging_use_msi=True)
+    client = dest.client(schema, SynapseClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.create_indexes is True
+    assert client.config.staging_use_msi is True
+    assert client.config.has_case_sensitive_identifiers is True
+    assert client.capabilities.has_case_sensitive_identifiers is True
+    assert client.capabilities.casefold_identifier is str
+
+    # set args via config
+    os.environ["DESTINATION__CREATE_INDEXES"] = "True"
+    os.environ["DESTINATION__STAGING_USE_MSI"] = "True"
+    os.environ["DESTINATION__HAS_CASE_SENSITIVE_IDENTIFIERS"] = "True"
+    dest = synapse()
+    client = dest.client(schema, SynapseClientConfiguration()._bind_dataset_name("dataset"))
+    assert client.config.create_indexes is True
+    assert client.config.staging_use_msi is True
+    assert client.config.has_case_sensitive_identifiers is True
+    assert client.capabilities.has_case_sensitive_identifiers is True
+    assert client.capabilities.casefold_identifier is str
 
 
 def test_parse_native_representation() -> None:

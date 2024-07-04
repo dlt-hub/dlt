@@ -79,6 +79,23 @@ class LoadPackageNotFound(LoadStorageException, FileNotFoundError):
         super().__init__(f"Package with load id {load_id} could not be found")
 
 
+class LoadPackageAlreadyCompleted(LoadStorageException):
+    def __init__(self, load_id: str) -> None:
+        self.load_id = load_id
+        super().__init__(
+            f"Package with load id {load_id} is already completed, but another complete was"
+            " requested"
+        )
+
+
+class LoadPackageNotCompleted(LoadStorageException):
+    def __init__(self, load_id: str) -> None:
+        self.load_id = load_id
+        super().__init__(
+            f"Package with load id {load_id} is not yet completed, but method required that"
+        )
+
+
 class SchemaStorageException(StorageException):
     pass
 

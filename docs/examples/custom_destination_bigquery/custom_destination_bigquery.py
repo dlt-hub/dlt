@@ -86,7 +86,7 @@ if __name__ == "__main__":
         pipeline_name="csv_to_bigquery_insert",
         destination=bigquery_insert,
         dataset_name="mydata",
-        full_refresh=True,
+        dev_mode=True,
     )
     load_info = pipeline.run(resource(url=OWID_DISASTERS_URL))
 

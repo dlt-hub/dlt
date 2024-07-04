@@ -4,7 +4,8 @@ from typing import Tuple, cast
 import dlt
 from dlt.common.pendulum import pendulum
 from dlt.common.typing import DictStrAny
-from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
+from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME
+from dlt.common.schema.utils import pipeline_state_table
 from dlt.common.destination.reference import WithStateSync, Destination, StateInfo
 from dlt.common.versioned_state import (
     generate_state_version_hash,
@@ -23,20 +24,6 @@ from dlt.pipeline.exceptions import (
 
 PIPELINE_STATE_ENGINE_VERSION = 4
 LOAD_PACKAGE_STATE_KEY = "pipeline_state"
-
-# state table columns
-STATE_TABLE_COLUMNS: TTableSchemaColumns = {
-    "version": {"name": "version", "data_type": "bigint", "nullable": False},
-    "engine_version": {"name": "engine_version", "data_type": "bigint", "nullable": False},
-    "pipeline_name": {"name": "pipeline_name", "data_type": "text", "nullable": False},
-    "state": {"name": "state", "data_type": "text", "nullable": False},
-    "created_at": {"name": "created_at", "data_type": "timestamp", "nullable": False},
-    "version_hash": {
-        "name": "version_hash",
-        "data_type": "text",
-        "nullable": True,
-    },  # set to nullable so we can migrate existing tables
-}
 
 
 def generate_pipeline_state_version_hash(state: TPipelineState) -> str:
@@ -98,27 +85,28 @@ def state_doc(state: TPipelineState, load_id: str = None) -> TPipelineStateDoc:
     state = copy(state)
     state.pop("_local")
     state_str = compress_state(state)
-    doc: TPipelineStateDoc = {
-        "version": state["_state_version"],
-        "engine_version": state["_state_engine_version"],
-        "pipeline_name": state["pipeline_name"],
-        "state": state_str,
-        "created_at": pendulum.now(),
-        "version_hash": state["_version_hash"],
-    }
-    if load_id:
-        doc["dlt_load_id"] = load_id
-    return doc
+    info = StateInfo(
+        version=state["_state_version"],
+        engine_version=state["_state_engine_version"],
+        pipeline_name=state["pipeline_name"],
+        state=state_str,
+        created_at=pendulum.now(),
+        version_hash=state["_version_hash"],
+        _dlt_load_id=load_id,
+    )
+    return info.as_doc()
 
 
-def state_resource(state: TPipelineState) -> Tuple[DltResource, TPipelineStateDoc]:
-    doc = state_doc(state)
+def state_resource(state: TPipelineState, load_id: str) -> Tuple[DltResource, TPipelineStateDoc]:
+    doc = state_doc(state, load_id)
+    state_table = pipeline_state_table()
     return (
         dlt.resource(
             [doc],
-            name=STATE_TABLE_NAME,
-            write_disposition="append",
-            columns=STATE_TABLE_COLUMNS,
+            name=PIPELINE_STATE_TABLE_NAME,
+            write_disposition=state_table["write_disposition"],
+            file_format=state_table["file_format"],
+            columns=state_table["columns"],
         ),
         doc,
     )

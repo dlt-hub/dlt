@@ -1,10 +1,9 @@
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import Optional
 
 from dlt.common.configuration import configspec
+from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
-
-TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
 
 
 @configspec
