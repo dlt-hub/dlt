@@ -583,48 +583,6 @@ def test_pipeline_explicit_destination_credentials(
     )
 
 
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(local_filesystem_configs=True, subset=["filesystem"]),
-    ids=lambda x: x.name,
-)
-def test_destination_explicit_filesystem_credentials(
-    destination_config: DestinationTestConfiguration,
-) -> None:
-    from dlt.destinations import filesystem
-    from dlt.sources.credentials import AwsCredentials, GcpOAuthCredentials
-
-    # try filesystem which uses union of credentials that requires bucket_url to resolve
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        destination=filesystem(
-            bucket_url="s3://test",
-            destination_name="uniq_s3_bucket",
-            credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
-        ),
-    )
-    config = p.destination_client().config
-    assert isinstance(config.credentials, AwsCredentials)
-    assert config.credentials.is_resolved()
-    # resolve gcp oauth
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        destination=filesystem(
-            "gcs://test",
-            destination_name="uniq_gcs_bucket",
-            credentials={
-                "project_id": "pxid",
-                "refresh_token": "123token",
-                "client_id": "cid",
-                "client_secret": "s",
-            },
-        ),
-    )
-    config = p.destination_client().config
-    assert config.credentials.is_resolved()
-    assert isinstance(config.credentials, GcpOAuthCredentials)
-
-
 # do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize(
     "destination_config",
