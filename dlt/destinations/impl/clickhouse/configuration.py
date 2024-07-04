@@ -6,11 +6,15 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.reference import (
     DestinationClientDwhWithStagingConfiguration,
 )
-from dlt.common.libs.sql_alchemy import URL
 from dlt.common.utils import digest128
 
 
 TSecureConnection = Literal[0, 1]
+TTableEngineType = Literal[
+    "merge_tree",
+    "shared_merge_tree",
+    "replicated_merge_tree",
+]
 
 
 @configspec(init=False)
@@ -36,6 +40,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
     dataset_table_separator: str = "___"
     """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
+    table_engine_type: Optional[TTableEngineType] = "merge_tree"
+    """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
     dataset_sentinel_table_name: str = "dlt_sentinel_table"
     """Special table to mark dataset as existing"""
     gcp_access_key_id: Optional[str] = None
@@ -77,7 +83,9 @@ class ClickHouseCredentials(ConnectionStringCredentials):
 
 @configspec
 class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="clickhouse", init=False, repr=False, compare=False)  # type: ignore[misc]
+    destination_type: Final[str] = dataclasses.field(  # type: ignore[misc]
+        default="clickhouse", init=False, repr=False, compare=False
+    )
     credentials: ClickHouseCredentials = None
 
     # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
@@ -86,7 +94,7 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string."""
+        """Returns a fingerprint of the host part of a connection string."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""

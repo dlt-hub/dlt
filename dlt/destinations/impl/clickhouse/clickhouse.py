@@ -350,7 +350,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # Default to 'MergeTree' if the user didn't explicitly set a table engine hint.
         # Clickhouse Cloud will automatically pick `SharedMergeTree` for this option,
         # so it will work on both local and cloud instances of CH.
-        table_type = cast(TTableEngineType, table.get(TABLE_ENGINE_TYPE_HINT, "merge_tree"))
+        table_type = cast(
+            TTableEngineType,
+            table.get(TABLE_ENGINE_TYPE_HINT, self.config.credentials.table_engine_type),
+        )
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [

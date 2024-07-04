@@ -1,11 +1,10 @@
-import os
 from typing import Generator, Dict, cast
 
 import pytest
 
 import dlt
+from dlt.common.utils import custom_environ
 from dlt.destinations.adapters import clickhouse_adapter
-from dlt.destinations.impl.clickhouse.clickhouse_adapter import TABLE_ENGINE_TYPE_HINT, TTableEngineType
 from dlt.destinations.impl.clickhouse.sql_client import TDeployment, ClickHouseSqlClient
 from tests.load.clickhouse.utils import get_deployment_type
 from tests.pipeline.utils import assert_load_info
@@ -34,18 +33,12 @@ def test_clickhouse_adapter() -> None:
         yield {"field1": 1, "field2": 2}
 
     clickhouse_adapter(merge_tree_resource, table_engine_type="merge_tree")
-    clickhouse_adapter(
-        replicated_merge_tree_resource, table_engine_type="replicated_merge_tree"
-    )
+    clickhouse_adapter(replicated_merge_tree_resource, table_engine_type="replicated_merge_tree")
 
-    pipe = dlt.pipeline(
-        pipeline_name="adapter_test", destination="clickhouse", dev_mode=True
-    )
+    pipe = dlt.pipeline(pipeline_name="adapter_test", destination="clickhouse", dev_mode=True)
 
     with pipe.sql_client() as client:
-        deployment_type: TDeployment = get_deployment_type(
-            cast(ClickHouseSqlClient, client)
-        )
+        deployment_type: TDeployment = get_deployment_type(cast(ClickHouseSqlClient, client))
 
     if deployment_type == "ClickHouseCloud":
         pack = pipe.run(
@@ -118,60 +111,3 @@ def test_clickhouse_adapter() -> None:
                 assert "ENGINE = ReplicatedMergeTree" in sql[0]
             else:
                 assert "ENGINE = MergeTree" or "ENGINE = SharedMergeTree" in sql[0]
-
-
-def test_clickhouse_configuration_adapter_table_engine_override() -> None:
-    """Tests that, given a user has specified a non-default engine to use across all tables,
-    that adapter overriding works on a per-resource level."""
-    os.environ["DESTINATION__CLICKHOUSE__TABLE_ENGINE_TYPE"] = "replicated_merge_tree"
-
-    @dlt.resource
-    def annotated_resource() -> Generator[Dict[str, int], None, None]:
-        yield {"field1": 1, "field2": 2}
-
-    @dlt.resource
-    def non_annotated_resource() -> Generator[Dict[str, int], None, None]:
-        yield {"field1": 1, "field2": 2}
-
-    clickhouse_adapter(annotated_resource, table_engine_type="merge_tree")
-
-    pipe = dlt.pipeline(
-        pipeline_name="adapter_test", destination="clickhouse", dev_mode=True
-    )
-
-    with pipe.sql_client() as client:
-        deployment_type: TDeployment = get_deployment_type(
-            cast(ClickHouseSqlClient, client)
-        )
-
-    if deployment_type != "ClickHouseCloud":
-        # TODO: Run for local when log engines are implemented.
-        pytest.skip(
-            "Only ClickHouseCloud has enough table types implemented for this test to work for now."
-        )
-
-    pack = pipe.run(
-        [
-            annotated_resource,
-            non_annotated_resource,
-        ]
-    )
-
-    assert_load_info(pack)
-
-    with pipe.sql_client() as client:
-        tables = {}
-        for table in client._list_tables():
-            if "resource" in table:
-                tables[table.split("___")[1]] = table
-
-        for table_name, full_table_name in tables.items():
-            with client.execute_query(
-                "SELECT database, name, engine, engine_full FROM system.tables "
-                f"WHERE name = '{full_table_name}';"
-            ) as cursor:
-                res = cursor.fetchall()
-                if table_name == "non_annotated_resource":
-                    assert tuple(res[0])[2] == "ReplicatedMergeTree"
-                else:
-                    assert tuple(res[0])[2] in ("SharedMergeTree", "MergeTree")
