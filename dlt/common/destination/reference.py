@@ -618,7 +618,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @staticmethod
     def from_reference(
         ref: TDestinationReferenceArg,
-        credentials: Optional[CredentialsConfiguration] = None,
+        credentials: Optional[Any] = None,
         destination_name: Optional[str] = None,
         environment: Optional[str] = None,
         **kwargs: Any,
