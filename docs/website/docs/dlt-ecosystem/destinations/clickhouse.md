@@ -67,6 +67,7 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
    http_port = 8443                         # HTTP Port to connect to ClickHouse server's HTTP interface. Defaults to 8443 for Clickhouse Cloud.
    secure = 1                               # Set to 1 if using HTTPS, else 0.
    dataset_table_separator = "___"          # Separator for dataset table names from dataset.
+   table_engine_type = "merge_tree"         # The default table engine to use.
    ```
 
    :::info Network Ports
@@ -141,7 +142,21 @@ ClickHouse supports the following [column hints](../../general-usage/schema#tabl
 
 ## Choosing a Table Engine
 
-By default, tables are created using the `MergeTree` table engine in ClickHouse. You can specify an alternate table engine using the `table_engine_type` parameter with the clickhouse adapter:
+dlt defaults to `MergeTree` table engine. You can specify an alternate table engine in two ways:
+
+### Setting a default table engine in the configuration
+
+You can set a default table engine for all resources and dlt tables by adding the `table_engine_type` parameter to your ClickHouse credentials in the `.dlt/secrets.toml` file:
+
+```toml
+[destination.clickhouse.credentials]
+# ... (other credentials)
+table_engine_type = "merge_tree"  # The default table engine to use.
+```
+
+### Setting the table engine for specific resources
+
+You can also set the table engine for specific resources using the clickhouse_adapter, which will override the default engine set in `.dlt/secrets.toml`, for that resource:
 
 ```py
 from dlt.destinations.adapters import clickhouse_adapter
