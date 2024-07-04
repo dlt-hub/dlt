@@ -1,4 +1,3 @@
-import contextlib
 import os
 import re
 from copy import deepcopy
@@ -10,7 +9,6 @@ import clickhouse_connect
 from clickhouse_connect.driver.tools import insert_file
 
 from dlt import config
-from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
     AzureCredentialsWithoutDefaults,
@@ -32,13 +30,6 @@ from dlt.common.schema.typing import (
     TColumnType,
 )
 from dlt.common.storages import FileStorage
-from dlt.common.storages.load_package import (
-    LoadPackageStateInjectableContext,
-    commit_load_package_state,
-)
-from dlt.common.storages.load_package import (
-    TLoadPackageState,
-)
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
@@ -306,43 +297,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.config: ClickHouseClientConfiguration = config
         self.active_hints = deepcopy(HINT_TO_CLICKHOUSE_ATTR)
         self.type_mapper = ClickHouseTypeMapper(self.capabilities)
-
-    def has_dataset(self) -> bool:
-        try:
-            container = Container()
-            state_ctx = container[LoadPackageStateInjectableContext]
-            datasets = cast(List[str], state_ctx.state.get("datasets", []))
-            return self.sql_client.dataset_name in datasets
-        except KeyError:
-            return False
-
-    def create_dataset(self) -> None:
-        with contextlib.suppress(KeyError):
-            container = Container()
-            state_ctx = container[LoadPackageStateInjectableContext]
-            datasets = cast(List[str], state_ctx.state.get("datasets", []))
-            if self.sql_client.dataset_name not in datasets:
-                datasets.append(self.sql_client.dataset_name)
-                state: TLoadPackageState = state_ctx.state
-                state["datasets"] = datasets  # type: ignore[typeddict-unknown-key]
-                commit_load_package_state()
-
-    def drop_dataset(self) -> None:
-        with contextlib.suppress(KeyError):
-            container = Container()
-            state_ctx = container[LoadPackageStateInjectableContext]
-            datasets = cast(List[str], state_ctx.state.get("datasets", []))
-            if self.sql_client.dataset_name in datasets:
-                datasets.remove(self.sql_client.dataset_name)
-                state: TLoadPackageState = state_ctx.state
-                state["datasets"] = datasets  # type: ignore[typeddict-unknown-key]
-                commit_load_package_state()
-
-        to_drop_results = self.sql_client._list_tables()
-        for table in to_drop_results:
-            self.sql_client.execute_sql(
-                f"""DROP TABLE {self.sql_client.catalog_name()}.{self.capabilities.escape_identifier(table)} SYNC"""
-            )
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]

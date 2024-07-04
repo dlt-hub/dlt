@@ -62,6 +62,13 @@ class ClickHouseSqlClient(
         self.credentials = credentials
         self.database_name = credentials.database
 
+    def has_dataset(self) -> bool:
+        # we do not need to normalize dataset_sentinel_table_name
+        sentinel_table = self.credentials.dataset_sentinel_table_name
+        return sentinel_table in [
+            t.split(self.credentials.dataset_table_separator)[1] for t in self._list_tables()
+        ]
+
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
         self._conn = clickhouse_driver.connect(dsn=self.credentials.to_native_representation())
         return self._conn
@@ -95,6 +102,18 @@ class ClickHouseSqlClient(
         with self.execute_query(sql, *args, **kwargs) as curr:
             return None if curr.description is None else curr.fetchall()
 
+    def create_dataset(self) -> None:
+        # We create a sentinel table which defines whether we consider the dataset created.
+        sentinel_table_name = self.make_qualified_table_name(
+            self.credentials.dataset_sentinel_table_name
+        )
+        # `MergeTree` is guaranteed to work in both self-managed and cloud setups.
+        self.execute_sql(f"""
+            CREATE TABLE {sentinel_table_name}
+            (_dlt_id String NOT NULL PRIMARY KEY)
+            ENGINE=MergeTree
+            COMMENT 'internal dlt sentinel table'""")
+
     def drop_dataset(self) -> None:
         # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
         # or collection of tables, that has the `dataset_name` as a prefix.
@@ -102,7 +121,7 @@ class ClickHouseSqlClient(
         for table in to_drop_results:
             # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
             # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
-            # To resolve this, we're forced to provide the full query string here.
+            # To resolve this, we are forced to provide the full query string here.
             self.execute_sql(
                 f"""DROP TABLE {self.catalog_name()}.{self.capabilities.escape_identifier(table)} SYNC"""
             )
