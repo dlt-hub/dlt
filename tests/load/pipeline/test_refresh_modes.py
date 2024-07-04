@@ -447,7 +447,9 @@ def test_refresh_argument_to_extract(destination_config: DestinationTestConfigur
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
+    destinations_configs(
+        default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True
+    ),
     ids=lambda x: x.name,
 )
 def test_refresh_staging_dataset(destination_config: DestinationTestConfiguration):
