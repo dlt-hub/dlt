@@ -171,6 +171,28 @@ def mock_api_server():
         def posts_with_results_key(request, context):
             return paginate_response(request, generate_posts(), records_key="many-results")
 
+        @router.post(r"/posts/search$")
+        def search_posts(request, context):
+            body = request.json()
+            page_size = body.get("page_size", 10)
+            page_number = body.get("page", 1)
+
+            # Simulate a search with filtering
+            records = generate_posts()
+            ids_greater_than = body.get("ids_greater_than", 0)
+            records = [r for r in records if r["id"] > ids_greater_than]
+
+            total_records = len(records)
+            total_pages = (total_records + page_size - 1) // page_size
+            start_index = (page_number - 1) * page_size
+            end_index = start_index + page_size
+            records_slice = records[start_index:end_index]
+
+            return {
+                "data": records_slice,
+                "next_page": page_number + 1 if page_number < total_pages else None,
+            }
+
         @router.get("/protected/posts/basic-auth")
         def protected_basic_auth(request, context):
             auth = request.headers.get("Authorization")
