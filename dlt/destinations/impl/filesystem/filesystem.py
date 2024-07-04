@@ -24,14 +24,15 @@ from dlt.common.destination.reference import (
     WithStateSync,
     StorageSchemaInfo,
     StateInfo,
-    DoNothingJob,
-    DoNothingHasFollowupJobs,
     LoadJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, ReferenceFollowupJob
+from dlt.destinations.job_impl import (
+    FinalizedLoadJobWithFollowupJobs,
+    ReferenceFollowupJob,
+    FinalizedLoadJob,
+)
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 
@@ -314,17 +315,17 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # this does not apply to scenarios where we are using filesystem as staging
         # where we want to load the state the regular way
         if table["name"] == self.schema.state_table_name and not self.config.as_staging:
-            return DoNothingJob(self, file_path)
+            return FinalizedLoadJob(file_path)
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
-            return DoNothingHasFollowupJobs(self, file_path)
+            return FinalizedLoadJobWithFollowupJobs(file_path)
 
         cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
         return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""

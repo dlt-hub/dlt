@@ -375,4 +375,4 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(ch_t, precision, scale)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)

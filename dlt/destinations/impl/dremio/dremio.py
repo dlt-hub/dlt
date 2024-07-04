@@ -163,7 +163,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def _get_table_update_sql(
         self,

@@ -693,7 +693,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:

@@ -50,7 +50,11 @@ from dlt.common.destination.reference import (
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.job_impl import FinalizedLoadJob, ReferenceFollowupJob
+from dlt.destinations.job_impl import (
+    FinalizedLoadJob,
+    ReferenceFollowupJob,
+    FinalizedLoadJobWithFollowupJobs,
+)
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -267,7 +271,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             LoadJob: A restored job or none
         """
         if SqlLoadJob.is_sql_job(file_path):
-            return FinalizedLoadJob.from_file_path(file_path, "completed")
+            return FinalizedLoadJob.from_file_path(file_path)
         return None
 
     def complete_load(self, load_id: str) -> None:

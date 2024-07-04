@@ -2,15 +2,17 @@ from copy import deepcopy
 from types import TracebackType
 from typing import ClassVar, Optional, Type, Iterable, cast, List
 
-from dlt.common.destination.reference import RunnableLoadJob
-from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.common.typing import AnyFun
 from dlt.pipeline.current import destination_state
 from dlt.common.configuration import create_resolved_partial
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import RunnableLoadJob, DoNothingJob, JobClientBase, LoadJob
+from dlt.common.destination.reference import (
+    JobClientBase,
+    LoadJob,
+)
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.job_impl import (
     DestinationJsonlLoadJob,
@@ -56,7 +58,7 @@ class DestinationClient(JobClientBase):
         skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             if table["name"].startswith(self.schema._dlt_tables_prefix):
-                return DoNothingJob(self, file_path)
+                return FinalizedLoadJob(file_path)
             table = deepcopy(table)
             for column in list(table["columns"].keys()):
                 if column.startswith(self.schema._dlt_tables_prefix):
@@ -90,7 +92,7 @@ class DestinationClient(JobClientBase):
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def complete_load(self, load_id: str) -> None: ...
 

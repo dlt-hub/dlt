@@ -314,22 +314,6 @@ class HasFollowupJobs:
         return []
 
 
-class DoNothingJob(RunnableLoadJob):
-    """The most lazy class of dlt"""
-
-    def __init__(self, job_client: "JobClientBase", file_path: str) -> None:
-        super().__init__(job_client, file_path)
-
-    def run(self) -> None:
-        pass
-
-
-class DoNothingHasFollowupJobs(DoNothingJob, HasFollowupJobs):
-    """The second most lazy class of dlt"""
-
-    pass
-
-
 class JobClientBase(ABC):
     def __init__(
         self,

@@ -26,9 +26,14 @@ from dlt.pipeline.current import commit_load_package_state
 
 
 class FinalizedLoadJob(LoadJob):
-    """Special Load Job that should never get started and just indicates a job being in a final state"""
+    """
+    Special Load Job that should never get started and just indicates a job being in a final state.
+    May also be used to indicate that nothing needs to be done.
+    """
 
-    def __init__(self, file_path: str, status: TLoadJobState, exception: str = None) -> None:
+    def __init__(
+        self, file_path: str, status: TLoadJobState = "completed", exception: str = None
+    ) -> None:
         self._status = status
         self._exception = exception
         self._file_path = file_path
@@ -37,7 +42,7 @@ class FinalizedLoadJob(LoadJob):
 
     @classmethod
     def from_file_path(
-        cls, file_path: str, status: TLoadJobState, message: str = None
+        cls, file_path: str, status: TLoadJobState = "completed", message: str = None
     ) -> "FinalizedLoadJob":
         return cls(file_path, status, exception=message)
 
@@ -60,7 +65,7 @@ class FollowupJobImpl(FollowupJob, LoadJob):
         self._exception = exception
         super().__init__(file_name)
         self._new_file_path = os.path.join(tempfile.gettempdir(), self._file_name)
-        # we only accept jobs that we can schedule or mark as failed..
+        # we only accept jobs that we can scheduleas new or mark as failed..
         assert status in ("ready", "failed")
 
     def _save_text_file(self, data: str) -> None:

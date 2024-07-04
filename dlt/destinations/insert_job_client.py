@@ -110,7 +110,7 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
         """
         job = super().restore_file_load(file_path)
         if not job:
-            job = FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+            job = FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
         return job
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:

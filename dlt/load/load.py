@@ -207,12 +207,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             self.config,
             running_jobs,
         )
-        file_count = len(load_files)
-        if file_count == 0:
-            logger.info(f"No new jobs found in {load_id}")
-            return []
 
-        logger.info(f"Will load additional {file_count}, creating jobs")
+        logger.info(f"Will load additional {len(load_files)}, creating jobs")
         jobs: List[LoadJob] = []
         for file in load_files:
             job = self.get_job(file, load_id, schema)
