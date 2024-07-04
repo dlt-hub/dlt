@@ -14,7 +14,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
-from dlt.pipeline.warnings import credentials_argument_deprecated, full_refresh_argument_deprecated
+from dlt.pipeline.warnings import full_refresh_argument_deprecated
 
 TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 
@@ -32,7 +32,6 @@ def pipeline(
     full_refresh: Optional[bool] = None,
     dev_mode: bool = False,
     refresh: Optional[TRefreshMode] = None,
-    credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
 ) -> TPipeline:
@@ -78,9 +77,6 @@ def pipeline(
             * `drop_resources`: Drop tables and resource state for all resources being processed. Source level state is not modified. (Note: schema history is erased)
             * `drop_data`: Wipe all data and resource state for all resources being processed. Schema is not modified.
 
-        credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
-        In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
-
         progress(str, Collector): A progress monitor that shows progress bars, console or log messages with current information on sources, resources, data items etc. processed in
         `extract`, `normalize` and `load` stage. Pass a string with a collector name or configure your own by choosing from `dlt.progress` module.
         We support most of the progress libraries: try passing `tqdm`, `enlighten` or `alive_progress` or `log` to write to console/log.
@@ -109,7 +105,6 @@ def pipeline(
     full_refresh: Optional[bool] = None,
     dev_mode: bool = False,
     refresh: Optional[TRefreshMode] = None,
-    credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
     **injection_kwargs: Any,
@@ -120,7 +115,6 @@ def pipeline(
     # is any of the arguments different from defaults
     has_arguments = bool(orig_args[0]) or any(orig_args[1].values())
 
-    credentials_argument_deprecated("pipeline", credentials, destination)
     full_refresh_argument_deprecated("pipeline", full_refresh)
 
     if not has_arguments:
@@ -153,7 +147,6 @@ def pipeline(
         destination,
         staging,
         dataset_name,
-        credentials,
         import_schema_path,
         export_schema_path,
         full_refresh if full_refresh is not None else dev_mode,
@@ -204,7 +197,6 @@ def attach(
         None,
         None,
         None,
-        None,
         False,  # always False as dev_mode so we do not wipe the working folder
         progress,
         True,
@@ -222,7 +214,6 @@ def run(
     destination: TDestinationReferenceArg = None,
     staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
-    credentials: Any = None,
     table_name: str = None,
     write_disposition: TWriteDispositionConfig = None,
     columns: Sequence[TColumnSchema] = None,
@@ -257,9 +248,6 @@ def run(
         dataset_name (str, optional):A name of the dataset to which the data will be loaded. A dataset is a logical group of tables ie. `schema` in relational databases or folder grouping many files.
         If not provided, the value passed to `dlt.pipeline` will be used. If not provided at all then defaults to the `pipeline_name`
 
-        credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
-        In most cases should be set to None, which lets `dlt` to use `secrets.toml` or environment variables to infer right credentials values.
-
         table_name (str, optional): The name of the table to which the data should be loaded within the `dataset`. This argument is required for a `data` that is a list/Iterable or Iterator without `__name__` attribute.
         The behavior of this argument depends on the type of the `data`:
         * generator functions: the function name is used as table name, `table_name` overrides this default
@@ -280,13 +268,12 @@ def run(
     Returns:
         LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
     """
-    destination = Destination.from_reference(destination, credentials=credentials)
+    destination = Destination.from_reference(destination)
     return pipeline().run(
         data,
         destination=destination,
         staging=staging,
         dataset_name=dataset_name,
-        credentials=credentials,
         table_name=table_name,
         write_disposition=write_disposition,
         columns=columns,
