@@ -178,14 +178,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         """
         Start a load job in a separate thread
         """
-        file_path = self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         job_client = self.get_destination_client(schema)
-        job_info = ParsedLoadJobFileName.parse(file_path)
 
         with job._job_client as client:
-            table = client.prepare_load_table(job_info.table_name)
+            table = client.prepare_load_table(job.job_file_info().table_name)
 
-            if self.is_staging_destination_job(file_path):
+            if self.is_staging_destination_job(job._file_path):
                 use_staging_dataset = isinstance(
                     job_client, SupportsStagingDestination
                 ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
@@ -195,7 +193,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 ) and job_client.should_load_data_to_staging_dataset(table)
 
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job.run_managed(file_path=file_path)
+                job.run_managed()
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -213,6 +211,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         for file in load_files:
             job = self.get_job(file, load_id, schema)
             jobs.append(job)
+            job._file_path = self.load_storage.normalized_packages.start_job(
+                load_id, job.file_name()
+            )
             # only start a thread if this job is runnable
             if isinstance(job, RunnableLoadJob):
                 self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))  # type: ignore

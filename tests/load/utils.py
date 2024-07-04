@@ -607,7 +607,7 @@ def expect_load_file(
     table = client.prepare_load_table(table_name)
     job = client.get_load_job(table, file_storage.make_full_path(file_name), uniq_id())
     if isinstance(job, RunnableLoadJob):
-        job.run_managed(job._file_path)
+        job.run_managed()
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name

@@ -219,7 +219,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             try:
                 job = BigQueryLoadJob(
                     self,
-                    FileStorage.get_file_name_from_file_path(file_path),
+                    file_path,
                     self._retrieve_load_job(file_path),
                     self.config.http_timeout,
                     self.config.retry_deadline,
@@ -271,7 +271,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 else:
                     job = BigQueryLoadJob(
                         self,
-                        FileStorage.get_file_name_from_file_path(file_path),
+                        file_path,
                         self._create_load_job(table, file_path),
                         self.config.http_timeout,
                         self.config.retry_deadline,

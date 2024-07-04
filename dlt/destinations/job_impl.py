@@ -38,7 +38,7 @@ class FinalizedLoadJob(LoadJob):
         self._exception = exception
         self._file_path = file_path
         assert self._status in ("completed", "failed")
-        super().__init__(ParsedLoadJobFileName.parse(file_path).file_name())
+        super().__init__(file_path)
 
     @classmethod
     def from_file_path(
@@ -63,18 +63,17 @@ class FollowupJobImpl(FollowupJob, LoadJob):
     ) -> None:
         self._state = status
         self._exception = exception
-        super().__init__(file_name)
-        self._new_file_path = os.path.join(tempfile.gettempdir(), self._file_name)
+        super().__init__(os.path.join(tempfile.gettempdir(), file_name))
         # we only accept jobs that we can scheduleas new or mark as failed..
         assert status in ("ready", "failed")
 
     def _save_text_file(self, data: str) -> None:
-        with open(self._new_file_path, "w", encoding="utf-8") as f:
+        with open(self._file_path, "w", encoding="utf-8") as f:
             f.write(data)
 
     def new_file_path(self) -> str:
         """Path to a newly created temporary job file"""
-        return self._new_file_path
+        return self._file_path
 
     def state(self) -> TLoadJobState:
         """Default FollowupJobs are marked as ready to execute"""

@@ -201,10 +201,11 @@ TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
 class LoadJob(ABC):
-    def __init__(self, file_name: str) -> None:
-        assert file_name == FileStorage.get_file_name_from_file_path(file_name)
-        self._file_name = file_name
-        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
+    def __init__(self, file_path: str) -> None:
+        self._file_path = file_path
+        self._file_name = FileStorage.get_file_name_from_file_path(file_path)
+        assert self._file_name != self._file_path
+        self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
 
     def job_id(self) -> str:
         """The job id that is derived from the file name and does not changes during job lifecycle"""
@@ -245,7 +246,7 @@ class RunnableLoadJob(LoadJob, ABC):
         File name is also a job id (or job id is deterministically derived) so it must be globally unique
         """
         # ensure file name
-        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
+        super().__init__(file_path)
         self._file_path = file_path
         self._state: TLoadJobState = "ready"
         self._exception: Exception = None
@@ -253,17 +254,15 @@ class RunnableLoadJob(LoadJob, ABC):
         # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
 
-    def run_managed(self, file_path: str) -> None:
+    def run_managed(self) -> None:
         """
         wrapper around the user implemented run method
         """
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
-        assert file_path != self._file_name
 
         # filepath is now moved to running
-        self._file_path = file_path
         try:
             self._state = "running"
             self.run()
