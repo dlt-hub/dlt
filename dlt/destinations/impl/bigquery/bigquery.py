@@ -16,8 +16,9 @@ from dlt.common.destination.reference import (
     HasFollowupJobs,
     FollowupJob,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     SupportsStagingDestination,
+    LoadJob,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.exceptions import UnknownTableException
@@ -103,7 +104,7 @@ class BigQueryTypeMapper(TypeMapper):
         return super().from_db_type(*parse_db_data_type_str_with_precision(db_type))
 
 
-class BigQueryLoadJob(LoadJob, HasFollowupJobs):
+class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "BigQueryClient",

@@ -32,6 +32,7 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStagingDataset,
     Destination,
+    RunnableLoadJob,
     LoadJob,
     FollowupJob,
     TLoadJobState,
@@ -45,7 +46,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.runtime import signals
 
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
@@ -173,7 +174,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     @staticmethod
     @workermethod
-    def w_start_job(self: "Load", job: LoadJob, load_id: str, schema: Schema) -> None:
+    def w_start_job(self: "Load", job: RunnableLoadJob, load_id: str, schema: Schema) -> None:
         """
         Start a load job in a separate thread
         """
@@ -198,7 +199,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs_count: int
-    ) -> List[LoadJob]:
+    ) -> Sequence[LoadJob]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
@@ -216,7 +217,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         for file in load_files:
             job = self.get_job(file, load_id, schema)
             jobs.append(job)
-            self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))  # type: ignore
+            # only start a thread if this job is runnable
+            if isinstance(job, RunnableLoadJob):
+                self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))  # type: ignore
 
         return jobs
 
@@ -239,7 +242,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 job = client.restore_file_load(file_path)
             except DestinationTerminalException:
                 logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
-                job = EmptyLoadJobWithFollowupJobs.from_file_path(
+                job = FinalizedLoadJobWithFollowupJobs.from_file_path(
                     file_path, "failed", pretty_format_exception()
                 )
                 # proceed to appending job, do not reraise
@@ -292,7 +295,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return jobs
 
     def complete_jobs(
-        self, load_id: str, jobs: List[LoadJob], schema: Schema
+        self, load_id: str, jobs: Sequence[LoadJob], schema: Schema
     ) -> Tuple[List[LoadJob], Exception]:
         """Run periodically in the main thread to collect job execution statuses.
 

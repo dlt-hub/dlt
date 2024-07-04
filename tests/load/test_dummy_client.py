@@ -10,7 +10,7 @@ from dlt.common.exceptions import TerminalException, TerminalValueError
 from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TJobState
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
-from dlt.common.destination.reference import LoadJob, TDestination
+from dlt.common.destination.reference import RunnableLoadJob, TDestination
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_child_tables,
@@ -60,11 +60,11 @@ def test_spool_job_started() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     assert len(files) == 2
-    jobs: List[LoadJob] = []
+    jobs: List[RunnableLoadJob] = []
     for f in files:
         job = load.get_job(f, load_id, schema)
         assert job.state() == "ready"
-        Load.w_start_job(load, job, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)  # type: ignore
         assert type(job) is dummy_impl.LoadDummyJob
         # jobs runs, but is not moved yet (loader will do this)
         assert job.state() == "completed"
@@ -160,10 +160,10 @@ def test_spool_job_failed() -> None:
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
-    jobs: List[LoadJob] = []
+    jobs: List[RunnableLoadJob] = []
     for f in files:
         job = load.get_job(f, load_id, schema)
-        Load.w_start_job(load, job, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)  # type: ignore
         assert type(job) is dummy_impl.LoadDummyJob
         assert job.state() == "failed"
         assert load.load_storage.normalized_packages.storage.has_file(
@@ -241,7 +241,7 @@ def test_spool_job_retry_new() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     for f in files:
         job = load.get_job(f, load_id, schema)
-        Load.w_start_job(load, job, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)  # type: ignore
         assert job.state() == "retry"
 
 
@@ -262,7 +262,7 @@ def test_spool_job_retry_started() -> None:
     # dummy_impl.CLIENT_CONFIG = DummyClientConfiguration
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
-    jobs: List[LoadJob] = []
+    jobs: List[RunnableLoadJob] = []
     for f in files:
         job = load.get_job(f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
@@ -294,7 +294,7 @@ def test_spool_job_retry_started() -> None:
     for f in files:
         job = load.get_job(f, load_id, schema)
         assert job.state() == "ready"
-        Load.w_start_job(load, job, load_id, schema)
+        Load.w_start_job(load, job, load_id, schema)  # type: ignore
         assert job.state() == "completed"
 
 
@@ -317,7 +317,7 @@ def test_try_retrieve_job() -> None:
     # new load package
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     load.pool = ThreadPoolExecutor()
-    jobs = load.start_new_jobs(load_id, schema, 0)
+    jobs = load.start_new_jobs(load_id, schema, 0)  # type: ignore
     assert len(jobs) == 2
     # now jobs are known
     with load.destination.client(schema, load.initial_client_config) as c:

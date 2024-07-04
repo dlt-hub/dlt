@@ -5,7 +5,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.destination.reference import LoadJob, HasFollowupJobs, TLoadJobState
+from dlt.common.destination.reference import RunnableLoadJob, HasFollowupJobs, LoadJob
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import maybe_context
@@ -113,7 +113,7 @@ class DuckDbTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class DuckDbCopyJob(LoadJob, HasFollowupJobs):
+class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, job_client: "DuckDbClient", table_name: str, file_path: str) -> None:
         super().__init__(job_client, file_path)
         self.table_name = table_name

@@ -17,6 +17,7 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
+    LoadJob,
 )
 from dlt.common.data_types import TDataType
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -29,7 +30,7 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
-from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, RunnableLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJob

@@ -42,6 +42,7 @@ from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     FollowupJob,
     WithStagingDataset,
+    RunnableLoadJob,
     LoadJob,
     JobClientBase,
     HasFollowupJobs,
@@ -49,7 +50,7 @@ from dlt.common.destination.reference import (
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.job_impl import EmptyLoadJob, ReferenceFollowupJob
+from dlt.destinations.job_impl import FinalizedLoadJob, ReferenceFollowupJob
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -63,7 +64,7 @@ from dlt.destinations.utils import (
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 
 
-class SqlLoadJob(LoadJob):
+class SqlLoadJob(RunnableLoadJob):
     """A job executing sql statement, without followup trait"""
 
     def __init__(self, job_client: "SqlJobClientBase", file_path: str) -> None:
@@ -103,7 +104,7 @@ class SqlLoadJob(LoadJob):
         return os.path.splitext(file_path)[1][1:] == "sql"
 
 
-class CopyRemoteFileLoadJob(LoadJob, HasFollowupJobs):
+class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "SqlJobClientBase",
@@ -266,7 +267,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             LoadJob: A restored job or none
         """
         if SqlLoadJob.is_sql_job(file_path):
-            return EmptyLoadJob.from_file_path(file_path, "completed")
+            return FinalizedLoadJob.from_file_path(file_path, "completed")
         return None
 
     def complete_load(self, load_id: str) -> None:

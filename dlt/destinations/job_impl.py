@@ -7,14 +7,15 @@ from dlt.common.json import json
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     JobClientBase,
     FollowupJob,
-    BaseLoadJob,
+    LoadJob,
 )
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 
 from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
@@ -24,19 +25,20 @@ from dlt.destinations.impl.destination.configuration import (
 from dlt.pipeline.current import commit_load_package_state
 
 
-class EmptyLoadJob(LoadJob):
+class FinalizedLoadJob(LoadJob):
     """Special Load Job that should never get started and just indicates a job being in a final state"""
 
     def __init__(self, file_path: str, status: TLoadJobState, exception: str = None) -> None:
         self._status = status
         self._exception = exception
+        self._file_path = file_path
         assert self._status in ("completed", "failed")
-        super().__init__(None, file_path)
+        super().__init__(ParsedLoadJobFileName.parse(file_path).file_name())
 
     @classmethod
     def from_file_path(
         cls, file_path: str, status: TLoadJobState, message: str = None
-    ) -> "EmptyLoadJob":
+    ) -> "FinalizedLoadJob":
         return cls(file_path, status, exception=message)
 
     def state(self) -> TLoadJobState:
@@ -46,11 +48,11 @@ class EmptyLoadJob(LoadJob):
         return self._exception
 
 
-class EmptyLoadJobWithFollowupJobs(EmptyLoadJob, HasFollowupJobs):
+class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):
     pass
 
 
-class FollowupJobImpl(FollowupJob, BaseLoadJob):
+class FollowupJobImpl(FollowupJob, LoadJob):
     def __init__(
         self, file_name: str, status: TLoadJobState = "ready", exception: str = None
     ) -> None:
@@ -68,6 +70,13 @@ class FollowupJobImpl(FollowupJob, BaseLoadJob):
     def new_file_path(self) -> str:
         """Path to a newly created temporary job file"""
         return self._new_file_path
+
+    def state(self) -> TLoadJobState:
+        """Default FollowupJobs are marked as ready to execute"""
+        return "ready"
+
+    def exception(self) -> str:
+        return None
 
 
 class ReferenceFollowupJob(FollowupJobImpl):
@@ -92,7 +101,7 @@ class ReferenceFollowupJob(FollowupJobImpl):
             return f.read()
 
 
-class DestinationLoadJob(LoadJob, ABC):
+class DestinationLoadJob(RunnableLoadJob, ABC):
     def __init__(
         self,
         client: JobClientBase,

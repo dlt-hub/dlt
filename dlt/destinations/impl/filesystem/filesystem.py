@@ -17,7 +17,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     JobClientBase,
     HasFollowupJobs,
     WithStagingDataset,
@@ -26,9 +26,10 @@ from dlt.common.destination.reference import (
     StateInfo,
     DoNothingJob,
     DoNothingHasFollowupJobs,
+    LoadJob,
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs, ReferenceFollowupJob
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, ReferenceFollowupJob
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations import path_utils
@@ -38,7 +39,7 @@ INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
 
 
-class LoadFilesystemJob(LoadJob):
+class LoadFilesystemJob(RunnableLoadJob):
     def __init__(
         self,
         client: "FilesystemClient",
@@ -323,7 +324,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""

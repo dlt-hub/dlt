@@ -6,7 +6,13 @@ from dlt.common.destination.exceptions import (
     DestinationInvalidFileFormat,
     DestinationTerminalException,
 )
-from dlt.common.destination.reference import HasFollowupJobs, LoadJob, FollowupJob, TLoadJobState
+from dlt.common.destination.reference import (
+    HasFollowupJobs,
+    RunnableLoadJob,
+    FollowupJob,
+    LoadJob,
+    TLoadJobState,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
@@ -110,7 +116,7 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
         return sql
 
 
-class PostgresCsvCopyJob(LoadJob, HasFollowupJobs):
+class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, client: "PostgresClient", table: TTableSchema, file_path: str) -> None:
         super().__init__(client, file_path)
         self.config = client.config

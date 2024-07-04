@@ -5,9 +5,8 @@ from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
-    FollowupJob,
-    TLoadJobState,
     LoadJob,
+    RunnableLoadJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
 )
@@ -21,7 +20,7 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
@@ -76,7 +75,7 @@ class SnowflakeTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class SnowflakeLoadJob(LoadJob, HasFollowupJobs):
+class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "SnowflakeClient",
@@ -258,7 +257,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None

@@ -5,9 +5,10 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     HasFollowupJobs,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     SupportsStagingDestination,
     FollowupJob,
+    LoadJob,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TColumnSchemaBase
@@ -17,7 +18,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration
 from dlt.destinations.impl.dremio.sql_client import DremioSqlClient
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
@@ -83,7 +84,7 @@ class DremioMergeJob(SqlMergeFollowupJob):
         return "NULL"
 
 
-class DremioLoadJob(LoadJob, HasFollowupJobs):
+class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "DremioClient",
@@ -162,7 +163,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def _get_table_update_sql(
         self,

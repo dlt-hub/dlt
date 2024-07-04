@@ -200,7 +200,7 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
-class BaseLoadJob:
+class LoadJob(ABC):
     def __init__(self, file_name: str) -> None:
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
@@ -210,8 +210,25 @@ class BaseLoadJob:
         """The job id that is derived from the file name and does not changes during job lifecycle"""
         return self._parsed_file_name.job_id()
 
+    def file_name(self) -> str:
+        """A name of the job file"""
+        return self._file_name
 
-class LoadJob(BaseLoadJob, ABC):
+    def job_file_info(self) -> ParsedLoadJobFileName:
+        return self._parsed_file_name
+
+    @abstractmethod
+    def state(self) -> TLoadJobState:
+        """Returns current state. Should poll external resource if necessary."""
+        pass
+
+    @abstractmethod
+    def exception(self) -> str:
+        """The exception associated with failed or retry states"""
+        pass
+
+
+class RunnableLoadJob(LoadJob, ABC):
     """Represents a runnable job that loads a single file
 
     Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
@@ -231,7 +248,7 @@ class LoadJob(BaseLoadJob, ABC):
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._state: TLoadJobState = "ready"
-        self._exception: str = None
+        self._exception: Exception = None
         self._job_client = job_client
         # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
@@ -254,11 +271,11 @@ class LoadJob(BaseLoadJob, ABC):
         except (DestinationTerminalException, TerminalValueError) as e:
             logger.exception(f"Terminal problem when starting job {self.file_name}")
             self._state = "failed"
-            self._exception = str(e)
+            self._exception = e
         except (DestinationTransientException, Exception) as e:
             logger.exception(f"Temporary problem when starting job {self.file_name}")
             self._state = "retry"
-            self._exception = str(e)
+            self._exception = e
         finally:
             # sanity check
             assert self._state not in ("running", "ready")
@@ -275,16 +292,9 @@ class LoadJob(BaseLoadJob, ABC):
         """Returns current state. Should poll external resource if necessary."""
         return self._state
 
-    def file_name(self) -> str:
-        """A name of the job file"""
-        return self._file_name
-
-    def job_file_info(self) -> ParsedLoadJobFileName:
-        return self._parsed_file_name
-
     def exception(self) -> str:
         """The exception associated with failed or retry states"""
-        return self._exception
+        return str(self._exception)
 
 
 class FollowupJob:
@@ -304,7 +314,7 @@ class HasFollowupJobs:
         return []
 
 
-class DoNothingJob(LoadJob):
+class DoNothingJob(RunnableLoadJob):
     """The most lazy class of dlt"""
 
     def __init__(self, job_client: "JobClientBase", file_path: str) -> None:

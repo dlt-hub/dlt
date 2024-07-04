@@ -5,10 +5,7 @@ from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (
-    SupportsStagingDestination,
-    FollowupJob,
-)
+from dlt.common.destination.reference import SupportsStagingDestination, FollowupJob, LoadJob
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
 from dlt.common.schema.utils import (
@@ -24,7 +21,11 @@ from dlt.common.configuration.specs import (
 
 from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
+from dlt.destinations.job_client_impl import (
+    SqlJobClientBase,
+    RunnableLoadJob,
+    CopyRemoteFileLoadJob,
+)
 from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (

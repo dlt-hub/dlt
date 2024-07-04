@@ -27,9 +27,10 @@ from dlt.common.destination.reference import (
     FollowupJob,
     SupportsStagingDestination,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     JobClientBase,
     WithStagingDataset,
+    LoadJob,
 )
 
 from dlt.destinations.exceptions import (
@@ -40,7 +41,7 @@ from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJob
 
 
-class LoadDummyBaseJob(LoadJob):
+class LoadDummyBaseJob(RunnableLoadJob):
     def __init__(
         self, client: "DummyClient", file_name: str, config: DummyClientConfiguration
     ) -> None:

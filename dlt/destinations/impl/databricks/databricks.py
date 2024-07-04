@@ -7,9 +7,10 @@ from dlt.common.destination.reference import (
     HasFollowupJobs,
     FollowupJob,
     TLoadJobState,
-    LoadJob,
+    RunnableLoadJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
+    LoadJob,
 )
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
@@ -25,7 +26,7 @@ from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
@@ -103,7 +104,7 @@ class DatabricksTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class DatabricksLoadJob(LoadJob, HasFollowupJobs):
+class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "DatabricksClient",
@@ -282,7 +283,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         return job
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]

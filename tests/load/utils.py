@@ -16,6 +16,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
+    RunnableLoadJob,
     LoadJob,
     DestinationClientStagingConfiguration,
     TDestinationReferenceArg,
@@ -605,7 +606,8 @@ def expect_load_file(
     file_storage.save(file_name, query.encode("utf-8"))
     table = client.prepare_load_table(table_name)
     job = client.get_load_job(table, file_storage.make_full_path(file_name), uniq_id())
-    job.run_managed(job._file_path)
+    if isinstance(job, RunnableLoadJob):
+        job.run_managed(job._file_path)
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name

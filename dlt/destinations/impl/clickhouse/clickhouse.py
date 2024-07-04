@@ -22,8 +22,9 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TLoadJobState,
     HasFollowupJobs,
-    LoadJob,
+    RunnableLoadJob,
     FollowupJob,
+    LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
@@ -53,7 +54,7 @@ from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
     SqlJobClientWithStaging,
 )
-from dlt.destinations.job_impl import ReferenceFollowupJob, EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import ReferenceFollowupJob, FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 
@@ -136,7 +137,7 @@ class ClickHouseTypeMapper(TypeMapper):
         return super().from_db_type(db_type, precision, scale)
 
 
-class ClickHouseLoadJob(LoadJob, HasFollowupJobs):
+class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: SqlJobClientBase,
@@ -374,4 +375,4 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(ch_t, precision, scale)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")

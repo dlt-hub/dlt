@@ -33,10 +33,11 @@ from dlt.common.destination.exceptions import (
 from dlt.common.destination.reference import (
     JobClientBase,
     WithStateSync,
-    LoadJob,
+    RunnableLoadJob,
     StorageSchemaInfo,
     StateInfo,
     TLoadJobState,
+    LoadJob,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -68,7 +69,7 @@ from dlt.destinations.impl.lancedb.utils import (
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -680,7 +681,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadLanceDBJob(
@@ -698,7 +699,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
 
-class LoadLanceDBJob(LoadJob):
+class LoadLanceDBJob(RunnableLoadJob):
     arrow_schema: TArrowSchema
 
     def __init__(

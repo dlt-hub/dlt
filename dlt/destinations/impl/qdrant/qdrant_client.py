@@ -12,11 +12,17 @@ from dlt.common.schema.utils import (
     version_table,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
+from dlt.common.destination.reference import (
+    TLoadJobState,
+    RunnableLoadJob,
+    JobClientBase,
+    WithStateSync,
+    LoadJob,
+)
 from dlt.common.storages import FileStorage
 from dlt.common.time import precise_time
 
-from dlt.destinations.job_impl import EmptyLoadJobWithFollowupJobs
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 
 from dlt.destinations.utils import get_pipeline_state_query_columns
@@ -28,7 +34,7 @@ from qdrant_client.qdrant_fastembed import uuid
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 
-class LoadQdrantJob(LoadJob):
+class LoadQdrantJob(RunnableLoadJob):
     def __init__(
         self,
         client: "QdrantClient",
@@ -443,7 +449,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
-        return EmptyLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
+        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None:
         values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]
