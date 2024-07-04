@@ -292,19 +292,6 @@ def destinations_configs(
             ),
             DestinationTestConfiguration(destination="qdrant", extra_info="server"),
         ]
-        # try:
-        #     from qdrant_client import QdrantClient
-
-        #     destination_configs.append(
-        #         DestinationTestConfiguration(
-        #             destination="qdrant",
-        #             credentials=lambda: QdrantClient(":memory:"),
-        #             extra_info="memory",
-        #         )
-        #     )
-        # except ModuleNotFoundError:
-        #     # ignore Qdrant not installed, we will get an error later if any qdrant tests are supposed to run
-        #     pass
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
