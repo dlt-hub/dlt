@@ -14,7 +14,3 @@ class SynapseSqlClient(PyOdbcMsSqlClient):
         for statement in statements:
             with suppress(DatabaseUndefinedRelation):
                 self.execute_sql(statement)
-
-    def _drop_schema(self) -> None:
-        # Synapse does not support DROP SCHEMA IF EXISTS.
-        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())

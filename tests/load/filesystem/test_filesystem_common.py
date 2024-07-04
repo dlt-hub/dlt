@@ -101,7 +101,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
 @pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
 def test_glob_files(with_gdrive_buckets_env: str, load_content: bool, glob_filter: str) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
-    bucket_url, config, filesystem = setup_glob_test(bucket_url, "standard_source/samples")
+    bucket_url, config, filesystem = glob_test_setup(bucket_url, "standard_source/samples")
     # use glob to get data
     all_file_items = list(glob_files(filesystem, bucket_url, glob_filter))
     # assert len(all_file_items) == 0
@@ -113,7 +113,7 @@ def test_glob_overlapping_path_files(with_gdrive_buckets_env: str) -> None:
     # "standard_source/sample" overlaps with a real existing "standard_source/samples". walk operation on azure
     # will return all files from "standard_source/samples" and report the wrong "standard_source/sample" path to the user
     # here we test we do not have this problem with out glob
-    bucket_url, _, filesystem = setup_glob_test(bucket_url, "standard_source/sample")
+    bucket_url, _, filesystem = glob_test_setup(bucket_url, "standard_source/sample")
     # use glob to get data
     all_file_items = list(glob_files(filesystem, bucket_url))
     assert len(all_file_items) == 0
@@ -266,7 +266,7 @@ def test_filesystem_destination_passed_parameters_override_config_values() -> No
         assert bound_config.extra_placeholders == config_extra_placeholders
 
 
-def setup_glob_test(
+def glob_test_setup(
     bucket_url: str, glob_folder: str
 ) -> Tuple[str, FilesystemConfiguration, AbstractFileSystem]:
     config = get_config()

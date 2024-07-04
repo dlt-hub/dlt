@@ -2,17 +2,19 @@ from typing import Any, List
 
 import pytest
 import dlt
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.pipeline import resource_state
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.destinations.sql_client import DBApiCursor
-from dlt.extract.source import DltSource
-from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 from dlt.common.typing import DictStrAny
 from dlt.common.pipeline import pipeline_state as current_pipeline_state
 
+from dlt.destinations.sql_client import DBApiCursor
+from dlt.extract.source import DltSource
+from dlt.pipeline.state_sync import load_pipeline_state_from_destination
+
 from tests.utils import clean_test_storage
 from tests.pipeline.utils import (
+    _is_filesystem,
     assert_load_info,
     load_table_counts,
     load_tables_to_dicts,
@@ -499,6 +501,9 @@ def test_refresh_staging_dataset(destination_config: DestinationTestConfiguratio
     assert_load_info(info)
 
     # tables got dropped
-    with pytest.raises(DatabaseUndefinedRelation):
-        load_table_counts(pipeline, "data_1", "data_2")
+    if _is_filesystem(pipeline):
+        assert load_table_counts(pipeline, "data_1", "data_2") == {}
+    else:
+        with pytest.raises(DestinationUndefinedEntity):
+            load_table_counts(pipeline, "data_1", "data_2")
     load_table_counts(pipeline, "data_1_v2", "data_1_v2")

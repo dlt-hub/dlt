@@ -6,6 +6,7 @@ import io
 
 import dlt
 from dlt.common import json, sleep
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.pipeline import LoadInfo
 from dlt.common.schema.utils import get_table_format
 from dlt.common.typing import DictStrAny

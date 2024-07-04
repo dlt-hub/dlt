@@ -20,7 +20,6 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
@@ -29,9 +28,10 @@ from dlt.common.typing import DictStrAny
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.exceptions import (
+    DatabaseTransientException,
+    DatabaseUndefinedRelation,
     DestinationSchemaWillNotUpdate,
     DestinationTerminalException,
-    DestinationTransientException,
     LoadJobNotExistsException,
     LoadJobTerminalException,
 )
@@ -226,7 +226,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         file_path, f"The server reason was: {reason}"
                     ) from gace
                 else:
-                    raise DestinationTransientException(gace) from gace
+                    raise DatabaseTransientException(gace) from gace
         return job
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -271,7 +271,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise UnknownTableException(self.schema.name, table["name"]) from gace
+                    raise DatabaseUndefinedRelation(gace) from gace
                 elif (
                     reason == "duplicate"
                 ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
@@ -282,7 +282,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         file_path, f"The server reason was: {reason}"
                     ) from gace
                 else:
-                    raise DestinationTransientException(gace) from gace
+                    raise DatabaseTransientException(gace) from gace
 
         return job
 
