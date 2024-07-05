@@ -317,8 +317,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_created_at = self.schema.naming.normalize_identifier("created_at")
 
-        limit = 100
-        offset = None
+        limit = 10
+        start_from = None
         while True:
             try:
                 scroll_table_name = self._make_qualified_collection_name(
@@ -337,14 +337,15 @@ class QdrantClient(JobClientBase, WithStateSync):
                     order_by=models.OrderBy(
                         key=p_created_at,
                         direction=models.Direction.DESC,
+                        start_from=start_from,
                     ),
                     limit=limit,
-                    offset=offset,
                 )
                 if len(state_records) == 0:
                     return None
                 for state_record in state_records:
                     state = state_record.payload
+                    start_from = state[p_created_at]
                     load_id = state[p_dlt_load_id]
                     scroll_table_name = self._make_qualified_collection_name(
                         self.schema.loads_table_name
@@ -361,7 +362,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                         ),
                     )
                     if load_records.count == 0:
-                        return None
+                        continue
                     return StateInfo.from_normalized_mapping(state, self.schema.naming)
             except UnexpectedResponse as e:
                 if e.status_code == 404:
