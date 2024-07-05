@@ -114,3 +114,5 @@ def pytest_configure(config):
 
     # disable httpx request logging (too verbose when testing qdrant)
     logging.getLogger("httpx").setLevel("WARNING")
+
+    logging.getLogger("airflow.models.variable").setLevel("CRITICAL")

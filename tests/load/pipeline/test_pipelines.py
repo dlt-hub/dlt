@@ -1,11 +1,11 @@
 from copy import deepcopy
 import gzip
 import os
-from typing import Any, Callable, Iterator, Tuple, List, cast
+from typing import Any, Iterator, List, cast, Tuple, Callable
 import pytest
+from unittest import mock
 
 import dlt
-
 from dlt.common import json, sleep
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
@@ -14,13 +14,15 @@ from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations import filesystem, redshift
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.extract.exceptions import ResourceNameMissing
-from dlt.extract import DltSource
+from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     PipelineConfigMissing,
@@ -821,7 +823,6 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
         assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
 
 
-# do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, all_staging_configs=True, file_format="parquet"),
@@ -1055,6 +1056,32 @@ def test_pipeline_upfront_tables_two_loads(
                         tab_name = client.make_qualified_table_name(table_name)
                         with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+def test_query_all_info_tables_fallback(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "parquet_test_" + uniq_id(), dataset_name="parquet_test_" + uniq_id()
+    )
+    with mock.patch.object(SqlJobClientBase, "INFO_TABLES_QUERY_THRESHOLD", 0):
+        info = pipeline.run([1, 2, 3], table_name="digits_1")
+        assert_load_info(info)
+        # create empty table
+        client: SqlJobClientBase
+        # we must add it to schema
+        pipeline.default_schema._schema_tables["existing_table"] = new_table("existing_table")
+        with pipeline.destination_client() as client:  # type: ignore[assignment]
+            sql = client._get_table_update_sql(
+                "existing_table", [{"name": "_id", "data_type": "bigint"}], False
+            )
+            client.sql_client.execute_many(sql)
+        # remove it from schema
+        del pipeline.default_schema._schema_tables["existing_table"]
+        # store another table
+        info = pipeline.run([1, 2, 3], table_name="digits_2")
+        assert_data_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
