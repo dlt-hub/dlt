@@ -1,16 +1,14 @@
 import pytest
 import os
 
+from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.destinations.exceptions import DatabaseTerminalException
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.cases import TABLE_UPDATE_ALL_INT_PRECISIONS, TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import airtable_emojis, load_table_counts
-from tests.load.pipeline.utils import (
-    destinations_configs,
-    DestinationTestConfiguration,
-)
 
 
 @pytest.mark.parametrize(
@@ -44,7 +42,7 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
         "🦚Peacock__peacock": 3,
         "🦚Peacocks🦚": 1,
         "🦚WidePeacock": 1,
-        "🦚WidePeacock__peacock": 3,
+        "🦚WidePeacock__Peacock": 3,
     }
 
     # this will fail - duckdb preserves case but is case insensitive when comparing identifiers
@@ -54,7 +52,10 @@ def test_duck_case_names(destination_config: DestinationTestConfiguration) -> No
             table_name="🦚peacocks🦚",
             loader_file_format=destination_config.file_format,
         )
-    assert isinstance(pip_ex.value.__context__, DatabaseTerminalException)
+    assert isinstance(pip_ex.value.__context__, SchemaIdentifierNormalizationCollision)
+    assert pip_ex.value.__context__.conflict_identifier_name == "🦚Peacocks🦚"
+    assert pip_ex.value.__context__.identifier_name == "🦚peacocks🦚"
+    assert pip_ex.value.__context__.identifier_type == "table"
 
     # show tables and columns
     with pipeline.sql_client() as client:

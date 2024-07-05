@@ -97,6 +97,12 @@ Amazon Redshift supports the following column hints:
 
 Redshift supports s3 as a file staging destination. dlt will upload files in the parquet format to s3 and ask Redshift to copy their data directly into the db. Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your s3 bucket with the bucket_url and credentials. The `dlt` Redshift loader will use the AWS credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). Alternatively to parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
+## Identifier names and case sensitivity
+* Up to 127 characters
+* Case insensitive
+* Stores identifiers in lower case
+* Has case sensitive mode, if enabled you must [enable case sensitivity in destination factory](../../general-usage/destination.md#control-how-dlt-creates-table-column-and-other-identifiers)
+
 ### Authentication IAM Role
 
 If you would like to load from s3 without forwarding the AWS staging credentials but authorize with an IAM role connected to Redshift, follow the [Redshift documentation](https://docs.aws.amazon.com/redshift/latest/mgmt/authorizing-redshift-service.html) to create a role with access to s3 linked to your Redshift cluster and change your destination settings to use the IAM role:

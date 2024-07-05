@@ -119,8 +119,8 @@ def _make_retry(
     retry_conds = [retry_if_status(status_codes), retry_if_exception_type(tuple(exceptions))]
     if condition is not None:
         if callable(condition):
-            retry_condition = [condition]
-        retry_conds.extend([retry_if_predicate(c) for c in retry_condition])
+            condition = [condition]
+        retry_conds.extend([retry_if_predicate(c) for c in condition])
 
     wait_cls = wait_exponential_retry_after if respect_retry_after_header else wait_exponential
     return Retrying(

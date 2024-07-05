@@ -7,6 +7,7 @@ from typing import (
     Optional,
     Sequence,
     ClassVar,
+    Tuple,
 )
 
 import clickhouse_driver  # type: ignore[import-untyped]
@@ -20,7 +21,6 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseTerminalException,
 )
-from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
@@ -45,15 +45,20 @@ class ClickHouseSqlClient(
     SqlClientBase[clickhouse_driver.dbapi.connection.Connection], DBTransaction
 ):
     dbapi: ClassVar[DBApi] = clickhouse_driver.dbapi
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: ClickHouseCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: ClickHouseCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, capabilities)
         self._conn: clickhouse_driver.dbapi.connection = None
         self.credentials = credentials
         self.database_name = credentials.database
 
     def has_dataset(self) -> bool:
+        # we do not need to normalize dataset_sentinel_table_name
         sentinel_table = self.credentials.dataset_sentinel_table_name
         return sentinel_table in [
             t.split(self.credentials.dataset_table_separator)[1] for t in self._list_tables()
@@ -102,18 +107,37 @@ class ClickHouseSqlClient(
         )
 
     def drop_dataset(self) -> None:
+        # always try to drop sentinel table
+        sentinel_table_name = self.make_qualified_table_name(
+            self.credentials.dataset_sentinel_table_name
+        )
+        # drop a sentinel table
+        self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+
         # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
         # or collection of tables, that has the `dataset_name` as a prefix.
-        to_drop_results = self._list_tables()
+        to_drop_results = [
+            f"{self.catalog_name()}.{self.capabilities.escape_identifier(table)}"
+            for table in self._list_tables()
+        ]
         for table in to_drop_results:
             # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
             # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
             # To resolve this, we are forced to provide the full query string here.
-            self.execute_sql(
-                f"""DROP TABLE {self.capabilities.escape_identifier(self.database_name)}.{self.capabilities.escape_identifier(table)} SYNC"""
-            )
+            self.execute_sql(f"DROP TABLE {table} SYNC")
+
+    def drop_tables(self, *tables: str) -> None:
+        """Drops a set of tables if they exist"""
+        if not tables:
+            return
+        statements = [
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC;"
+            for table in tables
+        ]
+        self.execute_many(statements)
 
     def _list_tables(self) -> List[str]:
+        catalog_name, table_name = self.make_qualified_table_name_path("%", escape=False)
         rows = self.execute_sql(
             """
             SELECT name
@@ -121,10 +145,8 @@ class ClickHouseSqlClient(
             WHERE database = %s
             AND name LIKE %s
             """,
-            (
-                self.database_name,
-                f"{self.dataset_name}{self.credentials.dataset_table_separator}%",
-            ),
+            catalog_name,
+            table_name,
         )
         return [row[0] for row in rows]
 
@@ -151,21 +173,33 @@ class ClickHouseSqlClient(
 
             yield ClickHouseDBApiCursorImpl(cursor)  # type: ignore[abstract]
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        database_name = self.database_name
-        dataset_name = self.dataset_name
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
+        database_name = self.capabilities.casefold_identifier(self.database_name)
         if escape:
             database_name = self.capabilities.escape_identifier(database_name)
-            dataset_name = self.capabilities.escape_identifier(dataset_name)
-        return f"{database_name}.{dataset_name}"
+        return database_name
 
-    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        database_name = self.database_name
-        table_name = f"{self.dataset_name}{self.credentials.dataset_table_separator}{table_name}"
-        if escape:
-            database_name = self.capabilities.escape_identifier(database_name)
-            table_name = self.capabilities.escape_identifier(table_name)
-        return f"{database_name}.{table_name}"
+    def make_qualified_table_name_path(
+        self, table_name: Optional[str], escape: bool = True
+    ) -> List[str]:
+        # get catalog and dataset
+        path = super().make_qualified_table_name_path(None, escape=escape)
+        if table_name:
+            # table name combines dataset name and table name
+            table_name = self.capabilities.casefold_identifier(
+                f"{self.dataset_name}{self.credentials.dataset_table_separator}{table_name}"
+            )
+            if escape:
+                table_name = self.capabilities.escape_identifier(table_name)
+            # we have only two path components
+            path[1] = table_name
+        return path
+
+    def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
+        components = super()._get_information_schema_components(*tables)
+        # clickhouse has a catalogue and no schema but uses catalogue as a schema to query the information schema 🤷
+        # so we must disable catalogue search. also note that table name is prefixed with logical "dataset_name"
+        return (None, components[0], components[2])
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

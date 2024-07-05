@@ -29,9 +29,11 @@ if all(driver not in ALL_FILESYSTEM_DRIVERS for driver in ("az", "s3", "gs")):
 
 
 FS_CREDS: Dict[str, Any] = dlt.secrets.get("destination.filesystem.credentials")
-assert (
-    FS_CREDS is not None
-), "`destination.filesystem.credentials` must be configured for these tests."
+if FS_CREDS is None:
+    pytest.skip(
+        msg="`destination.filesystem.credentials` must be configured for these tests.",
+        allow_module_level=True,
+    )
 
 
 def can_connect(bucket_url: str, object_store_rs_credentials: Dict[str, str]) -> bool:
@@ -86,6 +88,7 @@ def test_aws_object_store_rs_credentials() -> None:
     creds = AwsCredentials(
         aws_access_key_id=FS_CREDS["aws_access_key_id"],
         aws_secret_access_key=FS_CREDS["aws_secret_access_key"],
+        # region_name must be configured in order for data lake to work
         region_name=FS_CREDS["region_name"],
     )
     assert creds.aws_session_token is None
@@ -138,6 +141,7 @@ def test_gcp_object_store_rs_credentials() -> None:
     creds = GcpServiceAccountCredentialsWithoutDefaults(
         project_id=FS_CREDS["project_id"],
         private_key=FS_CREDS["private_key"],
+        # private_key_id must be configured in order for data lake to work
         private_key_id=FS_CREDS["private_key_id"],
         client_email=FS_CREDS["client_email"],
     )

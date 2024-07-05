@@ -260,9 +260,6 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
         return self._load_packages_asstr(self.load_packages, verbosity)
 
 
-# reveal_type(ExtractInfo)
-
-
 class NormalizeMetrics(StepMetrics):
     job_metrics: Dict[str, DataWriterMetrics]
     """Metrics collected per job id during writing of job file"""

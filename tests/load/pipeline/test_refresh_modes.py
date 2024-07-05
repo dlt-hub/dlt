@@ -2,20 +2,29 @@ from typing import Any, List
 
 import pytest
 import dlt
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.pipeline import resource_state
-from dlt.destinations.sql_client import DBApiCursor
-from dlt.pipeline.state_sync import load_pipeline_state_from_destination
+from dlt.common.utils import uniq_id
 from dlt.common.typing import DictStrAny
 from dlt.common.pipeline import pipeline_state as current_pipeline_state
 
-from tests.utils import clean_test_storage, preserve_environ
+from dlt.destinations.sql_client import DBApiCursor
+from dlt.extract.source import DltSource
+from dlt.pipeline.state_sync import load_pipeline_state_from_destination
+
+from tests.utils import clean_test_storage
 from tests.pipeline.utils import (
+    _is_filesystem,
     assert_load_info,
+    load_table_counts,
     load_tables_to_dicts,
     assert_only_table_columns,
     table_exists,
 )
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
+
+# mark all tests as essential, do not remove
+pytestmark = pytest.mark.essential
 
 
 def assert_source_state_is_wiped(state: DictStrAny) -> None:
@@ -66,7 +75,7 @@ def refresh_source(first_run: bool = True, drop_sources: bool = False):
             yield {"id": 7}
             yield {"id": 8}
 
-    @dlt.resource
+    @dlt.resource(primary_key="id", write_disposition="merge")
     def some_data_3():
         if first_run:
             dlt.state()["source_key_3"] = "source_value_3"
@@ -103,7 +112,6 @@ def test_refresh_drop_sources(destination_config: DestinationTestConfiguration):
     # First run pipeline so destination so tables are created
     info = pipeline.run(refresh_source(first_run=True, drop_sources=True))
     assert_load_info(info)
-
     # Second run of pipeline with only selected resources
     info = pipeline.run(
         refresh_source(first_run=False, drop_sources=True).with_resources(
@@ -114,8 +122,6 @@ def test_refresh_drop_sources(destination_config: DestinationTestConfiguration):
     assert set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True)) == {
         "some_data_1",
         "some_data_2",
-        # Table has never seen data and is not dropped
-        "some_data_4",
     }
 
     # No "name" column should exist as table was dropped and re-created without it
@@ -163,7 +169,7 @@ def test_existing_schema_hash(destination_config: DestinationTestConfiguration):
     new_table_names = set(
         t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True)
     )
-    assert new_table_names == {"some_data_1", "some_data_2", "some_data_4"}
+    assert new_table_names == {"some_data_1", "some_data_2"}
 
     # Run again with all tables to ensure they are re-created
     # The new schema in this case should match the schema of the first run exactly
@@ -430,10 +436,76 @@ def test_refresh_argument_to_extract(destination_config: DestinationTestConfigur
 
     tables = set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True))
     # All other data tables removed
-    assert tables == {"some_data_3", "some_data_4"}
+    assert tables == {"some_data_3"}
 
     # Run again without refresh to confirm refresh option doesn't persist on pipeline
     pipeline.extract(refresh_source(first_run=False).with_resources("some_data_2"))
 
     tables = set(t["name"] for t in pipeline.default_schema.data_tables(include_incomplete=True))
-    assert tables == {"some_data_2", "some_data_3", "some_data_4"}
+    assert tables == {"some_data_2", "some_data_3"}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_refresh_staging_dataset(destination_config: DestinationTestConfiguration):
+    data = [
+        {"id": 1, "pop": 1},
+        {"id": 2, "pop": 3},
+        {"id": 2, "pop": 4},  # duplicate
+    ]
+
+    pipeline = destination_config.setup_pipeline("test_refresh_staging_dataset" + uniq_id())
+
+    source = DltSource(
+        dlt.Schema("data_x"),
+        "data_section",
+        [
+            dlt.resource(data, name="data_1", primary_key="id", write_disposition="merge"),
+            dlt.resource(data, name="data_2", primary_key="id", write_disposition="append"),
+        ],
+    )
+    # create two tables so two tables need to be dropped
+    info = pipeline.run(source)
+    assert_load_info(info)
+
+    # make data so inserting on mangled tables is not possible
+    data_i = [
+        {"id": "A", "pop": 0.1},
+        {"id": "B", "pop": 0.3},
+        {"id": "A", "pop": 0.4},
+    ]
+    source_i = DltSource(
+        dlt.Schema("data_x"),
+        "data_section",
+        [
+            dlt.resource(data_i, name="data_1", primary_key="id", write_disposition="merge"),
+            dlt.resource(data_i, name="data_2", primary_key="id", write_disposition="append"),
+        ],
+    )
+    info = pipeline.run(source_i, refresh="drop_resources")
+    assert_load_info(info)
+
+    # now replace the whole source and load different tables
+    source_i = DltSource(
+        dlt.Schema("data_x"),
+        "data_section",
+        [
+            dlt.resource(data_i, name="data_1_v2", primary_key="id", write_disposition="merge"),
+            dlt.resource(data_i, name="data_2_v2", primary_key="id", write_disposition="append"),
+        ],
+    )
+    info = pipeline.run(source_i, refresh="drop_sources")
+    assert_load_info(info)
+
+    # tables got dropped
+    if _is_filesystem(pipeline):
+        assert load_table_counts(pipeline, "data_1", "data_2") == {}
+    else:
+        with pytest.raises(DestinationUndefinedEntity):
+            load_table_counts(pipeline, "data_1", "data_2")
+    load_table_counts(pipeline, "data_1_v2", "data_1_v2")

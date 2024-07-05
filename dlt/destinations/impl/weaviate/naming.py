@@ -1,14 +1,20 @@
 import re
+from typing import ClassVar
 
 from dlt.common.normalizers.naming import NamingConvention as BaseNamingConvention
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+from dlt.common.typing import REPattern
 
 
 class NamingConvention(SnakeCaseNamingConvention):
     """Normalizes identifiers according to Weaviate documentation: https://weaviate.io/developers/weaviate/config-refs/schema#class"""
 
+    @property
+    def is_case_sensitive(self) -> bool:
+        return True
+
     RESERVED_PROPERTIES = {"id": "__id", "_id": "___id", "_additional": "__additional"}
-    _RE_UNDERSCORES = re.compile("([^_])__+")
+    RE_UNDERSCORES: ClassVar[REPattern] = re.compile("([^_])__+")
     _STARTS_DIGIT = re.compile("^[0-9]")
     _STARTS_NON_LETTER = re.compile("^[0-9_]")
     _SPLIT_UNDERSCORE_NON_CAP = re.compile("(_[^A-Z])")
@@ -51,11 +57,11 @@ class NamingConvention(SnakeCaseNamingConvention):
     def _base_normalize(self, identifier: str) -> str:
         # all characters that are not letters digits or a few special chars are replaced with underscore
         normalized_ident = identifier.translate(self._TR_REDUCE_ALPHABET)
-        normalized_ident = self._RE_NON_ALPHANUMERIC.sub("_", normalized_ident)
+        normalized_ident = self.RE_NON_ALPHANUMERIC.sub("_", normalized_ident)
         # replace trailing _ with x
         stripped_ident = normalized_ident.rstrip("_")
         strip_count = len(normalized_ident) - len(stripped_ident)
         stripped_ident += "x" * strip_count
 
         # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
-        return self._RE_UNDERSCORES.sub(r"\1_", stripped_ident)
+        return self.RE_UNDERSCORES.sub(r"\1_", stripped_ident)

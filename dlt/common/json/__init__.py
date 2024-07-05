@@ -12,6 +12,7 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
+from dlt.common import known_env
 from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
@@ -80,7 +81,7 @@ def custom_encode(obj: Any) -> str:
 
 
 # use PUA range to encode additional types
-PUA_START = int(os.environ.get("DLT_JSON_TYPED_PUA_START", "0xf026"), 16)
+PUA_START = int(os.environ.get(known_env.DLT_JSON_TYPED_PUA_START, "0xf026"), 16)
 
 _DECIMAL = chr(PUA_START)
 _DATETIME = chr(PUA_START + 1)
@@ -191,7 +192,7 @@ def may_have_pua(line: bytes) -> bool:
 
 # pick the right impl
 json: SupportsJson = None
-if os.environ.get("DLT_USE_JSON") == "simplejson":
+if os.environ.get(known_env.DLT_USE_JSON) == "simplejson":
     from dlt.common.json import _simplejson as _json_d
 
     json = _json_d  # type: ignore[assignment]

@@ -62,7 +62,7 @@ def test_resource_max_nesting(
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
         destination=dummy(timeout=0.1),
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(bot_events)
@@ -169,7 +169,7 @@ def test_with_multiple_resources_with_max_table_nesting_levels(
     pipeline = dlt.pipeline(
         pipeline_name=pipeline_name,
         destination=dummy(timeout=0.1),
-        full_refresh=True,
+        dev_mode=True,
     )
 
     pipeline.run(some_data(), write_disposition="append")

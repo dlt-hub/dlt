@@ -17,8 +17,7 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TSortOrder, TAnyDateTime
-from dlt.common.pendulum import pendulum
+from dlt.common.typing import TSortOrder, TAnyDateTime, TLoaderFileFormat
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -32,7 +31,7 @@ SCHEMA_ENGINE_VERSION = 9
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
-STATE_TABLE_NAME = "_dlt_pipeline_state"
+PIPELINE_STATE_TABLE_NAME = "_dlt_pipeline_state"
 DLT_NAME_PREFIX = "_dlt"
 
 TColumnProp = Literal[
@@ -47,6 +46,7 @@ TColumnProp = Literal[
     "unique",
     "merge_key",
     "root_key",
+    "hard_delete",
     "dedup_sort",
 ]
 """Known properties and hints of the column"""
@@ -59,12 +59,16 @@ TColumnHint = Literal[
     "foreign_key",
     "sort",
     "unique",
-    "root_key",
     "merge_key",
+    "root_key",
+    "hard_delete",
     "dedup_sort",
 ]
 """Known hints of a column used to declare hint regexes."""
+
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg", "delta"]
+TFileFormat = Literal[Literal["preferred"], TLoaderFileFormat]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
 ]
@@ -72,7 +76,7 @@ TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a list of"""
 
-COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
+# COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(
     [
         "partition",
@@ -153,9 +157,18 @@ class NormalizerInfo(TypedDict, total=True):
     new_table: bool
 
 
-TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
+# Part of Table containing processing hints added by pipeline stages
+TTableProcessingHints = TypedDict(
+    "TTableProcessingHints",
+    {
+        "x-normalizer": Optional[Dict[str, Any]],
+        "x-loader": Optional[Dict[str, Any]],
+        "x-extractor": Optional[Dict[str, Any]],
+    },
+    total=False,
+)
 
+TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
 
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))
@@ -178,7 +191,8 @@ class TMergeDispositionDict(TWriteDispositionDict, total=False):
 TWriteDispositionConfig = Union[TWriteDisposition, TWriteDispositionDict, TMergeDispositionDict]
 
 
-class TTableSchema(TypedDict, total=False):
+# TypedDict that defines properties of a table
+class TTableSchema(TTableProcessingHints, total=False):
     """TypedDict that defines properties of a table"""
 
     name: Optional[str]
@@ -191,6 +205,7 @@ class TTableSchema(TypedDict, total=False):
     columns: TTableSchemaColumns
     resource: Optional[str]
     table_format: Optional[TTableFormat]
+    file_format: Optional[TFileFormat]
 
 
 class TPartialTableSchema(TTableSchema):

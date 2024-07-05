@@ -1,6 +1,7 @@
 import os
 from typing import Iterator
 import dlt
+from dlt.destinations import postgres
 
 
 @dlt.resource
@@ -32,14 +33,14 @@ print(list(data))
 
 # you are free to pass credentials from custom location to destination
 pipeline = dlt.pipeline(
-    destination="postgres", credentials=dlt.secrets["custom.destination.credentials"]
+    destination=postgres(credentials=dlt.secrets["custom.destination.credentials"])
 )
 # see nice credentials object
 print(pipeline.credentials)
 
 # you can also pass credentials partially, only the password comes from the secrets or environment
 pipeline = dlt.pipeline(
-    destination="postgres", credentials="postgres://loader@localhost:5432/dlt_data"
+    destination=postgres(credentials="postgres://loader@localhost:5432/dlt_data")
 )
 
 # now lets compare it with default location for config and credentials

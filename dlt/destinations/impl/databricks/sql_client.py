@@ -1,5 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Union, Dict
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Tuple, Union, Dict
 
 
 from databricks import sql as databricks_lib
@@ -21,18 +21,37 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
-from dlt.destinations.impl.databricks import capabilities
-from dlt.common.time import to_py_date, to_py_datetime
+
+
+class DatabricksCursorImpl(DBApiCursorImpl):
+    """Use native data frame support if available"""
+
+    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
+    vector_size: ClassVar[int] = 2048
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+        if chunk_size is None:
+            return self.native_cursor.fetchall_arrow().to_pandas()
+        else:
+            df = self.native_cursor.fetchmany_arrow(chunk_size).to_pandas()
+            if df.shape[0] == 0:
+                return None
+            else:
+                return df
 
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = databricks_lib
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
-        super().__init__(credentials.catalog, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        credentials: DatabricksCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.catalog, dataset_name, capabilities)
         self._conn: DatabricksSqlConnection = None
         self.credentials = credentials
 
@@ -67,9 +86,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     @property
     def native_connection(self) -> "DatabricksSqlConnection":
         return self._conn
-
-    def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s CASCADE;" % self.fully_qualified_dataset_name())
 
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
@@ -112,16 +128,13 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         db_args = args or kwargs or None
         with self._conn.cursor() as curr:  # type: ignore[assignment]
             curr.execute(query, db_args)
-            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
+        catalog = self.capabilities.casefold_identifier(self.credentials.catalog)
         if escape:
-            catalog = self.capabilities.escape_identifier(self.credentials.catalog)
-            dataset_name = self.capabilities.escape_identifier(self.dataset_name)
-        else:
-            catalog = self.credentials.catalog
-            dataset_name = self.dataset_name
-        return f"{catalog}.{dataset_name}"
+            catalog = self.capabilities.escape_identifier(catalog)
+        return catalog
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:

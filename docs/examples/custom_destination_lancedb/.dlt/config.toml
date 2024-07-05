@@ -1,0 +1,2 @@
+[lancedb]
+db_path = "spotify.db"

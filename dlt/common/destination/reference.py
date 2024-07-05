@@ -25,30 +25,27 @@ from copy import deepcopy
 import inspect
 
 from dlt.common import logger
+from dlt.common.configuration.specs.base_configuration import extract_inner_hint
+from dlt.common.destination.utils import verify_schema_capabilities
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import MERGE_STRATEGIES
-from dlt.common.schema.exceptions import SchemaException
 from dlt.common.schema.utils import (
+    get_file_format,
     get_write_disposition,
     get_table_format,
-    get_columns_names_with_prop,
-    has_column_with_prop,
-    get_first_column_name_with_prop,
 )
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import (
-    IdentifierTooLongException,
     InvalidDestinationReference,
     UnknownDestinationModule,
     DestinationSchemaTampered,
 )
-from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.storages.load_package import LoadJobInfo
+from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -66,14 +63,69 @@ class StorageSchemaInfo(NamedTuple):
     inserted_at: datetime.datetime
     schema: str
 
+    @classmethod
+    def from_normalized_mapping(
+        cls, normalized_doc: Dict[str, Any], naming_convention: NamingConvention
+    ) -> "StorageSchemaInfo":
+        """Instantiate this class from mapping where keys are normalized according to given naming convention
 
-class StateInfo(NamedTuple):
+        Args:
+            normalized_doc: Mapping with normalized keys (e.g. {Version: ..., SchemaName: ...})
+            naming_convention: Naming convention that was used to normalize keys
+
+        Returns:
+            StorageSchemaInfo: Instance of this class
+        """
+        return cls(
+            version_hash=normalized_doc[naming_convention.normalize_identifier("version_hash")],
+            schema_name=normalized_doc[naming_convention.normalize_identifier("schema_name")],
+            version=normalized_doc[naming_convention.normalize_identifier("version")],
+            engine_version=normalized_doc[naming_convention.normalize_identifier("engine_version")],
+            inserted_at=normalized_doc[naming_convention.normalize_identifier("inserted_at")],
+            schema=normalized_doc[naming_convention.normalize_identifier("schema")],
+        )
+
+
+@dataclasses.dataclass
+class StateInfo:
     version: int
     engine_version: int
     pipeline_name: str
     state: str
     created_at: datetime.datetime
-    dlt_load_id: str = None
+    version_hash: Optional[str] = None
+    _dlt_load_id: Optional[str] = None
+
+    def as_doc(self) -> TPipelineStateDoc:
+        doc: TPipelineStateDoc = dataclasses.asdict(self)  # type: ignore[assignment]
+        if self._dlt_load_id is None:
+            doc.pop("_dlt_load_id")
+        if self.version_hash is None:
+            doc.pop("version_hash")
+        return doc
+
+    @classmethod
+    def from_normalized_mapping(
+        cls, normalized_doc: Dict[str, Any], naming_convention: NamingConvention
+    ) -> "StateInfo":
+        """Instantiate this class from mapping where keys are normalized according to given naming convention
+
+        Args:
+            normalized_doc: Mapping with normalized keys (e.g. {Version: ..., PipelineName: ...})
+            naming_convention: Naming convention that was used to normalize keys
+
+        Returns:
+            StateInfo: Instance of this class
+        """
+        return cls(
+            version=normalized_doc[naming_convention.normalize_identifier("version")],
+            engine_version=normalized_doc[naming_convention.normalize_identifier("engine_version")],
+            pipeline_name=normalized_doc[naming_convention.normalize_identifier("pipeline_name")],
+            state=normalized_doc[naming_convention.normalize_identifier("state")],
+            created_at=normalized_doc[naming_convention.normalize_identifier("created_at")],
+            version_hash=normalized_doc.get(naming_convention.normalize_identifier("version_hash")),
+            _dlt_load_id=normalized_doc.get(naming_convention.normalize_identifier("_dlt_load_id")),
+        )
 
 
 @configspec
@@ -97,6 +149,25 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     def on_resolved(self) -> None:
         self.destination_name = self.destination_name or self.destination_type
+
+    @classmethod
+    def credentials_type(
+        cls, config: "DestinationClientConfiguration" = None
+    ) -> Type[CredentialsConfiguration]:
+        """Figure out credentials type, using hint resolvers for dynamic types
+
+        For correct type resolution of filesystem, config should have bucket_url populated
+        """
+        key = "credentials"
+        type_ = cls.get_resolvable_fields()[key]
+        if key in cls.__hint_resolvers__ and config is not None:
+            try:
+                # Type hint for this field is created dynamically
+                type_ = cls.__hint_resolvers__[key](config)
+            except Exception:
+                # we suppress failed hint resolutions
+                pass
+        return extract_inner_hint(type_)
 
 
 @configspec
@@ -253,11 +324,15 @@ class DoNothingFollowupJob(DoNothingJob, FollowupJob):
 
 
 class JobClientBase(ABC):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = None
-
-    def __init__(self, schema: Schema, config: DestinationClientConfiguration) -> None:
+    def __init__(
+        self,
+        schema: Schema,
+        config: DestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
         self.schema = schema
         self.config = config
+        self.capabilities = capabilities
 
     @abstractmethod
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -315,7 +390,7 @@ class JobClientBase(ABC):
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
@@ -336,96 +411,13 @@ class JobClientBase(ABC):
         pass
 
     def _verify_schema(self) -> None:
-        """Verifies and cleans up a schema before loading
-
-        * Checks all table and column name lengths against destination capabilities and raises on too long identifiers
-        * Removes and warns on (unbound) incomplete columns
-        """
-
-        for table in self.schema.data_tables():
-            table_name = table["name"]
-            if len(table_name) > self.capabilities.max_identifier_length:
-                raise IdentifierTooLongException(
-                    self.config.destination_type,
-                    "table",
-                    table_name,
-                    self.capabilities.max_identifier_length,
-                )
-            if table.get("write_disposition") == "merge":
-                if "x-merge-strategy" in table and table["x-merge-strategy"] not in MERGE_STRATEGIES:  # type: ignore[typeddict-item]
-                    raise SchemaException(
-                        f'"{table["x-merge-strategy"]}" is not a valid merge strategy. '  # type: ignore[typeddict-item]
-                        f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
-                    )
-                if (
-                    table.get("x-merge-strategy") == "delete-insert"
-                    and not has_column_with_prop(table, "primary_key")
-                    and not has_column_with_prop(table, "merge_key")
-                ):
-                    logger.warning(
-                        f"Table {table_name} has `write_disposition` set to `merge`"
-                        " and `merge_strategy` set to `delete-insert`, but no primary or"
-                        " merge keys defined."
-                        " dlt will fall back to `append` for this table."
-                    )
-            if has_column_with_prop(table, "hard_delete"):
-                if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
-                    raise SchemaException(
-                        f'Found multiple "hard_delete" column hints for table "{table_name}" in'
-                        f' schema "{self.schema.name}" while only one is allowed:'
-                        f' {", ".join(get_columns_names_with_prop(table, "hard_delete"))}.'
-                    )
-                if table.get("write_disposition") in ("replace", "append"):
-                    logger.warning(
-                        f"""The "hard_delete" column hint for column "{get_first_column_name_with_prop(table, 'hard_delete')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{self.schema.name}" will be ignored.'
-                        ' The "hard_delete" column hint is only applied when using'
-                        ' the "merge" write disposition.'
-                    )
-            if has_column_with_prop(table, "dedup_sort"):
-                if len(get_columns_names_with_prop(table, "dedup_sort")) > 1:
-                    raise SchemaException(
-                        f'Found multiple "dedup_sort" column hints for table "{table_name}" in'
-                        f' schema "{self.schema.name}" while only one is allowed:'
-                        f' {", ".join(get_columns_names_with_prop(table, "dedup_sort"))}.'
-                    )
-                if table.get("write_disposition") in ("replace", "append"):
-                    logger.warning(
-                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{self.schema.name}" will be ignored.'
-                        ' The "dedup_sort" column hint is only applied when using'
-                        ' the "merge" write disposition.'
-                    )
-                if table.get("write_disposition") == "merge" and not has_column_with_prop(
-                    table, "primary_key"
-                ):
-                    logger.warning(
-                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
-                        f'in table "{table_name}" with write disposition'
-                        f' "{table.get("write_disposition")}"'
-                        f' in schema "{self.schema.name}" will be ignored.'
-                        ' The "dedup_sort" column hint is only applied when a'
-                        " primary key has been specified."
-                    )
-            for column_name, column in dict(table["columns"]).items():
-                if len(column_name) > self.capabilities.max_column_identifier_length:
-                    raise IdentifierTooLongException(
-                        self.config.destination_type,
-                        "column",
-                        f"{table_name}.{column_name}",
-                        self.capabilities.max_column_identifier_length,
-                    )
-                if not is_complete_column(column):
-                    logger.warning(
-                        f"A column {column_name} in table {table_name} in schema"
-                        f" {self.schema.name} is incomplete. It was not bound to the data during"
-                        " normalizations stage and its data type is unknown. Did you add this"
-                        " column manually in code ie. as a merge key?"
-                    )
+        """Verifies schema before loading"""
+        if exceptions := verify_schema_capabilities(
+            self.schema, self.capabilities, self.config.destination_type, warnings=False
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
     def prepare_load_table(
         self, table_name: str, prepare_for_staging: bool = False
@@ -438,9 +430,11 @@ class JobClientBase(ABC):
                 table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
+            if "file_format" not in table:
+                table["file_format"] = get_file_format(self.schema.tables, table_name)
             return table
         except KeyError:
-            raise UnknownTableException(table_name)
+            raise UnknownTableException(self.schema.name, table_name)
 
 
 class WithStateSync(ABC):
@@ -497,7 +491,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     with credentials and other config params.
     """
 
-    config_params: Optional[Dict[str, Any]] = None
+    config_params: Dict[str, Any]
+    """Explicit config params, overriding any injected or default values."""
+    caps_params: Dict[str, Any]
+    """Explicit capabilities params, overriding any default values for this destination"""
 
     def __init__(self, **kwargs: Any) -> None:
         # Create initial unresolved destination config
@@ -505,9 +502,27 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         # to supersede config from the environment or pipeline args
         sig = inspect.signature(self.__class__.__init__)
         params = sig.parameters
-        self.config_params = {
-            k: v for k, v in kwargs.items() if k not in params or v != params[k].default
-        }
+
+        # get available args
+        spec = self.spec
+        spec_fields = spec.get_resolvable_fields()
+        caps_fields = DestinationCapabilitiesContext.get_resolvable_fields()
+
+        # remove default kwargs
+        kwargs = {k: v for k, v in kwargs.items() if k not in params or v != params[k].default}
+
+        # warn on unknown params
+        for k in list(kwargs):
+            if k not in spec_fields and k not in caps_fields:
+                logger.warning(
+                    f"When initializing destination factory of type {self.destination_type},"
+                    f" argument {k} is not a valid field in {spec.__name__} or destination"
+                    " capabilities"
+                )
+                kwargs.pop(k)
+
+        self.config_params = {k: v for k, v in kwargs.items() if k in spec_fields}
+        self.caps_params = {k: v for k, v in kwargs.items() if k in caps_fields}
 
     @property
     @abstractmethod
@@ -515,9 +530,37 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         """A spec of destination configuration that also contains destination credentials"""
         ...
 
+    def capabilities(
+        self, config: Optional[TDestinationConfig] = None, naming: Optional[NamingConvention] = None
+    ) -> DestinationCapabilitiesContext:
+        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc.
+        Explicit caps arguments passed to the factory init and stored in `caps_params` are applied.
+
+        If `config` is provided, it is used to adjust the capabilities, otherwise the explicit config composed just of `config_params` passed
+          to factory init is applied
+        If `naming` is provided, the case sensitivity and case folding are adjusted.
+        """
+        caps = self._raw_capabilities()
+        caps.update(self.caps_params)
+        # get explicit config if final config not passed
+        if config is None:
+            # create mock credentials to avoid credentials being resolved
+            init_config = self.spec()
+            init_config.update(self.config_params)
+            credentials = self.spec.credentials_type(init_config)()
+            credentials.__is_resolved__ = True
+            config = self.spec(credentials=credentials)
+            try:
+                config = self.configuration(config, accept_partial=True)
+            except Exception:
+                # in rare cases partial may fail ie. when invalid native value is present
+                # in that case we fallback to "empty" config
+                pass
+        return self.adjust_capabilities(caps, config, naming)
+
     @abstractmethod
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
+    def _raw_capabilities(self) -> DestinationCapabilitiesContext:
+        """Returns raw capabilities, before being adjusted with naming convention and config"""
         ...
 
     @property
@@ -540,15 +583,60 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         """A job client class responsible for starting and resuming load jobs"""
         ...
 
-    def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
+    def configuration(
+        self, initial_config: TDestinationConfig, accept_partial: bool = False
+    ) -> TDestinationConfig:
         """Get a fully resolved destination config from the initial config"""
+
         config = resolve_configuration(
-            initial_config,
+            initial_config or self.spec(),
             sections=(known_sections.DESTINATION, self.destination_name),
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params,
+            accept_partial=accept_partial,
         )
         return config
+
+    def client(
+        self, schema: Schema, initial_config: TDestinationConfig = None
+    ) -> TDestinationClient:
+        """Returns a configured instance of the destination's job client"""
+        config = self.configuration(initial_config)
+        return self.client_class(schema, config, self.capabilities(config, schema.naming))
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: TDestinationConfig,
+        naming: Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        """Adjust the capabilities to match the case sensitivity as requested by naming convention."""
+        # if naming not provided, skip the adjustment
+        if not naming or not naming.is_case_sensitive:
+            # all destinations are configured to be case insensitive so there's nothing to adjust
+            return caps
+        if not caps.has_case_sensitive_identifiers:
+            if caps.casefold_identifier is str:
+                logger.info(
+                    f"Naming convention {naming.name()} is case sensitive but the destination does"
+                    " not support case sensitive identifiers. Nevertheless identifier casing will"
+                    " be preserved in the destination schema."
+                )
+            else:
+                logger.warn(
+                    f"Naming convention {naming.name()} is case sensitive but the destination does"
+                    " not support case sensitive identifiers. Destination will case fold all the"
+                    f" identifiers with {caps.casefold_identifier}"
+                )
+        else:
+            # adjust case folding to store casefold identifiers in the schema
+            if caps.casefold_identifier is not str:
+                caps.casefold_identifier = str
+                logger.info(
+                    f"Enabling case sensitive identifiers for naming convention {naming.name()}"
+                )
+        return caps
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -562,7 +650,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @staticmethod
     def normalize_type(destination_type: str) -> str:
-        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
+        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to built in destinations."""
         if "." not in destination_type:
             destination_type = "dlt.destinations." + destination_type
         # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
@@ -575,7 +663,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @staticmethod
     def from_reference(
         ref: TDestinationReferenceArg,
-        credentials: Optional[CredentialsConfiguration] = None,
+        credentials: Optional[Any] = None,
         destination_name: Optional[str] = None,
         environment: Optional[str] = None,
         **kwargs: Any,
@@ -624,12 +712,6 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         except Exception as e:
             raise InvalidDestinationReference(ref) from e
         return dest
-
-    def client(
-        self, schema: Schema, initial_config: TDestinationConfig = None
-    ) -> TDestinationClient:
-        """Returns a configured instance of the destination's job client"""
-        return self.client_class(schema, self.configuration(initial_config))
 
 
 TDestination = Destination[DestinationClientConfiguration, JobClientBase]

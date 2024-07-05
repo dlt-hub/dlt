@@ -3,8 +3,8 @@ from typing import List, Any
 import pyarrow as pa
 import pytest
 
-from dlt.common.libs.pyarrow import normalize_py_arrow_item, NameNormalizationClash
-from dlt.common.normalizers import explicit_normalizers, import_normalizers
+from dlt.common.libs.pyarrow import normalize_py_arrow_item, NameNormalizationCollision
+from dlt.common.normalizers.utils import explicit_normalizers, import_normalizers
 from dlt.common.schema.utils import new_column, TColumnSchema
 from dlt.common.destination import DestinationCapabilitiesContext
 
@@ -65,7 +65,7 @@ def test_field_normalization_clash() -> None:
             {"col^New": "hello", "col_new": 1},
         ]
     )
-    with pytest.raises(NameNormalizationClash):
+    with pytest.raises(NameNormalizationCollision):
         _normalize(table, [])
 
 

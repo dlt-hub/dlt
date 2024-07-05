@@ -111,3 +111,6 @@ def pytest_configure(config):
     # disable databricks logging
     for log in ["databricks.sql.client"]:
         logging.getLogger(log).setLevel("WARNING")
+
+    # disable httpx request logging (too verbose when testing qdrant)
+    logging.getLogger("httpx").setLevel("WARNING")

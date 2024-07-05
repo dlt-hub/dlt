@@ -1,6 +1,7 @@
-from typing import ClassVar, Optional, Sequence, Tuple, List, Any
+from typing import Optional, Sequence, List
 from urllib.parse import urlparse, urlunparse
 
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -14,7 +15,6 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
@@ -24,13 +24,10 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
-from dlt.destinations.impl.snowflake import capabilities
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.sql_jobs import SqlJobParams
 from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
 
@@ -86,6 +83,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         table_name: str,
         load_id: str,
         client: SnowflakeSqlClient,
+        config: SnowflakeClientConfiguration,
         stage_name: Optional[str] = None,
         keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
@@ -108,6 +106,14 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         credentials_clause = ""
         files_clause = ""
         stage_file_path = ""
+        on_error_clause = ""
+
+        case_folding = (
+            "CASE_SENSITIVE"
+            if client.capabilities.casefold_identifier is str
+            else "CASE_INSENSITIVE"
+        )
+        column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
 
         if bucket_path:
             bucket_url = urlparse(bucket_path)
@@ -164,9 +170,30 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             from_clause = f"FROM {stage_file_path}"
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
-        source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-        if file_name.endswith("parquet"):
-            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
+        if file_name.endswith("jsonl"):
+            source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
+        elif file_name.endswith("parquet"):
+            source_format = (
+                "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
+                # TODO: USE_VECTORIZED_SCANNER inserts null strings into VARIANT JSON
+                # " USE_VECTORIZED_SCANNER = TRUE)"
+            )
+        elif file_name.endswith("csv"):
+            # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
+            csv_format = config.csv_format or CsvFormatConfiguration()
+            source_format = (
+                "(TYPE = 'CSV', BINARY_FORMAT = 'UTF-8', PARSE_HEADER ="
+                f" {csv_format.include_header}, FIELD_OPTIONALLY_ENCLOSED_BY = '\"', NULL_IF ="
+                " (''), ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE,"
+                f" FIELD_DELIMITER='{csv_format.delimiter}', ENCODING='{csv_format.encoding}')"
+            )
+            # disable column match if headers are not provided
+            if not csv_format.include_header:
+                column_match_clause = ""
+            if csv_format.on_error_continue:
+                on_error_clause = "ON_ERROR = CONTINUE"
+        else:
+            raise ValueError(file_name)
 
         with client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
@@ -180,7 +207,8 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 {files_clause}
                 {credentials_clause}
                 FILE_FORMAT = {source_format}
-                MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
+                {column_match_clause}
+                {on_error_clause}
                 """)
             if stage_file_path and not keep_staged_files:
                 client.execute_sql(f"REMOVE {stage_file_path}")
@@ -193,10 +221,15 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
 
 class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: SnowflakeClientConfiguration) -> None:
-        sql_client = SnowflakeSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: SnowflakeClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = SnowflakeSqlClient(
+            config.normalize_dataset_name(schema), config.credentials, capabilities
+        )
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
@@ -211,6 +244,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 table["name"],
                 load_id,
                 self.sql_client,
+                self.config,
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=(
@@ -241,7 +275,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
         cluster_list = [
-            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
+            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster")
         ]
 
         if cluster_list:
@@ -255,17 +289,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(c["name"])
+        name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_name = table_name.upper()  # All snowflake tables are uppercased in information schema
-        exists, table = super().get_storage_table(table_name)
-        if not exists:
-            return exists, table
-        # Snowflake converts all unquoted columns to UPPER CASE
-        # Convert back to lower case to enable comparison with dlt schema
-        table = {col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()}  # type: ignore
-        return exists, table

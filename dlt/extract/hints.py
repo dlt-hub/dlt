@@ -5,6 +5,7 @@ from dlt.common import logger
 from dlt.common.schema.typing import (
     TColumnNames,
     TColumnProp,
+    TFileFormat,
     TPartialTableSchema,
     TTableSchema,
     TTableSchemaColumns,
@@ -48,6 +49,7 @@ class TResourceHints(TypedDict, total=False):
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
     table_format: TTableHintTemplate[TTableFormat]
+    file_format: TTableHintTemplate[TFileFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
 
@@ -72,6 +74,7 @@ def make_hints(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -91,6 +94,7 @@ def make_hints(
         columns=clean_columns,  # type: ignore
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
+        file_format=file_format,  # type: ignore
     )
     if not table_name:
         new_template.pop("name")
@@ -209,6 +213,7 @@ class DltResourceHints:
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
+        file_format: TTableHintTemplate[TFileFormat] = None,
         create_table_variant: bool = False,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
@@ -256,6 +261,7 @@ class DltResourceHints:
                 merge_key,
                 schema_contract,
                 table_format,
+                file_format,
             )
         else:
             t = self._clone_hints(t)
@@ -320,6 +326,11 @@ class DltResourceHints:
                     t["table_format"] = table_format
                 else:
                     t.pop("table_format", None)
+            if file_format is not None:
+                if file_format:
+                    t["file_format"] = file_format
+                else:
+                    t.pop("file_format", None)
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
@@ -375,6 +386,7 @@ class DltResourceHints:
             incremental=hints_template.get("incremental"),
             schema_contract=hints_template.get("schema_contract"),
             table_format=hints_template.get("table_format"),
+            file_format=hints_template.get("file_format"),
             create_table_variant=create_table_variant,
         )
 
