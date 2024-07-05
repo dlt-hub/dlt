@@ -22,7 +22,7 @@ from dlt.sources.helpers.rest_client.auth import (
 )
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator, BaseReferencePaginator
 
 from .conftest import assert_pagination
 
@@ -394,3 +394,34 @@ class TestRESTClient:
 
         result = rest_client.get("/posts/1")
         assert result.status_code == 200
+
+    def test_paginate_json_body_without_params(self, rest_client) -> None:
+        class JSONBodyPageCursorPaginator(BaseReferencePaginator):
+            def update_state(self, response):
+                self._next_reference = response.json().get("next_page")
+
+            def update_request(self, request):
+                if request.json is None:
+                    request.json = {}
+
+                request.json["page"] = self._next_reference
+
+        page_generator = rest_client.paginate(
+            path="/posts/search",
+            method="POST",
+            json={"ids_greater_than": 50},
+            paginator=JSONBodyPageCursorPaginator(),
+        )
+        result = [post for page in list(page_generator) for post in page]
+        for i in range(49):
+            assert result[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
+
+    def test_post_json_body_without_params(self, rest_client) -> None:
+        result = rest_client.post(
+            path="/posts/search",
+            json={"ids_greater_than": 50},
+        )
+        returned_posts = result.json()["data"]
+        assert len(returned_posts) == 10  # only one page is returned
+        for i in range(10):
+            assert returned_posts[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
