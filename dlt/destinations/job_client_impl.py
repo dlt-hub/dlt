@@ -6,6 +6,7 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
+    ClassVar,
     List,
     Optional,
     Sequence,
@@ -133,6 +134,9 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
+    INFO_TABLES_QUERY_THRESHOLD: ClassVar[int] = 1000
+    """Fallback to querying all tables in the information schema if checking more than threshold"""
+
     def __init__(
         self,
         schema: Schema,
@@ -329,7 +333,14 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             f" {self.capabilities.casefold_identifier} produced a name collision."
         )
         # if we have more tables to lookup than a threshold, we prefer to filter them in code
-        if len(name_lookup) > 2:
+        if (
+            len(name_lookup) > self.INFO_TABLES_QUERY_THRESHOLD
+            or len(",".join(folded_table_names)) > self.capabilities.max_query_length / 2
+        ):
+            logger.info(
+                "Fallback to query all columns from INFORMATION_SCHEMA due to limited query length"
+                " or table threshold"
+            )
             folded_table_names = []
 
         query, db_params = self._get_info_schema_columns_query(
