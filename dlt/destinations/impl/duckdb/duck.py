@@ -125,24 +125,21 @@ class DuckDbCopyJob(LoadJob, FollowupJob):
                 lock: threading.Lock = TABLES_LOCKS.setdefault(
                     qualified_table_name, threading.Lock()
                 )
-                
+
                 with lock:
                     with sql_client.begin_transaction():
-                        sql_client.execute_sql(
-                            f"""
+                        sql_client.execute_sql(f"""
                             INSERT INTO {qualified_table_name}
                                 BY NAME
                                 SELECT * FROM read_parquet('{file_path}', union_by_name = true);
-                            """
-                        )
-                        
+                            """)
+
         elif file_path.endswith("jsonl"):
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(file_path) else ""
             with sql_client.begin_transaction():
                 sql_client.execute_sql(
-                    f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT"
-                    f" JSON {options});"
+                    f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT JSON {options});"
                 )
 
     def state(self) -> TLoadJobState:
