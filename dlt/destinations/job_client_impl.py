@@ -328,8 +328,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             f"One or more of tables in {table_names} after applying"
             f" {self.capabilities.casefold_identifier} produced a name collision."
         )
+        # if we have more tables to lookup than a threshold, we prefer to filter them in code
+        if len(name_lookup) > 2:
+            folded_table_names = []
 
-        # rows = self.sql_client.execute_sql(query, *db_params)
         query, db_params = self._get_info_schema_columns_query(
             catalog_name, schema_name, folded_table_names
         )
@@ -337,6 +339,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         prev_table: str = None
         storage_columns: TTableSchemaColumns = None
         for c in rows:
+            # if we are selecting all tables this is expected
+            if not folded_table_names and c[0] not in name_lookup:
+                continue
             # make sure that new table is known
             assert (
                 c[0] in name_lookup
@@ -437,7 +442,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self, catalog_name: Optional[str], schema_name: str, folded_table_names: List[str]
     ) -> Tuple[str, List[Any]]:
         """Generates SQL to query INFORMATION_SCHEMA.COLUMNS for a set of tables in `folded_table_names`. Input identifiers must be already
-        in a form that can be passed to a query via db_params. `catalogue_name` is optional and when None, the part of query selecting it
+        in a form that can be passed to a query via db_params. `catalogue_name` and `folded_tableS_name` is optional and when None, the part of query selecting it
         is skipped.
 
         Returns: query and list of db_params tuple
@@ -452,13 +457,14 @@ WHERE """
             db_params.append(catalog_name)
             query += "table_catalog = %s AND "
         db_params.append(schema_name)
-        db_params = db_params + folded_table_names
-        # placeholder for each table
-        table_placeholders = ",".join(["%s"] * len(folded_table_names))
-        query += (
-            f"table_schema = %s AND table_name IN ({table_placeholders}) ORDER BY table_name,"
-            " ordinal_position;"
-        )
+        select_tables_clause = ""
+        # look for particular tables only when requested, otherwise return the full schema
+        if folded_table_names:
+            db_params = db_params + folded_table_names
+            # placeholder for each table
+            table_placeholders = ",".join(["%s"] * len(folded_table_names))
+            select_tables_clause = f"AND table_name IN ({table_placeholders})"
+        query += f"table_schema = %s {select_tables_clause} ORDER BY table_name, ordinal_position;"
 
         return query, db_params
 
