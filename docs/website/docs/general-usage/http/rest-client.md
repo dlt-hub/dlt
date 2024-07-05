@@ -164,7 +164,7 @@ def get_data():
 
 #### HeaderLinkPaginator
 
-This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub).
+This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub API).
 
 **Parameters:**
 
@@ -231,7 +231,8 @@ Note, that in this case, the `total_path` parameter is set explicitly to `None` 
 
 **Parameters:**
 
-- `initial_page`: The starting page number. Defaults to `1`.
+- `base_page`: The index of the initial page from the API perspective. Normally, it's 0-based or 1-based (e.g., 1, 2, 3, ...) indexing for the pages. Defaults to 0.
+- `page`: The page number for the first request. If not provided, the initial value will be set to `base_page`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.

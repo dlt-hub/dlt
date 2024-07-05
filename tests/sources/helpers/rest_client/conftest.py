@@ -1,108 +1,25 @@
-import re
-from typing import NamedTuple, Callable, Pattern, Union, TYPE_CHECKING, Dict, List, Any
 import base64
-
-from urllib.parse import parse_qs, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit, urlencode
 
 import pytest
 import requests_mock
 
-from dlt.common import json
+from dlt.sources.helpers.rest_client import RESTClient
 
-if TYPE_CHECKING:
-    RequestCallback = Callable[
-        [requests_mock.Request, requests_mock.Context], Union[str, Dict[str, Any], List[Any]]
-    ]
-    ResponseSerializer = Callable[[requests_mock.Request, requests_mock.Context], str]
-else:
-    RequestCallback = Callable
-    ResponseSerializer = Callable
+from .api_router import APIRouter
+from .paginators import PageNumberPaginator, OffsetPaginator, CursorPaginator
+
 
 MOCK_BASE_URL = "https://api.example.com"
-
-
-class Route(NamedTuple):
-    method: str
-    pattern: Pattern[str]
-    callback: ResponseSerializer
-
-
-class APIRouter:
-    def __init__(self, base_url: str):
-        self.routes: List[Route] = []
-        self.base_url = base_url
-
-    def _add_route(self, method: str, pattern: str, func: RequestCallback) -> RequestCallback:
-        compiled_pattern = re.compile(f"{self.base_url}{pattern}")
-
-        def serialize_response(request, context):
-            result = func(request, context)
-
-            if isinstance(result, dict) or isinstance(result, list):
-                return json.dumps(result)
-
-            return result
-
-        self.routes.append(Route(method, compiled_pattern, serialize_response))
-        return serialize_response
-
-    def get(self, pattern: str) -> Callable[[RequestCallback], RequestCallback]:
-        def decorator(func: RequestCallback) -> RequestCallback:
-            return self._add_route("GET", pattern, func)
-
-        return decorator
-
-    def post(self, pattern: str) -> Callable[[RequestCallback], RequestCallback]:
-        def decorator(func: RequestCallback) -> RequestCallback:
-            return self._add_route("POST", pattern, func)
-
-        return decorator
-
-    def register_routes(self, mocker: requests_mock.Mocker) -> None:
-        for route in self.routes:
-            mocker.register_uri(
-                route.method,
-                route.pattern,
-                text=route.callback,
-            )
+DEFAULT_PAGE_SIZE = 5
+DEFAULT_TOTAL_PAGES = 5
+DEFAULT_LIMIT = 10
 
 
 router = APIRouter(MOCK_BASE_URL)
 
 
-def serialize_page(
-    records,
-    page_number,
-    total_pages,
-    request_url,
-    records_key="data",
-    use_absolute_url=True,
-):
-    """Serialize a page of records into a dict with pagination metadata."""
-    if records_key is None:
-        return records
-
-    response = {
-        records_key: records,
-        "page": page_number,
-        "total_pages": total_pages,
-    }
-
-    if page_number < total_pages:
-        next_page = page_number + 1
-
-        scheme, netloc, path, _, _ = urlsplit(request_url)
-        if use_absolute_url:
-            next_page_url = urlunsplit([scheme, netloc, path, f"page={next_page}", ""])
-        else:
-            next_page_url = f"{path}?page={next_page}"
-
-        response["next_page"] = next_page_url
-
-    return response
-
-
-def generate_posts(count=100):
+def generate_posts(count=DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES):
     return [{"id": i, "title": f"Post {i}"} for i in range(count)]
 
 
@@ -114,43 +31,89 @@ def get_page_number(qs, key="page", default=1):
     return int(qs.get(key, [default])[0])
 
 
-def paginate_response(request, records, page_size=10, records_key="data", use_absolute_url=True):
-    page_number = get_page_number(request.qs)
-    total_records = len(records)
-    total_pages = (total_records + page_size - 1) // page_size
-    start_index = (page_number - 1) * 10
-    end_index = start_index + 10
-    records_slice = records[start_index:end_index]
-    return serialize_page(
-        records_slice,
-        page_number,
-        total_pages,
-        request.url,
-        records_key,
-        use_absolute_url,
-    )
+def create_next_page_url(request, paginator, use_absolute_url=True):
+    scheme, netloc, path, _, _ = urlsplit(request.url)
+    query = urlencode(paginator.next_page_url_params)
+    if use_absolute_url:
+        return urlunsplit([scheme, netloc, path, query, ""])
+    else:
+        return f"{path}?{query}"
+
+
+def paginate_by_page_number(
+    request, records, records_key="data", use_absolute_url=True, index_base=1
+):
+    page_number = get_page_number(request.qs, default=index_base)
+    paginator = PageNumberPaginator(records, page_number, index_base=index_base)
+
+    response = {
+        records_key: paginator.page_records,
+        **paginator.metadata,
+    }
+
+    if paginator.next_page_url_params:
+        response["next_page"] = create_next_page_url(request, paginator, use_absolute_url)
+
+    return response
 
 
 @pytest.fixture(scope="module")
 def mock_api_server():
     with requests_mock.Mocker() as m:
 
-        @router.get(r"/posts_no_key(\?page=\d+)?$")
-        def posts_no_key(request, context):
-            return paginate_response(request, generate_posts(), records_key=None)
-
         @router.get(r"/posts(\?page=\d+)?$")
         def posts(request, context):
-            return paginate_response(request, generate_posts())
+            return paginate_by_page_number(request, generate_posts())
+
+        @router.get(r"/posts_zero_based(\?page=\d+)?$")
+        def posts_zero_based(request, context):
+            return paginate_by_page_number(request, generate_posts(), index_base=0)
+
+        @router.get(r"/posts_header_link(\?page=\d+)?$")
+        def posts_header_link(request, context):
+            records = generate_posts()
+            page_number = get_page_number(request.qs)
+            paginator = PageNumberPaginator(records, page_number)
+
+            response = paginator.page_records
+
+            if paginator.next_page_url_params:
+                next_page_url = create_next_page_url(request, paginator)
+                context.headers["Link"] = f'<{next_page_url}>; rel="next"'
+
+            return response
 
         @router.get(r"/posts_relative_next_url(\?page=\d+)?$")
         def posts_relative_next_url(request, context):
-            return paginate_response(request, generate_posts(), use_absolute_url=False)
+            return paginate_by_page_number(request, generate_posts(), use_absolute_url=False)
+
+        @router.get(r"/posts_offset_limit(\?offset=\d+&limit=\d+)?$")
+        def posts_offset_limit(request, context):
+            records = generate_posts()
+            offset = int(request.qs.get("offset", [0])[0])
+            limit = int(request.qs.get("limit", [DEFAULT_LIMIT])[0])
+            paginator = OffsetPaginator(records, offset, limit)
+
+            return {
+                "data": paginator.page_records,
+                **paginator.metadata,
+            }
+
+        @router.get(r"/posts_cursor(\?cursor=\d+)?$")
+        def posts_cursor(request, context):
+            records = generate_posts()
+            cursor = int(request.qs.get("cursor", [0])[0])
+            paginator = CursorPaginator(records, cursor)
+
+            return {
+                "data": paginator.page_records,
+                **paginator.metadata,
+            }
 
         @router.get(r"/posts/(\d+)/comments")
         def post_comments(request, context):
             post_id = int(request.url.split("/")[-2])
-            return paginate_response(request, generate_comments(post_id))
+            return paginate_by_page_number(request, generate_comments(post_id))
 
         @router.get(r"/posts/\d+$")
         def post_detail(request, context):
@@ -169,7 +132,7 @@ def mock_api_server():
 
         @router.get(r"/posts_under_a_different_key$")
         def posts_with_results_key(request, context):
-            return paginate_response(request, generate_posts(), records_key="many-results")
+            return paginate_by_page_number(request, generate_posts(), records_key="many-results")
 
         @router.post(r"/posts/search$")
         def search_posts(request, context):
@@ -199,7 +162,7 @@ def mock_api_server():
             creds = "user:password"
             creds_base64 = base64.b64encode(creds.encode()).decode()
             if auth == f"Basic {creds_base64}":
-                return paginate_response(request, generate_posts())
+                return paginate_by_page_number(request, generate_posts())
             context.status_code = 401
             return {"error": "Unauthorized"}
 
@@ -207,7 +170,7 @@ def mock_api_server():
         def protected_bearer_token(request, context):
             auth = request.headers.get("Authorization")
             if auth == "Bearer test-token":
-                return paginate_response(request, generate_posts())
+                return paginate_by_page_number(request, generate_posts())
             context.status_code = 401
             return {"error": "Unauthorized"}
 
@@ -215,7 +178,7 @@ def mock_api_server():
         def protected_bearer_token_plain_text_erorr(request, context):
             auth = request.headers.get("Authorization")
             if auth == "Bearer test-token":
-                return paginate_response(request, generate_posts())
+                return paginate_by_page_number(request, generate_posts())
             context.status_code = 401
             return "Unauthorized"
 
@@ -223,7 +186,7 @@ def mock_api_server():
         def protected_api_key(request, context):
             api_key = request.headers.get("x-api-key")
             if api_key == "test-api-key":
-                return paginate_response(request, generate_posts())
+                return paginate_by_page_number(request, generate_posts())
             context.status_code = 401
             return {"error": "Unauthorized"}
 
@@ -267,6 +230,14 @@ def mock_api_server():
         yield m
 
 
+@pytest.fixture
+def rest_client() -> RESTClient:
+    return RESTClient(
+        base_url="https://api.example.com",
+        headers={"Accept": "application/json"},
+    )
+
+
 def oauth_authorize(request):
     qs = parse_qs(request.text)
     grant_type = qs.get("grant_type")[0]
@@ -279,7 +250,9 @@ def oauth_authorize(request):
         )
 
 
-def assert_pagination(pages, expected_start=0, page_size=10, total_pages=10):
+def assert_pagination(pages, page_size=DEFAULT_PAGE_SIZE, total_pages=DEFAULT_TOTAL_PAGES):
     assert len(pages) == total_pages
     for i, page in enumerate(pages):
-        assert page == [{"id": i, "title": f"Post {i}"} for i in range(i * 10, (i + 1) * 10)]
+        assert page == [
+            {"id": i, "title": f"Post {i}"} for i in range(i * page_size, (i + 1) * page_size)
+        ]
