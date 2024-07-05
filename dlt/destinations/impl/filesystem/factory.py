@@ -88,7 +88,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         )
 
     @property
-    def destination_info(self):
+    def destination_info(self) -> t.Dict[str, t.Any]:
         """Return the destination info as a dict.
 
         Returns:
