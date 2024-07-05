@@ -193,20 +193,21 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         dataset = bigquery.Dataset(self.fully_qualified_dataset_name(escape=False))
         dataset.location = self.location
         dataset.is_case_insensitive = not self.capabilities.has_case_sensitive_identifiers
-        self._client.create_dataset(
-            dataset,
-            retry=self._default_retry,
-            timeout=self.http_timeout,
-        )
-
-    def drop_dataset(self) -> None:
-        self._client.delete_dataset(
-            self.fully_qualified_dataset_name(escape=False),
-            not_found_ok=True,
-            delete_contents=True,
-            retry=self._default_retry,
-            timeout=self.http_timeout,
-        )
+        try:
+            self._client.create_dataset(
+                dataset,
+                retry=self._default_retry,
+                timeout=self.http_timeout,
+            )
+        except api_core_exceptions.GoogleAPICallError as gace:
+            reason = BigQuerySqlClient._get_reason_from_errors(gace)
+            if reason == "notFound":
+                # google.api_core.exceptions.NotFound: 404 – table not found
+                raise DatabaseUndefinedRelation(gace) from gace
+            elif reason in BQ_TERMINAL_REASONS:
+                raise DatabaseTerminalException(gace) from gace
+            else:
+                raise DatabaseTransientException(gace) from gace
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any

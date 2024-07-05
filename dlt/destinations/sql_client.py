@@ -98,6 +98,7 @@ SELECT 1
         self.execute_many(statements)
 
     def drop_tables(self, *tables: str) -> None:
+        """Drops a set of tables if they exist"""
         if not tables:
             return
         statements = [

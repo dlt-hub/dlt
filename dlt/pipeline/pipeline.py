@@ -1,6 +1,7 @@
 import contextlib
 import os
 from contextlib import contextmanager
+from copy import deepcopy, copy
 from functools import wraps
 from typing import (
     Any,
@@ -157,10 +158,8 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
 
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
-            with self.managed_state(extract_state=should_extract_state) as state:
-                # add the state to container as a context
-                with self._container.injectable_context(StateInjectableContext(state=state)):
-                    return f(self, *args, **kwargs)
+            with self.managed_state(extract_state=should_extract_state):
+                return f(self, *args, **kwargs)
 
         return _wrap  # type: ignore
 
@@ -438,12 +437,12 @@ class Pipeline(SupportsPipeline):
                         workers,
                         refresh=refresh or self.refresh,
                     )
-                # extract state
-                if self.config.restore_from_destination:
-                    # this will update state version hash so it will not be extracted again by with_state_sync
-                    self._bump_version_and_extract_state(
-                        self._container[StateInjectableContext].state, True, extract_step
-                    )
+                # this will update state version hash so it will not be extracted again by with_state_sync
+                self._bump_version_and_extract_state(
+                    self._container[StateInjectableContext].state,
+                    self.config.restore_from_destination,
+                    extract_step,
+                )
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
@@ -1107,8 +1106,9 @@ class Pipeline(SupportsPipeline):
         max_parallel_items: int,
         workers: int,
         refresh: Optional[TRefreshMode] = None,
-        load_package_state_update: Optional[Dict[str, Any]] = None,
+        load_package_state_update: Optional[TLoadPackageState] = None,
     ) -> str:
+        load_package_state_update = copy(load_package_state_update or {})
         # discover the existing pipeline schema
         try:
             # all live schemas are initially committed and during the extract will accumulate changes in memory
@@ -1116,19 +1116,34 @@ class Pipeline(SupportsPipeline):
             # this will (1) look for import schema if present
             # (2) load import schema an overwrite pipeline schema if import schema modified
             # (3) load pipeline schema if no import schema is present
-            pipeline_schema = self.schemas[source.schema.name]
-            pipeline_schema = pipeline_schema.clone()  # use clone until extraction complete
-            # apply all changes in the source schema to pipeline schema
-            # NOTE: we do not apply contracts to changes done programmatically
-            pipeline_schema.update_schema(source.schema)
-            # replace schema in the source
-            source.schema = pipeline_schema
-        except FileNotFoundError:
-            pass
 
-        load_package_state_update = dict(load_package_state_update or {})
-        if refresh:
-            load_package_state_update.update(refresh_source(self, source, refresh))
+            # keep schema created by the source so we can apply changes from it later
+            source_schema = source.schema
+            # use existing pipeline schema as the source schema, clone until extraction complete
+            source.schema = self.schemas[source.schema.name].clone()
+            # refresh the pipeline schema ie. to drop certain tables before any normalizes change
+            if refresh:
+                # NOTE: we use original pipeline schema to detect dropped/truncated tables so we can drop
+                # the original names, before eventual new naming convention is applied
+                load_package_state_update.update(deepcopy(refresh_source(self, source, refresh)))
+                if refresh == "drop_sources":
+                    # replace the whole source AFTER we got tables to drop
+                    source.schema = source_schema
+            # NOTE: we do pass any programmatic changes from source schema to pipeline schema except settings below
+            # TODO: enable when we have full identifier lineage and we are able to merge table identifiers
+            if type(source.schema.naming) is not type(source_schema.naming):  # noqa
+                source.schema_contract = source_schema.settings.get("schema_contract")
+            else:
+                source.schema.update_schema(source_schema)
+        except FileNotFoundError:
+            if refresh is not None:
+                logger.info(
+                    f"Refresh flag {refresh} has no effect on source {source.name} because the"
+                    " source is extracted for a first time"
+                )
+
+        # update the normalizers to detect any conflicts early
+        source.schema.update_normalizers()
 
         # extract into pipeline schema
         load_id = extract.extract(
@@ -1335,9 +1350,9 @@ class Pipeline(SupportsPipeline):
     def _maybe_destination_capabilities(
         self,
     ) -> Iterator[DestinationCapabilitiesContext]:
+        caps: DestinationCapabilitiesContext = None
+        injected_caps: ContextManager[DestinationCapabilitiesContext] = None
         try:
-            caps: DestinationCapabilitiesContext = None
-            injected_caps: ContextManager[DestinationCapabilitiesContext] = None
             if self.destination:
                 destination_caps = self._get_destination_capabilities()
                 stage_caps = self._get_staging_capabilities()
@@ -1504,11 +1519,15 @@ class Pipeline(SupportsPipeline):
 
     @contextmanager
     def managed_state(self, *, extract_state: bool = False) -> Iterator[TPipelineState]:
-        # load or restore state
+        """Puts pipeline state in managed mode, where yielded state changes will be persisted or fully roll-backed on exception.
+
+        Makes the state to be available via StateInjectableContext
+        """
         state = self._get_state()
-        # TODO: we should backup schemas here
         try:
-            yield state
+            # add the state to container as a context
+            with self._container.injectable_context(StateInjectableContext(state=state)):
+                yield state
         except Exception:
             backup_state = self._get_state()
             # restore original pipeline props
@@ -1576,7 +1595,7 @@ class Pipeline(SupportsPipeline):
         self,
         state: TPipelineState,
         schema: Schema,
-        load_package_state_update: Optional[Dict[str, Any]] = None,
+        load_package_state_update: Optional[TLoadPackageState] = None,
     ) -> None:
         """Save given state + schema and extract creating a new load package
 
@@ -1601,7 +1620,7 @@ class Pipeline(SupportsPipeline):
         state: TPipelineState,
         extract_state: bool,
         extract: Extract = None,
-        load_package_state_update: Optional[Dict[str, Any]] = None,
+        load_package_state_update: Optional[TLoadPackageState] = None,
         schema: Optional[Schema] = None,
     ) -> None:
         """Merges existing state into `state` and extracts state using `storage` if extract_state is True.

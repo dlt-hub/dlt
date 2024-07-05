@@ -164,7 +164,7 @@ def schema_command_wrapper(file_path: str, format_: str, remove_defaults: bool) 
         schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults), pretty=True)
     else:
         schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
-    print(schema_str)
+    fmt.echo(schema_str)
     return 0
 
 

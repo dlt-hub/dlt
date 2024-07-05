@@ -32,6 +32,7 @@ class DremioCursorImpl(DBApiCursorImpl):
 
 class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     dbapi: ClassVar[DBApi] = pydremio
+    SENTINEL_TABLE_NAME: ClassVar[str] = "_dlt_sentinel_table"
 
     def __init__(
         self,
@@ -134,7 +135,9 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         return isinstance(ex, (pyarrow.lib.ArrowInvalid, pydremio.MalformedQueryError))
 
     def create_dataset(self) -> None:
-        pass
+        # We create a sentinel table which defines wether we consider the dataset created
+        sentinel_table_name = self.make_qualified_table_name(self.SENTINEL_TABLE_NAME)
+        self.execute_sql(f"CREATE TABLE {sentinel_table_name} (_dlt_id BIGINT);")
 
     def _get_table_names(self) -> List[str]:
         query = """
@@ -147,6 +150,11 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         return [table[0] for table in tables]
 
     def drop_dataset(self) -> None:
+        # drop sentinel table
+        sentinel_table_name = self.make_qualified_table_name(self.SENTINEL_TABLE_NAME)
+        # must exist or we get undefined relation exception
+        self.execute_sql(f"DROP TABLE {sentinel_table_name}")
+
         table_names = self._get_table_names()
         for table_name in table_names:
             full_table_name = self.make_qualified_table_name(table_name)

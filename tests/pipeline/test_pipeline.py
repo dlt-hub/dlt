@@ -2271,21 +2271,57 @@ def test_change_naming_convention_name_collision() -> None:
     os.environ["SOURCES__AIRTABLE_EMOJIS__SCHEMA__NAMING"] = "sql_ci_v1"
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
+    # see conflicts early
+    assert pip_ex.value.step == "extract"
     assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
 
     # all good if we drop tables
-    # info = pipeline.run(
-    #     airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
-    #     refresh="drop_resources",
-    # )
-    # assert_load_info(info)
-    # assert load_data_table_counts(pipeline) == {
-    #     "📆 Schedule": 3,
-    #     "🦚Peacock": 1,
-    #     "🦚WidePeacock": 1,
-    #     "🦚Peacock__peacock": 3,
-    #     "🦚WidePeacock__Peacock": 3,
-    # }
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        refresh="drop_resources",
+    )
+    assert_load_info(info)
+    # case insensitive normalization
+    assert load_data_table_counts(pipeline) == {
+        "_schedule": 3,
+        "_peacock": 1,
+        "_widepeacock": 1,
+        "_peacock__peacock": 3,
+        "_widepeacock__peacock": 3,
+    }
+
+
+def test_change_to_more_lax_naming_convention_name_collision() -> None:
+    # use snake_case which is strict and then change to duck_case which accepts snake_case names without any changes
+    # still we want to detect collisions
+    pipeline = dlt.pipeline(
+        "test_change_to_more_lax_naming_convention_name_collision", destination="duckdb"
+    )
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    assert_load_info(info)
+    assert "_peacock" in pipeline.default_schema.tables
+
+    # use duck case to load data into duckdb so casing and emoji are preserved
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case")
+
+    # changing destination to one with a separate naming convention raises immediately
+    with pytest.raises(TableIdentifiersFrozen):
+        pipeline.run(
+            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+            destination=duck_,
+        )
+
+    # refresh on the source level will work
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        destination=duck_,
+        refresh="drop_sources",
+    )
+    assert_load_info(info)
+    # make sure that emojis got in
+    assert "🦚Peacock" in pipeline.default_schema.tables
 
 
 def test_change_naming_convention_column_collision() -> None:

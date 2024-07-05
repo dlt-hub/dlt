@@ -3,10 +3,12 @@ from subprocess import CalledProcessError
 import pytest
 import tempfile
 import shutil
+from unittest.mock import patch
 from importlib.metadata import version as pkg_version
 
 import dlt
 from dlt.common import json, pendulum
+from dlt.common.known_env import DLT_DATA_DIR
 from dlt.common.json import custom_pua_decode
 from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
@@ -24,8 +26,48 @@ from dlt.destinations import duckdb, filesystem
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
-from tests.pipeline.utils import load_table_counts
+from tests.pipeline.utils import airtable_emojis, load_table_counts
 from tests.utils import TEST_STORAGE_ROOT, test_storage
+
+
+def test_simulate_default_naming_convention_change() -> None:
+    # checks that (future) change in the naming convention won't affect existing pipelines
+    pipeline = dlt.pipeline("simulated_snake_case", destination="duckdb")
+    assert pipeline.naming.name() == "snake_case"
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    info.raise_on_failed_jobs()
+    # normalized names
+    assert pipeline.last_trace.last_normalize_info.row_counts["_schedule"] == 3
+    assert "_schedule" in pipeline.default_schema.tables
+
+    # mock the mod
+    # from dlt.common.normalizers import utils
+
+    with patch("dlt.common.normalizers.utils.DEFAULT_NAMING_MODULE", "duck_case"):
+        duck_pipeline = dlt.pipeline("simulated_duck_case", destination="duckdb")
+        assert duck_pipeline.naming.name() == "duck_case"
+        print(airtable_emojis().schema.naming.name())
+
+        # run new and old pipelines
+        info = duck_pipeline.run(
+            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+        )
+        info.raise_on_failed_jobs()
+        print(duck_pipeline.last_trace.last_normalize_info.row_counts)
+        assert duck_pipeline.last_trace.last_normalize_info.row_counts["📆 Schedule"] == 3
+        assert "📆 Schedule" in duck_pipeline.default_schema.tables
+
+        # old pipeline should keep its naming convention
+        info = pipeline.run(
+            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+        )
+        info.raise_on_failed_jobs()
+        # normalized names
+        assert pipeline.last_trace.last_normalize_info.row_counts["_schedule"] == 3
+        assert pipeline.naming.name() == "snake_case"
+
 
 if sys.version_info >= (3, 12):
     pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
@@ -41,7 +83,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
@@ -175,7 +217,7 @@ def test_filesystem_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
             # create virtual env with (0.4.9) where filesystem started to store state
             with Venv.create(tempfile.mkdtemp(), ["dlt==0.4.9"]) as venv:
                 try:
@@ -247,7 +289,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}
@@ -322,7 +364,7 @@ def test_normalize_package_with_dlt_update(test_storage: FileStorage) -> None:
     # execute in test storage
     with set_working_dir(TEST_STORAGE_ROOT):
         # store dlt data in test storage (like patch_home_dir)
-        with custom_environ({"DLT_DATA_DIR": get_dlt_data_dir()}):
+        with custom_environ({DLT_DATA_DIR: get_dlt_data_dir()}):
             # save database outside of pipeline dir
             with custom_environ(
                 {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}

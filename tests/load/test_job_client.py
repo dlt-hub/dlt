@@ -338,10 +338,11 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
     # Drop tables from the first schema
     client.schema = schema
     tables_to_drop = ["event_slot", "event_user"]
-    for tbl in tables_to_drop:
-        del schema.tables[tbl]
+    schema.drop_tables(tables_to_drop)
     schema._bump_version()
-    client.drop_tables(*tables_to_drop)
+
+    # add one fake table to make sure one table can be ignored
+    client.drop_tables(tables_to_drop[0], "not_exists", *tables_to_drop[1:])
     client._update_schema_in_storage(schema)  # Schema was deleted, load it in again
     if isinstance(client, WithStagingDataset):
         with contextlib.suppress(DatabaseUndefinedRelation):
