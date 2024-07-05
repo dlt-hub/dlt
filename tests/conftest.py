@@ -114,3 +114,14 @@ def pytest_configure(config):
 
     # disable httpx request logging (too verbose when testing qdrant)
     logging.getLogger("httpx").setLevel("WARNING")
+
+    # reset airflow db
+    from airflow.utils import db
+
+    for log in ["airflow"]:
+        logging.getLogger(log).setLevel("ERROR")
+
+    try:
+        db.resetdb()
+    except Exception:
+        pass
