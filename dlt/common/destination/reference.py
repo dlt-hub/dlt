@@ -527,12 +527,19 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             Dict[str, Any]: Destination info.
         """
         conf = self.configuration(self.spec())
+        bucket_url = conf.get("bucket_url")
+        if bucket_url:
+            is_remote = not ("localhost" in bucket_url or "127.0.0.1" in bucket_url)
+        else:
+            is_remote = False
+
         return {
             "destination_name": self.destination_name,
             "destination_type": self.destination_type,
             "environment": conf.get("environment"),
             "fingerprint": conf.fingerprint(),
             "repr": self.destination_description,
+            "is_remote": is_remote,
         }
 
     @property

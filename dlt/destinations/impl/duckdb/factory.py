@@ -72,3 +72,14 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
             environment=environment,
             **kwargs,
         )
+
+    @property
+    def destination_info(self):
+        """Return the destination info as a dict.
+
+        Returns:
+            Dict[str, Any]: Destination info.
+        """
+        info = super().destination_info
+        info["is_remote"] = False
+        return info

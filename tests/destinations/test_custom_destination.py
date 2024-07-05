@@ -86,12 +86,18 @@ def test_destination_info(destination_name):
         destination=destination_name,
         dataset_name="dest_info_data",
     )
+    if destination_name in ("duckdb", "filesystem", "dummy"):
+        is_remote = False
+    else:
+        is_remote = True
+
     assert p.destination.destination_info == {
         "destination_name": p.destination.destination_name,
         "destination_type": p.destination.destination_type,
         "environment": None,
         "fingerprint": p.destination.configuration(None).fingerprint(),
         "repr": p.destination.destination_description,
+        "is_remote": is_remote,
     }
 
 
@@ -107,6 +113,7 @@ def test_destination_info_environment():
         "environment": "production",
         "fingerprint": duck.configuration(None).fingerprint(),
         "repr": "duck1(dlt.destinations.duckdb)",
+        "is_remote": False,
     }
 
 
