@@ -137,7 +137,7 @@ def mock_api_server():
         @router.post(r"/posts/search$")
         def search_posts(request, context):
             body = request.json()
-            page_size = body.get("page_size", 10)
+            page_size = body.get("page_size", DEFAULT_PAGE_SIZE)
             page_number = body.get("page", 1)
 
             # Simulate a search with filtering

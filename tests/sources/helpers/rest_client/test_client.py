@@ -24,7 +24,7 @@ from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
 from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator, BaseReferencePaginator
 
-from .conftest import assert_pagination
+from .conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, assert_pagination
 
 
 def load_private_key(name="private_key.pem"):
@@ -396,6 +396,9 @@ class TestRESTClient:
         assert result.status_code == 200
 
     def test_paginate_json_body_without_params(self, rest_client) -> None:
+        # leave 3 pages of data
+        posts_skip = (DEFAULT_TOTAL_PAGES - 3) * DEFAULT_PAGE_SIZE
+
         class JSONBodyPageCursorPaginator(BaseReferencePaginator):
             def update_state(self, response):
                 self._next_reference = response.json().get("next_page")
@@ -409,19 +412,21 @@ class TestRESTClient:
         page_generator = rest_client.paginate(
             path="/posts/search",
             method="POST",
-            json={"ids_greater_than": 50},
+            json={"ids_greater_than": posts_skip - 1},
             paginator=JSONBodyPageCursorPaginator(),
         )
         result = [post for page in list(page_generator) for post in page]
-        for i in range(49):
-            assert result[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
+        for i in range(3 * DEFAULT_PAGE_SIZE):
+            assert result[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
 
     def test_post_json_body_without_params(self, rest_client) -> None:
+        # leave two pages of data
+        posts_skip = (DEFAULT_TOTAL_PAGES - 2) * DEFAULT_PAGE_SIZE
         result = rest_client.post(
             path="/posts/search",
-            json={"ids_greater_than": 50},
+            json={"ids_greater_than": posts_skip - 1},
         )
         returned_posts = result.json()["data"]
-        assert len(returned_posts) == 10  # only one page is returned
-        for i in range(10):
-            assert returned_posts[i] == {"id": 51 + i, "title": f"Post {51 + i}"}
+        assert len(returned_posts) == DEFAULT_PAGE_SIZE  # only one page is returned
+        for i in range(DEFAULT_PAGE_SIZE):
+            assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}

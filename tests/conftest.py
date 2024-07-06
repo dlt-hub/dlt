@@ -125,3 +125,6 @@ def pytest_configure(config):
         db.resetdb()
     except Exception:
         pass
+      
+    logging.getLogger("airflow.models.variable").setLevel("CRITICAL")
+  
