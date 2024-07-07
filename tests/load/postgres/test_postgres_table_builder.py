@@ -46,6 +46,14 @@ def create_client(empty_schema: Schema) -> PostgresClient:
 
 
 def test_create_table(client: PostgresClient) -> None:
+    # make sure we are in case insensitive mode
+    assert client.capabilities.generates_case_sensitive_identifiers() is False
+    # check if dataset name is properly folded
+    assert client.sql_client.dataset_name == client.config.dataset_name  # identical to config
+    assert (
+        client.sql_client.staging_dataset_name
+        == client.config.staging_dataset_name_layout % client.config.dataset_name
+    )
     # non existing table
     sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
     sqlfluff.parse(sql, dialect="postgres")
@@ -143,6 +151,14 @@ def test_create_table_with_hints(client: PostgresClient, empty_schema: Schema) -
 
 
 def test_create_table_case_sensitive(cs_client: PostgresClient) -> None:
+    # did we switch to case sensitive
+    assert cs_client.capabilities.generates_case_sensitive_identifiers() is True
+    # check dataset names
+    assert cs_client.sql_client.dataset_name.startswith("Test")
+    with cs_client.with_staging_dataset():
+        assert cs_client.sql_client.dataset_name.endswith("staginG")
+    assert cs_client.sql_client.staging_dataset_name.endswith("staginG")
+    # check tables
     cs_client.schema.update_table(
         utils.new_table("event_test_table", columns=deepcopy(TABLE_UPDATE))
     )
