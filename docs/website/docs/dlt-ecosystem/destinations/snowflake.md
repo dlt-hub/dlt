@@ -171,9 +171,12 @@ Snowflake supports the following [column hints](https://dlthub.com/docs/general-
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ### Table and column identifiers
-Snowflake makes all unquoted identifiers uppercase and then resolves them case-insensitively in SQL statements. `dlt` (effectively) does not quote identifiers in DDL, preserving default behavior.
+Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
+case sensitive identifiers that must be quoted in SQL statements.
 
+:::note
 Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools, i.e., `dbt`. In the case of `dlt`, it is, however, trivial to define your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
+:::
 
 ## Staging support
 
