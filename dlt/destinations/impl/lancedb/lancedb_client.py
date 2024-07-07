@@ -454,7 +454,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
-            new_columns = self.schema.get_new_table_columns(table_name, existing_columns)
+            new_columns = self.schema.get_new_table_columns(
+                table_name,
+                existing_columns,
+                self.capabilities.generates_case_sensitive_identifiers(),
+            )
             embedding_fields: List[str] = get_columns_names_with_prop(
                 self.schema.get_table(table_name), VECTORIZE_HINT
             )

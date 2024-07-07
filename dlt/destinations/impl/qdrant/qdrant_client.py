@@ -491,24 +491,26 @@ class QdrantClient(JobClientBase, WithStateSync):
             exists = self._collection_exists(table_name)
 
             qualified_collection_name = self._make_qualified_collection_name(table_name)
+            # NOTE: there are no property schemas in qdrant so we do not need to alter
+            # existing collections
             if not exists:
                 self._create_collection(
                     full_collection_name=qualified_collection_name,
                 )
-            if not is_local:  # Indexes don't work in local Qdrant (trigger log warning)
-                # Create indexes to enable order_by in state and schema tables
-                if table_name == self.schema.state_table_name:
-                    self.db_client.create_payload_index(
-                        collection_name=qualified_collection_name,
-                        field_name=self.schema.naming.normalize_identifier("created_at"),
-                        field_schema="datetime",
-                    )
-                elif table_name == self.schema.version_table_name:
-                    self.db_client.create_payload_index(
-                        collection_name=qualified_collection_name,
-                        field_name=self.schema.naming.normalize_identifier("inserted_at"),
-                        field_schema="datetime",
-                    )
+                if not is_local:  # Indexes don't work in local Qdrant (trigger log warning)
+                    # Create indexes to enable order_by in state and schema tables
+                    if table_name == self.schema.state_table_name:
+                        self.db_client.create_payload_index(
+                            collection_name=qualified_collection_name,
+                            field_name=self.schema.naming.normalize_identifier("created_at"),
+                            field_schema="datetime",
+                        )
+                    elif table_name == self.schema.version_table_name:
+                        self.db_client.create_payload_index(
+                            collection_name=qualified_collection_name,
+                            field_name=self.schema.naming.normalize_identifier("inserted_at"),
+                            field_schema="datetime",
+                        )
 
         self._update_schema_in_storage(self.schema)
 

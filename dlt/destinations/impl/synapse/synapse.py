@@ -62,7 +62,10 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
         super().__init__(schema, config, capabilities)
         self.config: SynapseClientConfiguration = config
         self.sql_client = SynapseSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
 
         self.active_hints = deepcopy(HINT_TO_SYNAPSE_ATTR)
