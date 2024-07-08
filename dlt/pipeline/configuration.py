@@ -18,6 +18,7 @@ class PipelineConfiguration(BaseConfiguration):
     staging_name: Optional[str] = None
     loader_file_format: Optional[TLoaderFileFormat] = None
     dataset_name: Optional[str] = None
+    dataset_name_prefix: Optional[str] = None
     pipeline_salt: Optional[TSecretValue] = None
     restore_from_destination: bool = True
     """Enables the `run` method of the `Pipeline` object to restore the pipeline state and schemas from the destination"""
@@ -41,6 +42,10 @@ class PipelineConfiguration(BaseConfiguration):
             self.runtime.pipeline_name = self.pipeline_name
         if not self.pipeline_salt:
             self.pipeline_salt = TSecretValue(digest256(self.pipeline_name))
+        if not self.dataset_name_prefix:
+            self.dataset_name_prefix = self.runtime.dataset_name_prefix
+        else:
+            self.runtime.dataset_name_prefix = self.dataset_name_prefix
 
 
 def ensure_correct_pipeline_kwargs(f: AnyFun, **kwargs: Any) -> None:

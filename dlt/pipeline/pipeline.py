@@ -1400,6 +1400,9 @@ class Pipeline(SupportsPipeline):
                 new_dataset_name += self._pipeline_instance_id
         self.dataset_name = new_dataset_name
 
+        if self.config.dataset_name_prefix:
+            self.dataset_name = f"{self.config.dataset_name_prefix}_{self.dataset_name}"
+
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
         self.default_schema_name = schema.name
