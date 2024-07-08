@@ -161,7 +161,7 @@ good performance, preserves exact database types and we recommend it for large t
 ### **sqlalchemy** backend
 
 **sqlalchemy** (the default) yields table data as list of Python dictionaries. This data goes through regular extract
-and normalize steps and does not require additional dependencies to be installed. It is the most robust (works with any destination, correctly represents data types) but also the slowest. You can use `detect_precision_hints` to pass exact database types to `dlt` schema.
+and normalize steps and does not require additional dependencies to be installed. It is the most robust (works with any destination, correctly represents data types) but also the slowest. You can use `reflection_level="full_with_precision"` to pass exact database types to `dlt` schema.
 
 ### **pyarrow** backend
 
@@ -262,7 +262,7 @@ unsw_table = sql_table(
     chunk_size=100000,
     backend="connectorx",
     # keep source data types
-    detect_precision_hints=True,
+    reflection_level="full_with_precision",
     # just to demonstrate how to setup a separate connection string for connectorx
     backend_kwargs={"conn": "postgresql://loader:loader@localhost:5432/dlt_data"}
 )
@@ -382,6 +382,132 @@ You can extract each table in a separate thread (no multiprocessing at this poin
 database = sql_database().parallelize()
 table = sql_table().parallelize()
 ```
+
+## Column reflection
+
+Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
+Most types are supported.
+
+The `reflection_level` argument controls how much information is reflected:
+
+- `reflection_level = "minimal"`: Only column names and nullability are detected. Data types are inferred from the data.
+- `reflection_level = "full"`: Column names, nullability, and data types are detected. For decimal types we always add precision and scale. **This is the default.**
+- `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
+
+If the SQL type is unknown or not supported by `dlt` the column is skipped when using the `pyarrow` backend.
+In other backend the type is inferred from data regardless of `reflection_level`, this often works, some types are coerced to strings
+and `dataclass` based values from sqlalchemy are inferred as `complex` (JSON in most destinations).
+
+:::tip
+If you use **full** (and above) reflection level you may encounter a situation where the data returned by sql alchemy or pyarrow backend
+does not match the reflected data types. Most common symptoms are:
+1. The destination complains that it cannot cast one type to another for a certain column. For example `connector-x` returns TIME in nanoseconds
+and BigQuery sees it as bigint and fails to load.
+2. You get `SchemaCorruptedException` or other coercion error during `normalize` step.
+In that case you may try **minimal** reflection level where all data types are inferred from the returned data. From our experience this prevents
+most of the coercion problems.
+:::
+
+You can also override the sql type by passing a `type_adapter_callback` function.
+This function takes an `sqlalchemy` data type and returns a new type (or `None` to force the column to be inferred from the data).
+
+This is useful for example when:
+- You're loading a data type which is not supported by the destination (e.g. you need JSON type columns to be coerced to string)
+- You're using an sqlalchemy dialect which uses custom types that don't inherit from standard sqlalchemy types.
+- For certain types you prefer `dlt` to infer data type from the data and you return `None`
+
+Example, when loading timestamps from Snowflake you can make sure they translate to `timestamp` columns in the result schema:
+
+```py
+import dlt
+from snowflake.sqlalchemy import TIMESTAMP_NTZ
+import sqlalchemy as sa
+
+def type_adapter_callback(sql_type):
+    if isinstance(sql_type, TIMESTAMP_NTZ):  # Snowflake does not inherit from sa.DateTime
+        return sa.DateTime(timezone=True)
+    return sql_type  # Use default detection for other types
+
+source = sql_database(
+    "snowflake://user:password@account/database?&warehouse=WH_123",
+    reflection_level="full",
+    type_adapter_callback=type_adapter_callback,
+    backend="pyarrow"
+)
+
+dlt.pipeline("demo").run(source)
+```
+
+## Extended configuration
+You are able to configure most of the arguments to `sql_database` and `sql_table` via toml files and environment variables. This is particularly useful with `sql_table`
+because you can maintain a separate configuration for each table (below we show **secrets.toml** and **config.toml**, you are free to combine them into one.):
+```toml
+[sources.sql_database]
+credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+```
+
+```toml
+[sources.sql_database.chat_message]
+backend="pandas"
+chunk_size=1000
+
+[sources.sql_database.chat_message.incremental]
+cursor_path="updated_at"
+```
+Example above will setup **backend** and **chunk_size** for a table with name **chat_message**. It will also enable incremental loading on a column named **updated_at**.
+Table resource is instantiated as follows:
+```py
+table = sql_table(table="chat_message", schema="data")
+```
+
+Similarly, you can configure `sql_database` source.
+```toml
+[sources.sql_database]
+credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+schema="data"
+backend="pandas"
+chunk_size=1000
+
+[sources.sql_database.chat_message.incremental]
+cursor_path="updated_at"
+```
+Note that we are able to configure incremental loading per table, even if it is a part of a dlt source. Source below will extract data using **pandas** backend
+with **chunk_size** 1000. **chat_message** table will load data incrementally using **updated_at** column. All other tables will load fully.
+```py
+database = sql_database()
+```
+
+You can configure all the arguments this way (except adapter callback function). [Standard dlt rules apply](https://dlthub.com/docs/general-usage/credentials/configuration#configure-dlt-sources-and-resources). You can use environment variables [by translating the names properly](https://dlthub.com/docs/general-usage/credentials/config_providers#toml-vs-environment-variables) ie.
+```sh
+SOURCES__SQL_DATABASE__CREDENTIALS="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+SOURCES__SQL_DATABASE__BACKEND=pandas
+SOURCES__SQL_DATABASE__CHUNK_SIZE=1000
+SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
+```
+
+### Configuring incremental loading
+`dlt.sources.incremental` class is a [config spec](https://dlthub.com/docs/general-usage/credentials/config_specs) and can be configured like any other spec, here's an example that sets all possible options:
+```toml
+[sources.sql_database.chat_message.incremental]
+cursor_path="updated_at"
+initial_value=2024-05-27T07:32:00Z
+end_value=2024-05-28T07:32:00Z
+row_order="asc"
+allow_external_schedulers=false
+```
+Please note that we specify date times in **toml** as initial and end value. For env variables only strings are currently supported.
+
+
+### Use SqlAlchemy Engine as credentials
+You are able to pass an instance of **SqlAlchemy** `Engine` instance instead of credentials:
+```py
+from sqlalchemy import create_engine
+
+engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+table = sql_table(engine, table="chat_message", schema="data")
+```
+Engine is used by `dlt` to open database connections and can work across multiple threads so is compatible with `parallelize` setting of dlt sources and resources.
+
 
 ## Troubleshooting
 
