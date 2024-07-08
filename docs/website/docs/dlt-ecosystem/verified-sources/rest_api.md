@@ -387,6 +387,20 @@ Or using the paginator instance:
 
 This is useful when you're [implementing and using a custom paginator](../../general-usage/http/rest-client.md#custom-paginator).
 
+Alternatively, you can use the dictionary configuration syntax also for custom paginators. For this, you need to register your custom paginator:
+
+```py
+rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
+
+{
+    # ...
+    "paginator": {
+        "type": "custom_paginator",
+        "next_url_path": "paging.nextLink",
+    }
+}
+```
+
 ### Data selection
 
 The `data_selector` field in the endpoint configuration allows you to specify a JSONPath to select the data from the response. By default, the source will try to detect locations of the data automatically.
