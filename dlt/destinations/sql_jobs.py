@@ -35,8 +35,6 @@ DEFAULTS: SqlJobParams = {"replace": False}
 class SqlFollowupJob(FollowupJobImpl):
     """Sql base job for jobs that rely on the whole tablechain"""
 
-    failed_text: str = ""
-
     @classmethod
     def from_table_chain(
         cls,
@@ -53,22 +51,16 @@ class SqlFollowupJob(FollowupJobImpl):
         file_info = ParsedLoadJobFileName(
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
         )
-        try:
-            # Remove line breaks from multiline statements and write one SQL statement per line in output file
-            # to support clients that need to execute one statement at a time (i.e. snowflake)
-            sql = [
-                " ".join(stmt.splitlines())
-                for stmt in cls.generate_sql(table_chain, sql_client, params)
-            ]
-            job = cls(file_info.file_name())
-            job._save_text_file("\n".join(sql))
-        except Exception:
-            # return failed job
-            tables_str = yaml.dump(
-                table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
-            )
-            job = cls(file_info.file_name(), "failed", pretty_format_exception())
-            job._save_text_file("\n".join([cls.failed_text, tables_str]))
+
+        # Remove line breaks from multiline statements and write one SQL statement per line in output file
+        # to support clients that need to execute one statement at a time (i.e. snowflake)
+        sql = [
+            " ".join(stmt.splitlines())
+            for stmt in cls.generate_sql(table_chain, sql_client, params)
+        ]
+        job = cls(file_info.file_name())
+        job._save_text_file("\n".join(sql))
+
         return job
 
     @classmethod
@@ -83,8 +75,6 @@ class SqlFollowupJob(FollowupJobImpl):
 
 class SqlStagingCopyFollowupJob(SqlFollowupJob):
     """Generates a list of sql statements that copy the data from staging dataset into destination dataset."""
-
-    failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
 
     @classmethod
     def _generate_clone_sql(
@@ -145,8 +135,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     Generates a list of sql statements that merge the data from staging dataset into destination dataset.
     If no merge keys are discovered, falls back to append.
     """
-
-    failed_text: str = "Tried to generate a merge sql job for the following tables:"
 
     @classmethod
     def generate_sql(  # type: ignore[return]

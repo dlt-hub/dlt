@@ -89,6 +89,7 @@ def test_unsupported_writer_type() -> None:
 
 
 def test_unsupported_write_disposition() -> None:
+    # tests terminal error on retrieving job
     load = setup_loader()
     load_id, schema = prepare_load_package(load.load_storage, [NORMALIZED_FILES[0]])
     # mock unsupported disposition

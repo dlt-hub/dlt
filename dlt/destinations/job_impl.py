@@ -58,14 +58,9 @@ class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):
 
 
 class FollowupJobImpl(FollowupJob, LoadJob):
-    def __init__(
-        self, file_name: str, status: TLoadJobState = "ready", exception: str = None
-    ) -> None:
-        self._state = status
-        self._exception = exception
+    def __init__(self, file_name: str) -> None:
         super().__init__(os.path.join(tempfile.gettempdir(), file_name))
         # we only accept jobs that we can scheduleas new or mark as failed..
-        assert status in ("ready", "failed")
 
     def _save_text_file(self, data: str) -> None:
         with open(self._file_path, "w", encoding="utf-8") as f:
@@ -76,10 +71,11 @@ class FollowupJobImpl(FollowupJob, LoadJob):
         return self._file_path
 
     def state(self) -> TLoadJobState:
-        """Default FollowupJobs are marked as ready to execute"""
+        """Returns current state. Should poll external resource if necessary."""
         return "ready"
 
     def exception(self) -> str:
+        """The exception associated with failed or retry states"""
         return None
 
 

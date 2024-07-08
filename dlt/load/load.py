@@ -267,7 +267,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def create_followup_jobs(
         self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
-    ) -> List[FollowupJob]:
+    ) -> None:
         jobs: List[FollowupJob] = []
         if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
@@ -298,7 +298,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     ):
                         jobs = jobs + follow_up_jobs
             jobs = jobs + starting_job.create_followup_jobs(state)
-        return jobs
+
+        # import all followup jobs to the new jobs folder
+        for followup_job in jobs:
+            # save all created jobs
+            self.load_storage.normalized_packages.import_job(
+                load_id, followup_job.new_file_path(), job_state="new_jobs"
+            )
+            logger.info(
+                f"Job {starting_job.job_id()} CREATED a new FOLLOWUP JOB"
+                f" {followup_job.new_file_path()} placed in new_jobs"
+            )
 
     def complete_jobs(
         self, load_id: str, jobs: Sequence[LoadJob], schema: Schema
@@ -314,19 +324,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # if an exception condition was met, return it to the main runner
         pending_exception: Exception = None
 
-        def _schedule_followup_jobs(followup_jobs: Iterable[FollowupJob]) -> None:
-            # we import all follow up jobs into the new_jobs folder so they may be picked
-            # up by the loader
-            for followup_job in followup_jobs:
-                # save all created jobs
-                self.load_storage.normalized_packages.import_job(
-                    load_id, followup_job.new_file_path(), job_state="new_jobs"
-                )
-                logger.info(
-                    f"Job {job.job_id()} CREATED a new FOLLOWUP JOB"
-                    f" {followup_job.new_file_path()} placed in new_jobs"
-                )
-
         logger.info(f"Will complete {len(jobs)} for {load_id}")
         for ii in range(len(jobs)):
             job = jobs[ii]
@@ -338,7 +335,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 remaining_jobs.append(job)
             elif state == "failed":
                 # create followup jobs
-                _schedule_followup_jobs(self.create_followup_jobs(load_id, state, job, schema))
+                self.create_followup_jobs(load_id, state, job, schema)
 
                 # try to get exception message from job
                 failed_message = job.exception()
@@ -376,7 +373,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         )
             elif state == "completed":
                 # create followup jobs
-                _schedule_followup_jobs(self.create_followup_jobs(load_id, state, job, schema))
+                self.create_followup_jobs(load_id, state, job, schema)
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
