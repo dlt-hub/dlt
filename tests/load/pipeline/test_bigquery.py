@@ -15,7 +15,7 @@ pytestmark = pytest.mark.essential
     ids=lambda x: x.name,
 )
 def test_bigquery_numeric_types(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("test_bigquery_numeric_types")
+    pipeline = destination_config.setup_pipeline("test_bigquery_numeric_types", dev_mode=True)
 
     columns = [
         {"name": "col_big_numeric", "data_type": "decimal", "precision": 47, "scale": 9},

@@ -198,7 +198,8 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
             yield from source_items2
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(), destination="duckdb", credentials=duckdb.connect(":memory:")
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
     p.run(some_data()).raise_on_failed_jobs()
     p.run(some_data()).raise_on_failed_jobs()
@@ -238,7 +239,8 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
             yield from source_items2
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(), destination="duckdb", credentials=duckdb.connect(":memory:")
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
     p.run(some_data()).raise_on_failed_jobs()
     p.run(some_data()).raise_on_failed_jobs()
@@ -444,7 +446,8 @@ def test_composite_primary_key(item_type: TestDataItemFormat) -> None:
         yield from source_items
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(), destination="duckdb", credentials=duckdb.connect(":memory:")
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
     p.run(some_data()).raise_on_failed_jobs()
 

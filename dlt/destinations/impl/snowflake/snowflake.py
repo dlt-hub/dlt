@@ -183,13 +183,13 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         # decide on source format, stage_file_path will either be a local file or a bucket path
         if file_name.endswith("jsonl"):
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-        if file_name.endswith("parquet"):
+        elif file_name.endswith("parquet"):
             source_format = (
                 "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
                 # TODO: USE_VECTORIZED_SCANNER inserts null strings into VARIANT JSON
                 # " USE_VECTORIZED_SCANNER = TRUE)"
             )
-        if file_name.endswith("csv"):
+        elif file_name.endswith("csv"):
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
             csv_format = self._config.csv_format or CsvFormatConfiguration()
             source_format = (
@@ -203,6 +203,8 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
                 column_match_clause = ""
             if csv_format.on_error_continue:
                 on_error_clause = "ON_ERROR = CONTINUE"
+        else:
+            raise ValueError(file_name)
 
         with self._sql_client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy

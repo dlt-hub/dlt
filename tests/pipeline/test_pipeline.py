@@ -15,7 +15,7 @@ import pytest
 import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
@@ -267,49 +267,16 @@ def test_deterministic_salt(environment) -> None:
 
 
 def test_destination_explicit_credentials(environment: Any) -> None:
+    from dlt.destinations import motherduck
+
     # test redshift
     p = dlt.pipeline(
         pipeline_name="postgres_pipeline",
-        destination="redshift",
-        credentials="redshift://loader:loader@localhost:5432/dlt_data",
+        destination=motherduck(credentials="md://user:password@/dlt_data"),
     )
-    config = p._get_destination_client_initial_config()
+    config = p.destination_client().config
     assert config.credentials.is_resolved()
-    # with staging
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        staging="filesystem",
-        destination="redshift",
-        credentials="redshift://loader:loader@localhost:5432/dlt_data",
-    )
-    config = p._get_destination_client_initial_config(p.destination)
-    assert config.credentials.is_resolved()
-    config = p._get_destination_client_initial_config(p.staging, as_staging=True)
-    assert config.credentials is None
-    p._wipe_working_folder()
-    # try filesystem which uses union of credentials that requires bucket_url to resolve
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        destination="filesystem",
-        credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
-    )
-    config = p._get_destination_client_initial_config(p.destination)
-    assert isinstance(config.credentials, AwsCredentials)
-    assert config.credentials.is_resolved()
-    # resolve gcp oauth
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        destination="filesystem",
-        credentials={
-            "project_id": "pxid",
-            "refresh_token": "123token",
-            "client_id": "cid",
-            "client_secret": "s",
-        },
-    )
-    config = p._get_destination_client_initial_config(p.destination)
-    assert isinstance(config.credentials, GcpOAuthCredentials)
-    assert config.credentials.is_resolved()
+    assert config.credentials.to_native_representation() == "md://user:password@/dlt_data"
 
 
 def test_destination_staging_config(environment: Any) -> None:
@@ -362,14 +329,15 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
     assert dest_config.credentials.database == "some_db"
 
 
-@pytest.mark.skip(reason="does not work on CI. probably takes right credentials from somewhere....")
 def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -> None:
     # if string cannot be parsed
     p = dlt.pipeline(
-        pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM"
+        pipeline_name="postgres_pipeline",
+        destination=filesystem(bucket_url="s3://test", destination_name="uniq_s3_bucket"),
     )
-    with pytest.raises(NativeValueError):
-        p._get_destination_client_initial_config(p.destination)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run([1, 2, 3], table_name="data", credentials="PR8BLEM")
+    assert isinstance(pip_ex.value.__cause__, InvalidNativeValue)
 
 
 def test_extract_source_twice() -> None:
@@ -2303,21 +2271,57 @@ def test_change_naming_convention_name_collision() -> None:
     os.environ["SOURCES__AIRTABLE_EMOJIS__SCHEMA__NAMING"] = "sql_ci_v1"
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
+    # see conflicts early
+    assert pip_ex.value.step == "extract"
     assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
 
     # all good if we drop tables
-    # info = pipeline.run(
-    #     airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
-    #     refresh="drop_resources",
-    # )
-    # assert_load_info(info)
-    # assert load_data_table_counts(pipeline) == {
-    #     "📆 Schedule": 3,
-    #     "🦚Peacock": 1,
-    #     "🦚WidePeacock": 1,
-    #     "🦚Peacock__peacock": 3,
-    #     "🦚WidePeacock__Peacock": 3,
-    # }
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        refresh="drop_resources",
+    )
+    assert_load_info(info)
+    # case insensitive normalization
+    assert load_data_table_counts(pipeline) == {
+        "_schedule": 3,
+        "_peacock": 1,
+        "_widepeacock": 1,
+        "_peacock__peacock": 3,
+        "_widepeacock__peacock": 3,
+    }
+
+
+def test_change_to_more_lax_naming_convention_name_collision() -> None:
+    # use snake_case which is strict and then change to duck_case which accepts snake_case names without any changes
+    # still we want to detect collisions
+    pipeline = dlt.pipeline(
+        "test_change_to_more_lax_naming_convention_name_collision", destination="duckdb"
+    )
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    assert_load_info(info)
+    assert "_peacock" in pipeline.default_schema.tables
+
+    # use duck case to load data into duckdb so casing and emoji are preserved
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case")
+
+    # changing destination to one with a separate naming convention raises immediately
+    with pytest.raises(TableIdentifiersFrozen):
+        pipeline.run(
+            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+            destination=duck_,
+        )
+
+    # refresh on the source level will work
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        destination=duck_,
+        refresh="drop_sources",
+    )
+    assert_load_info(info)
+    # make sure that emojis got in
+    assert "🦚Peacock" in pipeline.default_schema.tables
 
 
 def test_change_naming_convention_column_collision() -> None:

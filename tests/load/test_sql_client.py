@@ -115,6 +115,28 @@ def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
+def test_has_dataset(client: SqlJobClientBase) -> None:
+    with client.sql_client.with_alternative_dataset_name("not_existing"):
+        assert not client.sql_client.has_dataset()
+    client.update_stored_schema()
+    assert client.sql_client.has_dataset()
+
+
+@pytest.mark.parametrize(
+    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+)
+def test_create_drop_dataset(client: SqlJobClientBase) -> None:
+    # client.sql_client.create_dataset()
+    with pytest.raises(DatabaseException):
+        client.sql_client.create_dataset()
+    client.sql_client.drop_dataset()
+    with pytest.raises(DatabaseUndefinedRelation):
+        client.sql_client.drop_dataset()
+
+
+@pytest.mark.parametrize(
+    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+)
 def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
     loads_table_name = client.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)

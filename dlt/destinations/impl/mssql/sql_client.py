@@ -129,7 +129,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.execute_many(statements)
 
     def _drop_schema(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
