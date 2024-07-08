@@ -2,11 +2,27 @@ import pytest
 import string
 from typing import List, Type
 
-from dlt.common.normalizers.naming import NamingConvention
-from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.normalizers.naming.direct import NamingConvention as DirectNamingConvention
+from dlt.common.normalizers.naming import (
+    NamingConvention,
+    snake_case,
+    direct,
+    duck_case,
+    sql_ci_v1,
+    sql_cs_v1,
+)
 from dlt.common.typing import DictStrStr
 from dlt.common.utils import uniq_id
+
+
+ALL_NAMING_CONVENTIONS = {
+    snake_case.NamingConvention,
+    direct.NamingConvention,
+    duck_case.NamingConvention,
+    sql_ci_v1.NamingConvention,
+    sql_cs_v1.NamingConvention,
+}
+
+ALL_UNDERSCORE_PATH_CONVENTIONS = ALL_NAMING_CONVENTIONS - {direct.NamingConvention}
 
 
 LONG_PATH = "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations"
@@ -139,7 +155,7 @@ def test_shorten_identifier() -> None:
         assert len(norm_ident) == 20
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize("convention", ALL_NAMING_CONVENTIONS)
 def test_normalize_with_shorten_identifier(convention: Type[NamingConvention]) -> None:
     naming = convention()
     # None/empty ident raises
@@ -164,7 +180,7 @@ def test_normalize_with_shorten_identifier(convention: Type[NamingConvention]) -
     assert tag in naming.normalize_identifier(RAW_IDENT)
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize("convention", ALL_NAMING_CONVENTIONS)
 def test_normalize_path_shorting(convention: Type[NamingConvention]) -> None:
     naming = convention()
     path = naming.make_path(*LONG_PATH.split("__"))
@@ -207,10 +223,11 @@ def test_normalize_path_shorting(convention: Type[NamingConvention]) -> None:
     assert len(naming.break_path(norm_path)) == 1
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize("convention", ALL_NAMING_CONVENTIONS)
 def test_normalize_path(convention: Type[NamingConvention]) -> None:
     naming = convention()
     raw_path_str = naming.make_path(*RAW_PATH)
+    assert convention.PATH_SEPARATOR in raw_path_str
     # count separators
     norm_path_str = naming.normalize_path(raw_path_str)
     assert len(naming.break_path(norm_path_str)) == len(RAW_PATH)
@@ -248,7 +265,7 @@ def test_normalize_path(convention: Type[NamingConvention]) -> None:
     assert tag in tagged_raw_path_str
 
 
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DirectNamingConvention))
+@pytest.mark.parametrize("convention", ALL_NAMING_CONVENTIONS)
 def test_shorten_fragments(convention: Type[NamingConvention]) -> None:
     # max length around the length of the path
     naming = convention()
@@ -266,8 +283,30 @@ def test_shorten_fragments(convention: Type[NamingConvention]) -> None:
         assert naming.shorten_fragments(*RAW_PATH_WITH_EMPTY_IDENT) == norm_path
 
 
-# 'event__parse_data__response_selector__default__response__response_templates'
-# E         'event__parse_data__response_selector__default__response__responses'
+@pytest.mark.parametrize("convention", ALL_UNDERSCORE_PATH_CONVENTIONS)
+def test_normalize_break_path(convention: Type[NamingConvention]) -> None:
+    naming_unlimited = convention()
+    assert naming_unlimited.break_path("A__B__C") == ["A", "B", "C"]
+    # what if path has _a and _b which valid normalized idents
+    assert naming_unlimited.break_path("_a___b__C___D") == ["_a", "_b", "C", "_D"]
+    # skip empty identifiers from path
+    assert naming_unlimited.break_path("_a_____b") == ["_a", "_b"]
+    assert naming_unlimited.break_path("_a____b") == ["_a", "b"]
+    assert naming_unlimited.break_path("_a__  \t\r__b") == ["_a", "b"]
+
+
+@pytest.mark.parametrize("convention", ALL_UNDERSCORE_PATH_CONVENTIONS)
+def test_normalize_make_path(convention: Type[NamingConvention]) -> None:
+    naming_unlimited = convention()
+    assert naming_unlimited.make_path("A", "B") == "A__B"
+    assert naming_unlimited.make_path("_A", "_B") == "_A___B"
+    assert naming_unlimited.make_path("_A", "", "_B") == "_A___B"
+    assert naming_unlimited.make_path("_A", "\t\n ", "_B") == "_A___B"
+
+
+def test_naming_convention_name() -> None:
+    assert snake_case.NamingConvention.name() == "snake_case"
+    assert direct.NamingConvention.name() == "direct"
 
 
 def assert_short_path(norm_path: str, naming: NamingConvention) -> None:

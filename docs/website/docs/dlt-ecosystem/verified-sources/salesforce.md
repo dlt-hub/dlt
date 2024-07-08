@@ -262,7 +262,7 @@ To create your data pipeline using single loading and
    > For incremental loading of endpoints, maintain the pipeline name and destination dataset name.
    > The pipeline name is important for accessing the [state](../../general-usage/state) from the
    > last run, including the end date for incremental data loads. Altering these names could trigger
-   > a [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh), disrupting
+   > a [“dev-mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting
    > the metadata tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 1. To load data from the “contact” in replace mode and “task” incrementally merge mode endpoints:

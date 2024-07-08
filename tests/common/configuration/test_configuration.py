@@ -5,6 +5,7 @@ from typing import (
     Any,
     Dict,
     Final,
+    Generic,
     List,
     Mapping,
     MutableMapping,
@@ -13,16 +14,23 @@ from typing import (
     Type,
     Union,
 )
-from typing_extensions import Annotated
+from typing_extensions import Annotated, TypeVar
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolved
+from dlt.common.configuration.specs.base_configuration import NotResolved, is_hint_not_resolvable
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
 from dlt.common.utils import custom_environ, get_exception_trace, get_exception_trace_chain
-from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
+from dlt.common.typing import (
+    AnyType,
+    ConfigValue,
+    DictStrAny,
+    StrAny,
+    TSecretValue,
+    extract_inner_type,
+)
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingTypeHintException,
     ConfigFieldTypeHintNotSupported,
@@ -53,7 +61,9 @@ from dlt.common.configuration.utils import (
     add_config_dict_to_env,
     add_config_to_env,
 )
+from dlt.common.pipeline import TRefreshMode
 
+from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
     MockProvider,
@@ -240,6 +250,11 @@ class SubclassConfigWithDynamicType(ConfigWithDynamicType):
         return str
 
 
+@configspec
+class ConfigWithLiteralField(BaseConfiguration):
+    refresh: TRefreshMode = None
+
+
 LongInteger = NewType("LongInteger", int)
 FirstOrderStr = NewType("FirstOrderStr", str)
 SecondOrderStr = NewType("SecondOrderStr", FirstOrderStr)
@@ -309,6 +324,32 @@ def test_explicit_values_false_when_bool() -> None:
     assert c.head == ""
     assert c.tube == []
     assert c.heels == ""
+
+
+def test_explicit_embedded_config(environment: Any) -> None:
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
+
+    environment["INSTRUMENTED__HEAD"] = "hed"
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
+        explicit_value={"instrumented": instr_explicit},
+    )
+
+    # explicit value will be part of the resolved configuration
+    assert c.instrumented is instr_explicit
+    # configuration was injected from env
+    assert c.instrumented.head == "hed"
+
+    # the same but with resolved
+    instr_explicit = InstrumentedConfiguration(head="h", tube=["tu", "be"], heels="xhe")
+    instr_explicit.resolve()
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(default="X", sectioned=SectionedConfiguration(password="S")),
+        explicit_value={"instrumented": instr_explicit},
+    )
+    assert c.instrumented is instr_explicit
+    # but configuration is not injected
+    assert c.instrumented.head == "h"
 
 
 def test_default_values(environment: Any) -> None:
@@ -408,6 +449,43 @@ def test_invalid_native_config_value() -> None:
     assert py_ex.value.spec is InstrumentedConfiguration
     assert py_ex.value.native_value_type is int
     assert py_ex.value.embedded_sections == ()
+
+
+def test_maybe_use_explicit_value() -> None:
+    # pass through dict and configs
+    c = ConnectionStringCredentials()
+    dict_explicit = {"explicit": "is_dict"}
+    config_explicit = BaseConfiguration()
+    assert resolve._maybe_parse_native_value(c, dict_explicit, ()) is dict_explicit
+    assert resolve._maybe_parse_native_value(c, config_explicit, ()) is config_explicit
+
+    # postgres credentials have a default parameter (connect_timeout), which must be removed for explicit value
+    pg_c = PostgresCredentials()
+    explicit_value = resolve._maybe_parse_native_value(
+        pg_c, "postgres://loader@localhost:5432/dlt_data?a=b&c=d", ()
+    )
+    # NOTE: connect_timeout and password are not present
+    assert explicit_value == {
+        "drivername": "postgres",
+        "database": "dlt_data",
+        "username": "loader",
+        "host": "localhost",
+        "query": {"a": "b", "c": "d"},
+    }
+    pg_c = PostgresCredentials()
+    explicit_value = resolve._maybe_parse_native_value(
+        pg_c, "postgres://loader@localhost:5432/dlt_data?connect_timeout=33", ()
+    )
+    assert explicit_value["connect_timeout"] == 33
+
+
+def test_optional_params_resolved_if_complete_native_value(environment: Any) -> None:
+    # this native value fully resolves configuration
+    environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data?a=b&c=d"
+    # still this config value will be injected
+    environment["CREDENTIALS__CONNECT_TIMEOUT"] = "300"
+    c = resolve.resolve_configuration(PostgresCredentials())
+    assert c.connect_timeout == 300
 
 
 def test_on_resolved(environment: Any) -> None:
@@ -543,7 +621,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         "dlthub_telemetry": True,
         "dlthub_telemetry_endpoint": "https://telemetry-tracker.services4758.workers.dev",
         "dlthub_telemetry_segment_write_key": None,
-        "log_format": "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}",
+        "log_format": "{asctime}|[{levelname}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}",
         "log_level": "WARNING",
         "request_timeout": 60,
         "request_max_attempts": 5,
@@ -725,7 +803,7 @@ def test_find_all_keys() -> None:
 
 
 def test_coercion_to_hint_types(environment: Any) -> None:
-    add_config_dict_to_env(COERCIONS)
+    add_config_dict_to_env(COERCIONS, destructure_dicts=False)
 
     C = CoercionTestConfiguration()
     resolve._resolve_config_fields(
@@ -789,7 +867,7 @@ def test_values_serialization() -> None:
 
 def test_invalid_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    add_config_dict_to_env(INVALID_COERCIONS)
+    add_config_dict_to_env(INVALID_COERCIONS, destructure_dicts=False)
     for key, value in INVALID_COERCIONS.items():
         try:
             resolve._resolve_config_fields(
@@ -811,8 +889,8 @@ def test_invalid_coercions(environment: Any) -> None:
 
 def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
-    add_config_dict_to_env(COERCIONS)
-    add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
+    add_config_dict_to_env(COERCIONS, destructure_dicts=False)
+    add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True, destructure_dicts=False)
     resolve._resolve_config_fields(
         C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
     )
@@ -925,12 +1003,14 @@ def test_is_valid_hint() -> None:
 
 
 def test_is_not_resolved_hint() -> None:
-    assert is_hint_not_resolved(Final[ConfigFieldMissingException]) is True
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved()]) is True
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved(True)]) is True
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, NotResolved(False)]) is False
-    assert is_hint_not_resolved(Annotated[ConfigFieldMissingException, "REQ"]) is False
-    assert is_hint_not_resolved(str) is False
+    assert is_hint_not_resolvable(Final[ConfigFieldMissingException]) is True
+    assert is_hint_not_resolvable(Annotated[ConfigFieldMissingException, NotResolved()]) is True
+    assert is_hint_not_resolvable(Annotated[ConfigFieldMissingException, NotResolved(True)]) is True
+    assert (
+        is_hint_not_resolvable(Annotated[ConfigFieldMissingException, NotResolved(False)]) is False
+    )
+    assert is_hint_not_resolvable(Annotated[ConfigFieldMissingException, "REQ"]) is False
+    assert is_hint_not_resolvable(str) is False
 
 
 def test_not_resolved_hint() -> None:
@@ -1255,6 +1335,15 @@ def test_add_config_to_env(environment: Dict[str, str]) -> None:
     add_config_to_env(c.sectioned)
     assert environment == {"DLT_TEST__PASSWORD": "PASS"}
 
+    # dicts should be added as sections
+    environment.clear()
+    c_s = ConnectionStringCredentials(
+        "mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
+    )
+    add_config_to_env(c_s, ("dlt",))
+    assert environment["DLT__CREDENTIALS__QUERY__ENCRYPT"] == "yes"
+    assert environment["DLT__CREDENTIALS__QUERY__TRUSTSERVERCERTIFICATE"] == "yes"
+
 
 def test_configuration_copy() -> None:
     c = resolve.resolve_configuration(
@@ -1310,3 +1399,89 @@ def test_configuration_with_configuration_as_default() -> None:
     c_resolved = resolve.resolve_configuration(c_instance)
     assert c_resolved.is_resolved()
     assert c_resolved.conn_str.is_resolved()
+
+
+def test_configuration_with_generic(environment: Dict[str, str]) -> None:
+    TColumn = TypeVar("TColumn", bound=str)
+
+    @configspec
+    class IncrementalConfiguration(BaseConfiguration, Generic[TColumn]):
+        # TODO: support generics field
+        column: str = ConfigValue
+
+    @configspec
+    class SourceConfiguration(BaseConfiguration):
+        name: str = ConfigValue
+        incremental: IncrementalConfiguration[str] = ConfigValue
+
+    # resolve incremental
+    environment["COLUMN"] = "column"
+    c = resolve.resolve_configuration(IncrementalConfiguration[str]())
+    assert c.column == "column"
+
+    # resolve embedded config with generic
+    environment["INCREMENTAL__COLUMN"] = "column_i"
+    c2 = resolve.resolve_configuration(SourceConfiguration(name="name"))
+    assert c2.incremental.column == "column_i"
+
+    # put incremental in union
+    @configspec
+    class SourceUnionConfiguration(BaseConfiguration):
+        name: str = ConfigValue
+        incremental_union: Optional[IncrementalConfiguration[str]] = ConfigValue
+
+    c3 = resolve.resolve_configuration(SourceUnionConfiguration(name="name"))
+    assert c3.incremental_union is None
+    environment["INCREMENTAL_UNION__COLUMN"] = "column_u"
+    c3 = resolve.resolve_configuration(SourceUnionConfiguration(name="name"))
+    assert c3.incremental_union.column == "column_u"
+
+    class Sentinel:
+        pass
+
+    class SubSentinel(Sentinel):
+        pass
+
+    @configspec
+    class SourceWideUnionConfiguration(BaseConfiguration):
+        name: str = ConfigValue
+        incremental_w_union: Union[IncrementalConfiguration[str], str, Sentinel] = ConfigValue
+        incremental_sub: Optional[Union[IncrementalConfiguration[str], str, SubSentinel]] = None
+
+    with pytest.raises(ConfigFieldMissingException):
+        resolve.resolve_configuration(SourceWideUnionConfiguration(name="name"))
+
+    # use explicit sentinel
+    sentinel = Sentinel()
+    c4 = resolve.resolve_configuration(
+        SourceWideUnionConfiguration(name="name"), explicit_value={"incremental_w_union": sentinel}
+    )
+    assert c4.incremental_w_union is sentinel
+
+    # instantiate incremental
+    environment["INCREMENTAL_W_UNION__COLUMN"] = "column_w_u"
+    c4 = resolve.resolve_configuration(SourceWideUnionConfiguration(name="name"))
+    assert c4.incremental_w_union.column == "column_w_u"  # type: ignore[union-attr]
+
+    # sentinel (of super class type) also works for hint of subclass type
+    c4 = resolve.resolve_configuration(
+        SourceWideUnionConfiguration(name="name"), explicit_value={"incremental_sub": sentinel}
+    )
+    assert c4.incremental_sub is sentinel
+
+
+def test_configuration_with_literal_field(environment: Dict[str, str]) -> None:
+    """Literal type fields only allow values from the literal"""
+    environment["REFRESH"] = "not_a_refresh_mode"
+
+    with pytest.raises(ConfigValueCannotBeCoercedException) as einfo:
+        resolve.resolve_configuration(ConfigWithLiteralField())
+
+    assert einfo.value.field_name == "refresh"
+    assert einfo.value.field_value == "not_a_refresh_mode"
+    assert einfo.value.hint == TRefreshMode
+
+    environment["REFRESH"] = "drop_data"
+
+    spec = resolve.resolve_configuration(ConfigWithLiteralField())
+    assert spec.refresh == "drop_data"

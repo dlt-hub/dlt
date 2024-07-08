@@ -105,13 +105,15 @@ package. In that case, for a correctly behaving pipeline, only minimum amount of
 behind. In `config.toml`:
 
 ```toml
-load.delete_completed_jobs=true
+[load]
+delete_completed_jobs=true
 ```
 
-Also, by default, `dlt` leaves data in staging dataset, used during merge and replace load for deduplication. In order to clear it, put the following line in `config.toml`:
+Also, by default, `dlt` leaves data in [staging dataset](../dlt-ecosystem/staging.md#staging-dataset), used during merge and replace load for deduplication. In order to clear it, put the following line in `config.toml`:
 
 ```toml
-load.truncate_staging_dataset=true
+[load]
+truncate_staging_dataset=true
 ```
 
 ## Using slack to send messages
@@ -174,7 +176,7 @@ As with any other configuration, you can use environment variables instead of th
 - `RUNTIME__LOG_LEVEL` to set the log level
 - `LOG_FORMAT` to set the log format
 
-`dlt` logs to a logger named **dlt**. `dlt` logger uses a regular python logger so you can configure the handlers 
+`dlt` logs to a logger named **dlt**. `dlt` logger uses a regular python logger so you can configure the handlers
 as per your requirement.
 
 For example, to put logs to the file:

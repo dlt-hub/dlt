@@ -9,6 +9,61 @@ import Header from './_source-info-header.md';
 
 This is a generic dlt source you can use to extract data from any REST API. It uses [declarative configuration](#source-configuration) to define the API endpoints, their [relationships](#define-resource-relationships), how to handle [pagination](#pagination), and [authentication](#authentication).
 
+### Quick example
+
+Here's an example of how to configure the REST API source to load posts and related comments from a hypothetical blog API:
+
+```py
+import dlt
+from rest_api import rest_api_source
+
+source = rest_api_source({
+    "client": {
+        "base_url": "https://api.example.com/",
+        "auth": {
+            "token": dlt.secrets["your_api_token"],
+        },
+        "paginator": {
+            "type": "json_response",
+            "next_url_path": "paging.next",
+        },
+    },
+    "resources": [
+        # "posts" will be used as the endpoint path, the resource name,
+        # and the table name in the destination. The HTTP client will send
+        # a request to "https://api.example.com/posts".
+        "posts",
+
+        # The explicit configuration allows you to link resources
+        # and define parameters.
+        {
+            "name": "comments",
+            "endpoint": {
+                "path": "posts/{post_id}/comments",
+                "params": {
+                    "post_id": {
+                        "type": "resolve",
+                        "resource": "posts",
+                        "field": "id",
+                    },
+                    "sort": "created_at",
+                },
+            },
+        },
+    ],
+})
+
+pipeline = dlt.pipeline(
+    pipeline_name="rest_api_example",
+    destination="duckdb",
+    dataset_name="rest_api_data",
+)
+
+load_info = pipeline.run(source)
+```
+
+Running this pipeline will create two tables in the DuckDB: `posts` and `comments` with the data from the respective API endpoints. The `comments` resource will fetch comments for each post by using the `id` field from the `posts` resource.
+
 ## Setup guide
 
 ### Initialize the verified source
@@ -428,7 +483,20 @@ One of the most common methods is token-based authentication (also known as Bear
 }
 ```
 
-The full version of the configuration would also include the authentication type (`bearer`) explicitly:
+:::warning
+Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
+:::
+
+Available authentication types:
+
+| Authentication class | String Alias (`type`) | Description |
+| ------------------- | ----------- | ----------- |
+| [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | `bearer` | Bearer token authentication. |
+| [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | `http_basic` | Basic HTTP authentication. |
+| [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | `api_key` | API key authentication with key defined in the query parameters or in the headers. |
+| [OAuth2ClientCredentials](../../general-usage/http/rest-client.md#oauth20-authorization) | N/A | OAuth 2.0 authorization with a temporary access token obtained from the authorization server. |
+
+To specify the authentication configuration, use the `auth` field in the [client](#client) configuration:
 
 ```py
 {

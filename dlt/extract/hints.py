@@ -5,6 +5,7 @@ from dlt.common import logger
 from dlt.common.schema.typing import (
     TColumnNames,
     TColumnProp,
+    TFileFormat,
     TPartialTableSchema,
     TTableSchema,
     TTableSchemaColumns,
@@ -24,6 +25,7 @@ from dlt.common.schema.utils import (
     new_table,
 )
 from dlt.common.typing import TDataItem
+from dlt.common.utils import clone_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -47,6 +49,7 @@ class TResourceHints(TypedDict, total=False):
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
     table_format: TTableHintTemplate[TTableFormat]
+    file_format: TTableHintTemplate[TFileFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
 
@@ -71,6 +74,7 @@ def make_hints(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -90,6 +94,7 @@ def make_hints(
         columns=clean_columns,  # type: ignore
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
+        file_format=file_format,  # type: ignore
     )
     if not table_name:
         new_template.pop("name")
@@ -157,6 +162,10 @@ class DltResourceHints:
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
 
+    @property
+    def table_format(self) -> TTableHintTemplate[TTableFormat]:
+        return None if self._hints is None else self._hints.get("table_format")
+
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
         `item` parameter is used to resolve table hints based on data.
@@ -204,6 +213,7 @@ class DltResourceHints:
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
+        file_format: TTableHintTemplate[TFileFormat] = None,
         create_table_variant: bool = False,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
@@ -251,6 +261,7 @@ class DltResourceHints:
                 merge_key,
                 schema_contract,
                 table_format,
+                file_format,
             )
         else:
             t = self._clone_hints(t)
@@ -315,10 +326,15 @@ class DltResourceHints:
                     t["table_format"] = table_format
                 else:
                     t.pop("table_format", None)
+            if file_format is not None:
+                if file_format:
+                    t["file_format"] = file_format
+                else:
+                    t.pop("file_format", None)
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
-            t["incremental"] = None if incremental is Incremental.EMPTY else incremental
+            t["incremental"] = incremental
 
         self._set_hints(t, create_table_variant)
 
@@ -370,16 +386,17 @@ class DltResourceHints:
             incremental=hints_template.get("incremental"),
             schema_contract=hints_template.get("schema_contract"),
             table_format=hints_template.get("table_format"),
+            file_format=hints_template.get("file_format"),
             create_table_variant=create_table_variant,
         )
 
     @staticmethod
     def _clone_hints(hints_template: TResourceHints) -> TResourceHints:
-        t_ = copy(hints_template)
-        t_["columns"] = deepcopy(hints_template["columns"])
-        if "schema_contract" in hints_template:
-            t_["schema_contract"] = deepcopy(hints_template["schema_contract"])
-        return t_
+        if hints_template is None:
+            return None
+        # creates a deep copy of dict structure without actually copying the objects
+        # deepcopy(hints_template) #
+        return clone_dict_nested(hints_template)  # type: ignore[type-var]
 
     @staticmethod
     def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[Any]) -> Any:

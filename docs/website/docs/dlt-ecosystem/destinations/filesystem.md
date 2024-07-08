@@ -480,6 +480,40 @@ You can choose the following file formats:
 * [parquet](../file-formats/parquet.md) is supported
 * [csv](../file-formats/csv.md) is supported
 
+## Supported table formats
+You can choose the following table formats:
+* [Delta](../table-formats/delta.md) is supported
+
+### Delta table format
+You need the `deltalake` package to use this format:
+
+```sh
+pip install "dlt[deltalake]"
+```
+
+Set the `table_format` argument to `delta` when defining your resource:
+
+```py
+@dlt.resource(table_format="delta")
+def my_delta_resource():
+    ...
+```
+
+> `dlt` always uses `parquet` as `loader_file_format` when using the `delta` table format. Any setting of `loader_file_format` is disregarded.
+
+#### Storage options
+You can pass storage options by configuring `destination.filesystem.deltalake_storage_options`:
+
+```toml
+[destination.filesystem]
+deltalake_storage_options = '{"AWS_S3_LOCKING_PROVIDER": "dynamodb", DELTA_DYNAMO_TABLE_NAME": "custom_table_name"}'
+```
+
+`dlt` passes these options to the `storage_options` argument of the `write_deltalake` method in the `deltalake` library. Look at their [documentation](https://delta-io.github.io/delta-rs/api/delta_writer/#deltalake.write_deltalake) to see which options can be used.
+
+You don't need to specify credentials here. `dlt` merges the required credentials with the options you provided, before passing it as `storage_options`.
+
+>❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior. 
 
 ## Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files that will be created at your destination which hold information about your pipeline state, schemas and completed loads. These folders DO NOT respect your

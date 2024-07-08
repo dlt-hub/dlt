@@ -276,12 +276,12 @@ Notice that the `mydata.users` table now contains the data from both the previou
 
 ## Versioned datasets
 
-When you set the `full_refresh` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
+When you set the `dev_mode` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
 This means that each time you run the pipeline, the data is loaded into a new dataset (a new database schema).
 The dataset name is the same as the `dataset_name` you provided in the pipeline definition with a
 datetime-based suffix.
 
-We modify our pipeline to use the `full_refresh` option to see how this works:
+We modify our pipeline to use the `dev_mode` option to see how this works:
 
 ```py
 import dlt
@@ -295,7 +295,7 @@ pipeline = dlt.pipeline(
     pipeline_name='quick_start',
     destination='duckdb',
     dataset_name='mydata',
-    full_refresh=True # <-- add this line
+    dev_mode=True # <-- add this line
 )
 load_info = pipeline.run(data, table_name="users")
 ```
@@ -304,3 +304,37 @@ Every time you run this pipeline, a new schema will be created in the destinatio
 datetime-based suffix. The data will be loaded into tables in this schema.
 For example, the first time you run the pipeline, the schema will be named
 `mydata_20230912064403`, the second time it will be named `mydata_20230912064407`, and so on.
+
+## Loading data into existing tables not created by dlt
+
+You can also load data from `dlt` into tables that already exist in the destination dataset and were not created by `dlt`. 
+There are a few things to keep in mind when you are doing this:
+
+If you load data to a table that exists but does not contain any data, in most cases your load will succeed without problems.
+`dlt` will create the needed columns and insert the incoming data. `dlt` will only be aware of columns that exist on the
+discovered or provided internal schema, so if you have columns in your destination, that are not anticipated by `dlt`, they
+will remain in the destination but stay unknown to `dlt`. This will generally not be a problem.
+
+If your destination table already exists and contains columns that have the same name as columns discovered by `dlt` but
+do not have matching datatypes, your load will fail and you will have to fix the column on the destination table first,
+or change the column name in your incoming data to something else to avoid a collission.
+
+If your destination table exists and already contains data, your load might also initially fail, since `dlt` creates 
+special `non-nullable` columns that contains required mandatory metadata. Some databases will not allow you to create
+`non-nullable` columns on tables that have data, since the initial value for these columns of the existing rows can 
+not be inferred. You will have to manually create these columns with the correct type on your existing tables and
+make them `nullable`, then fill in values for the existing rows. Some databases may allow you to create a new column
+that is `non-nullable` and take a default value for existing rows in the same command. The columns you will need to 
+create are:
+
+| name | type |
+| --- | --- |
+| _dlt_load_id | text/string/varchar | 
+| _dlt_id | text/string/varchar |
+
+For child-tables you may also need to create:
+
+| name | type |
+| --- | --- |
+| _dlt_parent_id | text/string/varchar | 
+| _dlt_root_id | text/string/varchar |

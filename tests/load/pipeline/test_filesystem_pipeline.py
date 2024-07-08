@@ -12,23 +12,30 @@ from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
+from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.cases import arrow_table_all_data_types
+from tests.cases import arrow_table_all_data_types, table_update_and_row, assert_all_data_types_row
 from tests.common.utils import load_json_case
 from tests.utils import ALL_TEST_DATA_ITEM_FORMATS, TestDataItemFormat, skip_if_not_active
 from dlt.destinations.path_utils import create_path
-from tests.load.pipeline.utils import (
+from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
 
-from tests.pipeline.utils import load_table_counts
+from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
 
 
 skip_if_not_active("filesystem")
+
+
+@pytest.fixture
+def local_filesystem_pipeline() -> dlt.Pipeline:
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+    return dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", dev_mode=True)
 
 
 def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
@@ -216,6 +223,244 @@ def test_pipeline_parquet_filesystem_destination() -> None:
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
 
 
+@pytest.mark.essential
+def test_delta_table_core(
+    default_buckets_env: str,
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests core functionality for `delta` table format.
+
+    Tests all data types, all filesystems, all write dispositions.
+    """
+
+    from tests.pipeline.utils import _get_delta_table
+
+    if default_buckets_env.startswith("memory://"):
+        pytest.skip(
+            "`deltalake` library does not support `memory` protocol (write works, read doesn't)"
+        )
+    if default_buckets_env.startswith("s3://"):
+        # https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/
+        os.environ["DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS"] = (
+            '{"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}'
+        )
+
+    # create resource that yields rows with all data types
+    column_schemas, row = table_update_and_row()
+
+    @dlt.resource(columns=column_schemas, table_format="delta")
+    def data_types():
+        nonlocal row
+        yield [row] * 10
+
+    # run pipeline, this should create Delta table
+    info = local_filesystem_pipeline.run(data_types())
+    assert_load_info(info)
+
+    # `delta` table format should use `parquet` file format
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    data_types_jobs = [
+        job for job in completed_jobs if job.job_file_info.table_name == "data_types"
+    ]
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
+
+    # 10 rows should be loaded to the Delta table and the content of the first
+    # row should match expected values
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
+    assert len(rows) == 10
+    assert_all_data_types_row(rows[0], schema=column_schemas)
+
+    # another run should append rows to the table
+    info = local_filesystem_pipeline.run(data_types())
+    assert_load_info(info)
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
+    assert len(rows) == 20
+
+    # ensure "replace" write disposition is handled
+    # should do logical replace, increasing the table version
+    info = local_filesystem_pipeline.run(data_types(), write_disposition="replace")
+    assert_load_info(info)
+    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    assert _get_delta_table(client, "data_types").version() == 2
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
+    assert len(rows) == 10
+
+    # `merge` resolves to `append` behavior
+    info = local_filesystem_pipeline.run(data_types(), write_disposition="merge")
+    assert_load_info(info)
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
+        "data_types"
+    ]
+    assert len(rows) == 20
+
+
+def test_delta_table_multiple_files(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests loading multiple files into a Delta table.
+
+    Files should be loaded into the Delta table in a single commit.
+    """
+
+    from tests.pipeline.utils import _get_delta_table
+
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "2"  # force multiple files
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": True}] * 10
+
+    info = local_filesystem_pipeline.run(delta_table())
+    assert_load_info(info)
+
+    # multiple Parquet files should have been created
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    delta_table_parquet_jobs = [
+        job
+        for job in completed_jobs
+        if job.job_file_info.table_name == "delta_table"
+        and job.job_file_info.file_format == "parquet"
+    ]
+    assert len(delta_table_parquet_jobs) == 5  # 10 records, max 2 per file
+
+    # all 10 records should have been loaded into a Delta table in a single commit
+    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    assert _get_delta_table(client, "delta_table").version() == 0
+    rows = load_tables_to_dicts(local_filesystem_pipeline, "delta_table", exclude_system_cols=True)[
+        "delta_table"
+    ]
+    assert len(rows) == 10
+
+
+def test_delta_table_child_tables(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests child table handling for `delta` table format."""
+
+    @dlt.resource(table_format="delta")
+    def complex_table():
+        yield [
+            {
+                "foo": 1,
+                "child": [{"bar": True, "grandchild": [1, 2]}, {"bar": True, "grandchild": [1]}],
+            },
+            {
+                "foo": 2,
+                "child": [
+                    {"bar": False, "grandchild": [1, 3]},
+                ],
+            },
+        ]
+
+    info = local_filesystem_pipeline.run(complex_table())
+    assert_load_info(info)
+    rows_dict = load_tables_to_dicts(
+        local_filesystem_pipeline,
+        "complex_table",
+        "complex_table__child",
+        "complex_table__child__grandchild",
+        exclude_system_cols=True,
+    )
+    # assert row counts
+    assert len(rows_dict["complex_table"]) == 2
+    assert len(rows_dict["complex_table__child"]) == 3
+    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+    # assert column names
+    assert rows_dict["complex_table"][0].keys() == {"foo"}
+    assert rows_dict["complex_table__child"][0].keys() == {"bar"}
+    assert rows_dict["complex_table__child__grandchild"][0].keys() == {"value"}
+
+    # test write disposition handling with child tables
+    info = local_filesystem_pipeline.run(complex_table())
+    assert_load_info(info)
+    rows_dict = load_tables_to_dicts(
+        local_filesystem_pipeline,
+        "complex_table",
+        "complex_table__child",
+        "complex_table__child__grandchild",
+        exclude_system_cols=True,
+    )
+    assert len(rows_dict["complex_table"]) == 2 * 2
+    assert len(rows_dict["complex_table__child"]) == 3 * 2
+    assert len(rows_dict["complex_table__child__grandchild"]) == 5 * 2
+
+    info = local_filesystem_pipeline.run(complex_table(), write_disposition="replace")
+    assert_load_info(info)
+    rows_dict = load_tables_to_dicts(
+        local_filesystem_pipeline,
+        "complex_table",
+        "complex_table__child",
+        "complex_table__child__grandchild",
+        exclude_system_cols=True,
+    )
+    assert len(rows_dict["complex_table"]) == 2
+    assert len(rows_dict["complex_table__child"]) == 3
+    assert len(rows_dict["complex_table__child__grandchild"]) == 5
+
+
+def test_delta_table_mixed_source(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    """Tests file format handling in mixed source.
+
+    One resource uses `delta` table format, the other doesn't.
+    """
+
+    @dlt.resource(table_format="delta")
+    def delta_table():
+        yield [{"foo": True}]
+
+    @dlt.resource()
+    def non_delta_table():
+        yield [1, 2, 3]
+
+    @dlt.source
+    def s():
+        return [delta_table(), non_delta_table()]
+
+    info = local_filesystem_pipeline.run(
+        s(), loader_file_format="jsonl"
+    )  # set file format at pipeline level
+    assert_load_info(info)
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+
+    # `jsonl` file format should be overridden for `delta_table` resource
+    # because it's not supported for `delta` table format
+    delta_table_jobs = [
+        job for job in completed_jobs if job.job_file_info.table_name == "delta_table"
+    ]
+    assert all([job.file_path.endswith((".parquet", ".reference")) for job in delta_table_jobs])
+
+    # `jsonl` file format should be respected for `non_delta_table` resource
+    non_delta_table_job = [
+        job for job in completed_jobs if job.job_file_info.table_name == "non_delta_table"
+    ][0]
+    assert non_delta_table_job.file_path.endswith(".jsonl")
+
+
+def test_delta_table_dynamic_dispatch(
+    local_filesystem_pipeline: dlt.Pipeline,
+) -> None:
+    @dlt.resource(primary_key="id", table_name=lambda i: i["type"], table_format="delta")
+    def github_events():
+        with open(
+            "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
+        ) as f:
+            yield json.load(f)
+
+    info = local_filesystem_pipeline.run(github_events())
+    assert_load_info(info)
+    completed_jobs = info.load_packages[0].jobs["completed_jobs"]
+    # 20 event types, two jobs per table (.parquet and .reference), 1 job for _dlt_pipeline_state
+    assert len(completed_jobs) == 2 * 20 + 1
+
+
 TEST_LAYOUTS = (
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",
@@ -255,7 +500,7 @@ def test_filesystem_destination_extended_layout_placeholders(
 
         return count
 
-    extra_placeholders = {
+    extra_placeholders: TExtraPlaceholders = {
         "who": "marcin",
         "action": "says",
         "what": "no potato",
@@ -356,21 +601,24 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
                 found.append(os.path.join(basedir, file).replace(client.dataset_path, ""))
         return found
 
-    def _collect_table_counts(p) -> Dict[str, int]:
+    def _collect_table_counts(p, *items: str) -> Dict[str, int]:
+        expected_items = set(items).intersection({"items", "items2", "items3"})
+        print(expected_items)
         return load_table_counts(
-            p, "items", "items2", "items3", "_dlt_loads", "_dlt_version", "_dlt_pipeline_state"
+            p, *expected_items, "_dlt_loads", "_dlt_version", "_dlt_pipeline_state"
         )
 
     # generate 4 loads from 2 pipelines, store load ids
-    p1 = destination_config.setup_pipeline("p1", dataset_name="layout_test")
-    p2 = destination_config.setup_pipeline("p2", dataset_name="layout_test")
+    dataset_name = "layout_test_" + uniq_id()
+    p1 = destination_config.setup_pipeline("p1", dataset_name=dataset_name)
+    p2 = destination_config.setup_pipeline("p2", dataset_name=dataset_name)
     c1 = cast(FilesystemClient, p1.destination_client())
     c2 = cast(FilesystemClient, p2.destination_client())
 
     # first two loads
     p1.run([1, 2, 3], table_name="items").loads_ids[0]
     load_id_2_1 = p2.run([4, 5, 6], table_name="items").loads_ids[0]
-    assert _collect_table_counts(p1) == {
+    assert _collect_table_counts(p1, "items") == {
         "items": 6,
         "_dlt_loads": 2,
         "_dlt_pipeline_state": 2,
@@ -397,7 +645,7 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     p2.run([4, 5, 6], table_name="items").loads_ids[0]  # no migration here
 
     # 4 loads for 2 pipelines, one schema and state change on p2 changes so 3 versions and 3 states
-    assert _collect_table_counts(p1) == {
+    assert _collect_table_counts(p1, "items", "items2") == {
         "items": 9,
         "items2": 3,
         "_dlt_loads": 4,
@@ -408,8 +656,8 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     # test accessors for state
     s1 = c1.get_stored_state("p1")
     s2 = c1.get_stored_state("p2")
-    assert s1.dlt_load_id == load_id_1_2  # second load
-    assert s2.dlt_load_id == load_id_2_1  # first load
+    assert s1._dlt_load_id == load_id_1_2  # second load
+    assert s2._dlt_load_id == load_id_2_1  # first load
     assert s1_old.version != s1.version
     assert s2_old.version == s2.version
 
@@ -552,13 +800,15 @@ def test_client_methods(
 
     # check opening of file
     values = []
-    for line in fs_client.read_text(t1_files[0]).split("\n"):
+    for line in fs_client.read_text(t1_files[0], encoding="utf-8").split("\n"):
         if line:
             values.append(json.loads(line)["value"])
     assert values == [1, 2, 3, 4, 5]
 
     # check binary read
-    assert fs_client.read_bytes(t1_files[0]) == str.encode(fs_client.read_text(t1_files[0]))
+    assert fs_client.read_bytes(t1_files[0]) == str.encode(
+        fs_client.read_text(t1_files[0], encoding="utf-8")
+    )
 
     # check truncate
     fs_client.truncate_tables(["table_1"])

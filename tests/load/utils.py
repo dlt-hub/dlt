@@ -13,6 +13,7 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
@@ -24,13 +25,15 @@ from dlt.common.destination.reference import (
 from dlt.common.destination import TLoaderFileFormat, Destination
 from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
+from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
 
+from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
@@ -126,6 +129,8 @@ class DestinationTestConfiguration:
     force_iceberg: bool = False
     supports_dbt: bool = True
     disable_compression: bool = False
+    dev_mode: bool = False
+    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
 
     @property
     def name(self) -> str:
@@ -140,31 +145,53 @@ class DestinationTestConfiguration:
             name += f"-{self.extra_info}"
         return name
 
+    @property
+    def factory_kwargs(self) -> Dict[str, Any]:
+        return {
+            k: getattr(self, k)
+            for k in [
+                "bucket_url",
+                "stage_name",
+                "staging_iam_role",
+                "staging_use_msi",
+                "force_iceberg",
+            ]
+            if getattr(self, k, None) is not None
+        }
+
     def setup(self) -> None:
         """Sets up environment variables for this destination configuration"""
-        os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = self.bucket_url or ""
-        os.environ["DESTINATION__STAGE_NAME"] = self.stage_name or ""
-        os.environ["DESTINATION__STAGING_IAM_ROLE"] = self.staging_iam_role or ""
-        os.environ["DESTINATION__STAGING_USE_MSI"] = str(self.staging_use_msi) or ""
-        os.environ["DESTINATION__FORCE_ICEBERG"] = str(self.force_iceberg) or ""
+        for k, v in self.factory_kwargs.items():
+            os.environ[f"DESTINATION__{k.upper()}"] = str(v)
 
-        """For the filesystem destinations we disable compression to make analyzing the result easier"""
+        # For the filesystem destinations we disable compression to make analyzing the result easier
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
+        if self.credentials is not None:
+            for key, value in dict(self.credentials).items():
+                os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
+
     def setup_pipeline(
-        self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
+        self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
+        self.dev_mode = dev_mode
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,
-            destination=self.destination,
-            staging=self.staging,
+            destination=kwargs.pop("destination", self.destination),
+            staging=kwargs.pop("staging", self.staging),
             dataset_name=dataset_name or pipeline_name,
-            full_refresh=full_refresh,
+            dev_mode=dev_mode,
             **kwargs,
         )
+        return pipeline
+
+    def attach_pipeline(self, pipeline_name: str, **kwargs) -> dlt.Pipeline:
+        """Attach to existing pipeline keeping the dev_mode"""
+        # remember dev_mode from setup_pipeline
+        pipeline = dlt.attach(pipeline_name, **kwargs)
         return pipeline
 
 
@@ -197,8 +224,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination
-            not in ("athena", "mssql", "synapse", "databricks", "dremio", "clickhouse")
+            if destination not in ("athena", "synapse", "databricks", "dremio", "clickhouse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -247,7 +273,7 @@ def destinations_configs(
             )
         ]
         destination_configs += [
-            DestinationTestConfiguration(destination="mssql", supports_dbt=False),
+            # DestinationTestConfiguration(destination="mssql", supports_dbt=False),
             DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
 
@@ -256,8 +282,16 @@ def destinations_configs(
         assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
 
     if default_vector_configs:
-        # for now only weaviate
-        destination_configs += [DestinationTestConfiguration(destination="weaviate")]
+        destination_configs += [
+            DestinationTestConfiguration(destination="weaviate"),
+            DestinationTestConfiguration(destination="lancedb"),
+            DestinationTestConfiguration(
+                destination="qdrant",
+                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                extra_info="local-file",
+            ),
+            DestinationTestConfiguration(destination="qdrant", extra_info="server"),
+        ]
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
@@ -349,13 +383,6 @@ def destinations_configs(
                 destination="clickhouse",
                 staging="filesystem",
                 file_format="parquet",
-                bucket_url=GCS_BUCKET,
-                extra_info="gcs-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 extra_info="s3-authorization",
             ),
@@ -372,13 +399,6 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
-            ),
-            DestinationTestConfiguration(
-                destination="clickhouse",
-                staging="filesystem",
-                file_format="jsonl",
-                bucket_url=GCS_BUCKET,
-                extra_info="gcs-authorization",
             ),
             DestinationTestConfiguration(
                 destination="clickhouse",
@@ -504,6 +524,60 @@ def destinations_configs(
     return destination_configs
 
 
+@pytest.fixture(autouse=True)
+def drop_pipeline(request, preserve_environ) -> Iterator[None]:
+    # NOTE: keep `preserve_environ` to make sure fixtures are executed in order``
+    yield
+    if "no_load" in request.keywords:
+        return
+    try:
+        drop_active_pipeline_data()
+    except CantExtractTablePrefix:
+        # for some tests we test that this exception is raised,
+        # so we suppress it here
+        pass
+
+
+def drop_active_pipeline_data() -> None:
+    """Drops all the datasets for currently active pipeline, wipes the working folder and then deactivated it."""
+    if Container()[PipelineContext].is_active():
+        try:
+            # take existing pipeline
+            p = dlt.pipeline()
+
+            def _drop_dataset(schema_name: str) -> None:
+                with p.destination_client(schema_name) as client:
+                    try:
+                        client.drop_storage()
+                        print("dropped")
+                    except Exception as exc:
+                        print(exc)
+                    if isinstance(client, WithStagingDataset):
+                        with client.with_staging_dataset():
+                            try:
+                                client.drop_storage()
+                                print("staging dropped")
+                            except Exception as exc:
+                                print(exc)
+
+            # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
+            # take all schemas and if destination was set
+            if p.destination:
+                if p.config.use_single_dataset:
+                    # drop just the dataset for default schema
+                    if p.default_schema_name:
+                        _drop_dataset(p.default_schema_name)
+                else:
+                    # for each schema, drop the dataset
+                    for schema_name in p.schema_names:
+                        _drop_dataset(schema_name)
+
+            # p._wipe_working_folder()
+        finally:
+            # always deactivate context, working directory will be wiped when the next test starts
+            Container()[PipelineContext].deactivate()
+
+
 @pytest.fixture
 def empty_schema() -> Schema:
     schema = Schema("event")
@@ -595,6 +669,9 @@ def yield_client(
     )
     schema_storage = SchemaStorage(storage_config)
     schema = schema_storage.load_schema(schema_name)
+    schema.update_normalizers()
+    # NOTE: schema version is bumped because new default hints are added
+    schema._bump_version()
     # create client and dataset
     client: SqlJobClientBase = None
 
@@ -641,7 +718,8 @@ def yield_client_with_storage(
     ) as client:
         client.initialize_storage()
         yield client
-        client.sql_client.drop_dataset()
+        if client.is_storage_initialized():
+            client.sql_client.drop_dataset()
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():
                 if client.is_storage_initialized():
@@ -695,7 +773,7 @@ def prepare_load_package(
         shutil.copy(
             path,
             load_storage.new_packages.storage.make_full_path(
-                load_storage.new_packages.get_job_folder_path(load_id, "new_jobs")
+                load_storage.new_packages.get_job_state_folder_path(load_id, "new_jobs")
             ),
         )
     schema_path = Path("./tests/load/cases/loading/schema.json")
@@ -723,3 +801,15 @@ def sequence_generator() -> Generator[List[Dict[str, str]], None, None]:
     while True:
         yield [{"content": str(count + i)} for i in range(3)]
         count += 3
+
+
+def normalize_storage_table_cols(
+    table_name: str, cols: TTableSchemaColumns, schema: Schema
+) -> TTableSchemaColumns:
+    """Normalize storage table columns back into schema naming"""
+    # go back to schema naming convention. this is a hack - will work here to
+    # reverse snowflake UPPER case folding
+    storage_table = normalize_table_identifiers(
+        new_table(table_name, columns=cols.values()), schema.naming  # type: ignore[arg-type]
+    )
+    return storage_table["columns"]

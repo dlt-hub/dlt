@@ -3,9 +3,10 @@ import sqlfluff
 from copy import deepcopy
 
 from dlt.common.utils import uniq_id, custom_environ, digest128
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, utils
 from dlt.common.configuration import resolve_configuration
 
+from dlt.destinations import redshift
 from dlt.destinations.impl.redshift.redshift import RedshiftClient
 from dlt.destinations.impl.redshift.configuration import (
     RedshiftClientConfiguration,
@@ -20,12 +21,25 @@ pytestmark = pytest.mark.essential
 
 @pytest.fixture
 def client(empty_schema: Schema) -> RedshiftClient:
+    return create_client(empty_schema)
+
+
+@pytest.fixture
+def cs_client(empty_schema: Schema) -> RedshiftClient:
+    empty_schema._normalizers_config["names"] = "tests.common.cases.normalizers.title_case"
+    empty_schema.update_normalizers()
+    # make the destination case sensitive
+    return create_client(empty_schema, has_case_sensitive_identifiers=True)
+
+
+def create_client(schema: Schema, has_case_sensitive_identifiers: bool = False) -> RedshiftClient:
     # return client without opening connection
-    return RedshiftClient(
-        empty_schema,
-        RedshiftClientConfiguration(credentials=RedshiftCredentials())._bind_dataset_name(
-            dataset_name="test_" + uniq_id()
-        ),
+    return redshift().client(
+        schema,
+        RedshiftClientConfiguration(
+            credentials=RedshiftCredentials(),
+            has_case_sensitive_identifiers=has_case_sensitive_identifiers,
+        )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
 
 
@@ -54,6 +68,7 @@ def test_redshift_configuration() -> None:
 
 
 def test_create_table(client: RedshiftClient) -> None:
+    assert client.capabilities.generates_case_sensitive_identifiers() is False
     # non existing table
     sql = ";".join(client._get_table_update_sql("event_test_table", TABLE_UPDATE, False))
     sqlfluff.parse(sql, dialect="redshift")
@@ -102,6 +117,29 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time without time zone  NOT NULL' in sql
+
+
+def test_create_table_case_sensitive(cs_client: RedshiftClient) -> None:
+    # did we switch to case sensitive
+    assert cs_client.capabilities.generates_case_sensitive_identifiers() is True
+    # check dataset names
+    assert cs_client.sql_client.dataset_name.startswith("Test")
+
+    # check tables
+    cs_client.schema.update_table(
+        utils.new_table("event_test_table", columns=deepcopy(TABLE_UPDATE))
+    )
+    sql = cs_client._get_table_update_sql(
+        "Event_test_tablE",
+        list(cs_client.schema.get_table_columns("Event_test_tablE").values()),
+        False,
+    )[0]
+    sqlfluff.parse(sql, dialect="redshift")
+    # everything capitalized
+    assert cs_client.sql_client.fully_qualified_dataset_name(escape=False)[0] == "T"  # Test
+    # every line starts with "Col"
+    for line in sql.split("\n")[1:]:
+        assert line.startswith('"Col')
 
 
 def test_create_table_with_hints(client: RedshiftClient) -> None:

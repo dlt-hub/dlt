@@ -1,5 +1,6 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Union, Dict
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List, Tuple, Union, Dict
+
 
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
@@ -20,24 +21,46 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
-from dlt.destinations.impl.databricks import capabilities
-from dlt.common.time import to_py_date, to_py_datetime
+
+
+class DatabricksCursorImpl(DBApiCursorImpl):
+    """Use native data frame support if available"""
+
+    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
+    vector_size: ClassVar[int] = 2048
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+        if chunk_size is None:
+            return self.native_cursor.fetchall_arrow().to_pandas()
+        else:
+            df = self.native_cursor.fetchmany_arrow(chunk_size).to_pandas()
+            if df.shape[0] == 0:
+                return None
+            else:
+                return df
 
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = databricks_lib
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
-        super().__init__(credentials.catalog, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        staging_dataset_name: str,
+        credentials: DatabricksCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.catalog, dataset_name, staging_dataset_name, capabilities)
         self._conn: DatabricksSqlConnection = None
         self.credentials = credentials
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks_lib.connect(**conn_params, schema=self.dataset_name)
+        self._conn = databricks_lib.connect(
+            **conn_params, schema=self.dataset_name, use_inline_params="silent"
+        )
         return self._conn
 
     @raise_open_connection_error
@@ -65,9 +88,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     def native_connection(self) -> "DatabricksSqlConnection":
         return self._conn
 
-    def drop_dataset(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s CASCADE;" % self.fully_qualified_dataset_name())
-
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
@@ -87,12 +107,14 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        curr: DBApiCursor = None
-        # TODO: databricks connector 3.0.0 will use :named paramstyle only
+        curr: DBApiCursor
+        # TODO: Inline param support will be dropped in future databricks driver, switch to :named paramstyle
+        # This will drop support for cluster runtime v13.x
+        # db_args: Optional[Dict[str, Any]]
         # if args:
         #     keys = [f"arg{i}" for i in range(len(args))]
         #     # Replace position arguments (%s) with named arguments (:arg0, :arg1, ...)
-        #     # query = query % tuple(f":{key}" for key in keys)
+        #     query = query % tuple(f":{key}" for key in keys)
         #     db_args = {}
         #     for key, db_arg in zip(keys, args):
         #         # Databricks connector doesn't accept pendulum objects
@@ -102,26 +124,18 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         #             db_arg = to_py_date(db_arg)
         #         db_args[key] = db_arg
         # else:
-        #     db_args = None
-        db_args: Optional[Union[Dict[str, Any], Sequence[Any]]]
-        if kwargs:
-            db_args = kwargs
-        elif args:
-            db_args = args
-        else:
-            db_args = None
-        with self._conn.cursor() as curr:
-            curr.execute(query, db_args)
-            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+        #     db_args = kwargs or None
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+        db_args = args or kwargs or None
+        with self._conn.cursor() as curr:  # type: ignore[assignment]
+            curr.execute(query, db_args)
+            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
+
+    def catalog_name(self, escape: bool = True) -> Optional[str]:
+        catalog = self.capabilities.casefold_identifier(self.credentials.catalog)
         if escape:
-            catalog = self.capabilities.escape_identifier(self.credentials.catalog)
-            dataset_name = self.capabilities.escape_identifier(self.dataset_name)
-        else:
-            catalog = self.credentials.catalog
-            dataset_name = self.dataset_name
-        return f"{catalog}.{dataset_name}"
+            catalog = self.capabilities.escape_identifier(catalog)
+        return catalog
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:

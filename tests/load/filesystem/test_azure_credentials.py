@@ -17,7 +17,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.storages.configuration import FilesystemConfiguration
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AZ_BUCKET
 from tests.common.configuration.utils import environment
-from tests.utils import preserve_environ, autouse_test_storage
+from tests.utils import autouse_test_storage
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
 # mark all tests as essential, do not remove

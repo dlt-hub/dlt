@@ -1,4 +1,3 @@
-from copy import deepcopy
 import inspect
 from functools import partial
 from typing import (
@@ -14,6 +13,8 @@ from typing import (
 )
 from typing_extensions import TypeVar, Self
 
+from dlt.common import logger
+from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -94,7 +95,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         pipe: Pipe,
         hints: TResourceHints,
         selected: bool,
-        incremental: IncrementalResourceWrapper = None,
         section: str = None,
         args_bound: bool = False,
     ) -> None:
@@ -103,8 +103,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self._pipe = pipe
         self._args_bound = args_bound
         self._explicit_args: DictStrAny = None
-        if incremental and not self.incremental:
-            self.add_step(incremental)
         self.source_name = None
         super().__init__(hints)
 
@@ -117,8 +115,16 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         hints: TResourceHints = None,
         selected: bool = True,
         data_from: Union["DltResource", Pipe] = None,
-        incremental: IncrementalResourceWrapper = None,
+        inject_config: bool = False,
     ) -> Self:
+        """Creates an instance of DltResource from compatible `data` with a given `name` and `section`.
+
+        Internally (in the most common case) a new instance of Pipe with `name` is created from `data` and
+        optionally connected to an existing pipe `from_data` to form a transformer (dependent resource).
+
+        If `inject_config` is set to True and data is a callable, the callable is wrapped in incremental and config
+        injection wrappers.
+        """
         if data is None:
             raise InvalidResourceDataTypeIsNone(name, data, NoneType)
 
@@ -126,7 +132,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return data  # type: ignore[return-value]
 
         if isinstance(data, Pipe):
-            return cls(data, hints, selected, incremental=incremental, section=section)
+            r_ = cls(data, hints, selected, section=section)
+            if inject_config:
+                r_._inject_config()
+            return r_
 
         if callable(data):
             name = name or get_callable_name(data)
@@ -155,14 +164,16 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator, AsyncIterable)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            return cls(
+            r_ = cls(
                 pipe,
                 hints,
                 selected,
-                incremental=incremental,
                 section=section,
                 args_bound=not callable(data),
             )
+            if inject_config:
+                r_._inject_config()
+            return r_
         else:
             # some other data type that is not supported
             raise InvalidResourceDataType(
@@ -226,9 +237,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return max_nesting if isinstance(max_nesting, int) else None
 
     @max_table_nesting.setter
-    def max_table_nesting(self, value: int) -> None:
-        self._hints.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
-        self._hints["x-normalizer"]["max_nesting"] = value  # type: ignore[typeddict-item]
+    def max_table_nesting(self, value: Optional[int]) -> None:
+        normalizer = self._hints.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
+        if value is None:
+            normalizer.pop("max_nesting", None)
+        else:
+            normalizer["max_nesting"] = value
 
     def pipe_data_from(self: TDltResourceImpl, data_from: Union[TDltResourceImpl, Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""
@@ -380,6 +394,11 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             else:
                 # keep function as function to not evaluate generators before pipe starts
                 self._pipe.replace_gen(partial(_gen_wrap, gen))
+        else:
+            logger.warning(
+                f"Setting add_limit to a transformer {self.name} has no effect. Set the limit on"
+                " the top level resource."
+            )
         return self
 
     def parallelize(self: TDltResourceImpl) -> TDltResourceImpl:
@@ -420,12 +439,26 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             incremental = self.incremental
             # try to late assign incremental
             if table_schema_template.get("incremental") is not None:
-                if incremental:
-                    incremental._incremental = table_schema_template["incremental"]
-                else:
+                new_incremental = table_schema_template["incremental"]
+                # remove incremental if empty
+                if new_incremental is Incremental.EMPTY:
+                    new_incremental = None
+
+                if incremental is not None:
+                    if isinstance(incremental, IncrementalResourceWrapper):
+                        # replace in wrapper
+                        incremental.set_incremental(new_incremental, from_hints=True)
+                    else:
+                        step_no = self._pipe.find(Incremental)
+                        self._pipe.remove_step(step_no)
+                        # re-add the step
+                        incremental = None
+
+                if incremental is None:
                     # if there's no wrapper add incremental as a transform
-                    incremental = table_schema_template["incremental"]  # type: ignore
-                    self.add_step(incremental)
+                    incremental = new_incremental  # type: ignore
+                    if new_incremental:
+                        self.add_step(new_incremental)
 
             if incremental:
                 primary_key = table_schema_template.get("primary_key", incremental.primary_key)
@@ -460,6 +493,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._args_bound = True
         self._set_explicit_args(orig_gen, None, *args, **kwargs)  # type: ignore
         return self
+
+    @property
+    def args_bound(self) -> bool:
+        """Returns true if resource the parameters are bound to values. Such resource cannot be further called.
+        Note that resources are lazily evaluated and arguments are only formally checked. Configuration
+        was not yet injected as well.
+        """
+        return self._args_bound
 
     @property
     def explicit_args(self) -> StrAny:
@@ -535,20 +576,80 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         except Exception:
             pass
 
+    def _eject_config(self) -> bool:
+        """Unwraps the pipe generator step from config injection and incremental wrappers by restoring the original step.
+
+        Removes the step with incremental wrapper. Should be used before a subsequent _inject_config is called on the
+        same pipe to successfully wrap it with new incremental and config injection.
+        Note that resources with bound arguments cannot be ejected.
+
+        """
+        if not self._pipe.is_empty and not self._args_bound:
+            orig_gen = getattr(self._pipe.gen, "__GEN__", None)
+            if orig_gen:
+                step_no = self._pipe.find(IncrementalResourceWrapper)
+                if step_no >= 0:
+                    self._pipe.remove_step(step_no)
+                self._pipe.replace_gen(orig_gen)
+                return True
+        return False
+
+    def _inject_config(self) -> "DltResource":
+        """Wraps the pipe generation step in incremental and config injection wrappers and adds pipe step with
+        Incremental transform.
+        """
+        gen = self._pipe.gen
+        if not callable(gen):
+            return self
+
+        incremental: IncrementalResourceWrapper = None
+        sig = inspect.signature(gen)
+        if IncrementalResourceWrapper.should_wrap(sig):
+            incremental = IncrementalResourceWrapper(self._hints.get("primary_key"))
+            incr_f = incremental.wrap(sig, gen)
+            self.add_step(incremental)
+        else:
+            incr_f = gen
+        resource_sections = (known_sections.SOURCES, self.section, self.name)
+        # function should have associated SPEC
+        spec = get_fun_spec(gen)
+        # standalone resource will prefer existing section context when resolving config values
+        # this lets the source to override those values and provide common section for all config values for resources present in that source
+        # for autogenerated spec do not include defaults
+        conf_f = with_config(
+            incr_f,
+            spec=spec,
+            sections=resource_sections,
+            sections_merge_style=ConfigSectionContext.resource_merge_style,
+        )
+        if conf_f != gen:
+            self._pipe.replace_gen(conf_f)
+            # storage the original generator to be able to eject config and incremental wrapper
+            # when resource is cloned
+            setattr(conf_f, "__GEN__", gen)  # noqa: B010
+        return self
+
     def _clone(
         self: TDltResourceImpl, new_name: str = None, with_parent: bool = False
     ) -> TDltResourceImpl:
-        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source"""
+        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source."""
         pipe = self._pipe
         if self._pipe and not self._pipe.is_empty:
             pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
         # incremental and parent are already in the pipe (if any)
-        return self.__class__(
+        r_ = self.__class__(
             pipe,
-            deepcopy(self._hints),
+            self._clone_hints(self._hints),
             selected=self.selected,
             section=self.section,
+            args_bound=self._args_bound,
         )
+        # try to eject and then inject configuration and incremental wrapper when resource is cloned
+        # this makes sure that a take config values from a right section and wrapper has a separated
+        # instance in the pipeline
+        if r_._eject_config():
+            r_._inject_config()
+        return r_
 
     def _get_config_section_context(self) -> ConfigSectionContext:
         container = Container()

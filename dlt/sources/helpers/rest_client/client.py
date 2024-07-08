@@ -6,7 +6,6 @@ from typing import (
     Any,
     TypeVar,
     Iterable,
-    Union,
     cast,
 )
 import copy
@@ -21,7 +20,6 @@ from dlt.sources.helpers.requests.retry import Client
 
 from .typing import HTTPMethodBasic, HTTPMethod, Hooks
 from .paginators import BasePaginator
-from .auth import AuthConfigBase
 from .detector import PaginatorFactory, find_response_page_data
 from .exceptions import IgnoreResponseException, PaginatorNotFound
 
@@ -97,7 +95,7 @@ class RESTClient:
         self,
         path: str,
         method: HTTPMethod,
-        params: Dict[str, Any],
+        params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,
@@ -126,7 +124,11 @@ class RESTClient:
 
         prepared_request = self.session.prepare_request(request)
 
-        return self.session.send(prepared_request)
+        send_kwargs = self.session.merge_environment_settings(
+            prepared_request.url, {}, None, None, None
+        )
+
+        return self.session.send(prepared_request, **send_kwargs)
 
     def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
         prepared_request = self._create_request(

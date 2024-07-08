@@ -33,13 +33,21 @@ def github():
 
 
 if __name__ == "__main__":
-    p = dlt.pipeline(
-        "dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False
-    )
+    # pick the destination name
+    if len(sys.argv) < 1:
+        raise RuntimeError(f"Please provide destination name in args ({sys.argv})")
+    dest_ = sys.argv[1]
+    if dest_ == "filesystem":
+        import os
+        from dlt.destinations import filesystem
+
+        dest_ = filesystem(os.path.abspath(os.path.join("_storage", "data")))  # type: ignore
+
+    p = dlt.pipeline("dlt_github_pipeline", destination=dest_, dataset_name="github_3")
     github_source = github()
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 2:
         # load only N issues
-        limit = int(sys.argv[1])
+        limit = int(sys.argv[2])
         github_source.add_limit(limit)
     info = p.run(github_source)
     print(info)

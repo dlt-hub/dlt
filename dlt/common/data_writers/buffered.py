@@ -1,11 +1,13 @@
 import gzip
 import time
-from typing import ClassVar, List, IO, Any, Optional, Type, Generic
+import contextlib
+from typing import ClassVar, Iterator, List, IO, Any, Optional, Type, Generic
 
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers.exceptions import (
     BufferedDataWriterClosed,
     DestinationCapabilitiesRequired,
+    FileImportNotFound,
     InvalidFileNameTemplateException,
 )
 from dlt.common.data_writers.writers import TWriter, DataWriter, DataWriterMetrics, FileWriterSpec
@@ -138,18 +140,31 @@ class BufferedDataWriter(Generic[TWriter]):
         self._last_modified = time.time()
         return self._rotate_file(allow_empty_file=True)
 
-    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> DataWriterMetrics:
+    def import_file(
+        self, file_path: str, metrics: DataWriterMetrics, with_extension: str = None
+    ) -> DataWriterMetrics:
         """Import a file from `file_path` into items storage under a new file name. Does not check
         the imported file format. Uses counts from `metrics` as a base. Logically closes the imported file
 
         The preferred import method is a hard link to avoid copying the data. If current filesystem does not
         support it, a regular copy is used.
+
+        Alternative extension may be provided via `with_extension` so various file formats may be imported into the same folder.
         """
         # TODO: we should separate file storage from other storages. this creates circular deps
         from dlt.common.storages import FileStorage
 
-        self._rotate_file()
-        FileStorage.link_hard_with_fallback(file_path, self._file_name)
+        # import file with alternative extension
+        spec = self.writer_spec
+        if with_extension:
+            spec = self.writer_spec._replace(file_extension=with_extension)
+        with self.alternative_spec(spec):
+            self._rotate_file()
+        try:
+            FileStorage.link_hard_with_fallback(file_path, self._file_name)
+        except FileNotFoundError as f_ex:
+            raise FileImportNotFound(file_path, self._file_name) from f_ex
+
         self._last_modified = time.time()
         metrics = metrics._replace(
             file_path=self._file_name,
@@ -175,6 +190,16 @@ class BufferedDataWriter(Generic[TWriter]):
     @property
     def closed(self) -> bool:
         return self._closed
+
+    @contextlib.contextmanager
+    def alternative_spec(self, spec: FileWriterSpec) -> Iterator[FileWriterSpec]:
+        """Temporarily changes the writer spec ie. for the moment file is rotated"""
+        old_spec = self.writer_spec
+        try:
+            self.writer_spec = spec
+            yield spec
+        finally:
+            self.writer_spec = old_spec
 
     def __enter__(self) -> "BufferedDataWriter[TWriter]":
         return self

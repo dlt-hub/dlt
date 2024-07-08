@@ -1,19 +1,15 @@
-from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple
+from typing import Dict, Optional, Sequence, List, Any
 
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
-from dlt.common.utils import uniq_id
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
-from dlt.destinations.impl.mssql import capabilities
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -99,7 +95,7 @@ class MsSqlStagingCopyJob(SqlStagingCopyJob):
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             # drop destination table
@@ -145,11 +141,19 @@ class MsSqlMergeJob(SqlMergeJob):
         return "#" + name
 
 
-class MsSqlClient(InsertValuesJobClient):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: MsSqlClientConfiguration) -> None:
-        sql_client = PyOdbcMsSqlClient(config.normalize_dataset_name(schema), config.credentials)
+class MsSqlJobClient(InsertValuesJobClient):
+    def __init__(
+        self,
+        schema: Schema,
+        config: MsSqlClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = PyOdbcMsSqlClient(
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
+        )
         super().__init__(schema, config, sql_client)
         self.config: MsSqlClientConfiguration = config
         self.sql_client = sql_client
@@ -180,7 +184,7 @@ class MsSqlClient(InsertValuesJobClient):
             for h in self.active_hints.keys()
             if c.get(h, False) is True
         )
-        column_name = self.capabilities.escape_identifier(c["name"])
+        column_name = self.sql_client.escape_column_name(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _create_replace_followup_jobs(

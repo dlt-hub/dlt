@@ -1,20 +1,14 @@
 import os
 import pytest
 from typing import Iterator, List, Any, Union
-from textwrap import dedent
 
 import dlt
 from dlt.common.schema import TColumnSchema
 
-from dlt.destinations.sql_client import SqlClientBase
-
-from dlt.destinations.impl.synapse import synapse_adapter
+from dlt.destinations.adapters import synapse_adapter
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 from tests.load.utils import TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES
-from tests.load.pipeline.utils import (
-    drop_pipeline,
-)  # this import ensures all test data gets removed
 from tests.load.synapse.utils import get_storage_table_index_type
 
 # mark all tests as essential, do not remove
@@ -52,7 +46,7 @@ def test_default_table_index_type_configuration(
         pipeline_name=f"test_default_table_index_type_{table_index_type}",
         destination="synapse",
         dataset_name=f"test_default_table_index_type_{table_index_type}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     job_client = pipeline.destination_client()
@@ -118,7 +112,7 @@ def test_resource_table_index_type_configuration(
         pipeline_name=f"test_table_index_type_{table_index_type}",
         destination="synapse",
         dataset_name=f"test_table_index_type_{table_index_type}",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     # An invalid value for `table_index_type` should raise a ValueError.

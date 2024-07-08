@@ -1,7 +1,8 @@
-from typing import List, Set, Iterable, Callable
+from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
+from itertools import groupby
 
 from dlt.common import logger
-from dlt.common.storages.load_package import LoadJobInfo, PackageStorage
+from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TJobState
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_child_tables,
@@ -15,11 +16,13 @@ from dlt.common.destination.reference import (
     JobClientBase,
     WithStagingDataset,
 )
+from dlt.load.configuration import LoaderConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
 
 
 def get_completed_table_chain(
     schema: Schema,
-    all_jobs: Iterable[LoadJobInfo],
+    all_jobs: Iterable[Tuple[TJobState, ParsedLoadJobFileName]],
     top_merged_table: TTableSchema,
     being_completed_job_id: str = None,
 ) -> List[TTableSchema]:
@@ -30,7 +33,10 @@ def get_completed_table_chain(
     # returns ordered list of tables from parent to child leaf tables
     table_chain: List[TTableSchema] = []
     # allow for jobless tables for those write disposition
-    skip_jobless_table = top_merged_table["write_disposition"] not in ("replace", "merge")
+    skip_jobless_table = top_merged_table["write_disposition"] not in (
+        "replace",
+        "merge",
+    )
 
     # make sure all the jobs for the table chain is completed
     for table in map(
@@ -48,8 +54,8 @@ def get_completed_table_chain(
         else:
             # all jobs must be completed in order for merge to be created
             if any(
-                job.state not in ("failed_jobs", "completed_jobs")
-                and job.job_file_info.job_id() != being_completed_job_id
+                job[0] not in ("failed_jobs", "completed_jobs")
+                and job[1].job_id() != being_completed_job_id
                 for job in table_jobs
             ):
                 return None
@@ -66,6 +72,8 @@ def init_client(
     expected_update: TSchemaTables,
     truncate_filter: Callable[[TTableSchema], bool],
     load_staging_filter: Callable[[TTableSchema], bool],
+    drop_tables: Optional[List[TTableSchema]] = None,
+    truncate_tables: Optional[List[TTableSchema]] = None,
 ) -> TSchemaTables:
     """Initializes destination storage including staging dataset if supported
 
@@ -78,12 +86,15 @@ def init_client(
         expected_update (TSchemaTables): Schema update as in load package. Always present even if empty
         truncate_filter (Callable[[TTableSchema], bool]): A filter that tells which table in destination dataset should be truncated
         load_staging_filter (Callable[[TTableSchema], bool]): A filter which tell which table in the staging dataset may be loaded into
+        drop_tables (Optional[List[TTableSchema]]): List of tables to drop before initializing storage
+        truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
 
     Returns:
         TSchemaTables: Actual migrations done at destination
     """
     # get dlt/internal tables
     dlt_tables = set(schema.dlt_table_names())
+
     # tables without data (TODO: normalizer removes such jobs, write tests and remove the line below)
     tables_no_data = set(
         table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
@@ -92,12 +103,25 @@ def init_client(
     tables_with_jobs = set(job.table_name for job in new_jobs) - tables_no_data
 
     # get tables to truncate by extending tables with jobs with all their child tables
-    truncate_tables = set(
-        _extend_tables_with_table_chain(schema, tables_with_jobs, tables_with_jobs, truncate_filter)
+    initial_truncate_names = set(t["name"] for t in truncate_tables) if truncate_tables else set()
+    truncate_table_names = set(
+        _extend_tables_with_table_chain(
+            schema,
+            tables_with_jobs,
+            tables_with_jobs,
+            lambda t: truncate_filter(t) or t["name"] in initial_truncate_names,
+        )
     )
 
+    # get tables to drop
+    drop_table_names = {table["name"] for table in drop_tables} if drop_tables else set()
+
     applied_update = _init_dataset_and_update_schema(
-        job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables
+        job_client,
+        expected_update,
+        tables_with_jobs | dlt_tables,
+        truncate_table_names,
+        drop_tables=drop_table_names,
     )
 
     # update the staging dataset if client supports this
@@ -117,6 +141,7 @@ def init_client(
                     staging_tables | {schema.version_table_name},  # keep only schema version
                     staging_tables,  # all eligible tables must be also truncated
                     staging_info=True,
+                    drop_tables=drop_table_names,  # try to drop all the same tables on staging
                 )
 
     return applied_update
@@ -128,6 +153,7 @@ def _init_dataset_and_update_schema(
     update_tables: Iterable[str],
     truncate_tables: Iterable[str] = None,
     staging_info: bool = False,
+    drop_tables: Iterable[str] = None,
 ) -> TSchemaTables:
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
@@ -135,16 +161,31 @@ def _init_dataset_and_update_schema(
         f" {staging_text}"
     )
     job_client.initialize_storage()
+    if drop_tables:
+        if hasattr(job_client, "drop_tables"):
+            logger.info(
+                f"Client for {job_client.config.destination_type} will drop tables"
+                f" {drop_tables} {staging_text}"
+            )
+            job_client.drop_tables(*drop_tables, delete_schema=True)
+        else:
+            logger.warning(
+                f"Client for {job_client.config.destination_type} does not implement drop table."
+                f" Following tables {drop_tables} will not be dropped {staging_text}"
+            )
+
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
         f" {staging_text}"
     )
+
     applied_update = job_client.update_stored_schema(
         only_tables=update_tables, expected_update=expected_update
     )
     logger.info(
         f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
     )
+
     job_client.initialize_storage(truncate_tables=truncate_tables)
     return applied_update
 
@@ -167,7 +208,10 @@ def _extend_tables_with_table_chain(
         # for replace and merge write dispositions we should include tables
         # without jobs in the table chain, because child tables may need
         # processing due to changes in the root table
-        skip_jobless_table = top_job_table["write_disposition"] not in ("replace", "merge")
+        skip_jobless_table = top_job_table["write_disposition"] not in (
+            "replace",
+            "merge",
+        )
         for table in map(
             lambda t: fill_hints_from_parent_and_clone_table(schema.tables, t),
             get_child_tables(schema.tables, top_job_table["name"]),
@@ -184,3 +228,42 @@ def _extend_tables_with_table_chain(
                 continue
             result.add(chain_table_name)
     return result
+
+
+def filter_new_jobs(
+    file_names: Sequence[str],
+    capabilities: DestinationCapabilitiesContext,
+    config: LoaderConfiguration,
+) -> Sequence[str]:
+    """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
+    """NOTE: in the current setup we only filter based on settings for the final destination"""
+    """Support for differentiating staging destination jobs might come in the future if we need it"""
+
+    # nothing to do
+    if not file_names:
+        return file_names
+
+    # config can overwrite destination settings, if nothing is set, code below defaults to parallel
+    parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
+
+    # find real max workers value
+    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
+    if mp := capabilities.max_parallel_load_jobs:
+        max_workers = min(max_workers, mp)
+
+    # regular sequential works on all jobs
+    eligible_jobs = file_names
+
+    # we must ensure there only is one job per table
+    if parallelism_strategy == "table-sequential":
+        eligible_jobs = sorted(
+            eligible_jobs, key=lambda j: ParsedLoadJobFileName.parse(j).table_name
+        )
+        eligible_jobs = [
+            next(table_jobs)
+            for _, table_jobs in groupby(
+                eligible_jobs, lambda j: ParsedLoadJobFileName.parse(j).table_name
+            )
+        ]
+
+    return eligible_jobs[:max_workers]

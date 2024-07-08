@@ -17,12 +17,11 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 
-from dlt.destinations.impl.duckdb import capabilities
 from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
-    """Use native BigQuery data frame support if available"""
+    """Use native duckdb data frame support if available"""
 
     native_cursor: duckdb.DuckDBPyConnection  # type: ignore
     vector_size: ClassVar[int] = 2048
@@ -43,10 +42,15 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
 
 class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = duckdb
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: DuckDbBaseCredentials) -> None:
-        super().__init__(None, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        staging_dataset_name: str,
+        credentials: DuckDbBaseCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
 
@@ -141,11 +145,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     #         return results
     #     else:
     #         return None
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

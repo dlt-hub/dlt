@@ -46,9 +46,8 @@ pipeline = dlt.pipeline(
     pipeline_name,
     destination=destination_name,
     dataset_name=dataset_name,
-    credentials=credentials,
     export_schema_path=export_schema_path,
-    full_refresh=True,
+    dev_mode=True,
 )
 
 
@@ -69,7 +68,9 @@ rows = [
     },
 ]
 
-load_info = pipeline.run(rows, table_name=table_name, write_disposition="replace")
+load_info = pipeline.run(
+    rows, table_name=table_name, write_disposition="replace", credentials=credentials
+)
 
 # 4. Optional error handling - print, raise or handle.
 print()

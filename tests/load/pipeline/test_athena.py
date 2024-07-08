@@ -9,15 +9,15 @@ from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info, load_table_counts
 from tests.pipeline.utils import load_table_counts
 from dlt.destinations.exceptions import CantExtractTablePrefix
-from dlt.destinations.impl.athena.athena_adapter import athena_partition, athena_adapter
-from dlt.destinations.fs_client import FSClientBase
+from dlt.destinations.adapters import athena_partition, athena_adapter
 
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.utils import (
     TEST_FILE_LAYOUTS,
     FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
     FILE_LAYOUT_CLASSIC,
     FILE_LAYOUT_TABLE_NOT_FIRST,
+    destinations_configs,
+    DestinationTestConfiguration,
 )
 
 # mark all tests as essential, do not remove
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.essential
     ids=lambda x: x.name,
 )
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     @dlt.resource(name="items", write_disposition="append")
     def items():
@@ -88,7 +88,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
 def test_athena_all_datatypes_and_timestamps(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     # TIME is not supported
     column_schemas, data_types = table_update_and_row(exclude_types=["time"])
@@ -176,7 +176,7 @@ def test_athena_all_datatypes_and_timestamps(
     ids=lambda x: x.name,
 )
 def test_athena_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     column_schemas, data_types = table_update_and_row()
 
@@ -208,7 +208,7 @@ def test_athena_blocks_time_column(destination_config: DestinationTestConfigurat
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_athena_file_layouts(destination_config: DestinationTestConfiguration, layout) -> None:
     # test wether strange file layouts still work in all staging configs
-    pipeline = destination_config.setup_pipeline("athena_file_layout", full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_file_layout", dev_mode=True)
     os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
 
     resources = [
@@ -242,7 +242,7 @@ def test_athena_file_layouts(destination_config: DestinationTestConfiguration, l
 )
 def test_athena_partitioned_iceberg_table(destination_config: DestinationTestConfiguration):
     """Load an iceberg table with partition hints and verifiy partitions are created correctly."""
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     data_items = [
         (1, "A", datetime.date.fromisoformat("2021-01-01")),

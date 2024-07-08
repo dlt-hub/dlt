@@ -1,3 +1,4 @@
+import gzip
 from typing import Iterable, cast, Any, List
 from abc import ABC, abstractmethod
 from fsspec import AbstractFileSystem
@@ -38,10 +39,19 @@ class FSClientBase(ABC):
     def read_text(
         self,
         path: str,
-        encoding: Any = None,
+        encoding: Any = "utf-8",
         errors: Any = None,
         newline: Any = None,
+        compression: str = None,
         **kwargs: Any
     ) -> str:
-        """reads given file into string"""
-        return cast(str, self.fs_client.read_text(path, encoding, errors, newline, **kwargs))
+        """reads given file into string, tries gzip and pure text"""
+        if compression is None:
+            try:
+                return self.read_text(path, encoding, errors, newline, "gzip", **kwargs)
+            except (gzip.BadGzipFile, OSError):
+                pass
+        with self.fs_client.open(
+            path, mode="rt", compression=compression, encoding=encoding, newline=newline
+        ) as f:
+            return cast(str, f.read())

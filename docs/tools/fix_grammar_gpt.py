@@ -120,7 +120,7 @@ if __name__ == "__main__":
                 temperature=0,
             )
 
-            fixed_chunks.append(response.choices[0].message.content)
+            fixed_chunks.append(response.choices[0].message.content)  # type: ignore
 
         with open(file_path, "w", encoding="utf-8") as f:
             for c in fixed_chunks:

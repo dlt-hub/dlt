@@ -1,9 +1,7 @@
-from typing import Type
 import pytest
 
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.normalizers.naming.duck_case import NamingConvention as DuckCaseNamingConvention
 
 
 @pytest.fixture
@@ -54,30 +52,9 @@ def test_normalize_path(naming_unlimited: NamingConvention) -> None:
 
 
 def test_normalize_non_alpha_single_underscore() -> None:
-    assert SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "-=!*") == "_"
-    assert SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "1-=!0*-") == "1_0_"
-    assert SnakeCaseNamingConvention._RE_NON_ALPHANUMERIC.sub("_", "1-=!_0*-") == "1__0_"
-
-
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DuckCaseNamingConvention))
-def test_normalize_break_path(convention: Type[NamingConvention]) -> None:
-    naming_unlimited = convention()
-    assert naming_unlimited.break_path("A__B__C") == ["A", "B", "C"]
-    # what if path has _a and _b which valid normalized idents
-    assert naming_unlimited.break_path("_a___b__C___D") == ["_a", "_b", "C", "_D"]
-    # skip empty identifiers from path
-    assert naming_unlimited.break_path("_a_____b") == ["_a", "_b"]
-    assert naming_unlimited.break_path("_a____b") == ["_a", "b"]
-    assert naming_unlimited.break_path("_a__  \t\r__b") == ["_a", "b"]
-
-
-@pytest.mark.parametrize("convention", (SnakeCaseNamingConvention, DuckCaseNamingConvention))
-def test_normalize_make_path(convention: Type[NamingConvention]) -> None:
-    naming_unlimited = convention()
-    assert naming_unlimited.make_path("A", "B") == "A__B"
-    assert naming_unlimited.make_path("_A", "_B") == "_A___B"
-    assert naming_unlimited.make_path("_A", "", "_B") == "_A___B"
-    assert naming_unlimited.make_path("_A", "\t\n ", "_B") == "_A___B"
+    assert SnakeCaseNamingConvention.RE_NON_ALPHANUMERIC.sub("_", "-=!*") == "_"
+    assert SnakeCaseNamingConvention.RE_NON_ALPHANUMERIC.sub("_", "1-=!0*-") == "1_0_"
+    assert SnakeCaseNamingConvention.RE_NON_ALPHANUMERIC.sub("_", "1-=!_0*-") == "1__0_"
 
 
 def test_normalizes_underscores(naming_unlimited: NamingConvention) -> None:

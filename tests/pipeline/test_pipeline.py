@@ -7,7 +7,7 @@ import os
 import random
 import threading
 from time import sleep
-from typing import Any, Tuple, cast
+from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
@@ -15,10 +15,11 @@ import pytest
 import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
+from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.destination.exceptions import (
@@ -32,6 +33,8 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import PipelineStateNotAvailable
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
+from dlt.common.schema.exceptions import TableIdentifiersFrozen
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
@@ -44,9 +47,11 @@ from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
 from dlt.load.exceptions import LoadClientJobFailed
+from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
 
+from dlt.pipeline.pipeline import Pipeline
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT, skipifnotwindows
@@ -55,7 +60,9 @@ from tests.pipeline.utils import (
     assert_data_table_counts,
     assert_load_info,
     airtable_emojis,
+    assert_only_table_columns,
     load_data_table_counts,
+    load_tables_to_dicts,
     many_delayed,
 )
 
@@ -94,15 +101,15 @@ def test_default_pipeline_dataset() -> None:
     assert p.dataset_name in possible_dataset_names
 
 
-def test_run_full_refresh_default_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True, destination="filesystem")
+def test_run_dev_mode_default_dataset() -> None:
+    p = dlt.pipeline(dev_mode=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(full_refresh=False)
+    r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
     # dummy does not need dataset
-    p = dlt.pipeline(full_refresh=True, destination="dummy")
+    p = dlt.pipeline(dev_mode=True, destination="dummy")
     assert p.dataset_name is None
     # simulate set new dataset
     p._set_destinations("filesystem")
@@ -112,11 +119,11 @@ def test_run_full_refresh_default_dataset() -> None:
     assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
 
 
-def test_run_full_refresh_underscored_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True, dataset_name="_main_")
+def test_run_dev_mode_underscored_dataset() -> None:
+    p = dlt.pipeline(dev_mode=True, dataset_name="_main_")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
-    r_p = dlt.attach(full_refresh=False)
+    r_p = dlt.attach(dev_mode=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
 
 
@@ -201,7 +208,8 @@ def test_pipeline_context() -> None:
     assert ctx.pipeline() is p3
     assert p3.is_active is True
     assert p2.is_active is False
-    assert Container()[DestinationCapabilitiesContext].naming_convention == "snake_case"
+    # no default naming convention
+    assert Container()[DestinationCapabilitiesContext].naming_convention is None
 
     # restore previous
     p2 = dlt.attach("another pipeline")
@@ -259,49 +267,16 @@ def test_deterministic_salt(environment) -> None:
 
 
 def test_destination_explicit_credentials(environment: Any) -> None:
+    from dlt.destinations import motherduck
+
     # test redshift
     p = dlt.pipeline(
         pipeline_name="postgres_pipeline",
-        destination="redshift",
-        credentials="redshift://loader:loader@localhost:5432/dlt_data",
+        destination=motherduck(credentials="md://user:password@/dlt_data"),
     )
-    config = p._get_destination_client_initial_config()
+    config = p.destination_client().config
     assert config.credentials.is_resolved()
-    # with staging
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        staging="filesystem",
-        destination="redshift",
-        credentials="redshift://loader:loader@localhost:5432/dlt_data",
-    )
-    config = p._get_destination_client_initial_config(p.destination)
-    assert config.credentials.is_resolved()
-    config = p._get_destination_client_initial_config(p.staging, as_staging=True)
-    assert config.credentials is None
-    p._wipe_working_folder()
-    # try filesystem which uses union of credentials that requires bucket_url to resolve
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        destination="filesystem",
-        credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
-    )
-    config = p._get_destination_client_initial_config(p.destination)
-    assert isinstance(config.credentials, AwsCredentials)
-    assert config.credentials.is_resolved()
-    # resolve gcp oauth
-    p = dlt.pipeline(
-        pipeline_name="postgres_pipeline",
-        destination="filesystem",
-        credentials={
-            "project_id": "pxid",
-            "refresh_token": "123token",
-            "client_id": "cid",
-            "client_secret": "s",
-        },
-    )
-    config = p._get_destination_client_initial_config(p.destination)
-    assert isinstance(config.credentials, GcpOAuthCredentials)
-    assert config.credentials.is_resolved()
+    assert config.credentials.to_native_representation() == "md://user:password@/dlt_data"
 
 
 def test_destination_staging_config(environment: Any) -> None:
@@ -354,14 +329,15 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
     assert dest_config.credentials.database == "some_db"
 
 
-@pytest.mark.skip(reason="does not work on CI. probably takes right credentials from somewhere....")
 def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -> None:
     # if string cannot be parsed
     p = dlt.pipeline(
-        pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM"
+        pipeline_name="postgres_pipeline",
+        destination=filesystem(bucket_url="s3://test", destination_name="uniq_s3_bucket"),
     )
-    with pytest.raises(NativeValueError):
-        p._get_destination_client_initial_config(p.destination)
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        p.run([1, 2, 3], table_name="data", credentials="PR8BLEM")
+    assert isinstance(pip_ex.value.__cause__, InvalidNativeValue)
 
 
 def test_extract_source_twice() -> None:
@@ -641,8 +617,8 @@ def test_sentry_tracing() -> None:
 
     @dlt.resource
     def r_check_sentry():
-        assert sentry_sdk.Hub.current.scope.span.op == "extract"
-        assert sentry_sdk.Hub.current.scope.span.containing_transaction.name == "run"
+        assert sentry_sdk.Scope.get_current_scope().span.op == "extract"
+        assert sentry_sdk.Scope.get_current_scope().transaction.name == "run"
         yield [1, 2, 3]
 
     p.run(r_check_sentry)
@@ -895,7 +871,7 @@ def test_extract_all_data_types() -> None:
 
 
 def test_set_get_local_value() -> None:
-    p = dlt.pipeline(destination="dummy", full_refresh=True)
+    p = dlt.pipeline(destination="dummy", dev_mode=True)
     value = uniq_id()
     # value is set
     p.set_local_state_val(value, value)
@@ -1539,10 +1515,13 @@ def test_remove_autodetect() -> None:
     pipeline = pipeline.drop()
 
     source = autodetect()
+    assert "timestamp" in source.schema.settings["detections"]
     source.schema.remove_type_detection("timestamp")
+    assert "timestamp" not in source.schema.settings["detections"]
 
     pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(source)
+    assert "timestamp" not in pipeline.default_schema.settings["detections"]
 
     assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
 
@@ -1862,8 +1841,8 @@ def test_parallel_pipelines_async(workers: int) -> None:
         return pipeline.run(gen_())
 
     # declare pipelines in main thread then run them "async"
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", dev_mode=True)
 
     async def _run_async():
         loop = asyncio.get_running_loop()
@@ -1912,7 +1891,7 @@ def test_resource_while_stop() -> None:
         else:
             return []
 
-    pipeline = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
     load_info = pipeline.run(product())
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
@@ -1969,7 +1948,7 @@ def test_run_with_pua_payload() -> None:
     assert len(load_info.loads_ids) == 1
 
 
-def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
+def test_pipeline_load_info_metrics_schema_is_not_changing() -> None:
     """Test if load info schema is idempotent throughout multiple load cycles
 
     ## Setup
@@ -2025,7 +2004,6 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         pipeline_name="quick_start",
         destination="duckdb",
         dataset_name="mydata",
-        # export_schema_path="schemas",
     )
 
     taxi_load_info = pipeline.run(
@@ -2243,7 +2221,7 @@ def test_staging_dataset_truncate(truncate) -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_staging_cleared",
         destination="duckdb",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     info = pipeline.run(test_data, table_name="staging_cleared")
@@ -2260,3 +2238,260 @@ def test_staging_dataset_truncate(truncate) -> None:
 
         with client.execute_query(f"SELECT * FROM {pipeline.dataset_name}.staging_cleared") as cur:
             assert len(cur.fetchall()) == 3
+
+
+def test_change_naming_convention_name_collision() -> None:
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
+    caps = duck_.capabilities()
+    assert caps.naming_convention == "duck_case"
+    assert caps.recommended_file_size == 120000
+
+    # use duck case to load data into duckdb so casing and emoji are preserved
+    pipeline = dlt.pipeline("test_change_naming_convention_name_collision", destination=duck_)
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    assert_load_info(info)
+    # make sure that emojis got in
+    assert "🦚Peacock" in pipeline.default_schema.tables
+    assert "🔑id" in pipeline.default_schema.tables["🦚Peacock"]["columns"]
+    assert load_data_table_counts(pipeline) == {
+        "📆 Schedule": 3,
+        "🦚Peacock": 1,
+        "🦚WidePeacock": 1,
+        "🦚Peacock__peacock": 3,
+        "🦚WidePeacock__Peacock": 3,
+    }
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT 🔑id FROM 🦚Peacock")
+        # 🔑id value is 1
+        assert rows[0][0] == 1
+
+    # change naming convention and run pipeline again so we generate name clashes
+    os.environ["SOURCES__AIRTABLE_EMOJIS__SCHEMA__NAMING"] = "sql_ci_v1"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
+    # see conflicts early
+    assert pip_ex.value.step == "extract"
+    assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
+
+    # all good if we drop tables
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        refresh="drop_resources",
+    )
+    assert_load_info(info)
+    # case insensitive normalization
+    assert load_data_table_counts(pipeline) == {
+        "_schedule": 3,
+        "_peacock": 1,
+        "_widepeacock": 1,
+        "_peacock__peacock": 3,
+        "_widepeacock__peacock": 3,
+    }
+
+
+def test_change_to_more_lax_naming_convention_name_collision() -> None:
+    # use snake_case which is strict and then change to duck_case which accepts snake_case names without any changes
+    # still we want to detect collisions
+    pipeline = dlt.pipeline(
+        "test_change_to_more_lax_naming_convention_name_collision", destination="duckdb"
+    )
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    assert_load_info(info)
+    assert "_peacock" in pipeline.default_schema.tables
+
+    # use duck case to load data into duckdb so casing and emoji are preserved
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case")
+
+    # changing destination to one with a separate naming convention raises immediately
+    with pytest.raises(TableIdentifiersFrozen):
+        pipeline.run(
+            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+            destination=duck_,
+        )
+
+    # refresh on the source level will work
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        destination=duck_,
+        refresh="drop_sources",
+    )
+    assert_load_info(info)
+    # make sure that emojis got in
+    assert "🦚Peacock" in pipeline.default_schema.tables
+
+
+def test_change_naming_convention_column_collision() -> None:
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case")
+
+    data = {"Col": "A"}
+    pipeline = dlt.pipeline("test_change_naming_convention_column_collision", destination=duck_)
+    info = pipeline.run([data], table_name="data")
+    assert_load_info(info)
+
+    os.environ["SCHEMA__NAMING"] = "sql_ci_v1"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run([data], table_name="data")
+    assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
+
+
+def test_import_jsonl_file() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    columns: List[TColumnSchema] = [
+        {"name": "id", "data_type": "bigint", "nullable": False},
+        {"name": "name", "data_type": "text"},
+        {"name": "description", "data_type": "text"},
+        {"name": "ordered_at", "data_type": "date"},
+        {"name": "price", "data_type": "decimal"},
+    ]
+    import_file = "tests/load/cases/loading/header.jsonl"
+    info = pipeline.run(
+        [dlt.mark.with_file_import(import_file, "jsonl", 2)],
+        table_name="no_header",
+        loader_file_format="jsonl",
+        columns=columns,
+    )
+    info.raise_on_failed_jobs()
+    print(info)
+    assert_imported_file(pipeline, "no_header", columns, 2)
+
+    # use hints to infer
+    hints = dlt.mark.make_hints(columns=columns)
+    info = pipeline.run(
+        [dlt.mark.with_file_import(import_file, "jsonl", 2, hints=hints)],
+        table_name="no_header_2",
+    )
+    info.raise_on_failed_jobs()
+    assert_imported_file(pipeline, "no_header_2", columns, 2, expects_state=False)
+
+
+def test_import_file_without_sniff_schema() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    import_file = "tests/load/cases/loading/header.jsonl"
+    info = pipeline.run(
+        [dlt.mark.with_file_import(import_file, "jsonl", 2)],
+        table_name="no_header",
+    )
+    assert info.has_failed_jobs
+    print(info)
+
+
+def test_import_non_existing_file() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    # this file does not exist
+    import_file = "tests/load/cases/loading/X_header.jsonl"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [dlt.mark.with_file_import(import_file, "jsonl", 2)],
+            table_name="no_header",
+        )
+    inner_ex = pip_ex.value.__cause__
+    assert isinstance(inner_ex, FileImportNotFound)
+    assert inner_ex.import_file_path == import_file
+
+
+def test_import_unsupported_file_format() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    # this file does not exist
+    import_file = "tests/load/cases/loading/csv_no_header.csv"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [dlt.mark.with_file_import(import_file, "csv", 2)],
+            table_name="no_header",
+        )
+    inner_ex = pip_ex.value.__cause__
+    assert isinstance(inner_ex, NormalizeJobFailed)
+    assert isinstance(inner_ex.__cause__, SpecLookupFailed)
+
+
+def test_import_unknown_file_format() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_jsonl_import",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    # this file does not exist
+    import_file = "tests/load/cases/loading/csv_no_header.csv"
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(
+            [dlt.mark.with_file_import(import_file, "unknown", 2)],  # type: ignore[arg-type]
+            table_name="no_header",
+        )
+    inner_ex = pip_ex.value.__cause__
+    assert isinstance(inner_ex, NormalizeJobFailed)
+    # can't figure format from extension
+    assert isinstance(inner_ex.__cause__, ValueError)
+
+
+def test_static_staging_dataset() -> None:
+    # share database and staging dataset
+    duckdb_ = dlt.destinations.duckdb(
+        "_storage/test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
+    )
+
+    pipeline_1 = dlt.pipeline("test_static_staging_dataset_1", destination=duckdb_, dev_mode=True)
+    pipeline_2 = dlt.pipeline("test_static_staging_dataset_2", destination=duckdb_, dev_mode=True)
+    # staging append (without primary key)
+    info = pipeline_1.run([1, 2, 3], table_name="digits", write_disposition="merge")
+    assert_load_info(info)
+    info = pipeline_2.run(["a", "b", "c", "d"], table_name="letters", write_disposition="merge")
+    assert_load_info(info)
+    with pipeline_1.sql_client() as client:
+        with client.with_alternative_dataset_name("_dlt_staging"):
+            assert client.has_dataset()
+            schemas = client.execute_sql("SELECT schema_name FROM _dlt_staging._dlt_version")
+            assert {s[0] for s in schemas} == {
+                "test_static_staging_dataset_1",
+                "test_static_staging_dataset_2",
+            }
+
+    assert_data_table_counts(pipeline_1, {"digits": 3})
+    assert_data_table_counts(pipeline_2, {"letters": 4})
+
+
+def assert_imported_file(
+    pipeline: Pipeline,
+    table_name: str,
+    columns: List[TColumnSchema],
+    expected_rows: int,
+    expects_state: bool = True,
+) -> None:
+    assert_only_table_columns(pipeline, table_name, [col["name"] for col in columns])
+    rows = load_tables_to_dicts(pipeline, table_name)
+    assert len(rows[table_name]) == expected_rows
+    # we should have twp files loaded
+    jobs = pipeline.last_trace.last_load_info.load_packages[0].jobs["completed_jobs"]
+    job_extensions = [os.path.splitext(job.job_file_info.file_name())[1] for job in jobs]
+    assert ".jsonl" in job_extensions
+    if expects_state:
+        assert ".insert_values" in job_extensions
+    # check extract trace if jsonl is really there
+    extract_info = pipeline.last_trace.last_extract_info
+    jobs = extract_info.load_packages[0].jobs["new_jobs"]
+    # find jsonl job
+    jsonl_job = next(job for job in jobs if job.job_file_info.table_name == table_name)
+    assert jsonl_job.job_file_info.file_format == "jsonl"
+    # find metrics for table
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["table_metrics"][table_name].items_count
+        == expected_rows
+    )

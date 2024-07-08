@@ -1,16 +1,13 @@
 from typing import Dict, List, cast
 
 from dlt.common.schema.schema import Schema
-from dlt.common.configuration.accessors import config
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.storages.configuration import SchemaStorageConfiguration
 
 
 class LiveSchemaStorage(SchemaStorage):
-    def __init__(
-        self, config: SchemaStorageConfiguration = config.value, makedirs: bool = False
-    ) -> None:
+    def __init__(self, config: SchemaStorageConfiguration, makedirs: bool = False) -> None:
         self.live_schemas: Dict[str, Schema] = {}
         super().__init__(config, makedirs)
 
@@ -34,20 +31,6 @@ class LiveSchemaStorage(SchemaStorage):
         super().remove_schema(name)
         # also remove the live schema
         self.live_schemas.pop(name, None)
-
-    def save_import_schema_if_not_exists(self, schema: Schema) -> bool:
-        """Saves import schema, if not exists. If schema was saved, link itself as imported from"""
-        if self.config.import_schema_path:
-            try:
-                self._load_import_schema(schema.name)
-            except FileNotFoundError:
-                # save import schema only if it not exist
-                self._export_schema(schema, self.config.import_schema_path)
-                # if import schema got saved then add own version hash as import version hash
-                schema._imported_version_hash = schema.version_hash
-                return True
-
-        return False
 
     def commit_live_schema(self, name: str) -> str:
         """Saves live schema in storage if it was modified"""

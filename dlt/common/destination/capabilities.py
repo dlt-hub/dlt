@@ -1,5 +1,17 @@
-from typing import Any, Callable, ClassVar, List, Literal, Optional, Sequence, Tuple, Set, get_args
-
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Set,
+    Protocol,
+    get_args,
+)
+from dlt.common.normalizers.typing import TNamingConventionReferenceArg
+from dlt.common.typing import TLoaderFileFormat
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
@@ -8,19 +20,25 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationLoadingWithoutStagingNotSupported,
 )
-from dlt.common.utils import identity
-from dlt.common.pendulum import pendulum
-
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
-# known loader file formats
-# jsonl - new line separated json documents
-# typed-jsonl - internal extract -> normalize format bases on jsonl
-# insert_values - insert SQL statements
-# sql - any sql statement
-TLoaderFileFormat = Literal["jsonl", "typed-jsonl", "insert_values", "parquet", "csv"]
+TLoaderParallelismStrategy = Literal["parallel", "table-sequential", "sequential"]
 ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
+
+
+class LoaderFileFormatAdapter(Protocol):
+    """Callback protocol for `loader_file_format_adapter` capability."""
+
+    def __call__(
+        self,
+        preferred_loader_file_format: TLoaderFileFormat,
+        supported_loader_file_formats: Sequence[TLoaderFileFormat],
+        /,
+        *,
+        table_schema: "TTableSchema",  # type: ignore[name-defined] # noqa: F821
+    ) -> Tuple[TLoaderFileFormat, Sequence[TLoaderFileFormat]]: ...
 
 
 @configspec
@@ -29,13 +47,22 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
 
     preferred_loader_file_format: TLoaderFileFormat = None
     supported_loader_file_formats: Sequence[TLoaderFileFormat] = None
+    loader_file_format_adapter: LoaderFileFormatAdapter = None
+    """Callable that adapts `preferred_loader_file_format` and `supported_loader_file_formats` at runtime."""
+    supported_table_formats: Sequence["TTableFormat"] = None  # type: ignore[name-defined] # noqa: F821
     recommended_file_size: Optional[int] = None
     """Recommended file size in bytes when writing extract/load files"""
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
     supported_staging_file_formats: Sequence[TLoaderFileFormat] = None
-    escape_identifier: Callable[[str], str] = None
-    escape_literal: Callable[[Any], Any] = None
     format_datetime_literal: Callable[..., str] = None
+    escape_identifier: Callable[[str], str] = None
+    "Escapes table name, column name and other identifiers"
+    escape_literal: Callable[[Any], Any] = None
+    "Escapes string literal"
+    casefold_identifier: Callable[[str], str] = str
+    """Casing function applied by destination to represent case insensitive identifiers."""
+    has_case_sensitive_identifiers: bool = None
+    """Tells if destination supports case sensitive identifiers"""
     decimal_precision: Tuple[int, int] = None
     wei_precision: Tuple[int, int] = None
     max_identifier_length: int = None
@@ -46,7 +73,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     is_max_text_data_type_length_in_bytes: bool = None
     supports_transactions: bool = None
     supports_ddl_transactions: bool = None
-    naming_convention: str = "snake_case"
+    # use naming convention in the schema
+    naming_convention: TNamingConventionReferenceArg = None
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
@@ -55,26 +83,45 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
-
     """Destination supports CREATE TABLE ... CLONE ... statements"""
-    max_table_nesting: Optional[int] = None  # destination can overwrite max table nesting
+
+    max_table_nesting: Optional[int] = None
+    """Allows a destination to overwrite max_table_nesting from source"""
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
 
+    max_parallel_load_jobs: Optional[int] = None
+    """The destination can set the maxium amount of parallel load jobs being executed"""
+    loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
+    """The destination can override the parallelism strategy"""
+
+    def generates_case_sensitive_identifiers(self) -> bool:
+        """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
+        # must have case sensitive support and folding function must preserve casing
+        return self.has_case_sensitive_identifiers and self.casefold_identifier is str
+
     @staticmethod
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
+        naming_convention: TNamingConventionReferenceArg = None,
+        loader_file_format_adapter: LoaderFileFormatAdapter = None,
+        supported_table_formats: Sequence["TTableFormat"] = None,  # type: ignore[name-defined] # noqa: F821
     ) -> "DestinationCapabilitiesContext":
         from dlt.common.data_writers.escape import format_datetime_literal
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
         caps.supported_loader_file_formats = ["jsonl", "insert_values", "parquet", "csv"]
+        caps.loader_file_format_adapter = loader_file_format_adapter
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
-        caps.escape_identifier = identity
+        caps.naming_convention = naming_convention or caps.naming_convention
+        caps.escape_identifier = str
+        caps.supported_table_formats = supported_table_formats or []
         caps.escape_literal = serialize_value
+        caps.casefold_identifier = str
+        caps.has_case_sensitive_identifiers = True
         caps.format_datetime_literal = format_datetime_literal
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (EVM_DECIMAL_PRECISION, 0)

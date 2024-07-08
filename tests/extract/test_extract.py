@@ -125,6 +125,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
             {"id": 1, "pk2": "B"},
             make_hints(
                 write_disposition="merge",
+                file_format="preferred",
                 columns=[{"name": "id", "precision": 16}, {"name": "text", "data_type": "decimal"}],
                 primary_key="pk2",
             ),
@@ -143,6 +144,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         assert "pk" in table["columns"]
         assert "text" in table["columns"]
         assert table["write_disposition"] == "merge"
+        assert table["file_format"] == "preferred"
 
         # make table name dynamic
         yield dlt.mark.with_hints(
@@ -317,7 +319,7 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
 def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = DltSource(dlt.Schema("selectables"), "module", [resource(10)])
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source)
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
     # odd and even tables must be in the source schema
     assert len(source.schema.data_tables(include_incomplete=True)) == 2
     assert "odd_table" in source.schema._schema_tables
@@ -340,7 +342,7 @@ def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = source.with_resources(resource.name)
     source.selected_resources[resource.name].bind(10).select_tables("odd_table")
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source)
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
     assert len(source.schema.data_tables(include_incomplete=True)) == 1
     assert "odd_table" in source.schema._schema_tables
     extract_step.extract_storage.commit_new_load_package(load_id, source.schema)

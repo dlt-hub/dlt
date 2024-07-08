@@ -93,9 +93,26 @@ Amazon Redshift supports the following column hints:
 - `cluster` - This hint is a Redshift term for table distribution. Applying it to a column makes it the "DISTKEY," affecting query and join performance. Check the following [documentation](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html) for more info.
 - `sort` - This hint creates a SORTKEY to order rows on disk physically. It is used to improve query and join speed in Redshift. Please read the [sort key docs](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html) to learn more.
 
+### Table and column identifiers
+Redshift **by default** uses case insensitive identifiers and **will lower case all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use
+[case sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway and you risk to generate identifier collisions, which are detected by `dlt` and will fail the load process.
+
+You can [put Redshift in case sensitive mode](https://docs.aws.amazon.com/redshift/latest/dg/r_enable_case_sensitive_identifier.html). Configure your destination as below in order to use case sensitive naming conventions:
+```toml
+[destination.redshift]
+has_case_sensitive_identifiers=true
+```
+
+
 ## Staging support
 
 Redshift supports s3 as a file staging destination. dlt will upload files in the parquet format to s3 and ask Redshift to copy their data directly into the db. Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your s3 bucket with the bucket_url and credentials. The `dlt` Redshift loader will use the AWS credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). Alternatively to parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+
+## Identifier names and case sensitivity
+* Up to 127 characters
+* Case insensitive
+* Stores identifiers in lower case
+* Has case sensitive mode, if enabled you must [enable case sensitivity in destination factory](../../general-usage/destination.md#control-how-dlt-creates-table-column-and-other-identifiers)
 
 ### Authentication IAM Role
 

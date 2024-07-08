@@ -123,7 +123,7 @@ jobs:
         shell: cmd
 
       - name: Install pipeline dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline -E deltalake
 
       - run: |
           poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common tests/destinations

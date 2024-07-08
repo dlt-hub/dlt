@@ -5,8 +5,15 @@ from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCa
 
 
 class NamingConvention(SnakeCaseNamingConvention):
+    """Case sensitive naming convention preserving all unicode characters except new line(s). Uses __ for path
+    separation and will replace multiple underscores with a single one.
+    """
+
     _CLEANUP_TABLE = str.maketrans('\n\r"', "___")
-    _RE_LEADING_DIGITS = None  # do not remove leading digits
+
+    @property
+    def is_case_sensitive(self) -> bool:
+        return True
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -17,5 +24,5 @@ class NamingConvention(SnakeCaseNamingConvention):
 
         # shorten identifier
         return NamingConvention.shorten_identifier(
-            NamingConvention._RE_UNDERSCORES.sub("_", normalized_ident), identifier, max_length
+            NamingConvention.RE_UNDERSCORES.sub("_", normalized_ident), identifier, max_length
         )

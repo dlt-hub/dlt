@@ -1,4 +1,3 @@
-import platform
 import struct
 from datetime import datetime, timedelta, timezone  # noqa: I251
 
@@ -23,7 +22,6 @@ from dlt.destinations.sql_client import (
 )
 
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
-from dlt.destinations.impl.mssql import capabilities
 
 
 def handle_datetimeoffset(dto_value: bytes) -> datetime:
@@ -43,10 +41,15 @@ def handle_datetimeoffset(dto_value: bytes) -> datetime:
 
 class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     dbapi: ClassVar[DBApi] = pyodbc
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: MsSqlCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        staging_dataset_name: str,
+        credentials: MsSqlCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: pyodbc.Connection = None
         self.credentials = credentials
 
@@ -104,14 +107,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # Drop all views
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.views WHERE table_schema = %s;",
-            self.dataset_name,
+            self.capabilities.casefold_identifier(self.dataset_name),
         )
         view_names = [row[0] for row in rows]
         self._drop_views(*view_names)
         # Drop all tables
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            self.dataset_name,
+            self.capabilities.casefold_identifier(self.dataset_name),
         )
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
@@ -127,7 +130,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.execute_many(statements)
 
     def _drop_schema(self) -> None:
-        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
@@ -157,11 +160,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
         except pyodbc.Error as outer:
             raise outer
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

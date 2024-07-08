@@ -38,7 +38,7 @@ def test_next_item_mode() -> None:
             Pipe.from_data("data3", source_gen3()),
         ]
 
-    # default mode is "fifo"
+    # test both modes
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo"))
     # items will be in order of the pipes, nested iterator items appear inline, None triggers a bit of rotation
     assert [pi.item for pi in _l] == [1, 2, 3, 4, 10, 5, 6, 8, 7, 9, 11, 12, 13, 14, 15]
@@ -50,6 +50,11 @@ def test_next_item_mode() -> None:
 
     # round robin eval
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
+    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
+    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 3, 10, 4, 11, 5, 6, 8, 9, 7]
+
+    # default is round robin, should have same result without explicit
+    _l = list(PipeIterator.from_pipes(get_pipes()))
     # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
     assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 3, 10, 4, 11, 5, 6, 8, 9, 7]
 
@@ -460,7 +465,7 @@ def test_yield_map_step() -> None:
     p = Pipe.from_data("data", [1, 2, 3])
     # this creates number of rows as passed by the data
     p.append_step(YieldMapItem(lambda item: (yield from [f"item_{x}" for x in range(item)])))
-    assert _f_items(list(PipeIterator.from_pipe(p))) == [
+    assert _f_items(list(PipeIterator.from_pipe(p, next_item_mode="fifo"))) == [
         "item_0",
         "item_0",
         "item_1",
@@ -476,7 +481,7 @@ def test_yield_map_step() -> None:
     p.append_step(
         YieldMapItem(lambda item, meta: (yield from [f"item_{meta}_{x}" for x in range(item)]))
     )
-    assert _f_items(list(PipeIterator.from_pipe(p))) == [
+    assert _f_items(list(PipeIterator.from_pipe(p, next_item_mode="fifo"))) == [
         "item_A_0",
         "item_B_0",
         "item_B_1",
@@ -503,6 +508,19 @@ def test_pipe_copy_on_fork() -> None:
     assert doc is elems[0].item
     # second fork copies
     assert elems[0].item is not elems[1].item
+
+
+def test_pipe_pass_empty_list() -> None:
+    def _gen():
+        yield []
+
+    pipe = Pipe.from_data("data", _gen())
+    elems = list(PipeIterator.from_pipe(pipe))
+    assert elems[0].item == []
+
+    pipe = Pipe.from_data("data", [[]])
+    elems = list(PipeIterator.from_pipe(pipe))
+    assert elems[0].item == []
 
 
 def test_clone_single_pipe() -> None:

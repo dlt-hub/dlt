@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any
+from typing import Iterator, List, Dict, Any, Optional
 import yaml
 
 from dlt.common.configuration.container import Container
@@ -31,10 +31,9 @@ from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, 
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     LoadPackageStateInjectableContext,
-    TPipelineStateDoc,
+    TLoadPackageState,
+    commit_load_package_state,
 )
-
-
 from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
@@ -170,6 +169,9 @@ def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
 
 
 class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
+    original_data: Any
+    """Original data from which the extracted DltSource was created. Will be used to describe in extract info"""
+
     def __init__(
         self,
         schema_storage: SchemaStorage,
@@ -181,6 +183,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         self.collector = collector
         self.schema_storage = schema_storage
         self.extract_storage = ExtractStorage(normalize_storage_config)
+        # TODO: this should be passed together with DltSource to extract()
         self.original_data: Any = original_data
         super().__init__()
 
@@ -219,7 +222,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if name == "incremental":
                     # represent incremental as dictionary (it derives from BaseConfiguration)
                     if isinstance(hint, IncrementalResourceWrapper):
-                        hint = hint._incremental
+                        hint = hint.incremental
                     # sometimes internal incremental is not bound
                     if hint:
                         hints[name] = dict(hint)  # type: ignore[call-overload]
@@ -297,9 +300,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         load_id: str,
         source: DltSource,
         *,
-        max_parallel_items: int = None,
-        workers: int = None,
-        futures_poll_interval: float = None,
+        max_parallel_items: int,
+        workers: int,
     ) -> None:
         schema = source.schema
         collector = self.collector
@@ -319,7 +321,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source.resources.selected_pipes,
                     max_parallel_items=max_parallel_items,
                     workers=workers,
-                    futures_poll_interval=futures_poll_interval,
                 ) as pipes:
                     left_gens = total_gens = len(pipes._sources)
                     collector.update("Resources", 0, total_gens)
@@ -369,18 +370,21 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         source: DltSource,
         max_parallel_items: int,
         workers: int,
+        load_package_state_update: Optional[TLoadPackageState] = None,
     ) -> str:
         # generate load package to be able to commit all the sources together later
-        load_id = self.extract_storage.create_load_package(source.discover_schema())
+        load_id = self.extract_storage.create_load_package(
+            source.discover_schema(), reuse_exiting_package=True
+        )
         with Container().injectable_context(
             SourceSchemaInjectableContext(source.schema)
         ), Container().injectable_context(
             SourceInjectableContext(source)
         ), Container().injectable_context(
             LoadPackageStateInjectableContext(
-                storage=self.extract_storage.new_packages, load_id=load_id
+                load_id=load_id, storage=self.extract_storage.new_packages
             )
-        ):
+        ) as load_package:
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(
@@ -388,6 +392,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source_state_key=source.name,
                 )
             ):
+                if load_package_state_update:
+                    load_package.state.update(load_package_state_update)
+
                 # reset resource states, the `extracted` list contains all the explicit resources and all their parents
                 for resource in source.resources.extracted.values():
                     with contextlib.suppress(DataItemRequiredForDynamicTableHints):
@@ -400,16 +407,13 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
+                commit_load_package_state()
         return load_id
 
-    def commit_packages(self, pipline_state_doc: TPipelineStateDoc = None) -> None:
-        """Commits all extracted packages to normalize storage, and adds the pipeline state to the load package"""
+    def commit_packages(self) -> None:
+        """Commits all extracted packages to normalize storage"""
         # commit load packages
         for load_id, metrics in self._load_id_metrics.items():
-            if pipline_state_doc:
-                package_state = self.extract_storage.new_packages.get_load_package_state(load_id)
-                package_state["pipeline_state"] = {**pipline_state_doc, "dlt_load_id": load_id}
-                self.extract_storage.new_packages.save_load_package_state(load_id, package_state)
             self.extract_storage.commit_new_load_package(
                 load_id, self.schema_storage[metrics[0]["schema_name"]]
             )

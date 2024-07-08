@@ -23,7 +23,9 @@ class RedshiftCredentials(PostgresCredentials):
 class RedshiftClientConfiguration(PostgresClientConfiguration):
     destination_type: Final[str] = dataclasses.field(default="redshift", init=False, repr=False, compare=False)  # type: ignore
     credentials: RedshiftCredentials = None
+
     staging_iam_role: Optional[str] = None
+    has_case_sensitive_identifiers: bool = False
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

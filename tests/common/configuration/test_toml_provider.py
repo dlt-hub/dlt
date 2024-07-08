@@ -10,6 +10,7 @@ from dlt.common.configuration import configspec, ConfigFieldMissingException, re
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     CONFIG_TOML,
@@ -89,7 +90,7 @@ def test_config_provider_order(toml_providers: ConfigProvidersContext, environme
         return port
 
     # secrets have api.port=1023 and this will be used
-    assert single_val(None) == 1023
+    assert single_val(dlt.secrets.value) == 1023
 
     # env will make it string, also section is optional
     environment["PORT"] = "UNKNOWN"
@@ -110,7 +111,7 @@ def test_toml_mixed_config_inject(toml_providers: ConfigProvidersContext) -> Non
     ):
         return api_type, secret_value, typecheck
 
-    _tup = mixed_val(None, None, None)
+    _tup = mixed_val(dlt.config.value, dlt.secrets.value, dlt.config.value)
     assert _tup[0] == "REST"
     assert _tup[1] == "2137"
     assert isinstance(_tup[2], dict)
@@ -219,8 +220,8 @@ def test_secrets_toml_credentials_from_native_repr(
         " KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD+S\n...\n-----END"
         " PRIVATE KEY-----\n"
     )
-    # but project id got overridden from credentials.project_id
-    assert c.project_id.endswith("-credentials")
+    # project id taken from the same value, will not be overridden from any other configs
+    assert c.project_id.endswith("mock-project-id-source.credentials")
     # also try sql alchemy url (native repr)
     c2 = resolve.resolve_configuration(ConnectionStringCredentials(), sections=("databricks",))
     assert c2.drivername == "databricks+connector"
@@ -257,8 +258,8 @@ def test_toml_global_config() -> None:
     assert config._add_global_config is False  # type: ignore[attr-defined]
 
     # set dlt data and settings dir
-    os.environ["DLT_DATA_DIR"] = "./tests/common/cases/configuration/dlt_home"
-    os.environ["DLT_PROJECT_DIR"] = "./tests/common/cases/configuration/"
+    os.environ[DLT_DATA_DIR] = "./tests/common/cases/configuration/dlt_home"
+    os.environ[DLT_PROJECT_DIR] = "./tests/common/cases/configuration/"
     # create instance with global toml enabled
     config = ConfigTomlProvider(add_global_config=True)
     assert config._add_global_config is True

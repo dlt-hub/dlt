@@ -5,6 +5,7 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
+from dlt.destinations import duckdb
 from dlt.destinations.impl.duckdb.duck import DuckDbClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
@@ -22,7 +23,7 @@ pytestmark = pytest.mark.essential
 @pytest.fixture
 def client(empty_schema: Schema) -> DuckDbClient:
     # return client without opening connection
-    return DuckDbClient(
+    return duckdb().client(
         empty_schema,
         DuckDbClientConfiguration()._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
@@ -117,7 +118,7 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     assert '"col4" TIMESTAMP WITH TIME ZONE  NOT NULL' in sql
 
     # same thing with indexes
-    client = DuckDbClient(
+    client = duckdb().client(
         client.schema,
         DuckDbClientConfiguration(create_indexes=True)._bind_dataset_name(
             dataset_name="test_" + uniq_id()

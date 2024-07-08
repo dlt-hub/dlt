@@ -13,8 +13,10 @@ import zlib
 
 from typing import (
     Any,
+    Callable,
     ContextManager,
     Dict,
+    MutableMapping,
     Iterator,
     Optional,
     Sequence,
@@ -24,17 +26,15 @@ from typing import (
     Mapping,
     List,
     Union,
-    Counter,
     Iterable,
 )
-from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import DltException, ExceptionTrace, TerminalException
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
 T = TypeVar("T")
-TDict = TypeVar("TDict", bound=DictStrAny)
+TDict = TypeVar("TDict", bound=MutableMapping[Any, Any])
 
 TKey = TypeVar("TKey")
 TValue = TypeVar("TValue")
@@ -137,45 +137,9 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
         else:
             key = str(e)
             if key in o:
-                raise KeyError(f"Cannot flatten with duplicate key {k}")
+                raise KeyError(f"Cannot flatten with duplicate key {key}")
             o[key] = None
     return o
-
-
-# def flatten_dicts_of_dicts(dicts: Mapping[str, Any]) -> Sequence[Any]:
-#     """
-#     Transform and object {K: {...}, L: {...}...} -> [{key:K, ....}, {key: L, ...}, ...]
-#     """
-#     o: List[Any] = []
-#     for k, v in dicts.items():
-#         if isinstance(v, list):
-#             # if v is a list then add "key" to each list element
-#             for lv in v:
-#                 lv["key"] = k
-#         else:
-#             # add as "key" to dict
-#             v["key"] = k
-
-#         o.append(v)
-#     return o
-
-
-# def tuplify_list_of_dicts(dicts: Sequence[DictStrAny]) -> Sequence[DictStrAny]:
-#     """
-#     Transform list of dictionaries with single key into single dictionary of {"key": orig_key, "value": orig_value}
-#     """
-#     for d in dicts:
-#         if len(d) > 1:
-#             raise ValueError(f"Tuplify requires one key dicts {d}")
-#         if len(d) == 1:
-#             key = next(iter(d))
-#             # delete key first to avoid name clashes
-#             value = d[key]
-#             del d[key]
-#             d["key"] = key
-#             d["value"] = value
-
-#     return dicts
 
 
 def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) -> Iterator[TAny]:
@@ -281,33 +245,34 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
             del dest[k]
 
 
-def update_dict_nested(dst: TDict, src: StrAny, keep_dst_values: bool = False) -> TDict:
+def update_dict_nested(dst: TDict, src: TDict, copy_src_dicts: bool = False) -> TDict:
     """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit.
-    Optionally (`keep_dst_values`) you can keep the `dst` value on conflict
+    Only `dict` and its subclasses are updated recursively. With `copy_src_dicts`, dict key:values will be deep copied,
+    otherwise, both dst and src will keep the same references.
     """
-    # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
-
-    def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
-        both_mapping = isinstance(a, C_Mapping) and isinstance(b, C_Mapping)
-        both_counter = isinstance(a, Counter) and isinstance(b, Counter)
-        return both_mapping and not both_counter
 
     for key in src:
+        src_val = src[key]
         if key in dst:
-            if _is_recursive_merge(dst[key], src[key]):
+            dst_val = dst[key]
+            if isinstance(src_val, dict) and isinstance(dst_val, dict):
                 # If the key for both `dst` and `src` are both Mapping types (e.g. dict), then recurse.
-                update_dict_nested(dst[key], src[key], keep_dst_values=keep_dst_values)
-            elif dst[key] is src[key]:
-                # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
-                pass
-            else:
-                if not keep_dst_values:
-                    # if not keep then overwrite
-                    dst[key] = src[key]
+                update_dict_nested(dst_val, src_val, copy_src_dicts=copy_src_dicts)
+                continue
+
+        if copy_src_dicts and isinstance(src_val, dict):
+            dst[key] = update_dict_nested({}, src_val, True)
         else:
-            # If the key exists only in `src`, the value from the `src` object will be used.
-            dst[key] = src[key]
+            dst[key] = src_val
+
     return dst
+
+
+def clone_dict_nested(src: TDict) -> TDict:
+    """Clones `src` structure descending into nested dicts. Does not descend into mappings that are not dicts ie. specs instances.
+    Compared to `deepcopy` does not clone any other objects. Uses `update_dict_nested` internally
+    """
+    return update_dict_nested({}, src, copy_src_dicts=True)  # type: ignore[return-value]
 
 
 def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny:
@@ -503,11 +468,15 @@ def merge_row_counts(row_counts_1: RowCounts, row_counts_2: RowCounts) -> None:
         row_counts_1[counter_name] = row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
 
 
-def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[Any]) -> List[Any]:
+def extend_list_deduplicated(
+    original_list: List[Any],
+    extending_list: Iterable[Any],
+    normalize_f: Callable[[str], str] = str.__call__,
+) -> List[Any]:
     """extends the first list by the second, but does not add duplicates"""
-    list_keys = set(original_list)
+    list_keys = set(normalize_f(s) for s in original_list)
     for item in extending_list:
-        if item not in list_keys:
+        if normalize_f(item) not in list_keys:
             original_list.append(item)
     return original_list
 

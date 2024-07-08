@@ -71,13 +71,13 @@ You should keep the import schema as simple as possible and let `dlt` do the res
    automatically on the next run. It means that after a user update, the schema in `import`
    folder reverts all the automatic updates from the data.
 
-In next steps we'll experiment a lot, you will be warned to set `full_refresh=True` until we are done experimenting.
+In next steps we'll experiment a lot, you will be warned to set `dev_mode=True` until we are done experimenting.
 
 :::caution
 `dlt` will **not modify** tables after they are created.
 So if you have a `yaml` file, and you change it (e.g. change a data type or add a hint),
 then you need to **delete the dataset**
-or set `full_refresh=True`:
+or set `dev_mode=True`:
 ```py
 dlt.pipeline(
     import_schema_path="schemas/import",
@@ -85,7 +85,7 @@ dlt.pipeline(
     pipeline_name="chess_pipeline",
     destination='duckdb',
     dataset_name="games_data",
-    full_refresh=True,
+    dev_mode=True,
 )
 ```
 :::

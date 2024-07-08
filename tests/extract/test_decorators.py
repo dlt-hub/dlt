@@ -42,7 +42,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.items import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
+from tests.common.utils import load_yml_case
 
 
 def test_default_resource() -> None:
@@ -57,8 +57,10 @@ def test_default_resource() -> None:
         "resource": "resource",
         "write_disposition": "append",
     }
-    assert resource().name == "resource"
     assert resource._args_bound is False
+    assert resource.name == "resource"
+    assert resource().args_bound is True
+    assert resource().name == "resource"
     assert resource.incremental is None
     assert resource.write_disposition == "append"
 
@@ -105,7 +107,10 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    eth_v9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    # source removes processing hints so we do
+    reference_schema = Schema.from_dict(eth_v9, remove_processing_hints=True)
+    assert schema.stored_version_hash == reference_schema.stored_version_hash
 
 
 def test_unbound_parametrized_transformer() -> None:
@@ -339,6 +344,41 @@ def test_columns_from_pydantic() -> None:
     assert t["columns"]["b"]["data_type"] == "double"
 
 
+def test_not_normalized_identifiers_in_hints() -> None:
+    @dlt.resource(
+        primary_key="ID",
+        merge_key=["Month", "Day"],
+        columns=[{"name": "Col1", "data_type": "bigint"}],
+        table_name="🐫Camels",
+    )
+    def CamelResource():
+        yield ["🐫"] * 10
+
+    camels = CamelResource()
+    # original names are kept
+    assert camels.name == "CamelResource"
+    assert camels.table_name == "🐫Camels"
+    assert camels.columns == {"Col1": {"data_type": "bigint", "name": "Col1"}}
+    table = camels.compute_table_schema()
+    columns = table["columns"]
+    assert "ID" in columns
+    assert "Month" in columns
+    assert "Day" in columns
+    assert "Col1" in columns
+    assert table["name"] == "🐫Camels"
+
+    # define as part of a source
+    camel_source = DltSource(Schema("snake_case"), "camel_section", [camels])
+    schema = camel_source.discover_schema()
+    # all normalized
+    table = schema.get_table("_camels")
+    columns = table["columns"]
+    assert "id" in columns
+    assert "month" in columns
+    assert "day" in columns
+    assert "col1" in columns
+
+
 def test_resource_name_from_generator() -> None:
     def some_data():
         yield [1, 2, 3]
@@ -563,6 +603,21 @@ def test_source_schema_context() -> None:
     _assert_source_schema(created_global(), "global")
 
 
+def test_source_schema_removes_processing_hints() -> None:
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    assert "x-normalizer" in eth_V9["tables"]["blocks"]
+
+    @dlt.source(schema=Schema.from_dict(eth_V9))
+    def created_explicit():
+        schema = dlt.current.source_schema()
+        assert schema.name == "ethereum"
+        assert "x-normalizer" not in schema.tables["blocks"]
+        return dlt.resource([1, 2, 3], name="res")
+
+    source = created_explicit()
+    assert "x-normalizer" not in source.schema.tables["blocks"]
+
+
 def test_source_state_context() -> None:
     @dlt.resource(selected=False)
     def main():
@@ -629,6 +684,18 @@ def test_spec_generation() -> None:
     assert len(fields) == 2
     assert "secret" in fields
     assert "config" in fields
+
+    @dlt.resource(standalone=True)
+    def inner_standalone_resource(
+        secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"
+    ):
+        yield 1
+
+    SPEC = get_fun_spec(inner_standalone_resource("TS", "CFG")._pipe.gen)  # type: ignore[arg-type]
+    fields = SPEC.get_resolvable_fields()
+    # resources marked as standalone always inject full signature
+    assert len(fields) == 3
+    assert {"secret", "config", "opt"} == set(fields.keys())
 
     @dlt.source
     def inner_source(secret=dlt.secrets.value, config=dlt.config.value, opt: str = "A"):
@@ -734,6 +801,11 @@ def standalone_signature(init: int, secret_end: int = dlt.secrets.value):
     yield from range(init, secret_end)
 
 
+@dlt.resource
+def regular_signature(init: int, secret_end: int = dlt.secrets.value):
+    yield from range(init, secret_end)
+
+
 def test_standalone_resource() -> None:
     # wrapped flag will not create the resource but just simple function wrapper that must be called before use
     @dlt.resource(standalone=True)
@@ -746,7 +818,7 @@ def test_standalone_resource() -> None:
     assert nice_signature.__doc__ == """Has nice signature"""
 
     assert list(nice_signature(7)) == [7, 8, 9]
-    assert nice_signature(8)._args_bound is True
+    assert nice_signature(8).args_bound is True
     with pytest.raises(TypeError):
         # bound!
         nice_signature(7)()
@@ -793,19 +865,23 @@ def standalone_transformer_returns(item: TDataItem, init: int = dlt.config.value
     return "A" * item * init
 
 
-def test_standalone_transformer() -> None:
+@pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
+def test_standalone_transformer(next_item_mode: str) -> None:
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = next_item_mode
+
     assert not isinstance(standalone_transformer, DltResource)
     assert callable(standalone_transformer)
     assert standalone_transformer.__doc__ == """Has fine transformer docstring"""
 
     bound_tx = standalone_transformer(5, 10)
     # this is not really true
-    assert bound_tx._args_bound is True
+    assert bound_tx.args_bound is True
     with pytest.raises(TypeError):
         bound_tx(1)
     assert isinstance(bound_tx, DltResource)
     # the resource sets the start of the range of transformer + transformer init
-    assert list(standalone_signature(1, 3) | bound_tx) == [6, 7, 8, 9, 7, 8, 9]
+    exp_result = [6, 7, 7, 8, 8, 9, 9] if next_item_mode == "round_robin" else [6, 7, 8, 9, 7, 8, 9]
+    assert list(standalone_signature(1, 3) | bound_tx) == exp_result
 
     # wrong params to transformer
     with pytest.raises(TypeError):
@@ -824,6 +900,18 @@ def test_standalone_transformer() -> None:
         "AAAAAA",
         "AAAAAAAA",
     ]
+
+
+def test_transformer_required_args() -> None:
+    @dlt.transformer
+    def path_params(id_, workspace_id, load_id, base: bool = False):
+        yield {"id": id_, "workspace_id": workspace_id, "load_id": load_id}
+
+    data = list([1, 2, 3] | path_params(121, 343))
+    assert len(data) == 3
+    assert data[0] == {"id": 1, "workspace_id": 121, "load_id": 343}
+
+    # @dlt
 
 
 @dlt.transformer(standalone=True, name=lambda args: args["res_name"])
@@ -891,14 +979,26 @@ def test_standalone_resource_returning_resource_exception() -> None:
     assert conf_ex.value.fields == ["uniq_name"]
 
 
-def test_resource_rename_credentials_separation():
+def test_standalone_resource_rename_credentials_separation():
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
     assert list(standalone_signature(1)) == [1, 2, 3, 4]
 
-    # config section is not impacted by the rename
-    # NOTE: probably we should keep it like that
-    os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    # os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    # assert list(standalone_signature.with_name("renamed_sig")(1)) == [1, 2, 3, 4, 5]
+
+    # bound resource will not allow for reconfig
     assert list(standalone_signature(1).with_name("renamed_sig")) == [1, 2, 3, 4]
+
+
+def test_resource_rename_credentials_separation():
+    os.environ["SOURCES__TEST_DECORATORS__REGULAR_SIGNATURE__SECRET_END"] = "5"
+    assert list(regular_signature(1)) == [1, 2, 3, 4]
+
+    os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    assert list(regular_signature.with_name("renamed_sig")(1)) == [1, 2, 3, 4, 5]
+
+    # bound resource will not allow for reconfig
+    assert list(regular_signature(1).with_name("renamed_sig")) == [1, 2, 3, 4]
 
 
 def test_class_source() -> None:
