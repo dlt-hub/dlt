@@ -36,7 +36,6 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
     TTableEngineType,
     TABLE_ENGINE_TYPE_HINT,
@@ -289,15 +288,17 @@ class ClickHouseMergeJob(SqlMergeJob):
 
 
 class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
     def __init__(
         self,
         schema: Schema,
         config: ClickHouseClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
     ) -> None:
         self.sql_client: ClickHouseSqlClient = ClickHouseSqlClient(
-            config.normalize_dataset_name(schema), config.credentials
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         super().__init__(schema, config, self.sql_client)
         self.config: ClickHouseClientConfiguration = config
@@ -327,7 +328,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
         return (
-            f"{self.capabilities.escape_identifier(c['name'])} {type_with_nullability_modifier} {hints_str}"
+            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_str}"
             .strip()
         )
 
@@ -357,7 +358,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 
         if primary_key_list := [
-            self.capabilities.escape_identifier(c["name"])
+            self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("primary_key")
         ]:
@@ -366,34 +367,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] += "\nPRIMARY KEY tuple()"
 
         return sql
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        fields = self._get_storage_table_query_columns()
-        db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
-            ".", 3
-        )
-        query = f'SELECT {",".join(fields)} FROM INFORMATION_SCHEMA.COLUMNS WHERE '
-        if len(db_params) == 3:
-            query += "table_catalog = %s AND "
-        query += "table_schema = %s AND table_name = %s ORDER BY ordinal_position;"
-        rows = self.sql_client.execute_sql(query, *db_params)
-
-        # If no rows we assume that table does not exist.
-        schema_table: TTableSchemaColumns = {}
-        if len(rows) == 0:
-            return False, schema_table
-        for c in rows:
-            numeric_precision = (
-                c[3] if self.capabilities.schema_supports_numeric_precision else None
-            )
-            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
-            schema_c: TColumnSchemaBase = {
-                "name": c[0],
-                "nullable": bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),
-            }
-            schema_table[c[0]] = schema_c  # type: ignore
-        return True, schema_table
 
     @staticmethod
     def _gen_not_null(v: bool) -> str:

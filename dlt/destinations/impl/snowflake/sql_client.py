@@ -17,7 +17,6 @@ from dlt.destinations.sql_client import (
 )
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
-from dlt.destinations.impl.snowflake import capabilities
 
 
 class SnowflakeCursorImpl(DBApiCursorImpl):
@@ -31,10 +30,15 @@ class SnowflakeCursorImpl(DBApiCursorImpl):
 
 class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = snowflake_lib
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: SnowflakeCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+    def __init__(
+        self,
+        dataset_name: str,
+        staging_dataset_name: str,
+        credentials: SnowflakeCredentials,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: snowflake_lib.SnowflakeConnection = None
         self.credentials = credentials
 
@@ -111,12 +115,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                     self.close_connection()
                     self.open_connection()
                 raise outer
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        # Always escape for uppercase
-        if escape:
-            return self.capabilities.escape_identifier(self.dataset_name)
-        return self.dataset_name.upper()
 
     def _reset_connection(self) -> None:
         self._conn.rollback()

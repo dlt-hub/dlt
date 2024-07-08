@@ -50,14 +50,14 @@ The instructions below assume that you use the default account setup that you ge
 --create database with standard settings
 CREATE DATABASE dlt_data;
 -- create new user - set your password here
-CREATE USER loader WITH PASSWORD='<password>'
+CREATE USER loader WITH PASSWORD='<password>';
 -- we assign all permission to a role
 CREATE ROLE DLT_LOADER_ROLE;
 GRANT ROLE DLT_LOADER_ROLE TO USER loader;
 -- give database access to new role
 GRANT USAGE ON DATABASE dlt_data TO DLT_LOADER_ROLE;
 -- allow `dlt` to create new schemas
-GRANT CREATE SCHEMA ON DATABASE dlt_data TO ROLE DLT_LOADER_ROLE
+GRANT CREATE SCHEMA ON DATABASE dlt_data TO ROLE DLT_LOADER_ROLE;
 -- allow access to a warehouse named COMPUTE_WH
 GRANT USAGE ON WAREHOUSE COMPUTE_WH TO DLT_LOADER_ROLE;
 -- grant access to all future schemas and tables in the database
@@ -71,9 +71,10 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 
 ### Authentication types
 Snowflake destination accepts three authentication types:
+Snowflake destination accepts three authentication types:
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
-- external authentication
+- oauth authentication
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as the [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
@@ -81,6 +82,7 @@ You can also pass credentials as a database connection string. For example:
 ```toml
 # keep it at the top of your toml file! before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
+
 ```
 
 In **key pair authentication**, you replace the password with a private key string that should be in Base64-encoded DER format ([DBT also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections). The private key may also be encrypted. In that case, you must provide a passphrase alongside the private key.
@@ -100,16 +102,32 @@ If you pass a passphrase in the connection string, please URL encode it.
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
 
-In **external authentication**, you can use an OAuth provider like Okta or an external browser to authenticate. You pass your authenticator and refresh token as below:
+In **oauth authentication**, you can use an OAuth provider like Snowflake, Okta or an external browser to authenticate. In case of Snowflake oauth, you pass your `authenticator` and refresh `token` as below:
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
 username = "loader"
-authenticator="..."
+authenticator="oauth"
 token="..."
 ```
 or in the connection string as query parameters.
-Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+In case of external authentication, you need to find documentation for your OAuth provider. Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
+
+### Additional connection options
+We pass all query parameters to `connect` function of Snowflake Python Connector. For example:
+```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+authenticator="oauth"
+[destination.snowflake.credentials.query]
+timezone="UTC"
+# keep session alive beyond 4 hours
+client_session_keep_alive=true
+```
+Will set the timezone and session keep alive. Mind that if you use `toml` your configuration is typed. The alternative:
+`"snowflake://loader/dlt_data?authenticator=oauth&timezone=UTC&client_session_keep_alive=true"`
+will pass `client_session_keep_alive` as string to the connect method (which we didn't verify if it works).
 
 ## Write disposition
 All write dispositions are supported.
@@ -124,21 +142,42 @@ The data is loaded using an internal Snowflake stage. We use the `PUT` command a
 * [insert-values](../file-formats/insert-format.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
 * [jsonl](../file-formats/jsonl.md) is supported
+* [csv](../file-formats/csv.md) is supported
 
 When staging is enabled:
 * [jsonl](../file-formats/jsonl.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
+* [csv](../file-formats/csv.md) is supported
 
-> ❗ When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+:::caution
+When loading from `parquet`, Snowflake will store `complex` types (JSON) in `VARIANT` as a string. Use the `jsonl` format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+:::
+
+### Custom csv formats
+By default we support csv format [produced by our writers](../file-formats/csv.md#default-settings) which is comma delimited, with header and optionally quoted.
+
+You can configure your own formatting ie. when [importing](../../general-usage/resource.md#import-external-files) external `csv` files.
+```toml
+[destination.snowflake.csv_format]
+delimiter="|"
+include_header=false
+on_error_continue=true
+```
+Which will read, `|` delimited file, without header and will continue on errors.
+
+Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and we will insert NULL into them.
 
 ## Supported column hints
 Snowflake supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ### Table and column identifiers
-Snowflake makes all unquoted identifiers uppercase and then resolves them case-insensitively in SQL statements. `dlt` (effectively) does not quote identifiers in DDL, preserving default behavior.
+Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
+case sensitive identifiers that must be quoted in SQL statements.
 
+:::note
 Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools, i.e., `dbt`. In the case of `dlt`, it is, however, trivial to define your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
+:::
 
 ## Staging support
 
@@ -247,6 +286,29 @@ stage_name="DLT_STAGE"
 # Whether to keep or delete the staged files after COPY INTO succeeds
 keep_staged_files=true
 ```
+
+### Setting up `csv` format
+You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
+```toml
+[destination.snowflake.csv_format]
+delimiter="|"
+include_header=false
+on_error_continue=true
+```
+or
+```py
+from dlt.destinations import snowflake
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
+
+csv_format = CsvFormatConfiguration(delimiter="|", include_header=False, on_error_continue=True)
+
+dest_ = snowflake(csv_format=csv_format)
+```
+Above we set `csv` file without header, with **|** as a separator and we request to ignore lines with errors.
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
 
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.

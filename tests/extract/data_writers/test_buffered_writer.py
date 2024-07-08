@@ -264,6 +264,27 @@ def test_import_file(writer_type: Type[DataWriter]) -> None:
         assert metrics.file_size == 231
 
 
+@pytest.mark.parametrize("writer_type", ALL_WRITERS)
+def test_import_file_with_extension(writer_type: Type[DataWriter]) -> None:
+    now = time.time()
+    with get_writer(writer_type) as writer:
+        # won't destroy the original
+        metrics = writer.import_file(
+            "tests/extract/cases/imported.any",
+            DataWriterMetrics("", 1, 231, 0, 0),
+            with_extension="any",
+        )
+        assert len(writer.closed_files) == 1
+        assert os.path.isfile(metrics.file_path)
+        # extension is correctly set
+        assert metrics.file_path.endswith(".any")
+        assert writer.closed_files[0] == metrics
+        assert metrics.created <= metrics.last_modified
+        assert metrics.created >= now
+        assert metrics.items_count == 1
+        assert metrics.file_size == 231
+
+
 @pytest.mark.parametrize(
     "disable_compression", [True, False], ids=["no_compression", "compression"]
 )

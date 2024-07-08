@@ -1,6 +1,5 @@
 import pytest
 import yaml
-from copy import deepcopy
 
 from dlt.common import json
 from dlt.common.schema import utils

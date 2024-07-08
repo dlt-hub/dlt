@@ -28,7 +28,7 @@ def init_sentry(config: RunConfiguration) -> None:
     # https://docs.sentry.io/platforms/python/guides/logging/
     sentry_sdk.init(
         config.sentry_dsn,
-        before_send=before_send,
+        before_send=before_send,  # type: ignore
         traces_sample_rate=1.0,
         # disable tornado, boto3, sql alchemy etc.
         auto_enabling_integrations=False,

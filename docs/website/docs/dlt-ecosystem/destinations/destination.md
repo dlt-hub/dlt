@@ -55,7 +55,9 @@ The full signature of the destination decorator plus its function is the followi
     name="my_custom_destination",
     naming_convention="direct",
     max_table_nesting=0,
-    skip_dlt_columns_and_tables=True
+    skip_dlt_columns_and_tables=True,
+    max_parallel_load_jobs=5,
+    loader_parallelism_strategy="table-sequential",
 )
 def my_destination(items: TDataItems, table: TTableSchema) -> None:
     ...
@@ -68,6 +70,8 @@ def my_destination(items: TDataItems, table: TTableSchema) -> None:
 * The `naming_convention` parameter on the destination decorator defines the name of the destination that gets created by the destination decorator. This controls how table and column names are normalized. The default is `direct`, which will keep all names the same.
 * The `max_nesting_level` parameter on the destination decorator defines how deep the normalizer will go to normalize complex fields on your data to create subtables. This overwrites any settings on your `source` and is set to zero to not create any nested tables by default.
 * The `skip_dlt_columns_and_tables` parameter on the destination decorator defines whether internal tables and columns will be fed into the custom destination function. This is set to `True` by default.
+* The `max_parallel_load_jobs` parameter will define how many load jobs will run in parallel in threads, if you have a destination that only allows five connections at a time, you can set this value to 5 for example
+* The `loader_parallelism_strategy` parameter will control how load jobs are parallelized. Set to `parallel`, the default, jobs will be parallelized no matter which table is being loaded to. `table-sequential` will parallelize loading but only ever have one load job per table at a time, `sequential` will run all load jobs sequentially on the main thread.
 
 :::note
 Settings above make sure that shape of the data you receive in the destination function is as close as possible to what you see in the data source.

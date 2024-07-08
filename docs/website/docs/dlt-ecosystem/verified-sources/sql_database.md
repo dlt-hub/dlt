@@ -177,9 +177,9 @@ pipeline = dlt.pipeline(
 )
 
 def _double_as_decimal_adapter(table: sa.Table) -> None:
-    """Return double as double, not decimals, this is mysql thing"""
+    """Emits decimals instead of floats."""
     for column in table.columns.values():
-        if isinstance(column.type, sa.Double):  # type: ignore
+        if isinstance(column.type, sa.Float):
             column.type.asdecimal = False
 
 sql_alchemy_source = sql_database(
@@ -271,7 +271,7 @@ pipeline = dlt.pipeline(
     pipeline_name="unsw_download",
     destination=filesystem(os.path.abspath("../_storage/unsw")),
     progress="log",
-    full_refresh=True,
+    dev_mode=True,
 )
 
 info = pipeline.run(

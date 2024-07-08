@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, List, Any, Final, Literal, cast, Optional
+from typing import ClassVar, Dict, List, Any, Final, Literal, cast, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -59,23 +59,21 @@ class ClickHouseCredentials(ConnectionStringCredentials):
             self.query.get("send_receive_timeout", self.send_receive_timeout)
         )
         self.secure = cast(TSecureConnection, int(self.query.get("secure", self.secure)))
-        if not self.is_partial():
-            self.resolve()
 
-    def to_url(self) -> URL:
-        url = super().to_url()
-        url = url.update_query_pairs(
-            [
-                ("connect_timeout", str(self.connect_timeout)),
-                ("send_receive_timeout", str(self.send_receive_timeout)),
-                ("secure", str(1) if self.secure else str(0)),
+    def get_query(self) -> Dict[str, Any]:
+        query = dict(super().get_query())
+        query.update(
+            {
+                "connect_timeout": str(self.connect_timeout),
+                "send_receive_timeout": str(self.send_receive_timeout),
+                "secure": 1 if self.secure else 0,
                 # Toggle experimental settings. These are necessary for certain datatypes and not optional.
-                ("allow_experimental_lightweight_delete", "1"),
-                # ("allow_experimental_object_type", "1"),
-                ("enable_http_compression", "1"),
-            ]
+                "allow_experimental_lightweight_delete": 1,
+                # "allow_experimental_object_type": 1,
+                "enable_http_compression": 1,
+            }
         )
-        return url
+        return query
 
 
 @configspec

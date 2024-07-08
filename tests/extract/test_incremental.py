@@ -17,6 +17,7 @@ from dlt.common.configuration.exceptions import InvalidNativeValue
 from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.configuration import ConfigurationValueError
 from dlt.common.pendulum import pendulum, timedelta
+from dlt.common import Decimal
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, digest128, chunks
@@ -40,6 +41,14 @@ from tests.utils import (
     TestDataItemFormat,
     ALL_TEST_DATA_ITEM_FORMATS,
 )
+
+
+@pytest.fixture(autouse=True)
+def switch_to_fifo():
+    """most of the following tests rely on the old default fifo next item mode"""
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+    yield
+    del os.environ["EXTRACT__NEXT_ITEM_MODE"]
 
 
 def test_detect_incremental_arg() -> None:
@@ -189,7 +198,8 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
             yield from source_items2
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(), destination="duckdb", credentials=duckdb.connect(":memory:")
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
     p.run(some_data()).raise_on_failed_jobs()
     p.run(some_data()).raise_on_failed_jobs()
@@ -229,7 +239,8 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TestDataItemFormat) -> 
             yield from source_items2
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(), destination="duckdb", credentials=duckdb.connect(":memory:")
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
     p.run(some_data()).raise_on_failed_jobs()
     p.run(some_data()).raise_on_failed_jobs()
@@ -435,7 +446,8 @@ def test_composite_primary_key(item_type: TestDataItemFormat) -> None:
         yield from source_items
 
     p = dlt.pipeline(
-        pipeline_name=uniq_id(), destination="duckdb", credentials=duckdb.connect(":memory:")
+        pipeline_name=uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
     )
     p.run(some_data()).raise_on_failed_jobs()
 
@@ -776,6 +788,43 @@ def test_start_value_set_to_last_value_arrow(item_type: TestDataItemFormat) -> N
 
     p.run(some_data(True))
     p.run(some_data(False))
+
+
+@pytest.mark.parametrize("item_type", set(ALL_TEST_DATA_ITEM_FORMATS) - {"pandas"})
+@pytest.mark.parametrize(
+    "id_value",
+    ("1231231231231271872", b"1231231231231271872", pendulum.now(), 1271.78, Decimal("1231.87")),
+)
+def test_primary_key_types(item_type: TestDataItemFormat, id_value: Any) -> None:
+    """Case when deduplication filter is empty for an Arrow table."""
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
+    now = pendulum.now()
+
+    data = [
+        {
+            "delta": str(i),
+            "ts": now.add(days=i),
+            "_id": id_value,
+        }
+        for i in range(-10, 10)
+    ]
+    source_items = data_to_item_format(item_type, data)
+    start = now.add(days=-10)
+
+    @dlt.resource
+    def some_data(
+        last_timestamp=dlt.sources.incremental("ts", initial_value=start, primary_key="_id"),
+    ):
+        yield from source_items
+
+    info = p.run(some_data())
+    info.raise_on_failed_jobs()
+    norm_info = p.last_trace.last_normalize_info
+    assert norm_info.row_counts["some_data"] == 20
+    # load incrementally
+    info = p.run(some_data())
+    norm_info = p.last_trace.last_normalize_info
+    assert "some_data" not in norm_info.row_counts
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)

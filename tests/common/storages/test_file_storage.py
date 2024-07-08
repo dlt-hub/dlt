@@ -39,38 +39,40 @@ def test_to_relative_path(test_storage: FileStorage) -> None:
 def test_make_full_path(test_storage: FileStorage) -> None:
     # fully within storage
     relative_path = os.path.join("dir", "to", "file")
-    path = test_storage.make_full_path(relative_path)
+    path = test_storage.make_full_path_safe(relative_path)
     assert path.endswith(os.path.join(TEST_STORAGE_ROOT, relative_path))
     # overlapped with storage
     root_path = os.path.join(TEST_STORAGE_ROOT, relative_path)
-    path = test_storage.make_full_path(root_path)
+    path = test_storage.make_full_path_safe(root_path)
     assert path.endswith(root_path)
     assert path.count(TEST_STORAGE_ROOT) == 2
     # absolute path with different root than TEST_STORAGE_ROOT does not lead into storage so calculating full path impossible
     with pytest.raises(ValueError):
-        test_storage.make_full_path(os.path.join("/", root_path))
+        test_storage.make_full_path_safe(os.path.join("/", root_path))
     # relative path out of the root
     with pytest.raises(ValueError):
-        test_storage.make_full_path("..")
+        test_storage.make_full_path_safe("..")
     # absolute overlapping path
-    path = test_storage.make_full_path(os.path.abspath(root_path))
+    path = test_storage.make_full_path_safe(os.path.abspath(root_path))
     assert path.endswith(root_path)
-    assert test_storage.make_full_path("") == test_storage.storage_path
-    assert test_storage.make_full_path(".") == test_storage.storage_path
+    assert test_storage.make_full_path_safe("") == test_storage.storage_path
+    assert test_storage.make_full_path_safe(".") == test_storage.storage_path
 
 
 def test_in_storage(test_storage: FileStorage) -> None:
     # always relative to storage root
-    assert test_storage.in_storage("a/b/c") is True
-    assert test_storage.in_storage(f"../{TEST_STORAGE_ROOT}/b/c") is True
-    assert test_storage.in_storage("../a/b/c") is False
-    assert test_storage.in_storage("../../../a/b/c") is False
-    assert test_storage.in_storage("/a") is False
-    assert test_storage.in_storage(".") is True
-    assert test_storage.in_storage(os.curdir) is True
-    assert test_storage.in_storage(os.path.realpath(os.curdir)) is False
+    assert test_storage.is_path_in_storage("a/b/c") is True
+    assert test_storage.is_path_in_storage(f"../{TEST_STORAGE_ROOT}/b/c") is True
+    assert test_storage.is_path_in_storage("../a/b/c") is False
+    assert test_storage.is_path_in_storage("../../../a/b/c") is False
+    assert test_storage.is_path_in_storage("/a") is False
+    assert test_storage.is_path_in_storage(".") is True
+    assert test_storage.is_path_in_storage(os.curdir) is True
+    assert test_storage.is_path_in_storage(os.path.realpath(os.curdir)) is False
     assert (
-        test_storage.in_storage(os.path.join(os.path.realpath(os.curdir), TEST_STORAGE_ROOT))
+        test_storage.is_path_in_storage(
+            os.path.join(os.path.realpath(os.curdir), TEST_STORAGE_ROOT)
+        )
         is True
     )
 
@@ -164,7 +166,7 @@ def test_rmtree_ro(test_storage: FileStorage) -> None:
     test_storage.create_folder("protected")
     path = test_storage.save("protected/barbapapa.txt", "barbapapa")
     os.chmod(path, stat.S_IREAD)
-    os.chmod(test_storage.make_full_path("protected"), stat.S_IREAD)
+    os.chmod(test_storage.make_full_path_safe("protected"), stat.S_IREAD)
     with pytest.raises(PermissionError):
         test_storage.delete_folder("protected", recursively=True, delete_ro=False)
     test_storage.delete_folder("protected", recursively=True, delete_ro=True)

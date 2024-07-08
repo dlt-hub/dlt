@@ -14,6 +14,10 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="bigquery", init=False, repr=False, compare=False)  # type: ignore
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"
+    has_case_sensitive_identifiers: bool = True
+    """If True then dlt expects to load data into case sensitive dataset"""
+    should_set_case_sensitivity_on_new_dataset: bool = False
+    """If True, dlt will set case sensitivity flag on created datasets that corresponds to naming convention"""
 
     http_timeout: float = 15.0  # connection timeout for http request to BigQuery api
     file_upload_timeout: float = 30 * 60.0  # a timeout for file upload when loading local files

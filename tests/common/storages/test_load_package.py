@@ -8,10 +8,8 @@ import dlt
 from dlt.common import sleep
 from dlt.common.schema import Schema
 from dlt.common.storages import PackageStorage, LoadStorage, ParsedLoadJobFileName
+from dlt.common.storages.exceptions import LoadPackageAlreadyCompleted, LoadPackageNotCompleted
 from dlt.common.utils import uniq_id
-
-from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
-from tests.utils import autouse_test_storage
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.storages.load_package import (
@@ -22,6 +20,9 @@ from dlt.common.storages.load_package import (
     commit_load_package_state,
     clear_destination_state,
 )
+
+from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
 
 
 def test_is_partially_loaded(load_storage: LoadStorage) -> None:
@@ -241,6 +242,177 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
 
     with pytest.raises(ValueError):
         ParsedLoadJobFileName.parse("tab.id.wrong_retry.jsonl")
+
+
+def test_load_package_listings(load_storage: LoadStorage) -> None:
+    # 100 csv files
+    load_id = create_load_package(load_storage.new_packages, 100)
+    new_jobs = load_storage.new_packages.list_new_jobs(load_id)
+    assert len(new_jobs) == 100
+    assert len(load_storage.new_packages.list_job_with_states_for_table(load_id, "items_1")) == 100
+    assert len(load_storage.new_packages.list_job_with_states_for_table(load_id, "items_2")) == 0
+    assert len(load_storage.new_packages.list_all_jobs_with_states(load_id)) == 100
+    assert len(load_storage.new_packages.list_started_jobs(load_id)) == 0
+    assert len(load_storage.new_packages.list_failed_jobs(load_id)) == 0
+    assert load_storage.new_packages.is_package_completed(load_id) is False
+    with pytest.raises(LoadPackageNotCompleted):
+        load_storage.new_packages.list_failed_jobs_infos(load_id)
+    # add a few more files
+    add_new_jobs(load_storage.new_packages, load_id, 7, "items_2")
+    assert len(load_storage.new_packages.list_job_with_states_for_table(load_id, "items_1")) == 100
+    assert len(load_storage.new_packages.list_job_with_states_for_table(load_id, "items_2")) == 7
+    j_w_s = load_storage.new_packages.list_all_jobs_with_states(load_id)
+    assert len(j_w_s) == 107
+    assert all(job[0] == "new_jobs" for job in j_w_s)
+    with pytest.raises(FileNotFoundError):
+        load_storage.new_packages.get_job_failed_message(load_id, j_w_s[0][1])
+    # get package infos
+    package_jobs = load_storage.new_packages.get_load_package_jobs(load_id)
+    assert len(package_jobs["new_jobs"]) == 107
+    # other folders empty
+    assert len(package_jobs["started_jobs"]) == 0
+    package_info = load_storage.new_packages.get_load_package_info(load_id)
+    assert len(package_info.jobs["new_jobs"]) == 107
+    assert len(package_info.jobs["completed_jobs"]) == 0
+    assert package_info.load_id == load_id
+    # full path
+    assert package_info.package_path == load_storage.new_packages.storage.make_full_path(load_id)
+    assert package_info.state == "new"
+    assert package_info.completed_at is None
+
+    # move some files
+    new_jobs = sorted(load_storage.new_packages.list_new_jobs(load_id))
+    load_storage.new_packages.start_job(load_id, os.path.basename(new_jobs[0]))
+    load_storage.new_packages.start_job(load_id, os.path.basename(new_jobs[1]))
+    load_storage.new_packages.start_job(load_id, os.path.basename(new_jobs[-1]))
+    load_storage.new_packages.start_job(load_id, os.path.basename(new_jobs[-2]))
+
+    assert len(load_storage.new_packages.list_started_jobs(load_id)) == 4
+    assert len(load_storage.new_packages.list_new_jobs(load_id)) == 103
+    assert len(load_storage.new_packages.list_job_with_states_for_table(load_id, "items_1")) == 100
+    assert len(load_storage.new_packages.list_job_with_states_for_table(load_id, "items_2")) == 7
+    package_jobs = load_storage.new_packages.get_load_package_jobs(load_id)
+    assert len(package_jobs["new_jobs"]) == 103
+    assert len(package_jobs["started_jobs"]) == 4
+    package_info = load_storage.new_packages.get_load_package_info(load_id)
+    assert len(package_info.jobs["new_jobs"]) == 103
+    assert len(package_info.jobs["started_jobs"]) == 4
+
+    # complete and fail some
+    load_storage.new_packages.complete_job(load_id, os.path.basename(new_jobs[0]))
+    load_storage.new_packages.fail_job(load_id, os.path.basename(new_jobs[1]), None)
+    load_storage.new_packages.fail_job(load_id, os.path.basename(new_jobs[-1]), "error!")
+    path = load_storage.new_packages.retry_job(load_id, os.path.basename(new_jobs[-2]))
+    assert ParsedLoadJobFileName.parse(path).retry_count == 1
+    assert (
+        load_storage.new_packages.get_job_failed_message(
+            load_id, ParsedLoadJobFileName.parse(new_jobs[1])
+        )
+        is None
+    )
+    assert (
+        load_storage.new_packages.get_job_failed_message(
+            load_id, ParsedLoadJobFileName.parse(new_jobs[-1])
+        )
+        == "error!"
+    )
+    # can't move again
+    with pytest.raises(FileNotFoundError):
+        load_storage.new_packages.complete_job(load_id, os.path.basename(new_jobs[0]))
+    assert len(load_storage.new_packages.list_started_jobs(load_id)) == 0
+    # retry back in new
+    assert len(load_storage.new_packages.list_new_jobs(load_id)) == 104
+    package_jobs = load_storage.new_packages.get_load_package_jobs(load_id)
+    assert len(package_jobs["new_jobs"]) == 104
+    assert len(package_jobs["started_jobs"]) == 0
+    assert len(package_jobs["completed_jobs"]) == 1
+    assert len(package_jobs["failed_jobs"]) == 2
+    assert len(load_storage.new_packages.list_failed_jobs(load_id)) == 2
+    package_info = load_storage.new_packages.get_load_package_info(load_id)
+    assert len(package_info.jobs["new_jobs"]) == 104
+    assert len(package_info.jobs["started_jobs"]) == 0
+    assert len(package_info.jobs["completed_jobs"]) == 1
+    assert len(package_info.jobs["failed_jobs"]) == 2
+
+    # complete package
+    load_storage.new_packages.complete_loading_package(load_id, "aborted")
+    assert load_storage.new_packages.is_package_completed(load_id)
+    with pytest.raises(LoadPackageAlreadyCompleted):
+        load_storage.new_packages.complete_loading_package(load_id, "aborted")
+
+    for job in package_info.jobs["failed_jobs"] + load_storage.new_packages.list_failed_jobs_infos(  # type: ignore[operator]
+        load_id
+    ):
+        if job.job_file_info.table_name == "items_1":
+            assert job.failed_message is None
+        elif job.job_file_info.table_name == "items_2":
+            assert job.failed_message == "error!"
+        else:
+            raise AssertionError()
+        assert job.created_at is not None
+        assert job.elapsed is not None
+        assert job.file_size > 0
+        assert job.state == "failed_jobs"
+        # must be abs path!
+        assert os.path.isabs(job.file_path)
+
+
+def test_get_load_package_info_perf(load_storage: LoadStorage) -> None:
+    import time
+
+    st_t = time.time()
+    for _ in range(10000):
+        load_storage.loaded_packages.storage.make_full_path("198291092.121/new/ABD.CX.gx")
+        # os.path.basename("198291092.121/new/ABD.CX.gx")
+    print(time.time() - st_t)
+
+    st_t = time.time()
+    load_id = create_load_package(load_storage.loaded_packages, 10000)
+    print(time.time() - st_t)
+
+    st_t = time.time()
+    # move half of the files to failed
+    for file_name in load_storage.loaded_packages.list_new_jobs(load_id)[:1000]:
+        load_storage.loaded_packages.start_job(load_id, os.path.basename(file_name))
+        load_storage.loaded_packages.fail_job(
+            load_id, os.path.basename(file_name), f"FAILED {file_name}"
+        )
+    print(time.time() - st_t)
+
+    st_t = time.time()
+    load_storage.loaded_packages.get_load_package_info(load_id)
+    print(time.time() - st_t)
+
+    st_t = time.time()
+    table_stat = {}
+    for file in load_storage.loaded_packages.list_new_jobs(load_id):
+        parsed = ParsedLoadJobFileName.parse(file)
+        table_stat[parsed.table_name] = parsed
+    print(time.time() - st_t)
+
+
+def create_load_package(
+    package_storage: PackageStorage, new_jobs: int, table_name="items_1"
+) -> str:
+    schema = Schema("test")
+    load_id = create_load_id()
+    package_storage.create_package(load_id)
+    package_storage.save_schema(load_id, schema)
+    add_new_jobs(package_storage, load_id, new_jobs, table_name)
+    return load_id
+
+
+def add_new_jobs(
+    package_storage: PackageStorage, load_id: str, new_jobs: int, table_name="items_1"
+) -> None:
+    for _ in range(new_jobs):
+        file_name = PackageStorage.build_job_file_name(
+            table_name, ParsedLoadJobFileName.new_file_id(), 0, False, "csv"
+        )
+        file_path = os.path.join(TEST_STORAGE_ROOT, file_name)
+        with open(file_path, "wt", encoding="utf-8") as f:
+            f.write("a|b|c")
+        package_storage.import_job(load_id, file_path)
 
 
 def test_migrate_to_load_package_state() -> None:

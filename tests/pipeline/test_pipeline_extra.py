@@ -40,7 +40,11 @@ from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, local_filesystem_configs=True
+    ),
+    ids=lambda x: x.name,
 )
 def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
     # create pipelines, extract and normalize. that should be possible without installing any dependencies
@@ -51,11 +55,11 @@ def test_create_pipeline_all_destinations(destination_config: DestinationTestCon
     )
     # are capabilities injected
     caps = p._container[DestinationCapabilitiesContext]
-    print(caps.naming_convention)
-    # are right naming conventions created
-    assert p._default_naming.max_length == min(
-        caps.max_column_identifier_length, caps.max_identifier_length
-    )
+    if caps.naming_convention:
+        assert p.naming.name() == caps.naming_convention
+    else:
+        assert p.naming.name() == "snake_case"
+
     p.extract([1, "2", 3], table_name="data")
     # is default schema with right naming convention
     assert p.default_schema.naming.max_length == min(
@@ -467,6 +471,61 @@ def test_empty_parquet(test_storage: FileStorage) -> None:
     table = pq.read_table(os.path.abspath(test_storage.make_full_path(files[0])))
     assert table.num_rows == 0
     assert set(table.schema.names) == {"id", "name", "_dlt_load_id", "_dlt_id"}
+
+
+def test_resource_file_format() -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+
+    def jsonl_data():
+        yield [
+            {
+                "id": 1,
+                "name": "item",
+                "description": "value",
+                "ordered_at": "2024-04-12",
+                "price": 128.4,
+            },
+            {
+                "id": 1,
+                "name": "item",
+                "description": "value with space",
+                "ordered_at": "2024-04-12",
+                "price": 128.4,
+            },
+        ]
+
+    # preferred file format will use destination preferred format
+    jsonl_preferred = dlt.resource(jsonl_data, file_format="preferred", name="jsonl_preferred")
+    assert jsonl_preferred.compute_table_schema()["file_format"] == "preferred"
+
+    jsonl_r = dlt.resource(jsonl_data, file_format="jsonl", name="jsonl_r")
+    assert jsonl_r.compute_table_schema()["file_format"] == "jsonl"
+
+    jsonl_pq = dlt.resource(jsonl_data, file_format="parquet", name="jsonl_pq")
+    assert jsonl_pq.compute_table_schema()["file_format"] == "parquet"
+
+    info = dlt.pipeline("example", destination="duckdb").run([jsonl_preferred, jsonl_r, jsonl_pq])
+    info.raise_on_failed_jobs()
+    # check file types on load jobs
+    load_jobs = {
+        job.job_file_info.table_name: job.job_file_info
+        for job in info.load_packages[0].jobs["completed_jobs"]
+    }
+    assert load_jobs["jsonl_r"].file_format == "jsonl"
+    assert load_jobs["jsonl_pq"].file_format == "parquet"
+    assert load_jobs["jsonl_preferred"].file_format == "insert_values"
+
+    # test not supported format
+    csv_r = dlt.resource(jsonl_data, file_format="csv", name="csv_r")
+    assert csv_r.compute_table_schema()["file_format"] == "csv"
+    info = dlt.pipeline("example", destination="duckdb").run(csv_r)
+    info.raise_on_failed_jobs()
+    # fallback to preferred
+    load_jobs = {
+        job.job_file_info.table_name: job.job_file_info
+        for job in info.load_packages[0].jobs["completed_jobs"]
+    }
+    assert load_jobs["csv_r"].file_format == "insert_values"
 
 
 def test_pick_matching_file_format(test_storage: FileStorage) -> None:

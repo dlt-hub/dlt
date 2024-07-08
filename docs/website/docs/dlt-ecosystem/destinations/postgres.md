@@ -98,12 +98,38 @@ In the example above `arrow_table` will be converted to csv with **pyarrow** and
 ## Supported column hints
 `postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
+### Table and column identifiers
+Postgres supports both case sensitive and case insensitive identifiers. All unquoted and lowercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
+case sensitive identifiers that must be quoted in SQL statements.
+
 ## Additional destination options
 The Postgres destination creates UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To disable this behavior:
 ```toml
 [destination.postgres]
 create_indexes=false
 ```
+
+### Setting up `csv` format
+You can provide [non-default](../file-formats/csv.md#default-settings) csv settings via configuration file or explicitly.
+```toml
+[destination.postgres.csv_format]
+delimiter="|"
+include_header=false
+```
+or
+```py
+from dlt.destinations import postgres
+from dlt.common.data_writers.configuration import CsvFormatConfiguration
+
+csv_format = CsvFormatConfiguration(delimiter="|", include_header=False)
+
+dest_ = postgres(csv_format=csv_format)
+```
+Above we set `csv` file without header, with **|** as a separator.
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
 
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-postgres.

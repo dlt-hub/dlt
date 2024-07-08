@@ -1,14 +1,14 @@
 from copy import copy
-from typing import Set, Dict, Any, Optional, List
+from typing import Set, Dict, Any, Optional, List, Union
 
+from dlt.common.configuration import known_sections, resolve_configuration, with_config
 from dlt.common import logger
-from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
+from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import MissingDependencyException
-
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.typing import TDataItems, TDataItem
+from dlt.common.typing import TDataItems, TDataItem, TLoaderFileFormat
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TSchemaContractDict,
@@ -17,10 +17,11 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
-from dlt.extract.hints import HintsMeta
+from dlt.extract.hints import HintsMeta, TResourceHints
 from dlt.extract.resource import DltResource
-from dlt.extract.items import TableNameMeta
+from dlt.extract.items import DataItemWithMeta, TableNameMeta
 from dlt.extract.storage import ExtractorItemStorage
+from dlt.normalize.configuration import ItemsNormalizerConfiguration
 
 try:
     from dlt.common.libs import pyarrow
@@ -44,6 +45,50 @@ class MaterializedEmptyList(List[Any]):
 def materialize_schema_item() -> MaterializedEmptyList:
     """Yield this to materialize schema in the destination, even if there's no data."""
     return MaterializedEmptyList()
+
+
+class ImportFileMeta(HintsMeta):
+    __slots__ = ("file_path", "metrics", "file_format")
+
+    def __init__(
+        self,
+        file_path: str,
+        metrics: DataWriterMetrics,
+        file_format: TLoaderFileFormat = None,
+        hints: TResourceHints = None,
+        create_table_variant: bool = None,
+    ) -> None:
+        super().__init__(hints, create_table_variant)
+        self.file_path = file_path
+        self.metrics = metrics
+        self.file_format = file_format
+
+
+def with_file_import(
+    file_path: str,
+    file_format: TLoaderFileFormat,
+    items_count: int = 0,
+    hints: Union[TResourceHints, TDataItem] = None,
+) -> DataItemWithMeta:
+    """Marks file under `file_path` to be associated with current resource and imported into the load package as a file of
+    type `file_format`.
+
+    You can provide optional `hints` that will be applied to the current resource. Note that you should avoid schema inference at
+    runtime if possible and if that is not possible - to do that only once per extract process. Use `make_hints` in `mark` module
+    to create hints. You can also pass Arrow table or Pandas data frame form which schema will be taken (but content discarded).
+    Create `TResourceHints` with `make_hints`.
+
+    If number of records in `file_path` is known, pass it in `items_count` so `dlt` can generate correct extract metrics.
+
+    Note that `dlt` does not sniff schemas from data and will not guess right file format for you.
+    """
+    metrics = DataWriterMetrics(file_path, items_count, 0, 0, 0)
+    item: TDataItem = None
+    # if hints are dict assume that this is dlt schema, if not - that it is arrow table
+    if not isinstance(hints, dict):
+        item = hints
+        hints = None
+    return DataItemWithMeta(ImportFileMeta(file_path, metrics, file_format, hints, False), item)
 
 
 class Extractor:
@@ -77,7 +122,7 @@ class Extractor:
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
-        if isinstance(meta, HintsMeta):
+        if isinstance(meta, HintsMeta) and meta.hints:
             # update the resource with new hints, remove all caches so schema is recomputed
             # and contracts re-applied
             resource.merge_hints(meta.hints, meta.create_table_variant)
@@ -92,7 +137,7 @@ class Extractor:
             self._write_to_static_table(resource, table_name, items, meta)
         else:
             # table has name or other hints depending on data items
-            self._write_to_dynamic_table(resource, items)
+            self._write_to_dynamic_table(resource, items, meta)
 
     def write_empty_items_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
@@ -128,7 +173,24 @@ class Extractor:
             if isinstance(items, MaterializedEmptyList):
                 self.resources_with_empty.add(resource_name)
 
-    def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
+    def _import_item(
+        self,
+        table_name: str,
+        resource_name: str,
+        meta: ImportFileMeta,
+    ) -> None:
+        metrics = self.item_storage.import_items_file(
+            self.load_id,
+            self.schema.name,
+            table_name,
+            meta.file_path,
+            meta.metrics,
+            meta.file_format,
+        )
+        self.collector.update(table_name, inc=metrics.items_count)
+        self.resources_with_items.add(resource_name)
+
+    def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         if not isinstance(items, list):
             items = [items]
 
@@ -142,7 +204,10 @@ class Extractor:
                 )
             # write to storage with inferred table name
             if table_name not in self._filtered_tables:
-                self._write_item(table_name, resource.name, item)
+                if isinstance(meta, ImportFileMeta):
+                    self._import_item(table_name, resource.name, meta)
+                else:
+                    self._write_item(table_name, resource.name, item)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
@@ -150,11 +215,16 @@ class Extractor:
         if table_name not in self._table_contracts:
             items = self._compute_and_update_table(resource, table_name, items, meta)
         if table_name not in self._filtered_tables:
-            self._write_item(table_name, resource.name, items)
+            if isinstance(meta, ImportFileMeta):
+                self._import_item(table_name, resource.name, meta)
+            else:
+                self._write_item(table_name, resource.name, items)
 
     def _compute_table(self, resource: DltResource, items: TDataItems, meta: Any) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items, meta))
+        return utils.normalize_table_identifiers(
+            resource.compute_table_schema(items, meta), self.schema.naming
+        )
 
     def _compute_and_update_table(
         self, resource: DltResource, table_name: str, items: TDataItems, meta: Any
@@ -172,11 +242,11 @@ class Extractor:
 
         # this is a new table so allow evolve once
         if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
-            computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
+            computed_table["x-normalizer"] = {"evolve-columns-once": True}
         existing_table = self.schema._schema_tables.get(table_name, None)
         if existing_table:
             # TODO: revise this. computed table should overwrite certain hints (ie. primary and merge keys) completely
-            diff_table = utils.diff_table(existing_table, computed_table)
+            diff_table = utils.diff_table(self.schema.name, existing_table, computed_table)
         else:
             diff_table = computed_table
 
@@ -215,12 +285,28 @@ class ObjectExtractor(Extractor):
 class ArrowExtractor(Extractor):
     """Extracts arrow data items into parquet. Normalizes arrow items column names.
     Compares the arrow schema to actual dlt table schema to reorder the columns and to
-    insert missing columns (without data).
+    insert missing columns (without data). Adds _dlt_load_id column to the table if
+    `add_dlt_load_id` is set to True in normalizer config.
 
     We do things that normalizer should do here so we do not need to load and save parquet
     files again later.
 
+    Handles the following types:
+    - `pyarrow.Table`
+    - `pyarrow.RecordBatch`
+    - `pandas.DataFrame` (is converted to arrow `Table` before processing)
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._normalize_config = self._retrieve_normalize_config()
+
+    def _retrieve_normalize_config(self) -> ItemsNormalizerConfiguration:
+        """Get normalizer settings that are used here"""
+        return resolve_configuration(
+            ItemsNormalizerConfiguration(),
+            sections=(known_sections.NORMALIZE, "parquet_normalizer"),
+        )
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         static_table_name = self._get_static_table_name(resource, meta)
@@ -294,7 +380,13 @@ class ArrowExtractor(Extractor):
         columns = columns or self.schema.get_table_columns(table_name)
         # Note: `items` is always a list here due to the conversion in `write_table`
         items = [
-            pyarrow.normalize_py_arrow_item(item, columns, self.naming, self._caps)
+            pyarrow.normalize_py_arrow_item(
+                item,
+                columns,
+                self.naming,
+                self._caps,
+                load_id=self.load_id if self._normalize_config.add_dlt_load_id else None,
+            )
             for item in items
         ]
         # write items one by one
@@ -312,12 +404,25 @@ class ArrowExtractor(Extractor):
             computed_table = super()._compute_table(resource, item, Any)
             # Merge the columns to include primary_key and other hints that may be set on the resource
             if arrow_table:
-                utils.merge_table(computed_table, arrow_table)
+                utils.merge_table(self.schema.name, computed_table, arrow_table)
             else:
                 arrow_table = copy(computed_table)
             arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+
+            # Add load_id column if needed
+            dlt_load_id_col = self.naming.normalize_table_identifier("_dlt_load_id")
+            if (
+                self._normalize_config.add_dlt_load_id
+                and dlt_load_id_col not in arrow_table["columns"]
+            ):
+                arrow_table["columns"][dlt_load_id_col] = {
+                    "name": dlt_load_id_col,
+                    "data_type": "text",
+                    "nullable": False,
+                }
+
             # normalize arrow table before merging
-            arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+            arrow_table = utils.normalize_table_identifiers(arrow_table, self.schema.naming)
             # issue warnings when overriding computed with arrow
             override_warn: bool = False
             for col_name, column in arrow_table["columns"].items():
@@ -343,6 +448,7 @@ class ArrowExtractor(Extractor):
             utils.merge_columns(
                 arrow_table["columns"], computed_table["columns"], merge_columns=True
             )
+
         return arrow_table
 
     def _compute_and_update_table(

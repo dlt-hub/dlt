@@ -125,6 +125,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
             {"id": 1, "pk2": "B"},
             make_hints(
                 write_disposition="merge",
+                file_format="preferred",
                 columns=[{"name": "id", "precision": 16}, {"name": "text", "data_type": "decimal"}],
                 primary_key="pk2",
             ),
@@ -143,6 +144,7 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
         assert "pk" in table["columns"]
         assert "text" in table["columns"]
         assert table["write_disposition"] == "merge"
+        assert table["file_format"] == "preferred"
 
         # make table name dynamic
         yield dlt.mark.with_hints(

@@ -67,9 +67,9 @@ lint-and-test-snippets:
 	cd docs/website/docs && poetry run pytest --ignore=node_modules
 
 lint-and-test-examples:
-	poetry run mypy --config-file mypy.ini docs/examples
-	poetry run flake8 --max-line-length=200 docs/examples
 	cd docs/tools && poetry run python prepare_examples_tests.py
+	poetry run flake8 --max-line-length=200 docs/examples
+	poetry run mypy --config-file mypy.ini docs/examples
 	cd docs/examples && poetry run pytest
 
 

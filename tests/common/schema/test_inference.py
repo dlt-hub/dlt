@@ -1,3 +1,4 @@
+import os
 import pytest
 from copy import deepcopy
 from typing import Any, List
@@ -6,19 +7,15 @@ from hexbytes import HexBytes
 from dlt.common import Wei, Decimal, pendulum, json
 from dlt.common.json import custom_pua_decode
 from dlt.common.schema import Schema, utils
-from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.schema.typing import TSimpleRegex, TTableSchemaColumns
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
     CannotCoerceNullException,
     ParentTableNotFoundException,
+    SchemaCorruptedException,
     TablePropertiesConflictException,
 )
 from tests.common.utils import load_json_case
-
-
-@pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
 
 
 def test_get_preferred_type(schema: Schema) -> None:
@@ -204,11 +201,10 @@ def test_shorten_variant_column(schema: Schema) -> None:
     }
     _, new_table = schema.coerce_row("event_user", None, row_1)
     # schema assumes that identifiers are already normalized so confidence even if it is longer than 9 chars
-    schema.update_table(new_table)
+    schema.update_table(new_table, normalize_identifiers=False)
     assert "confidence" in schema.tables["event_user"]["columns"]
     # confidence_123456
     # now variant is created and this will be normalized
-    # TODO: we should move the handling of variants to normalizer
     new_row_2, new_table = schema.coerce_row("event_user", None, {"confidence": False})
     tag = schema.naming._compute_tag(
         "confidence__v_bool", collision_prob=schema.naming._DEFAULT_COLLISION_PROB
@@ -219,6 +215,9 @@ def test_shorten_variant_column(schema: Schema) -> None:
 
 
 def test_coerce_complex_variant(schema: Schema) -> None:
+    # for this test use case sensitive naming convention
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
     # create two columns to which complex type cannot be coerced
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     new_row, new_table = schema.coerce_row("event_user", None, row)
@@ -252,12 +251,12 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     c_new_columns_v = list(c_new_table_v["columns"].values())
     # two new variant columns added
     assert len(c_new_columns_v) == 2
-    assert c_new_columns_v[0]["name"] == "floatX__v_complex"
-    assert c_new_columns_v[1]["name"] == "confidenceX__v_complex"
+    assert c_new_columns_v[0]["name"] == "floatX▶v_complex"
+    assert c_new_columns_v[1]["name"] == "confidenceX▶v_complex"
     assert c_new_columns_v[0]["variant"] is True
     assert c_new_columns_v[1]["variant"] is True
-    assert c_new_row_v["floatX__v_complex"] == v_list
-    assert c_new_row_v["confidenceX__v_complex"] == v_dict
+    assert c_new_row_v["floatX▶v_complex"] == v_list
+    assert c_new_row_v["confidenceX▶v_complex"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
     schema.update_table(c_new_table_v)
 
@@ -265,8 +264,8 @@ def test_coerce_complex_variant(schema: Schema) -> None:
     c_row_v = {"floatX": v_list, "confidenceX": v_dict, "strX": v_dict}
     c_new_row_v, c_new_table_v = schema.coerce_row("event_user", None, c_row_v)
     assert c_new_table_v is None
-    assert c_new_row_v["floatX__v_complex"] == v_list
-    assert c_new_row_v["confidenceX__v_complex"] == v_dict
+    assert c_new_row_v["floatX▶v_complex"] == v_list
+    assert c_new_row_v["confidenceX▶v_complex"] == v_dict
     assert c_new_row_v["strX"] == json.dumps(v_dict)
 
 
@@ -539,7 +538,7 @@ def test_infer_on_incomplete_column(schema: Schema) -> None:
     incomplete_col["primary_key"] = True
     incomplete_col["x-special"] = "spec"  # type: ignore[typeddict-unknown-key]
     table = utils.new_table("table", columns=[incomplete_col])
-    schema.update_table(table)
+    schema.update_table(table, normalize_identifiers=False)
     # make sure that column is still incomplete and has no default hints
     assert schema.get_table("table")["columns"]["I"] == {
         "name": "I",
@@ -565,3 +564,80 @@ def test_infer_on_incomplete_column(schema: Schema) -> None:
     assert i_column["x-special"] == "spec"  # type: ignore[typeddict-item]
     assert i_column["primary_key"] is True
     assert i_column["data_type"] == "text"
+
+
+def test_update_table_adds_at_end(schema: Schema) -> None:
+    row = {"evm": Wei(1)}
+    _, new_table = schema.coerce_row("eth", None, row)
+    schema.update_table(new_table)
+    schema.update_table(
+        {
+            "name": new_table["name"],
+            "columns": {
+                "_dlt_load_id": {
+                    "name": "_dlt_load_id",
+                    "data_type": "text",
+                    "nullable": False,
+                }
+            },
+        }
+    )
+    table = schema.tables["eth"]
+    # place new columns at the end
+    assert list(table["columns"].keys()) == ["evm", "_dlt_load_id"]
+
+
+def test_get_new_columns(schema: Schema) -> None:
+    # allow for casing in names
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
+
+    empty_table = utils.new_table("events")
+    schema.update_table(empty_table)
+    assert schema.get_new_table_columns("events", {}, case_sensitive=True) == []
+    name_column = utils.new_column("name", "text")
+    id_column = utils.new_column("ID", "text")
+    existing_columns: TTableSchemaColumns = {
+        "id": id_column,
+        "name": name_column,
+    }
+    # no new columns
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == []
+    # one new column
+    address_column = utils.new_column("address", "complex")
+    schema.update_table(utils.new_table("events", columns=[address_column]))
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # name is already present
+    schema.update_table(utils.new_table("events", columns=[name_column]))
+    # so it is not detected
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # id is added with different casing
+    ID_column = utils.new_column("ID", "text")
+    schema.update_table(utils.new_table("events", columns=[ID_column]))
+    # case sensitive will detect
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column,
+        ID_column,
+    ]
+    # insensitive doesn't
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+
+    # existing columns are case sensitive
+    existing_columns["ID"] = ID_column
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    with pytest.raises(SchemaCorruptedException):
+        schema.get_new_table_columns("events", existing_columns, case_sensitive=False)

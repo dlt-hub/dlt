@@ -1,11 +1,6 @@
 import platform
 import os
 
-from dlt.common.exceptions import TerminalValueError
-from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
-
-from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
-
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
 
@@ -15,25 +10,27 @@ else:
 
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, List, Optional, Sequence, Any
+from typing import Dict, List, Optional, Sequence, Any, Tuple
 
-from dlt.common.destination import DestinationCapabilitiesContext
+
 from dlt.common.destination.reference import (
     NewLoadJob,
     CredentialsConfiguration,
     SupportsStagingDestination,
 )
 from dlt.common.data_types import TDataType
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TTableSchemaColumns
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
-
-from dlt.destinations.impl.redshift import capabilities
+from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
@@ -109,8 +106,6 @@ class RedshiftTypeMapper(TypeMapper):
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(
         pg_ex: psycopg2.DataError,
@@ -151,7 +146,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 "CREDENTIALS"
                 f" 'aws_access_key_id={aws_access_key};aws_secret_access_key={aws_secret_key}'"
             )
-        table_name = table["name"]
 
         # get format
         ext = os.path.splitext(bucket_path)[1][1:]
@@ -191,10 +185,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
 
         with self._sql_client.begin_transaction():
-            dataset_name = self._sql_client.dataset_name
             # TODO: if we ever support csv here remember to add column names to COPY
             self._sql_client.execute_sql(f"""
-                COPY {dataset_name}.{table_name}
+                COPY {self._sql_client.make_qualified_table_name(table['name'])}
                 FROM '{bucket_path}'
                 {file_type}
                 {dateformat}
@@ -231,10 +224,18 @@ class RedshiftMergeJob(SqlMergeJob):
 
 
 class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: RedshiftClientConfiguration) -> None:
-        sql_client = RedshiftSqlClient(config.normalize_dataset_name(schema), config.credentials)
+    def __init__(
+        self,
+        schema: Schema,
+        config: RedshiftClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        sql_client = RedshiftSqlClient(
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
+        )
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
@@ -249,7 +250,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             for h in HINT_TO_REDSHIFT_ATTR.keys()
             if c.get(h, False) is True
         )
-        column_name = self.capabilities.escape_identifier(c["name"])
+        column_name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )
