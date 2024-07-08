@@ -159,14 +159,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
 
                 # check write disposition
-                table = client.prepare_load_table(job_info.table_name)
-                if table["write_disposition"] not in ["append", "replace", "merge"]:
+                load_table = client.prepare_load_table(job_info.table_name)
+                if load_table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(
-                        job_info.table_name, table["write_disposition"], file_path
+                        job_info.table_name, load_table["write_disposition"], file_path
                     )
 
                 job = client.get_load_job(
-                    table,
+                    load_table,
                     self.load_storage.normalized_packages.storage.make_full_path(file_path),
                     load_id,
                     restore=restore,
@@ -199,11 +199,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             if is_staging_destination_job:
                 use_staging_dataset = isinstance(
                     job_client, SupportsStagingDestination
-                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
+                ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(
+                    load_table
+                )
             else:
                 use_staging_dataset = isinstance(
                     job_client, WithStagingDataset
-                ) and job_client.should_load_data_to_staging_dataset(table)
+                ) and job_client.should_load_data_to_staging_dataset(load_table)
+
+            # set job vars
+            job.set_run_vars(load_id=load_id, schema=schema, load_table=load_table)
 
             # submit to pool
             self.pool.submit(Load.w_run_job, *(id(self), job, active_job_client, use_staging_dataset))  # type: ignore

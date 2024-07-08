@@ -89,16 +89,14 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
         self,
         client: "DremioClient",
         file_path: str,
-        table_name: str,
         stage_name: Optional[str] = None,
     ) -> None:
         super().__init__(client, file_path)
-        self.sql_client = client.sql_client
-        self.table_name = table_name
-        self.stage_name = stage_name
+        self._sql_client = client.sql_client
+        self._stage_name = stage_name
 
     def run(self) -> None:
-        qualified_table_name = self.sql_client.make_qualified_table_name(self.table_name)
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
 
         # extract and prepare some vars
         bucket_path = (
@@ -118,9 +116,9 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         bucket_url = urlparse(bucket_path)
         bucket_scheme = bucket_url.scheme
-        if bucket_scheme == "s3" and self.stage_name:
+        if bucket_scheme == "s3" and self._stage_name:
             from_clause = (
-                f"FROM '@{self.stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
+                f"FROM '@{self._stage_name}/{bucket_url.hostname}/{bucket_url.path.lstrip('/')}'"
             )
         else:
             raise LoadJobTerminalException(
@@ -129,7 +127,7 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         source_format = file_name.split(".")[-1]
 
-        self.sql_client.execute_sql(f"""COPY INTO {qualified_table_name}
+        self._sql_client.execute_sql(f"""COPY INTO {qualified_table_name}
             {from_clause}
             FILE_FORMAT '{source_format}'
             """)
@@ -162,7 +160,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
             job = DremioLoadJob(
                 self,
                 file_path=file_path,
-                table_name=table["name"],
                 stage_name=self.config.staging_data_source,
             )
         return job

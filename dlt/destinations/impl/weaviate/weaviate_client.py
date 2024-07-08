@@ -153,8 +153,6 @@ class LoadWeaviateJob(RunnableLoadJob):
     def __init__(
         self,
         client: "WeaviateClient",
-        schema: Schema,
-        table_schema: TTableSchema,
         file_path: str,
         db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
@@ -162,23 +160,22 @@ class LoadWeaviateJob(RunnableLoadJob):
     ) -> None:
         super().__init__(client, file_path)
         self._job_client: WeaviateClient = client
-        self.client_config = client_config
-        self.db_client = db_client
-        self.table_name = table_schema["name"]
-        self.class_name = class_name
-        self.unique_identifiers = self.list_unique_identifiers(table_schema)
+        self._client_config = client_config
+        self._db_client = db_client
+        self._class_name = class_name
+
+    def run(self) -> None:
+        self.unique_identifiers = self.list_unique_identifiers(self._load_table)
         self.complex_indices = [
             i
-            for i, field in schema.get_table_columns(self.table_name).items()
+            for i, field in self._schema.get_table_columns(self.load_table_name).items()
             if field["data_type"] == "complex"
         ]
         self.date_indices = [
             i
-            for i, field in schema.get_table_columns(self.table_name).items()
+            for i, field in self._schema.get_table_columns(self.load_table_name).items()
             if field["data_type"] == "date"
         ]
-
-    def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             self.load_batch(f)
 
@@ -197,15 +194,15 @@ class LoadWeaviateJob(RunnableLoadJob):
                         if "error" in result["result"]["errors"]:
                             raise WeaviateGrpcError(result["result"]["errors"])
 
-        with self.db_client.batch(
-            batch_size=self.client_config.batch_size,
-            timeout_retries=self.client_config.batch_retries,
-            connection_error_retries=self.client_config.batch_retries,
+        with self._db_client.batch(
+            batch_size=self._client_config.batch_size,
+            timeout_retries=self._client_config.batch_retries,
+            connection_error_retries=self._client_config.batch_retries,
             weaviate_error_retries=weaviate.WeaviateErrorRetryConf(
-                self.client_config.batch_retries
+                self._client_config.batch_retries
             ),
-            consistency_level=weaviate.ConsistencyLevel[self.client_config.batch_consistency],
-            num_workers=self.client_config.batch_workers,
+            consistency_level=weaviate.ConsistencyLevel[self._client_config.batch_consistency],
+            num_workers=self._client_config.batch_workers,
             callback=check_batch_result,
         ) as batch:
             for line in f:
@@ -218,11 +215,11 @@ class LoadWeaviateJob(RunnableLoadJob):
                     if key in data:
                         data[key] = ensure_pendulum_datetime(data[key]).isoformat()
                 if self.unique_identifiers:
-                    uuid = self.generate_uuid(data, self.unique_identifiers, self.class_name)
+                    uuid = self.generate_uuid(data, self.unique_identifiers, self._class_name)
                 else:
                     uuid = None
 
-                batch.add_data_object(data, self.class_name, uuid=uuid)
+                batch.add_data_object(data, self._class_name, uuid=uuid)
 
     def list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
         if table_schema.get("write_disposition") == "merge":
@@ -685,8 +682,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
     ) -> LoadJob:
         return LoadWeaviateJob(
             self,
-            self.schema,
-            table,
             file_path,
             db_client=self.db_client,
             client_config=self.config,

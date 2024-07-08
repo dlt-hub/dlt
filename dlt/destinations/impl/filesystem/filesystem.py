@@ -46,13 +46,9 @@ class FilesystemLoadJob(RunnableLoadJob):
         self,
         client: "FilesystemClient",
         file_path: str,
-        load_id: str,
-        table: TTableSchema,
     ) -> None:
         self._job_client: FilesystemClient = client
-        self.table = table
         self.is_local_filesystem = client.config.protocol == "file"
-        self.load_id = load_id
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
         super().__init__(client, file_path)
@@ -62,7 +58,7 @@ class FilesystemLoadJob(RunnableLoadJob):
             self._job_client.config.layout,
             self._file_name,
             self._job_client.schema.name,
-            self.load_id,
+            self._load_id,
             current_datetime=self._job_client.config.current_datetime,
             load_package_timestamp=dlt.current.load_package()["state"]["created_at"],
             extra_placeholders=self._job_client.config.extra_placeholders,
@@ -326,7 +322,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             return FinalizedLoadJobWithFollowupJobs(file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
-        return cls(self, file_path, load_id, table)
+        return cls(self, file_path)
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""

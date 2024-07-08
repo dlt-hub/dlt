@@ -64,11 +64,8 @@ from dlt.destinations.sql_client import (
     raise_open_connection_error,
 )
 from dlt.destinations.typing import DBApiCursor
-from dlt.destinations.job_client_impl import (
-    SqlJobClientWithStaging,
-    FinalizedLoadJobWithFollowupJobs,
-    FinalizedLoadJob,
-)
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
 from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils

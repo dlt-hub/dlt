@@ -264,10 +264,8 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
                     job = job_cls(
                         self,
-                        table,
                         file_path,
                         self.config,  # type: ignore
-                        self.schema,
                         destination_state(),
                         functools.partial(_streaming_load, self.sql_client),
                         [],

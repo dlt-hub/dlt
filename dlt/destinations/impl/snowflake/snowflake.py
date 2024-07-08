@@ -80,8 +80,6 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         self,
         client: "SnowflakeClient",
         file_path: str,
-        table_name: str,
-        load_id: str,
         config: SnowflakeClientConfiguration,
         stage_name: Optional[str] = None,
         keep_staged_files: bool = True,
@@ -90,15 +88,13 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         super().__init__(client, file_path)
         self._job_client: "SnowflakeClient" = client
         self._sql_client = client.sql_client
-        self._table_name = table_name
         self._keep_staged_files = keep_staged_files
-        self._load_id = load_id
         self._staging_credentials = staging_credentials
         self._config = config
         self._stage_name = stage_name
 
     def run(self) -> None:
-        qualified_table_name = self._sql_client.make_qualified_table_name(self._table_name)
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
 
         # extract and prepare some vars
         bucket_path = (
@@ -175,7 +171,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             if not self._stage_name:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
                 self._stage_name = self._sql_client.make_qualified_table_name(
-                    "%" + self._table_name
+                    "%" + self.load_table_name
                 )
             stage_file_path = f'@{self._stage_name}/"{self._load_id}"/{file_name}'
             from_clause = f"FROM {stage_file_path}"
@@ -252,8 +248,6 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
             job = SnowflakeLoadJob(
                 self,
                 file_path,
-                table["name"],
-                load_id,
                 self.config,
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,

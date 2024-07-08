@@ -105,23 +105,18 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
     def __init__(
         self,
         client: JobClientBase,
-        table: TTableSchema,
         file_path: str,
         config: CustomDestinationClientConfiguration,
-        schema: Schema,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
         skipped_columns: List[str],
     ) -> None:
         super().__init__(client, file_path)
         self._config = config
-        self._table = table
-        self._schema = schema
-        # we create pre_resolved callable here
         self._callable = destination_callable
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
-        self.skipped_columns = skipped_columns
-        self.destination_state = destination_state
+        self._skipped_columns = skipped_columns
+        self._destination_state = destination_state
 
     def run(self) -> None:
         # update filepath, it will be in running jobs now
@@ -130,11 +125,11 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
                 # on batch size zero we only call the callable with the filename
                 self.call_callable_with_items(self._file_path)
             else:
-                current_index = self.destination_state.get(self._storage_id, 0)
+                current_index = self._destination_state.get(self._storage_id, 0)
                 for batch in self.get_batches(current_index):
                     self.call_callable_with_items(batch)
                     current_index += len(batch)
-                    self.destination_state[self._storage_id] = current_index
+                    self._destination_state[self._storage_id] = current_index
         finally:
             # save progress
             commit_load_package_state()
@@ -143,7 +138,7 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
         if not items:
             return
         # call callable
-        self._callable(items, self._table)
+        self._callable(items, self._load_table)
 
     @abstractmethod
     def get_batches(self, start_index: int) -> Iterable[TDataItems]:
@@ -162,7 +157,7 @@ class DestinationParquetLoadJob(DestinationLoadJob):
 
         # on record batches we cannot drop columns, we need to
         # select the ones we want to keep
-        keep_columns = list(self._table["columns"].keys())
+        keep_columns = list(self._load_table["columns"].keys())
         start_batch = start_index / self._config.batch_size
         with pyarrow.parquet.ParquetFile(self._file_path) as reader:
             for record_batch in reader.iter_batches(
@@ -190,7 +185,7 @@ class DestinationJsonlLoadJob(DestinationLoadJob):
                     start_index -= 1
                     continue
                 # skip internal columns
-                for column in self.skipped_columns:
+                for column in self._skipped_columns:
                     item.pop(column, None)
                 current_batch.append(item)
                 if len(current_batch) == self._config.batch_size:

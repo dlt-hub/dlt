@@ -108,21 +108,16 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "DatabricksClient",
-        table: TTableSchema,
         file_path: str,
-        table_name: str,
-        load_id: str,
         staging_config: FilesystemConfiguration,
     ) -> None:
         super().__init__(client, file_path)
-        self.staging_config = staging_config
-        self.staging_credentials = staging_config.credentials
-        self.table = table
-        self.qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
-        self.load_id = load_id
-        self.sql_client = client.sql_client
+        self._staging_config = staging_config
+        self._sql_client = client.sql_client
 
     def run(self) -> None:
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
+        staging_credentials = self._staging_config.credentials
         # extract and prepare some vars
         bucket_path = orig_bucket_path = (
             ReferenceFollowupJob.resolve_reference(self._file_path)
@@ -143,9 +138,9 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             bucket_scheme = bucket_url.scheme
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             if bucket_scheme == "s3" and isinstance(
-                self.staging_credentials, AwsCredentialsWithoutDefaults
+                staging_credentials, AwsCredentialsWithoutDefaults
             ):
-                s3_creds = self.staging_credentials.to_session_credentials()
+                s3_creds = staging_credentials.to_session_credentials()
                 credentials_clause = f"""WITH(CREDENTIAL(
                 AWS_ACCESS_KEY='{s3_creds["aws_access_key_id"]}',
                 AWS_SECRET_KEY='{s3_creds["aws_secret_access_key"]}',
@@ -155,17 +150,17 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                 """
                 from_clause = f"FROM '{bucket_path}'"
             elif bucket_scheme in ["az", "abfs"] and isinstance(
-                self.staging_credentials, AzureCredentialsWithoutDefaults
+                staging_credentials, AzureCredentialsWithoutDefaults
             ):
                 # Explicit azure credentials are needed to load from bucket without a named stage
-                credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{self.staging_credentials.azure_storage_sas_token}'))"""
+                credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                 # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
                 # as required by snowflake
                 _path = bucket_url.path
                 bucket_path = urlunparse(
                     bucket_url._replace(
                         scheme="abfss",
-                        netloc=f"{bucket_url.netloc}@{self.staging_credentials.azure_storage_account_name}.dfs.core.windows.net",
+                        netloc=f"{bucket_url.netloc}@{staging_credentials.azure_storage_account_name}.dfs.core.windows.net",
                         path=_path,
                     )
                 )
@@ -222,18 +217,18 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
             source_format = "JSON"
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
             # Databricks fails when trying to load empty json files, so we have to check the file size
-            fs, _ = fsspec_from_config(self.staging_config)
+            fs, _ = fsspec_from_config(self._staging_config)
             file_size = fs.size(orig_bucket_path)
             if file_size == 0:  # Empty file, do nothing
                 return
 
-        statement = f"""COPY INTO {self.qualified_table_name}
+        statement = f"""COPY INTO {qualified_table_name}
             {from_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
             {format_options_clause}
             """
-        self.sql_client.execute_sql(statement)
+        self._sql_client.execute_sql(statement)
 
 
 class DatabricksMergeJob(SqlMergeFollowupJob):
@@ -279,10 +274,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         if not job:
             job = DatabricksLoadJob(
                 self,
-                table,
                 file_path,
-                table["name"],
-                load_id,
                 staging_config=cast(FilesystemConfiguration, self.config.staging_config),
             )
         return job

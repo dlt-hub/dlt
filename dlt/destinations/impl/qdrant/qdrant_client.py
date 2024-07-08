@@ -41,20 +41,19 @@ class LoadQdrantJob(RunnableLoadJob):
     def __init__(
         self,
         client: "QdrantClient",
-        table_schema: TTableSchema,
         file_path: str,
         client_config: QdrantClientConfiguration,
         collection_name: str,
     ) -> None:
         super().__init__(client, file_path)
-
-        self.db_client = client.db_client
-        self.collection_name = collection_name
-        self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
-        self.unique_identifiers = self._list_unique_identifiers(table_schema)
-        self.config = client_config
+        self._db_client = client.db_client
+        self._collection_name = collection_name
+        self._config = client_config
 
     def run(self) -> None:
+        embedding_fields = get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
+        unique_identifiers = self._list_unique_identifiers(self._load_table)
+
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             ids: List[str]
             docs, payloads, ids = [], [], []
@@ -62,27 +61,27 @@ class LoadQdrantJob(RunnableLoadJob):
             for line in f:
                 data = json.loads(line)
                 point_id = (
-                    self._generate_uuid(data, self.unique_identifiers, self.collection_name)
-                    if self.unique_identifiers
+                    self._generate_uuid(data, unique_identifiers, self._collection_name)
+                    if unique_identifiers
                     else str(uuid.uuid4())
                 )
                 payloads.append(data)
                 ids.append(point_id)
-                if len(self.embedding_fields) > 0:
-                    docs.append(self._get_embedding_doc(data))
+                if len(embedding_fields) > 0:
+                    docs.append(self._get_embedding_doc(data, embedding_fields))
 
-            if len(self.embedding_fields) > 0:
-                embedding_model = self.db_client._get_or_init_model(
-                    self.db_client.embedding_model_name
+            if len(embedding_fields) > 0:
+                embedding_model = self._db_client._get_or_init_model(
+                    self._db_client.embedding_model_name
                 )
                 embeddings = list(
                     embedding_model.embed(
                         docs,
-                        batch_size=self.config.embedding_batch_size,
-                        parallel=self.config.embedding_parallelism,
+                        batch_size=self._config.embedding_batch_size,
+                        parallel=self._config.embedding_parallelism,
                     )
                 )
-                vector_name = self.db_client.get_vector_field_name()
+                vector_name = self._db_client.get_vector_field_name()
                 embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             else:
                 embeddings = [{}] * len(ids)
@@ -90,7 +89,7 @@ class LoadQdrantJob(RunnableLoadJob):
 
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
 
-    def _get_embedding_doc(self, data: Dict[str, Any]) -> str:
+    def _get_embedding_doc(self, data: Dict[str, Any], embedding_fields: List[str]) -> str:
         """Returns a document to generate embeddings for.
 
         Args:
@@ -99,7 +98,7 @@ class LoadQdrantJob(RunnableLoadJob):
         Returns:
             str: A concatenated string of all the fields intended for embedding.
         """
-        doc = "\n".join(str(data[key]) for key in self.embedding_fields)
+        doc = "\n".join(str(data[key]) for key in embedding_fields)
         return doc
 
     def _list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
@@ -127,14 +126,14 @@ class LoadQdrantJob(RunnableLoadJob):
             vectors (Iterable[Any]): Embeddings to be uploaded to the collection
             payloads (Iterable[Any]): Payloads to be uploaded to the collection
         """
-        self.db_client.upload_collection(
-            self.collection_name,
+        self._db_client.upload_collection(
+            self._collection_name,
             ids=ids,
             payload=payloads,
             vectors=vectors,
-            parallel=self.config.upload_parallelism,
-            batch_size=self.config.upload_batch_size,
-            max_retries=self.config.upload_max_retries,
+            parallel=self._config.upload_parallelism,
+            batch_size=self._config.upload_batch_size,
+            max_retries=self._config.upload_max_retries,
         )
 
     def _generate_uuid(
@@ -446,7 +445,6 @@ class QdrantClient(JobClientBase, WithStateSync):
     ) -> LoadJob:
         return LoadQdrantJob(
             self,
-            table,
             file_path,
             client_config=self.config,
             collection_name=self._make_qualified_collection_name(table["name"]),

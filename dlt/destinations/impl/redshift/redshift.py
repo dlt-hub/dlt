@@ -30,7 +30,7 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
-from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, RunnableLoadJob
+from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob
 from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.impl.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import ReferenceFollowupJob
@@ -125,14 +125,12 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
         client: "RedshiftClient",
-        table: TTableSchema,
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
     ) -> None:
         self._staging_iam_role = staging_iam_role
-        self._table = table
-        super().__init__(client, table, file_path, staging_credentials)
+        super().__init__(client, file_path, staging_credentials)
 
     def run(self) -> None:
         # we assume s3 credentials where provided for the staging
@@ -154,7 +152,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_type = ""
         dateformat = ""
         compression = ""
-        if table_schema_has_type(self._table, "time"):
+        if table_schema_has_type(self._load_table, "time"):
             raise LoadJobTerminalException(
                 self.file_name(),
                 f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file"
@@ -162,7 +160,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 " `datetime.datetime`",
             )
         if ext == "jsonl":
-            if table_schema_has_type(self._table, "binary"):
+            if table_schema_has_type(self._load_table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
                     "Redshift cannot load VARBYTE columns from json files. Switch to parquet to"
@@ -172,7 +170,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
-            if table_schema_has_type_with_precision(self._table, "binary"):
+            if table_schema_has_type_with_precision(self._load_table, "binary"):
                 raise LoadJobTerminalException(
                     self.file_name(),
                     f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to"
@@ -181,7 +179,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             file_type = "PARQUET"
             # if table contains complex types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
-            if table_schema_has_type(self._table, "complex"):
+            if table_schema_has_type(self._load_table, "complex"):
                 file_type += " SERIALIZETOJSON"
         else:
             raise ValueError(f"Unsupported file type {ext} for Redshift.")
@@ -189,7 +187,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         with self._sql_client.begin_transaction():
             # TODO: if we ever support csv here remember to add column names to COPY
             self._sql_client.execute_sql(f"""
-                COPY {self._sql_client.make_qualified_table_name(self._table['name'])}
+                COPY {self._sql_client.make_qualified_table_name(self.load_table_name)}
                 FROM '{self._bucket_path}'
                 {file_type}
                 {dateformat}
@@ -268,7 +266,6 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(
                 self,
-                table,
                 file_path,
                 staging_credentials=self.config.staging_config.credentials,
                 staging_iam_role=self.config.staging_iam_role,

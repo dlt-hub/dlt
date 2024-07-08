@@ -114,13 +114,12 @@ class DuckDbTypeMapper(TypeMapper):
 
 
 class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
-    def __init__(self, job_client: "DuckDbClient", table_name: str, file_path: str) -> None:
+    def __init__(self, job_client: "DuckDbClient", file_path: str) -> None:
         super().__init__(job_client, file_path)
-        self.table_name = table_name
-        self.sql_client = job_client.sql_client
+        self._sql_client = job_client.sql_client
 
     def run(self) -> None:
-        qualified_table_name = self.sql_client.make_qualified_table_name(self.table_name)
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         if self._file_path.endswith("parquet"):
             source_format = "PARQUET"
             options = ""
@@ -139,8 +138,8 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
             raise ValueError(self._file_path)
 
         with maybe_context(lock):
-            with self.sql_client.begin_transaction():
-                self.sql_client.execute_sql(
+            with self._sql_client.begin_transaction():
+                self._sql_client.execute_sql(
                     f"COPY {qualified_table_name} FROM '{self._file_path}' ( FORMAT"
                     f" {source_format} {options});"
                 )
@@ -170,7 +169,7 @@ class DuckDbClient(InsertValuesJobClient):
     ) -> LoadJob:
         job = super().get_load_job(table, file_path, load_id, restore)
         if not job:
-            job = DuckDbCopyJob(self, table["name"], file_path)
+            job = DuckDbCopyJob(self, file_path)
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

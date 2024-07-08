@@ -72,10 +72,8 @@ class DestinationClient(JobClientBase):
         if file_path.endswith("parquet"):
             return DestinationParquetLoadJob(
                 self,
-                table,
                 file_path,
                 self.config,
-                self.schema,
                 load_state,
                 self.destination_callable,
                 skipped_columns,
@@ -83,10 +81,8 @@ class DestinationClient(JobClientBase):
         if file_path.endswith("jsonl"):
             return DestinationJsonlLoadJob(
                 self,
-                table,
                 file_path,
                 self.config,
-                self.schema,
                 load_state,
                 self.destination_callable,
                 skipped_columns,

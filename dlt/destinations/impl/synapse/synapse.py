@@ -23,7 +23,6 @@ from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
-    RunnableLoadJob,
     CopyRemoteFileLoadJob,
 )
 from dlt.destinations.exceptions import LoadJobTerminalException
@@ -169,7 +168,6 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(
                 self,
-                table,
                 file_path,
                 self.config.staging_config.credentials,  # type: ignore[arg-type]
                 self.config.staging_use_msi,
@@ -181,7 +179,6 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
         client: SqlJobClientBase,
-        table: TTableSchema,
         file_path: str,
         staging_credentials: Optional[
             Union[AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults]
@@ -189,13 +186,13 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         staging_use_msi: bool = False,
     ) -> None:
         self.staging_use_msi = staging_use_msi
-        super().__init__(client, table, file_path, staging_credentials)
+        super().__init__(client, file_path, staging_credentials)
 
     def run(self) -> None:
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
         if ext == "parquet":
-            if table_schema_has_type(self._table, "time"):
+            if table_schema_has_type(self._load_table, "time"):
                 # Synapse interprets Parquet TIME columns as bigint, resulting in
                 # an incompatibility error.
                 raise LoadJobTerminalException(
@@ -220,7 +217,7 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         )
         azure_storage_account_name = staging_credentials.azure_storage_account_name
         https_path = self._get_https_path(self._bucket_path, azure_storage_account_name)
-        table_name = self._table["name"]
+        table_name = self._load_table["name"]
 
         if self.staging_use_msi:
             credential = "IDENTITY = 'Managed Identity'"

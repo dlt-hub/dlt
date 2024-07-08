@@ -52,9 +52,7 @@ from dlt.common.destination.reference import (
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.job_impl import (
-    FinalizedLoadJob,
     ReferenceFollowupJob,
-    FinalizedLoadJobWithFollowupJobs,
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingCopyFollowupJob
 from dlt.destinations.typing import TNativeConn
@@ -113,7 +111,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         client: "SqlJobClientBase",
-        table: TTableSchema,
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
@@ -121,7 +118,6 @@ class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._sql_client = client.sql_client
         self._staging_credentials = staging_credentials
         self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
-        self._table = table
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):

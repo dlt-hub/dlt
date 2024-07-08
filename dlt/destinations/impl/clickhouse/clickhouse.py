@@ -142,18 +142,16 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         self,
         client: SqlJobClientBase,
         file_path: str,
-        table_name: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         super().__init__(client, file_path)
-        self.sql_client = cast(ClickHouseSqlClient, client.sql_client)
-        self.table_name = table_name
-        self.staging_credentials = staging_credentials
+        self._sql_client = cast(ClickHouseSqlClient, client.sql_client)
+        self._staging_credentials = staging_credentials
 
     def run(self) -> None:
-        client = self.sql_client
+        client = self._sql_client
 
-        qualified_table_name = client.make_qualified_table_name(self.table_name)
+        qualified_table_name = client.make_qualified_table_name(self.load_table_name)
         bucket_path = None
 
         if ReferenceFollowupJob.is_reference_job(self._file_path):
@@ -207,12 +205,12 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            if isinstance(self.staging_credentials, AwsCredentialsWithoutDefaults):
+            if isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
                 bucket_http_url = convert_storage_to_http_scheme(
-                    bucket_url, endpoint=self.staging_credentials.endpoint_url
+                    bucket_url, endpoint=self._staging_credentials.endpoint_url
                 )
-                access_key_id = self.staging_credentials.aws_access_key_id
-                secret_access_key = self.staging_credentials.aws_secret_access_key
+                access_key_id = self._staging_credentials.aws_access_key_id
+                secret_access_key = self._staging_credentials.aws_secret_access_key
             else:
                 raise LoadJobTerminalException(
                     self._file_path,
@@ -234,16 +232,16 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             )
 
         elif bucket_scheme in ("az", "abfs"):
-            if not isinstance(self.staging_credentials, AzureCredentialsWithoutDefaults):
+            if not isinstance(self._staging_credentials, AzureCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Unsigned Azure Blob Storage access from ClickHouse isn't supported as yet.",
                 )
 
             # Authenticated access.
-            account_name = self.staging_credentials.azure_storage_account_name
-            storage_account_url = f"https://{self.staging_credentials.azure_storage_account_name}.blob.core.windows.net"
-            account_key = self.staging_credentials.azure_storage_account_key
+            account_name = self._staging_credentials.azure_storage_account_name
+            storage_account_url = f"https://{self._staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+            account_key = self._staging_credentials.azure_storage_account_key
 
             # build table func
             table_function = f"azureBlobStorage('{storage_account_url}','{bucket_url.netloc}','{bucket_url.path}','{account_name}','{account_key}','{clickhouse_format}','{compression}')"
@@ -336,7 +334,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return super().get_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
             self,
             file_path,
-            table["name"],
             staging_credentials=(
                 self.config.staging_config.credentials if self.config.staging_config else None
             ),

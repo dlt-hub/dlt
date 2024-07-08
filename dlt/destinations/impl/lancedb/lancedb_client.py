@@ -692,11 +692,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
     ) -> LoadJob:
         return LoadLanceDBJob(
             self,
-            self.schema,
-            table,
             file_path=file_path,
             type_mapper=self.type_mapper,
-            client_config=self.config,
             model_func=self.model_func,
             fq_table_name=self.make_qualified_table_name(table["name"]),
         )
@@ -711,54 +708,49 @@ class LoadLanceDBJob(RunnableLoadJob):
     def __init__(
         self,
         client: LanceDBClient,
-        schema: Schema,
-        table_schema: TTableSchema,
         file_path: str,
         type_mapper: LanceDBTypeMapper,
-        client_config: LanceDBClientConfiguration,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
     ) -> None:
         super().__init__(client, file_path)
-        self.schema: Schema = schema
-        self.table_schema: TTableSchema = table_schema
-        self.db_client: DBConnection = client.db_client
-        self.type_mapper: TypeMapper = type_mapper
-        self.table_name: str = table_schema["name"]
-        self.fq_table_name: str = fq_table_name
-        self.unique_identifiers: Sequence[str] = list_merge_identifiers(table_schema)
-        self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
-        self.embedding_model_func: TextEmbeddingFunction = model_func
-        self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
-        self.id_field_name: str = client_config.id_field_name
-        self.write_disposition: TWriteDisposition = cast(
-            TWriteDisposition, self.table_schema.get("write_disposition", "append")
-        )
+        self._db_client: DBConnection = client.db_client
+        self._type_mapper: TypeMapper = type_mapper
+        self._fq_table_name: str = fq_table_name
+
+        self._embedding_model_func: TextEmbeddingFunction = model_func
+        self._embedding_model_dimensions: int = client.config.embedding_model_dimensions
+        self._id_field_name: str = client.config.id_field_name
 
     def run(self) -> None:
+        unique_identifiers: Sequence[str] = list_merge_identifiers(self._load_table)
+        write_disposition: TWriteDisposition = cast(
+            TWriteDisposition, self._load_table.get("write_disposition", "append")
+        )
+
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             records: List[DictStrAny] = [json.loads(line) for line in f]
 
-        if self.table_schema not in self.schema.dlt_tables():
+        if self._load_table not in self._schema.dlt_tables():
             for record in records:
                 # Add reserved ID fields.
                 uuid_id = (
-                    generate_uuid(record, self.unique_identifiers, self.fq_table_name)
-                    if self.unique_identifiers
+                    generate_uuid(record, unique_identifiers, self._fq_table_name)
+                    if unique_identifiers
                     else str(uuid.uuid4())
                 )
-                record.update({self.id_field_name: uuid_id})
+                record.update({self._id_field_name: uuid_id})
 
                 # LanceDB expects all fields in the target arrow table to be present in the data payload.
                 # We add and set these missing fields, that are fields not present in the target schema, to NULL.
-                missing_fields = set(self.table_schema["columns"]) - set(record)
+                missing_fields = set(self._load_table["columns"]) - set(record)
                 for field in missing_fields:
                     record[field] = None
 
         upload_batch(
             records,
-            db_client=self.db_client,
-            table_name=self.fq_table_name,
-            write_disposition=self.write_disposition,
-            id_field_name=self.id_field_name,
+            db_client=self._db_client,
+            table_name=self._fq_table_name,
+            write_disposition=write_disposition,
+            id_field_name=self._id_field_name,
         )

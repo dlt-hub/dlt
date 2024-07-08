@@ -316,6 +316,22 @@ class RunnableLoadJob(LoadJob, ABC):
         self._job_client = job_client
         # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
+        # variables needed by most jobs, set by the loader
+        self._schema: Schema = None
+        self._load_table: TTableSchema = None
+        self._load_id: str = None
+
+    def set_run_vars(self, load_id: str, schema: Schema, load_table: TTableSchema) -> None:
+        """
+        called by the loader right before the job is run
+        """
+        self._load_id = load_id
+        self._schema = schema
+        self._load_table = load_table
+
+    @property
+    def load_table_name(self) -> str:
+        return self._load_table["name"]
 
     def run_managed(self) -> None:
         """
