@@ -115,4 +115,25 @@ def pytest_configure(config):
     # disable httpx request logging (too verbose when testing qdrant)
     logging.getLogger("httpx").setLevel("WARNING")
 
-    logging.getLogger("airflow.models.variable").setLevel("CRITICAL")
+    # reset and init airflow db
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+        try:
+            from airflow.utils import db
+
+            for log in [
+                "airflow.models.crypto",
+                "airflow.models.variable",
+                "airflow",
+                "alembic",
+                "alembic.runtime.migration",
+            ]:
+                logging.getLogger(log).setLevel("ERROR")
+
+            db.resetdb()
+
+        except Exception:
+            pass
