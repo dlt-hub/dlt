@@ -7,8 +7,36 @@ keywords: [staging, destination]
 
 The goal of staging is to bring the data closer to the database engine so the modification of the destination (final) dataset happens faster and without errors. `dlt`, when asked, creates two
 staging areas:
-1. A **staging dataset** used by the [merge and replace loads](../general-usage/incremental-loading.md#merge-incremental_loading) to deduplicate and merge data with the destination. Such staging dataset has the same name as the dataset passed to `dlt.pipeline` but with `_staging` suffix in the name. As a user you typically never see and directly interact with it.
+1. A **staging dataset** used by the [merge and replace loads](../general-usage/incremental-loading.md#merge-incremental_loading) to deduplicate and merge data with the destination.
 2. A **staging storage** which is typically a s3/gcp bucket where [loader files](file-formats/) are copied before they are loaded by the destination.
+
+## Staging dataset
+`dlt` creates a staging dataset when write disposition of any of the loaded resources requires it. It creates and migrates required tables exactly like for the
+main dataset. Data in staging tables is truncated when load step begins and only for tables that will participate in it.
+Such staging dataset has the same name as the dataset passed to `dlt.pipeline` but with `_staging` suffix in the name. Alternatively, you can provide your own staging dataset pattern or use a fixed name, identical for all the
+configured datasets.
+```toml
+[destination.postgres]
+staging_dataset_name_layout="staging_%s"
+```
+Entry above switches the pattern to `staging_` prefix and for example for dataset with name **github_data** `dlt` will create **staging_github_data**.
+
+To configure static staging dataset name, you can do the following (we use destination factory)
+```py
+import dlt
+
+dest_ = dlt.destinations.postgres(staging_dataset_name_layout="_dlt_staging")
+```
+All pipelines using `dest_` as destination will use **staging_dataset** to store staging tables. Make sure that your pipelines are not overwriting each other's tables.
+
+### Cleanup up staging dataset automatically
+`dlt` does not truncate tables in staging dataset at the end of the load. Data that is left after contains all the extracted data and may be useful for debugging.
+If you prefer to truncate it, put the following line in `config.toml`:
+
+```toml
+[load]
+truncate_staging_dataset=true
+```
 
 ## Staging storage
 `dlt` allows to chain destinations where the first one (`staging`) is responsible for uploading the files from local filesystem to the remote storage. It then generates followup jobs for the second destination that (typically) copy the files from remote storage into destination.

@@ -95,7 +95,7 @@ class MsSqlStagingCopyJob(SqlStagingCopyFollowupJob):
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             # drop destination table
@@ -149,7 +149,10 @@ class MsSqlJobClient(InsertValuesJobClient):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         sql_client = PyOdbcMsSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         super().__init__(schema, config, sql_client)
         self.config: MsSqlClientConfiguration = config

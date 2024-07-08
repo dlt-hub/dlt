@@ -188,6 +188,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> None:
         sql_client = BigQuerySqlClient(
             config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
             config.get_location(),

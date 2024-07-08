@@ -261,7 +261,10 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         sql_client = DatabricksSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config

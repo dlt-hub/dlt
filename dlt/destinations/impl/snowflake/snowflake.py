@@ -119,7 +119,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         case_folding = (
             "CASE_SENSITIVE"
-            if self._sql_client.capabilities.casefold_identifier is str
+            if self._sql_client.capabilities.generates_case_sensitive_identifiers()
             else "CASE_INSENSITIVE"
         )
         column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
@@ -233,7 +233,10 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         sql_client = SnowflakeSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config

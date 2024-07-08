@@ -7,11 +7,12 @@ from hexbytes import HexBytes
 from dlt.common import Wei, Decimal, pendulum, json
 from dlt.common.json import custom_pua_decode
 from dlt.common.schema import Schema, utils
-from dlt.common.schema.typing import TSimpleRegex
+from dlt.common.schema.typing import TSimpleRegex, TTableSchemaColumns
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
     CannotCoerceNullException,
     ParentTableNotFoundException,
+    SchemaCorruptedException,
     TablePropertiesConflictException,
 )
 from tests.common.utils import load_json_case
@@ -584,3 +585,59 @@ def test_update_table_adds_at_end(schema: Schema) -> None:
     table = schema.tables["eth"]
     # place new columns at the end
     assert list(table["columns"].keys()) == ["evm", "_dlt_load_id"]
+
+
+def test_get_new_columns(schema: Schema) -> None:
+    # allow for casing in names
+    os.environ["SCHEMA__NAMING"] = "direct"
+    schema.update_normalizers()
+
+    empty_table = utils.new_table("events")
+    schema.update_table(empty_table)
+    assert schema.get_new_table_columns("events", {}, case_sensitive=True) == []
+    name_column = utils.new_column("name", "text")
+    id_column = utils.new_column("ID", "text")
+    existing_columns: TTableSchemaColumns = {
+        "id": id_column,
+        "name": name_column,
+    }
+    # no new columns
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == []
+    # one new column
+    address_column = utils.new_column("address", "complex")
+    schema.update_table(utils.new_table("events", columns=[address_column]))
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # name is already present
+    schema.update_table(utils.new_table("events", columns=[name_column]))
+    # so it is not detected
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+    # id is added with different casing
+    ID_column = utils.new_column("ID", "text")
+    schema.update_table(utils.new_table("events", columns=[ID_column]))
+    # case sensitive will detect
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column,
+        ID_column,
+    ]
+    # insensitive doesn't
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=False) == [
+        address_column
+    ]
+
+    # existing columns are case sensitive
+    existing_columns["ID"] = ID_column
+    assert schema.get_new_table_columns("events", existing_columns, case_sensitive=True) == [
+        address_column
+    ]
+    with pytest.raises(SchemaCorruptedException):
+        schema.get_new_table_columns("events", existing_columns, case_sensitive=False)
