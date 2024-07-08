@@ -607,8 +607,7 @@ WHERE """
         updates = self.schema.get_new_table_columns(
             table_name,
             storage_columns,
-            case_sensitive=self.capabilities.has_case_sensitive_identifiers
-            and self.capabilities.casefold_identifier is str,
+            case_sensitive=self.capabilities.generates_case_sensitive_identifiers(),
         )
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
@@ -684,7 +683,7 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
     @contextlib.contextmanager
     def with_staging_dataset(self) -> Iterator["SqlJobClientBase"]:
         try:
-            with self.sql_client.with_staging_dataset(True):
+            with self.sql_client.with_staging_dataset():
                 self.in_staging_mode = True
                 yield self
         finally:

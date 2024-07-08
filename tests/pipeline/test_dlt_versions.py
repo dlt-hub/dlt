@@ -122,7 +122,10 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         sections=("destination", "duckdb"),
                     )
                     with DuckDbSqlClient(
-                        GITHUB_DATASET, duckdb_cfg.credentials, duckdb().capabilities()
+                        GITHUB_DATASET,
+                        "%s_staging",
+                        duckdb_cfg.credentials,
+                        duckdb().capabilities(),
                     ) as client:
                         rows = client.execute_sql(f"SELECT * FROM {LOADS_TABLE_NAME}")
                         # make sure we have just 4 columns
@@ -175,7 +178,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 assert "_version_hash" in state_dict
 
                 with DuckDbSqlClient(
-                    GITHUB_DATASET, duckdb_cfg.credentials, duckdb().capabilities()
+                    GITHUB_DATASET, "%s_staging", duckdb_cfg.credentials, duckdb().capabilities()
                 ) as client:
                     rows = client.execute_sql(
                         f"SELECT * FROM {LOADS_TABLE_NAME} ORDER BY inserted_at"
@@ -316,7 +319,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                     sections=("destination", "duckdb"),
                 )
                 with DuckDbSqlClient(
-                    GITHUB_DATASET, duckdb_cfg.credentials, duckdb().capabilities()
+                    GITHUB_DATASET, "%s_staging", duckdb_cfg.credentials, duckdb().capabilities()
                 ) as client:
                     rows = client.execute_sql("SELECT * FROM issues")
                     assert len(rows) == 70
