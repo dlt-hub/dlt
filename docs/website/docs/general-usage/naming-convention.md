@@ -102,7 +102,7 @@ Snippet above demonstrates how to apply certain naming for an example `zendesk` 
 You can use naming conventions that you created yourself or got from other users. In that case you should pass a full Python import path to the [module that contain the naming convention](#write-your-own-naming-convention):
 ```toml
 [schema]
-"tests.common.cases.normalizers.sql_upper"
+naming="tests.common.cases.normalizers.sql_upper"
 ```
 `dlt` will import `tests.common.cases.normalizers.sql_upper` and use `NamingConvention` class found in it as the naming convention.
 

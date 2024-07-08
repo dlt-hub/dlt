@@ -51,8 +51,12 @@ def client(request, naming) -> Iterator[SqlJobClientBase]:
 
 @pytest.fixture(scope="function")
 def naming(request) -> str:
-    os.environ["SCHEMA__NAMING"] = request.param
-    return request.param
+    # NOTE: this fixture is forced by `client` fixture which requires it goes first
+    # so sometimes there's no request available
+    if hasattr(request, "param"):
+        os.environ["SCHEMA__NAMING"] = request.param
+        return request.param
+    return None
 
 
 @pytest.mark.parametrize(

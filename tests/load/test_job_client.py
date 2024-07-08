@@ -68,8 +68,12 @@ def client(request, naming) -> Iterator[SqlJobClientBase]:
 
 @pytest.fixture(scope="function")
 def naming(request) -> str:
-    os.environ["SCHEMA__NAMING"] = request.param
-    return request.param
+    # NOTE: this fixture is forced by `client` fixture which requires it goes first
+    # so sometimes there's no request available
+    if hasattr(request, "param"):
+        os.environ["SCHEMA__NAMING"] = request.param
+        return request.param
+    return None
 
 
 @pytest.mark.order(1)
@@ -203,9 +207,12 @@ def test_complete_load(naming: str, client: SqlJobClientBase) -> None:
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)
+    version_hash_column = client.sql_client.escape_column_name(
+        client.schema.naming.normalize_identifier("version_hash")
+    )
     version_rows = list(
         client.sql_client.execute_sql(
-            f"SELECT * FROM {versions_table} WHERE version_hash = %s", load_rows[0][4]
+            f"SELECT * FROM {versions_table} WHERE {version_hash_column} = %s", load_rows[0][4]
         )
     )
     assert len(version_rows) == 1
