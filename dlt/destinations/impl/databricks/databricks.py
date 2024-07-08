@@ -268,8 +268,10 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         self.sql_client: DatabricksSqlClient = sql_client  # type: ignore[assignment]
         self.type_mapper = DatabricksTypeMapper(self.capabilities)
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id)
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().get_load_job(table, file_path, load_id, restore)
 
         if not job:
             job = DatabricksLoadJob(
@@ -281,9 +283,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
                 staging_config=cast(FilesystemConfiguration, self.config.staging_config),
             )
         return job
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]

@@ -441,7 +441,9 @@ class QdrantClient(JobClientBase, WithStateSync):
                 return None
             raise
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         return LoadQdrantJob(
             self,
             table,
@@ -449,9 +451,6 @@ class QdrantClient(JobClientBase, WithStateSync):
             client_config=self.config,
             collection_name=self._make_qualified_collection_name(table["name"]),
         )
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def complete_load(self, load_id: str) -> None:
         values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]

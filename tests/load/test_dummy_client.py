@@ -62,12 +62,10 @@ def test_spool_job_started() -> None:
     assert len(files) == 2
     jobs: List[RunnableLoadJob] = []
     for f in files:
-        job = load.get_job(f, load_id, schema)
-        assert job.state() == "ready"
-        Load.w_start_job(load, job, load_id, schema)  # type: ignore
+        job = load.start_job(f, load_id, schema)
+        assert job.state() == "completed"
         assert type(job) is dummy_impl.LoadDummyJob
         # jobs runs, but is not moved yet (loader will do this)
-        assert job.state() == "completed"
         assert load.load_storage.normalized_packages.storage.has_file(
             load.load_storage.normalized_packages.get_job_file_path(
                 load_id, PackageStorage.STARTED_JOBS_FOLDER, job.file_name()
@@ -163,8 +161,7 @@ def test_spool_job_failed() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[RunnableLoadJob] = []
     for f in files:
-        job = load.get_job(f, load_id, schema)
-        Load.w_start_job(load, job, load_id, schema)  # type: ignore
+        job = load.start_job(f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
         assert job.state() == "failed"
         assert load.load_storage.normalized_packages.storage.has_file(
@@ -241,8 +238,7 @@ def test_spool_job_retry_new() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     for f in files:
-        job = load.get_job(f, load_id, schema)
-        Load.w_start_job(load, job, load_id, schema)  # type: ignore
+        job = load.start_job(f, load_id, schema)
         assert job.state() == "retry"
 
 
@@ -265,12 +261,12 @@ def test_spool_job_retry_started() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[RunnableLoadJob] = []
     for f in files:
-        job = load.get_job(f, load_id, schema)
+        job = load.start_job(f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
-        assert job.state() == "ready"
-        # mock job config to make it retry
+        assert job.state() == "completed"
+        # mock job state to make it retry
         job.config.retry_prob = 1.0
-        Load.w_start_job(load, job, load_id, schema)
+        job._state = "retry"
         assert load.load_storage.normalized_packages.storage.has_file(
             load.load_storage.normalized_packages.get_job_file_path(
                 load_id, PackageStorage.STARTED_JOBS_FOLDER, job.file_name()
@@ -293,9 +289,7 @@ def test_spool_job_retry_started() -> None:
 
     # this time it will pass
     for f in files:
-        job = load.get_job(f, load_id, schema)
-        assert job.state() == "ready"
-        Load.w_start_job(load, job, load_id, schema)  # type: ignore
+        job = load.start_job(f, load_id, schema)
         assert job.state() == "completed"
 
 
@@ -310,22 +304,20 @@ def test_try_retrieve_job() -> None:
         )
     # dummy client may retrieve jobs that it created itself, jobs in started folder are unknown
     # and returned as terminal
-    with load.destination.client(schema, load.initial_client_config) as c:
-        jobs = load.retrieve_jobs(c, load_id)
-        assert len(jobs) == 2
-        for j in jobs:
-            assert j.state() == "failed"
+    jobs = load.retrieve_jobs(load_id, schema)
+    assert len(jobs) == 2
+    for j in jobs:
+        assert j.state() == "failed"
     # new load package
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     load.pool = ThreadPoolExecutor()
     jobs = load.start_new_jobs(load_id, schema, [])  # type: ignore
     assert len(jobs) == 2
     # now jobs are known
-    with load.destination.client(schema, load.initial_client_config) as c:
-        jobs = load.retrieve_jobs(c, load_id)
-        assert len(jobs) == 2
-        for j in jobs:
-            assert j.state() == "completed"
+    jobs = load.retrieve_jobs(load_id, schema)
+    assert len(jobs) == 2
+    for j in jobs:
+        assert j.state() == "completed"
 
 
 def test_completed_loop() -> None:
@@ -347,7 +339,6 @@ def test_completed_loop_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
 
 
-@pytest.mark.skip("TODO: update this test")
 def test_failed_loop() -> None:
     # ask to delete completed
     load = setup_loader(
@@ -355,8 +346,10 @@ def test_failed_loop() -> None:
     )
     # actually not deleted because one of the jobs failed
     assert_complete_job(load, should_delete_completed=False)
-    # no jobs because fail on init
-    assert len(dummy_impl.JOBS) == 0
+    # two failed jobs
+    assert len(dummy_impl.JOBS) == 2
+    assert list(dummy_impl.JOBS.values())[0].state() == "failed"
+    assert list(dummy_impl.JOBS.values())[1].state() == "failed"
     assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
 
 

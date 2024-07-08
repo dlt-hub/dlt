@@ -37,7 +37,7 @@ class FinalizedLoadJob(LoadJob):
         self._status = status
         self._exception = exception
         self._file_path = file_path
-        assert self._status in ("completed", "failed")
+        assert self._status in ("completed", "failed", "retry")
         super().__init__(file_path)
 
     @classmethod

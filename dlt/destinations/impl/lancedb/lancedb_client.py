@@ -683,10 +683,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
             write_disposition=write_disposition,
         )
 
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
-
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         return LoadLanceDBJob(
             self,
             self.schema,

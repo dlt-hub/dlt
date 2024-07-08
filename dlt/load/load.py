@@ -131,19 +131,24 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         else:
             yield
 
-    def get_job(self, file_path: str, load_id: str, schema: Schema) -> LoadJob:
+    def start_job(
+        self, file_path: str, load_id: str, schema: Schema, restore: bool = False
+    ) -> LoadJob:
         job: LoadJob = None
 
         is_staging_destination_job = self.is_staging_destination_job(file_path)
         job_client = self.get_destination_client(schema)
 
         # if we have a staging destination and the file is not a reference, send to staging
+        active_job_client = (
+            self.get_staging_destination_client(schema)
+            if is_staging_destination_job
+            else job_client
+        )
+
         try:
-            with (
-                self.get_staging_destination_client(schema)
-                if is_staging_destination_job
-                else job_client
-            ) as client:
+            with active_job_client as client:
+                # check file format
                 job_info = ParsedLoadJobFileName.parse(file_path)
                 if job_info.file_format not in self.load_storage.supported_job_file_formats:
                     raise LoadClientUnsupportedFileFormats(
@@ -152,6 +157,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         file_path,
                     )
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+
+                # check write disposition
                 table = client.prepare_load_table(job_info.table_name)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(
@@ -162,6 +169,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     table,
                     self.load_storage.normalized_packages.storage.make_full_path(file_path),
                     load_id,
+                    restore=restore,
                 )
 
             if job is None:
@@ -178,21 +186,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             job = FinalizedLoadJobWithFollowupJobs.from_file_path(
                 file_path, "retry", pretty_format_exception()
             )
-        job._file_path = self.load_storage.normalized_packages.start_job(load_id, job.file_name())
-        return job
 
-    @staticmethod
-    @workermethod
-    def w_start_job(self: "Load", job: RunnableLoadJob, load_id: str, schema: Schema) -> None:
-        """
-        Start a load job in a separate thread
-        """
-        job_client = self.get_destination_client(schema)
+        # move to started jobs in case this is not a restored job
+        if not restore:
+            job._file_path = self.load_storage.normalized_packages.start_job(
+                load_id, job.file_name()
+            )
 
-        with job._job_client as client:
-            table = client.prepare_load_table(job.job_file_info().table_name)
-
-            if self.is_staging_destination_job(job._file_path):
+        # only start a thread if this job is runnable
+        if isinstance(job, RunnableLoadJob):
+            # determine which dataset to use
+            if is_staging_destination_job:
                 use_staging_dataset = isinstance(
                     job_client, SupportsStagingDestination
                 ) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
@@ -201,6 +205,24 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     job_client, WithStagingDataset
                 ) and job_client.should_load_data_to_staging_dataset(table)
 
+            # submit to pool
+            self.pool.submit(Load.w_run_job, *(id(self), job, active_job_client, use_staging_dataset))  # type: ignore
+
+        # otherwise a job in an actionable state is expected
+        else:
+            assert job.state() in ("completed", "failed", "retry")
+
+        return job
+
+    @staticmethod
+    @workermethod
+    def w_run_job(
+        self: "Load", job: RunnableLoadJob, job_client: JobClientBase, use_staging_dataset: bool
+    ) -> None:
+        """
+        Start a load job in a separate thread
+        """
+        with job_client as client:
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
                 job.run_managed()
 
@@ -220,18 +242,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         logger.info(f"Will load additional {len(load_files)}, creating jobs")
         started_jobs: List[LoadJob] = []
         for file in load_files:
-            job = self.get_job(file, load_id, schema)
+            job = self.start_job(file, load_id, schema)
             started_jobs.append(job)
-
-            # only start a thread if this job is runnable
-            if isinstance(job, RunnableLoadJob):
-                self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))  # type: ignore
 
         return started_jobs
 
-    def retrieve_jobs(
-        self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None
-    ) -> List[LoadJob]:
+    def retrieve_jobs(self, load_id: str, schema: Schema) -> List[LoadJob]:
         jobs: List[LoadJob] = []
 
         # list all files that were started but not yet completed
@@ -242,19 +258,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             return jobs
 
         for file_path in started_jobs:
-            try:
-                logger.info(f"Will retrieve {file_path}")
-                client = staging_client if self.is_staging_destination_job(file_path) else client
-                job = client.restore_file_load(file_path)
-            except DestinationTerminalException:
-                logger.exception(f"Job retrieval for {file_path} failed, job will be terminated")
-                job = FinalizedLoadJobWithFollowupJobs.from_file_path(
-                    file_path, "failed", pretty_format_exception()
-                )
-                # proceed to appending job, do not reraise
-            except (DestinationTransientException, Exception):
-                # raise on all temporary exceptions, typically network / server problems
-                raise
+            job = self.start_job(file_path, load_id, schema, restore=True)
             jobs.append(job)
 
         return jobs
@@ -473,11 +477,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.load_storage.commit_schema_update(load_id, applied_update)
 
             # collect all unfinished jobs
-            running_jobs: List[LoadJob] = []
-            if self.staging_destination:
-                with self.get_staging_destination_client(schema) as staging_client:
-                    running_jobs += self.retrieve_jobs(job_client, load_id, staging_client)
-            running_jobs += self.retrieve_jobs(job_client, load_id)
+            running_jobs: List[LoadJob] = self.retrieve_jobs(load_id, schema)
 
         # loop until all jobs are processed
         while True:

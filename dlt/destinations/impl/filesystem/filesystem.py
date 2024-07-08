@@ -312,7 +312,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         # skip the state table, we create a jsonl file in the complete_load step
         # this does not apply to scenarios where we are using filesystem as staging
         # where we want to load the state the regular way
@@ -325,9 +327,6 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(self, file_path, load_id, table)
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""

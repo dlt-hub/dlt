@@ -150,8 +150,10 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: DremioSqlClient = sql_client  # type: ignore
         self.type_mapper = DremioTypeMapper(self.capabilities)
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id)
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().get_load_job(table, file_path, load_id, restore)
 
         if not job:
             job = DremioLoadJob(
@@ -161,9 +163,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 stage_name=self.config.staging_data_source,
             )
         return job
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     def _get_table_update_sql(
         self,

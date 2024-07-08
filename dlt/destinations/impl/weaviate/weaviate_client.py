@@ -681,7 +681,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
             **extra_kv,
         }
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         return LoadWeaviateJob(
             self,
             self.schema,
@@ -691,9 +693,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
             client_config=self.config,
             class_name=self.make_qualified_class_name(table["name"]),
         )
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:

@@ -12,6 +12,7 @@ from typing import (
     Iterable,
     List,
 )
+import time
 
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -57,6 +58,7 @@ class LoadDummyBaseJob(RunnableLoadJob):
                 raise DestinationTransientException(self._exception)
 
     def run(self) -> None:
+        # time.sleep(0.1)
         # this should poll the server for a job status, here we simulate various outcomes
         c_r = random.random()
         if self.config.exception_prob >= c_r:
@@ -135,8 +137,12 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             )
         return applied_update
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)
+        if restore and job_id not in JOBS:
+            raise LoadJobNotExistsException(job_id)
         # return existing job if already there
         if job_id not in JOBS:
             JOBS[job_id] = self._create_job(file_path)
@@ -145,12 +151,6 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             if job.state == "retry":
                 job.retry()
 
-        return JOBS[job_id]
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        job_id = FileStorage.get_file_name_from_file_path(file_path)
-        if job_id not in JOBS:
-            raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
 
     def create_table_chain_completed_followup_jobs(

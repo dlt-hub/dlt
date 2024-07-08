@@ -327,8 +327,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             .strip()
         )
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return super().get_load_job(table, file_path, load_id) or ClickHouseLoadJob(
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        return super().get_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
             self,
             file_path,
             table["name"],
@@ -373,6 +375,3 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, ch_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(ch_t, precision, scale)
-
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)

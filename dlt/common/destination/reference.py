@@ -410,13 +410,10 @@ class JobClientBase(ABC):
         return expected_update
 
     @abstractmethod
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         """Creates and starts a load job for a particular `table` with content in `file_path`"""
-        pass
-
-    @abstractmethod
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Finds and restores already started loading job identified by `file_path` if destination supports it."""
         pass
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:

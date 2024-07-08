@@ -202,6 +202,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
+    # todo fold into method above
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
 
@@ -214,7 +215,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         Returns:
             LoadJob: completed SqlLoadJob or restored BigQueryLoadJob
         """
-        job = super().restore_file_load(file_path)
+        job: LoadJob = None
         if not job:
             try:
                 job = BigQueryLoadJob(
@@ -236,7 +237,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     raise DatabaseTransientException(gace) from gace
         return job
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
         job = super().get_load_job(table, file_path, load_id)
 
         if not job:

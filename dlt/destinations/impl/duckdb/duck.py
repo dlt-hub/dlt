@@ -162,8 +162,10 @@ class DuckDbClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = DuckDbTypeMapper(self.capabilities)
 
-    def get_load_job(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id)
+    def get_load_job(
+        self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
+    ) -> LoadJob:
+        job = super().get_load_job(table, file_path, load_id, restore)
         if not job:
             job = DuckDbCopyJob(self, table["name"], file_path)
         return job
