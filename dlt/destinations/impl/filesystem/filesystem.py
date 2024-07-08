@@ -40,7 +40,7 @@ INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
 
 
-class LoadFilesystemJob(RunnableLoadJob):
+class FilesystemLoadJob(RunnableLoadJob):
     def __init__(
         self,
         client: "FilesystemClient",
@@ -128,7 +128,7 @@ class DeltaLoadFilesystemJob(ReferenceFollowupJob):
         return self.client.get_table_dir(self.table["name"])
 
 
-class FollowupFilesystemJob(HasFollowupJobs, LoadFilesystemJob):
+class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         jobs = super().create_followup_jobs(final_state)
         if final_state == "completed":
@@ -318,10 +318,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             return FinalizedLoadJob(file_path)
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
-
             return FinalizedLoadJobWithFollowupJobs(file_path)
 
-        cls = FollowupFilesystemJob if self.config.as_staging else LoadFilesystemJob
+        cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(self, file_path, load_id, table)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
