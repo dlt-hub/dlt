@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse, urljoin
@@ -545,6 +546,17 @@ class JSONLinkPaginator(BaseNextUrlPaginator):
 
     def __str__(self) -> str:
         return super().__str__() + f": next_url_path: {self.next_url_path}"
+
+
+class JSONResponsePaginator(JSONLinkPaginator):
+    def __init__(self) -> None:
+        warnings.warn(
+            "JSONResponsePaginator is deprecated and will be removed in version 1.0.0. Use"
+            " JSONLinkPaginator instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__()
 
 
 class JSONResponseCursorPaginator(BaseReferencePaginator):
