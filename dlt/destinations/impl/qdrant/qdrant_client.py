@@ -55,8 +55,7 @@ class LoadQdrantJob(RunnableLoadJob):
         self.config = client_config
 
     def run(self) -> None:
-
-        with FileStorage.open_zipsafe_ro(local_path) as f:
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
             ids: List[str]
             docs, payloads, ids = [], [], []
 
