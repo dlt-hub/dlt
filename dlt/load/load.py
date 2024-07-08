@@ -138,38 +138,47 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         job_client = self.get_destination_client(schema)
 
         # if we have a staging destination and the file is not a reference, send to staging
-        with (
-            self.get_staging_destination_client(schema)
-            if is_staging_destination_job
-            else job_client
-        ) as client:
-            job_info = ParsedLoadJobFileName.parse(file_path)
-            if job_info.file_format not in self.load_storage.supported_job_file_formats:
-                raise LoadClientUnsupportedFileFormats(
-                    job_info.file_format,
-                    self.destination.capabilities().supported_loader_file_formats,
-                    file_path,
+        try:
+            with (
+                self.get_staging_destination_client(schema)
+                if is_staging_destination_job
+                else job_client
+            ) as client:
+                job_info = ParsedLoadJobFileName.parse(file_path)
+                if job_info.file_format not in self.load_storage.supported_job_file_formats:
+                    raise LoadClientUnsupportedFileFormats(
+                        job_info.file_format,
+                        self.destination.capabilities().supported_loader_file_formats,
+                        file_path,
+                    )
+                logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+                table = client.prepare_load_table(job_info.table_name)
+                if table["write_disposition"] not in ["append", "replace", "merge"]:
+                    raise LoadClientUnsupportedWriteDisposition(
+                        job_info.table_name, table["write_disposition"], file_path
+                    )
+
+                job = client.get_load_job(
+                    table,
+                    self.load_storage.normalized_packages.storage.make_full_path(file_path),
+                    load_id,
                 )
-            logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
-            table = client.prepare_load_table(job_info.table_name)
-            if table["write_disposition"] not in ["append", "replace", "merge"]:
-                raise LoadClientUnsupportedWriteDisposition(
-                    job_info.table_name, table["write_disposition"], file_path
+
+            if job is None:
+                raise DestinationTerminalException(
+                    f"Destination could not create a job for file {file_path}. Typically the file"
+                    " extension could not be associated with job type and that indicates an error"
+                    " in the code."
                 )
-
-            job = client.get_load_job(
-                table,
-                self.load_storage.normalized_packages.storage.make_full_path(file_path),
-                load_id,
+        except DestinationTerminalException:
+            job = FinalizedLoadJobWithFollowupJobs.from_file_path(
+                file_path, "failed", pretty_format_exception()
             )
-
-        if job is None:
-            raise DestinationTerminalException(
-                f"Destination could not create a job for file {file_path}. Typically the file"
-                " extension could not be associated with job type and that indicates an error in"
-                " the code."
+        except Exception:
+            job = FinalizedLoadJobWithFollowupJobs.from_file_path(
+                file_path, "retry", pretty_format_exception()
             )
-
+        job._file_path = self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 
     @staticmethod
@@ -198,7 +207,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
     ) -> Sequence[LoadJob]:
-        # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
+        # get a list of jobs elligble to be started
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
             self.destination.capabilities(),
@@ -207,18 +216,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
 
         logger.info(f"Will load additional {len(load_files)}, creating jobs")
-        jobs: List[LoadJob] = []
+        started_jobs: List[LoadJob] = []
         for file in load_files:
             job = self.get_job(file, load_id, schema)
-            jobs.append(job)
-            job._file_path = self.load_storage.normalized_packages.start_job(
-                load_id, job.file_name()
-            )
+            started_jobs.append(job)
+
             # only start a thread if this job is runnable
             if isinstance(job, RunnableLoadJob):
                 self.pool.submit(Load.w_start_job, *(id(self), job, load_id, schema))  # type: ignore
 
-        return jobs
+        return started_jobs
 
     def retrieve_jobs(
         self, client: JobClientBase, load_id: str, staging_client: JobClientBase = None

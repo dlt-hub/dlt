@@ -318,6 +318,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             return FinalizedLoadJob(file_path)
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
+
             return FinalizedLoadJobWithFollowupJobs(file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
