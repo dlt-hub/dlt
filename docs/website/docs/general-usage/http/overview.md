@@ -58,11 +58,11 @@ Note that we do not explicitly specify the pagination parameters in the example.
 ```py
 import dlt
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 github_client = RESTClient(
     base_url="https://pokeapi.co/api/v2",
-    paginator=JSONResponsePaginator(next_url_path="next"),   # (1)
+    paginator=JSONLinkPaginator(next_url_path="next"),   # (1)
     data_selector="results",                                 # (2)
 )
 
@@ -86,6 +86,6 @@ print(load_info)
 ```
 
 In the example above:
-1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONResponsePaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
+1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONLinkPaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
 2. In `data_selector` we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
 3. By default the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.

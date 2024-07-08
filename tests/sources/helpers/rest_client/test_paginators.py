@@ -10,7 +10,7 @@ from dlt.sources.helpers.rest_client.paginators import (
     OffsetPaginator,
     PageNumberPaginator,
     HeaderLinkPaginator,
-    JSONResponsePaginator,
+    JSONLinkPaginator,
     JSONResponseCursorPaginator,
 )
 
@@ -46,7 +46,7 @@ class TestHeaderLinkPaginator:
 
 
 @pytest.mark.usefixtures("mock_api_server")
-class TestJSONResponsePaginator:
+class TestJSONLinkPaginator:
     @pytest.mark.parametrize(
         "test_case",
         [
@@ -98,9 +98,9 @@ class TestJSONResponsePaginator:
         next_url_path = test_case["next_url_path"]
 
         if next_url_path is None:
-            paginator = JSONResponsePaginator()
+            paginator = JSONLinkPaginator()
         else:
-            paginator = JSONResponsePaginator(next_url_path=next_url_path)
+            paginator = JSONLinkPaginator(next_url_path=next_url_path)
         response = Mock(Response, json=lambda: test_case["response_json"])
         paginator.update_state(response)
         assert paginator._next_reference == test_case["expected"]["next_reference"]
@@ -167,14 +167,14 @@ class TestJSONResponsePaginator:
         ],
     )
     def test_update_request(self, test_case):
-        paginator = JSONResponsePaginator()
+        paginator = JSONLinkPaginator()
         paginator._next_reference = test_case["next_reference"]
         request = Mock(Request, url=test_case["request_url"])
         paginator.update_request(request)
         assert request.url == test_case["expected"]
 
     def test_no_duplicate_params_on_update_request(self):
-        paginator = JSONResponsePaginator()
+        paginator = JSONLinkPaginator()
 
         request = Request(
             method="GET",
@@ -200,7 +200,7 @@ class TestJSONResponsePaginator:
     def test_client_pagination(self, rest_client):
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(
+            paginator=JSONLinkPaginator(
                 next_url_path="next_page",
             ),
         )
