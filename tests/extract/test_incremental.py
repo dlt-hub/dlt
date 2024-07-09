@@ -634,6 +634,31 @@ def test_missing_cursor_field(item_type: TestDataItemFormat) -> None:
     assert pip_ex.value.__context__.json_path == "item.timestamp"
 
 
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_does_not_discard_row_without_incremental_cursor(item_type: TestDataItemFormat) -> None:
+    last_values = []
+
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": None},
+        {"id": 3, "created_at": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at")):
+        last_values.append(created_at.last_value)
+        yield from source_items
+
+    result = list(some_data())
+    assert len(result[0]) == 3
+    assert last_values == [None]
+
+    result_2 = list(some_data())
+    assert len(result_2[0]) == 3
+    assert last_values == [None, 2]
+
+
 def test_json_path_cursor() -> None:
     @dlt.resource
     def some_data(last_timestamp=dlt.sources.incremental("item.timestamp|modifiedAt")):
