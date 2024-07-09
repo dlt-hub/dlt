@@ -1,9 +1,11 @@
+import os
 from importlib import import_module
 from types import ModuleType
 from typing import Any, Dict, Optional, Type, Tuple, cast, List
 
 import dlt
 from dlt.common import logger
+from dlt.common import known_env
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import known_sections
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -24,9 +26,11 @@ from dlt.common.normalizers.typing import (
 from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_class_name, uniq_id_base64, many_uniq_ids_base64
 
-DEFAULT_NAMING_NAMESPACE = "dlt.common.normalizers.naming"
-DLT_ID_LENGTH_BYTES = 10
-DEFAULT_NAMING_MODULE = "snake_case"
+DEFAULT_NAMING_NAMESPACE = os.environ.get(
+    known_env.DLT_DEFAULT_NAMING_NAMESPACE, "dlt.common.normalizers.naming"
+)
+DEFAULT_NAMING_MODULE = os.environ.get(known_env.DLT_DEFAULT_NAMING_MODULE, "snake_case")
+DLT_ID_LENGTH_BYTES = int(os.environ.get(known_env.DLT_DLT_ID_LENGTH_BYTES, 10))
 
 
 def _section_for_schema(kwargs: Dict[str, Any]) -> Tuple[str, ...]:

@@ -31,12 +31,26 @@ from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, 
 class SqlClientBase(ABC, Generic[TNativeConn]):
     dbapi: ClassVar[DBApi] = None
 
+    database_name: Optional[str]
+    """Database or catalog name, optional"""
+    dataset_name: str
+    """Normalized dataset name"""
+    staging_dataset_name: str
+    """Normalized staging dataset name"""
+    capabilities: DestinationCapabilitiesContext
+    """Instance of adjusted destination capabilities"""
+
     def __init__(
-        self, database_name: str, dataset_name: str, capabilities: DestinationCapabilitiesContext
+        self,
+        database_name: str,
+        dataset_name: str,
+        staging_dataset_name: str,
+        capabilities: DestinationCapabilitiesContext,
     ) -> None:
         if not dataset_name:
             raise ValueError(dataset_name)
         self.dataset_name = dataset_name
+        self.staging_dataset_name = staging_dataset_name
         self.database_name = database_name
         self.capabilities = capabilities
 
@@ -98,6 +112,7 @@ SELECT 1
         self.execute_many(statements)
 
     def drop_tables(self, *tables: str) -> None:
+        """Drops a set of tables if they exist"""
         if not tables:
             return
         statements = [
@@ -175,7 +190,7 @@ SELECT 1
 
     def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
         """Returns qualified names for table and corresponding staging table as tuple."""
-        with self.with_staging_dataset(staging=True):
+        with self.with_staging_dataset():
             staging_table_name = self.make_qualified_table_name(table_name, escape)
         return self.make_qualified_table_name(table_name, escape), staging_table_name
 
@@ -198,13 +213,8 @@ SELECT 1
             # restore previous dataset name
             self.dataset_name = current_dataset_name
 
-    def with_staging_dataset(
-        self, staging: bool = False
-    ) -> ContextManager["SqlClientBase[TNativeConn]"]:
-        dataset_name = self.dataset_name
-        if staging:
-            dataset_name = SqlClientBase.make_staging_dataset_name(dataset_name)
-        return self.with_alternative_dataset_name(dataset_name)
+    def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
+        return self.with_alternative_dataset_name(self.staging_dataset_name)
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
@@ -220,10 +230,6 @@ SELECT 1
         # crude way to detect dbapi DatabaseError: there's no common set of exceptions, each module must reimplement
         mro = type.mro(type(ex))
         return any(t.__name__ in ("DatabaseError", "DataError") for t in mro)
-
-    @staticmethod
-    def make_staging_dataset_name(dataset_name: str) -> str:
-        return dataset_name + "_staging"
 
     def _get_information_schema_components(self, *tables: str) -> Tuple[str, str, List[str]]:
         """Gets catalog name, schema name and name of the tables in format that can be directly

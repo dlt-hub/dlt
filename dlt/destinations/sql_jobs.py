@@ -95,7 +95,7 @@ class SqlStagingCopyJob(SqlBaseJob):
         """Drop and clone the table for supported destinations"""
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             sql.append(f"DROP TABLE IF EXISTS {table_name};")
@@ -112,7 +112,7 @@ class SqlStagingCopyJob(SqlBaseJob):
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             columns = ", ".join(

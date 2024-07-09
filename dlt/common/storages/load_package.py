@@ -72,7 +72,14 @@ class TPipelineStateDoc(TypedDict, total=False):
     _dlt_load_id: NotRequired[str]
 
 
-class TLoadPackageState(TVersionedState, total=False):
+class TLoadPackageDropTablesState(TypedDict):
+    dropped_tables: NotRequired[List[TTableSchema]]
+    """List of tables that are to be dropped from the schema and destination (i.e. when `refresh` mode is used)"""
+    truncated_tables: NotRequired[List[TTableSchema]]
+    """List of tables that are to be truncated in the destination (i.e. when `refresh='drop_data'` mode is used)"""
+
+
+class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=False):
     created_at: DateTime
     """Timestamp when the load package was created"""
     pipeline_state: NotRequired[TPipelineStateDoc]
@@ -81,11 +88,6 @@ class TLoadPackageState(TVersionedState, total=False):
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
-
-    dropped_tables: NotRequired[List[TTableSchema]]
-    """List of tables that are to be dropped from the schema and destination (i.e. when `refresh` mode is used)"""
-    truncated_tables: NotRequired[List[TTableSchema]]
-    """List of tables that are to be truncated in the destination (i.e. when `refresh='drop_data'` mode is used)"""
 
 
 class TLoadPackage(TypedDict, total=False):

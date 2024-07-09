@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
@@ -224,7 +225,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 self._delete_file(filename)
 
     def truncate_tables(self, table_names: List[str]) -> None:
-        """Truncate table with given name"""
+        """Truncate a set of tables with given `table_names`"""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
         for table_dir in table_dirs:
@@ -302,18 +303,19 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def list_files_with_prefixes(self, table_dir: str, prefixes: List[str]) -> List[str]:
         """returns all files in a directory that match given prefixes"""
         result = []
-        for current_dir, _dirs, files in self.fs_client.walk(table_dir, detail=False, refresh=True):
-            for file in files:
-                # skip INIT files
-                if file == INIT_FILE_NAME:
-                    continue
-                filepath = self.pathlib.join(
-                    path_utils.normalize_path_sep(self.pathlib, current_dir), file
-                )
-                for p in prefixes:
-                    if filepath.startswith(p):
-                        result.append(filepath)
-                        break
+        # we fallback to our own glob implementation that is tested to return consistent results for
+        # filesystems we support. we were not able to use `find` or `walk` because they were selecting
+        # files wrongly (on azure walk on path1/path2/ would also select files from path1/path2_v2/ but returning wrong dirs)
+        for details in glob_files(self.fs_client, self.make_remote_uri(table_dir), "**"):
+            file = details["file_name"]
+            filepath = self.pathlib.join(table_dir, details["relative_path"])
+            # skip INIT files
+            if file == INIT_FILE_NAME:
+                continue
+            for p in prefixes:
+                if filepath.startswith(p):
+                    result.append(filepath)
+                    break
         return result
 
     def is_storage_initialized(self) -> bool:

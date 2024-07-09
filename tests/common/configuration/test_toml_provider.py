@@ -10,6 +10,7 @@ from dlt.common.configuration import configspec, ConfigFieldMissingException, re
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     CONFIG_TOML,
@@ -257,8 +258,8 @@ def test_toml_global_config() -> None:
     assert config._add_global_config is False  # type: ignore[attr-defined]
 
     # set dlt data and settings dir
-    os.environ["DLT_DATA_DIR"] = "./tests/common/cases/configuration/dlt_home"
-    os.environ["DLT_PROJECT_DIR"] = "./tests/common/cases/configuration/"
+    os.environ[DLT_DATA_DIR] = "./tests/common/cases/configuration/dlt_home"
+    os.environ[DLT_PROJECT_DIR] = "./tests/common/cases/configuration/"
     # create instance with global toml enabled
     config = ConfigTomlProvider(add_global_config=True)
     assert config._add_global_config is True

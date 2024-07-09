@@ -1,9 +1,10 @@
 import os
 import posixpath
 
-from typing import Union, Dict
+from typing import Tuple, Union, Dict
 from urllib.parse import urlparse
 
+from fsspec import AbstractFileSystem
 import pytest
 
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -21,7 +22,7 @@ from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
 )
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
-from tests.common.storages.utils import assert_sample_files
+from tests.common.storages.utils import TEST_SAMPLE_FILES, assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import autouse_test_storage
 from .utils import self_signed_cert
@@ -98,25 +99,24 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
 
 @pytest.mark.parametrize("load_content", (True, False))
 @pytest.mark.parametrize("glob_filter", ("**", "**/*.csv", "*.txt", "met_csv/A803/*.csv"))
-def test_filesystem_dict(
-    with_gdrive_buckets_env: str, load_content: bool, glob_filter: str
-) -> None:
+def test_glob_files(with_gdrive_buckets_env: str, load_content: bool, glob_filter: str) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
-    config = get_config()
-    # enable caches
-    config.read_only = True
-    if config.protocol in ["memory", "file"]:
-        pytest.skip(f"{config.protocol} not supported in this test")
-    glob_folder = "standard_source/samples"
-    # may contain query string
-    bucket_url_parsed = urlparse(bucket_url)
-    bucket_url = bucket_url_parsed._replace(
-        path=posixpath.join(bucket_url_parsed.path, glob_folder)
-    ).geturl()
-    filesystem, _ = fsspec_from_config(config)
+    bucket_url, config, filesystem = glob_test_setup(bucket_url, "standard_source/samples")
     # use glob to get data
     all_file_items = list(glob_files(filesystem, bucket_url, glob_filter))
+    # assert len(all_file_items) == 0
     assert_sample_files(all_file_items, filesystem, config, load_content, glob_filter)
+
+
+def test_glob_overlapping_path_files(with_gdrive_buckets_env: str) -> None:
+    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
+    # "standard_source/sample" overlaps with a real existing "standard_source/samples". walk operation on azure
+    # will return all files from "standard_source/samples" and report the wrong "standard_source/sample" path to the user
+    # here we test we do not have this problem with out glob
+    bucket_url, _, filesystem = glob_test_setup(bucket_url, "standard_source/sample")
+    # use glob to get data
+    all_file_items = list(glob_files(filesystem, bucket_url))
+    assert len(all_file_items) == 0
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
@@ -264,3 +264,26 @@ def test_filesystem_destination_passed_parameters_override_config_values() -> No
         bound_config = filesystem_destination.configuration(filesystem_config)
         assert bound_config.current_datetime == config_now
         assert bound_config.extra_placeholders == config_extra_placeholders
+
+
+def glob_test_setup(
+    bucket_url: str, glob_folder: str
+) -> Tuple[str, FilesystemConfiguration, AbstractFileSystem]:
+    config = get_config()
+    # enable caches
+    config.read_only = True
+    if config.protocol in ["file"]:
+        pytest.skip(f"{config.protocol} not supported in this test")
+
+    # may contain query string
+    bucket_url_parsed = urlparse(bucket_url)
+    bucket_url = bucket_url_parsed._replace(
+        path=posixpath.join(bucket_url_parsed.path, glob_folder)
+    ).geturl()
+    filesystem, _ = fsspec_from_config(config)
+    if config.protocol == "memory":
+        mem_path = os.path.join("m", "standard_source")
+        if not filesystem.isdir(mem_path):
+            filesystem.mkdirs(mem_path)
+            filesystem.upload(TEST_SAMPLE_FILES, mem_path, recursive=True)
+    return bucket_url, config, filesystem

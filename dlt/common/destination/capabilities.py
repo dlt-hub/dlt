@@ -62,7 +62,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     casefold_identifier: Callable[[str], str] = str
     """Casing function applied by destination to represent case insensitive identifiers."""
     has_case_sensitive_identifiers: bool = None
-    """Tells if identifiers in destination are case sensitive, before case_identifier function is applied"""
+    """Tells if destination supports case sensitive identifiers"""
     decimal_precision: Tuple[int, int] = None
     wei_precision: Tuple[int, int] = None
     max_identifier_length: int = None
@@ -98,6 +98,11 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     """The destination can set the maxium amount of parallel load jobs being executed"""
     loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """The destination can override the parallelism strategy"""
+
+    def generates_case_sensitive_identifiers(self) -> bool:
+        """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
+        # must have case sensitive support and folding function must preserve casing
+        return self.has_case_sensitive_identifiers and self.casefold_identifier is str
 
     @staticmethod
     def generic_capabilities(

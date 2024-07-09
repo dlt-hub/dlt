@@ -442,7 +442,7 @@ class Schema:
         """Drops tables from the schema and returns the dropped tables"""
         result = []
         for table_name in table_names:
-            table = self.tables.get(table_name)
+            table = self.get_table(table_name)
             if table and (not seen_data_only or utils.has_table_seen_data(table)):
                 result.append(self._schema_tables.pop(table_name))
         return result
@@ -505,19 +505,29 @@ class Schema:
         self,
         table_name: str,
         existing_columns: TTableSchemaColumns,
-        case_sensitive: bool = True,
+        case_sensitive: bool,
         include_incomplete: bool = False,
     ) -> List[TColumnSchema]:
         """Gets new columns to be added to `existing_columns` to bring them up to date with `table_name` schema.
-        Columns names are compared case sensitive by default.
+        Columns names are compared case sensitive by default. `existing_column` names are expected to be normalized.
+        Typically they come from the destination schema. Columns that are in `existing_columns` and not in `table_name` columns are ignored.
+
         Optionally includes incomplete columns (without data type)"""
         casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str  # type: ignore[assignment]
         casefold_existing = {
             casefold_f(col_name): col for col_name, col in existing_columns.items()
         }
+        if len(existing_columns) != len(casefold_existing):
+            raise SchemaCorruptedException(
+                self.name,
+                f"A set of existing columns passed to get_new_table_columns table {table_name} has"
+                " colliding names when case insensitive comparison is used. Original names:"
+                f" {list(existing_columns.keys())}. Case-folded names:"
+                f" {list(casefold_existing.keys())}",
+            )
         diff_c: List[TColumnSchema] = []
-        s_t = self.get_table_columns(table_name, include_incomplete=include_incomplete)
-        for c in s_t.values():
+        updated_columns = self.get_table_columns(table_name, include_incomplete=include_incomplete)
+        for c in updated_columns.values():
             if casefold_f(c["name"]) not in casefold_existing:
                 diff_c.append(c)
         return diff_c
@@ -555,9 +565,16 @@ class Schema:
             )
         ]
 
-    def data_table_names(self, include_incomplete: bool = False) -> List[str]:
+    def data_table_names(
+        self, seen_data_only: bool = False, include_incomplete: bool = False
+    ) -> List[str]:
         """Returns list of table table names. Excludes dlt table names."""
-        return [t["name"] for t in self.data_tables(include_incomplete=include_incomplete)]
+        return [
+            t["name"]
+            for t in self.data_tables(
+                seen_data_only=seen_data_only, include_incomplete=include_incomplete
+            )
+        ]
 
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
@@ -727,6 +744,14 @@ class Schema:
         """
         self._configure_normalizers(explicit_normalizers(schema_name=self._schema_name))
         self._compile_settings()
+
+    def will_update_normalizers(self) -> bool:
+        """Checks if schema has any pending normalizer updates due to configuration or destination capabilities"""
+        # import desired modules
+        _, to_naming, _ = import_normalizers(
+            explicit_normalizers(schema_name=self._schema_name), self._normalizers_config
+        )
+        return type(to_naming) is not type(self.naming)  # noqa
 
     def set_schema_contract(self, settings: TSchemaContract) -> None:
         if not settings:
@@ -967,42 +992,91 @@ class Schema:
         from_naming: NamingConvention,
     ) -> TSchemaTables:
         """Verifies if normalizers can be updated before schema is changed"""
-        # print(f"{self.name}: {type(to_naming)} {type(naming_module)}")
-        if from_naming and type(from_naming) is not type(to_naming):
+        allow_ident_change = normalizers_config.get(
+            "allow_identifier_change_on_table_with_data", False
+        )
+
+        def _verify_identifiers(table: TTableSchema, norm_table: TTableSchema) -> None:
+            if not allow_ident_change:
+                # make sure no identifier got changed in table
+                if norm_table["name"] != table["name"]:
+                    raise TableIdentifiersFrozen(
+                        self.name,
+                        table["name"],
+                        to_naming,
+                        from_naming,
+                        f"Attempt to rename table name to {norm_table['name']}.",
+                    )
+                # if len(norm_table["columns"]) != len(table["columns"]):
+                #     print(norm_table["columns"])
+                #     raise TableIdentifiersFrozen(
+                #         self.name,
+                #         table["name"],
+                #         to_naming,
+                #         from_naming,
+                #         "Number of columns changed after normalization. Some columns must have"
+                #         " merged.",
+                #     )
+                col_diff = set(norm_table["columns"].keys()).symmetric_difference(
+                    table["columns"].keys()
+                )
+                if len(col_diff) > 0:
+                    raise TableIdentifiersFrozen(
+                        self.name,
+                        table["name"],
+                        to_naming,
+                        from_naming,
+                        f"Some columns got renamed to {col_diff}.",
+                    )
+
+        naming_changed = from_naming and type(from_naming) is not type(to_naming)
+        if naming_changed:
             schema_tables = {}
-            for table in self._schema_tables.values():
+            # check dlt tables
+            schema_seen_data = any(
+                utils.has_table_seen_data(t) for t in self._schema_tables.values()
+            )
+            # modify dlt tables using original naming
+            orig_dlt_tables = [
+                (self.version_table_name, utils.version_table()),
+                (self.loads_table_name, utils.loads_table()),
+                (self.state_table_name, utils.pipeline_state_table(add_dlt_id=True)),
+            ]
+            for existing_table_name, original_table in orig_dlt_tables:
+                table = self._schema_tables.get(existing_table_name)
+                # state table is optional
+                if table:
+                    table = copy(table)
+                    # keep all attributes of the schema table, copy only what we need to normalize
+                    table["columns"] = original_table["columns"]
+                    norm_table = utils.normalize_table_identifiers(table, to_naming)
+                    table_seen_data = utils.has_table_seen_data(norm_table)
+                    if schema_seen_data:
+                        _verify_identifiers(table, norm_table)
+                    schema_tables[norm_table["name"]] = norm_table
+
+            schema_seen_data = False
+            for table in self.data_tables(include_incomplete=True):
+                # TODO: when lineage is fully implemented we should use source identifiers
+                # not `table` which was already normalized
                 norm_table = utils.normalize_table_identifiers(table, to_naming)
-                if utils.has_table_seen_data(norm_table) and not normalizers_config.get(
-                    "allow_identifier_change_on_table_with_data", False
-                ):
-                    # make sure no identifier got changed in table
-                    if norm_table["name"] != table["name"]:
-                        raise TableIdentifiersFrozen(
-                            self.name,
-                            table["name"],
-                            to_naming,
-                            from_naming,
-                            f"Attempt to rename table name to {norm_table['name']}.",
-                        )
-                    if len(norm_table["columns"]) != len(table["columns"]):
-                        raise TableIdentifiersFrozen(
-                            self.name,
-                            table["name"],
-                            to_naming,
-                            from_naming,
-                            "Number of columns changed after normalization. Some columns must have"
-                            " merged.",
-                        )
-                    col_diff = set(norm_table["columns"].keys()).difference(table["columns"].keys())
-                    if len(col_diff) > 0:
-                        raise TableIdentifiersFrozen(
-                            self.name,
-                            table["name"],
-                            to_naming,
-                            from_naming,
-                            f"Some columns got renamed to {col_diff}.",
-                        )
+                table_seen_data = utils.has_table_seen_data(norm_table)
+                if table_seen_data:
+                    _verify_identifiers(table, norm_table)
                 schema_tables[norm_table["name"]] = norm_table
+                schema_seen_data |= table_seen_data
+            if schema_seen_data and not allow_ident_change:
+                # if any of the tables has seen data, fail naming convention change
+                # NOTE: this will be dropped with full identifier lineage. currently we cannot detect
+                # strict schemas being changed to lax
+                raise TableIdentifiersFrozen(
+                    self.name,
+                    "-",
+                    to_naming,
+                    from_naming,
+                    "Schema contains tables that received data. As a precaution changing naming"
+                    " conventions is disallowed until full identifier lineage is implemented.",
+                )
             # re-index the table names
             return schema_tables
         else:

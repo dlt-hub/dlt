@@ -82,6 +82,7 @@ You can also pass credentials as a database connection string. For example:
 ```toml
 # keep it at the top of your toml file! before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
+
 ```
 
 In **key pair authentication**, you replace the password with a private key string that should be in Base64-encoded DER format ([DBT also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections). The private key may also be encrypted. In that case, you must provide a passphrase alongside the private key.
@@ -171,9 +172,12 @@ Snowflake supports the following [column hints](https://dlthub.com/docs/general-
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ### Table and column identifiers
-Snowflake makes all unquoted identifiers uppercase and then resolves them case-insensitively in SQL statements. `dlt` (effectively) does not quote identifiers in DDL, preserving default behavior.
+Snowflake supports both case sensitive and case insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case insensitive identifiers. Case sensitive (like **sql_cs_v1**) will generate
+case sensitive identifiers that must be quoted in SQL statements.
 
+:::note
 Names of tables and columns in [schemas](../../general-usage/schema.md) are kept in lower case like for all other destinations. This is the pattern we observed in other tools, i.e., `dbt`. In the case of `dlt`, it is, however, trivial to define your own uppercase [naming convention](../../general-usage/schema.md#naming-convention)
+:::
 
 ## Staging support
 

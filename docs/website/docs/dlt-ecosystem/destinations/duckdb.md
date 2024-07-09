@@ -37,7 +37,7 @@ All write dispositions are supported.
 
 ### Names normalization
 `dlt` uses the standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. If you want to use the **duckdb** wide range of characters (i.e., emojis) for table and column names, you can switch to the **duck_case** naming convention, which accepts almost any string as an identifier:
-* `\n` `\r`  and `" are translated to `_`
+* `\n` `\r`  and `"` are translated to `_`
 * multiple `_` are translated to a single `_`
 
 Switch the naming convention using `config.toml`:
@@ -164,8 +164,7 @@ destination.duckdb.credentials=":pipeline:"
 ```py
 p = pipeline_one = dlt.pipeline(
   pipeline_name="my_pipeline",
-  destination="duckdb",
-  credentials=":pipeline:",
+  destination=dlt.destinations.duckdb(":pipeline:"),
 )
 ```
 

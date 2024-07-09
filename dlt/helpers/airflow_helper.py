@@ -11,6 +11,7 @@ from tenacity import (
     RetryCallState,
 )
 
+from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.exceptions import MissingDependencyException
 
 try:
@@ -121,7 +122,7 @@ class PipelineTasksGroup(TaskGroup):
         dags_folder = conf.get("core", "dags_folder")
 
         # set the dlt project folder to dags
-        os.environ["DLT_PROJECT_DIR"] = dags_folder
+        os.environ[DLT_PROJECT_DIR] = dags_folder
 
         # check if /data mount is available
         if use_data_folder and os.path.exists("/home/airflow/gcs/data"):
@@ -129,7 +130,7 @@ class PipelineTasksGroup(TaskGroup):
         else:
             # create random path
             data_dir = os.path.join(local_data_folder or gettempdir(), f"dlt_{uniq_id(8)}")
-        os.environ["DLT_DATA_DIR"] = data_dir
+        os.environ[DLT_DATA_DIR] = data_dir
 
         # delete existing config providers in container, they will get reloaded on next use
         if ConfigProvidersContext in Container():
@@ -400,7 +401,7 @@ class PipelineTasksGroup(TaskGroup):
         """
 
         # make sure that pipeline was created after dag was initialized
-        if not pipeline.pipelines_dir.startswith(os.environ["DLT_DATA_DIR"]):
+        if not pipeline.pipelines_dir.startswith(os.environ[DLT_DATA_DIR]):
             raise ValueError(
                 "Please create your Pipeline instance after AirflowTasks are created. The dlt"
                 " pipelines directory is not set correctly."
