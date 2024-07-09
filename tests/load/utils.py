@@ -626,8 +626,6 @@ def expect_load_file(
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name
-    print(job.state())
-    print(job.exception())
     assert job.state() == status
     return job
 
