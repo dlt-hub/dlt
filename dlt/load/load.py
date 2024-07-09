@@ -213,7 +213,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             # submit to pool
             self.pool.submit(Load.w_run_job, *(id(self), job, active_job_client, use_staging_dataset))  # type: ignore
 
-        # otherwise a job in an actionable state is expected
+        # sanity check: otherwise a job in an actionable state is expected
         else:
             assert job.state() in ("completed", "failed", "retry")
 
@@ -234,6 +234,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
     ) -> Sequence[LoadJob]:
+        """
+        will retrieve jobs from the new_jobs folder and start as many as there are slots available
+        """
         # get a list of jobs elligble to be started
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
@@ -253,6 +256,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return started_jobs
 
     def retrieve_jobs(self, load_id: str, schema: Schema) -> List[LoadJob]:
+        """
+        will check jobs in the started folder and resume them
+        """
         jobs: List[LoadJob] = []
 
         # list all files that were started but not yet completed
@@ -277,6 +283,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def create_followup_jobs(
         self, load_id: str, state: TLoadJobState, starting_job: LoadJob, schema: Schema
     ) -> None:
+        """
+        for jobs marked as having followup jobs, find them all and store them to the new jobs folder
+        where they will be picked up for execution
+        """
         jobs: List[FollowupJob] = []
         if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded

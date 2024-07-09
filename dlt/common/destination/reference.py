@@ -267,6 +267,7 @@ class LoadJob(ABC):
     def __init__(self, file_path: str) -> None:
         self._file_path = file_path
         self._file_name = FileStorage.get_file_name_from_file_path(file_path)
+        # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
         self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
 
@@ -310,13 +311,11 @@ class RunnableLoadJob(LoadJob, ABC):
         """
         # ensure file name
         super().__init__(file_path)
-        self._file_path = file_path
         self._state: TLoadJobState = "ready"
         self._exception: Exception = None
         self._job_client = job_client
-        # NOTE: we only accept a full filepath in the constructor
-        assert self._file_name != self._file_path
-        # variables needed by most jobs, set by the loader
+
+        # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
         self._load_table: TTableSchema = None
         self._load_id: str = None

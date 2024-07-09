@@ -57,9 +57,14 @@ class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):
     pass
 
 
-class FollowupJobImpl(FollowupJob, LoadJob):
+class FollowupJobImpl(FollowupJob):
+    """
+    Class to create a new loadjob, not stateful and not runnable
+    """
+
     def __init__(self, file_name: str) -> None:
-        super().__init__(os.path.join(tempfile.gettempdir(), file_name))
+        self._file_path = os.path.join(tempfile.gettempdir(), file_name)
+        self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
         # we only accept jobs that we can scheduleas new or mark as failed..
 
     def _save_text_file(self, data: str) -> None:
@@ -70,13 +75,9 @@ class FollowupJobImpl(FollowupJob, LoadJob):
         """Path to a newly created temporary job file"""
         return self._file_path
 
-    def state(self) -> TLoadJobState:
-        """Returns current state. Should poll external resource if necessary."""
-        return "ready"
-
-    def exception(self) -> str:
-        """The exception associated with failed or retry states"""
-        return None
+    def job_id(self) -> str:
+        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        return self._parsed_file_name.job_id()
 
 
 class ReferenceFollowupJob(FollowupJobImpl):
