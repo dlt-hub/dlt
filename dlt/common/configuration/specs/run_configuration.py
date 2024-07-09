@@ -32,7 +32,6 @@ class RunConfiguration(BaseConfiguration):
     config_files_storage_path: str = "/run/config/"
     """Platform connection"""
     dlthub_dsn: Optional[TSecretStrValue] = None
-    dataset_name_prefix: Optional[str] = None
 
     __section__: ClassVar[str] = "runtime"
 
