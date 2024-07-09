@@ -152,14 +152,14 @@ def wrap_grpc_error(f: TFun) -> TFun:
 class LoadWeaviateJob(RunnableLoadJob):
     def __init__(
         self,
-        client: "WeaviateClient",
+        job_client: "WeaviateClient",
         file_path: str,
         db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
         class_name: str,
     ) -> None:
-        super().__init__(client, file_path)
-        self._job_client: WeaviateClient = client
+        super().__init__(job_client, file_path)
+        self._job_client: WeaviateClient = job_client
         self._client_config = client_config
         self._db_client = db_client
         self._class_name = class_name

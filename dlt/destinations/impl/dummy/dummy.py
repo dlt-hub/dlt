@@ -44,11 +44,11 @@ from dlt.destinations.job_impl import ReferenceFollowupJob
 
 class LoadDummyBaseJob(RunnableLoadJob):
     def __init__(
-        self, client: "DummyClient", file_name: str, config: DummyClientConfiguration
+        self, job_client: "DummyClient", file_name: str, config: DummyClientConfiguration
     ) -> None:
         self.config = copy(config)
         self.start_time: float = pendulum.now().timestamp()
-        super().__init__(client, file_name)
+        super().__init__(job_client, file_name)
 
         if self.config.fail_in_init:
             s = self.state()

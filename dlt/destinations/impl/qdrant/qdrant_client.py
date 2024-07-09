@@ -40,13 +40,13 @@ from qdrant_client.http.exceptions import UnexpectedResponse
 class LoadQdrantJob(RunnableLoadJob):
     def __init__(
         self,
-        client: "QdrantClient",
+        job_client: "QdrantClient",
         file_path: str,
         client_config: QdrantClientConfiguration,
         collection_name: str,
     ) -> None:
-        super().__init__(client, file_path)
-        self._db_client = client.db_client
+        super().__init__(job_client, file_path)
+        self._db_client = job_client.db_client
         self._collection_name = collection_name
         self._config = client_config
 

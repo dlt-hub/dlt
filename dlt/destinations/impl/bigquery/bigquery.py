@@ -107,7 +107,7 @@ class BigQueryTypeMapper(TypeMapper):
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        client: "BigQueryClient",
+        job_client: "BigQueryClient",
         file_name: str,
         bq_load_job: bigquery.LoadJob,
         http_timeout: float,
@@ -116,7 +116,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
         self.bq_load_job = bq_load_job
         self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self.http_timeout = http_timeout
-        super().__init__(client, file_name)
+        super().__init__(job_client, file_name)
 
     def run(self) -> None:
         # bq load job works remotely and does not need to do anything on the thread (TODO: check wether this is true)

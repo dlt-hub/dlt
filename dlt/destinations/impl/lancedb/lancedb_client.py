@@ -707,20 +707,20 @@ class LoadLanceDBJob(RunnableLoadJob):
 
     def __init__(
         self,
-        client: LanceDBClient,
+        job_client: LanceDBClient,
         file_path: str,
         type_mapper: LanceDBTypeMapper,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
     ) -> None:
-        super().__init__(client, file_path)
-        self._db_client: DBConnection = client.db_client
+        super().__init__(job_client, file_path)
+        self._db_client: DBConnection = job_client.db_client
         self._type_mapper: TypeMapper = type_mapper
         self._fq_table_name: str = fq_table_name
 
         self._embedding_model_func: TextEmbeddingFunction = model_func
-        self._embedding_model_dimensions: int = client.config.embedding_model_dimensions
-        self._id_field_name: str = client.config.id_field_name
+        self._embedding_model_dimensions: int = job_client.config.embedding_model_dimensions
+        self._id_field_name: str = job_client.config.id_field_name
 
     def run(self) -> None:
         unique_identifiers: Sequence[str] = list_merge_identifiers(self._load_table)

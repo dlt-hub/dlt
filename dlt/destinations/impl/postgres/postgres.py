@@ -117,10 +117,10 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
 
 
 class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
-    def __init__(self, client: "PostgresClient", file_path: str) -> None:
-        super().__init__(client, file_path)
-        self.config = client.config
-        self._job_client: PostgresClient = client
+    def __init__(self, job_client: "PostgresClient", file_path: str) -> None:
+        super().__init__(job_client, file_path)
+        self.config = job_client.config
+        self._job_client: PostgresClient = job_client
 
     def run(self) -> None:
         sql_client = self._job_client.sql_client

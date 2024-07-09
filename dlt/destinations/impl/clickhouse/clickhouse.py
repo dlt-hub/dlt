@@ -140,12 +140,12 @@ class ClickHouseTypeMapper(TypeMapper):
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        client: SqlJobClientBase,
+        job_client: "ClickHouseClient",
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(client, file_path)
-        self._sql_client = cast(ClickHouseSqlClient, client.sql_client)
+        super().__init__(job_client, file_path)
+        self._sql_client = job_client.sql_client
         self._staging_credentials = staging_credentials
 
     def run(self) -> None:

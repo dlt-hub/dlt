@@ -44,14 +44,14 @@ FILENAME_SEPARATOR = "__"
 class FilesystemLoadJob(RunnableLoadJob):
     def __init__(
         self,
-        client: "FilesystemClient",
+        job_client: "FilesystemClient",
         file_path: str,
     ) -> None:
-        self._job_client: FilesystemClient = client
-        self.is_local_filesystem = client.config.protocol == "file"
+        self._job_client: FilesystemClient = job_client
+        self.is_local_filesystem = job_client.config.protocol == "file"
         # pick local filesystem pathlib or posix for buckets
         self.pathlib = os.path if self.is_local_filesystem else posixpath
-        super().__init__(client, file_path)
+        super().__init__(job_client, file_path)
 
     def run(self) -> None:
         self.destination_file_name = path_utils.create_path(

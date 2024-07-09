@@ -87,12 +87,12 @@ class DremioMergeJob(SqlMergeFollowupJob):
 class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        client: "DremioClient",
+        job_client: "DremioClient",
         file_path: str,
         stage_name: Optional[str] = None,
     ) -> None:
-        super().__init__(client, file_path)
-        self._sql_client = client.sql_client
+        super().__init__(job_client, file_path)
+        self._sql_client = job_client.sql_client
         self._stage_name = stage_name
 
     def run(self) -> None:

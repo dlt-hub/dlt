@@ -107,13 +107,13 @@ class DatabricksTypeMapper(TypeMapper):
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        client: "DatabricksClient",
+        job_client: "DatabricksClient",
         file_path: str,
         staging_config: FilesystemConfiguration,
     ) -> None:
-        super().__init__(client, file_path)
+        super().__init__(job_client, file_path)
         self._staging_config = staging_config
-        self._sql_client = client.sql_client
+        self._sql_client = job_client.sql_client
 
     def run(self) -> None:
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
