@@ -19,7 +19,8 @@ class PipelineConfiguration(BaseConfiguration):
     staging_name: Optional[str] = None
     loader_file_format: Optional[TLoaderFileFormat] = None
     dataset_name: Optional[str] = None
-    dataset_name_prefix: Optional[str] = dlt.config.value
+    dataset_name_layout: Optional[str] = dlt.config.value
+    """Layout for dataset_name, where %s is replaced with dataset_name."""
     pipeline_salt: Optional[TSecretValue] = None
     restore_from_destination: bool = True
     """Enables the `run` method of the `Pipeline` object to restore the pipeline state and schemas from the destination"""

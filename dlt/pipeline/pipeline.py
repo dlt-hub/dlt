@@ -1372,6 +1372,13 @@ class Pipeline(SupportsPipeline):
             if injected_caps:
                 injected_caps.__exit__(None, None, None)
 
+    def _normalize_dataset_name(self, dataset_name: str) -> str:
+        """Normalizes the dataset name using the dataset_name_layout."""
+        if "%s" not in self.config.dataset_name_layout:
+            raise ValueError("The dataset_name_layout must contain a '%s' placeholder.")
+
+        return self.config.dataset_name_layout % dataset_name
+
     def _set_dataset_name(self, new_dataset_name: str) -> None:
         if not new_dataset_name and not self.dataset_name:
             # dataset name is required but not provided - generate the default now
@@ -1400,8 +1407,8 @@ class Pipeline(SupportsPipeline):
                 new_dataset_name += self._pipeline_instance_id
         self.dataset_name = new_dataset_name
 
-        if self.config.dataset_name_prefix:
-            self.dataset_name = f"{self.config.dataset_name_prefix}_{self.dataset_name}"
+        if self.config.dataset_name_layout:
+            self.dataset_name = self._normalize_dataset_name(self.dataset_name)
 
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
