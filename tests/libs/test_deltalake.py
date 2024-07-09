@@ -128,7 +128,7 @@ def test_write_delta_table(filesystem_client) -> None:
         remote_dir, arrow_table, write_disposition="replace", storage_options=storage_options
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
-    assert dt.version() == 2
+    assert dt.version() == 0
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows, arrow_table.num_columns)
 
     # the previous table version should still exist

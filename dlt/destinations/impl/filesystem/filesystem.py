@@ -83,46 +83,28 @@ class FilesystemLoadJob(RunnableLoadJob):
         )
 
 
-class DeltaLoadFilesystemJob(ReferenceFollowupJob):
-    def __init__(
-        self,
-        client: "FilesystemClient",
-        table: TTableSchema,
-        table_jobs: Sequence[LoadJobInfo],
-    ) -> None:
-        self.client = client
-        self.table = table
-        self.table_jobs = table_jobs
-
-        ref_file_name = ParsedLoadJobFileName(
-            table["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
-        ).file_name()
+class DeltaLoadFilesystemJob(FilesystemLoadJob):
+    def __init__(self, job_client: "FilesystemClient", file_path: str) -> None:
         super().__init__(
-            file_name=ref_file_name,
-            remote_path=self.client.make_remote_uri(self.make_remote_path()),
+            job_client=job_client,
+            file_path=file_path,
         )
 
-        self.write()
-
-    def write(self) -> None:
+    def run(self) -> None:
         from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import (
             write_delta_table,
             _deltalake_storage_options,
         )
 
-        file_paths = [job.file_path for job in self.table_jobs]
-
         write_delta_table(
-            path=self.client.make_remote_uri(self.make_remote_path()),
-            data=pa.dataset.dataset(file_paths),
-            write_disposition=self.table["write_disposition"],
-            storage_options=_deltalake_storage_options(self.client.config),
+            path=self._job_client.make_remote_uri(
+                self._job_client.get_table_dir(self.load_table_name)
+            ),
+            data=pa.dataset.dataset([self._file_path]),
+            write_disposition=self._load_table["write_disposition"],
+            storage_options=_deltalake_storage_options(self._job_client.config),
         )
-
-    def make_remote_path(self) -> str:
-        # directory path, not file path
-        return self.client.get_table_dir(self.table["name"])
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
@@ -212,7 +194,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 self._delete_file(filename)
 
     def truncate_tables(self, table_names: List[str]) -> None:
-        """Truncate a set of tables with given `table_names`"""
+        """Truncate a set of regular tables with given `table_names`"""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
         for table_dir in table_dirs:
@@ -319,7 +301,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
-            return FinalizedLoadJobWithFollowupJobs(file_path)
+            return DeltaLoadFilesystemJob(self, file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(self, file_path)
@@ -343,10 +325,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return False
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
-        return (
-            table["write_disposition"] == "replace"
-            and not table.get("table_format") == "delta"  # Delta can do a logical replace
-        )
+        return table["write_disposition"] == "replace"
 
     #
     # state stuff
@@ -537,14 +516,5 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-        table_format = table_chain[0].get("table_format")
-        if table_format == "delta":
-            delta_jobs = [
-                DeltaLoadFilesystemJob(
-                    self, table, get_table_jobs(completed_table_chain_jobs, table["name"])
-                )
-                for table in table_chain
-            ]
-            jobs.extend(delta_jobs)
 
         return jobs
