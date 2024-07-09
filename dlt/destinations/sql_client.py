@@ -162,8 +162,13 @@ SELECT 1
         # connection is scoped to a current database
         return None
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return ".".join(self.make_qualified_table_name_path(None, escape=escape))
+    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
+        if staging:
+            with self.with_staging_dataset():
+                path = self.make_qualified_table_name_path(None, escape=escape)
+        else:
+            path = self.make_qualified_table_name_path(None, escape=escape)
+        return ".".join(path)
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
         return ".".join(self.make_qualified_table_name_path(table_name, escape=escape))

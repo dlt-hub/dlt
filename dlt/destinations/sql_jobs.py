@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable
+from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable, Union
 
 import yaml
 from dlt.common.logger import pretty_format_exception
@@ -6,6 +6,7 @@ from dlt.common.logger import pretty_format_exception
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
+    TColumnProp,
 )
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -389,6 +390,63 @@ class SqlMergeJob(SqlBaseJob):
         return (col, cond)
 
     @classmethod
+    def _get_unique_col(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        table: TTableSchema,
+    ) -> str:
+        """Returns name of first column in `table` with `unique` property.
+
+        Raises `MergeDispositionException` if no such column exists.
+        """
+        return cls._get_prop_col_or_raise(
+            table,
+            "unique",
+            MergeDispositionException(
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+                [t["name"] for t in table_chain],
+                f"No `unique` column (e.g. `_dlt_id`) in table `{table['name']}`.",
+            ),
+        )
+
+    @classmethod
+    def _get_root_key_col(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        table: TTableSchema,
+    ) -> str:
+        """Returns name of first column in `table` with `root_key` property.
+
+        Raises `MergeDispositionException` if no such column exists.
+        """
+        return cls._get_prop_col_or_raise(
+            table,
+            "root_key",
+            MergeDispositionException(
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+                [t["name"] for t in table_chain],
+                f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
+            ),
+        )
+
+    @classmethod
+    def _get_prop_col_or_raise(
+        cls, table: TTableSchema, prop: Union[TColumnProp, str], exception: Exception
+    ) -> str:
+        """Returns name of first column in `table` with `prop` property.
+
+        Raises `exception` if no such column exists.
+        """
+        col = get_first_column_name_with_prop(table, prop)
+        if col is None:
+            raise exception
+        return col
+
+    @classmethod
     def gen_merge_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -449,18 +507,9 @@ class SqlMergeJob(SqlBaseJob):
                     root_table_name, staging_root_table_name, key_clauses, for_delete=False
                 )
                 # use unique hint to create temp table with all identifiers to delete
-                unique_columns = get_columns_names_with_prop(root_table, "unique")
-                if not unique_columns:
-                    raise MergeDispositionException(
-                        sql_client.fully_qualified_dataset_name(),
-                        staging_root_table_name,
-                        [t["name"] for t in table_chain],
-                        "There is no unique column (ie _dlt_id) in top table"
-                        f" {root_table['name']} so it is not possible to link child tables to it.",
-                    )
-                # get first unique column
-                unique_column = escape_column_id(unique_columns[0])
-                # create temp table with unique identifier
+                unique_column = escape_column_id(
+                    cls._get_unique_col(table_chain, sql_client, root_table)
+                )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
                         root_table["name"], unique_column, key_table_clauses, sql_client
@@ -472,17 +521,9 @@ class SqlMergeJob(SqlBaseJob):
                 # but uses temporary views instead
                 for table in table_chain[1:]:
                     table_name = sql_client.make_qualified_table_name(table["name"])
-                    root_key_columns = get_columns_names_with_prop(table, "root_key")
-                    if not root_key_columns:
-                        raise MergeDispositionException(
-                            sql_client.fully_qualified_dataset_name(),
-                            staging_root_table_name,
-                            [t["name"] for t in table_chain],
-                            "There is no root foreign key (ie _dlt_root_id) in child table"
-                            f" {table['name']} so it is not possible to refer to top level table"
-                            f" {root_table['name']} unique column {unique_column}",
-                        )
-                    root_key_column = escape_column_id(root_key_columns[0])
+                    root_key_column = escape_column_id(
+                        cls._get_root_key_col(table_chain, sql_client, table)
+                    )
                     sql.append(
                         cls.gen_delete_from_sql(
                             table_name, root_key_column, delete_temp_table_name, unique_column
@@ -599,24 +640,30 @@ class SqlMergeJob(SqlBaseJob):
         # generate statements for child tables if they exist
         child_tables = table_chain[1:]
         if child_tables:
-            root_row_key = escape_column_id("_dlt_id")
+            root_unique_column = escape_column_id(
+                cls._get_unique_col(table_chain, sql_client, root_table)
+            )
             for table in child_tables:
-                row_key = escape_column_id("_dlt_id")
-                root_key = escape_column_id(get_first_column_name_with_prop(table, "root_key"))
+                unique_column = escape_column_id(
+                    cls._get_unique_col(table_chain, sql_client, table)
+                )
+                root_key_column = escape_column_id(
+                    cls._get_root_key_col(table_chain, sql_client, table)
+                )
                 table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
                 # delete records for elements no longer in the list
                 sql.append(f"""
                     DELETE FROM {table_name}
-                    WHERE {root_key} IN (SELECT {root_row_key} FROM {staging_root_table_name})
-                    AND {row_key} NOT IN (SELECT {row_key} FROM {staging_table_name});
+                    WHERE {root_key_column} IN (SELECT {root_unique_column} FROM {staging_root_table_name})
+                    AND {unique_column} NOT IN (SELECT {unique_column} FROM {staging_table_name});
                 """)
 
                 # insert records for new elements in the list
                 col_str = ", ".join(["{alias}" + escape_column_id(c) for c in table["columns"]])
                 sql.append(f"""
                     MERGE INTO {table_name} d USING {staging_table_name} s
-                    ON d.{row_key} = s.{row_key}
+                    ON d.{unique_column} = s.{unique_column}
                     WHEN NOT MATCHED
                         THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                 """)
@@ -625,8 +672,8 @@ class SqlMergeJob(SqlBaseJob):
                 if hard_delete_col is not None:
                     sql.append(f"""
                         DELETE FROM {table_name}
-                        WHERE {root_key} IN (
-                            SELECT {root_row_key}
+                        WHERE {root_key_column} IN (
+                            SELECT {root_unique_column}
                             FROM {staging_root_table_name}
                             WHERE {deleted_cond}
                         );
@@ -700,19 +747,9 @@ class SqlMergeJob(SqlBaseJob):
         # insert list elements for new active records in child tables
         child_tables = table_chain[1:]
         if child_tables:
-            unique_column: str = None
-            # use unique hint to create temp table with all identifiers to delete
-            unique_columns = get_columns_names_with_prop(root_table, "unique")
-            if not unique_columns:
-                raise MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    staging_root_table_name,
-                    [t["name"] for t in table_chain],
-                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
-                    " it is not possible to link child tables to it.",
-                )
-            # get first unique column
-            unique_column = escape_column_id(unique_columns[0])
+            unique_column = escape_column_id(
+                cls._get_unique_col(table_chain, sql_client, root_table)
+            )
             # TODO: - based on deterministic child hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
