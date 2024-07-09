@@ -348,7 +348,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             job = jobs[ii]
             logger.debug(f"Checking state for job {job.job_id()}")
             state: TLoadJobState = job.state()
-            if state == "running":
+            if state in ("ready", "running"):
                 # ask again
                 logger.debug(f"job {job.job_id()} still running")
                 remaining_jobs.append(job)
@@ -397,6 +397,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
                 logger.info(f"Job for {job.job_id()} completed in load {load_id}")
+            else:
+                raise Exception("Incorrect job state")
 
             if state in ["failed", "completed"]:
                 self.collector.update("Jobs")
@@ -495,10 +497,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             running_jobs: List[LoadJob] = self.retrieve_jobs(load_id, schema)
 
         # loop until all jobs are processed
+        pending_exception: Exception = None
         while True:
             try:
                 # we continously spool new jobs and complete finished ones
-                running_jobs, pending_exception = self.complete_jobs(load_id, running_jobs, schema)
+                running_jobs, new_pending_exception = self.complete_jobs(
+                    load_id, running_jobs, schema
+                )
+                pending_exceptions = pending_exception or new_pending_exception
                 # do not spool new jobs if there was a signal
                 if not signals.signal_received() and not pending_exception:
                     running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
@@ -507,7 +513,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if len(running_jobs) == 0:
                     # if a pending exception was discovered during completion of jobs
                     # we can raise it now
-                    if pending_exception:
+                    if pending_exceptions:
                         raise pending_exception
                     break
                 # this will raise on signal

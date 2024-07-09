@@ -119,12 +119,12 @@ class PostgresStagingCopyJob(SqlStagingCopyFollowupJob):
 class PostgresCsvCopyJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, job_client: "PostgresClient", file_path: str) -> None:
         super().__init__(job_client, file_path)
-        self.config = job_client.config
+        self._config = job_client.config
         self._job_client: PostgresClient = job_client
 
     def run(self) -> None:
         sql_client = self._job_client.sql_client
-        csv_format = self.config.csv_format or CsvFormatConfiguration()
+        csv_format = self._config.csv_format or CsvFormatConfiguration()
         table_name = self.load_table_name
         sep = csv_format.delimiter
         if csv_format.on_error_continue:
