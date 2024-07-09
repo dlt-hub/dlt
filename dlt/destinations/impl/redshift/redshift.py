@@ -194,10 +194,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 {compression}
                 {credentials} MAXERROR 0;""")
 
-    def exception(self) -> str:
-        # this part of code should be never reached
-        raise NotImplementedError()
-
 
 class RedshiftMergeJob(SqlMergeFollowupJob):
     @classmethod

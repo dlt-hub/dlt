@@ -264,6 +264,10 @@ TLoadJobState = Literal["ready", "running", "failed", "retry", "completed"]
 
 
 class LoadJob(ABC):
+    """
+    A stateful load job, represents one job file
+    """
+
     def __init__(self, file_path: str) -> None:
         self._file_path = file_path
         self._file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -355,7 +359,7 @@ class RunnableLoadJob(LoadJob, ABC):
             self._exception = e
         finally:
             # sanity check
-            assert self._state not in ("running", "ready")
+            assert self._state in ("completed", "retry", "failed")
 
     @abstractmethod
     def run(self) -> None:
