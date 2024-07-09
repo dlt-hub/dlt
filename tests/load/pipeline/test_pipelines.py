@@ -1,11 +1,11 @@
 from copy import deepcopy
 import gzip
 import os
-from typing import Any, Callable, Iterator, Tuple, List, cast
+from typing import Any, Iterator, List, cast, Tuple, Callable
 import pytest
+from unittest import mock
 
 import dlt
-
 from dlt.common import json, sleep
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.destination import Destination
@@ -13,14 +13,16 @@ from dlt.common.destination.exceptions import DestinationHasFailedJobs
 from dlt.common.destination.reference import WithStagingDataset
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME, VERSION_TABLE_NAME
-from dlt.common.schema.utils import pipeline_state_table
+from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.schema.utils import new_table
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations import filesystem, redshift
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.extract.exceptions import ResourceNameMissing
-from dlt.extract import DltSource
+from dlt.extract.source import DltSource
 from dlt.pipeline.exceptions import (
     CannotRestorePipelineException,
     PipelineConfigMissing,
@@ -521,10 +523,16 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
 def test_pipeline_explicit_destination_credentials(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    from dlt.destinations import postgres
+    from dlt.destinations.impl.postgres.configuration import PostgresCredentials
+
     # explicit credentials resolved
     p = dlt.pipeline(
-        destination=Destination.from_reference("postgres", destination_name="mydest"),
-        credentials="postgresql://loader:loader@localhost:7777/dlt_data",
+        destination=Destination.from_reference(
+            "postgres",
+            destination_name="mydest",
+            credentials="postgresql://loader:loader@localhost:7777/dlt_data",
+        ),
     )
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.port == 7777  # type: ignore[attr-defined]
@@ -533,8 +541,11 @@ def test_pipeline_explicit_destination_credentials(
     # explicit credentials resolved ignoring the config providers
     os.environ["DESTINATION__MYDEST__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(
-        destination=Destination.from_reference("postgres", destination_name="mydest"),
-        credentials="postgresql://loader:loader@localhost:5432/dlt_data",
+        destination=Destination.from_reference(
+            "postgres",
+            destination_name="mydest",
+            credentials="postgresql://loader:loader@localhost:5432/dlt_data",
+        ),
     )
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
@@ -543,20 +554,35 @@ def test_pipeline_explicit_destination_credentials(
     os.environ["DESTINATION__MYDEST__CREDENTIALS__USERNAME"] = "UN"
     os.environ["DESTINATION__MYDEST__CREDENTIALS__PASSWORD"] = "PW"
     p = dlt.pipeline(
-        destination=Destination.from_reference("postgres", destination_name="mydest"),
-        credentials="postgresql://localhost:5432/dlt_data",
+        destination=Destination.from_reference(
+            "postgres",
+            destination_name="mydest",
+            credentials="postgresql://localhost:5432/dlt_data",
+        ),
     )
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.username == "UN"  # type: ignore[attr-defined]
-    # host is also overridden
-    assert c.config.credentials.host == "HOST"  # type: ignore[attr-defined]
+    # host is taken form explicit credentials
+    assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
 
     # instance of credentials will be simply passed
-    # c = RedshiftCredentials("postgresql://loader:loader@localhost/dlt_data")
-    # assert c.is_resolved()
-    # p = dlt.pipeline(destination="postgres", credentials=c)
-    # inner_c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
-    # assert inner_c is c
+    cred = PostgresCredentials("postgresql://user:pass@localhost/dlt_data")
+    p = dlt.pipeline(destination=postgres(credentials=cred))
+    inner_c = p.destination_client()
+    assert inner_c.config.credentials is cred
+
+    # with staging
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        staging=filesystem("_storage"),
+        destination=redshift(credentials="redshift://loader:password@localhost:5432/dlt_data"),
+    )
+    config = p.destination_client().config
+    assert config.credentials.is_resolved()
+    assert (
+        config.credentials.to_native_representation()
+        == "redshift://loader:password@localhost:5432/dlt_data?connect_timeout=15"
+    )
 
 
 # do not remove - it allows us to filter tests by destination
@@ -703,9 +729,8 @@ def test_many_pipelines_single_dataset(destination_config: DestinationTestConfig
     # restore from destination, check state
     p = dlt.pipeline(
         pipeline_name="source_1_pipeline",
-        destination="duckdb",
+        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
         dataset_name="shared_dataset",
-        credentials="duckdb:///_storage/test_quack.duckdb",
     )
     p.sync_destination()
     # we have our separate state
@@ -720,9 +745,8 @@ def test_many_pipelines_single_dataset(destination_config: DestinationTestConfig
 
     p = dlt.pipeline(
         pipeline_name="source_2_pipeline",
-        destination="duckdb",
+        destination=dlt.destinations.duckdb(credentials="duckdb:///_storage/test_quack.duckdb"),
         dataset_name="shared_dataset",
-        credentials="duckdb:///_storage/test_quack.duckdb",
     )
     p.sync_destination()
     # we have our separate state
@@ -799,7 +823,6 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
         assert_query_data(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
 
 
-# do not remove - it allows us to filter tests by destination
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, all_staging_configs=True, file_format="parquet"),
@@ -1029,10 +1052,36 @@ def test_pipeline_upfront_tables_two_loads(
                 if job_client.should_load_data_to_staging_dataset(
                     job_client.schema.tables[table_name]
                 ):
-                    with client.with_staging_dataset(staging=True):
+                    with client.with_staging_dataset():
                         tab_name = client.make_qualified_table_name(table_name)
                         with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+def test_query_all_info_tables_fallback(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(
+        "parquet_test_" + uniq_id(), dataset_name="parquet_test_" + uniq_id()
+    )
+    with mock.patch.object(SqlJobClientBase, "INFO_TABLES_QUERY_THRESHOLD", 0):
+        info = pipeline.run([1, 2, 3], table_name="digits_1")
+        assert_load_info(info)
+        # create empty table
+        client: SqlJobClientBase
+        # we must add it to schema
+        pipeline.default_schema._schema_tables["existing_table"] = new_table("existing_table")
+        with pipeline.destination_client() as client:  # type: ignore[assignment]
+            sql = client._get_table_update_sql(
+                "existing_table", [{"name": "_id", "data_type": "bigint"}], False
+            )
+            client.sql_client.execute_many(sql)
+        # remove it from schema
+        del pipeline.default_schema._schema_tables["existing_table"]
+        # store another table
+        info = pipeline.run([1, 2, 3], table_name="digits_2")
+        assert_data_table_counts(pipeline, {"digits_1": 3, "digits_2": 3})
 
 
 # @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")

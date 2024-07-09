@@ -142,6 +142,24 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
     }
 
 
+def test_explicit_filesystem_credentials() -> None:
+    import dlt
+    from dlt.destinations import filesystem
+
+    # try filesystem which uses union of credentials that requires bucket_url to resolve
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        destination=filesystem(
+            bucket_url="s3://test",
+            destination_name="uniq_s3_bucket",
+            credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
+        ),
+    )
+    config = p.destination_client().config
+    assert isinstance(config.credentials, AwsCredentials)
+    assert config.credentials.is_resolved()
+
+
 def set_aws_credentials_env(environment: Dict[str, str]) -> None:
     environment["AWS_ACCESS_KEY_ID"] = "fake_access_key"
     environment["AWS_SECRET_ACCESS_KEY"] = "fake_secret_key"

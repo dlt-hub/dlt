@@ -95,7 +95,7 @@ class SqlStagingCopyJob(SqlBaseJob):
         """Drop and clone the table for supported destinations"""
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             sql.append(f"DROP TABLE IF EXISTS {table_name};")
@@ -112,7 +112,7 @@ class SqlStagingCopyJob(SqlBaseJob):
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             columns = ", ".join(
@@ -368,7 +368,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # get top level table full identifiers
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        with sql_client.with_staging_dataset(staging=True):
+        with sql_client.with_staging_dataset():
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
 
         # get merge and primary keys from top level
@@ -489,7 +489,7 @@ class SqlMergeJob(SqlBaseJob):
         # insert from staging to dataset
         for table in table_chain:
             table_name = sql_client.make_qualified_table_name(table["name"])
-            with sql_client.with_staging_dataset(staging=True):
+            with sql_client.with_staging_dataset():
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
 
             insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
@@ -527,7 +527,7 @@ class SqlMergeJob(SqlBaseJob):
         sql: List[str] = []
         root_table = table_chain[0]
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        with sql_client.with_staging_dataset(staging=True):
+        with sql_client.with_staging_dataset():
             staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
 
         # get column names
@@ -599,7 +599,7 @@ class SqlMergeJob(SqlBaseJob):
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in child_tables:
                 table_name = sql_client.make_qualified_table_name(table["name"])
-                with sql_client.with_staging_dataset(staging=True):
+                with sql_client.with_staging_dataset():
                     staging_table_name = sql_client.make_qualified_table_name(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}

@@ -13,6 +13,7 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
@@ -129,6 +130,7 @@ class DestinationTestConfiguration:
     supports_dbt: bool = True
     disable_compression: bool = False
     dev_mode: bool = False
+    credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
 
     @property
     def name(self) -> str:
@@ -165,6 +167,10 @@ class DestinationTestConfiguration:
         # For the filesystem destinations we disable compression to make analyzing the result easier
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
+
+        if self.credentials is not None:
+            for key, value in dict(self.credentials).items():
+                os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
 
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
@@ -276,8 +282,16 @@ def destinations_configs(
         assert set(SQL_DESTINATIONS) == {d.destination for d in destination_configs}
 
     if default_vector_configs:
-        # for now only weaviate
-        destination_configs += [DestinationTestConfiguration(destination="weaviate")]
+        destination_configs += [
+            DestinationTestConfiguration(destination="weaviate"),
+            DestinationTestConfiguration(destination="lancedb"),
+            DestinationTestConfiguration(
+                destination="qdrant",
+                credentials=dict(path=str(Path(FILE_BUCKET) / "qdrant_data")),
+                extra_info="local-file",
+            ),
+            DestinationTestConfiguration(destination="qdrant", extra_info="server"),
+        ]
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
@@ -704,7 +718,8 @@ def yield_client_with_storage(
     ) as client:
         client.initialize_storage()
         yield client
-        client.sql_client.drop_dataset()
+        if client.is_storage_initialized():
+            client.sql_client.drop_dataset()
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():
                 if client.is_storage_initialized():

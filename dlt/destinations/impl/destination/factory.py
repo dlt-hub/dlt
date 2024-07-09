@@ -78,8 +78,10 @@ class destination(Destination[CustomDestinationClientConfiguration, "Destination
         if callable(destination_callable):
             pass
         elif destination_callable:
+            if "." not in destination_callable:
+                raise ValueError("str destination reference must be of format 'module.function'")
+            module_path, attr_name = destination_callable.rsplit(".", 1)
             try:
-                module_path, attr_name = destination_callable.rsplit(".", 1)
                 dest_module = import_module(module_path)
             except ModuleNotFoundError as e:
                 raise ConfigurationValueError(

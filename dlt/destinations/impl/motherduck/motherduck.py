@@ -16,7 +16,10 @@ class MotherDuckClient(DuckDbClient):
     ) -> None:
         super().__init__(schema, config, capabilities)  # type: ignore
         sql_client = MotherDuckSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         self.config: MotherDuckClientConfiguration = config  # type: ignore
         self.sql_client: MotherDuckSqlClient = sql_client

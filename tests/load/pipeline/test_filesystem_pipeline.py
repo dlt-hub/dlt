@@ -601,9 +601,11 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
                 found.append(os.path.join(basedir, file).replace(client.dataset_path, ""))
         return found
 
-    def _collect_table_counts(p) -> Dict[str, int]:
+    def _collect_table_counts(p, *items: str) -> Dict[str, int]:
+        expected_items = set(items).intersection({"items", "items2", "items3"})
+        print(expected_items)
         return load_table_counts(
-            p, "items", "items2", "items3", "_dlt_loads", "_dlt_version", "_dlt_pipeline_state"
+            p, *expected_items, "_dlt_loads", "_dlt_version", "_dlt_pipeline_state"
         )
 
     # generate 4 loads from 2 pipelines, store load ids
@@ -616,7 +618,7 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     # first two loads
     p1.run([1, 2, 3], table_name="items").loads_ids[0]
     load_id_2_1 = p2.run([4, 5, 6], table_name="items").loads_ids[0]
-    assert _collect_table_counts(p1) == {
+    assert _collect_table_counts(p1, "items") == {
         "items": 6,
         "_dlt_loads": 2,
         "_dlt_pipeline_state": 2,
@@ -643,7 +645,7 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     p2.run([4, 5, 6], table_name="items").loads_ids[0]  # no migration here
 
     # 4 loads for 2 pipelines, one schema and state change on p2 changes so 3 versions and 3 states
-    assert _collect_table_counts(p1) == {
+    assert _collect_table_counts(p1, "items", "items2") == {
         "items": 9,
         "items2": 3,
         "_dlt_loads": 4,

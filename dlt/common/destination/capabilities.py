@@ -8,9 +8,9 @@ from typing import (
     Tuple,
     Set,
     Protocol,
-    Union,
     get_args,
 )
+from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.typing import TLoaderFileFormat
 from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
@@ -62,7 +62,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     casefold_identifier: Callable[[str], str] = str
     """Casing function applied by destination to represent case insensitive identifiers."""
     has_case_sensitive_identifiers: bool = None
-    """Tells if identifiers in destination are case sensitive, before case_identifier function is applied"""
+    """Tells if destination supports case sensitive identifiers"""
     decimal_precision: Tuple[int, int] = None
     wei_precision: Tuple[int, int] = None
     max_identifier_length: int = None
@@ -74,7 +74,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_transactions: bool = None
     supports_ddl_transactions: bool = None
     # use naming convention in the schema
-    naming_convention: Union[str, NamingConvention] = None
+    naming_convention: TNamingConventionReferenceArg = None
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
@@ -96,10 +96,15 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     loader_parallelism_strategy: Optional[TLoaderParallelismStrategy] = None
     """The destination can override the parallelism strategy"""
 
+    def generates_case_sensitive_identifiers(self) -> bool:
+        """Tells if capabilities as currently adjusted, will generate case sensitive identifiers"""
+        # must have case sensitive support and folding function must preserve casing
+        return self.has_case_sensitive_identifiers and self.casefold_identifier is str
+
     @staticmethod
     def generic_capabilities(
         preferred_loader_file_format: TLoaderFileFormat = None,
-        naming_convention: Union[str, NamingConvention] = None,
+        naming_convention: TNamingConventionReferenceArg = None,
         loader_file_format_adapter: LoaderFileFormatAdapter = None,
         supported_table_formats: Sequence["TTableFormat"] = None,  # type: ignore[name-defined] # noqa: F821
     ) -> "DestinationCapabilitiesContext":

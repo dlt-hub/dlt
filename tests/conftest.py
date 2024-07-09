@@ -111,3 +111,29 @@ def pytest_configure(config):
     # disable databricks logging
     for log in ["databricks.sql.client"]:
         logging.getLogger(log).setLevel("WARNING")
+
+    # disable httpx request logging (too verbose when testing qdrant)
+    logging.getLogger("httpx").setLevel("WARNING")
+
+    # reset and init airflow db
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+        try:
+            from airflow.utils import db
+
+            for log in [
+                "airflow.models.crypto",
+                "airflow.models.variable",
+                "airflow",
+                "alembic",
+                "alembic.runtime.migration",
+            ]:
+                logging.getLogger(log).setLevel("ERROR")
+
+            db.resetdb()
+
+        except Exception:
+            pass

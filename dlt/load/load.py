@@ -196,7 +196,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
         load_files = filter_new_jobs(
-            self.load_storage.list_new_jobs(load_id), self.destination.capabilities(), self.config
+            self.load_storage.list_new_jobs(load_id),
+            self.destination.capabilities(
+                self.destination.configuration(self.initial_client_config)
+            ),
+            self.config,
         )
         file_count = len(load_files)
         if file_count == 0:
@@ -380,8 +384,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         new_jobs = self.get_new_jobs_info(load_id)
 
+        # get dropped and truncated tables that were added in the extract step if refresh was requested
+        # NOTE: if naming convention was updated those names correspond to the old naming convention
+        # and they must be like that in order to drop existing tables
         dropped_tables = current_load_package()["state"].get("dropped_tables", [])
         truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
             if (expected_update := self.load_storage.begin_schema_update(load_id)) is not None:

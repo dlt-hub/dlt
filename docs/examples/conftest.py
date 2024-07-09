@@ -1,3 +1,4 @@
+import sys
 import os
 import pytest
 from unittest.mock import patch
@@ -47,7 +48,11 @@ def setup_secret_providers(request):
     ):
         # extras work when container updated
         glob_ctx.add_extras()
-        yield
+        try:
+            sys.path.insert(0, dname)
+            yield
+        finally:
+            sys.path.pop(0)
 
 
 def pytest_configure(config):
