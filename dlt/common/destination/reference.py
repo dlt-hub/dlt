@@ -327,6 +327,7 @@ class RunnableLoadJob(LoadJob, ABC):
         self._load_id = load_id
         self._schema = schema
         self._load_table = load_table
+        print("set")
 
     @property
     def load_table_name(self) -> str:
@@ -353,6 +354,7 @@ class RunnableLoadJob(LoadJob, ABC):
             logger.exception(f"Temporary problem when starting job {self.file_name}")
             self._state = "retry"
             self._exception = e
+            raise
         finally:
             # sanity check
             assert self._state not in ("running", "ready")
