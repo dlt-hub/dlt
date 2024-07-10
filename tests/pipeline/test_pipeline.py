@@ -131,6 +131,14 @@ def test_default_pipeline_dataset() -> None:
     assert p.dataset_name in possible_dataset_names
 
 
+def test_default_pipeline_dataset_name(environment) -> None:
+    environment["DATASET_NAME"] = "dataset"
+    environment["DATASET_NAME_LAYOUT"] = "prefix_%s"
+
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name == "prefix_dataset"
+
+
 def test_default_pipeline_dataset_layout_exception(environment) -> None:
     # Set dataset_name_layout without placeholder %s
     environment["DATASET_NAME_LAYOUT"] = "bobby_"

@@ -29,6 +29,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
+    ConfigurationValueError,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
@@ -1375,7 +1376,10 @@ class Pipeline(SupportsPipeline):
     def _normalize_dataset_name(self, dataset_name: str) -> str:
         """Normalizes the dataset name using the dataset_name_layout."""
         if "%s" not in self.config.dataset_name_layout:
-            raise ValueError("The dataset_name_layout must contain a '%s' placeholder.")
+            raise ConfigurationValueError(
+                "The dataset_name_layout must contain a '%s' placeholder for dataset_name. For"
+                " example: 'prefix_%s'"
+            )
 
         return self.config.dataset_name_layout % dataset_name
 
