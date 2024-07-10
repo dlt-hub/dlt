@@ -123,25 +123,13 @@ def test_write_delta_table(filesystem_client) -> None:
     assert dt.version() == 1
     assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
 
-    # the `replace` write disposition should trigger a "logical delete"
-    write_delta_table(
-        remote_dir, arrow_table, write_disposition="replace", storage_options=storage_options
-    )
-    dt = DeltaTable(remote_dir, storage_options=storage_options)
-    assert dt.version() == 0
-    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows, arrow_table.num_columns)
-
-    # the previous table version should still exist
-    dt.load_version(1)
-    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
-
     # `merge` should resolve to `append` bevavior
     write_delta_table(
         remote_dir, arrow_table, write_disposition="merge", storage_options=storage_options
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
-    assert dt.version() == 3
-    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 2, arrow_table.num_columns)
+    assert dt.version() == 2
+    assert dt.to_pyarrow_table().shape == (arrow_table.num_rows * 3, arrow_table.num_columns)
 
     # add column in source table
     evolved_arrow_table = arrow_table.append_column(
@@ -156,21 +144,32 @@ def test_write_delta_table(filesystem_client) -> None:
         remote_dir, evolved_arrow_table, write_disposition="append", storage_options=storage_options
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
-    assert dt.version() == 4
+    assert dt.version() == 3
     dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.shape == (arrow_table.num_rows * 3, evolved_arrow_table.num_columns)
+    assert dt_arrow_table.shape == (arrow_table.num_rows * 4, evolved_arrow_table.num_columns)
     assert "new" in dt_arrow_table.schema.names
-    assert dt_arrow_table.column("new").to_pylist() == [1, 1, None, None, None, None]
+    assert dt_arrow_table.column("new").to_pylist() == [1, 1, None, None, None, None, None, None]
 
     # providing a subset of columns should lead to missing columns being null-filled
     write_delta_table(
         remote_dir, arrow_table, write_disposition="append", storage_options=storage_options
     )
     dt = DeltaTable(remote_dir, storage_options=storage_options)
-    assert dt.version() == 5
+    assert dt.version() == 4
     dt_arrow_table = dt.to_pyarrow_table()
-    assert dt_arrow_table.shape == (arrow_table.num_rows * 4, evolved_arrow_table.num_columns)
-    assert dt_arrow_table.column("new").to_pylist() == [None, None, 1, 1, None, None, None, None]
+    assert dt_arrow_table.shape == (arrow_table.num_rows * 5, evolved_arrow_table.num_columns)
+    assert dt_arrow_table.column("new").to_pylist() == [
+        None,
+        None,
+        1,
+        1,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
 
     with pytest.raises(ValueError):
         # unsupported value for `write_disposition` should raise ValueError

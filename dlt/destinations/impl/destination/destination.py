@@ -57,14 +57,14 @@ class DestinationClient(JobClientBase):
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         # skip internal tables and remove columns from schema if so configured
-        skipped_columns: List[str] = []
         if self.config.skip_dlt_columns_and_tables:
             if table["name"].startswith(self.schema._dlt_tables_prefix):
                 return FinalizedLoadJob(file_path)
-            table = deepcopy(table)
-            for column in list(table["columns"].keys()):
+
+        skipped_columns: List[str] = []
+        if self.config.skip_dlt_columns_and_tables:
+            for column in list(self.schema.tables[table["name"]]["columns"].keys()):
                 if column.startswith(self.schema._dlt_tables_prefix):
-                    table["columns"].pop(column)
                     skipped_columns.append(column)
 
         # save our state in destination name scope
@@ -88,6 +88,16 @@ class DestinationClient(JobClientBase):
                 skipped_columns,
             )
         return None
+
+    def prepare_load_table(
+        self, table_name: str, prepare_for_staging: bool = False
+    ) -> TTableSchema:
+        table = super().prepare_load_table(table_name, prepare_for_staging)
+        if self.config.skip_dlt_columns_and_tables:
+            for column in list(table["columns"].keys()):
+                if column.startswith(self.schema._dlt_tables_prefix):
+                    table["columns"].pop(column)
+        return table
 
     def complete_load(self, load_id: str) -> None: ...
 
