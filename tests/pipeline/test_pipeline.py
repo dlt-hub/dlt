@@ -11,6 +11,7 @@ from typing import Any, List, Tuple, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
+from dlt.common.storages import FileStorage
 
 import dlt
 from dlt.common import json, pendulum
@@ -1657,9 +1658,16 @@ def test_remove_pending_packages() -> None:
     os.environ["EXCEPTION_PROB"] = "1.0"
     os.environ["FAIL_IN_INIT"] = "False"
     os.environ["TIMEOUT"] = "1.0"
-    # should produce partial loads
+    # will make job go into retry state
     with pytest.raises(PipelineStepFailed):
         pipeline.run(airtable_emojis())
+    # move job into running folder manually
+    load_storage = pipeline._get_load_storage()
+    load_id = load_storage.normalized_packages.list_packages()[0]
+    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
+    load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages(with_partial_loads=False)
     assert pipeline.has_pending_data
