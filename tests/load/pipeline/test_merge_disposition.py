@@ -1038,25 +1038,24 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 )
 def test_merge_strategy_config(destination_config: DestinationTestConfiguration, capsys) -> None:
     # merge strategy invalid
-    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
-    def r():
-        yield {"foo": "bar"}
+    with pytest.raises(ValueError):
+
+        @dlt.resource(write_disposition={"disposition": "merge", "strategy": "foo"})  # type: ignore[call-overload]
+        def invalid_resource():
+            yield {"foo": "bar"}
 
     p = dlt.pipeline(
         pipeline_name="dummy_pipeline",
         destination="dummy",
         full_refresh=True,
     )
-    with pytest.raises(PipelineStepFailed) as pip_ex:
-        p.run(r())
-    assert isinstance(pip_ex.value.__context__, ValueError)
 
     # merge strategy not supported by destination
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "scd2"})
+    def r():
+        yield {"foo": "bar"}
+
     assert "scd2" not in p.destination.capabilities().supported_merge_strategies
-    p.drop()
-    r.apply_hints(
-        write_disposition={"disposition": "merge", "strategy": "scd2"},
-    )
     with pytest.raises(DestinationCapabilitiesException):
         p.run(r())
 
