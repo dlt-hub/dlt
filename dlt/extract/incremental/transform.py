@@ -1,4 +1,4 @@
-from datetime import datetime, date  # noqa: I251
+from datetime import datetime  # noqa: I251
 from typing import Any, Optional, Set, Tuple, List
 
 from dlt.common.exceptions import MissingDependencyException
@@ -117,18 +117,17 @@ class JsonIncremental(IncrementalTransform):
 
         Will use compiled JSONPath if present, otherwise it reverts to column search if row is dict
         """
-        row_value: Any = None
+        if self.cursor_path not in row.keys() and not self._compiled_cursor_path:
+            raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
+
+        row_value = row.get(self.cursor_path, None)
+
         if self._compiled_cursor_path:
             row_values = find_values(self._compiled_cursor_path, row)
-            if row_values:
-                row_value = row_values[0]
-        else:
-            try:
-                row_value = row[self.cursor_path]
-            except Exception:
-                pass
-        if row_value is None:
-            raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
+            if not row_values:
+                raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
+            row_value = row_values[0]
+
         return row_value
 
     def __call__(
@@ -164,14 +163,22 @@ class JsonIncremental(IncrementalTransform):
         ):
             return None, False, True
 
-        check_values = (row_value,) + ((last_value,) if last_value is not None else ())
+        if (row_value is None and last_value is None) or (
+            row_value is None and self.start_value is None
+        ):
+            # store rows with "max" values to compute hashes after processing full batch
+            self.last_rows = [row]
+            self.unique_hashes = set()
+            return row, False, False
+        row_value_ignored_none = (row_value,) if row_value is not None else ()
+        check_values = (row_value_ignored_none) + ((last_value,) if last_value is not None else ())
         new_value = last_value_func(check_values)
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
             # use func to compute row_value into last_value compatible
             processed_row_value = last_value_func((row_value,))
             # skip the record that is not a start_value or new_value: that record was already processed
-            check_values = (row_value,) + (
+            check_values = row_value_ignored_none + (
                 (self.start_value,) if self.start_value is not None else ()
             )
             new_value = last_value_func(check_values)
