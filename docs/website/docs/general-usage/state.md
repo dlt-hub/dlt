@@ -133,8 +133,8 @@ def comments(user_id: str):
             )
     # use max_id to filter our results (we simulate API query)
     yield from [
-        {"_id": i, "value": l, "user_id": user_id}
-        for i, l in zip([1, 2, 3], ["A", "B", "C"])
+        {"_id": i, "value": letter, "user_id": user_id}
+        for i, letter in zip([1, 2, 3], ["A", "B", "C"])
         if i > max_id
     ]
 ```
