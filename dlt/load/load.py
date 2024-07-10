@@ -504,7 +504,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 running_jobs, new_pending_exception = self.complete_jobs(
                     load_id, running_jobs, schema
                 )
-                pending_exceptions = pending_exception or new_pending_exception
+                pending_exception = pending_exception or new_pending_exception
                 # do not spool new jobs if there was a signal
                 if not signals.signal_received() and not pending_exception:
                     running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
@@ -513,7 +513,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 if len(running_jobs) == 0:
                     # if a pending exception was discovered during completion of jobs
                     # we can raise it now
-                    if pending_exceptions:
+                    if pending_exception:
                         raise pending_exception
                     break
                 # this will raise on signal
