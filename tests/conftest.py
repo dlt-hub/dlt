@@ -123,6 +123,8 @@ def pytest_configure(config):
 
         try:
             from airflow.utils import db
+            import contextlib
+            import io
 
             for log in [
                 "airflow.models.crypto",
@@ -133,7 +135,10 @@ def pytest_configure(config):
             ]:
                 logging.getLogger(log).setLevel("ERROR")
 
-            db.resetdb()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+                io.StringIO()
+            ):
+                db.resetdb()
 
         except Exception:
             pass
