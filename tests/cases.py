@@ -173,7 +173,7 @@ TABLE_UPDATE_ALL_INT_PRECISIONS_COLUMNS: TTableSchemaColumns = {
 
 def table_update_and_row(
     exclude_types: Sequence[TDataType] = None, exclude_columns: Sequence[str] = None
-) -> Tuple[TTableSchemaColumns, StrAny]:
+) -> Tuple[TTableSchemaColumns, Dict[str, Any]]:
     """Get a table schema and a row with all possible data types.
     Optionally exclude some data types from the schema and row.
     """
@@ -192,6 +192,7 @@ def table_update_and_row(
 
 def assert_all_data_types_row(
     db_row: Union[List[Any], TDataItems],
+    expected_row: Dict[str, Any] = None,
     parse_complex_strings: bool = False,
     allow_base64_binary: bool = False,
     timestamp_precision: int = 6,
@@ -202,6 +203,7 @@ def assert_all_data_types_row(
     # content must equal
     # print(db_row)
     schema = schema or TABLE_UPDATE_COLUMNS_SCHEMA
+    expected_row = expected_row or TABLE_ROW_ALL_DATA_TYPES
 
     # Include only columns requested in schema
     if isinstance(db_row, dict):
@@ -209,7 +211,7 @@ def assert_all_data_types_row(
     else:
         db_mapping = {col_name: db_row[i] for i, col_name in enumerate(schema)}
 
-    expected_rows = {key: value for key, value in TABLE_ROW_ALL_DATA_TYPES.items() if key in schema}
+    expected_rows = {key: value for key, value in expected_row.items() if key in schema}
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
     if "col4" in expected_rows:
         parsed_date = pendulum.instance(db_mapping["col4"])

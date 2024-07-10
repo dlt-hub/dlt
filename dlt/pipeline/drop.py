@@ -17,6 +17,7 @@ from dlt.common.schema.utils import (
     group_tables_by_resource,
     compile_simple_regexes,
     compile_simple_regex,
+    has_table_seen_data,
 )
 from dlt.common import jsonpath
 from dlt.common.typing import REPattern
@@ -24,11 +25,11 @@ from dlt.common.typing import REPattern
 
 class _DropInfo(TypedDict):
     tables: List[str]
+    tables_with_data: List[str]
     resource_states: List[str]
     resource_names: List[str]
     state_paths: List[str]
     schema_name: str
-    dataset_name: Optional[str]
     drop_all: bool
     resource_pattern: Optional[REPattern]
     warnings: List[str]
@@ -39,7 +40,7 @@ class _DropResult:
     schema: Schema
     state: TPipelineState
     info: _DropInfo
-    dropped_tables: List[TTableSchema]
+    modified_tables: List[TTableSchema]
 
 
 def _create_modified_state(
@@ -85,12 +86,12 @@ def drop_resources(
     """Generate a new schema and pipeline state with the requested resources removed.
 
     Args:
-        schema: The schema to modify.
-        state: The pipeline state to modify.
+        schema: The schema to modify. Note that schema is changed in place.
+        state: The pipeline state to modify. Note that state is changed in place.
         resources: Resource name(s) or regex pattern(s) matching resource names to drop.
             If empty, no resources will be dropped unless `drop_all` is True.
         state_paths: JSON path(s) relative to the source state to drop.
-        drop_all: If True, all resources will be dropped (supeseeds `resources`).
+        drop_all: If True, all resources will be dropped (supersedes `resources`).
         state_only: If True, only modify the pipeline state, not schema
         sources: Only wipe state for sources matching the name(s) or regex pattern(s) in this list
             If not set all source states will be modified according to `state_paths` and `resources`
@@ -112,9 +113,6 @@ def drop_resources(
 
     state_paths = jsonpath.compile_paths(state_paths)
 
-    schema = schema.clone()
-    state = deepcopy(state)
-
     resources = set(resources)
     if drop_all:
         resource_pattern = compile_simple_regex(TSimpleRegex("re:.*"))  # Match everything
@@ -128,28 +126,28 @@ def drop_resources(
         source_pattern = compile_simple_regex(TSimpleRegex("re:.*"))  # Match everything
 
     if resource_pattern:
-        data_tables = {
-            t["name"]: t for t in schema.data_tables(seen_data_only=True)
-        }  # Don't remove _dlt tables
+        # (1) Don't remove _dlt tables (2) Drop all selected tables from the schema
+        # (3) Mark tables that seen data to be dropped in destination
+        data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=True)}
         resource_tables = group_tables_by_resource(data_tables, pattern=resource_pattern)
         resource_names = list(resource_tables.keys())
-        # TODO: If drop_tables
-        if not state_only:
-            tables_to_drop = list(chain.from_iterable(resource_tables.values()))
-            tables_to_drop.reverse()
-        else:
-            tables_to_drop = []
+        tables_to_drop_from_schema = list(chain.from_iterable(resource_tables.values()))
+        tables_to_drop_from_schema.reverse()
+        tables_to_drop_from_schema_names = [t["name"] for t in tables_to_drop_from_schema]
+        tables_to_drop_from_dest = [t for t in tables_to_drop_from_schema if has_table_seen_data(t)]
     else:
-        tables_to_drop = []
+        tables_to_drop_from_schema_names = []
+        tables_to_drop_from_dest = []
+        tables_to_drop_from_schema = []
         resource_names = []
 
     info: _DropInfo = dict(
-        tables=[t["name"] for t in tables_to_drop],
+        tables=tables_to_drop_from_schema_names if not state_only else [],
+        tables_with_data=[t["name"] for t in tables_to_drop_from_dest] if not state_only else [],
         resource_states=[],
         state_paths=[],
-        resource_names=resource_names,
+        resource_names=resource_names if not state_only else [],
         schema_name=schema.name,
-        dataset_name=None,
         drop_all=drop_all,
         resource_pattern=resource_pattern,
         warnings=[],
@@ -158,7 +156,7 @@ def drop_resources(
     new_state, info = _create_modified_state(
         state, resource_pattern, source_pattern, state_paths, info
     )
-    info["resource_names"] = resource_names
+    # info["resource_names"] = resource_names if not state_only else []
 
     if resource_pattern and not resource_tables:
         info["warnings"].append(
@@ -167,5 +165,7 @@ def drop_resources(
             f" {list(group_tables_by_resource(data_tables).keys())}"
         )
 
-    dropped_tables = schema.drop_tables([t["name"] for t in tables_to_drop], seen_data_only=True)
-    return _DropResult(schema, new_state, info, dropped_tables)
+    if not state_only:
+        # drop only the selected tables
+        schema.drop_tables(tables_to_drop_from_schema_names)
+    return _DropResult(schema, new_state, info, tables_to_drop_from_dest)

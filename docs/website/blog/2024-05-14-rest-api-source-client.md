@@ -7,7 +7,7 @@ authors:
   title: Open source Data Engineer
   url: https://github.com/adrianbr
   image_url: https://avatars.githubusercontent.com/u/5762770?v=4
-tags: [full code etl, yes code etl, etl, python elt]
+tags: [rest-api, declarative etl]
 ---
 
 ## What is the REST API Source toolkit?
