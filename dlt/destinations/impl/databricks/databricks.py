@@ -189,25 +189,25 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
                     " compression in the data writer configuration:"
                     " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
-            if table_schema_has_type(self.table, "decimal"):
+            if table_schema_has_type(self._load_table, "decimal"):
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader cannot load DECIMAL type columns from json files. Switch to"
                     " parquet format to load decimals.",
                 )
-            if table_schema_has_type(self.table, "binary"):
+            if table_schema_has_type(self._load_table, "binary"):
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader cannot load BINARY type columns from json files. Switch to"
                     " parquet format to load byte values.",
                 )
-            if table_schema_has_type(self.table, "complex"):
+            if table_schema_has_type(self._load_table, "complex"):
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader cannot load complex columns (lists and dicts) from json"
                     " files. Switch to parquet format to load complex types.",
                 )
-            if table_schema_has_type(self.table, "date"):
+            if table_schema_has_type(self._load_table, "date"):
                 raise LoadJobTerminalException(
                     self._file_path,
                     "Databricks loader cannot load DATE type columns from json files. Switch to"
