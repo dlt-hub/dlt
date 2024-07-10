@@ -49,10 +49,11 @@ class ClickHouseSqlClient(
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: ClickHouseCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(credentials.database, dataset_name, capabilities)
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: clickhouse_driver.dbapi.connection = None
         self.credentials = credentials
         self.database_name = credentials.database

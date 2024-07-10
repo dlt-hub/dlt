@@ -167,6 +167,22 @@ BigQuery supports the following [column hints](https://dlthub.com/docs/general-u
 
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
+### Table and column identifiers
+BigQuery uses case sensitive identifiers by default and this is what `dlt` assumes. If the dataset you use has case insensitive identifiers (you have such option
+when you create it) make sure that you use case insensitive [naming convention](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) or you tell `dlt` about it so identifier collisions are properly detected.
+```toml
+[destination.bigquery]
+has_case_sensitive_identifiers=false
+```
+
+You have an option to allow `dlt` to set the case sensitivity for newly created datasets. In that case it will follow the case sensitivity of current
+naming convention (ie. the default **snake_case** will create dataset with case insensitive identifiers).
+```toml
+[destination.bigquery]
+should_set_case_sensitivity_on_new_dataset=true
+```
+The option above is off by default.
+
 ## Staging Support
 
 BigQuery supports GCS as a file staging destination. `dlt` will upload files in the parquet format to GCS and ask BigQuery to copy their data directly into the database.

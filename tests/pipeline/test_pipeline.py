@@ -2442,6 +2442,32 @@ def test_import_unknown_file_format() -> None:
     assert isinstance(inner_ex.__cause__, ValueError)
 
 
+def test_static_staging_dataset() -> None:
+    # share database and staging dataset
+    duckdb_ = dlt.destinations.duckdb(
+        "_storage/test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
+    )
+
+    pipeline_1 = dlt.pipeline("test_static_staging_dataset_1", destination=duckdb_, dev_mode=True)
+    pipeline_2 = dlt.pipeline("test_static_staging_dataset_2", destination=duckdb_, dev_mode=True)
+    # staging append (without primary key)
+    info = pipeline_1.run([1, 2, 3], table_name="digits", write_disposition="merge")
+    assert_load_info(info)
+    info = pipeline_2.run(["a", "b", "c", "d"], table_name="letters", write_disposition="merge")
+    assert_load_info(info)
+    with pipeline_1.sql_client() as client:
+        with client.with_alternative_dataset_name("_dlt_staging"):
+            assert client.has_dataset()
+            schemas = client.execute_sql("SELECT schema_name FROM _dlt_staging._dlt_version")
+            assert {s[0] for s in schemas} == {
+                "test_static_staging_dataset_1",
+                "test_static_staging_dataset_2",
+            }
+
+    assert_data_table_counts(pipeline_1, {"digits": 3})
+    assert_data_table_counts(pipeline_2, {"letters": 4})
+
+
 def assert_imported_file(
     pipeline: Pipeline,
     table_name: str,

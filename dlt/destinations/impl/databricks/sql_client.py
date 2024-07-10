@@ -48,10 +48,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: DatabricksCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(credentials.catalog, dataset_name, capabilities)
+        super().__init__(credentials.catalog, dataset_name, staging_dataset_name, capabilities)
         self._conn: DatabricksSqlConnection = None
         self.credentials = credentials
 

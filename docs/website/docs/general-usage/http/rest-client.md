@@ -164,7 +164,7 @@ def get_data():
 
 #### HeaderLinkPaginator
 
-This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub).
+This paginator handles pagination based on a link to the next page in the response headers (e.g., the `Link` header, as used by GitHub API).
 
 **Parameters:**
 
@@ -231,7 +231,8 @@ Note, that in this case, the `total_path` parameter is set explicitly to `None` 
 
 **Parameters:**
 
-- `initial_page`: The starting page number. Defaults to `1`.
+- `base_page`: The index of the initial page from the API perspective. Normally, it's 0-based or 1-based (e.g., 1, 2, 3, ...) indexing for the pages. Defaults to 0.
+- `page`: The page number for the first request. If not provided, the initial value will be set to `base_page`.
 - `page_param`: The query parameter name for the page number. Defaults to `"page"`.
 - `total_path`: A JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`.
 - `maximum_page`: Optional maximum page number. Stops pagination once this page is reached.
@@ -305,7 +306,9 @@ client = RESTClient(
 
 ### Implementing a custom paginator
 
-When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and `update_state` and `update_request` methods:
+When working with APIs that use non-standard pagination schemes, or when you need more control over the pagination process, you can implement a custom paginator by subclassing the `BasePaginator` class and implementing `init_request`, `update_state` and `update_request` methods:
+
+- `init_request(request: Request) -> None`: This method is called before making the first API call in the `RESTClient.paginate` method. You can use this method to set up the initial request query parameters, headers, etc. For example, you can set the initial page number or cursor value.
 
 - `update_state(response: Response) -> None`: This method updates the paginator's state based on the response of the API call. Typically, you extract pagination details (like the next page reference) from the response and store them in the paginator instance.
 
@@ -324,6 +327,10 @@ class QueryParamPaginator(BasePaginator):
         super().__init__()
         self.page_param = page_param
         self.page = initial_page
+
+    def init_request(self, request: Request) -> None:
+        # This will set the initial page number (e.g. page=1)
+        self.update_request(request)
 
     def update_state(self, response: Response) -> None:
         # Assuming the API returns an empty list when no more data is available

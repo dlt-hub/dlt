@@ -182,6 +182,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> None:
         sql_client = BigQuerySqlClient(
             config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
             config.get_location(),
@@ -411,11 +412,12 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         query = f"""
 SELECT {",".join(self._get_storage_table_query_columns())}
     FROM {catalog_name}.{schema_name}.INFORMATION_SCHEMA.COLUMNS
-WHERE """
-
-        # placeholder for each table
-        table_placeholders = ",".join(["%s"] * len(folded_table_names))
-        query += f"table_name IN ({table_placeholders}) ORDER BY table_name, ordinal_position;"
+"""
+        if folded_table_names:
+            # placeholder for each table
+            table_placeholders = ",".join(["%s"] * len(folded_table_names))
+            query += f"WHERE table_name IN ({table_placeholders}) "
+        query += "ORDER BY table_name, ordinal_position;"
 
         return query, folded_table_names
 

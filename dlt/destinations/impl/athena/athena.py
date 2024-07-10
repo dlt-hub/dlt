@@ -164,7 +164,7 @@ class AthenaMergeJob(SqlMergeJob):
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
-        with sql_client.with_staging_dataset(staging=True):
+        with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(name_prefix)
 
     @classmethod
@@ -224,10 +224,11 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         config: AthenaClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(None, dataset_name, capabilities)
+        super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: Connection = None
         self.config = config
         self.credentials = config.credentials
@@ -381,7 +382,12 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             table_needs_own_folder=True,
         )
 
-        sql_client = AthenaSQLClient(config.normalize_dataset_name(schema), config, capabilities)
+        sql_client = AthenaSQLClient(
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config,
+            capabilities,
+        )
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config

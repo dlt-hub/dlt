@@ -78,6 +78,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: GcpServiceAccountCredentialsWithoutDefaults,
         capabilities: DestinationCapabilitiesContext,
         location: str = "US",
@@ -88,7 +89,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         self.credentials: GcpServiceAccountCredentialsWithoutDefaults = credentials
         self.location = location
         self.http_timeout = http_timeout
-        super().__init__(credentials.project_id, dataset_name, capabilities)
+        super().__init__(credentials.project_id, dataset_name, staging_dataset_name, capabilities)
 
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._default_query = bigquery.QueryJobConfig(

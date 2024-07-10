@@ -332,6 +332,7 @@ def validate_items(
                     list_model,
                     {"columns": "freeze"},
                     items,
+                    err["msg"]
                 ) from e
             # raise on freeze
             if err["type"] == "extra_forbidden":
@@ -345,6 +346,7 @@ def validate_items(
                         list_model,
                         {"columns": "freeze"},
                         err_item,
+                        err["msg"]
                     ) from e
                 elif column_mode == "discard_row":
                     # pop at the right index
@@ -366,6 +368,7 @@ def validate_items(
                         list_model,
                         {"data_type": "freeze"},
                         err_item,
+                        err["msg"]
                     ) from e
                 elif data_mode == "discard_row":
                     items.pop(err_idx - len(deleted))
@@ -403,6 +406,7 @@ def validate_item(
                         model,
                         {"columns": "freeze"},
                         item,
+                        err["msg"]
                     ) from e
                 elif column_mode == "discard_row":
                     return None
@@ -420,6 +424,7 @@ def validate_item(
                         model,
                         {"data_type": "freeze"},
                         item,
+                        err["msg"]
                     ) from e
                 elif data_mode == "discard_row":
                     return None
