@@ -10,9 +10,9 @@ canonical_url: "https://jorritsandbrink.substack.com/p/how-dlt-uses-apache-arrow
 ---
 
 :::tip TL;DR:
-dlt` uses Apache Arrow to make pipelines faster. The Arrow format is a better way
+`dlt` uses Apache Arrow to make pipelines faster. The Arrow format is a better way
 to represent tabular data in memory than native Python objects (list of dictionaries). It enables
-offloading computation to Arrow’s fast C++ library, and prevents processing rows one by one. :::
+offloading computation to Arrow’s fast C++ library, and prevents processing rows one by one.
 :::
 
 Speed matters. Pipelines should move data quickly and efficiently. The bigger the data, the more
@@ -26,7 +26,7 @@ data movement between systems easier. It gives data engineers a set of abstracti
 destination, pipeline) and a declarative API that saves them from writing lower level code.
 
 `dlt` doesn’t use a backend server/database. It’s “just a library” that can be embedded in a Python
-process. `pip install `dlt`` and `import `dlt`` is all it takes.
+process. `pip install dlt` and `import dlt` is all it takes.
 
 An example use case is loading data from a REST API (the source) into a data warehouse (the
 destination) with a `dlt` pipeline that runs in a serverless cloud function (e.g. AWS Lambda).
@@ -96,7 +96,7 @@ Steps 1 and 3 of normalize are I/O intensive. Step 2 is compute intensive. Step 
 
 ### Loading
 
-load is I/O intensive (and in some cases also compute intensive).
+Load is I/O intensive (and in some cases also compute intensive).
 
 The data files persisted during normalize are loaded into the destination. How this is done differs
 per destination.
@@ -105,9 +105,9 @@ per destination.
 
 `dlt` currently supports two different pipeline “routes”:
 
-1. the traditional route → has existed since earliest versions of `dlt`
+1. The traditional route → has existed since earliest versions of `dlt`
 
-1. the Arrow route → was added later as improvement
+1. The Arrow route → was added later as improvement
 
 The user decides which route is taken. It’s an implicit choice that depends on the type of object
 yielded by the resource.
@@ -211,7 +211,7 @@ There are tree cases—in the ideal case, data does not need to be transformed:
 
 1. **destination supports Parquet loading — no normalization (ideal):** the extracted Parquet
    files are simply “moved” to the load folder using an atomic rename. This is a cheap metadata
-   operation. Data is not transformed and the data doesn’t actually move. \``dlt` does not add row and
+   operation. Data is not transformed and the data doesn’t actually move. `dlt` does not add row and
    load identifier columns.
 
 1. **destination supports Parquet loading — yes normalization (okay):** the extracted Parquet
@@ -269,7 +269,7 @@ dictionaries), because they are:
 
 - columnar
 
-- computed in C++1
+- computed in C++
 
 Generally speaking, C++ is much faster than Python. Moreover, Arrow’s C++ implementation can use
 vectorization (SIMD) thanks to the columnar data layout. The Arrow route can process batches of
