@@ -219,6 +219,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                     subset = None
                     if row_id_type == "key_hash":
                         subset = self._get_primary_key(self.schema, table)
+                    # base hash on `dict_row` instead of `flattened_row`
+                    # so changes in child tables lead to new row id
                     row_id = self.get_row_hash(dict_row, subset=subset)
             elif _r_lvl > 0:  # child table
                 if row_id_type == "row_hash":
