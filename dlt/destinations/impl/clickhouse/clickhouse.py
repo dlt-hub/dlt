@@ -153,6 +153,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         qualified_table_name = client.make_qualified_table_name(self.load_table_name)
         bucket_path = None
+        file_name = self._file_name
 
         if ReferenceFollowupJob.is_reference_job(self._file_path):
             bucket_path = ReferenceFollowupJob.resolve_reference(self._file_path)
