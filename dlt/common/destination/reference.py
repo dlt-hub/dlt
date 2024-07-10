@@ -383,7 +383,6 @@ class JobClientBase(ABC):
         Returns:
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
-        self._verify_schema()
         # make sure that schema being saved was not modified from the moment it was loaded from storage
         version_hash = self.schema.version_hash
         if self.schema.is_modified:
@@ -428,7 +427,7 @@ class JobClientBase(ABC):
     ) -> None:
         pass
 
-    def _verify_schema(self) -> None:
+    def verify_schema(self) -> None:
         """Verifies schema before loading"""
         if exceptions := verify_schema_capabilities(
             self.schema, self.capabilities, self.config.destination_type, warnings=False
