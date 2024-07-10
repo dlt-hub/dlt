@@ -27,6 +27,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.typing import TDataItem
 from dlt.common.utils import clone_dict_nested
+from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -464,7 +465,7 @@ class DltResourceHints:
                     "x-valid-to": True,
                     "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
-                hash_ = mddict.get("row_version_column_name", "_dlt_id")
+                hash_ = mddict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,

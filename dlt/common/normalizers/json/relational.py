@@ -18,6 +18,7 @@ from dlt.common.schema.utils import (
     column_name_validator,
     get_validity_column_names,
     get_columns_names_with_prop,
+    get_first_column_name_with_prop,
 )
 from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
@@ -494,11 +495,12 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             if merge_strategy == "upsert":
                 return "key_hash"
             elif merge_strategy == "scd2":
-                if (
-                    schema.get_table(table_name)["columns"]
-                    .get("_dlt_id", {})
-                    .get("x-row-version", False)
-                ):
+                x_row_version_col = get_first_column_name_with_prop(
+                    schema.get_table(table_name),
+                    "x-row-version",
+                    include_incomplete=True,
+                )
+                if x_row_version_col == DataItemNormalizer.C_DLT_ID:
                     return "row_hash"
         elif _r_lvl > 0:  # child table
             if not primary_key:
