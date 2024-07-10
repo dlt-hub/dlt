@@ -247,7 +247,7 @@ API token.
    [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
 
    ```sh
-   pip install "dlt[duckdb]"
+   python -m pip install "dlt[duckdb]"
    ```
 
 1. Run the pipeline with the following command:

@@ -28,7 +28,7 @@ Features include:
 
 ## A quick example
 
-You will need Python 3.9 or higher installed, as well as pip. You can run `pip install dlt-init-openapi` to install the current version.
+You will need Python 3.9 or higher installed, as well as pip. You can run `python -m pip install dlt-init-openapi` to install the current version.
 
 We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.co/) in our repo. You can point to any other OpenAPI Spec instead if you prefer.
 
@@ -62,7 +62,7 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 
 8. You can now also install Streamlit to see a preview of the data; you should have loaded 40 Pokemons and their details.
     ```sh
-    pip install pandas streamlit
+    python -m pip install pandas streamlit
     dlt pipeline pokemon_pipeline show
     ```
 

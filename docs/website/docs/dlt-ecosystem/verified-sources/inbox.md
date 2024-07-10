@@ -18,7 +18,7 @@ load data using the “Inbox” verified source to the destination of your choic
 Sources and resources that can be loaded using this verified source are:
 
 | Name              | Type                 | Description                                        |
-|-------------------|----------------------|----------------------------------------------------|
+| ----------------- | -------------------- | -------------------------------------------------- |
 | inbox_source      | source               | Gathers inbox emails and saves attachments locally |
 | get_messages_uids | resource             | Retrieves messages UUIDs from the mailbox          |
 | get_messages      | resource-transformer | Retrieves emails from the mailbox using given UIDs |
@@ -110,18 +110,18 @@ For more information, read the
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
    Prerequisites for fetching messages differ by provider.
 
    For Gmail:
-    - `pip install google-api-python-client>=2.86.0`
-    - `pip install google-auth-oauthlib>=1.0.0`
-    - `pip install google-auth-httplib2>=0.1.0`
+    - `python -m pip install google-api-python-client>=2.86.0`
+    - `python -m pip install google-auth-oauthlib>=1.0.0`
+    - `python -m pip install google-auth-httplib2>=0.1.0`
 
    For pdf parsing:
-    - PyPDF2: `pip install PyPDF2`
+    - PyPDF2: `python -m pip install PyPDF2`
 
 2. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:

@@ -8,7 +8,7 @@ keywords: [pdf, weaviate, vector store, vector database, ]
 We'll use PyPDF2 to extract text from PDFs. Make sure you have it installed:
 
 ```sh
-pip install PyPDF2
+python -m pip install PyPDF2
 ```
 
 We start with a simple resource that lists files in specified folder. To that we add a **filter** function that removes all files that are not pdfs.

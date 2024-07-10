@@ -79,7 +79,7 @@ DESTINATION__BIGQUERY__LOCATION
 To retrieve secrets from Google Cloud Secret Manager using Python, and convert them into a dictionary format, you'll need to follow these steps. First, ensure that you have the necessary permissions to access the secrets on Google Cloud, and have the `google-cloud-secret-manager` library installed. If not, you can install it using pip:
 
 ```sh
-pip install google-cloud-secret-manager
+python -m pip install google-cloud-secret-manager
 ```
 
 [Google Cloud Documentation: Secret Manager client libraries.](https://cloud.google.com/secret-manager/docs/reference/libraries)

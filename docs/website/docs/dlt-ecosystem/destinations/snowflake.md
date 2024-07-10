@@ -9,7 +9,7 @@ keywords: [Snowflake, destination, data warehouse]
 ## Install `dlt` with Snowflake
 **To install the `dlt` library with Snowflake dependencies, run:**
 ```sh
-pip install "dlt[snowflake]"
+python -m pip install "dlt[snowflake]"
 ```
 
 ## Setup Guide
@@ -21,7 +21,7 @@ dlt init chess snowflake
 
 **2. Install the necessary dependencies for Snowflake by running:**
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 This will install `dlt` with the `snowflake` extra, which contains the Snowflake Python dbapi client.
 

@@ -21,14 +21,14 @@ Let's get started!
 Install dlt using `pip`:
 
 ```sh
-pip install -U dlt
+python -m pip install -U dlt
 ```
 
 The command above installs (or upgrades) the core library, in the example below we
 use DuckDB as a destination so let's add a `duckdb` dependency:
 
 ```sh
-pip install "dlt[duckdb]"
+python -m python -m python -m pip install "dlt[duckdb]"
 ```
 
 :::tip
@@ -78,7 +78,7 @@ dlt pipeline quick_start show
 **quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
 
 ```sh
-pip install streamlit
+python -m pip install streamlit
 ```
 
 Now you should see the **users** table:

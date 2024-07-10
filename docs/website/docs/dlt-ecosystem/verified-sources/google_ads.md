@@ -23,7 +23,7 @@ loads data using the "Google Ads API" to the destination of your choice.
 Resources that can be loaded using this verified source are:
 
 | Name             | Description                                                             |
-|------------------|-------------------------------------------------------------------------|
+| ---------------- | ----------------------------------------------------------------------- |
 | customers        | Businesses or individuals who pay to advertise their products           |
 | campaigns        | Structured sets of ad groups and advertisements                         |
 | change_events    | Modifications made to an account's ads, campaigns, and related settings |
@@ -211,7 +211,7 @@ For more information, read the guide on [how to add a verified source](../../wal
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

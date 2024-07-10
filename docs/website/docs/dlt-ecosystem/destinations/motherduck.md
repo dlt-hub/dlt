@@ -10,7 +10,7 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 ## Install dlt with MotherDuck
 **To install the dlt library with MotherDuck dependencies:**
 ```sh
-pip install "dlt[motherduck]"
+python -m pip install "dlt[motherduck]"
 ```
 
 :::tip
@@ -31,7 +31,7 @@ dlt init chess motherduck
 
 **2. Install the necessary dependencies for MotherDuck by running**
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 This will install dlt with the **motherduck** extra which contains **duckdb** and **pyarrow** dependencies.

@@ -45,7 +45,7 @@ mkdir verba-dlt-zendesk
 cd verba-dlt-zendesk
 python -m venv venv
 source venv/bin/activate
-pip install goldenverba
+python -m pip install goldenverba
 ```
 
 To configure Verba, we need to set the following environment variables:
@@ -89,7 +89,7 @@ If you try to ask a question now, you'll get an error in return. That's because 
 We get our data from Zendesk using dlt. Let's install it along with the Weaviate extra:
 
 ```sh
-pip install "dlt[weaviate]"
+python -m pip install "dlt[weaviate]"
 ```
 
 This also installs a handy CLI tool called `dlt`. It will help us initialize the [Zendesk verified data source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/zendesk)—a connector to Zendesk Support API.

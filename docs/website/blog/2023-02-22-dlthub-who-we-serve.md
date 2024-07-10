@@ -19,4 +19,4 @@ To achieve our mission of making this next generation of Python users autonomous
 
 However, we also recognize the need dlt to be loved not only by Python users but also data engineers to fulfill our mission. This is crucial because eventually these folks will be brought in to help with data loading in an organization. We need data engineers to evolve dlt pipelines rather than ripping them out and replacing them like they almost always do to scripts written by Python practitioners today.
 
-To develop with dlt, anyone can install it like any other Python library with `pip install dlt`. They can then run `dlt init` and be ready to go. Already today data engineers love the automatic schema inference and evolution as well as the customizability of dlt.
+To develop with dlt, anyone can install it like any other Python library with `python -m pip install dlt`. They can then run `dlt init` and be ready to go. Already today data engineers love the automatic schema inference and evolution as well as the customizability of dlt.

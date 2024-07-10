@@ -21,7 +21,7 @@ First, you need to decide which embedding model provider to use. You can find al
 To use LanceDB as a destination, make sure `dlt` is installed with the `lancedb` extra:
 
 ```sh
-pip install "dlt[lancedb]"
+python -m pip install "dlt[lancedb]"
 ```
 
 the lancedb extra only installs `dlt` and `lancedb`. You will need to install your model provider's SDK.

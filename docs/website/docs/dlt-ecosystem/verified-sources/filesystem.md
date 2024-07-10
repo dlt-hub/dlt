@@ -14,7 +14,7 @@ This verified source easily streams files from AWS S3, Google Cloud Storage, Goo
 Sources and resources that can be used with this verified source are:
 
 | Name         | Type                 | Description                                                               |
-|--------------|----------------------|---------------------------------------------------------------------------|
+| ------------ | -------------------- | ------------------------------------------------------------------------- |
 | readers      | Source               | Lists and reads files with resource `filesystem` and readers transformers |
 | filesystem   | Resource             | Lists files in `bucket_url` using `file_glob` pattern                     |
 | read_csv     | Resource-transformer | Reads csv file with **Pandas** chunk by chunk                             |
@@ -208,18 +208,18 @@ bucket_url = '\\?\C:\a\b\c'
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 2. Install optional modules:
 
    - For AWS S3:
      ```sh
-     pip install s3fs
+     python -m pip install s3fs
      ```
    - For Azure blob:
      ```sh
-     pip install adlfs>=2023.9.0
+     python -m pip install adlfs>=2023.9.0
      ```
    - GCS storage: No separate module needed.
 

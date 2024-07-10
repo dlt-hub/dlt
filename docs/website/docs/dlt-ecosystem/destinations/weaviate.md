@@ -14,7 +14,7 @@ This destination helps you load data into Weaviate from [dlt resources](../../ge
 1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
 ```sh
-pip install "dlt[weaviate]"
+python -m pip install "dlt[weaviate]"
 ```
 
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
@@ -180,18 +180,18 @@ Loading data into Weaviate from different sources requires a proper understandin
 
 Data loaded into Weaviate from various sources might have different types. To ensure compatibility with Weaviate's schema, there's a predefined mapping between the [dlt types](../../general-usage/schema.md#data-types) and [Weaviate's native types](https://weaviate.io/developers/weaviate/config-refs/datatypes):
 
-| dlt Type   | Weaviate Type |
-|------------|---------------|
-| text       | text          |
-| double     | number        |
-| bool       | boolean       |
-| timestamp  | date          |
-| date       | date          |
-| bigint     | int           |
-| binary     | blob          |
-| decimal    | text          |
-| wei        | number        |
-| complex    | text          |
+| dlt Type  | Weaviate Type |
+| --------- | ------------- |
+| text      | text          |
+| double    | number        |
+| bool      | boolean       |
+| timestamp | date          |
+| date      | date          |
+| bigint    | int           |
+| binary    | blob          |
+| decimal   | text          |
+| wei       | number        |
+| complex   | text          |
 
 ### Dataset name
 

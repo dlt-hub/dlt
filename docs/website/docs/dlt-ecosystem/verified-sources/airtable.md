@@ -19,7 +19,7 @@ loads data using “Airtable API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name              | Description                                |
-| ----------------- |--------------------------------------------|
+| ----------------- | ------------------------------------------ |
 | airtable_source   | Retrieves tables from an Airtable base     |
 | airtable_resource | Retrives data from a single Airtable table |
 
@@ -114,7 +114,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:

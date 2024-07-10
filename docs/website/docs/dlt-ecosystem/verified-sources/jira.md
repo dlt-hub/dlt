@@ -21,7 +21,7 @@ The endpoints that this verified source supports are:
 | Name      | Description                                                                              |
 | --------- | ---------------------------------------------------------------------------------------- |
 | issues    | Individual pieces of work to be completed                                                |
-| users     | Administrators of a given project                                                         |
+| users     | Administrators of a given project                                                        |
 | workflows | The key aspect of managing and tracking the progress of issues or tasks within a project |
 | projects  | A collection of tasks that need to be completed to achieve a certain outcome             |
 
@@ -106,7 +106,7 @@ For more information, read [General Usage: Credentials.](../../general-usage/cre
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

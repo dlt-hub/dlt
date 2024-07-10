@@ -15,7 +15,7 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 `dlt` is an open-source library that you can add to your Python scripts to load data
 from various and often messy data sources into well-structured, live datasets. To get started, install it with:
 ```sh
-pip install dlt
+python -m pip install dlt
 ```
 Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more. `dlt` also supports building a [custom destination](dlt-ecosystem/destinations/destination.md), which you can use as reverse ETL.
 
@@ -41,7 +41,7 @@ Looking to use a REST API as a source? Explore our new [REST API generic source]
 
 Copy this example to a file or a Jupyter Notebook and run it. To make it work with the DuckDB destination, you'll need to install the **duckdb** dependency (the default `dlt` installation is really minimal):
 ```sh
-pip install "dlt[duckdb]"
+python -m pip install "dlt[duckdb]"
 ```
 Now **run** your Python file or Notebook cell.
 
@@ -104,7 +104,7 @@ to sync your databases with warehouses, data lakes, or vector stores.
 
 Install **pymysql** driver:
 ```sh
-pip install sqlalchemy pymysql
+python -m pip install sqlalchemy pymysql
 ```
 
   </TabItem>

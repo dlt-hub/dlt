@@ -17,10 +17,10 @@ loads data using “Matomo API” to the destination of your choice.
 
 The endpoints that this verified source supports are:
 
-| Name              | Description                                                                     |
-| ----------------- |---------------------------------------------------------------------------------|
-| matomo_reports    | Detailed analytics summaries  of website traffic, visitor behavior, and more    |
-| matomo_visits     | Individual user sessions on your website, pages viewed, visit duration and more |
+| Name           | Description                                                                     |
+| -------------- | ------------------------------------------------------------------------------- |
+| matomo_reports | Detailed analytics summaries  of website traffic, visitor behavior, and more    |
+| matomo_visits  | Individual user sessions on your website, pages viewed, visit duration and more |
 
 ## Setup Guide
 
@@ -106,7 +106,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

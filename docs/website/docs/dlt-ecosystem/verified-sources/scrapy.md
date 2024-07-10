@@ -74,7 +74,7 @@ scrape data from "https://quotes.toscrape.com/page/1/".
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:

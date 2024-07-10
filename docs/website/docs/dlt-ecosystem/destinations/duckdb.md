@@ -9,7 +9,7 @@ keywords: [duckdb, destination, data warehouse]
 ## Install dlt with DuckDB
 **To install the dlt library with DuckDB dependencies, run:**
 ```sh
-pip install "dlt[duckdb]"
+python -m pip install "dlt[duckdb]"
 ```
 
 ## Setup Guide
@@ -21,7 +21,7 @@ dlt init chess duckdb
 
 **2. Install the necessary dependencies for DuckDB by running:**
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 **3. Run the pipeline:**
@@ -176,7 +176,7 @@ create_indexes=true
 ```
 
 ### dbt support
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid that by updating the `duckdb` package in your `dlt` project with `pip install -U`.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. The `duckdb` database is shared with `dbt`. In rare cases, you may see information that the binary database format does not match the database format expected by `dbt-duckdb`. You can avoid that by updating the `duckdb` package in your `dlt` project with `python -m pip install -U`.
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).

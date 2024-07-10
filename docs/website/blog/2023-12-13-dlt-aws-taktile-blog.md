@@ -47,7 +47,7 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
 1. Install the SAM CLI [add link or command here]
 
     ```sh
-    pip install aws-sam-cli
+    python -m pip install aws-sam-cli
     ```
 
 2. Define your resources in a `template.yml` file

@@ -11,7 +11,7 @@ keywords: [ clickhouse, destination, data warehouse ]
 **To install the DLT library with ClickHouse dependencies:**
 
 ```sh
-pip install "dlt[clickhouse]"
+python -m pip install "dlt[clickhouse]"
 ```
 
 ## Setup Guide
@@ -30,10 +30,10 @@ The above command generates several files and directories, including `.dlt/secre
 requirements file by executing it as follows:
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-or with `pip install "dlt[clickhouse]"`, which installs the `dlt` library and the necessary dependencies for working with ClickHouse as a destination.
+or with `python -m pip install "dlt[clickhouse]"`, which installs the `dlt` library and the necessary dependencies for working with ClickHouse as a destination.
 
 ### 2. Setup ClickHouse database
 

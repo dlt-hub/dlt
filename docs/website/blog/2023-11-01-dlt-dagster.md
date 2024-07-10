@@ -17,7 +17,7 @@ TL;DR: In this blog post, we'll build data piplines using [dlt](https://dlthub.c
 
 It does so in a scalable way, enabling you to run it on both micro workers or in highly parallelized setups. `dlt` also offers robustness on extraction by providing state management for incremental extraction, drop-in requests replacement with retries, and many other helpers for common and uncommon extraction cases.
 
-To start with `dlt`, you can install it using pip: `pip install dlt`. Afterward, import `dlt` in your Python script and start building your data pipeline. There's no need to start any backends or containers. 
+To start with `dlt`, you can install it using pip: `python -m pip install dlt`. Afterward, import `dlt` in your Python script and start building your data pipeline. There's no need to start any backends or containers. 
 
 ## Project Overview:
 
@@ -34,8 +34,8 @@ As we will be ingesting data into BigQuery we first need to create service accou
 Once we have the credentials we are ready to begin. Let’s first install Dagster and `dlt`. The below commands should install both.
 
 ```sh
-pip install dlt
-pip install dagster dagster-webserver
+python -m pip install dlt
+python -m pip install dagster dagster-webserver
 ```
 
 ## Simple dlt Pipeline:
@@ -89,7 +89,7 @@ The above code creates a simple **github_issues** pipeline that gets the issues 
 To run the pipeline execute the below commands:
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python github_issues.py
 ```
 

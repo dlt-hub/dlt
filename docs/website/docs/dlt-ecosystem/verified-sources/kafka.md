@@ -16,9 +16,9 @@ See a [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master
 
 The resource that can be loaded:
 
-| Name              | Description                                |
-| ----------------- |--------------------------------------------|
-| kafka_consumer    | Extracts messages from Kafka topics        |
+| Name           | Description                         |
+| -------------- | ----------------------------------- |
+| kafka_consumer | Extracts messages from Kafka topics |
 
 ## Setup Guide
 
@@ -78,7 +78,7 @@ sasl_password="example_secret"
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 2. You're now ready to run the pipeline! To get started, run the following command:

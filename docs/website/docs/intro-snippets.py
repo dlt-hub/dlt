@@ -57,7 +57,7 @@ def db_snippet() -> None:
 
     # Use any SQL database supported by SQLAlchemy, below we use a public
     # MySQL instance to get data.
-    # NOTE: you'll need to install pymysql with `pip install pymysql`
+    # NOTE: you'll need to install pymysql with `python -m pip install pymysql`
     # NOTE: loading data from public mysql instance may take several seconds
     engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
 

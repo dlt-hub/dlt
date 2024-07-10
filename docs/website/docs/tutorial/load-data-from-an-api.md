@@ -9,7 +9,7 @@ In this section, we will retrieve and load data from the GitHub API into [DuckDB
 Before we start, make sure you have installed `dlt` with the DuckDB dependency:
 
 ```sh
-pip install "dlt[duckdb]"
+python -m pip install "dlt[duckdb]"
 ```
 
 :::tip

@@ -11,7 +11,7 @@ keywords: [bigquery, destination, data warehouse]
 **To install the dlt library with BigQuery dependencies:**
 
 ```sh
-pip install "dlt[bigquery]"
+python -m pip install "dlt[bigquery]"
 ```
 
 ## Setup Guide
@@ -25,7 +25,7 @@ dlt init chess bigquery
 **2. Install the necessary dependencies for BigQuery by running:**
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 This will install dlt with the `bigquery` extra, which contains all the dependencies required by the bigquery client.

@@ -14,10 +14,10 @@ onto a [destination](../../dlt-ecosystem/destinations) of your choice using [Git
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                                      |
-| ---------------- |----------------------------------------------------------------------------------|
-| github_reactions | Retrieves all issues, pull requests, comments and reactions associated with them |
-| github_repo_events      | Gets all the repo events associated with the repository                   |
+| Name               | Description                                                                      |
+| ------------------ | -------------------------------------------------------------------------------- |
+| github_reactions   | Retrieves all issues, pull requests, comments and reactions associated with them |
+| github_repo_events | Gets all the repo events associated with the repository                          |
 
 ## Setup Guide
 
@@ -108,7 +108,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

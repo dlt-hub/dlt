@@ -32,7 +32,7 @@ This should successfully load data from the source to the destination once and a
 ## 3. Initialize deployment
 First you need to add additional dependencies that `deploy` command requires:
 ```sh
-pip install "dlt[cli]"
+python -m pip install "dlt[cli]"
 ```
 
 then:

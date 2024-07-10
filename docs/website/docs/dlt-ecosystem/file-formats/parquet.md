@@ -11,7 +11,7 @@ keywords: [parquet, file formats]
 To use this format, you need a `pyarrow` package. You can get this package as a `dlt` extra as well:
 
 ```sh
-pip install "dlt[parquet]"
+python -m pip install "dlt[parquet]"
 ```
 
 ## Supported Destinations

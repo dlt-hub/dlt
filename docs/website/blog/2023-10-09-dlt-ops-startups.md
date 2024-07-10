@@ -42,7 +42,7 @@ Make sure that you have all you need:
 
 - Make sure you have Python 3.x installed on your system.
 - Use a virtual environment (more details on how to [set up the environment](https://dlthub.com/docs/reference/installation#set-up-environment)).
-- Install the `dlt` library by using `pip install "dlt[bigquery]"`.
+- Install the `dlt` library by using `python -m pip install "dlt[bigquery]"`.
 - Create a project folder on your laptop. I called mine “unstructured_data_pipeline”.
 - We will need access to LLM, Langchain will use OpenAI models by default, so we also used an OpenAI API token.
 - Using a tool like Visual Studio makes it easier.

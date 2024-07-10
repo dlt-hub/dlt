@@ -19,7 +19,7 @@ Here we achieved ~30x speedups when loading data from (local) postgres database 
 We’ll start with [ConnectorX library](https://github.com/sfu-db/connector-x) that creates Arrow tables from SQL queries on most of the popular database engines.
 
 ```sh
-pip install connectorx
+python -m pip install connectorx
 ```
 
 Lib has Rust inside, zero copy extraction and is amazingly fast. We’ll extract and normalize 10 000 000 [test rows](https://github.com/dlt-hub/verified-sources/blob/master/tests/sql_database/sql_source.py#L88) from local postgresql. The table **chat_message** looks like Slack messages dump.  Messages have unique autoincrement **id** which we use to load in chunks:

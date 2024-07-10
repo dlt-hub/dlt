@@ -62,7 +62,7 @@ Install [enlighten](https://github.com/Rockhopper-Technologies/enlighten). Enlig
 progress bars that can be mixed with log messages:
 
 ```sh
-pip install enlighten
+python -m pip install enlighten
 ```
 
 Run your script setting the `PROGRESS` environment variable to the library name:

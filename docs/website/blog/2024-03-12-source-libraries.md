@@ -12,7 +12,7 @@ tags: [dlthub, source libraries, dlt]
 
 ## **Celebrating over 500 ad hoc custom sources written by the** `dlt` **community in February**
 
-Today it is easier to pip install dlt and write a custom source than to setup and configure a traditional ETL platform.
+Today it is easier to python -m pip install dlt and write a custom source than to setup and configure a traditional ETL platform.
 
 The wider community is increasingly noticing these benefits. In February the community wrote over 500 `dlt` custom sources. Last week we crossed 2000 `dlt` total custom sources created since we launched dlt last summer.
 
@@ -21,7 +21,7 @@ The wider community is increasingly noticing these benefits. In February the com
 
 A custom `dlt` source is something new for our industry. With `dlt` we automated the majority of the work data engineers tasks that are usually done in traditional ETL platforms. Hence, creating an ad hoc [`dlt` pipeline and source](https://dlthub.com/docs/walkthroughs/create-a-pipeline) is a [dramatically simpler.](https://dlthub.com/docs/build-a-pipeline-tutorial#the-simplest-pipeline-1-liner-to-load-data-with-schema-evolution) Maintaining a custom `dlt` source in production is relatively easy as most of the common [pipeline maintenance issues are handled.](https://dlthub.com/docs/build-a-pipeline-tutorial#governance-support-in-dlt-pipelines)
 
-Today [`dlt` users](https://dlthub.com/docs/blog/dlthub-who-we-serve) pick dlt because it is the fastest way to create a dataset. As we frequently hear it from all of you “dlt is pip install and go”. This is in line with our [mission to make this next generation of Python users autonomous when they create and use data in their organizations](https://dlthub.com/docs/blog/dlthub-mission).
+Today [`dlt` users](https://dlthub.com/docs/blog/dlthub-who-we-serve) pick dlt because it is the fastest way to create a dataset. As we frequently hear it from all of you “dlt is python -m pip install and go”. This is in line with our [mission to make this next generation of Python users autonomous when they create and use data in their organizations](https://dlthub.com/docs/blog/dlthub-mission).
 
 ## How to get to 50,000 sources: let’s remove the dependency on source catalogs and move forward to ad hoc code
 

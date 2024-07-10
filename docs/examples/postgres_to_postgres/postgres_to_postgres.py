@@ -33,7 +33,7 @@ Be aware that you need to define the database credentials in `.dlt/secrets.toml`
 Install `dlt` with `duckdb` as extra, also `connectorx`, Postgres adapter and progress bar tool:
 
 ```sh
-pip install dlt[duckdb] connectorx pyarrow psycopg2-binary alive-progress
+python -m pip install dlt[duckdb] connectorx pyarrow psycopg2-binary alive-progress
 ```
 
 Run the example:

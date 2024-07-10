@@ -9,7 +9,7 @@ keywords: [synapse, destination, data warehouse]
 ## Install dlt with Synapse
 **To install the dlt library with Synapse dependencies:**
 ```sh
-pip install "dlt[synapse]"
+python -m pip install "dlt[synapse]"
 ```
 
 ## Setup guide
@@ -38,7 +38,7 @@ dlt init chess synapse
 
 **2. Install the necessary dependencies for Synapse by running**
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 This will install `dlt` with the **synapse** extra that contains all dependencies required for the Synapse destination.
 

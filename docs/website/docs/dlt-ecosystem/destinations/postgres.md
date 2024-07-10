@@ -9,7 +9,7 @@ keywords: [postgres, destination, data warehouse]
 ## Install dlt with PostgreSQL
 **To install the dlt library with PostgreSQL dependencies, run:**
 ```sh
-pip install "dlt[postgres]"
+python -m pip install "dlt[postgres]"
 ```
 
 ## Setup Guide
@@ -21,7 +21,7 @@ dlt init chess postgres
 
 **2. Install the necessary dependencies for Postgres by running:**
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 

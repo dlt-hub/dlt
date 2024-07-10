@@ -33,7 +33,7 @@ and prints the relevant warning.
 ## `dlt deploy`
 This command prepares your pipeline for deployment and gives you step by step instruction how to accomplish it. To enabled this functionality please first execute
 ```sh
-pip install "dlt[cli]"
+python -m pip install "dlt[cli]"
 ```
 that will add additional packages to current environment.
 

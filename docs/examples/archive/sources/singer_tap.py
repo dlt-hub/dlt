@@ -32,7 +32,7 @@ class SingerState(SingerMessage):
 #     raise MissingDependencyException("Singer Source", ["python-dlt-singer"], "Singer runtime compatible with DLT")
 
 
-# pip install ../singer/singer-python
+# python -m pip install ../singer/singer-python
 # https://github.com/datamill-co/singer-runner/tree/master/singer_runner
 # https://techgaun.github.io/active-forks/index.html#singer-io/singer-python
 def get_source_from_stream(

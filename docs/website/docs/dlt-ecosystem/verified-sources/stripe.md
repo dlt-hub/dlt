@@ -17,16 +17,16 @@ loads data using Stripe API to the destination of your choice.
 
 This verified source loads data from the following endpoints:
 
-| Name	            | Description                                |
-|--------------------|--------------------------------------------|
+| Name               | Description                                |
+| ------------------ | ------------------------------------------ |
 | Subscription       | Recurring payment on Stripe                |
-| Account	         | User profile on Stripe                     |
-| Coupon	            | Discount codes offered by businesses       |
-| Customer	         | Buyers using Stripe                        |
-| Product	         | Items or services for sale                 |
-| Price	            | Cost details for products or plans         |
-| Event	            | Significant activities in a Stripe account |
-| Invoice	         | Payment request document                   |
+| Account            | User profile on Stripe                     |
+| Coupon             | Discount codes offered by businesses       |
+| Customer           | Buyers using Stripe                        |
+| Product            | Items or services for sale                 |
+| Price              | Cost details for products or plans         |
+| Event              | Significant activities in a Stripe account |
+| Invoice            | Payment request document                   |
 | BalanceTransaction | Funds movement record in Stripe            |
 
 Please note that endpoints in the verified source can be customized as per the Stripe API [reference documentation.](https://stripe.com/docs/api)
@@ -93,7 +93,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:

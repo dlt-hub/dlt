@@ -9,7 +9,7 @@ keywords: [dremio, iceberg, aws, glue catalog]
 ## Install dlt with Dremio
 **To install the dlt library with Dremio and s3 dependencies:**
 ```sh
-pip install "dlt[dremio,s3]"
+python -m pip install "dlt[dremio,s3]"
 ```
 
 ## Setup Guide
@@ -26,9 +26,9 @@ Let's start by initializing a new dlt project as follows:
 
 First install dependencies by running:
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
-or with `pip install "dlt[dremio,s3]"` which will install `s3fs`, `pyarrow`, and `botocore` packages.
+or with `python -m pip install "dlt[dremio,s3]"` which will install `s3fs`, `pyarrow`, and `botocore` packages.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url` which holds the uploaded parquet files.
 

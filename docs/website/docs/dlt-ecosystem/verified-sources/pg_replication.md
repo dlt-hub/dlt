@@ -113,7 +113,7 @@ For more information, read the [Configuration section.](https://dlthub.com/docs/
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 2. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

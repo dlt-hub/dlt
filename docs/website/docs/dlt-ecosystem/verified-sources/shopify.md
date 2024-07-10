@@ -21,7 +21,7 @@ loads data using 'Shopify API' or 'Shopify Partner API' to the destination of yo
 The resources that this verified source supports are:
 
 | Name                  | Description                                                                         |
-|-----------------------|-------------------------------------------------------------------------------------|
+| --------------------- | ----------------------------------------------------------------------------------- |
 | customers             | Individuals or entities who have created accounts on a Shopify-powered online store |
 | orders                | Transactions made by customers on an online store                                   |
 | products              | The individual items or goods that are available for sale                           |
@@ -129,7 +129,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

@@ -213,7 +213,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:
@@ -285,16 +285,16 @@ def talk_resource(
 
 Other functions similar to the source `zendesk_talk` and resources similar to `talk_endpoint`  are:
 
-| Function Name             | Type      | Description                                                                                       |
-|---------------------------| --------- |---------------------------------------------------------------------------------------------------|
-| zendesk_chat              | source    | Retrieves data from Zendesk Chat for chat interactions                                            |
-| chats_table_resource      | resource  | Retrieves chats from Zendesk                                                                      |
-| talk_incremental_resource | resource  | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
-| zendesk_support           | source    | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
-| ticket_events             | resource  | Retrieves records of all changes made to a ticket, including state, etc.                          |
-| tickets                   | resource  | Retrieves the data for ticket table, the table can be pivoted and cols renamed                    |
-| ticket_metric_events      | resource  | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
-| basic_resource            | resource  | Retrives basic loader for Zenpy endpoints with pagination support                                 |
+| Function Name             | Type     | Description                                                                                       |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| zendesk_chat              | source   | Retrieves data from Zendesk Chat for chat interactions                                            |
+| chats_table_resource      | resource | Retrieves chats from Zendesk                                                                      |
+| talk_incremental_resource | resource | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
+| zendesk_support           | source   | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
+| ticket_events             | resource | Retrieves records of all changes made to a ticket, including state, etc.                          |
+| tickets                   | resource | Retrieves the data for ticket table, the table can be pivoted and cols renamed                    |
+| ticket_metric_events      | resource | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
+| basic_resource            | resource | Retrives basic loader for Zenpy endpoints with pagination support                                 |
 
 ## Customization
 ### Create your own pipeline

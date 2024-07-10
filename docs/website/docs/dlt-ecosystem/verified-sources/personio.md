@@ -22,7 +22,7 @@ You can check out our pipeline example [here](https://github.com/dlt-hub/verifie
 Resources that can be loaded using this verified source are:
 
 | Name                       | Description                                                                       | Endpoint                                          |
-|----------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------|
+| -------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------- |
 | employees                  | Retrieves company employees details                                               | /company/employees                                |
 | absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                |
 | absences_types             | Retrieves list of various types of employee absences                              | /company/time-off-types                           |
@@ -100,7 +100,7 @@ For more information, read [Credentials](../../general-usage/credentials).
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

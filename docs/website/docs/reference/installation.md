@@ -107,7 +107,7 @@ C:\> .\env\Scripts\activate
 You can install `dlt` in your virtual environment by running:
 
 ```sh
-pip install -U dlt
+python -m pip install -U dlt
 ```
 
 ## Install dlt via Pixi and Conda

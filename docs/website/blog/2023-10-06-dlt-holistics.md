@@ -22,12 +22,12 @@ In this blog, we will show you how you can combine `dlt` and **Holistics** and c
 ![Diagram illustrating the inner workings of our Modern Analytics Stack](https://storage.googleapis.com/dlt-blog-images/dlt_holistics_overview.jpg)
 
 
-| Tool  | Layer | Why it’s awesome |
-| --- | --- | --- |
-|  [MongoDB](https://www.mongodb.com/) | Production | Sometimes used as a data dump by CTOs. Often stores unstructured, semi-structured production data that stakeholders want to access. |
-| [dlt](https://dlthub.com/docs/intro) | Data Ingestion | Mongo is great, but then others struggle to analyze the data. dlt extracts data from MongoDB, creates schema in BigQuery, and loads normalized MongoDB data into BigQuery. |
-| [BigQuery](https://cloud.google.com/bigquery?hl=en) | Data Warehouse | Because of its pricing model, it’s a good data warehouse choice to store structured MongoDB data so it can be used by BI tools like Holistics for self-service analytics. |
-| [Holistics](https://www.holistics.io/) | Data Modeling for Self-Service Analytics  | Holistics makes it easy for data teams to setup and govern an end-user self-service analytics platform using DevOps best practices |
+| Tool                                                | Layer                                    | Why it’s awesome                                                                                                                                                           |
+| --------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [MongoDB](https://www.mongodb.com/)                 | Production                               | Sometimes used as a data dump by CTOs. Often stores unstructured, semi-structured production data that stakeholders want to access.                                        |
+| [dlt](https://dlthub.com/docs/intro)                | Data Ingestion                           | Mongo is great, but then others struggle to analyze the data. dlt extracts data from MongoDB, creates schema in BigQuery, and loads normalized MongoDB data into BigQuery. |
+| [BigQuery](https://cloud.google.com/bigquery?hl=en) | Data Warehouse                           | Because of its pricing model, it’s a good data warehouse choice to store structured MongoDB data so it can be used by BI tools like Holistics for self-service analytics.  |
+| [Holistics](https://www.holistics.io/)              | Data Modeling for Self-Service Analytics | Holistics makes it easy for data teams to setup and govern an end-user self-service analytics platform using DevOps best practices                                         |
 
 In our stack, `dlt` resides in the data ingestion layer. It takes in unstructured data from MongoDB normalizes the data and populates it into BigQuery.
 
@@ -166,7 +166,7 @@ def load_entire_database(pipeline: Pipeline = None) -> LoadInfo:
 Before we execute the pipeline script let's install the dependencies for the pipeline by executing the `requirements.txt` file.
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 Finally, we are ready to execute the script. In the main function uncomment the `load_entire_database` function call and run the script.

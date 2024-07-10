@@ -16,7 +16,7 @@ It will also allow you to simply get a path to the files of your normalized data
 
 To install `dlt` without additional dependencies:
 ```sh
-pip install dlt
+python -m pip install dlt
 ```
 
 ## Set up a destination function for your pipeline

@@ -49,7 +49,7 @@ Since SAP HANA has a SQL backend, I decided to extract the data using dlt’s [S
 2. I then passed the connection string for my HANA instance inside the loading function in `sql_database_pipeline.py`. (Optional: I also specified the tables that I wanted to load in `sql_database().with_resources("v_city", "v_hotel", "room")` )
 3. Before running the pipeline I installed all necessary requirements using 
     
-    `pip install -r requirements.txt`
+    `python -m pip install -r requirements.txt`
     
     The dependencies inside `requirements.txt` are for the general SQL source. To extract data specifically from HANA, I also installed the packages `hdbcli` and `sqlalchemy-hana`.
     

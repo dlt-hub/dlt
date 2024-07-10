@@ -32,7 +32,7 @@ We're going to use some ready-made components from the [dlt ecosystem](https://d
 2. Install dlt with Weaviate support
 
     ```sh
-    pip install "dlt[weaviate]"
+    python -m pip install "dlt[weaviate]"
     ```
 
 3. Install dlt Zendesk verified source

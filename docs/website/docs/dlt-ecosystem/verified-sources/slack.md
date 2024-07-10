@@ -17,8 +17,8 @@ load data using the “Slack API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name                  | Description                                                                        |
-|-----------------------|------------------------------------------------------------------------------------|
+| Name                  | Description                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------- |
 | slack                 | Retrieves all the Slack data: channels, messages for selected channels, users, logs |
 | channels              | Retrieves all the channels data                                                     |
 | users                 | Retrieves all the users info                                                        |
@@ -41,7 +41,7 @@ To set up the pipeline, create a Slack app in your workspace to obtain a user to
 1. Assign the following scopes:
 
    | Name             | Description                                                                       |
-   |------------------|-----------------------------------------------------------------------------------|
+   | ---------------- | --------------------------------------------------------------------------------- |
    | admin            | Administer a workspace                                                            |
    | channels:history | View messages and other content in public channels                                |
    | groups:history   | View messages and other content in private channels (where the app is added)      |
@@ -105,7 +105,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    running the command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 1. You're now ready to run the pipeline! To get started, run the following command:

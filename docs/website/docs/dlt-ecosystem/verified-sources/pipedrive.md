@@ -20,7 +20,7 @@ load data using the “Pipedrive API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name         | Description                                                                                |
-|--------------|--------------------------------------------------------------------------------------------|
+| ------------ | ------------------------------------------------------------------------------------------ |
 | activity     | Refers to scheduled events or tasks associated with deals, contacts, or organizations      |
 | organization | Company or entity with which you have potential or existing business dealings              |
 | person       | Individual contact or lead with whom sales deals can be associated                         |
@@ -91,7 +91,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```sh

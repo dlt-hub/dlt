@@ -43,8 +43,8 @@ The **load_info** produced by `dlt` for both pipelines is also populated into Bi
 To get started install `dlt` and dbt:
 
 ```sh
-pip install dlt
-pip install dbt-bigquery
+python -m pip install dlt
+python -m pip install dbt-bigquery
 ```
 
 As we will be ingesting data into BigQuery, we first need to create service account credentials for BigQuery. You can find more info on setting up a service account in the `dlt` [docs](https://dlthub.com/docs/dlt-ecosystem/destinations/bigquery).
@@ -66,7 +66,7 @@ dlt init data_lineage bigquery
 This will create default scaffolding to build our pipeline. Install the dependencies by running the following command:
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ## Loading the data

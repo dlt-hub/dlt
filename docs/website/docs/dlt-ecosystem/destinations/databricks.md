@@ -12,7 +12,7 @@ keywords: [Databricks, destination, data warehouse]
 ## Install dlt with Databricks
 **To install the dlt library with Databricks dependencies:**
 ```sh
-pip install "dlt[databricks]"
+python -m pip install "dlt[databricks]"
 ```
 
 ## Set up your Databricks workspace
@@ -97,7 +97,7 @@ dlt init chess databricks
 
 **2. Install the necessary dependencies for Databricks by running**
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 This will install dlt with **databricks** extra which contains Databricks Python dbapi client.
 

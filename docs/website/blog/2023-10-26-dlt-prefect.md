@@ -92,8 +92,8 @@ Seriously, it is that simple.
 In preparation, let’s make sure to install what we need:
 
 ```sh
-pip install dlt
-pip install prefect
+python -m pip install dlt
+python -m pip install prefect
 ````
 
 Then just run a simple init command:

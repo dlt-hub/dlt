@@ -30,7 +30,7 @@ This standardization allows data engineers and scientists to focus more on analy
 To start integrating SDMX data sources into your Python applications, install the sdmx library using pip:
 
 ```sh
-pip install sdmx1
+python -m pip install sdmx1
 ```
 
 Here's an example of how to fetch data from multiple SDMX sources, illustrating the diversity of data flows and the ease of access:

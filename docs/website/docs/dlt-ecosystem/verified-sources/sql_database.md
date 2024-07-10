@@ -121,7 +121,7 @@ User name is `rfmaro` and password  is `PWD`.
 1. Install the necessary dependencies by running the following command:
 
    ```sh
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
 
 1. Run the verified source by entering:

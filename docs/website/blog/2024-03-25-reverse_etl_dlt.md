@@ -77,7 +77,7 @@ This example assumes you have set up Google Sheets API access and obtained the n
 Install the required package for the Google API client:
 
 ```sh
-pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+python -m pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
 ```
 

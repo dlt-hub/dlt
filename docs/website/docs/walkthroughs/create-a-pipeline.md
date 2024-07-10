@@ -46,7 +46,7 @@ dlt init github_api duckdb
 Install the dependencies necessary for DuckDB:
 
 ```sh
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ## 2. Obtain and add API credentials from GitHub
@@ -148,7 +148,7 @@ It also prints `load_info` object.
 Let's explore the loaded data with the [command](../reference/command-line-interface#show-tables-and-data-in-the-destination) `dlt pipeline <pipeline_name> show`.
 
 :::info
-Make sure you have `streamlit` installed `pip install streamlit`
+Make sure you have `streamlit` installed `python -m pip install streamlit`
 :::
 
 ```sh
