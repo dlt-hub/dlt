@@ -18,7 +18,7 @@ from dlt.common.configuration.specs import gcp_credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
-
+from dlt.common.destination.reference import RunnableLoadJob
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
@@ -247,21 +247,6 @@ def test_bigquery_configuration() -> None:
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
-
-    # start a job with non-existing file
-    with pytest.raises(FileNotFoundError):
-        client.get_load_job(
-            client.schema.get_table(user_table_name),
-            f"{uniq_id()}.",
-            uniq_id(),
-        )
-
-    # start a job with invalid name
-    dest_path = file_storage.save("!!aaaa", b"data")
-    with pytest.raises(LoadJobTerminalException):
-        client.get_load_job(client.schema.get_table(user_table_name), dest_path, uniq_id())
-
-    user_table_name = prepare_table(client)
     load_json = {
         "_dlt_id": uniq_id(),
         "_dlt_root_id": uniq_id(),
@@ -271,11 +256,18 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
     # start a job from the same file. it should be a fallback to retrieve a job silently
-    r_job = client.get_load_job(
-        client.schema.get_table(user_table_name),
-        file_storage.make_full_path(job.file_name()),
-        uniq_id(),
+    r_job = cast(
+        RunnableLoadJob,
+        client.get_load_job(
+            client.schema.get_table(user_table_name),
+            file_storage.make_full_path(job.file_name()),
+            uniq_id(),
+        ),
     )
+
+    # job will be automatically found and resumed
+    r_job.set_run_vars(uniq_id(), client.schema, client.schema.tables[user_table_name])
+    r_job.run_managed()
     assert r_job.state() == "completed"
 
 
