@@ -20,6 +20,8 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
 
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
@@ -90,10 +92,59 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
+        job = ParsedLoadJobFileName.parse(file_name)
 
         qualified_table_name = client.make_qualified_table_name(table_name)
+        if_local_file = not NewReferenceJob.is_reference_job(file_path)
+        # this means we have a local file
+        stage_file_path: str = ""
+        if if_local_file:
+            if not stage_name:
+                # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
+                stage_name = client.make_qualified_table_name("%" + table_name)
+            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
 
-        # extract and prepare some vars
+        copy_sql = self.gen_copy_sql(
+            file_path,
+            qualified_table_name,
+            job.file_format,  # type: ignore[arg-type]
+            client.capabilities.generates_case_sensitive_identifiers(),
+            stage_name,
+            stage_file_path,
+            staging_credentials,
+            config.csv_format,
+        )
+
+        with client.begin_transaction():
+            # PUT and COPY in one tx if local file, otherwise only copy
+            if if_local_file:
+                client.execute_sql(
+                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
+                    " AUTO_COMPRESS = FALSE"
+                )
+            client.execute_sql(copy_sql)
+            if stage_file_path and not keep_staged_files:
+                client.execute_sql(f"REMOVE {stage_file_path}")
+
+    def state(self) -> TLoadJobState:
+        return "completed"
+
+    def exception(self) -> str:
+        raise NotImplementedError()
+
+    @classmethod
+    def gen_copy_sql(
+        cls,
+        file_path: str,
+        qualified_table_name: str,
+        loader_file_format: TLoaderFileFormat,
+        is_case_sensitive: bool,
+        stage_name: Optional[str] = None,
+        local_stage_file_path: Optional[str] = None,
+        staging_credentials: Optional[CredentialsConfiguration] = None,
+        csv_format: Optional[CsvFormatConfiguration] = None,
+    ) -> str:
+        file_name = FileStorage.get_file_name_from_file_path(file_path)
         bucket_path = (
             NewReferenceJob.resolve_reference(file_path)
             if NewReferenceJob.is_reference_job(file_path)
@@ -105,14 +156,9 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         from_clause = ""
         credentials_clause = ""
         files_clause = ""
-        stage_file_path = ""
         on_error_clause = ""
 
-        case_folding = (
-            "CASE_SENSITIVE"
-            if client.capabilities.generates_case_sensitive_identifiers()
-            else "CASE_INSENSITIVE"
-        )
+        case_folding = "CASE_SENSITIVE" if is_case_sensitive else "CASE_INSENSITIVE"
         column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
 
         if bucket_path:
@@ -162,25 +208,20 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 from_clause = f"FROM @{stage_name}/"
                 files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
         else:
-            # this means we have a local file
-            if not stage_name:
-                # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
-                stage_name = client.make_qualified_table_name("%" + table_name)
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
-            from_clause = f"FROM {stage_file_path}"
+            from_clause = f"FROM {local_stage_file_path}"
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
-        if file_name.endswith("jsonl"):
+        if loader_file_format == "jsonl":
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-        elif file_name.endswith("parquet"):
+        elif loader_file_format == "parquet":
             source_format = (
                 "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
                 # TODO: USE_VECTORIZED_SCANNER inserts null strings into VARIANT JSON
                 # " USE_VECTORIZED_SCANNER = TRUE)"
             )
-        elif file_name.endswith("csv"):
+        elif loader_file_format == "csv":
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
-            csv_format = config.csv_format or CsvFormatConfiguration()
+            csv_format = csv_format or CsvFormatConfiguration()
             source_format = (
                 "(TYPE = 'CSV', BINARY_FORMAT = 'UTF-8', PARSE_HEADER ="
                 f" {csv_format.include_header}, FIELD_OPTIONALLY_ENCLOSED_BY = '\"', NULL_IF ="
@@ -193,31 +234,16 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
             if csv_format.on_error_continue:
                 on_error_clause = "ON_ERROR = CONTINUE"
         else:
-            raise ValueError(file_name)
+            raise ValueError(f"{loader_file_format} not supported for Snowflake COPY command.")
 
-        with client.begin_transaction():
-            # PUT and COPY in one tx if local file, otherwise only copy
-            if not bucket_path:
-                client.execute_sql(
-                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
-                    " AUTO_COMPRESS = FALSE"
-                )
-            client.execute_sql(f"""COPY INTO {qualified_table_name}
-                {from_clause}
-                {files_clause}
-                {credentials_clause}
-                FILE_FORMAT = {source_format}
-                {column_match_clause}
-                {on_error_clause}
-                """)
-            if stage_file_path and not keep_staged_files:
-                client.execute_sql(f"REMOVE {stage_file_path}")
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+        return f"""COPY INTO {qualified_table_name}
+            {from_clause}
+            {files_clause}
+            {credentials_clause}
+            FILE_FORMAT = {source_format}
+            {column_match_clause}
+            {on_error_clause}
+        """
 
 
 class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
