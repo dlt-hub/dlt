@@ -15,6 +15,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
+    MERGE_STRATEGIES,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -26,6 +27,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.typing import TDataItem
 from dlt.common.utils import clone_dict_nested
+from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -342,6 +344,7 @@ class DltResourceHints:
         self, hints_template: TResourceHints, create_table_variant: bool = False
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
+        DltResourceHints.validate_write_disposition_hint(hints_template.get("write_disposition"))
         if create_table_variant:
             table_name: str = hints_template["name"]  # type: ignore[assignment]
             # incremental cannot be specified in variant
@@ -436,13 +439,11 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_merge_disposition_dict(dict_: Dict[str, Any]) -> None:
-        """Merges merge disposition dict into x-hints on in place."""
+        """Merges merge disposition dict into x-hints in place."""
 
         mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
         if mddict is not None:
-            dict_["x-merge-strategy"] = (
-                mddict["strategy"] if "strategy" in mddict else DEFAULT_MERGE_STRATEGY
-            )
+            dict_["x-merge-strategy"] = mddict.get("strategy", DEFAULT_MERGE_STRATEGY)
             # add columns for `scd2` merge strategy
             if dict_.get("x-merge-strategy") == "scd2":
                 if mddict.get("validity_column_names") is None:
@@ -464,7 +465,7 @@ class DltResourceHints:
                     "x-valid-to": True,
                     "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
-                hash_ = mddict.get("row_version_column_name", "_dlt_id")
+                hash_ = mddict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
@@ -496,3 +497,13 @@ class DltResourceHints:
             raise InconsistentTableTemplate(
                 f"Table name {table_name} must be a function if any other table hint is a function"
             )
+
+    @staticmethod
+    def validate_write_disposition_hint(wd: TTableHintTemplate[TWriteDispositionConfig]) -> None:
+        if isinstance(wd, dict) and wd["disposition"] == "merge":
+            wd = cast(TMergeDispositionDict, wd)
+            if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
+                raise ValueError(
+                    f'`{wd["strategy"]}` is not a valid merge strategy. '
+                    f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                )
