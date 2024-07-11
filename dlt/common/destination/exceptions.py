@@ -126,6 +126,10 @@ class DestinationSchemaTampered(DestinationTerminalException):
         )
 
 
+class DestinationCapabilitiesException(DestinationException):
+    pass
+
+
 class DestinationInvalidFileFormat(DestinationTerminalException):
     def __init__(
         self, destination_type: str, file_format: str, file_name: str, message: str

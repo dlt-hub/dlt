@@ -26,6 +26,7 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_package import destination_state
 from dlt.common.typing import DictStrAny
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.sql_client import SqlClientBase
@@ -52,7 +53,6 @@ from dlt.destinations.job_impl import ReferenceFollowupJob
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
-from dlt.pipeline.current import destination_state
 
 
 class BigQueryTypeMapper(TypeMapper):

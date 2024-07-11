@@ -3,8 +3,9 @@ from types import TracebackType
 from typing import ClassVar, Optional, Type, Iterable, cast, List
 
 from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs, FinalizedLoadJob
+from dlt.common.destination.reference import LoadJob
 from dlt.common.typing import AnyFun
-from dlt.pipeline.current import destination_state
+from dlt.common.storages.load_package import destination_state
 from dlt.common.configuration import create_resolved_partial
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -13,6 +14,7 @@ from dlt.common.destination.reference import (
     JobClientBase,
     LoadJob,
 )
+
 from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
 from dlt.destinations.job_impl import (
     DestinationJsonlLoadJob,

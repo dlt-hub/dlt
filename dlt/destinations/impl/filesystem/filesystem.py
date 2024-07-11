@@ -13,7 +13,12 @@ from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
-from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName, TPipelineStateDoc
+from dlt.common.storages.load_package import (
+    LoadJobInfo,
+    ParsedLoadJobFileName,
+    TPipelineStateDoc,
+    load_package as current_load_package,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -389,11 +394,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # don't save the state this way when used as staging
         if self.config.as_staging:
             return
+
         # get state doc from current pipeline
-        from dlt.pipeline.current import load_package
-
-        pipeline_state_doc = load_package()["state"].get("pipeline_state")
-
+        pipeline_state_doc = current_load_package()["state"].get("pipeline_state")
         if not pipeline_state_doc:
             return
 
