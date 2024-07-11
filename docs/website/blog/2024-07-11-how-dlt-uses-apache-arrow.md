@@ -1,6 +1,7 @@
 ---
 slug: how-dlt-uses-apache-arrow
 title: "How dlt uses Apache Arrow"
+image:  https://storage.googleapis.com/dlt-blog-images/blog_data_engineering_with_jorrit.png
 authors:
   name: Jorrit Sandbrink
   title: Open Source Software Engineer
