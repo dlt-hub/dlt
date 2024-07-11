@@ -302,5 +302,6 @@ its implications for the data ecosystem, but haven’t contributed to their open
 
 # Call to action
 Try the SQL connector here with the various backends: [Docs](https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database#pick-the-right-backend-to-load-table-data)
+
 Want to discuss performance?
 [Join the dlt slack community!](https://dlthub.com/community)
