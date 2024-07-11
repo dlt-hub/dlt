@@ -46,14 +46,13 @@ class LoadQdrantJob(RunnableLoadJob):
         collection_name: str,
     ) -> None:
         super().__init__(job_client, file_path)
-        self._db_client = job_client.db_client
         self._collection_name = collection_name
         self._config = client_config
+        self._job_client: "QdrantClient" = job_client
 
     def run(self) -> None:
         embedding_fields = get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
         unique_identifiers = self._list_unique_identifiers(self._load_table)
-
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             ids: List[str]
             docs, payloads, ids = [], [], []
@@ -71,8 +70,8 @@ class LoadQdrantJob(RunnableLoadJob):
                     docs.append(self._get_embedding_doc(data, embedding_fields))
 
             if len(embedding_fields) > 0:
-                embedding_model = self._db_client._get_or_init_model(
-                    self._db_client.embedding_model_name
+                embedding_model = self._job_client.db_client._get_or_init_model(
+                    self._job_client.db_client.embedding_model_name
                 )
                 embeddings = list(
                     embedding_model.embed(
@@ -81,7 +80,7 @@ class LoadQdrantJob(RunnableLoadJob):
                         parallel=self._config.embedding_parallelism,
                     )
                 )
-                vector_name = self._db_client.get_vector_field_name()
+                vector_name = self._job_client.db_client.get_vector_field_name()
                 embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             else:
                 embeddings = [{}] * len(ids)
@@ -126,7 +125,7 @@ class LoadQdrantJob(RunnableLoadJob):
             vectors (Iterable[Any]): Embeddings to be uploaded to the collection
             payloads (Iterable[Any]): Payloads to be uploaded to the collection
         """
-        self._db_client.upload_collection(
+        self._job_client.db_client.upload_collection(
             self._collection_name,
             ids=ids,
             payload=payloads,
