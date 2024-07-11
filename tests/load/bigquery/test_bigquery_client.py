@@ -246,14 +246,6 @@ def test_bigquery_configuration() -> None:
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
-    # non existing job
-    with pytest.raises(LoadJobNotExistsException):
-        client.restore_file_load(f"{uniq_id()}.")
-
-    # bad name
-    with pytest.raises(LoadJobTerminalException):
-        client.restore_file_load("!!&*aaa")
-
     user_table_name = prepare_table(client)
 
     # start a job with non-existing file

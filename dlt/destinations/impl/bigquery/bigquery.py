@@ -1,6 +1,7 @@
 import functools
 import os
 from pathlib import Path
+import time
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
@@ -33,7 +34,7 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DestinationSchemaWillNotUpdate,
     DestinationTerminalException,
-    LoadJobNotExistsException,
+    DatabaseTerminalException,
     LoadJobTerminalException,
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
@@ -108,54 +109,67 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
         job_client: "BigQueryClient",
-        file_name: str,
-        bq_load_job: bigquery.LoadJob,
+        file_path: str,
         http_timeout: float,
         retry_deadline: float,
     ) -> None:
-        self.bq_load_job = bq_load_job
-        self.default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
-        self.http_timeout = http_timeout
-        super().__init__(job_client, file_name)
+        self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
+        self._http_timeout = http_timeout
+        self._job_client: "BigQueryClient" = job_client
+        self._bq_load_job: bigquery.LoadJob = None
+        super().__init__(job_client, file_path)
 
     def run(self) -> None:
-        # bq load job works remotely and does not need to do anything on the thread (TODO: check wether this is true)
-        pass
+        # start the job (or retrieve in case it already exists)
+        try:
+            self._bq_load_job = self._job_client._create_load_job(self._load_table, self._file_path)
+        except api_core_exceptions.GoogleAPICallError as gace:
+            reason = BigQuerySqlClient._get_reason_from_errors(gace)
+            if reason == "notFound":
+                # google.api_core.exceptions.NotFound: 404 – table not found
+                raise DatabaseUndefinedRelation(gace) from gace
+            elif (
+                reason == "duplicate"
+            ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
+                self._bq_load_job = self._job_client._retrieve_load_job(self._file_path)
+            elif reason in BQ_TERMINAL_REASONS:
+                # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
+                raise LoadJobTerminalException(
+                    self._file_path, f"The server reason was: {reason}"
+                ) from gace
+            else:
+                raise DatabaseTransientException(gace) from gace
 
-    def state(self) -> TLoadJobState:
-        if not self.bq_load_job.done(retry=self.default_retry, timeout=self.http_timeout):
-            return "running"
-        if self.bq_load_job.output_rows is not None and self.bq_load_job.error_result is None:
-            return "completed"
-        reason = self.bq_load_job.error_result.get("reason")
-        if reason in BQ_TERMINAL_REASONS:
-            # the job permanently failed for the reason above
-            return "failed"
-        elif reason in ["internalError"]:
-            logger.warning(
-                f"Got reason {reason} for job {self.file_name}, job considered still"
-                f" running. ({self.bq_load_job.error_result})"
-            )
-            # the status of the job couldn't be obtained, job still running.
-            return "running"
-        else:
-            # retry on all other reasons, including `backendError` which requires retry when the job is done.
-            return "retry"
-
-    def bigquery_job_id(self) -> str:
-        return BigQueryLoadJob.get_job_id_from_file_path(super().file_name())
+        # we loop on the job thread until we detect a status change
+        while True:
+            time.sleep(1)
+            # not done yet
+            if not self._bq_load_job.done(retry=self._default_retry, timeout=self._http_timeout):
+                continue
+            # done, break loop and go to completed state
+            if self._bq_load_job.output_rows is not None and self._bq_load_job.error_result is None:
+                break
+            reason = self._bq_load_job.error_result.get("reason")
+            if reason in BQ_TERMINAL_REASONS:
+                # the job permanently failed for the reason above
+                raise DatabaseTerminalException(Exception("Bigquery Load Job failed"))
+            elif reason in ["internalError"]:
+                continue
+            else:
+                raise DatabaseTransientException(Exception("Bigquery Job needs to be retried"))
 
     def exception(self) -> str:
-        exception: str = json.dumps(
+        if not self._bq_load_job:
+            return ""
+        return json.dumps(
             {
-                "error_result": self.bq_load_job.error_result,
-                "errors": self.bq_load_job.errors,
-                "job_start": self.bq_load_job.started,
-                "job_end": self.bq_load_job.ended,
-                "job_id": self.bq_load_job.job_id,
+                "error_result": self._bq_load_job.error_result,
+                "errors": self._bq_load_job.errors,
+                "job_start": self._bq_load_job.started,
+                "job_end": self._bq_load_job.ended,
+                "job_id": self._bq_load_job.job_id,
             }
         )
-        return exception
 
     @staticmethod
     def get_job_id_from_file_path(file_path: str) -> str:
@@ -203,41 +217,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    # todo fold into method above
-    def restore_file_load(self, file_path: str) -> LoadJob:
-        """Returns a completed SqlLoadJob or restored BigQueryLoadJob
-
-        See base class for details on SqlLoadJob.
-        BigQueryLoadJob is restored with a job ID derived from `file_path`.
-
-        Args:
-            file_path (str): a path to a job file.
-
-        Returns:
-            LoadJob: completed SqlLoadJob or restored BigQueryLoadJob
-        """
-        job: LoadJob = None
-        if not job:
-            try:
-                job = BigQueryLoadJob(
-                    self,
-                    file_path,
-                    self._retrieve_load_job(file_path),
-                    self.config.http_timeout,
-                    self.config.retry_deadline,
-                )
-            except api_core_exceptions.GoogleAPICallError as gace:
-                reason = BigQuerySqlClient._get_reason_from_errors(gace)
-                if reason == "notFound":
-                    raise LoadJobNotExistsException(file_path) from gace
-                elif reason in BQ_TERMINAL_REASONS:
-                    raise LoadJobTerminalException(
-                        file_path, f"The server reason was: {reason}"
-                    ) from gace
-                else:
-                    raise DatabaseTransientException(gace) from gace
-        return job
-
     def get_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
@@ -274,19 +253,15 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     job = BigQueryLoadJob(
                         self,
                         file_path,
-                        self._create_load_job(table, file_path),
                         self.config.http_timeout,
                         self.config.retry_deadline,
                     )
+            # TODO: this section may not be needed, BigQueryLoadJob will not through errors here and the streaming insert i don't know
             except api_core_exceptions.GoogleAPICallError as gace:
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
                     raise DatabaseUndefinedRelation(gace) from gace
-                elif (
-                    reason == "duplicate"
-                ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
-                    return self.restore_file_load(file_path)
                 elif reason in BQ_TERMINAL_REASONS:
                     # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
                     raise LoadJobTerminalException(
