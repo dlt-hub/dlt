@@ -179,10 +179,6 @@ def _init_dataset_and_update_schema(
         f" {staging_text}"
     )
 
-    # only call for non staging to prevent duplicate warnings
-    if not staging_info:
-        job_client.verify_schema()
-
     applied_update = job_client.update_stored_schema(
         only_tables=update_tables, expected_update=expected_update
     )

@@ -669,8 +669,8 @@ WHERE """
             schema_str,
         )
 
-    def verify_schema(self) -> None:
-        super().verify_schema()
+    def _verify_schema(self) -> None:
+        super()._verify_schema()
         if exceptions := verify_sql_job_client_schema(self.schema, warnings=True):
             for exception in exceptions:
                 logger.error(str(exception))
