@@ -207,9 +207,19 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     os.environ["EXCEPTION_PROB"] = "1.0"
     os.environ["FAIL_IN_INIT"] = "False"
     os.environ["TIMEOUT"] = "1.0"
+
     venv = Venv.restore_current()
     with pytest.raises(CalledProcessError) as cpe:
         print(venv.run_script("chess_pipeline.py"))
+
+    # move job into running folder manually
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    load_storage = pipeline._get_load_storage()
+    load_id = load_storage.normalized_packages.list_packages()[0]
+    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
+    load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
     assert "Dummy job status raised exception" in cpe.value.stdout
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
