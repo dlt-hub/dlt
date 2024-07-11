@@ -37,7 +37,7 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
         name = (
             self.destination_callable
             if isinstance(self.destination_callable, str)
-            else self.destination_callable.__name__
+            else self.destination_callable.__module__ + "." + self.destination_callable.__name__
         )
         return digest128(name)
 

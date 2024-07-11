@@ -1,15 +1,18 @@
+import os
 from typing import Dict
 import pytest
 
+import dlt
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
+from dlt.destinations import duckdb
 
 from tests.common.configuration.utils import environment
-from tests.utils import ACTIVE_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, TEST_STORAGE_ROOT
 
 
 def test_import_unknown_destination() -> None:
@@ -397,3 +400,34 @@ def test_normalize_dataset_name_none_default_schema() -> None:
         .normalize_dataset_name(Schema("default"))
         == "ban_ana_dataset"
     )
+
+
+@pytest.mark.parametrize("destination_name", IMPLEMENTED_DESTINATIONS)
+def test_destination_info(destination_name):
+    p = dlt.pipeline(
+        pipeline_name="dest_info",
+        destination=destination_name,
+        dataset_name="dest_info_data",
+    )
+    assert p.destination.destination_info == {
+        "destination_name": p.destination.destination_name,
+        "destination_type": p.destination.destination_type,
+        "environment": None,
+        "fingerprint": p.destination.configuration(None).fingerprint(),
+        "repr": p.destination.destination_description,
+    }
+
+
+def test_destination_info_environment():
+    duck = duckdb(
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"),
+        destination_name="duck1",
+        environment="production",
+    )
+    assert duck.destination_info == {
+        "destination_name": "duck1",
+        "destination_type": "dlt.destinations.duckdb",
+        "environment": "production",
+        "fingerprint": duck.configuration(None).fingerprint(),
+        "repr": "duck1(dlt.destinations.duckdb)",
+    }

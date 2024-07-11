@@ -589,7 +589,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         Returns:
             Dict[str, Any]: Destination info.
         """
-        conf = self.configuration(self.spec())
+        conf = self.configuration(self.spec(), accept_partial=True)
         return {
             "destination_name": self.destination_name,
             "destination_type": self.destination_type,
