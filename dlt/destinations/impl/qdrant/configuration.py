@@ -1,6 +1,6 @@
 import dataclasses
-from typing import Optional, Final
-from typing_extensions import Annotated
+from typing import Optional, Final, Any
+from typing_extensions import Annotated, TYPE_CHECKING
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import (
@@ -8,11 +8,17 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
 )
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
+
+if TYPE_CHECKING:
+    from qdrant_client import QdrantClient
 
 
 @configspec
 class QdrantCredentials(CredentialsConfiguration):
-    # If `:memory:` - use in-memory Qdrant instance.
+    if TYPE_CHECKING:
+        _external_client: "QdrantClient"
+
     # If `str` - use it as a `url` parameter.
     # If `None` - use default values for `host` and `port`
     location: Optional[str] = None
@@ -20,6 +26,47 @@ class QdrantCredentials(CredentialsConfiguration):
     api_key: Optional[str] = None
     # Persistence path for QdrantLocal. Default: `None`
     path: Optional[str] = None
+
+    def is_local(self) -> bool:
+        return self.path is not None
+
+    def on_resolved(self) -> None:
+        if self.location == ":memory:":
+            raise InvalidInMemoryQdrantCredentials()
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        try:
+            from qdrant_client import QdrantClient
+
+            if isinstance(native_value, QdrantClient):
+                self._external_client = native_value
+                self.resolve()
+        except ModuleNotFoundError:
+            pass
+
+        super().parse_native_representation(native_value)
+
+    def _create_client(self, model: str, **options: Any) -> "QdrantClient":
+        from qdrant_client import QdrantClient
+
+        creds = dict(self)
+        if creds["path"]:
+            del creds["location"]
+
+        client = QdrantClient(**creds, **options)
+        client.set_model(model)
+        return client
+
+    def get_client(self, model: str, **options: Any) -> "QdrantClient":
+        client = getattr(self, "_external_client", None)
+        return client or self._create_client(model, **options)
+
+    def close_client(self, client: "QdrantClient") -> None:
+        """Close client if not external"""
+        if getattr(self, "_external_client", None) is client:
+            # Do not close client created externally
+            return
+        client.close()
 
     def __str__(self) -> str:
         return self.location or "localhost"
@@ -80,6 +127,12 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     # FlagEmbedding model to use
     # Find the list here. https://qdrant.github.io/fastembed/examples/Supported_Models/.
     model: str = "BAAI/bge-small-en"
+
+    def get_client(self) -> "QdrantClient":
+        return self.credentials.get_client(self.model, **dict(self.options))
+
+    def close_client(self, client: "QdrantClient") -> None:
+        self.credentials.close_client(client)
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of a connection string"""

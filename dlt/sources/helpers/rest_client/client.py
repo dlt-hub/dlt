@@ -95,7 +95,7 @@ class RESTClient:
         self,
         path: str,
         method: HTTPMethod,
-        params: Dict[str, Any],
+        params: Optional[Dict[str, Any]] = None,
         json: Optional[Dict[str, Any]] = None,
         auth: Optional[AuthBase] = None,
         hooks: Optional[Hooks] = None,

@@ -17,6 +17,7 @@ from copy import deepcopy
 import re
 
 from contextlib import contextmanager
+from fsspec import AbstractFileSystem
 from pendulum.datetime import DateTime, Date
 from datetime import datetime  # noqa: I251
 
@@ -33,7 +34,8 @@ from pyathena.formatter import (
 
 from dlt.common import logger
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.utils import without_none
+from dlt.common.storages.fsspec_filesystem import fsspec_from_config
+from dlt.common.utils import uniq_id, without_none
 from dlt.common.schema import TColumnSchema, Schema, TTableSchema
 from dlt.common.schema.typing import (
     TTableSchema,
@@ -162,7 +164,7 @@ class AthenaMergeJob(SqlMergeJob):
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str, sql_client: SqlClientBase[Any]) -> str:
         # reproducible name so we know which table to drop
-        with sql_client.with_staging_dataset(staging=True):
+        with sql_client.with_staging_dataset():
             return sql_client.make_qualified_table_name(name_prefix)
 
     @classmethod
@@ -222,10 +224,11 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         config: AthenaClientConfiguration,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(None, dataset_name, capabilities)
+        super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: Connection = None
         self.config = config
         self.credentials = config.credentials
@@ -379,7 +382,12 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
             table_needs_own_folder=True,
         )
 
-        sql_client = AthenaSQLClient(config.normalize_dataset_name(schema), config, capabilities)
+        sql_client = AthenaSQLClient(
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config,
+            capabilities,
+        )
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
@@ -425,8 +433,12 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
         columns = ", ".join([self._get_column_def_sql(c, table_format) for c in new_columns])
 
+        # create unique tag for iceberg table so it is never recreated in the same folder
+        # athena requires some kind of special cleaning (or that is a bug) so we cannot refresh
+        # iceberg tables without it
+        location_tag = uniq_id(6) if is_iceberg else ""
         # this will fail if the table prefix is not properly defined
-        table_prefix = self.table_prefix_layout.format(table_name=table_name)
+        table_prefix = self.table_prefix_layout.format(table_name=table_name + location_tag)
         location = f"{bucket}/{dataset}/{table_prefix}"
 
         # use qualified table names

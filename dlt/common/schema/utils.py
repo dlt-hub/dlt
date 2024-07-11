@@ -802,23 +802,26 @@ def loads_table() -> TTableSchema:
     return table
 
 
-def pipeline_state_table() -> TTableSchema:
+def pipeline_state_table(add_dlt_id: bool = False) -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
     # set to nullable so we can migrate existing tables
     # WARNING: do not reorder the columns
+    columns: List[TColumnSchema] = [
+        {"name": "version", "data_type": "bigint", "nullable": False},
+        {"name": "engine_version", "data_type": "bigint", "nullable": False},
+        {"name": "pipeline_name", "data_type": "text", "nullable": False},
+        {"name": "state", "data_type": "text", "nullable": False},
+        {"name": "created_at", "data_type": "timestamp", "nullable": False},
+        {"name": "version_hash", "data_type": "text", "nullable": True},
+        {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
+    ]
+    if add_dlt_id:
+        columns.append({"name": "_dlt_id", "data_type": "text", "nullable": False, "unique": True})
     table = new_table(
         PIPELINE_STATE_TABLE_NAME,
         write_disposition="append",
-        columns=[
-            {"name": "version", "data_type": "bigint", "nullable": False},
-            {"name": "engine_version", "data_type": "bigint", "nullable": False},
-            {"name": "pipeline_name", "data_type": "text", "nullable": False},
-            {"name": "state", "data_type": "text", "nullable": False},
-            {"name": "created_at", "data_type": "timestamp", "nullable": False},
-            {"name": "version_hash", "data_type": "text", "nullable": True},
-            {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
-        ],
+        columns=columns,
         # always use caps preferred file format for processing
         file_format="preferred",
     )
