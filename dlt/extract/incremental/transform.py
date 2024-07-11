@@ -10,8 +10,9 @@ from dlt.common.jsonpath import find_values, JSONPathFields, compile_path
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
     IncrementalPrimaryKeyMissing,
+    IncrementalCursorPathHasValueNone,
 )
-from dlt.extract.incremental.typing import TCursorValue, LastValueFunc
+from dlt.extract.incremental.typing import TCursorValue, LastValueFunc, OnCursorValueNone
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
@@ -54,6 +55,7 @@ class IncrementalTransform:
         last_value_func: LastValueFunc[TCursorValue],
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
         unique_hashes: Set[str],
+        on_cursor_value_none: OnCursorValueNone = "raise",
     ) -> None:
         self.resource_name = resource_name
         self.cursor_path = cursor_path
@@ -66,6 +68,7 @@ class IncrementalTransform:
         self.primary_key = primary_key
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
+        self.on_cursor_value_none = on_cursor_value_none
 
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
@@ -120,14 +123,25 @@ class JsonIncremental(IncrementalTransform):
         if self.cursor_path not in row.keys() and not self._compiled_cursor_path:
             raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
 
+        row_value = self._value_at_cursor_path(row)
+
+        if self.on_cursor_value_none == "raise" and row_value is None:
+            raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
+
+        return row_value
+
+    def _value_at_cursor_path(self, row: TDataItem) -> Any:
         row_value = row.get(self.cursor_path, None)
 
         if self._compiled_cursor_path:
-            row_values = find_values(self._compiled_cursor_path, row)
-            if not row_values:
+            cursor_values = find_values(self._compiled_cursor_path, row)
+            if cursor_values == [] and self.on_cursor_value_none == "raise":
                 raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
-            row_value = row_values[0]
-
+            elif None in cursor_values and self.on_cursor_value_none == "raise":
+                raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
+            else:
+                # ignores the other found values, e.g. when the path is $data.items[*].created_at
+                row_value = cursor_values[0]
         return row_value
 
     def __call__(
@@ -136,7 +150,7 @@ class JsonIncremental(IncrementalTransform):
     ) -> Tuple[Optional[TDataItem], bool, bool]:
         """
         Returns:
-            Tuple (row, start_out_of_range, end_out_of_range) where row is either the data item or `None` if it is completely filtered out
+            Tuple (row, is_below_initial_value, is_above_end_value) where row is either the data item or `None` if it is completely filtered out
         """
         if row is None:
             return row, False, False

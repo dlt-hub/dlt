@@ -660,7 +660,7 @@ than `end_value`.
 
 :::caution
 In rare cases when you use Incremental with a transformer, `dlt` will not be able to automatically close
-generator associated with a row that is out of range. You can still use still call `can_close()` method on
+generator associated with a row that is out of range. You can still call the `can_close()` method on
 incremental and exit yield loop when true.
 :::
 
