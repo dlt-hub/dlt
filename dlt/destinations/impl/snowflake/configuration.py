@@ -66,6 +66,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     application: Optional[str] = SNOWFLAKE_APPLICATION_ID
+    query_tag: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
     __query_params__: ClassVar[List[str]] = [
@@ -82,9 +83,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         for param in self.__query_params__:
             if param in self.query:
                 setattr(self, param, self.query.get(param))
-
-        # if not self.is_partial() and (self.password or self.private_key):
-        #     self.resolve()
 
     def on_resolved(self) -> None:
         if not self.password and not self.private_key and not self.authenticator:

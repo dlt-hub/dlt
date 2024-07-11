@@ -310,6 +310,28 @@ Above we set `csv` file without header, with **|** as a separator and we request
 You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
 :::
 
+### Query Tagging
+`dlt` tags sessions that execute loading jobs with following job properties:
+* **source** - name of the source (identical with the name of `dlt` schema)
+* **resource** - name of the resource
+* **table** - name of the table loaded by the job
+* **load_id** - load id of the job
+
+You can define query tag by defining a query tag placeholder in snowflake credentials:
+```toml
+[destination.snowflake.credentials]
+query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}"}}'
+```
+which contains Python named formatters corresponding to tag names ie. `{source}` will assume the name of the dlt source.
+
+:::note
+1. query tagging is off by default
+2. only sessions associated with a job are tagged. sessions that migrate schemas remain untagged
+3. jobs processing table chains (ie. sql merge jobs) will use top level table as **table**
+:::
+
+
+
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.
 

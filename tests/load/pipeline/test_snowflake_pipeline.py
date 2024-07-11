@@ -1,10 +1,12 @@
+import os
 import pytest
 
 import dlt
-from dlt.common import Decimal
 
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+
+from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
@@ -20,6 +22,8 @@ pytestmark = pytest.mark.essential
 def test_snowflake_case_sensitive_identifiers(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    # enable query tagging
+    os.environ["DESTINATION__SNOWFLAKE__CREDENTIALS__QUERY_TAG"] = QUERY_TAG
     snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
 
     dataset_name = "CaseSensitive_Dataset_" + uniq_id()

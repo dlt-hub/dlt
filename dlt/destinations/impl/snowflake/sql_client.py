@@ -1,5 +1,5 @@
 from contextlib import contextmanager, suppress
-from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List
+from typing import Any, AnyStr, ClassVar, Dict, Iterator, Optional, Sequence, List
 
 import snowflake.connector as snowflake_lib
 
@@ -12,6 +12,7 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
+    TJobQueryTags,
     raise_database_error,
     raise_open_connection_error,
 )
@@ -119,6 +120,21 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     def _reset_connection(self) -> None:
         self._conn.rollback()
         self._conn.autocommit(True)
+
+    def set_query_tags(self, tags: TJobQueryTags) -> None:
+        super().set_query_tags(tags)
+        self._tag_session()
+
+    def _tag_session(self) -> None:
+        """Wraps query with Snowflake query tag"""
+        if not self.credentials.query_tag:
+            return
+        if self._query_tags:
+            tag = self.credentials.query_tag.format(**self._query_tags)
+            tag_query = f"ALTER SESSION SET QUERY_TAG = '{tag}'"
+        else:
+            tag_query = "ALTER SESSION UNSET QUERY_TAG"
+        self.execute_sql(tag_query)
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

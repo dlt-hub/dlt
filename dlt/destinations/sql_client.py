@@ -7,6 +7,7 @@ from typing import (
     Any,
     ClassVar,
     ContextManager,
+    Dict,
     Generic,
     Iterator,
     Optional,
@@ -15,6 +16,7 @@ from typing import (
     Type,
     AnyStr,
     List,
+    TypedDict,
 )
 
 from dlt.common.typing import TFun
@@ -26,6 +28,15 @@ from dlt.destinations.exceptions import (
     LoadClientNotConnected,
 )
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
+
+
+class TJobQueryTags(TypedDict):
+    """Applied to sql client when a job using it starts. Using to tag queries"""
+
+    source: str
+    resource: str
+    table: str
+    load_id: str
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):
@@ -53,6 +64,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         self.staging_dataset_name = staging_dataset_name
         self.database_name = database_name
         self.capabilities = capabilities
+        self._query_tags: TJobQueryTags = None
 
     @abstractmethod
     def open_connection(self) -> TNativeConn:
@@ -209,6 +221,10 @@ SELECT 1
 
     def with_staging_dataset(self) -> ContextManager["SqlClientBase[TNativeConn]"]:
         return self.with_alternative_dataset_name(self.staging_dataset_name)
+
+    def set_query_tags(self, tags: TJobQueryTags) -> None:
+        """Sets current schema (source), resource, load_id and table name when a job starts"""
+        self._query_tags = tags
 
     def _ensure_native_conn(self) -> None:
         if not self.native_connection:
