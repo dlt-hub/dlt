@@ -245,7 +245,7 @@ def test_bigquery_configuration() -> None:
     )
 
 
-def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
+def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
     load_json = {
         "_dlt_id": uniq_id(),
@@ -254,6 +254,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
         "timestamp": str(pendulum.now()),
     }
     job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
+    assert job._created_job  # type: ignore
 
     # start a job from the same file. it should be a fallback to retrieve a job silently
     r_job = cast(
@@ -269,6 +270,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
     r_job.set_run_vars(uniq_id(), client.schema, client.schema.tables[user_table_name])
     r_job.run_managed()
     assert r_job.state() == "completed"
+    assert r_job._resumed_job  # type: ignore
 
 
 @pytest.mark.parametrize("location", ["US", "EU"])

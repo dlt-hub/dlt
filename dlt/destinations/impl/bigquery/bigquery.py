@@ -118,11 +118,15 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
         self._job_client: "BigQueryClient" = job_client
         self._bq_load_job: bigquery.LoadJob = None
         super().__init__(job_client, file_path)
+        # vars only used for testing
+        self._created_job = False
+        self._resumed_job = False
 
     def run(self) -> None:
         # start the job (or retrieve in case it already exists)
         try:
             self._bq_load_job = self._job_client._create_load_job(self._load_table, self._file_path)
+            self._created_job = True
         except api_core_exceptions.GoogleAPICallError as gace:
             reason = BigQuerySqlClient._get_reason_from_errors(gace)
             if reason == "notFound":
@@ -132,6 +136,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
                 reason == "duplicate"
             ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
                 self._bq_load_job = self._job_client._retrieve_load_job(self._file_path)
+                self._resumed_job = True
             elif reason in BQ_TERMINAL_REASONS:
                 # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
                 raise LoadJobTerminalException(
