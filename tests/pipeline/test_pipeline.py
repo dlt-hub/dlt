@@ -87,12 +87,76 @@ def test_default_pipeline() -> None:
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
+def test_default_pipeline_dataset_layout(environment) -> None:
+    # Set dataset_name_layout to "bobby_%s"
+    dataset_name_layout = "bobby_%s"
+    environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
+
+    p = dlt.pipeline()
+    # this is a name of executing test harness or blank pipeline on windows
+    possible_names = ["dlt_pytest", "dlt_pipeline"]
+    possible_dataset_names = [
+        dataset_name_layout % "dlt_pytest_dataset",
+        dataset_name_layout % "dlt_pipeline_dataset",
+    ]
+    assert p.pipeline_name in possible_names
+    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.runtime_config.pipeline_name == p.pipeline_name
+    # dataset that will be used to load data is the pipeline name
+    assert p.dataset_name in possible_dataset_names
+    assert p.destination is None
+    assert p.default_schema_name is None
+
+    # this is the same pipeline
+    p2 = dlt.pipeline()
+    assert p is p2
+
+    # this will create default schema
+    p.extract(["a", "b", "c"], table_name="data")
+    # `_pipeline` is removed from default schema name
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+
+
 def test_default_pipeline_dataset() -> None:
     # dummy does not need a dataset
     p = dlt.pipeline(destination="dummy")
     assert p.dataset_name is None  # so it is none
 
     # filesystem needs one
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name in possible_dataset_names
+
+
+def test_default_pipeline_dataset_name(environment) -> None:
+    environment["DATASET_NAME"] = "dataset"
+    environment["DATASET_NAME_LAYOUT"] = "prefix_%s"
+
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name == "prefix_dataset"
+
+
+def test_default_pipeline_dataset_layout_exception(environment) -> None:
+    # Set dataset_name_layout without placeholder %s
+    environment["DATASET_NAME_LAYOUT"] = "bobby_"
+
+    with pytest.raises(ValueError):
+        dlt.pipeline(destination="filesystem")
+
+
+def test_default_pipeline_dataset_layout_placeholder(environment) -> None:
+    # Set dataset_name_layout only with placeholder
+    environment["DATASET_NAME_LAYOUT"] = "%s"
+
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name in possible_dataset_names
+
+
+def test_default_pipeline_dataset_layout_empty(environment) -> None:
+    # Set dataset_name_layout empty
+    environment["DATASET_NAME_LAYOUT"] = ""
+
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     p = dlt.pipeline(destination="filesystem")
     assert p.dataset_name in possible_dataset_names
@@ -114,6 +178,39 @@ def test_run_dev_mode_default_dataset() -> None:
     p._set_dataset_name(None)
     # full refresh is still observed
     assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
+
+
+def test_run_dev_mode_default_dataset_layout(environment) -> None:
+    # Set dataset_name_layout to "bobby_%s"
+    dataset_name_layout = "bobby_%s"
+    environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
+
+    p = dlt.pipeline(dev_mode=True, destination="filesystem")
+    assert p.dataset_name in [
+        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+    ]
+    # restore this pipeline
+    r_p = dlt.attach(dev_mode=False)
+    assert r_p.dataset_name in [
+        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+    ]
+
+    # dummy does not need dataset
+    p = dlt.pipeline(dev_mode=True, destination="dummy")
+    assert p.dataset_name is None
+
+    # simulate set new dataset
+    p._set_destinations("filesystem")
+    assert p.dataset_name is None
+    p._set_dataset_name(None)
+
+    # full refresh is still observed
+    assert p.dataset_name in [
+        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+    ]
 
 
 def test_run_dev_mode_underscored_dataset() -> None:
@@ -173,6 +270,16 @@ def test_invalid_dataset_name() -> None:
     # this is invalid dataset name but it will be normalized within a destination
     p = dlt.pipeline(dataset_name="!")
     assert p.dataset_name == "!"
+
+
+def test_invalid_dataset_layout(environment) -> None:
+    # Set dataset_name_prefix to "bobby"
+    dataset_name_layout = "bobby_%s"
+    environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
+
+    # this is invalid dataset name but it will be normalized within a destination
+    p = dlt.pipeline(dataset_name="!")
+    assert p.dataset_name == dataset_name_layout % "!"
 
 
 def test_pipeline_context_deferred_activation() -> None:
