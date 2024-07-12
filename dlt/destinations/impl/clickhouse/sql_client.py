@@ -1,4 +1,5 @@
 import datetime  # noqa: I251
+from clickhouse_driver import dbapi as clickhouse_dbapi  # type: ignore[import-untyped]
 from contextlib import contextmanager
 from typing import (
     Iterator,
@@ -13,7 +14,7 @@ from typing import (
     cast,
 )
 
-import clickhouse_driver  # type: ignore[import-untyped]
+import clickhouse_driver
 import clickhouse_driver.errors  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi import OperationalError  # type: ignore[import-untyped]
 from clickhouse_driver.dbapi.extras import DictCursor  # type: ignore[import-untyped]
@@ -26,7 +27,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseTerminalException,
 )
-from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
+from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials, ClickHouseClientConfiguration
 from dlt.destinations.impl.clickhouse.typing import (
     TTableEngineType,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
@@ -54,7 +55,7 @@ class ClickHouseDBApiCursorImpl(DBApiCursorImpl):
 class ClickHouseSqlClient(
     SqlClientBase[clickhouse_driver.dbapi.connection.Connection], DBTransaction
 ):
-    dbapi: ClassVar[DBApi] = clickhouse_driver.dbapi
+    dbapi: ClassVar[DBApi] = clickhouse_dbapi
 
     def __init__(
         self,
@@ -62,14 +63,16 @@ class ClickHouseSqlClient(
         staging_dataset_name: str,
         credentials: ClickHouseCredentials,
         capabilities: DestinationCapabilitiesContext,
+        config: ClickHouseClientConfiguration,
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: clickhouse_driver.dbapi.connection = None
         self.credentials = credentials
         self.database_name = credentials.database
+        self.config = config
 
     def has_dataset(self) -> bool:
-        # we do not need to normalize dataset_sentinel_table_name
+        # we do not need to normalize dataset_sentinel_table_name.
         sentinel_table = self.config.dataset_sentinel_table_name
         return sentinel_table in [
             t.split(self.config.dataset_table_separator)[1] for t in self._list_tables()

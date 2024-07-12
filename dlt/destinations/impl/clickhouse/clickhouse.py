@@ -285,6 +285,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
+            config
         )
         super().__init__(schema, config, self.sql_client)
         self.config: ClickHouseClientConfiguration = config
@@ -347,7 +348,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             TTableEngineType,
             table.get(
                 cast(str, TABLE_ENGINE_TYPE_HINT),
-                self.config.credentials.table_engine_type,
+                self.config.table_engine_type,
             ),
         )
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
