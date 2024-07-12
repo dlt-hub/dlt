@@ -196,6 +196,10 @@ if os.environ.get(known_env.DLT_USE_JSON) == "simplejson":
     from dlt.common.json import _simplejson as _json_d
 
     json = _json_d  # type: ignore[assignment]
+elif os.environ.get(known_env.DLT_USE_JSON) == "msgspec":
+    from dlt.common.json import _msgspec as _json_m
+
+    json = _json_m
 else:
     try:
         from dlt.common.json import _orjson as _json_or

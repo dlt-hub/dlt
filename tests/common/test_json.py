@@ -16,6 +16,7 @@ from dlt.common.json import (
     may_have_pua,
     _orjson,
     _simplejson,
+    _msgspec,
     SupportsJson,
     _DATETIME,
 )
@@ -42,7 +43,7 @@ class DataClassTest:
     dec_field: Decimal = Decimal("0.5")
 
 
-_JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson]  # type: ignore[list-item]
+_JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson, _msgspec]  # type: ignore[list-item]
 
 
 def test_orjson_default_imported() -> None:
