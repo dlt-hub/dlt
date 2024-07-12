@@ -70,9 +70,9 @@ class ClickHouseSqlClient(
 
     def has_dataset(self) -> bool:
         # we do not need to normalize dataset_sentinel_table_name
-        sentinel_table = self.credentials.dataset_sentinel_table_name
+        sentinel_table = self.config.dataset_sentinel_table_name
         return sentinel_table in [
-            t.split(self.credentials.dataset_table_separator)[1] for t in self._list_tables()
+            t.split(self.config.dataset_table_separator)[1] for t in self._list_tables()
         ]
 
     def open_connection(self) -> clickhouse_driver.dbapi.connection.Connection:
@@ -111,9 +111,9 @@ class ClickHouseSqlClient(
     def create_dataset(self) -> None:
         # We create a sentinel table which defines whether we consider the dataset created.
         sentinel_table_name = self.make_qualified_table_name(
-            self.credentials.dataset_sentinel_table_name
+            self.config.dataset_sentinel_table_name
         )
-        sentinel_table_type = cast(TTableEngineType, self.credentials.table_engine_type)
+        sentinel_table_type = cast(TTableEngineType, self.config.table_engine_type)
         self.execute_sql(f"""
             CREATE TABLE {sentinel_table_name}
             (_dlt_id String NOT NULL PRIMARY KEY)
@@ -123,7 +123,7 @@ class ClickHouseSqlClient(
     def drop_dataset(self) -> None:
         # always try to drop the sentinel table.
         sentinel_table_name = self.make_qualified_table_name(
-            self.credentials.dataset_sentinel_table_name
+            self.config.dataset_sentinel_table_name
         )
         # drop a sentinel table
         self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
@@ -212,7 +212,7 @@ class ClickHouseSqlClient(
         if table_name:
             # table name combines dataset name and table name
             table_name = self.capabilities.casefold_identifier(
-                f"{self.dataset_name}{self.credentials.dataset_table_separator}{table_name}"
+                f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
             )
             if escape:
                 table_name = self.capabilities.escape_identifier(table_name)

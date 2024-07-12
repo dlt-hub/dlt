@@ -31,12 +31,6 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for establishing connection. Defaults to 10 seconds."""
     send_receive_timeout: int = 300
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
-    dataset_table_separator: str = "___"
-    """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
-    table_engine_type: Optional[TTableEngineType] = "merge_tree"
-    """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
-    dataset_sentinel_table_name: str = "dlt_sentinel_table"
-    """Special table to mark dataset as existing"""
     gcp_access_key_id: Optional[str] = None
     """When loading from a gcp bucket, you need to provide gcp interoperable keys"""
     gcp_secret_access_key: Optional[str] = None
@@ -81,10 +75,18 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     )
     credentials: ClickHouseCredentials = None
 
-    # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
-    # but they do not enforce uniqueness constraints. It permits duplicate values even for the primary key
-    # columns within the same granule.
-    # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
+    dataset_table_separator: str = "___"
+    """Separator for dataset table names, defaults to '___', i.e. 'database.dataset___table'."""
+    table_engine_type: Optional[TTableEngineType] = "merge_tree"
+    """The default table engine to use. Defaults to 'merge_tree'. Other implemented options are 'shared_merge_tree' and 'replicated_merge_tree'."""
+    dataset_sentinel_table_name: str = "dlt_sentinel_table"
+    """Special table to mark dataset as existing"""
+
+    __config_gen_annotations__: ClassVar[List[str]] = [
+        "dataset_table_separator",
+        "dataset_sentinel_table_name",
+        "table_engine_type",
+    ]
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the host part of a connection string."""
