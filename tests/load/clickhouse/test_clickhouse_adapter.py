@@ -1,11 +1,10 @@
 from typing import Generator, Dict, cast
 
-import pytest
-
 import dlt
 from dlt.common.utils import custom_environ
 from dlt.destinations.adapters import clickhouse_adapter
-from dlt.destinations.impl.clickhouse.sql_client import TDeployment, ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.typing import TDeployment
 from tests.load.clickhouse.utils import get_deployment_type
 from tests.pipeline.utils import assert_load_info
 

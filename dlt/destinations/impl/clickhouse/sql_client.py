@@ -10,6 +10,7 @@ from typing import (
     ClassVar,
     Literal,
     Tuple,
+    cast,
 )
 
 import clickhouse_driver  # type: ignore[import-untyped]
@@ -26,6 +27,10 @@ from dlt.destinations.exceptions import (
     DatabaseTerminalException,
 )
 from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials
+from dlt.destinations.impl.clickhouse.typing import (
+    TTableEngineType,
+    TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
+)
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
@@ -108,15 +113,15 @@ class ClickHouseSqlClient(
         sentinel_table_name = self.make_qualified_table_name(
             self.credentials.dataset_sentinel_table_name
         )
-        # `MergeTree` is guaranteed to work in both self-managed and cloud setups.
+        sentinel_table_type = cast(TTableEngineType, self.credentials.table_engine_type)
         self.execute_sql(f"""
             CREATE TABLE {sentinel_table_name}
             (_dlt_id String NOT NULL PRIMARY KEY)
-            ENGINE=MergeTree
+            ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
             COMMENT 'internal dlt sentinel table'""")
 
     def drop_dataset(self) -> None:
-        # always try to drop sentinel table
+        # always try to drop the sentinel table.
         sentinel_table_name = self.make_qualified_table_name(
             self.credentials.dataset_sentinel_table_name
         )

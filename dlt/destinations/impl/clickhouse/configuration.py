@@ -1,5 +1,5 @@
 import dataclasses
-from typing import ClassVar, Dict, List, Any, Final, Literal, cast, Optional
+from typing import ClassVar, Dict, List, Any, Final, cast, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -7,14 +7,7 @@ from dlt.common.destination.reference import (
     DestinationClientDwhWithStagingConfiguration,
 )
 from dlt.common.utils import digest128
-
-
-TSecureConnection = Literal[0, 1]
-TTableEngineType = Literal[
-    "merge_tree",
-    "shared_merge_tree",
-    "replicated_merge_tree",
-]
+from dlt.destinations.impl.clickhouse.typing import TSecureConnection, TTableEngineType
 
 
 @configspec(init=False)

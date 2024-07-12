@@ -2,7 +2,7 @@ import os
 import re
 from copy import deepcopy
 from textwrap import dedent
-from typing import Optional, Dict, List, Sequence, cast
+from typing import Optional, List, Sequence, cast
 from urllib.parse import urlparse
 
 import clickhouse_connect
@@ -26,23 +26,26 @@ from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import (
     TTableFormat,
     TTableSchema,
-    TColumnHint,
     TColumnType,
 )
 from dlt.common.storages import FileStorage
 from dlt.destinations.exceptions import LoadJobTerminalException
-from dlt.destinations.impl.clickhouse.clickhouse_adapter import (
-    TTableEngineType,
-    TABLE_ENGINE_TYPE_HINT,
-)
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
 )
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
-from dlt.destinations.impl.clickhouse.utils import (
-    convert_storage_to_http_scheme,
+from dlt.destinations.impl.clickhouse.typing import (
+    HINT_TO_CLICKHOUSE_ATTR,
+    TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,
+)
+from dlt.destinations.impl.clickhouse.typing import (
+    TTableEngineType,
+    TABLE_ENGINE_TYPE_HINT,
     FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING,
     SUPPORTED_FILE_FORMATS,
+)
+from dlt.destinations.impl.clickhouse.utils import (
+    convert_storage_to_http_scheme,
 )
 from dlt.destinations.job_client_impl import (
     SqlJobClientBase,
@@ -51,19 +54,6 @@ from dlt.destinations.job_client_impl import (
 from dlt.destinations.job_impl import NewReferenceJob, EmptyLoadJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
-
-
-HINT_TO_CLICKHOUSE_ATTR: Dict[TColumnHint, str] = {
-    "primary_key": "PRIMARY KEY",
-    "unique": "",  # No unique constraints available in ClickHouse.
-    "foreign_key": "",  # No foreign key constraints support in ClickHouse.
-}
-
-TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR: Dict[TTableEngineType, str] = {
-    "merge_tree": "MergeTree",
-    "shared_merge_tree": "SharedMergeTree",
-    "replicated_merge_tree": "ReplicatedMergeTree",
-}
 
 
 class ClickHouseTypeMapper(TypeMapper):
@@ -310,7 +300,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         hints_ = " ".join(
             self.active_hints.get(hint)
             for hint in self.active_hints.keys()
-            if c.get(hint, False) is True
+            if c.get(cast(str, hint), False) is True
             and hint not in ("primary_key", "sort")
             and hint in self.active_hints
         )
@@ -355,7 +345,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # so it will work on both local and cloud instances of CH.
         table_type = cast(
             TTableEngineType,
-            table.get(TABLE_ENGINE_TYPE_HINT, self.config.credentials.table_engine_type),
+            table.get(
+                cast(str, TABLE_ENGINE_TYPE_HINT),
+                self.config.credentials.table_engine_type,
+            ),
         )
         sql[0] = f"{sql[0]}\nENGINE = {TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)}"
 

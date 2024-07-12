@@ -1,4 +1,5 @@
-from dlt.destinations.impl.clickhouse.sql_client import TDeployment, ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
+from dlt.destinations.impl.clickhouse.typing import TDeployment
 
 
 def get_deployment_type(client: ClickHouseSqlClient) -> TDeployment:
