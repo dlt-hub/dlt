@@ -1,4 +1,3 @@
-import os
 from tests.pipeline.utils import assert_load_info
 
 
@@ -159,7 +158,7 @@ def incremental_snippet() -> None:
 
             # stop requesting pages if the last element was already older than initial value
             # note: incremental will skip those items anyway, we just do not want to use the api limits
-            if created_at.start_out_of_range:
+            if created_at.is_below_initial_value:
                 break
 
             # get next page
@@ -241,7 +240,7 @@ def table_dispatch_snippet() -> None:
 
             # stop requesting pages if the last element was already older than initial value
             # note: incremental will skip those items anyway, we just do not want to use the api limits
-            if last_created_at.start_out_of_range:
+            if last_created_at.is_below_initial_value:
                 break
 
             # get next page

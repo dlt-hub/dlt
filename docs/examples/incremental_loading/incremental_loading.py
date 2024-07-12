@@ -89,7 +89,7 @@ def zendesk_support(
             yield page
             # stop loading when using end_value and end is reached.
             # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
-            if timestamp.end_out_of_range:
+            if timestamp.is_above_end_value:
                 return
 
     return ticket_events

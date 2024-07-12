@@ -665,7 +665,7 @@ incremental and exit yield loop when true.
 :::
 
 :::tip
-The `dlt.sources.incremental` instance provides `start_out_of_range` and `end_out_of_range`
+The `dlt.sources.incremental` instance provides `is_below_initial_value` and `is_above_end_value`
 attributes which are set when the resource yields an element with a higher/lower cursor value than the
 initial or end values. If you do not want `dlt` to stop processing automatically and instead to handle such events yourself, do not specify `row_order`:
 ```py
@@ -684,7 +684,7 @@ def tickets(
     ):
         yield page
         # Stop loading when we reach the end value
-        if updated_at.end_out_of_range:
+        if updated_at.is_above_end_value:
             return
 
 ```

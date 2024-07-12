@@ -95,7 +95,7 @@ def zendesk_support(
 
             # stop loading when using end_value and end is reached.
             # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
-            if updated_at.end_out_of_range:
+            if updated_at.is_above_end_value:
                 return
 
     return tickets_data

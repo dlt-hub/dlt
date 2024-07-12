@@ -38,7 +38,7 @@ def repo_events(last_created_at=dlt.sources.incremental("created_at")):
         # the initial value
         # note: incremental will skip those items anyway, we just do not
         # want to use the api limits
-        if last_created_at.start_out_of_range:
+        if last_created_at.is_below_initial_value:
             break
 
         # get next page

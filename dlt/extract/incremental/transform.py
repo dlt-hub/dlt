@@ -276,9 +276,9 @@ class ArrowIncremental(IncrementalTransform):
         elif primary_key is None:
             unique_columns = tbl.schema.names
 
-        start_out_of_range = end_out_of_range = False
+        is_below_initial_value = is_above_end_value = False
         if not tbl:  # row is None or empty arrow table
-            return tbl, start_out_of_range, end_out_of_range
+            return tbl, is_below_initial_value, is_above_end_value
 
         if self.last_value_func is max:
             compute = pa.compute.max
@@ -319,13 +319,13 @@ class ArrowIncremental(IncrementalTransform):
             tbl = tbl.filter(end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
-            end_out_of_range = not end_compare(row_value_scalar, end_value_scalar).as_py()
+            is_above_end_value = not end_compare(row_value_scalar, end_value_scalar).as_py()
 
         if self.start_value is not None:
             start_value_scalar = to_arrow_scalar(self.start_value, cursor_data_type)
             # Remove rows lower or equal than the last start value
             keep_filter = last_value_compare(tbl[cursor_path], start_value_scalar)
-            start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
+            is_below_initial_value = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
             tbl = tbl.filter(keep_filter)
             if not self.deduplication_disabled:
                 # Deduplicate after filtering old values
@@ -373,11 +373,11 @@ class ArrowIncremental(IncrementalTransform):
             )
 
         if len(tbl) == 0:
-            return None, start_out_of_range, end_out_of_range
+            return None, is_below_initial_value, is_above_end_value
         try:
             tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
         except KeyError:
             pass
         if is_pandas:
-            return tbl.to_pandas(), start_out_of_range, end_out_of_range
-        return tbl, start_out_of_range, end_out_of_range
+            return tbl.to_pandas(), is_below_initial_value, is_above_end_value
+        return tbl, is_below_initial_value, is_above_end_value
