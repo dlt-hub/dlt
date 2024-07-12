@@ -59,12 +59,12 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
    ```toml
    [destination.clickhouse.credentials]
-   database = "dlt"                         # The database name you created
-   username = "dlt"                         # ClickHouse username, default is usually "default"
-   password = "Dlt*12345789234567"          # ClickHouse password if any
-   host = "localhost"                       # ClickHouse server host
-   port = 9000                              # ClickHouse HTTP port, default is 9000 for Clickhouse Cloud.
-   http_port = 8443                         # HTTP Port to connect to ClickHouse server's HTTP interface. Defaults to 8443 for Clickhouse Cloud.
+   database = "dlt"                         # The database name you created.
+   username = "dlt"                         # ClickHouse username, default is usually "default".
+   password = "Dlt*12345789234567"          # ClickHouse password if any.
+   host = "localhost"                       # ClickHouse server host.
+   port = 9000                              # ClickHouse native TCP protocol port, default is 9000.
+   http_port = 8443                         # ClickHouse HTTP port, default is 9000.
    secure = 1                               # Set to 1 if using HTTPS, else 0.
    dataset_table_separator = "___"          # Separator for dataset table names from dataset.
    table_engine_type = "merge_tree"         # The default table engine to use.
