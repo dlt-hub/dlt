@@ -262,7 +262,7 @@ def test_delta_table_core(
     data_types_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "data_types"
     ]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
+    assert all([job.file_path.endswith((".parquet", ".delta")) for job in data_types_jobs])
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
@@ -435,7 +435,7 @@ def test_delta_table_mixed_source(
     delta_table_jobs = [
         job for job in completed_jobs if job.job_file_info.table_name == "delta_table"
     ]
-    assert all([job.file_path.endswith((".parquet", ".reference")) for job in delta_table_jobs])
+    assert all([job.file_path.endswith((".parquet", ".delta")) for job in delta_table_jobs])
 
     # `jsonl` file format should be respected for `non_delta_table` resource
     non_delta_table_job = [

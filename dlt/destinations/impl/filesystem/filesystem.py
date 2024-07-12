@@ -309,7 +309,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
             # a reference job for a delta table indicates a table chain followup job
-            if ReferenceFollowupJob.is_reference_job(file_path):
+            if ReferenceFollowupJob.is_reference_job(file_path, "delta"):
                 return DeltaLoadFilesystemJob(self, file_path)
             # otherwise just continue
             return FilesystemLoadJobWithFollowup(self, file_path)
@@ -531,5 +531,5 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                     if job.job_file_info.table_name == table["name"]
                 ]
                 file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
-                jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
+                jobs.append(ReferenceFollowupJob(file_name, table_job_paths, "delta"))
         return jobs

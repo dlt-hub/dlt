@@ -7,6 +7,7 @@ from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
+from dlt.common.normalizers.naming.naming import NamingConvention
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -33,9 +34,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             loader_file_format_adapter=loader_file_format_adapter,
             supported_table_formats=["delta"],
         )
-        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
-            "reference"
-        ]
+        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + ["delta"]  # type: ignore
         return caps
 
     @property
