@@ -1,18 +1,15 @@
-import os
 from typing import Dict
 import pytest
 
-import dlt
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
-from dlt.destinations import duckdb
 
 from tests.common.configuration.utils import environment
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, TEST_STORAGE_ROOT
+from tests.utils import ACTIVE_DESTINATIONS
 
 
 def test_import_unknown_destination() -> None:
