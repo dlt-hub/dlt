@@ -72,7 +72,7 @@ def test_custom_destination_info():
         "destination_name": "test_sink",
         "destination_type": "dlt.destinations.destination",
         "environment": None,
-        "fingerprint": digest128("test_sink"),
+        "fingerprint": digest128(test_sink.__module__ + "." + "test_sink"),
         "repr": "test_sink(dlt.destinations.destination)",
     }
 
