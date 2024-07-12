@@ -9,7 +9,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
 
 try:
-    from deltalake import write_deltalake, DeltaTable
+    from deltalake import write_deltalake
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt deltalake helpers",
@@ -37,12 +37,10 @@ def ensure_delta_compatible_arrow_table(table: pa.table) -> pa.Table:
 
 def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
     """Translates dlt write disposition to Delta write mode."""
-    if write_disposition in (
-        "append",
-        "merge",
-        "replace",
-    ):  # `merge` disposition resolves to `append`
+    if write_disposition in ("append", "merge"):  # `merge` disposition resolves to `append`
         return "append"
+    elif write_disposition == "replace":
+        return "overwrite"
     else:
         raise ValueError(
             "`write_disposition` must be `append`, `replace`, or `merge`,"

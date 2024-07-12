@@ -15,7 +15,6 @@ from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
-    ParsedLoadJobFileName,
     TPipelineStateDoc,
     load_package as current_load_package,
 )
@@ -34,7 +33,6 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.job_impl import (
-    FinalizedLoadJobWithFollowupJobs,
     ReferenceFollowupJob,
     FinalizedLoadJob,
 )
@@ -102,11 +100,12 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
             _deltalake_storage_options,
         )
 
+        files = ReferenceFollowupJob.resolve_references(self._file_path)
         write_delta_table(
             path=self._job_client.make_remote_uri(
                 self._job_client.get_table_dir(self.load_table_name)
             ),
-            data=pa.dataset.dataset([self._file_path]),
+            data=pa.dataset.dataset(files),
             write_disposition=self._load_table["write_disposition"],
             storage_options=_deltalake_storage_options(self._job_client.config),
         )
@@ -115,10 +114,13 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         jobs = super().create_followup_jobs(final_state)
-        if final_state == "completed":
+        if self._load_table.get("table_format") == "delta":
+            # delta table jobs only require table chain followup jobs
+            pass
+        elif final_state == "completed":
             ref_job = ReferenceFollowupJob(
-                file_name=self.file_name(),
-                remote_path=self._job_client.make_remote_uri(self.make_remote_path()),
+                original_file_name=self.file_name(),
+                remote_paths=[self._job_client.make_remote_uri(self.make_remote_path())],
             )
             jobs.append(ref_job)
         return jobs
@@ -306,7 +308,11 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if table.get("table_format") == "delta":
             import dlt.common.libs.deltalake  # assert dependencies are installed
 
-            return DeltaLoadFilesystemJob(self, file_path)
+            # a reference job for a delta table indicates a table chain followup job
+            if ReferenceFollowupJob.is_reference_job(file_path):
+                return DeltaLoadFilesystemJob(self, file_path)
+            # otherwise just continue
+            return FilesystemLoadJobWithFollowup(self, file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
         return cls(self, file_path)
@@ -330,7 +336,10 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return False
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
-        return table["write_disposition"] == "replace"
+        return (
+            table["write_disposition"] == "replace"
+            and not table.get("table_format") == "delta"  # Delta can do a logical replace
+        )
 
     #
     # state stuff
@@ -510,14 +519,17 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         table_chain: Sequence[TTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
-        def get_table_jobs(
-            table_jobs: Sequence[LoadJobInfo], table_name: str
-        ) -> Sequence[LoadJobInfo]:
-            return [job for job in table_jobs if job.job_file_info.table_name == table_name]
-
         assert completed_table_chain_jobs is not None
         jobs = super().create_table_chain_completed_followup_jobs(
             table_chain, completed_table_chain_jobs
         )
-
+        if table_chain[0].get("table_format") == "delta":
+            for table in table_chain:
+                table_job_paths = [
+                    job.file_path
+                    for job in completed_table_chain_jobs
+                    if job.job_file_info.table_name == table["name"]
+                ]
+                file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
+                jobs.append(ReferenceFollowupJob(file_name, table_job_paths))
         return jobs

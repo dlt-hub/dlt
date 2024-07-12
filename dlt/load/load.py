@@ -306,12 +306,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 ):
                     table_chain_names = [table["name"] for table in table_chain]
                     table_chain_jobs = [
-                        self.load_storage.normalized_packages.job_to_job_info(load_id, *job_state)
+                        # we mark all jobs as completed, as by the time the followup job runs the starting job will be in this
+                        # folder too
+                        self.load_storage.normalized_packages.job_to_job_info(
+                            load_id, "completed_jobs", job_state[1]
+                        )
                         for job_state in all_jobs_states
                         if job_state[1].table_name in table_chain_names
                         # job being completed is still in started_jobs
                         and job_state[0] in ("completed_jobs", "started_jobs")
                     ]
+
                     if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
                         table_chain, table_chain_jobs
                     ):

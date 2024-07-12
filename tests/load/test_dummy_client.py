@@ -818,7 +818,7 @@ def setup_loader(
     staging = None
     if filesystem_staging:
         # do not accept jsonl to not conflict with filesystem destination
-        client_config = client_config or DummyClientConfiguration(loader_file_format="reference")  # type: ignore[arg-type]
+        client_config = client_config or DummyClientConfiguration(loader_file_format="reference")
         staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
             dataset_name="dummy"
         )

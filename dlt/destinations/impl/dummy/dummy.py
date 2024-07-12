@@ -93,7 +93,9 @@ class LoadDummyBaseJob(RunnableLoadJob):
 class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         if self.config.create_followup_jobs and final_state == "completed":
-            new_job = ReferenceFollowupJob(file_name=self.file_name(), remote_path=self._file_name)
+            new_job = ReferenceFollowupJob(
+                original_file_name=self.file_name(), remote_paths=[self._file_name]
+            )
             CREATED_FOLLOWUP_JOBS[new_job.job_id()] = new_job
             return [new_job]
         return []

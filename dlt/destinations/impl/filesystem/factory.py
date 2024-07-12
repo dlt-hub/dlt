@@ -28,11 +28,15 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
     spec = FilesystemDestinationClientConfiguration
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
-        return DestinationCapabilitiesContext.generic_capabilities(
+        caps = DestinationCapabilitiesContext.generic_capabilities(
             preferred_loader_file_format="jsonl",
             loader_file_format_adapter=loader_file_format_adapter,
             supported_table_formats=["delta"],
         )
+        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
+            "reference"
+        ]
+        return caps
 
     @property
     def client_class(self) -> t.Type["FilesystemClient"]:

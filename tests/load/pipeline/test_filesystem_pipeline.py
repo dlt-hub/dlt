@@ -263,7 +263,6 @@ def test_delta_table_core(
         job for job in completed_jobs if job.job_file_info.table_name == "data_types"
     ]
     assert all([job.file_path.endswith((".parquet", ".reference")) for job in data_types_jobs])
-    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
@@ -272,7 +271,6 @@ def test_delta_table_core(
     ]
     assert len(rows) == 10
     assert_all_data_types_row(rows[0], schema=column_schemas)
-    assert _get_delta_table(client, "data_types").version() == 0
 
     # another run should append rows to the table
     info = local_filesystem_pipeline.run(data_types())
@@ -281,13 +279,13 @@ def test_delta_table_core(
         "data_types"
     ]
     assert len(rows) == 20
-    assert _get_delta_table(client, "data_types").version() == 1
 
     # ensure "replace" write disposition is handled
     # should do logical replace, increasing the table version
     info = local_filesystem_pipeline.run(data_types(), write_disposition="replace")
     assert_load_info(info)
-    assert _get_delta_table(client, "data_types").version() == 0
+    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    assert _get_delta_table(client, "data_types").version() == 2
     rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
         "data_types"
     ]
@@ -331,9 +329,9 @@ def test_delta_table_multiple_files(
     ]
     assert len(delta_table_parquet_jobs) == 5  # 10 records, max 2 per file
 
-    # all 10 records should have been loaded into a Delta table in a 4 commits
+    # all 10 records should have been loaded into a Delta table in a single commit
     client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
-    assert _get_delta_table(client, "delta_table").version() == 4
+    assert _get_delta_table(client, "delta_table").version() == 0
     rows = load_tables_to_dicts(local_filesystem_pipeline, "delta_table", exclude_system_cols=True)[
         "delta_table"
     ]
@@ -459,8 +457,8 @@ def test_delta_table_dynamic_dispatch(
     info = local_filesystem_pipeline.run(github_events())
     assert_load_info(info)
     completed_jobs = info.load_packages[0].jobs["completed_jobs"]
-    # 20 event types, one jobs per table (.parquet), 1 job for _dlt_pipeline_state
-    assert len(completed_jobs) == 20 + 1
+    # 20 event types, two jobs per table (.parquet and .reference), 1 job for _dlt_pipeline_state
+    assert len(completed_jobs) == 2 * 20 + 1
 
 
 TEST_LAYOUTS = (
