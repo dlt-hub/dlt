@@ -16,9 +16,6 @@ import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
-from dlt.common.configuration.specs.aws_credentials import AwsCredentials
-from dlt.common.configuration.specs.exceptions import NativeValueError
-from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
@@ -2271,21 +2268,57 @@ def test_change_naming_convention_name_collision() -> None:
     os.environ["SOURCES__AIRTABLE_EMOJIS__SCHEMA__NAMING"] = "sql_ci_v1"
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"))
+    # see conflicts early
+    assert pip_ex.value.step == "extract"
     assert isinstance(pip_ex.value.__cause__, TableIdentifiersFrozen)
 
     # all good if we drop tables
-    # info = pipeline.run(
-    #     airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
-    #     refresh="drop_resources",
-    # )
-    # assert_load_info(info)
-    # assert load_data_table_counts(pipeline) == {
-    #     "📆 Schedule": 3,
-    #     "🦚Peacock": 1,
-    #     "🦚WidePeacock": 1,
-    #     "🦚Peacock__peacock": 3,
-    #     "🦚WidePeacock__Peacock": 3,
-    # }
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        refresh="drop_resources",
+    )
+    assert_load_info(info)
+    # case insensitive normalization
+    assert load_data_table_counts(pipeline) == {
+        "_schedule": 3,
+        "_peacock": 1,
+        "_widepeacock": 1,
+        "_peacock__peacock": 3,
+        "_widepeacock__peacock": 3,
+    }
+
+
+def test_change_to_more_lax_naming_convention_name_collision() -> None:
+    # use snake_case which is strict and then change to duck_case which accepts snake_case names without any changes
+    # still we want to detect collisions
+    pipeline = dlt.pipeline(
+        "test_change_to_more_lax_naming_convention_name_collision", destination="duckdb"
+    )
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock")
+    )
+    assert_load_info(info)
+    assert "_peacock" in pipeline.default_schema.tables
+
+    # use duck case to load data into duckdb so casing and emoji are preserved
+    duck_ = dlt.destinations.duckdb(naming_convention="duck_case")
+
+    # changing destination to one with a separate naming convention raises immediately
+    with pytest.raises(TableIdentifiersFrozen):
+        pipeline.run(
+            airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+            destination=duck_,
+        )
+
+    # refresh on the source level will work
+    info = pipeline.run(
+        airtable_emojis().with_resources("📆 Schedule", "🦚Peacock", "🦚WidePeacock"),
+        destination=duck_,
+        refresh="drop_sources",
+    )
+    assert_load_info(info)
+    # make sure that emojis got in
+    assert "🦚Peacock" in pipeline.default_schema.tables
 
 
 def test_change_naming_convention_column_collision() -> None:
@@ -2404,6 +2437,82 @@ def test_import_unknown_file_format() -> None:
     assert isinstance(inner_ex, NormalizeJobFailed)
     # can't figure format from extension
     assert isinstance(inner_ex.__cause__, ValueError)
+
+
+def test_static_staging_dataset() -> None:
+    # share database and staging dataset
+    duckdb_ = dlt.destinations.duckdb(
+        "_storage/test_static_staging_dataset.db", staging_dataset_name_layout="_dlt_staging"
+    )
+
+    pipeline_1 = dlt.pipeline("test_static_staging_dataset_1", destination=duckdb_, dev_mode=True)
+    pipeline_2 = dlt.pipeline("test_static_staging_dataset_2", destination=duckdb_, dev_mode=True)
+    # staging append (without primary key)
+    info = pipeline_1.run([1, 2, 3], table_name="digits", write_disposition="merge")
+    assert_load_info(info)
+    info = pipeline_2.run(["a", "b", "c", "d"], table_name="letters", write_disposition="merge")
+    assert_load_info(info)
+    with pipeline_1.sql_client() as client:
+        with client.with_alternative_dataset_name("_dlt_staging"):
+            assert client.has_dataset()
+            schemas = client.execute_sql("SELECT schema_name FROM _dlt_staging._dlt_version")
+            assert {s[0] for s in schemas} == {
+                "test_static_staging_dataset_1",
+                "test_static_staging_dataset_2",
+            }
+
+    assert_data_table_counts(pipeline_1, {"digits": 3})
+    assert_data_table_counts(pipeline_2, {"letters": 4})
+
+
+def test_underscore_tables_and_columns() -> None:
+    pipeline = dlt.pipeline("test_underscore_tables_and_columns", destination="duckdb")
+
+    @dlt.resource
+    def ids(_id=dlt.sources.incremental("_id", initial_value=2)):
+        yield from [{"_id": i, "value": l} for i, l in zip([1, 2, 3], ["A", "B", "C"])]
+
+    info = pipeline.run(ids, table_name="_ids")
+    assert_load_info(info)
+    print(pipeline.default_schema.to_pretty_yaml())
+    assert pipeline.last_trace.last_normalize_info.row_counts["_ids"] == 2
+
+
+def test_access_pipeline_in_resource() -> None:
+    pipeline = dlt.pipeline("test_access_pipeline_in_resource", destination="duckdb")
+
+    @dlt.resource(name="user_comments")
+    def comments(user_id: str):
+        current_pipeline = dlt.current.pipeline()
+        # find last comment id for given user_id by looking in destination
+        max_id: int = 0
+        # on first pipeline run, user_comments table does not yet exist so do not check at all
+        # alternatively catch DatabaseUndefinedRelation which is raised when unknown table is selected
+        if not current_pipeline.first_run:
+            with current_pipeline.sql_client() as client:
+                # we may get last user comment or None which we replace with 0
+                max_id = (
+                    client.execute_sql(
+                        "SELECT MAX(_id) FROM user_comments WHERE user_id=?", user_id
+                    )[0][0]
+                    or 0
+                )
+        # use max_id to filter our results
+        yield from [
+            {"_id": i, "value": l, "user_id": user_id}
+            for i, l in zip([1, 2, 3], ["A", "B", "C"])
+            if i > max_id
+        ]
+
+    info = pipeline.run(comments("USER_A"))
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
+    info = pipeline.run(comments("USER_A"))
+    # no more data for USER_A
+    assert_load_info(info, 0)
+    info = pipeline.run(comments("USER_B"))
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
 
 
 def assert_imported_file(

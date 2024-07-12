@@ -54,10 +54,11 @@ class ClickHouseSqlClient(
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: ClickHouseCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(credentials.database, dataset_name, capabilities)
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: clickhouse_driver.dbapi.connection = None
         self.credentials = credentials
         self.database_name = credentials.database
@@ -115,16 +116,34 @@ class ClickHouseSqlClient(
             COMMENT 'internal dlt sentinel table'""")
 
     def drop_dataset(self) -> None:
+        # always try to drop sentinel table
+        sentinel_table_name = self.make_qualified_table_name(
+            self.credentials.dataset_sentinel_table_name
+        )
+        # drop a sentinel table
+        self.execute_sql(f"DROP TABLE {sentinel_table_name} SYNC")
+
         # Since ClickHouse doesn't have schemas, we need to drop all tables in our virtual schema,
         # or collection of tables, that has the `dataset_name` as a prefix.
-        to_drop_results = self._list_tables()
+        to_drop_results = [
+            f"{self.catalog_name()}.{self.capabilities.escape_identifier(table)}"
+            for table in self._list_tables()
+        ]
         for table in to_drop_results:
             # The "DROP TABLE" clause is discarded if we allow clickhouse_driver to handle parameter substitution.
             # This is because the driver incorrectly substitutes the entire query string, causing the "DROP TABLE" keyword to be omitted.
             # To resolve this, we are forced to provide the full query string here.
-            self.execute_sql(
-                f"""DROP TABLE {self.catalog_name()}.{self.capabilities.escape_identifier(table)} SYNC"""
-            )
+            self.execute_sql(f"DROP TABLE {table} SYNC")
+
+    def drop_tables(self, *tables: str) -> None:
+        """Drops a set of tables if they exist"""
+        if not tables:
+            return
+        statements = [
+            f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)} SYNC;"
+            for table in tables
+        ]
+        self.execute_many(statements)
 
     def _list_tables(self) -> List[str]:
         catalog_name, table_name = self.make_qualified_table_name_path("%", escape=False)

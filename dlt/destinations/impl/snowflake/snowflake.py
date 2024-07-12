@@ -110,7 +110,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
         case_folding = (
             "CASE_SENSITIVE"
-            if client.capabilities.casefold_identifier is str
+            if client.capabilities.generates_case_sensitive_identifiers()
             else "CASE_INSENSITIVE"
         )
         column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
@@ -172,13 +172,13 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         # decide on source format, stage_file_path will either be a local file or a bucket path
         if file_name.endswith("jsonl"):
             source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-        if file_name.endswith("parquet"):
+        elif file_name.endswith("parquet"):
             source_format = (
                 "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE, USE_LOGICAL_TYPE = TRUE)"
                 # TODO: USE_VECTORIZED_SCANNER inserts null strings into VARIANT JSON
                 # " USE_VECTORIZED_SCANNER = TRUE)"
             )
-        if file_name.endswith("csv"):
+        elif file_name.endswith("csv"):
             # empty strings are NULL, no data is NULL, missing columns (ERROR_ON_COLUMN_COUNT_MISMATCH) are NULL
             csv_format = config.csv_format or CsvFormatConfiguration()
             source_format = (
@@ -192,6 +192,8 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 column_match_clause = ""
             if csv_format.on_error_continue:
                 on_error_clause = "ON_ERROR = CONTINUE"
+        else:
+            raise ValueError(file_name)
 
         with client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
@@ -226,7 +228,10 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         sql_client = SnowflakeSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config

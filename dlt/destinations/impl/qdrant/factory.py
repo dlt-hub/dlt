@@ -7,7 +7,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.destinations.impl.qdrant.configuration import QdrantCredentials, QdrantClientConfiguration
 
 if t.TYPE_CHECKING:
-    from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
+    from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
 
 class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
@@ -44,7 +44,7 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
 
     @property
     def client_class(self) -> t.Type["QdrantClient"]:
-        from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
+        from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
         return QdrantClient
 

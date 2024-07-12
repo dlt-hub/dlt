@@ -157,7 +157,10 @@ class DuckDbClient(InsertValuesJobClient):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         sql_client = DuckDbSqlClient(
-            config.normalize_dataset_name(schema), config.credentials, capabilities
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
         super().__init__(schema, config, sql_client)
         self.config: DuckDbClientConfiguration = config

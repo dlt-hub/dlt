@@ -102,8 +102,11 @@ Athena does not support JSON fields, so JSON is stored as a string.
 
 > ❗**Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
 
-### Naming Convention
-We follow our snake_case name convention. Keep the following in mind:
+### Table and column identifiers
+Athena uses case insensitive identifiers and **will lower case all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use
+[case sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway and you risk to generate identifier collisions, which are detected by `dlt` and will fail the load process.
+
+Under the hood Athena uses different SQL engines for DDL (catalog) and DML/Queries:
 * DDL uses HIVE escaping with ``````
 * Other queries use PRESTO and regular SQL escaping.
 

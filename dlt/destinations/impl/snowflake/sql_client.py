@@ -34,10 +34,11 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     def __init__(
         self,
         dataset_name: str,
+        staging_dataset_name: str,
         credentials: SnowflakeCredentials,
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
-        super().__init__(credentials.database, dataset_name, capabilities)
+        super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: snowflake_lib.SnowflakeConnection = None
         self.credentials = credentials
 

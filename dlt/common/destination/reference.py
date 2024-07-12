@@ -184,6 +184,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """name of default schema to be used to name effective dataset to load data to"""
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
     """How to handle replace disposition for this destination, can be classic or staging"""
+    staging_dataset_name_layout: str = "%s_staging"
+    """Layout for staging dataset, where %s is replaced with dataset name. placeholder is optional"""
 
     def _bind_dataset_name(
         self: TDestinationDwhClient, dataset_name: str, default_schema_name: str = None
@@ -201,21 +203,37 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         If default schema name is None or equals schema.name, the schema suffix is skipped.
         """
-        if not schema.name:
+        dataset_name = self._make_dataset_name(schema.name)
+        return (
+            dataset_name
+            if not dataset_name
+            else schema.naming.normalize_table_identifier(dataset_name)
+        )
+
+    def normalize_staging_dataset_name(self, schema: Schema) -> str:
+        """Builds staging dataset name out of dataset_name and staging_dataset_name_layout."""
+        if "%s" in self.staging_dataset_name_layout:
+            # if dataset name is empty, staging dataset name is also empty
+            dataset_name = self._make_dataset_name(schema.name)
+            if not dataset_name:
+                return dataset_name
+            # fill the placeholder
+            dataset_name = self.staging_dataset_name_layout % dataset_name
+        else:
+            # no placeholder, then layout is a full name. so you can have a single staging dataset
+            dataset_name = self.staging_dataset_name_layout
+
+        return schema.naming.normalize_table_identifier(dataset_name)
+
+    def _make_dataset_name(self, schema_name: str) -> str:
+        if not schema_name:
             raise ValueError("schema_name is None or empty")
 
         # if default schema is None then suffix is not added
-        if self.default_schema_name is not None and schema.name != self.default_schema_name:
-            # also normalize schema name. schema name is Python identifier and here convention may be different
-            return schema.naming.normalize_table_identifier(
-                (self.dataset_name or "") + "_" + schema.name
-            )
+        if self.default_schema_name is not None and schema_name != self.default_schema_name:
+            return (self.dataset_name or "") + "_" + schema_name
 
-        return (
-            self.dataset_name
-            if not self.dataset_name
-            else schema.naming.normalize_table_identifier(self.dataset_name)
-        )
+        return self.dataset_name
 
 
 @configspec
