@@ -27,7 +27,10 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseTerminalException,
 )
-from dlt.destinations.impl.clickhouse.configuration import ClickHouseCredentials, ClickHouseClientConfiguration
+from dlt.destinations.impl.clickhouse.configuration import (
+    ClickHouseCredentials,
+    ClickHouseClientConfiguration,
+)
 from dlt.destinations.impl.clickhouse.typing import (
     TTableEngineType,
     TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR,

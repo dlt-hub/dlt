@@ -66,8 +66,6 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
    port = 9000                              # ClickHouse native TCP protocol port, default is 9000.
    http_port = 8443                         # ClickHouse HTTP port, default is 9000.
    secure = 1                               # Set to 1 if using HTTPS, else 0.
-   dataset_table_separator = "___"          # Separator for dataset table names from dataset.
-   table_engine_type = "merge_tree"         # The default table engine to use.
    ```
 
    :::info Network Ports
@@ -95,6 +93,17 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
    # keep it at the top of your toml file before any section starts.
    destination.clickhouse.credentials="clickhouse://dlt:Dlt*12345789234567@localhost:9000/dlt?secure=1"
    ```
+
+### 3. Add configuration options
+
+You can set the following configuration options in the `.dlt/secrets.toml` file:
+
+```toml
+[destination.clickhouse]
+dataset_table_separator = "___"                         # The default separator for dataset table names from dataset.
+table_engine_type = "merge_tree"                        # The default table engine to use.
+dataset_sentinel_table_name = "dlt_sentinel_table"      # The default name for sentinel tables.
+```
 
 ## Write disposition
 
@@ -149,9 +158,9 @@ dlt defaults to `MergeTree` table engine. You can specify an alternate table eng
 You can set a default table engine for all resources and dlt tables by adding the `table_engine_type` parameter to your ClickHouse credentials in the `.dlt/secrets.toml` file:
 
 ```toml
-[destination.clickhouse.credentials]
-# ... (other credentials)
-table_engine_type = "merge_tree"  # The default table engine to use.
+[destination.clickhouse]
+# ... (other configuration options)
+table_engine_type = "merge_tree"                        # The default table engine to use.
 ```
 
 ### Setting the table engine for specific resources

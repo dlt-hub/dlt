@@ -285,7 +285,7 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
-            config
+            config,
         )
         super().__init__(schema, config, self.sql_client)
         self.config: ClickHouseClientConfiguration = config
