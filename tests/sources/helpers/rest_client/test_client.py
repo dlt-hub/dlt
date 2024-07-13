@@ -431,7 +431,7 @@ class TestRESTClient:
         for i in range(DEFAULT_PAGE_SIZE):
             assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
 
-    def test_configurable_retry(self, mocker) -> None:
+    def test_configurable_timeout(self, mocker) -> None:
         cfg = {
             "RUNTIME__REQUEST_TIMEOUT": 42,
         }
