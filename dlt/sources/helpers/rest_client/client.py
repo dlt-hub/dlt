@@ -116,7 +116,7 @@ class RESTClient:
             hooks=hooks,
         )
 
-    def _send_request(self, request: Request) -> Response:
+    def _send_request(self, request: Request, **kwargs: Any) -> Response:
         logger.info(
             f"Making {request.method.upper()} request to {request.url}"
             f" with params={request.params}, json={request.json}"

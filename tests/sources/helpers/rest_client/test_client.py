@@ -443,8 +443,13 @@ class TestRESTClient:
         )
 
         import requests
-        requests.Session.send = mocker.Mock()
 
+        requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
         rest_client.get("/posts/1")
-
-        assert requests.Session.send.call_args[1] == {"timeout": 42, "proxies": ANY, "stream": ANY, "verify": ANY, "cert": ANY}
+        assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
+            "timeout": 42,
+            "proxies": ANY,
+            "stream": ANY,
+            "verify": ANY,
+            "cert": ANY,
+        }

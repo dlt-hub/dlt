@@ -56,7 +56,6 @@ class Session(BaseSession):
             resp.raise_for_status()
         return resp
 
-
-    def send(self, request, **kwargs):
+    def send(self, request, **kwargs):  # type: ignore[no-untyped-def,no-redef]
         kwargs.setdefault("timeout", self.timeout)
         return super().send(request, **kwargs)
