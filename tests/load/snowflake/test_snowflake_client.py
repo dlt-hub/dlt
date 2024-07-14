@@ -15,13 +15,15 @@ from tests.load.utils import yield_client_with_storage
 pytestmark = pytest.mark.essential
 
 QUERY_TAG = (
-    '{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}"}}'
+    '{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}",'
+    ' "pipeline_name":"{pipeline_name}"}}'
 )
 QUERY_TAGS_DICT: TJobQueryTags = {
     "source": "test_source",
     "resource": "test_resource",
     "table": "test_table",
     "load_id": "1109291083091",
+    "pipeline_name": "test_pipeline",
 }
 
 
@@ -47,7 +49,7 @@ def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):
     execute_sql_spy.assert_called_once_with(
         sql=(
             'ALTER SESSION SET QUERY_TAG = \'{"source":"test_source", "resource":"test_resource",'
-            ' "table": "test_table", "load_id":"1109291083091"}\''
+            ' "table": "test_table", "load_id":"1109291083091", "pipeline_name":"test_pipeline"}\''
         )
     )
     # remove query tag from config

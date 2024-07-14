@@ -311,26 +311,25 @@ You'll need those setting when [importing external files](../../general-usage/re
 :::
 
 ### Query Tagging
-`dlt` tags sessions that execute loading jobs with following job properties:
+`dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) that execute loading jobs with following job properties:
 * **source** - name of the source (identical with the name of `dlt` schema)
-* **resource** - name of the resource
+* **resource** - name of the resource (if known, else empty string)
 * **table** - name of the table loaded by the job
 * **load_id** - load id of the job
+* **pipeline_name** - name of the active pipeline (or empty string if not found)
 
 You can define query tag by defining a query tag placeholder in snowflake credentials:
 ```toml
 [destination.snowflake.credentials]
-query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}"}}'
+query_tag='{{"source":"{source}", "resource":"{resource}", "table": "{table}", "load_id":"{load_id}", "pipeline_name":"{pipeline_name}"}}'
 ```
 which contains Python named formatters corresponding to tag names ie. `{source}` will assume the name of the dlt source.
 
 :::note
-1. query tagging is off by default
+1. query tagging is off by default. `query_tag` configuration field is `None` by default and must be set to enable tagging.
 2. only sessions associated with a job are tagged. sessions that migrate schemas remain untagged
 3. jobs processing table chains (ie. sql merge jobs) will use top level table as **table**
 :::
-
-
 
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.

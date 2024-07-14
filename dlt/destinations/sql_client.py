@@ -37,6 +37,7 @@ class TJobQueryTags(TypedDict):
     resource: str
     table: str
     load_id: str
+    pipeline_name: str
 
 
 class SqlClientBase(ABC, Generic[TNativeConn]):

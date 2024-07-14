@@ -263,19 +263,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        self.sql_client.set_query_tags(
-            {
-                "source": self.schema.name,
-                "resource": (
-                    get_inherited_table_hint(
-                        self.schema._schema_tables, table["name"], "resource", allow_none=True
-                    )
-                    or ""
-                ),
-                "table": table["name"],
-                "load_id": load_id,
-            }
-        )
+
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
             return SqlLoadJob(file_path, self.sql_client)
@@ -689,6 +677,27 @@ WHERE """
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+
+    def _set_query_tags_for_job(self, load_id: str, table: TTableSchema) -> None:
+        """Sets query tags in sql_client for a job in package `load_id`, starting for a particular `table`"""
+        from dlt.common.pipeline import current_pipeline
+
+        pipeline = current_pipeline()
+        pipeline_name = pipeline.pipeline_name if pipeline else ""
+        self.sql_client.set_query_tags(
+            {
+                "source": self.schema.name,
+                "resource": (
+                    get_inherited_table_hint(
+                        self.schema._schema_tables, table["name"], "resource", allow_none=True
+                    )
+                    or ""
+                ),
+                "table": table["name"],
+                "load_id": load_id,
+                "pipeline_name": pipeline_name,
+            }
+        )
 
 
 class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
