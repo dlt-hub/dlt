@@ -33,12 +33,6 @@ class GcpCredentials(CredentialsConfiguration):
 
     project_id: str = None
 
-    location: (
-        str
-    ) = (  # DEPRECATED! and present only for backward compatibility. please set bigquery location in BigQuery configuration
-        "US"
-    )
-
     def parse_native_representation(self, native_value: Any) -> None:
         if not isinstance(native_value, str):
             raise InvalidGoogleNativeCredentialsType(self.__class__, native_value)
