@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional
+from typing import Any, Dict, List, Sequence, Tuple, cast, TypedDict, Optional, Callable, Union
 
 import yaml
 from dlt.common.logger import pretty_format_exception
@@ -6,6 +6,7 @@ from dlt.common.logger import pretty_format_exception
 from dlt.common.schema.typing import (
     TTableSchema,
     TSortOrder,
+    TColumnProp,
 )
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -16,12 +17,12 @@ from dlt.common.schema.utils import (
     DEFAULT_MERGE_STRATEGY,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
+from dlt.common.storages.load_package import load_package as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.pipeline.current import load_package as current_load_package
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -158,6 +159,8 @@ class SqlMergeJob(SqlBaseJob):
         merge_strategy = table_chain[0].get("x-merge-strategy", DEFAULT_MERGE_STRATEGY)
         if merge_strategy == "delete-insert":
             return cls.gen_merge_sql(table_chain, sql_client)
+        elif merge_strategy == "upsert":
+            return cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
             return cls.gen_scd2_sql(table_chain, sql_client)
 
@@ -343,6 +346,107 @@ class SqlMergeJob(SqlBaseJob):
         return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
+    def gen_update_table_prefix(cls, table_name: str) -> str:
+        return f"UPDATE {table_name} SET"
+
+    @classmethod
+    def requires_temp_table_for_delete(cls) -> bool:
+        """Whether a temporary table is required to delete records.
+
+        Must be `True` for destinations that don't support correlated subqueries.
+        """
+        return False
+
+    @classmethod
+    def _escape_list(cls, list_: List[str], escape_id: Callable[[str], str]) -> List[str]:
+        return list(map(escape_id, list_))
+
+    @classmethod
+    def _get_hard_delete_col_and_cond(
+        cls,
+        table: TTableSchema,
+        escape_id: Callable[[str], str],
+        escape_lit: Callable[[Any], Any],
+        invert: bool = False,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Returns tuple of hard delete column name and SQL condition statement.
+
+        Returns tuple of `None` values if no column has `hard_delete` hint.
+        Condition statement can be used to filter deleted records.
+        Set `invert=True` to filter non-deleted records instead.
+        """
+
+        col = get_first_column_name_with_prop(table, "hard_delete")
+        if col is None:
+            return (None, None)
+        cond = f"{escape_id(col)} IS NOT NULL"
+        if invert:
+            cond = f"{escape_id(col)} IS NULL"
+        if table["columns"][col]["data_type"] == "bool":
+            if invert:
+                cond += f" OR {escape_id(col)} = {escape_lit(False)}"
+            else:
+                cond = f"{escape_id(col)} = {escape_lit(True)}"
+        return (col, cond)
+
+    @classmethod
+    def _get_unique_col(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        table: TTableSchema,
+    ) -> str:
+        """Returns name of first column in `table` with `unique` property.
+
+        Raises `MergeDispositionException` if no such column exists.
+        """
+        return cls._get_prop_col_or_raise(
+            table,
+            "unique",
+            MergeDispositionException(
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+                [t["name"] for t in table_chain],
+                f"No `unique` column (e.g. `_dlt_id`) in table `{table['name']}`.",
+            ),
+        )
+
+    @classmethod
+    def _get_root_key_col(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        table: TTableSchema,
+    ) -> str:
+        """Returns name of first column in `table` with `root_key` property.
+
+        Raises `MergeDispositionException` if no such column exists.
+        """
+        return cls._get_prop_col_or_raise(
+            table,
+            "root_key",
+            MergeDispositionException(
+                sql_client.fully_qualified_dataset_name(),
+                sql_client.fully_qualified_dataset_name(staging=True),
+                [t["name"] for t in table_chain],
+                f"No `root_key` column (e.g. `_dlt_root_id`) in table `{table['name']}`.",
+            ),
+        )
+
+    @classmethod
+    def _get_prop_col_or_raise(
+        cls, table: TTableSchema, prop: Union[TColumnProp, str], exception: Exception
+    ) -> str:
+        """Returns name of first column in `table` with `prop` property.
+
+        Raises `exception` if no such column exists.
+        """
+        col = get_first_column_name_with_prop(table, prop)
+        if col is None:
+            raise exception
+        return col
+
+    @classmethod
     def gen_merge_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -367,22 +471,18 @@ class SqlMergeJob(SqlBaseJob):
             escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
         # get top level table full identifiers
-        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        with sql_client.with_staging_dataset():
-            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
 
         # get merge and primary keys from top level
-        primary_keys = list(
-            map(
-                escape_column_id,
-                get_columns_names_with_prop(root_table, "primary_key"),
-            )
+        primary_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "primary_key"),
+            escape_column_id,
         )
-        merge_keys = list(
-            map(
-                escape_column_id,
-                get_columns_names_with_prop(root_table, "merge_key"),
-            )
+        merge_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "merge_key"),
+            escape_column_id,
         )
 
         # if we do not have any merge keys to select from, we will fall back to a staged append, i.E.
@@ -407,18 +507,9 @@ class SqlMergeJob(SqlBaseJob):
                     root_table_name, staging_root_table_name, key_clauses, for_delete=False
                 )
                 # use unique hint to create temp table with all identifiers to delete
-                unique_columns = get_columns_names_with_prop(root_table, "unique")
-                if not unique_columns:
-                    raise MergeDispositionException(
-                        sql_client.fully_qualified_dataset_name(),
-                        staging_root_table_name,
-                        [t["name"] for t in table_chain],
-                        "There is no unique column (ie _dlt_id) in top table"
-                        f" {root_table['name']} so it is not possible to link child tables to it.",
-                    )
-                # get first unique column
-                unique_column = escape_column_id(unique_columns[0])
-                # create temp table with unique identifier
+                unique_column = escape_column_id(
+                    cls._get_unique_col(table_chain, sql_client, root_table)
+                )
                 create_delete_temp_table_sql, delete_temp_table_name = (
                     cls.gen_delete_temp_table_sql(
                         root_table["name"], unique_column, key_table_clauses, sql_client
@@ -430,17 +521,9 @@ class SqlMergeJob(SqlBaseJob):
                 # but uses temporary views instead
                 for table in table_chain[1:]:
                     table_name = sql_client.make_qualified_table_name(table["name"])
-                    root_key_columns = get_columns_names_with_prop(table, "root_key")
-                    if not root_key_columns:
-                        raise MergeDispositionException(
-                            sql_client.fully_qualified_dataset_name(),
-                            staging_root_table_name,
-                            [t["name"] for t in table_chain],
-                            "There is no root foreign key (ie _dlt_root_id) in child table"
-                            f" {table['name']} so it is not possible to refer to top level table"
-                            f" {root_table['name']} unique column {unique_column}",
-                        )
-                    root_key_column = escape_column_id(root_key_columns[0])
+                    root_key_column = escape_column_id(
+                        cls._get_root_key_col(table_chain, sql_client, table)
+                    )
                     sql.append(
                         cls.gen_delete_from_sql(
                             table_name, root_key_column, delete_temp_table_name, unique_column
@@ -454,15 +537,13 @@ class SqlMergeJob(SqlBaseJob):
                     )
                 )
 
-        # get name of column with hard_delete hint, if specified
-        not_deleted_cond: str = None
-        hard_delete_col = get_first_column_name_with_prop(root_table, "hard_delete")
-        if hard_delete_col is not None:
-            # any value indicates a delete for non-boolean columns
-            not_deleted_cond = f"{escape_column_id(hard_delete_col)} IS NULL"
-            if root_table["columns"][hard_delete_col]["data_type"] == "bool":
-                # only True values indicate a delete for boolean columns
-                not_deleted_cond += f" OR {escape_column_id(hard_delete_col)} = {escape_lit(False)}"
+        # get hard delete information
+        hard_delete_col, not_deleted_cond = cls._get_hard_delete_col_and_cond(
+            root_table,
+            escape_column_id,
+            escape_lit,
+            invert=True,
+        )
 
         # get dedup sort information
         dedup_sort = get_dedup_sort_tuple(root_table)
@@ -470,7 +551,8 @@ class SqlMergeJob(SqlBaseJob):
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
             if len(primary_keys) > 0 or hard_delete_col is not None:
-                condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
+                # condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
+                condition_columns = None if hard_delete_col is None else [hard_delete_col]
                 (
                     create_insert_temp_table_sql,
                     insert_temp_table_name,
@@ -488,9 +570,7 @@ class SqlMergeJob(SqlBaseJob):
 
         # insert from staging to dataset
         for table in table_chain:
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            with sql_client.with_staging_dataset():
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
             insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
             if (len(primary_keys) > 0 and len(table_chain) > 1) or (
@@ -514,6 +594,93 @@ class SqlMergeJob(SqlBaseJob):
         return sql
 
     @classmethod
+    def gen_upsert_sql(
+        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        sql: List[str] = []
+        root_table = table_chain[0]
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+        escape_column_id = sql_client.escape_column_name
+        escape_lit = sql_client.capabilities.escape_literal
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+
+        # process table hints
+        primary_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "primary_key"),
+            escape_column_id,
+        )
+        hard_delete_col, deleted_cond = cls._get_hard_delete_col_and_cond(
+            root_table,
+            escape_column_id,
+            escape_lit,
+        )
+
+        # generate merge statement for root table
+        on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
+        root_table_column_names = list(map(escape_column_id, root_table["columns"].keys()))
+        update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
+        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
+        delete_str = (
+            "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
+        )
+
+        sql.append(f"""
+            MERGE INTO {root_table_name} d USING {staging_root_table_name} s
+            ON {on_str}
+            {delete_str}
+            WHEN MATCHED
+                THEN UPDATE SET {update_str}
+            WHEN NOT MATCHED
+                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+        """)
+
+        # generate statements for child tables if they exist
+        child_tables = table_chain[1:]
+        if child_tables:
+            root_unique_column = escape_column_id(
+                cls._get_unique_col(table_chain, sql_client, root_table)
+            )
+            for table in child_tables:
+                unique_column = escape_column_id(
+                    cls._get_unique_col(table_chain, sql_client, table)
+                )
+                root_key_column = escape_column_id(
+                    cls._get_root_key_col(table_chain, sql_client, table)
+                )
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+
+                # delete records for elements no longer in the list
+                sql.append(f"""
+                    DELETE FROM {table_name}
+                    WHERE {root_key_column} IN (SELECT {root_unique_column} FROM {staging_root_table_name})
+                    AND {unique_column} NOT IN (SELECT {unique_column} FROM {staging_table_name});
+                """)
+
+                # insert records for new elements in the list
+                col_str = ", ".join(["{alias}" + escape_column_id(c) for c in table["columns"]])
+                sql.append(f"""
+                    MERGE INTO {table_name} d USING {staging_table_name} s
+                    ON d.{unique_column} = s.{unique_column}
+                    WHEN NOT MATCHED
+                        THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+                """)
+
+                # delete hard-deleted records
+                if hard_delete_col is not None:
+                    sql.append(f"""
+                        DELETE FROM {table_name}
+                        WHERE {root_key_column} IN (
+                            SELECT {root_unique_column}
+                            FROM {staging_root_table_name}
+                            WHERE {deleted_cond}
+                        );
+                    """)
+        return sql
+
+    @classmethod
     def gen_scd2_sql(
         cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
@@ -526,9 +693,9 @@ class SqlMergeJob(SqlBaseJob):
         """
         sql: List[str] = []
         root_table = table_chain[0]
-        root_table_name = sql_client.make_qualified_table_name(root_table["name"])
-        with sql_client.with_staging_dataset():
-            staging_root_table_name = sql_client.make_qualified_table_name(root_table["name"])
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
 
         # get column names
         caps = sql_client.capabilities
@@ -580,27 +747,15 @@ class SqlMergeJob(SqlBaseJob):
         # insert list elements for new active records in child tables
         child_tables = table_chain[1:]
         if child_tables:
-            unique_column: str = None
-            # use unique hint to create temp table with all identifiers to delete
-            unique_columns = get_columns_names_with_prop(root_table, "unique")
-            if not unique_columns:
-                raise MergeDispositionException(
-                    sql_client.fully_qualified_dataset_name(),
-                    staging_root_table_name,
-                    [t["name"] for t in table_chain],
-                    f"There is no unique column (ie _dlt_id) in top table {root_table['name']} so"
-                    " it is not possible to link child tables to it.",
-                )
-            # get first unique column
-            unique_column = escape_column_id(unique_columns[0])
+            unique_column = escape_column_id(
+                cls._get_unique_col(table_chain, sql_client, root_table)
+            )
             # TODO: - based on deterministic child hashes (OK)
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
             for table in child_tables:
-                table_name = sql_client.make_qualified_table_name(table["name"])
-                with sql_client.with_staging_dataset():
-                    staging_table_name = sql_client.make_qualified_table_name(table["name"])
+                table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
                 sql.append(f"""
                     INSERT INTO {table_name}
                     SELECT *
@@ -609,15 +764,3 @@ class SqlMergeJob(SqlBaseJob):
                 """)
 
         return sql
-
-    @classmethod
-    def gen_update_table_prefix(cls, table_name: str) -> str:
-        return f"UPDATE {table_name} SET"
-
-    @classmethod
-    def requires_temp_table_for_delete(cls) -> bool:
-        """Whether a temporary table is required to delete records.
-
-        Must be `True` for destinations that don't support correlated subqueries.
-        """
-        return False

@@ -5,6 +5,7 @@ from typing import Dict, Iterable, List, Optional
 
 from dlt.common.json import json
 from dlt.common.destination.reference import NewLoadJob, FollowupJob, TLoadJobState, LoadJob
+from dlt.common.storages.load_package import commit_load_package_state
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.typing import TDataItems
@@ -13,8 +14,6 @@ from dlt.destinations.impl.destination.configuration import (
     CustomDestinationClientConfiguration,
     TDestinationCallable,
 )
-
-from dlt.pipeline.current import commit_load_package_state
 
 
 class EmptyLoadJobWithoutFollowup(LoadJob):

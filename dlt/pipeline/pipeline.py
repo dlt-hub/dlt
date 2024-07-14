@@ -12,7 +12,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
     cast,
     get_type_hints,
     ContextManager,
@@ -29,12 +28,14 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
+    ConfigurationValueError,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
     DestinationIncompatibleLoaderFileFormatException,
     DestinationNoStagingMode,
     DestinationUndefinedEntity,
+    DestinationCapabilitiesException,
 )
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals, initialize_runtime
@@ -44,7 +45,6 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TAnySchemaColumns,
     TSchemaContract,
-    TTableSchema,
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
@@ -458,6 +458,32 @@ class Pipeline(SupportsPipeline):
                 step_info,
             ) from exc
 
+    def _verify_destination_capabilities(
+        self,
+        caps: DestinationCapabilitiesContext,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        # verify loader file format
+        if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
+            raise DestinationIncompatibleLoaderFileFormatException(
+                self.destination.destination_name,
+                (self.staging.destination_name if self.staging else None),
+                loader_file_format,
+                set(caps.supported_loader_file_formats),
+            )
+
+        # verify merge strategy
+        for table in self.default_schema.data_tables(include_incomplete=True):
+            # temp solution to prevent raising exceptions for destinations such as
+            # `fileystem` and `weaviate`, which do handle the `merge` write
+            # disposition, but don't implement any of the defined merge strategies
+            if caps.supported_merge_strategies is not None:
+                if "x-merge-strategy" in table and table["x-merge-strategy"] not in caps.supported_merge_strategies:  # type: ignore[typeddict-item]
+                    raise DestinationCapabilitiesException(
+                        f"`{table.get('x-merge-strategy')}` merge strategy not supported"
+                        f" for `{self.destination.destination_name}` destination."
+                    )
+
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
@@ -487,13 +513,8 @@ class Pipeline(SupportsPipeline):
         )
         # run with destination context
         with self._maybe_destination_capabilities() as caps:
-            if loader_file_format and loader_file_format not in caps.supported_loader_file_formats:
-                raise DestinationIncompatibleLoaderFileFormatException(
-                    self.destination.destination_name,
-                    (self.staging.destination_name if self.staging else None),
-                    loader_file_format,
-                    set(caps.supported_loader_file_formats),
-                )
+            self._verify_destination_capabilities(caps, loader_file_format)
+
             # shares schema storage with the pipeline so we do not need to install
             normalize_step: Normalize = Normalize(
                 collector=self.collector,
@@ -1399,6 +1420,10 @@ class Pipeline(SupportsPipeline):
             else:
                 new_dataset_name += self._pipeline_instance_id
         self.dataset_name = new_dataset_name
+
+        # normalizes the dataset name using the dataset_name_layout
+        if self.config.dataset_name_layout:
+            self.dataset_name = self.config.dataset_name_layout % self.dataset_name
 
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None

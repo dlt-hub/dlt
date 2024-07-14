@@ -16,9 +16,6 @@ import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, InvalidNativeValue
-from dlt.common.configuration.specs.aws_credentials import AwsCredentials
-from dlt.common.configuration.specs.exceptions import NativeValueError
-from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.data_writers.exceptions import FileImportNotFound, SpecLookupFailed
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
@@ -90,12 +87,76 @@ def test_default_pipeline() -> None:
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
+def test_default_pipeline_dataset_layout(environment) -> None:
+    # Set dataset_name_layout to "bobby_%s"
+    dataset_name_layout = "bobby_%s"
+    environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
+
+    p = dlt.pipeline()
+    # this is a name of executing test harness or blank pipeline on windows
+    possible_names = ["dlt_pytest", "dlt_pipeline"]
+    possible_dataset_names = [
+        dataset_name_layout % "dlt_pytest_dataset",
+        dataset_name_layout % "dlt_pipeline_dataset",
+    ]
+    assert p.pipeline_name in possible_names
+    assert p.pipelines_dir == os.path.abspath(os.path.join(TEST_STORAGE_ROOT, ".dlt", "pipelines"))
+    assert p.runtime_config.pipeline_name == p.pipeline_name
+    # dataset that will be used to load data is the pipeline name
+    assert p.dataset_name in possible_dataset_names
+    assert p.destination is None
+    assert p.default_schema_name is None
+
+    # this is the same pipeline
+    p2 = dlt.pipeline()
+    assert p is p2
+
+    # this will create default schema
+    p.extract(["a", "b", "c"], table_name="data")
+    # `_pipeline` is removed from default schema name
+    assert p.default_schema_name in ["dlt_pytest", "dlt"]
+
+
 def test_default_pipeline_dataset() -> None:
     # dummy does not need a dataset
     p = dlt.pipeline(destination="dummy")
     assert p.dataset_name is None  # so it is none
 
     # filesystem needs one
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name in possible_dataset_names
+
+
+def test_default_pipeline_dataset_name(environment) -> None:
+    environment["DATASET_NAME"] = "dataset"
+    environment["DATASET_NAME_LAYOUT"] = "prefix_%s"
+
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name == "prefix_dataset"
+
+
+def test_default_pipeline_dataset_layout_exception(environment) -> None:
+    # Set dataset_name_layout without placeholder %s
+    environment["DATASET_NAME_LAYOUT"] = "bobby_"
+
+    with pytest.raises(ValueError):
+        dlt.pipeline(destination="filesystem")
+
+
+def test_default_pipeline_dataset_layout_placeholder(environment) -> None:
+    # Set dataset_name_layout only with placeholder
+    environment["DATASET_NAME_LAYOUT"] = "%s"
+
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name in possible_dataset_names
+
+
+def test_default_pipeline_dataset_layout_empty(environment) -> None:
+    # Set dataset_name_layout empty
+    environment["DATASET_NAME_LAYOUT"] = ""
+
     possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
     p = dlt.pipeline(destination="filesystem")
     assert p.dataset_name in possible_dataset_names
@@ -117,6 +178,39 @@ def test_run_dev_mode_default_dataset() -> None:
     p._set_dataset_name(None)
     # full refresh is still observed
     assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
+
+
+def test_run_dev_mode_default_dataset_layout(environment) -> None:
+    # Set dataset_name_layout to "bobby_%s"
+    dataset_name_layout = "bobby_%s"
+    environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
+
+    p = dlt.pipeline(dev_mode=True, destination="filesystem")
+    assert p.dataset_name in [
+        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+    ]
+    # restore this pipeline
+    r_p = dlt.attach(dev_mode=False)
+    assert r_p.dataset_name in [
+        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+    ]
+
+    # dummy does not need dataset
+    p = dlt.pipeline(dev_mode=True, destination="dummy")
+    assert p.dataset_name is None
+
+    # simulate set new dataset
+    p._set_destinations("filesystem")
+    assert p.dataset_name is None
+    p._set_dataset_name(None)
+
+    # full refresh is still observed
+    assert p.dataset_name in [
+        dataset_name_layout % f"dlt_pytest_dataset{p._pipeline_instance_id}",
+        dataset_name_layout % f"dlt_pipeline_dataset{p._pipeline_instance_id}",
+    ]
 
 
 def test_run_dev_mode_underscored_dataset() -> None:
@@ -176,6 +270,16 @@ def test_invalid_dataset_name() -> None:
     # this is invalid dataset name but it will be normalized within a destination
     p = dlt.pipeline(dataset_name="!")
     assert p.dataset_name == "!"
+
+
+def test_invalid_dataset_layout(environment) -> None:
+    # Set dataset_name_prefix to "bobby"
+    dataset_name_layout = "bobby_%s"
+    environment["DATASET_NAME_LAYOUT"] = dataset_name_layout
+
+    # this is invalid dataset name but it will be normalized within a destination
+    p = dlt.pipeline(dataset_name="!")
+    assert p.dataset_name == dataset_name_layout % "!"
 
 
 def test_pipeline_context_deferred_activation() -> None:
@@ -2466,6 +2570,56 @@ def test_static_staging_dataset() -> None:
 
     assert_data_table_counts(pipeline_1, {"digits": 3})
     assert_data_table_counts(pipeline_2, {"letters": 4})
+
+
+def test_underscore_tables_and_columns() -> None:
+    pipeline = dlt.pipeline("test_underscore_tables_and_columns", destination="duckdb")
+
+    @dlt.resource
+    def ids(_id=dlt.sources.incremental("_id", initial_value=2)):
+        yield from [{"_id": i, "value": l} for i, l in zip([1, 2, 3], ["A", "B", "C"])]
+
+    info = pipeline.run(ids, table_name="_ids")
+    assert_load_info(info)
+    print(pipeline.default_schema.to_pretty_yaml())
+    assert pipeline.last_trace.last_normalize_info.row_counts["_ids"] == 2
+
+
+def test_access_pipeline_in_resource() -> None:
+    pipeline = dlt.pipeline("test_access_pipeline_in_resource", destination="duckdb")
+
+    @dlt.resource(name="user_comments")
+    def comments(user_id: str):
+        current_pipeline = dlt.current.pipeline()
+        # find last comment id for given user_id by looking in destination
+        max_id: int = 0
+        # on first pipeline run, user_comments table does not yet exist so do not check at all
+        # alternatively catch DatabaseUndefinedRelation which is raised when unknown table is selected
+        if not current_pipeline.first_run:
+            with current_pipeline.sql_client() as client:
+                # we may get last user comment or None which we replace with 0
+                max_id = (
+                    client.execute_sql(
+                        "SELECT MAX(_id) FROM user_comments WHERE user_id=?", user_id
+                    )[0][0]
+                    or 0
+                )
+        # use max_id to filter our results
+        yield from [
+            {"_id": i, "value": l, "user_id": user_id}
+            for i, l in zip([1, 2, 3], ["A", "B", "C"])
+            if i > max_id
+        ]
+
+    info = pipeline.run(comments("USER_A"))
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
+    info = pipeline.run(comments("USER_A"))
+    # no more data for USER_A
+    assert_load_info(info, 0)
+    info = pipeline.run(comments("USER_B"))
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts["user_comments"] == 3
 
 
 def assert_imported_file(

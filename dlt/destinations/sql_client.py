@@ -174,8 +174,13 @@ SELECT 1
         # connection is scoped to a current database
         return None
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return ".".join(self.make_qualified_table_name_path(None, escape=escape))
+    def fully_qualified_dataset_name(self, escape: bool = True, staging: bool = False) -> str:
+        if staging:
+            with self.with_staging_dataset():
+                path = self.make_qualified_table_name_path(None, escape=escape)
+        else:
+            path = self.make_qualified_table_name_path(None, escape=escape)
+        return ".".join(path)
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
         return ".".join(self.make_qualified_table_name_path(table_name, escape=escape))
@@ -199,6 +204,12 @@ SELECT 1
                 table_name = self.capabilities.escape_identifier(table_name)
             path.append(table_name)
         return path
+
+    def get_qualified_table_names(self, table_name: str, escape: bool = True) -> Tuple[str, str]:
+        """Returns qualified names for table and corresponding staging table as tuple."""
+        with self.with_staging_dataset():
+            staging_table_name = self.make_qualified_table_name(table_name, escape)
+        return self.make_qualified_table_name(table_name, escape), staging_table_name
 
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
         column_name = self.capabilities.casefold_identifier(column_name)
