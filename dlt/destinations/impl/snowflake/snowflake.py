@@ -15,6 +15,7 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
@@ -92,22 +93,26 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
-        job = ParsedLoadJobFileName.parse(file_name)
+        # resolve reference
+        is_local_file = not NewReferenceJob.is_reference_job(file_path)
+        file_url = file_path if is_local_file else NewReferenceJob.resolve_reference(file_path)
+        # take file name
+        file_name = FileStorage.get_file_name_from_file_path(file_url)
+        file_format = file_name.rsplit(".", 1)[-1]
 
         qualified_table_name = client.make_qualified_table_name(table_name)
-        if_local_file = not NewReferenceJob.is_reference_job(file_path)
         # this means we have a local file
         stage_file_path: str = ""
-        if if_local_file:
+        if is_local_file:
             if not stage_name:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
                 stage_name = client.make_qualified_table_name("%" + table_name)
             stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
 
         copy_sql = self.gen_copy_sql(
-            file_path,
+            file_url,
             qualified_table_name,
-            job.file_format,  # type: ignore[arg-type]
+            file_format,  # type: ignore[arg-type]
             client.capabilities.generates_case_sensitive_identifiers(),
             stage_name,
             stage_file_path,
@@ -117,7 +122,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 
         with client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
-            if if_local_file:
+            if is_local_file:
                 client.execute_sql(
                     f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
                     " AUTO_COMPRESS = FALSE"
@@ -135,7 +140,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
     @classmethod
     def gen_copy_sql(
         cls,
-        file_path: str,
+        file_url: str,
         qualified_table_name: str,
         loader_file_format: TLoaderFileFormat,
         is_case_sensitive: bool,
@@ -144,15 +149,13 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         staging_credentials: Optional[CredentialsConfiguration] = None,
         csv_format: Optional[CsvFormatConfiguration] = None,
     ) -> str:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        bucket_path = (
-            NewReferenceJob.resolve_reference(file_path)
-            if NewReferenceJob.is_reference_job(file_path)
-            else ""
+        parsed_file_url = urlparse(file_url)
+        # check if local filesystem (file scheme or just a local file in native form)
+        is_local = parsed_file_url.scheme == "file" or FilesystemConfiguration.is_local_path(
+            file_url
         )
-        file_name = (
-            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
-        )
+        # file_name = FileStorage.get_file_name_from_file_path(file_url)
+
         from_clause = ""
         credentials_clause = ""
         files_clause = ""
@@ -161,13 +164,12 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         case_folding = "CASE_SENSITIVE" if is_case_sensitive else "CASE_INSENSITIVE"
         column_match_clause = f"MATCH_BY_COLUMN_NAME='{case_folding}'"
 
-        if bucket_path:
-            bucket_url = urlparse(bucket_path)
-            bucket_scheme = bucket_url.scheme
+        if not is_local:
+            bucket_scheme = parsed_file_url.scheme
             # referencing an external s3/azure stage does not require explicit AWS credentials
             if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
                 from_clause = f"FROM '@{stage_name}'"
-                files_clause = f"FILES = ('{bucket_url.path.lstrip('/')}')"
+                files_clause = f"FILES = ('{parsed_file_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             elif (
                 bucket_scheme == "s3"
@@ -175,7 +177,7 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
             ):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
-                from_clause = f"FROM '{bucket_path}'"
+                from_clause = f"FROM '{file_url}'"
             elif (
                 bucket_scheme in ["az", "abfs"]
                 and staging_credentials
@@ -185,28 +187,28 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
                 # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
                 # as required by snowflake
-                _path = "/" + bucket_url.netloc + bucket_url.path
-                bucket_path = urlunparse(
-                    bucket_url._replace(
+                _path = "/" + parsed_file_url.netloc + parsed_file_url.path
+                file_url = urlunparse(
+                    parsed_file_url._replace(
                         scheme="azure",
                         netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
                         path=_path,
                     )
                 )
-                from_clause = f"FROM '{bucket_path}'"
+                from_clause = f"FROM '{file_url}'"
             else:
                 # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake
-                bucket_path = bucket_path.replace("gs://", "gcs://")
+                file_url = file_url.replace("gs://", "gcs://")
                 if not stage_name:
                     # when loading from bucket stage must be given
                     raise LoadJobTerminalException(
-                        file_path,
-                        f"Cannot load from bucket path {bucket_path} without a stage name. See"
+                        file_url,
+                        f"Cannot load from bucket path {file_url} without a stage name. See"
                         " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for"
                         " instructions on setting up the `stage_name`",
                     )
                 from_clause = f"FROM @{stage_name}/"
-                files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
+                files_clause = f"FILES = ('{urlparse(file_url).path.lstrip('/')}')"
         else:
             from_clause = f"FROM {local_stage_file_path}"
 
