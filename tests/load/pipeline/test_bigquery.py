@@ -4,9 +4,7 @@ import io
 import dlt
 from dlt.common import Decimal, json
 from dlt.common.typing import TLoaderFileFormat
-from dlt.destinations.adapters import bigquery_adapter
 
-from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 
@@ -54,6 +52,9 @@ def test_bigquery_numeric_types(destination_config: DestinationTestConfiguration
 def test_bigquery_autodetect_schema(
     destination_config: DestinationTestConfiguration, file_format: TLoaderFileFormat
 ) -> None:
+    from dlt.destinations.adapters import bigquery_adapter
+    from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient
+
     @dlt.resource(name="cve", max_table_nesting=0, file_format=file_format)
     def load_cve(stage: int):
         with open("tests/load/cases/loading/cve.json", "rb") as f:
