@@ -88,51 +88,57 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        file_name = FileStorage.get_file_name_from_file_path(file_path)
-        super().__init__(file_name)
+        super().__init__(job_client, file_path)
+        self._sql_client = job_client.sql_client
+        self._keep_staged_files = keep_staged_files
+        self._staging_credentials = staging_credentials
+        self._config = config
+        self._stage_name = stage_name
+
+    def run(self) -> None:
         # resolve reference
-        is_local_file = not NewReferenceJob.is_reference_job(file_path)
-        file_url = file_path if is_local_file else NewReferenceJob.resolve_reference(file_path)
+        is_local_file = not ReferenceFollowupJob.is_reference_job(self._file_path)
+        file_url = (
+            self._file_path
+            if is_local_file
+            else ReferenceFollowupJob.resolve_reference(self._file_path)
+        )
         # take file name
         file_name = FileStorage.get_file_name_from_file_path(file_url)
         file_format = file_name.rsplit(".", 1)[-1]
 
-        qualified_table_name = client.make_qualified_table_name(table_name)
+        qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         # this means we have a local file
         stage_file_path: str = ""
         if is_local_file:
-            if not stage_name:
+            if not self._stage_name:
                 # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
-                stage_name = client.make_qualified_table_name("%" + table_name)
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
+                self._stage_name = self._sql_client.make_qualified_table_name(
+                    "%" + self.load_table_name
+                )
+            stage_file_path = f'@{self._stage_name}/"{self._load_id}"/{file_name}'
 
         copy_sql = self.gen_copy_sql(
             file_url,
             qualified_table_name,
             file_format,  # type: ignore[arg-type]
-            client.capabilities.generates_case_sensitive_identifiers(),
-            stage_name,
+            self._sql_client.capabilities.generates_case_sensitive_identifiers(),
+            self._stage_name,
             stage_file_path,
-            staging_credentials,
-            config.csv_format,
+            self._staging_credentials,
+            self._config.csv_format,
         )
 
-        with client.begin_transaction():
+        with self._sql_client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
             if is_local_file:
-                client.execute_sql(
-                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
-                    " AUTO_COMPRESS = FALSE"
+                self._sql_client.execute_sql(
+                    f'PUT file://{self._file_path} @{self._stage_name}/"{self._load_id}" OVERWRITE'
+                    " = TRUE, AUTO_COMPRESS = FALSE"
                 )
-            client.execute_sql(copy_sql)
-            if stage_file_path and not keep_staged_files:
-                client.execute_sql(f"REMOVE {stage_file_path}")
-
-    def state(self) -> TLoadJobState:
-        return "completed"
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+            self._sql_client.execute_sql(copy_sql)
+            if stage_file_path and not self._keep_staged_files:
+                self._sql_client.execute_sql(f"REMOVE {stage_file_path}")
 
     @classmethod
     def gen_copy_sql(
