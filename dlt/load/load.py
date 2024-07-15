@@ -147,30 +147,29 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
 
         try:
-            with active_job_client as client:
-                # check file format
-                job_info = ParsedLoadJobFileName.parse(file_path)
-                if job_info.file_format not in self.load_storage.supported_job_file_formats:
-                    raise LoadClientUnsupportedFileFormats(
-                        job_info.file_format,
-                        self.destination.capabilities().supported_loader_file_formats,
-                        file_path,
-                    )
-                logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
-
-                # check write disposition
-                load_table = client.prepare_load_table(job_info.table_name)
-                if load_table["write_disposition"] not in ["append", "replace", "merge"]:
-                    raise LoadClientUnsupportedWriteDisposition(
-                        job_info.table_name, load_table["write_disposition"], file_path
-                    )
-
-                job = client.get_load_job(
-                    load_table,
-                    self.load_storage.normalized_packages.storage.make_full_path(file_path),
-                    load_id,
-                    restore=restore,
+            # check file format
+            job_info = ParsedLoadJobFileName.parse(file_path)
+            if job_info.file_format not in self.load_storage.supported_job_file_formats:
+                raise LoadClientUnsupportedFileFormats(
+                    job_info.file_format,
+                    self.destination.capabilities().supported_loader_file_formats,
+                    file_path,
                 )
+            logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
+
+            # check write disposition
+            load_table = active_job_client.prepare_load_table(job_info.table_name)
+            if load_table["write_disposition"] not in ["append", "replace", "merge"]:
+                raise LoadClientUnsupportedWriteDisposition(
+                    job_info.table_name, load_table["write_disposition"], file_path
+                )
+
+            job = active_job_client.get_load_job(
+                load_table,
+                self.load_storage.normalized_packages.storage.make_full_path(file_path),
+                load_id,
+                restore=restore,
+            )
 
             if job is None:
                 raise DestinationTerminalException(
@@ -336,7 +335,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def complete_jobs(
         self, load_id: str, jobs: Sequence[LoadJob], schema: Schema
-    ) -> Tuple[List[LoadJob], Exception]:
+    ) -> Tuple[List[LoadJob], Optional[Exception]]:
         """Run periodically in the main thread to collect job execution statuses.
 
         After detecting change of status, it commits the job state by moving it to the right folder
@@ -346,7 +345,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # list of jobs still running
         remaining_jobs: List[LoadJob] = []
         # if an exception condition was met, return it to the main runner
-        pending_exception: Exception = None
+        pending_exception: Optional[Exception] = None
 
         logger.info(f"Will complete {len(jobs)} for {load_id}")
         for ii in range(len(jobs)):
@@ -502,7 +501,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             running_jobs: List[LoadJob] = self.retrieve_jobs(load_id, schema)
 
         # loop until all jobs are processed
-        pending_exception: Exception = None
+        pending_exception: Optional[Exception] = None
         while True:
             try:
                 # we continously spool new jobs and complete finished ones
@@ -522,7 +521,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         raise pending_exception
                     break
                 # this will raise on signal
-                sleep(0.1)  #  TODO: figure out correct value
+                sleep(
+                    0.1
+                )  #  TODO: figure out correct value, no job should do any remote calls on main thread when checking state, so a small number is ok
             except LoadClientJobFailed:
                 # the package is completed and skipped
                 self.update_loadpackage_info(load_id)
