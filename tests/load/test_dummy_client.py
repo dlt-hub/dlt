@@ -72,9 +72,9 @@ def test_spool_job_started() -> None:
             )
         )
         jobs.append(job)
-    # still running
-    remaining_jobs = load.complete_jobs(load_id, jobs, schema)
-    assert len(remaining_jobs) == 2
+    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    assert len(remaining_jobs) == 0
+    assert len(finalized_jobs) == 2
 
 
 def test_unsupported_writer_type() -> None:
@@ -276,10 +276,10 @@ def test_spool_job_retry_started() -> None:
         jobs.append(job)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     assert len(files) == 0
-    # should retry, that moves jobs into new folder
+    # should retry, that moves jobs into new folder, jobs are not counted as finalized
     remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
-    assert len(finalized_jobs) == 2
+    assert len(finalized_jobs) == 0
     # clear retry flag
     dummy_impl.JOBS = {}
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
