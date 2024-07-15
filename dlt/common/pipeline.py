@@ -602,6 +602,14 @@ class PipelineContext(ContainerInjectableContext):
         self._deferred_pipeline = deferred_pipeline
 
 
+def current_pipeline() -> SupportsPipeline:
+    """Gets active pipeline context or None if not found"""
+    proxy = Container()[PipelineContext]
+    if not proxy.is_active():
+        return None
+    return proxy.pipeline()
+
+
 @configspec
 class StateInjectableContext(ContainerInjectableContext):
     state: TPipelineState = None

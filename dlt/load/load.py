@@ -1,19 +1,15 @@
 import contextlib
 from functools import reduce
-import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable, Sequence
 from concurrent.futures import Executor
 import os
-from copy import deepcopy
 
 from dlt.common import logger
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_top_level_table
-from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
