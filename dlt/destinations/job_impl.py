@@ -99,7 +99,7 @@ class ReferenceFollowupJob(FollowupJobImpl):
 
     @staticmethod
     def resolve_reference(file_path: str) -> str:
-        refs = ReferenceFollowupJob.resolve_reference(file_path)
+        refs = ReferenceFollowupJob.resolve_references(file_path)
         assert len(refs) == 1
         return refs[0]
 
