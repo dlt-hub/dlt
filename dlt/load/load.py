@@ -331,7 +331,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def complete_jobs(
         self, load_id: str, jobs: Sequence[LoadJob], schema: Schema
-    ) -> Tuple[List[LoadJob], Optional[Exception]]:
+    ) -> Tuple[List[LoadJob], List[LoadJob], Optional[Exception]]:
         """Run periodically in the main thread to collect job execution statuses.
 
         After detecting change of status, it commits the job state by moving it to the right folder
@@ -340,6 +340,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         """
         # list of jobs still running
         remaining_jobs: List[LoadJob] = []
+        # list of jobs in final state
+        finalized_jobs: List[LoadJob] = []
         # if an exception condition was met, return it to the main runner
         pending_exception: Optional[Exception] = None
 
@@ -372,6 +374,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         job.job_file_info().job_id(),
                         failed_message,
                     )
+                finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.exception()
@@ -397,6 +400,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
                 self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
                 logger.info(f"Job for {job.job_id()} completed in load {load_id}")
+                finalized_jobs.append(job)
             else:
                 raise Exception("Incorrect job state")
 
@@ -407,7 +411,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         "Jobs", 1, message="WARNING: Some of the jobs failed!", label="Failed"
                     )
 
-        return remaining_jobs, pending_exception
+        return remaining_jobs, finalized_jobs, pending_exception
 
     def complete_package(self, load_id: str, schema: Schema, aborted: bool = False) -> None:
         # do not commit load id for aborted packages
@@ -501,14 +505,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         while True:
             try:
                 # we continously spool new jobs and complete finished ones
-                running_jobs, new_pending_exception = self.complete_jobs(
+                running_jobs, finalized_jobs, new_pending_exception = self.complete_jobs(
                     load_id, running_jobs, schema
                 )
+                # update load package info if any jobs where finalized
+                if finalized_jobs:
+                    self.update_loadpackage_info(load_id)
+
                 pending_exception = pending_exception or new_pending_exception
                 # do not spool new jobs if there was a signal
                 if not signals.signal_received() and not pending_exception:
                     running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
-                self.update_loadpackage_info(load_id)
 
                 if len(running_jobs) == 0:
                     # if a pending exception was discovered during completion of jobs
@@ -522,12 +529,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 )  #  TODO: figure out correct value, no job should do any remote calls on main thread when checking state, so a small number is ok
             except LoadClientJobFailed:
                 # the package is completed and skipped
-                self.update_loadpackage_info(load_id)
                 self.complete_package(load_id, schema, True)
                 raise
-
-        # always update load package info
-        self.update_loadpackage_info(load_id)
 
         # complete the package if no new or started jobs present after loop exit
         if (

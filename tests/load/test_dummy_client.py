@@ -171,8 +171,9 @@ def test_spool_job_failed() -> None:
         )
         jobs.append(job)
     # complete files
-    remaining_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
+    assert len(finalized_jobs) == 2
     for job in jobs:
         assert load.load_storage.normalized_packages.storage.has_file(
             load.load_storage.normalized_packages.get_job_file_path(
@@ -276,8 +277,9 @@ def test_spool_job_retry_started() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     assert len(files) == 0
     # should retry, that moves jobs into new folder
-    remaining_jobs, _ = load.complete_jobs(load_id, jobs, schema)
+    remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
+    assert len(finalized_jobs) == 2
     # clear retry flag
     dummy_impl.JOBS = {}
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
