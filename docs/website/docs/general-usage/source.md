@@ -100,7 +100,7 @@ Find more on transforms [here](resource.md#filter-transform-and-pivot-data).
 You can limit the number of items produced by each resource by calling a `add_limit` method on a
 source. This is useful for testing, debugging and generating sample datasets for experimentation.
 You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for
-the full loading to complete. Below we limit the `pipedrive` source to just get 10 pages of data
+the full loading to complete. Below we limit the `pipedrive` source to just get **10 pages** of data
 from each endpoint. Mind that the transformers will be evaluated fully:
 
 ```py
@@ -110,6 +110,10 @@ pipeline = dlt.pipeline(pipeline_name='pipedrive', destination='duckdb', dataset
 load_info = pipeline.run(pipedrive_source().add_limit(10))
 print(load_info)
 ```
+
+:::note
+Note that `add_limit` **does not limit the number of records** but rather the "number of yields". dlt will close the iterator/generator that produces data after the limit is reached.
+:::
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
 
