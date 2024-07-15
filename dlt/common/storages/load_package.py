@@ -463,11 +463,6 @@ class PackageStorage:
             file_name,
         )
 
-    def get_completed_job_path(self, load_id: str, file_name: str) -> str:
-        """Get the path for a given job if it where completed"""
-        file_name = FileStorage.get_file_name_from_file_path(file_name)
-        return self.get_job_file_path(load_id, PackageStorage.COMPLETED_JOBS_FOLDER, file_name)
-
     #
     # Create and drop entities
     #
