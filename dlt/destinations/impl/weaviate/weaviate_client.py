@@ -154,17 +154,16 @@ class LoadWeaviateJob(RunnableLoadJob):
         self,
         job_client: "WeaviateClient",
         file_path: str,
-        db_client: weaviate.Client,
         client_config: WeaviateClientConfiguration,
         class_name: str,
     ) -> None:
         super().__init__(job_client, file_path)
         self._job_client: WeaviateClient = job_client
         self._client_config = client_config
-        self._db_client = db_client
         self._class_name = class_name
 
     def run(self) -> None:
+        self._db_client = self._job_client.db_client
         self.unique_identifiers = self.list_unique_identifiers(self._load_table)
         self.complex_indices = [
             i
@@ -683,7 +682,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
         return LoadWeaviateJob(
             self,
             file_path,
-            db_client=self.db_client,
             client_config=self.config,
             class_name=self.make_qualified_class_name(table["name"]),
         )
