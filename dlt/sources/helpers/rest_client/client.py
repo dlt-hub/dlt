@@ -116,7 +116,7 @@ class RESTClient:
             hooks=hooks,
         )
 
-    def _send_request(self, request: Request) -> Response:
+    def _send_request(self, request: Request, **kwargs: Any) -> Response:
         logger.info(
             f"Making {request.method.upper()} request to {request.url}"
             f" with params={request.params}, json={request.json}"
@@ -125,8 +125,14 @@ class RESTClient:
         prepared_request = self.session.prepare_request(request)
 
         send_kwargs = self.session.merge_environment_settings(
-            prepared_request.url, {}, None, None, None
+            prepared_request.url,
+            kwargs.pop("proxies", {}),
+            kwargs.pop("stream", None),
+            kwargs.pop("verify", None),
+            kwargs.pop("cert", None),
         )
+
+        send_kwargs.update(**kwargs)
 
         return self.session.send(prepared_request, **send_kwargs)
 
@@ -134,9 +140,12 @@ class RESTClient:
         prepared_request = self._create_request(
             path=path,
             method=method,
-            **kwargs,
+            params=kwargs.pop("params", None),
+            json=kwargs.pop("json", None),
+            auth=kwargs.pop("auth", None),
+            hooks=kwargs.pop("hooks", None),
         )
-        return self._send_request(prepared_request)
+        return self._send_request(prepared_request, **kwargs)
 
     def get(self, path: str, params: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Response:
         return self.request(path, method="GET", params=params, **kwargs)
@@ -154,6 +163,7 @@ class RESTClient:
         paginator: Optional[BasePaginator] = None,
         data_selector: Optional[jsonpath.TJsonPath] = None,
         hooks: Optional[Hooks] = None,
+        **kwargs: Any,
     ) -> Iterator[PageData[Any]]:
         """Iterates over paginated API responses, yielding pages of data.
 
@@ -170,6 +180,9 @@ class RESTClient:
             hooks (Optional[Hooks]): Hooks to modify request/response objects. Note that
                 when hooks are not provided, the default behavior is to raise an exception
                 on error status codes.
+            **kwargs (Any): Optional arguments to that the request library accepts, such as
+                `stream`, `verify`, `proxies`, `cert`, `timeout`, and `allow_redirects`.
+
 
         Yields:
             PageData[Any]: A page of data from the paginated API response, along with request and response context.
@@ -204,7 +217,7 @@ class RESTClient:
 
         while True:
             try:
-                response = self._send_request(request)
+                response = self._send_request(request, **kwargs)
             except IgnoreResponseException:
                 break
 
