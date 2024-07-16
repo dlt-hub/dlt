@@ -622,7 +622,7 @@ def expect_load_file(
 
     if isinstance(job, RunnableLoadJob):
         job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)
-        job.run_managed()
+        job.run_managed(client)
     while job.state() == "running":
         sleep(0.5)
     assert job.file_name() == file_name

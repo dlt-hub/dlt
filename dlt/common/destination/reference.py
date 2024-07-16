@@ -336,13 +336,17 @@ class RunnableLoadJob(LoadJob, ABC):
     def load_table_name(self) -> str:
         return self._load_table["name"]
 
-    def run_managed(self) -> None:
+    def run_managed(
+        self,
+        job_client: "JobClientBase",
+    ) -> None:
         """
         wrapper around the user implemented run method
         """
         # only jobs that are not running or have not reached a final state
         # may be started
         assert self._state in ("ready", "retry")
+        self._job_client = job_client
 
         # filepath is now moved to running
         try:

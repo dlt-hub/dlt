@@ -206,7 +206,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             job.set_run_vars(load_id=load_id, schema=schema, load_table=load_table)
 
             # submit to pool
-            self.pool.submit(Load.w_run_job, *(id(self), job, active_job_client, use_staging_dataset))  # type: ignore
+            self.pool.submit(Load.w_run_job, *(id(self), job, is_staging_destination_job, use_staging_dataset, schema))  # type: ignore
 
         # sanity check: otherwise a job in an actionable state is expected
         else:
@@ -217,14 +217,23 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     @staticmethod
     @workermethod
     def w_run_job(
-        self: "Load", job: RunnableLoadJob, job_client: JobClientBase, use_staging_dataset: bool
+        self: "Load",
+        job: RunnableLoadJob,
+        use_staging_client: bool,
+        use_staging_dataset: bool,
+        schema: Schema,
     ) -> None:
         """
         Start a load job in a separate thread
         """
-        with job_client as client:
+        active_job_client = (
+            self.get_staging_destination_client(schema)
+            if use_staging_client
+            else self.get_destination_client(schema)
+        )
+        with active_job_client as client:
             with self.maybe_with_staging_dataset(client, use_staging_dataset):
-                job.run_managed()
+                job.run_managed(active_job_client)
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -232,7 +241,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         """
         will retrieve jobs from the new_jobs folder and start as many as there are slots available
         """
-        # get a list of jobs elligble to be started
+        # get a list of jobs eligible to be started
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
             self.destination.capabilities(
@@ -531,6 +540,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # the package is completed and skipped
                 self.complete_package(load_id, schema, True)
                 raise
+            finally:
+                # always update loadpackage info
+                self.update_loadpackage_info(load_id)
 
         # complete the package if no new or started jobs present after loop exit
         if (

@@ -31,7 +31,7 @@ def test_runnable_job_results() -> None:
 
     j: RunnableLoadJob = SuccessfulJob(None, file_path)
     assert j.state() == "ready"
-    j.run_managed()
+    j.run_managed(None)
     assert j.state() == "completed"
 
     class RandomExceptionJob(RunnableLoadJob):
@@ -40,7 +40,7 @@ def test_runnable_job_results() -> None:
 
     j = RandomExceptionJob(None, file_path)
     assert j.state() == "ready"
-    j.run_managed()
+    j.run_managed(None)
     assert j.state() == "retry"
     assert j.exception() == "Oh no!"
 
@@ -50,7 +50,7 @@ def test_runnable_job_results() -> None:
 
     j = TerminalJob(None, file_path)
     assert j.state() == "ready"
-    j.run_managed()
+    j.run_managed(None)
     assert j.state() == "failed"
     assert j.exception() == "Oh no!"
 
