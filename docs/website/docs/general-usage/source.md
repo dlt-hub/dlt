@@ -112,7 +112,7 @@ print(load_info)
 ```
 
 :::note
-Note that `add_limit` **does not limit the number of records** but rather the "number of yields". dlt will close the iterator/generator that produces data after the limit is reached.
+Note that `add_limit` **does not limit the number of records** but rather the "number of yields". `dlt` will close the iterator/generator that produces data after the limit is reached.
 :::
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
