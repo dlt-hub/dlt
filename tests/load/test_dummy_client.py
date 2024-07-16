@@ -306,7 +306,7 @@ def test_try_retrieve_job() -> None:
         )
     # dummy client may retrieve jobs that it created itself, jobs in started folder are unknown
     # and returned as terminal
-    jobs = load.retrieve_jobs(load_id, schema)
+    jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
     for j in jobs:
         assert j.state() == "failed"
@@ -316,7 +316,7 @@ def test_try_retrieve_job() -> None:
     jobs = load.start_new_jobs(load_id, schema, [])  # type: ignore
     assert len(jobs) == 2
     # now jobs are known
-    jobs = load.retrieve_jobs(load_id, schema)
+    jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
     for j in jobs:
         assert j.state() == "completed"

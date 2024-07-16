@@ -133,6 +133,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         super().__init__(client, file_path, staging_credentials)
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # we assume s3 credentials where provided for the staging
         credentials = ""
         if self._staging_iam_role:

@@ -189,6 +189,7 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         super().__init__(client, file_path, staging_credentials)
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # get format
         ext = os.path.splitext(self._bucket_path)[1][1:]
         if ext == "parquet":

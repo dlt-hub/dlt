@@ -227,11 +227,30 @@ def _extend_tables_with_table_chain(
     return result
 
 
+def get_available_worker_slots(
+    config: LoaderConfiguration,
+    capabilities: DestinationCapabilitiesContext,
+    running_jobs: Sequence[LoadJob],
+) -> int:
+    """
+    Returns the number of available worker slots
+    """
+    parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
+
+    # find real max workers value
+    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
+    if mp := capabilities.max_parallel_load_jobs:
+        max_workers = min(max_workers, mp)
+
+    return max_workers - len(running_jobs)
+
+
 def filter_new_jobs(
     file_names: Sequence[str],
     capabilities: DestinationCapabilitiesContext,
     config: LoaderConfiguration,
     running_jobs: Sequence[LoadJob],
+    available_slots: int,
 ) -> Sequence[str]:
     """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
     """NOTE: in the current setup we only filter based on settings for the final destination"""
@@ -243,16 +262,6 @@ def filter_new_jobs(
 
     # config can overwrite destination settings, if nothing is set, code below defaults to parallel
     parallelism_strategy = config.parallelism_strategy or capabilities.loader_parallelism_strategy
-
-    # find real max workers value
-    max_workers = 1 if parallelism_strategy == "sequential" else config.workers
-    if mp := capabilities.max_parallel_load_jobs:
-        max_workers = min(max_workers, mp)
-
-    # if all slots are full, do not create new jobs
-    if len(running_jobs) >= max_workers:
-        return []
-    max_jobs = max_workers - len(running_jobs)
 
     # regular sequential works on all jobs
     eligible_jobs = file_names
@@ -275,4 +284,4 @@ def filter_new_jobs(
             if table_name not in running_tables
         ]
 
-    return eligible_jobs[:max_jobs]
+    return eligible_jobs[:available_slots]

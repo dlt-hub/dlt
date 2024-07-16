@@ -116,9 +116,11 @@ class DuckDbTypeMapper(TypeMapper):
 class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, job_client: "DuckDbClient", file_path: str) -> None:
         super().__init__(job_client, file_path)
-        self._sql_client = job_client.sql_client
+        self._job_client: "DuckDbClient" = job_client
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         if self._file_path.endswith("parquet"):
             source_format = "PARQUET"

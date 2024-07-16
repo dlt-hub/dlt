@@ -15,10 +15,12 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging, SqlJobClie
 class InsertValuesLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(self, job_client: SqlJobClientBase, file_path: str) -> None:
         super().__init__(job_client, file_path)
-        self._sql_client = job_client.sql_client
+        self._job_client: "SqlJobClientBase" = job_client
 
     def run(self) -> None:
         # insert file content immediately
+        self._sql_client = self._job_client.sql_client
+
         with self._sql_client.begin_transaction():
             for fragments in self._insert(
                 self._sql_client.make_qualified_table_name(self.load_table_name), self._file_path

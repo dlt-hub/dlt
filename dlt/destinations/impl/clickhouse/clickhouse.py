@@ -145,11 +145,11 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         super().__init__(job_client, file_path)
-        self._sql_client = job_client.sql_client
+        self._job_client: "ClickHouseClient" = job_client
         self._staging_credentials = staging_credentials
 
     def run(self) -> None:
-        client = self._sql_client
+        client = self._job_client.sql_client
 
         qualified_table_name = client.make_qualified_table_name(self.load_table_name)
         bucket_path = None

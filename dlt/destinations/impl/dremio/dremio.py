@@ -92,10 +92,12 @@ class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
         stage_name: Optional[str] = None,
     ) -> None:
         super().__init__(job_client, file_path)
-        self._sql_client = job_client.sql_client
         self._stage_name = stage_name
+        self._job_client: "DremioClient" = job_client
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
 
         # extract and prepare some vars

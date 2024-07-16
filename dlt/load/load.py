@@ -56,6 +56,7 @@ from dlt.load.utils import (
     get_completed_table_chain,
     init_client,
     filter_new_jobs,
+    get_available_worker_slots,
 )
 
 
@@ -241,6 +242,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         """
         will retrieve jobs from the new_jobs folder and start as many as there are slots available
         """
+        caps = self.destination.capabilities(
+            self.destination.configuration(self.initial_client_config)
+        )
+
+        # early exit if no slots available
+        available_slots = get_available_worker_slots(self.config, caps, running_jobs)
+        if available_slots <= 0:
+            return
+
         # get a list of jobs eligible to be started
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
@@ -249,6 +259,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             ),
             self.config,
             running_jobs,
+            available_slots,
         )
 
         logger.info(f"Will load additional {len(load_files)}, creating jobs")
@@ -259,7 +270,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         return started_jobs
 
-    def retrieve_jobs(self, load_id: str, schema: Schema) -> List[LoadJob]:
+    def resume_started_jobs(self, load_id: str, schema: Schema) -> List[LoadJob]:
         """
         will check jobs in the started folder and resume them
         """
@@ -507,7 +518,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.load_storage.commit_schema_update(load_id, applied_update)
 
             # collect all unfinished jobs
-            running_jobs: List[LoadJob] = self.retrieve_jobs(load_id, schema)
+            running_jobs: List[LoadJob] = self.resume_started_jobs(load_id, schema)
 
         # loop until all jobs are processed
         pending_exception: Optional[Exception] = None
@@ -540,9 +551,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 # the package is completed and skipped
                 self.complete_package(load_id, schema, True)
                 raise
-            finally:
-                # always update loadpackage info
-                self.update_loadpackage_info(load_id)
+
+        # always update loadpackage info after loop exit
+        self.update_loadpackage_info(load_id)
 
         # complete the package if no new or started jobs present after loop exit
         if (

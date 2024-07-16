@@ -89,13 +89,15 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         super().__init__(job_client, file_path)
-        self._sql_client = job_client.sql_client
         self._keep_staged_files = keep_staged_files
         self._staging_credentials = staging_credentials
         self._config = config
         self._stage_name = stage_name
+        self._job_client: "SnowflakeClient" = job_client
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+
         # resolve reference
         is_local_file = not ReferenceFollowupJob.is_reference_job(self._file_path)
         file_url = (

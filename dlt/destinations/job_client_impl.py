@@ -73,9 +73,10 @@ class SqlLoadJob(RunnableLoadJob):
 
     def __init__(self, job_client: "SqlJobClientBase", file_path: str) -> None:
         super().__init__(job_client, file_path)
-        self._sql_client = job_client.sql_client
+        self._job_client: "SqlJobClientBase" = job_client
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
         # execute immediately if client present
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
             sql = f.read()
@@ -111,12 +112,12 @@ class SqlLoadJob(RunnableLoadJob):
 class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        client: "SqlJobClientBase",
+        job_client: "SqlJobClientBase",
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(client, file_path)
-        self._sql_client = client.sql_client
+        super().__init__(job_client, file_path)
+        self._job_client: "SqlJobClientBase" = job_client
         self._staging_credentials = staging_credentials
         self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
 

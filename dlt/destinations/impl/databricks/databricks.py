@@ -113,9 +113,11 @@ class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     ) -> None:
         super().__init__(job_client, file_path)
         self._staging_config = staging_config
-        self._sql_client = job_client.sql_client
+        self._job_client: "DatabricksClient" = job_client
 
     def run(self) -> None:
+        self._sql_client = self._job_client.sql_client
+
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         staging_credentials = self._staging_config.credentials
         # extract and prepare some vars
