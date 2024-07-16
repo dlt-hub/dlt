@@ -254,9 +254,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # get a list of jobs eligible to be started
         load_files = filter_new_jobs(
             self.load_storage.list_new_jobs(load_id),
-            self.destination.capabilities(
-                self.destination.configuration(self.initial_client_config)
-            ),
+            caps,
             self.config,
             running_jobs,
             available_slots,
@@ -552,15 +550,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self.complete_package(load_id, schema, True)
                 raise
 
-        # always update loadpackage info after loop exit
-        self.update_loadpackage_info(load_id)
-
-        # complete the package if no new or started jobs present after loop exit
-        if (
-            len(self.load_storage.list_new_jobs(load_id)) == 0
-            and len(self.load_storage.normalized_packages.list_started_jobs(load_id)) == 0
-        ):
-            self.complete_package(load_id, schema, False)
+        # no new jobs, load package done
+        self.complete_package(load_id, schema, False)
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
