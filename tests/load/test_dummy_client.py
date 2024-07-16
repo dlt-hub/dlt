@@ -1,6 +1,6 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep
+from time import sleep, time
 from unittest import mock
 import pytest
 from unittest.mock import patch
@@ -107,15 +107,24 @@ def test_unsupported_write_disposition() -> None:
 
 
 def test_big_loadpackages() -> None:
-    import time
+    """
+    This test guards against changes in the load that exponentially makes the loads slower
+    """
 
-    start_time = time.time()
     load = setup_loader()
     load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
-    print("start" + str(time.time() - start_time))
+    start_time = time()
     with ThreadPoolExecutor(max_workers=20) as pool:
         load.run(pool)
-    print("done" + str(time.time() - start_time))
+    duration = float(time() - start_time)
+
+    # sanity check
+    assert duration > 5
+
+    # we want 1000 empty processed jobs to need less than 15 seconds total (locally it runs in 10)
+    assert duration < 15
+
+    # we should have 1000 jobs processed
     assert len(dummy_impl.JOBS) == 1000
 
 
