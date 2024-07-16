@@ -22,4 +22,10 @@ loader_file_format="{props.file_type}"
 export NORMALIZE__LOADER_FILE_FORMAT="{props.file_type}"
 </pre>
 
-4. You can set the file type directly in [the resource definition](../../general-usage/resource#pick-loader-file-format-for-a-particular-resource).
+4. You can set the file type directly in [the resource decorator](../../general-usage/resource#pick-loader-file-format-for-a-particular-resource).
+
+<pre language="py">
+@dlt.resource(file_format="{props.file_type}"){'\n'}
+def generate_rows(nr):{'\n'}
+&nbsp;&nbsp;&nbsp;&nbsp;pass
+</pre>
