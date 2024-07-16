@@ -1760,7 +1760,6 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data is False
     # partial load
     os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["FAIL_IN_INIT"] = "False"
     os.environ["TIMEOUT"] = "1.0"
     # will make job go into retry state
     with pytest.raises(PipelineStepFailed):

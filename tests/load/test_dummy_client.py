@@ -198,11 +198,10 @@ def test_spool_job_failed() -> None:
     assert len(package_info.jobs["failed_jobs"]) == 2
 
 
-def test_spool_job_failed_exception_init() -> None:
+def test_spool_job_failed_terminally_exception_init() -> None:
     # this config fails job on start
     os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
-    os.environ["FAIL_IN_INIT"] = "true"
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0, fail_in_init=True))
+    load = setup_loader(client_config=DummyClientConfiguration(fail_terminally_in_init=True))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
         with pytest.raises(LoadClientJobFailed) as py_ex:
@@ -217,11 +216,30 @@ def test_spool_job_failed_exception_init() -> None:
         complete_load.assert_not_called()
 
 
+def test_spool_job_failed_transiently_exception_init() -> None:
+    # this config fails job on start
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    load = setup_loader(client_config=DummyClientConfiguration(fail_transiently_in_init=True))
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
+        with pytest.raises(LoadClientJobRetry) as py_ex:
+            run_all(load)
+        assert py_ex.value.load_id == load_id
+        package_info = load.load_storage.get_load_package_info(load_id)
+        assert package_info.state == "normalized"
+        # both failed - we wait till the current loop is completed and then raise
+        assert len(package_info.jobs["failed_jobs"]) == 0
+        assert len(package_info.jobs["started_jobs"]) == 0
+        assert len(package_info.jobs["new_jobs"]) == 2
+
+        # load id was never committed
+        complete_load.assert_not_called()
+
+
 def test_spool_job_failed_exception_complete() -> None:
     # this config fails job on start
     os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
-    os.environ["FAIL_IN_INIT"] = "false"
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0, fail_in_init=False))
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
         run_all(load)
@@ -380,13 +398,10 @@ def test_failed_loop() -> None:
 def test_failed_loop_followup_jobs() -> None:
     # TODO: until we fix how we create capabilities we must set env
     os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
-    os.environ["FAIL_IN_INIT"] = "false"
     # ask to delete completed
     load = setup_loader(
         delete_completed_jobs=True,
-        client_config=DummyClientConfiguration(
-            fail_prob=1.0, fail_in_init=False, create_followup_jobs=True
-        ),
+        client_config=DummyClientConfiguration(fail_prob=1.0, create_followup_jobs=True),
     )
     # actually not deleted because one of the jobs failed
     assert_complete_job(load, should_delete_completed=False)

@@ -50,20 +50,18 @@ class LoadDummyBaseJob(RunnableLoadJob):
         self.start_time: float = pendulum.now().timestamp()
         super().__init__(job_client, file_name)
 
-        if self.config.fail_in_init:
-            s = self.state()
-            if s == "failed":
-                raise DestinationTerminalException(self._exception)
-            if s == "retry":
-                raise DestinationTransientException(self._exception)
+        if self.config.fail_terminally_in_init:
+            raise DestinationTerminalException(self._exception)
+        if self.config.fail_transiently_in_init:
+            raise Exception(self._exception)
 
     def run(self) -> None:
         # time.sleep(0.1)
         # this should poll the server for a job status, here we simulate various outcomes
         c_r = random.random()
         if self.config.exception_prob >= c_r:
-            # this will make the job go to a retry state
-            raise DestinationTransientException("Dummy job status raised exception")
+            # this will make the job go to a retry state with a generic exception
+            raise Exception("Dummy job status raised exception")
         n = pendulum.now().timestamp()
         if n - self.start_time > self.config.timeout:
             # this will make the the job go to a failed state

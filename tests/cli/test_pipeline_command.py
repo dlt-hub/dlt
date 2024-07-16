@@ -205,7 +205,6 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
 
     # now run the pipeline
     os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["FAIL_IN_INIT"] = "False"
     os.environ["TIMEOUT"] = "1.0"
 
     venv = Venv.restore_current()
