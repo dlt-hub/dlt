@@ -250,7 +250,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         file_path,
                         self.config,  # type: ignore
                         destination_state(),
-                        functools.partial(_streaming_load, self.sql_client),
+                        functools.partial(_streaming_load, self),
                         [],
                     )
                 else:
@@ -502,7 +502,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
 
 def _streaming_load(
-    sql_client: SqlClientBase[BigQueryClient], items: List[Dict[Any, Any]], table: Dict[str, Any]
+    job_client: BigQueryClient, items: List[Dict[Any, Any]], table: Dict[str, Any]
 ) -> None:
     """
     Upload the given items into BigQuery table, using streaming API.
@@ -528,6 +528,8 @@ def _streaming_load(
         """
         reason = exc.errors[0]["reason"]
         return reason in _RETRYABLE_REASONS
+
+    sql_client = job_client.sql_client
 
     full_name = sql_client.make_qualified_table_name(table["name"], escape=False)
 
