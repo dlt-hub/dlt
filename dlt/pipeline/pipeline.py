@@ -28,6 +28,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingException,
     ContextDefaultCannotBeCreated,
+    ConfigurationValueError,
 )
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.exceptions import (
@@ -1421,6 +1422,10 @@ class Pipeline(SupportsPipeline):
             else:
                 new_dataset_name += self._pipeline_instance_id
         self.dataset_name = new_dataset_name
+
+        # normalizes the dataset name using the dataset_name_layout
+        if self.config.dataset_name_layout:
+            self.dataset_name = self.config.dataset_name_layout % self.dataset_name
 
     def _set_default_schema_name(self, schema: Schema) -> None:
         assert self.default_schema_name is None
