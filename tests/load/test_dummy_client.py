@@ -359,25 +359,8 @@ def test_completed_loop_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
 
 
-def test_job_initiatlization_exceptions() -> None:
-    """TODO: test that the loader reacts correctly if a job can not be initialized"""
-    pass
-
-
 def test_table_chain_followup_jobs() -> None:
     """TODO: Test that the right table chain followup jobs are created in the right moment"""
-    pass
-
-
-def test_runnable_job_run_exceptions() -> None:
-    """TODO: Implement a couple of runnable jobs with different errors (or no errors) in
-    the run method and check that the state changes accordingly"""
-    pass
-
-
-def test_restore_job() -> None:
-    """TODO: Test that the restore flag is set to true if the job get's restarted because it was found
-    in the started_jobs folder"""
     pass
 
 

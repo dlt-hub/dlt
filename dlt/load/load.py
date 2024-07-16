@@ -310,7 +310,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 top_job_table = get_top_level_table(
                     schema.tables, starting_job.job_file_info().table_name
                 )
-                # if all tables of chain completed, create follow  up jobs
+                # if all tables of chain completed, create follow up jobs
                 all_jobs_states = self.load_storage.normalized_packages.list_all_jobs_with_states(
                     load_id
                 )
