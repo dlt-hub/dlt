@@ -474,7 +474,11 @@ class Pipeline(SupportsPipeline):
 
         # verify merge strategy
         for table in self.default_schema.data_tables(include_incomplete=True):
-            if "x-merge-strategy" in table and table["x-merge-strategy"] not in caps.supported_merge_strategies:  # type: ignore[typeddict-item]
+            if (
+                "x-merge-strategy" in table
+                and caps.supported_merge_strategies is not None
+                and table["x-merge-strategy"] not in caps.supported_merge_strategies  # type: ignore[typeddict-item]
+            ):
                 if self.destination.destination_name in ("filesystem", "weaviate") and table["x-merge-strategy"] == "delete-insert":  # type: ignore[typeddict-item]
                     # temp solution to prevent raising exceptions for
                     # `fileystem` and `weaviate`, which do handle the `merge` write
