@@ -215,6 +215,9 @@ def source(
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
+                for resource in s._resources.values():
+                    if resource.max_table_nesting is None:
+                        resource.max_table_nesting = max_table_nesting
             s.schema_contract = schema_contract
             # enable root propagation
             s.root_key = root_key

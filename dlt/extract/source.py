@@ -2,7 +2,7 @@ import contextlib
 from copy import copy
 import makefun
 import inspect
-from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any
+from typing import Dict, Iterable, Iterator, List, Sequence, Tuple, Any, Optional
 from typing_extensions import Self
 
 from dlt.common.configuration.resolve import inject_section
@@ -222,17 +222,13 @@ class DltSource(Iterable[TDataItem]):
         return RelationalNormalizer.get_normalizer_config(self._schema).get("max_nesting")
 
     @max_table_nesting.setter
-    def max_table_nesting(self, value: int) -> None:
+    def max_table_nesting(self, value: Optional[int]) -> None:
         if value is None:
             # this also check the normalizer type
             config = RelationalNormalizer.get_normalizer_config(self._schema)
             config.pop("max_nesting", None)
         else:
             RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
-
-        # Update max_table_nesting in all resources
-        for resource in self._resources.values():
-            resource.max_table_nesting = value
 
     @property
     def root_key(self) -> bool:
