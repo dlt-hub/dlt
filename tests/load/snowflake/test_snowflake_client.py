@@ -29,12 +29,12 @@ QUERY_TAGS_DICT: TJobQueryTags = {
 
 @pytest.fixture(scope="function")
 def client() -> Iterator[SqlJobClientBase]:
-    os.environ["CREDENTIALS__QUERY_TAG"] = QUERY_TAG
+    os.environ["QUERY_TAG"] = QUERY_TAG
     yield from yield_client_with_storage("snowflake")
 
 
 def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):
-    assert client.config.credentials.query_tag == QUERY_TAG
+    assert client.config.query_tag == QUERY_TAG
     # make sure we generate proper query
     execute_sql_spy = mocker.spy(client.sql_client, "execute_sql")
     # reset the query if tags are not set
@@ -53,7 +53,7 @@ def test_query_tag(client: SnowflakeClient, mocker: MockerFixture):
         )
     )
     # remove query tag from config
-    client.sql_client.credentials.query_tag = None
+    client.sql_client.query_tag = None
     execute_sql_spy.reset_mock()
     client.sql_client.set_query_tags(QUERY_TAGS_DICT)
     execute_sql_spy.assert_not_called
