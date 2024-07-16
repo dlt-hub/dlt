@@ -32,6 +32,10 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             preferred_loader_file_format="jsonl",
             loader_file_format_adapter=loader_file_format_adapter,
             supported_table_formats=["delta"],
+            # TODO: make `supported_merge_strategies` depend on configured
+            # `table_format` (perhaps with adapter similar to how we handle
+            # loader file format)
+            supported_merge_strategies=["upsert"],
         )
 
     @property
