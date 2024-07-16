@@ -585,49 +585,14 @@ def test_remove_internal_tables_and_columns(loader_file_format, remove_stuff) ->
     assert found_dlt_column_value != remove_stuff
 
 
-@pytest.mark.parametrize("nesting", [None, 0, 1, 3])
-def test_max_nesting_level(nesting: int) -> None:
-    # 4 nesting levels
-    data = [
-        {
-            "level": 1,
-            "children": [{"level": 2, "children": [{"level": 3, "children": [{"level": 4}]}]}],
-        }
-    ]
-
-    found_tables = set()
-
-    @dlt.destination(loader_file_format="typed-jsonl", max_table_nesting=nesting)
-    def nesting_sink(items, table):
-        nonlocal found_tables
-        found_tables.add(table["name"])
-
-    @dlt.source(max_table_nesting=2)
-    def source():
-        yield dlt.resource(data, name="data")
-
-    p = dlt.pipeline("sink_test_max_nesting", destination=nesting_sink, dev_mode=True)
-    p.run(source())
-
-    # fall back to source setting
-    if nesting is None:
-        assert len(found_tables) == 3
-    else:
-        # use destination setting
-        assert len(found_tables) == nesting + 1
-
-    for table in found_tables:
-        assert table.startswith("data")
-
-
-@pytest.mark.parametrize("nesting_level", [None, 0, 1, 3, 4, 5])
-def test_max_table_nesting(nesting_level: int) -> None:
-    
-    # source 
+@pytest.mark.parametrize("nesting_level", [None, 0, 1, 2, 3, 4, 5])
+def test_max_nesting_level(nesting_level: int) -> None:
+    # source
     max_source_nesting = 3
+
     @dlt.source(max_table_nesting=nesting_level)
     def nesting_source():
-        # Data with 4 nesting levels 
+        # Data with 4 nesting levels
         # Table names: table_1, table_1_children, table_1_children_children, table_children_children_children
         data = [
             {
@@ -639,6 +604,7 @@ def test_max_table_nesting(nesting_level: int) -> None:
 
     # destination
     found_tables = set()
+
     @dlt.destination(loader_file_format="typed-jsonl", max_table_nesting=nesting_level)
     def nesting_sink(items, table):
         nonlocal found_tables
@@ -666,7 +632,7 @@ def test_max_table_nesting(nesting_level: int) -> None:
         assert table.startswith("table_1")
 
     # check resource parameter max_table_nexting
-    resource = nesting_source().resources["nest_source"]
-    assert resource.max_table_nesting  == nesting_level
-    # assert nesting_source().selected_resources.get("nest_source").max_table_nesting == nesting_level
-    # assert nesting_source().with_resources("nest_source").max_table_nesting  == nesting_level
+
+    assert nesting_source().resources["nest_source"].max_table_nesting == nesting_level
+    assert nesting_source().selected_resources.get("nest_source").max_table_nesting == nesting_level
+    assert nesting_source().with_resources("nest_source").max_table_nesting == nesting_level

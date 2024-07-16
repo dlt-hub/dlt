@@ -230,6 +230,10 @@ class DltSource(Iterable[TDataItem]):
         else:
             RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
 
+        # Update max_table_nesting in all resources
+        for resource in self._resources.values():
+            resource.max_table_nesting = value
+
     @property
     def root_key(self) -> bool:
         """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
