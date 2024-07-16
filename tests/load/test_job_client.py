@@ -707,7 +707,7 @@ def test_write_dispositions(
 @pytest.mark.parametrize(
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
-def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
+def test_get_resumed_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     user_table_name = prepare_table(client)
@@ -719,12 +719,17 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     }
     with io.BytesIO() as f:
         write_dataset(client, f, [load_json], client.schema.get_table(user_table_name)["columns"])
-        # dataset = f.getvalue().decode()
-    # job = expect_load_file(client, file_storage, dataset, user_table_name)
+        dataset = f.getvalue().decode()
+    job = expect_load_file(client, file_storage, dataset, user_table_name)
     # now try to retrieve the job
     # TODO: we should re-create client instance as this call is intended to be run after some disruption ie. stopped loader process
-    # r_job = client.restore_file_load(file_storage.make_full_path(job.file_name()))
-    # assert r_job.state() == "completed"
+    r_job = client.get_load_job(
+        client.schema.get_table(user_table_name),
+        file_storage.make_full_path(job.file_name()),
+        uniq_id(),
+        restore=True,
+    )
+    assert r_job.state() == "ready"
 
 
 @pytest.mark.parametrize(
