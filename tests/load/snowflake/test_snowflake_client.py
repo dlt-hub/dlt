@@ -3,7 +3,6 @@ from typing import Iterator
 from pytest_mock import MockerFixture
 import pytest
 
-from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 

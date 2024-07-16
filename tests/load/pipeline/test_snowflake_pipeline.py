@@ -7,7 +7,6 @@ import dlt
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 
-from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -24,7 +23,8 @@ pytestmark = pytest.mark.essential
 def test_snowflake_case_sensitive_identifiers(
     destination_config: DestinationTestConfiguration, mocker: MockerFixture
 ) -> None:
-    # enable query tagging
+    from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
+
     snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
     # we make sure that session was not tagged (lack of query tag in config)
     tag_query_spy = mocker.spy(SnowflakeSqlClient, "_tag_session")
@@ -71,6 +71,8 @@ def test_snowflake_case_sensitive_identifiers(
 def test_snowflake_query_tagging(
     destination_config: DestinationTestConfiguration, mocker: MockerFixture
 ):
+    from dlt.destinations.impl.snowflake.sql_client import SnowflakeSqlClient
+
     os.environ["DESTINATION__SNOWFLAKE__QUERY_TAG"] = QUERY_TAG
     tag_query_spy = mocker.spy(SnowflakeSqlClient, "_tag_session")
     pipeline = destination_config.setup_pipeline("test_snowflake_case_sensitive_identifiers")
