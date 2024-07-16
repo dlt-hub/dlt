@@ -81,19 +81,18 @@ class SnowflakeTypeMapper(TypeMapper):
 class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        job_client: "SnowflakeClient",
         file_path: str,
         config: SnowflakeClientConfiguration,
         stage_name: Optional[str] = None,
         keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(job_client, file_path)
+        super().__init__(file_path)
         self._keep_staged_files = keep_staged_files
         self._staging_credentials = staging_credentials
         self._config = config
         self._stage_name = stage_name
-        self._job_client: "SnowflakeClient" = job_client
+        self._job_client: "SnowflakeClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -278,7 +277,6 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not job:
             job = SnowflakeLoadJob(
-                self,
                 file_path,
                 self.config,
                 stage_name=self.config.stage_name,

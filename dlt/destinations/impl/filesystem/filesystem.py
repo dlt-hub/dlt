@@ -47,16 +47,16 @@ FILENAME_SEPARATOR = "__"
 class FilesystemLoadJob(RunnableLoadJob):
     def __init__(
         self,
-        job_client: "FilesystemClient",
         file_path: str,
     ) -> None:
-        self._job_client: FilesystemClient = job_client
-        self.is_local_filesystem = job_client.config.protocol == "file"
-        # pick local filesystem pathlib or posix for buckets
-        self.pathlib = os.path if self.is_local_filesystem else posixpath
-        super().__init__(job_client, file_path)
+        super().__init__(file_path)
+        self._job_client: FilesystemClient = None
 
     def run(self) -> None:
+        # pick local filesystem pathlib or posix for buckets
+        self.is_local_filesystem = self._job_client.config.protocol == "file"
+        self.pathlib = os.path if self.is_local_filesystem else posixpath
+
         self.destination_file_name = path_utils.create_path(
             self._job_client.config.layout,
             self._file_name,
@@ -87,9 +87,8 @@ class FilesystemLoadJob(RunnableLoadJob):
 
 
 class DeltaLoadFilesystemJob(FilesystemLoadJob):
-    def __init__(self, job_client: "FilesystemClient", file_path: str) -> None:
+    def __init__(self, file_path: str) -> None:
         super().__init__(
-            job_client=job_client,
             file_path=file_path,
         )
 
@@ -310,12 +309,12 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
             # a reference job for a delta table indicates a table chain followup job
             if ReferenceFollowupJob.is_reference_job(file_path, "delta"):
-                return DeltaLoadFilesystemJob(self, file_path)
+                return DeltaLoadFilesystemJob(file_path)
             # otherwise just continue
-            return FilesystemLoadJobWithFollowup(self, file_path)
+            return FilesystemLoadJobWithFollowup(file_path)
 
         cls = FilesystemLoadJobWithFollowup if self.config.as_staging else FilesystemLoadJob
-        return cls(self, file_path)
+        return cls(file_path)
 
     def make_remote_uri(self, remote_path: str) -> str:
         """Returns uri to the remote filesystem to which copy the file"""

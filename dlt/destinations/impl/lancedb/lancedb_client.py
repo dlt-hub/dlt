@@ -690,8 +690,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def get_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return LoadLanceDBJob(
-            self,
+        return LanceDBLoadJob(
             file_path=file_path,
             type_mapper=self.type_mapper,
             model_func=self.model_func,
@@ -702,27 +701,28 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
 
-class LoadLanceDBJob(RunnableLoadJob):
+class LanceDBLoadJob(RunnableLoadJob):
     arrow_schema: TArrowSchema
 
     def __init__(
         self,
-        job_client: LanceDBClient,
         file_path: str,
         type_mapper: LanceDBTypeMapper,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
     ) -> None:
-        super().__init__(job_client, file_path)
-        self._db_client: DBConnection = job_client.db_client
+        super().__init__(file_path)
         self._type_mapper: TypeMapper = type_mapper
         self._fq_table_name: str = fq_table_name
-
-        self._embedding_model_func: TextEmbeddingFunction = model_func
-        self._embedding_model_dimensions: int = job_client.config.embedding_model_dimensions
-        self._id_field_name: str = job_client.config.id_field_name
+        self._model_func = model_func
+        self._job_client: "LanceDBClient" = None
 
     def run(self) -> None:
+        self._db_client: DBConnection = self._job_client.db_client
+        self._embedding_model_func: TextEmbeddingFunction = self._model_func
+        self._embedding_model_dimensions: int = self._job_client.config.embedding_model_dimensions
+        self._id_field_name: str = self._job_client.config.id_field_name
+
         unique_identifiers: Sequence[str] = list_merge_identifiers(self._load_table)
         write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self._load_table.get("write_disposition", "append")

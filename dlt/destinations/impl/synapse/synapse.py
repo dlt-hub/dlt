@@ -167,7 +167,6 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
                 file_path
             ), "Synapse must use staging to load files"
             job = SynapseCopyFileLoadJob(
-                self,
                 file_path,
                 self.config.staging_config.credentials,  # type: ignore[arg-type]
                 self.config.staging_use_msi,
@@ -178,7 +177,6 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
 class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
-        client: SqlJobClientBase,
         file_path: str,
         staging_credentials: Optional[
             Union[AzureCredentialsWithoutDefaults, AzureServicePrincipalCredentialsWithoutDefaults]
@@ -186,7 +184,7 @@ class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
         staging_use_msi: bool = False,
     ) -> None:
         self.staging_use_msi = staging_use_msi
-        super().__init__(client, file_path, staging_credentials)
+        super().__init__(file_path, staging_credentials)
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client

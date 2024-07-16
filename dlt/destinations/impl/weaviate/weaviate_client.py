@@ -152,18 +152,16 @@ def wrap_grpc_error(f: TFun) -> TFun:
 class LoadWeaviateJob(RunnableLoadJob):
     def __init__(
         self,
-        job_client: "WeaviateClient",
         file_path: str,
-        client_config: WeaviateClientConfiguration,
         class_name: str,
     ) -> None:
-        super().__init__(job_client, file_path)
-        self._job_client: WeaviateClient = job_client
-        self._client_config = client_config
+        super().__init__(file_path)
+        self._job_client: WeaviateClient = None
         self._class_name = class_name
 
     def run(self) -> None:
         self._db_client = self._job_client.db_client
+        self._client_config = self._job_client.config
         self.unique_identifiers = self.list_unique_identifiers(self._load_table)
         self.complex_indices = [
             i
@@ -680,9 +678,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return LoadWeaviateJob(
-            self,
             file_path,
-            client_config=self.config,
             class_name=self.make_qualified_class_name(table["name"]),
         )
 

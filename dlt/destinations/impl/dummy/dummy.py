@@ -43,12 +43,10 @@ from dlt.destinations.job_impl import ReferenceFollowupJob
 
 
 class LoadDummyBaseJob(RunnableLoadJob):
-    def __init__(
-        self, job_client: "DummyClient", file_name: str, config: DummyClientConfiguration
-    ) -> None:
+    def __init__(self, file_name: str, config: DummyClientConfiguration) -> None:
+        super().__init__(file_name)
         self.config = copy(config)
         self.start_time: float = pendulum.now().timestamp()
-        super().__init__(job_client, file_name)
 
         if self.config.fail_terminally_in_init:
             raise DestinationTerminalException(self._exception)
@@ -185,6 +183,6 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
 
     def _create_job(self, job_id: str) -> LoadDummyBaseJob:
         if ReferenceFollowupJob.is_reference_job(job_id):
-            return LoadDummyBaseJob(self, job_id, config=self.config)
+            return LoadDummyBaseJob(job_id, config=self.config)
         else:
-            return LoadDummyJob(self, job_id, config=self.config)
+            return LoadDummyJob(job_id, config=self.config)

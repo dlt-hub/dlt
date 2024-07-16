@@ -73,7 +73,6 @@ class DestinationClient(JobClientBase):
         load_state = destination_state()
         if file_path.endswith("parquet"):
             return DestinationParquetLoadJob(
-                self,
                 file_path,
                 self.config,
                 load_state,
@@ -82,7 +81,6 @@ class DestinationClient(JobClientBase):
             )
         if file_path.endswith("jsonl"):
             return DestinationJsonlLoadJob(
-                self,
                 file_path,
                 self.config,
                 load_state,

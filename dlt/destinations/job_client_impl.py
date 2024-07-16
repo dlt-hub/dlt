@@ -71,9 +71,9 @@ DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
 class SqlLoadJob(RunnableLoadJob):
     """A job executing sql statement, without followup trait"""
 
-    def __init__(self, job_client: "SqlJobClientBase", file_path: str) -> None:
-        super().__init__(job_client, file_path)
-        self._job_client: "SqlJobClientBase" = job_client
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -112,12 +112,11 @@ class SqlLoadJob(RunnableLoadJob):
 class CopyRemoteFileLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        job_client: "SqlJobClientBase",
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(job_client, file_path)
-        self._job_client: "SqlJobClientBase" = job_client
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
         self._staging_credentials = staging_credentials
         self._bucket_path = ReferenceFollowupJob.resolve_reference(file_path)
 
@@ -259,8 +258,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
 
         if SqlLoadJob.is_sql_job(file_path):
-            # execute sql load job
-            return SqlLoadJob(self, file_path)
+            # create sql load job
+            return SqlLoadJob(file_path)
         return None
 
     def complete_load(self, load_id: str) -> None:

@@ -13,9 +13,9 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging, SqlJobClie
 
 
 class InsertValuesLoadJob(RunnableLoadJob, HasFollowupJobs):
-    def __init__(self, job_client: SqlJobClientBase, file_path: str) -> None:
-        super().__init__(job_client, file_path)
-        self._job_client: "SqlJobClientBase" = job_client
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "SqlJobClientBase" = None
 
     def run(self) -> None:
         # insert file content immediately
@@ -104,5 +104,5 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
         if not job:
             # this is using sql_client internally and will raise a right exception
             if file_path.endswith("insert_values"):
-                job = InsertValuesLoadJob(self, file_path)
+                job = InsertValuesLoadJob(file_path)
         return job

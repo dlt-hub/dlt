@@ -114,9 +114,9 @@ class DuckDbTypeMapper(TypeMapper):
 
 
 class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
-    def __init__(self, job_client: "DuckDbClient", file_path: str) -> None:
-        super().__init__(job_client, file_path)
-        self._job_client: "DuckDbClient" = job_client
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: "DuckDbClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -171,7 +171,7 @@ class DuckDbClient(InsertValuesJobClient):
     ) -> LoadJob:
         job = super().get_load_job(table, file_path, load_id, restore)
         if not job:
-            job = DuckDbCopyJob(self, file_path)
+            job = DuckDbCopyJob(file_path)
         return job
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

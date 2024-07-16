@@ -107,14 +107,13 @@ class ReferenceFollowupJob(FollowupJobImpl):
 class DestinationLoadJob(RunnableLoadJob, ABC):
     def __init__(
         self,
-        job_client: JobClientBase,
         file_path: str,
         config: CustomDestinationClientConfiguration,
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
         skipped_columns: List[str],
     ) -> None:
-        super().__init__(job_client, file_path)
+        super().__init__(file_path)
         self._config = config
         self._callable = destination_callable
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"

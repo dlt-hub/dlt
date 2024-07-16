@@ -109,16 +109,15 @@ class BigQueryTypeMapper(TypeMapper):
 class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        job_client: "BigQueryClient",
         file_path: str,
         http_timeout: float,
         retry_deadline: float,
     ) -> None:
+        super().__init__(file_path)
         self._default_retry = bigquery.DEFAULT_RETRY.with_deadline(retry_deadline)
         self._http_timeout = http_timeout
-        self._job_client: "BigQueryClient" = job_client
+        self._job_client: "BigQueryClient" = None
         self._bq_load_job: bigquery.LoadJob = None
-        super().__init__(job_client, file_path)
         # vars only used for testing
         self._created_job = False
         self._resumed_job = False
@@ -248,7 +247,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         )
 
                     job = job_cls(
-                        self,
                         file_path,
                         self.config,  # type: ignore
                         destination_state(),
@@ -257,7 +255,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     )
                 else:
                     job = BigQueryLoadJob(
-                        self,
                         file_path,
                         self.config.http_timeout,
                         self.config.retry_deadline,

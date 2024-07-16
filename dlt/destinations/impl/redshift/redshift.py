@@ -124,13 +124,13 @@ class RedshiftSqlClient(Psycopg2SqlClient):
 class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
     def __init__(
         self,
-        client: "RedshiftClient",
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
     ) -> None:
+        super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
-        super().__init__(client, file_path, staging_credentials)
+        self._job_client: "RedshiftClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -262,7 +262,6 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
                 file_path
             ), "Redshift must use staging to load files"
             job = RedshiftCopyFileLoadJob(
-                self,
                 file_path,
                 staging_credentials=self.config.staging_config.credentials,
                 staging_iam_role=self.config.staging_iam_role,

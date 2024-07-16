@@ -87,13 +87,12 @@ class DremioMergeJob(SqlMergeFollowupJob):
 class DremioLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        job_client: "DremioClient",
         file_path: str,
         stage_name: Optional[str] = None,
     ) -> None:
-        super().__init__(job_client, file_path)
+        super().__init__(file_path)
         self._stage_name = stage_name
-        self._job_client: "DremioClient" = job_client
+        self._job_client: "DremioClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -160,7 +159,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not job:
             job = DremioLoadJob(
-                self,
                 file_path=file_path,
                 stage_name=self.config.staging_data_source,
             )

@@ -37,18 +37,17 @@ from qdrant_client.qdrant_fastembed import uuid
 from qdrant_client.http.exceptions import UnexpectedResponse
 
 
-class LoadQdrantJob(RunnableLoadJob):
+class QDrantLoadJob(RunnableLoadJob):
     def __init__(
         self,
-        job_client: "QdrantClient",
         file_path: str,
         client_config: QdrantClientConfiguration,
         collection_name: str,
     ) -> None:
-        super().__init__(job_client, file_path)
+        super().__init__(file_path)
         self._collection_name = collection_name
         self._config = client_config
-        self._job_client: "QdrantClient" = job_client
+        self._job_client: "QdrantClient" = None
 
     def run(self) -> None:
         embedding_fields = get_columns_names_with_prop(self._load_table, VECTORIZE_HINT)
@@ -443,8 +442,7 @@ class QdrantClient(JobClientBase, WithStateSync):
     def get_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return LoadQdrantJob(
-            self,
+        return QDrantLoadJob(
             file_path,
             client_config=self.config,
             collection_name=self._make_qualified_collection_name(table["name"]),

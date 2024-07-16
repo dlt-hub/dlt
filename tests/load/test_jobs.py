@@ -13,13 +13,13 @@ def test_instantiate_job() -> None:
         def run(self) -> None:
             pass
 
-    j = SomeJob(None, file_path)
+    j = SomeJob(file_path)
     assert j._file_name == file_name
     assert j._file_path == file_path
 
     # providing only a filename is not allowed
     with pytest.raises(AssertionError):
-        SomeJob(None, file_name)
+        SomeJob(file_name)
 
 
 def test_runnable_job_results() -> None:
@@ -29,7 +29,7 @@ def test_runnable_job_results() -> None:
         def run(self) -> None:
             5 + 5
 
-    j: RunnableLoadJob = SuccessfulJob(None, file_path)
+    j: RunnableLoadJob = SuccessfulJob(file_path)
     assert j.state() == "ready"
     j.run_managed(None)
     assert j.state() == "completed"
@@ -38,7 +38,7 @@ def test_runnable_job_results() -> None:
         def run(self) -> None:
             raise Exception("Oh no!")
 
-    j = RandomExceptionJob(None, file_path)
+    j = RandomExceptionJob(file_path)
     assert j.state() == "ready"
     j.run_managed(None)
     assert j.state() == "retry"
@@ -48,7 +48,7 @@ def test_runnable_job_results() -> None:
         def run(self) -> None:
             raise DestinationTerminalException("Oh no!")
 
-    j = TerminalJob(None, file_path)
+    j = TerminalJob(file_path)
     assert j.state() == "ready"
     j.run_managed(None)
     assert j.state() == "failed"

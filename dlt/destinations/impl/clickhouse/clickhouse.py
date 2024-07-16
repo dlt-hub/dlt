@@ -127,12 +127,11 @@ class ClickHouseTypeMapper(TypeMapper):
 class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        job_client: "ClickHouseClient",
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
-        super().__init__(job_client, file_path)
-        self._job_client: "ClickHouseClient" = job_client
+        super().__init__(file_path)
+        self._job_client: "ClickHouseClient" = None
         self._staging_credentials = staging_credentials
 
     def run(self) -> None:
@@ -320,7 +319,6 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         return super().get_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
-            self,
             file_path,
             staging_credentials=(
                 self.config.staging_config.credentials if self.config.staging_config else None

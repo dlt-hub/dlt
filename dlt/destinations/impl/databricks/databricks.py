@@ -107,13 +107,12 @@ class DatabricksTypeMapper(TypeMapper):
 class DatabricksLoadJob(RunnableLoadJob, HasFollowupJobs):
     def __init__(
         self,
-        job_client: "DatabricksClient",
         file_path: str,
         staging_config: FilesystemConfiguration,
     ) -> None:
-        super().__init__(job_client, file_path)
+        super().__init__(file_path)
         self._staging_config = staging_config
-        self._job_client: "DatabricksClient" = job_client
+        self._job_client: "DatabricksClient" = None
 
     def run(self) -> None:
         self._sql_client = self._job_client.sql_client
@@ -275,7 +274,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
         if not job:
             job = DatabricksLoadJob(
-                self,
                 file_path,
                 staging_config=cast(FilesystemConfiguration, self.config.staging_config),
             )
