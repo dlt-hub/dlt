@@ -127,7 +127,7 @@ Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to 
 If you want to skip default `dlt` JSON normalizer, you can use any available method to convert json documents into tabular data.
 * **pandas** has `read_json` and `json_normalize` methods
 * **pyarrow** can infer table schema and convert json files into tables with `read_json`
-* **duckdb** can do the same with `read_json`
+* **duckdb** can do the same with `read_json_auto`
 
 ```py
 import duckdb
@@ -136,7 +136,7 @@ conn = duckdb.connect()
 table = conn.execute(f"SELECT * FROM read_json_auto('{json_file_path}')").fetch_arrow_table()
 ```
 
-Note that **duckdb** and **pyarrow** methods will generate [nested types](#loading-nested-types) for nested data, which are only partially by `dlt`.
+Note that **duckdb** and **pyarrow** methods will generate [nested types](#loading-nested-types) for nested data, which are only partially supported by `dlt`.
 
 ## Supported Arrow data types
 
