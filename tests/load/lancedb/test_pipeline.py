@@ -16,7 +16,7 @@ from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
 
 
-# Mark all tests as essential, do not remove.
+# Mark all tests as essential, don't remove.
 pytestmark = pytest.mark.essential
 
 
@@ -426,10 +426,95 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
     assert pipe.dataset_name is None
-    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    info = pipe.run(
+        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
     assert client.sentinel_table == "dltSentinelTable"
     assert_table(pipe, "content", expected_items_count=3)
+
+
+docs = [
+    [
+        {
+            "text": "This is the first document. It contains some text that will be chunked and embedded. (I don't want "
+            "to be seen in updated run's embedding chunk texts btw)",
+            "id": 1,
+        },
+        {
+            "text": "Here's another document. It's a bit different from the first one.",
+            "id": 2,
+        },
+    ],
+    [
+        {
+            "text": "This is the first document, but it has been updated with new content.",
+            "id": 1,
+        },
+        {
+            "text": "This is a completely new document that wasn't in the initial set.",
+            "id": 3,
+        },
+    ],
+]
+
+
+def splitter(text: str, chunk_size: int = 10) -> List[str]:
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def test_chunking_no_splitter() -> None:
+    pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
+    info = pipe.run(
+        docs[0],
+        table_name="documents",
+    )
+    assert_load_info(info)
+
+    # TODO: Check and compare output
+
+
+def test_chunking_with_splitter() -> None:
+    pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
+
+    info = pipe.run(
+        lancedb_adapter(docs[0], embed="text", splitter=splitter),
+        table_name="documents",
+    )
+    assert_load_info(info)
+
+    # TODO: Check and compare output
+
+
+def test_chunk_merge() -> None:
+    """Test chunking is applied without orphaned chunks when new documents arrive."""
+
+    pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
+
+
+    info = pipe.run(
+        lancedb_adapter(docs[0], embed="text", splitter=splitter),
+        table_name="documents",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    pipe.run(info)
+
+    # Orphaned chunks must be discarded.
+    info = pipe.run(
+        lancedb_adapter(docs[1], embed="text", splitter=splitter),
+        table_name="documents",
+        write_disposition="merge",
+        primary_key="id",
+    )
+    assert_load_info(info)
+
+    # TODO: Check and compare output
+
+
+def test_embedding_provider_only_called_once_per_chunk_hash() -> None:
+    """Verify that the embedding provider is called only once for each unique chunk hash to optimize API usage and reduce costs."""
+    raise NotImplementedError
