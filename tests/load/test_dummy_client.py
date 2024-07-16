@@ -41,6 +41,8 @@ NORMALIZED_FILES = [
     "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl",
 ]
 
+SMALL_FILES = ["event_user.1234.0.jsonl", "event_loop_interrupted.1234.0.jsonl"]
+
 REMOTE_FILESYSTEM = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))
 
 
@@ -102,6 +104,19 @@ def test_unsupported_write_disposition() -> None:
         load_id, ParsedLoadJobFileName.parse(failed_job)
     )
     assert "LoadClientUnsupportedWriteDisposition" in failed_message
+
+
+def test_big_loadpackages() -> None:
+    import time
+
+    start_time = time.time()
+    load = setup_loader()
+    load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
+    print("start" + str(time.time() - start_time))
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        load.run(pool)
+    print("done" + str(time.time() - start_time))
+    assert len(dummy_impl.JOBS) == 1000
 
 
 def test_get_new_jobs_info() -> None:

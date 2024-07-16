@@ -770,18 +770,37 @@ def write_dataset(
 
 
 def prepare_load_package(
-    load_storage: LoadStorage, cases: Sequence[str], write_disposition: str = "append"
+    load_storage: LoadStorage,
+    cases: Sequence[str],
+    write_disposition: str = "append",
+    jobs_per_case: int = 1,
 ) -> Tuple[str, Schema]:
+    """
+    Create a load package with explicitely provided files
+    job_per_case multiplies the amount of load jobs, for big packages use small files
+    """
     load_id = uniq_id()
     load_storage.new_packages.create_package(load_id)
     for case in cases:
         path = f"./tests/load/cases/loading/{case}"
-        shutil.copy(
-            path,
-            load_storage.new_packages.storage.make_full_path(
+        for _ in range(jobs_per_case):
+            new_path = load_storage.new_packages.storage.make_full_path(
                 load_storage.new_packages.get_job_state_folder_path(load_id, "new_jobs")
-            ),
-        )
+            )
+            shutil.copy(
+                path,
+                new_path,
+            )
+            if jobs_per_case > 1:
+                parsed_name = ParsedLoadJobFileName.parse(case)
+                new_file_name = ParsedLoadJobFileName(
+                    parsed_name.table_name,
+                    ParsedLoadJobFileName.new_file_id(),
+                    0,
+                    parsed_name.file_format,
+                ).file_name()
+                shutil.move(new_path + "/" + case, new_path + "/" + new_file_name)
+
     schema_path = Path("./tests/load/cases/loading/schema.json")
     # load without migration
     data = json.loads(schema_path.read_text(encoding="utf8"))
