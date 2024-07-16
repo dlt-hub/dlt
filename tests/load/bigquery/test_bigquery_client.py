@@ -268,31 +268,6 @@ def test_bigquery_autodetect_configuration(client: BigQueryClient) -> None:
     assert client._should_autodetect_schema("event_slot__values") is True
 
 
-def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
-    # non existing job
-    with pytest.raises(LoadJobNotExistsException):
-        client.restore_file_load(f"{uniq_id()}.")
-
-    # bad name
-    with pytest.raises(LoadJobTerminalException):
-        client.restore_file_load("!!&*aaa")
-
-    user_table_name = prepare_table(client)
-
-    # start a job with non-existing file
-    with pytest.raises(FileNotFoundError):
-        client.start_file_load(
-            client.schema.get_table(user_table_name),
-            f"{uniq_id()}.",
-            uniq_id(),
-        )
-
-    # start a job with invalid name
-    dest_path = file_storage.save("!!aaaa", b"data")
-    with pytest.raises(LoadJobTerminalException):
-        client.start_file_load(client.schema.get_table(user_table_name), dest_path, uniq_id())
-
-
 def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
     load_json = {

@@ -193,7 +193,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
             compression = "none" if config.get("data_writer.disable_compression") else "gz"
 
         if bucket_scheme in ("s3", "gs", "gcs"):
-            if not isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+            if not isinstance(self._staging_credentials, AwsCredentialsWithoutDefaults):
                 raise LoadJobTerminalException(
                     self._file_path,
                     dedent(
@@ -206,10 +206,10 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 )
 
             bucket_http_url = convert_storage_to_http_scheme(
-                bucket_url, endpoint=staging_credentials.endpoint_url
+                bucket_url, endpoint=self._staging_credentials.endpoint_url
             )
-            access_key_id = staging_credentials.aws_access_key_id
-            secret_access_key = staging_credentials.aws_secret_access_key
+            access_key_id = self._staging_credentials.aws_access_key_id
+            secret_access_key = self._staging_credentials.aws_secret_access_key
             auth = "NOSIGN"
             if access_key_id and secret_access_key:
                 auth = f"'{access_key_id}','{secret_access_key}'"
