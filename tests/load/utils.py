@@ -527,7 +527,9 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if bucket_subset:
         destination_configs = [
-            conf for conf in destination_configs if conf.bucket_url in bucket_subset
+            conf
+            for conf in destination_configs
+            if conf.bucket_url is None or conf.bucket_url in bucket_subset
         ]
     if exclude:
         destination_configs = [
