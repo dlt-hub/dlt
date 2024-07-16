@@ -268,20 +268,22 @@ def filter_new_jobs(
 
     # we must ensure there only is one job per table
     if parallelism_strategy == "table-sequential":
-        # TODO: this whole code block may be quite inefficient for long lists of jobs
+        # TODO later: this whole code block is a bit inefficient for long lists of jobs
+        # better would be to keep a list of loadjobinfos in the loader which we can iterate
 
         # find table names of all currently running jobs
         running_tables = {j._parsed_file_name.table_name for j in running_jobs}
+        new_jobs: List[str] = []
 
-        eligible_jobs = sorted(
-            eligible_jobs, key=lambda j: ParsedLoadJobFileName.parse(j).table_name
-        )
-        eligible_jobs = [
-            next(table_jobs)
-            for table_name, table_jobs in groupby(
-                eligible_jobs, lambda j: ParsedLoadJobFileName.parse(j).table_name
-            )
-            if table_name not in running_tables
-        ]
+        for job in eligible_jobs:
+            if (table_name := ParsedLoadJobFileName.parse(job).table_name) not in running_tables:
+                running_tables.add(table_name)
+                new_jobs.append(job)
+            # exit loop if we have enough
+            if len(new_jobs) >= available_slots:
+                break
 
-    return eligible_jobs[:available_slots]
+        return new_jobs
+
+    else:
+        return eligible_jobs[:available_slots]
