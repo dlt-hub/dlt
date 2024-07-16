@@ -277,7 +277,7 @@ class DltSource(Iterable[TDataItem]):
 
     @property
     def exhausted(self) -> bool:
-        """check all selected pipes wether one of them has started. if so, the source is exhausted."""
+        """Check all selected pipes whether one of them has started. if so, the source is exhausted."""
         for resource in self._resources.extracted.values():
             item = resource._pipe.gen
             if inspect.isgenerator(item):
@@ -344,6 +344,10 @@ class DltSource(Iterable[TDataItem]):
 
         This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
         you'd need to wait hours for the full loading to complete.
+
+        Notes:
+            1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+            2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
 
         Args:
             max_items (int): The maximum number of items to yield
