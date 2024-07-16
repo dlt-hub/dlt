@@ -242,7 +242,7 @@ def get_available_worker_slots(
     if mp := capabilities.max_parallel_load_jobs:
         max_workers = min(max_workers, mp)
 
-    return max_workers - len(running_jobs)
+    return max(0, max_workers - len(running_jobs))
 
 
 def filter_new_jobs(

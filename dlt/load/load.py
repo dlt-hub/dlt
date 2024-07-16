@@ -249,7 +249,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # early exit if no slots available
         available_slots = get_available_worker_slots(self.config, caps, running_jobs)
         if available_slots <= 0:
-            return
+            return []
 
         # get a list of jobs eligible to be started
         load_files = filter_new_jobs(
