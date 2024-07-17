@@ -5,7 +5,7 @@ import os
 from typing import List
 from functools import reduce
 
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from pandas import DataFrame
 
 
