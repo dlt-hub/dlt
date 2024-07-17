@@ -764,8 +764,8 @@ This is an experimental feature and may change in future releases.
 - `content` (str, optional): A substring to search for in the response content.
 - `action` (str or Callable or List[Callable], optional): The action to take when the condition is met. Currently supported actions:
   - `"ignore"`: Ignore the response.
-  - a callable accepting and returning the response object
-  - a list of callables, each accepting and returning the response object
+  - a callable accepting and returning the response object.
+  - a list of callables, each accepting and returning the response object.
 
 
 #### Example A
