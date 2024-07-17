@@ -5,7 +5,7 @@ import dlt
 from dlt.common.pipeline import PipelineContext
 from dlt.common.configuration.container import Container
 
-from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
+from dlt.destinations.impl.qdrant.qdrant_job_client import QdrantClient
 
 
 def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:
@@ -20,16 +20,16 @@ def assert_collection(
     expected_items_count: int = None,
     items: List[Any] = None,
 ) -> None:
-    client: QdrantClient = pipeline.destination_client()  # type: ignore[assignment]
+    client: QdrantClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        # Check if collection exists
+        exists = client._collection_exists(collection_name)
+        assert exists
 
-    # Check if collection exists
-    exists = client._collection_exists(collection_name)
-    assert exists
-
-    qualified_collection_name = client._make_qualified_collection_name(collection_name)
-    point_records, offset = client.db_client.scroll(
-        qualified_collection_name, with_payload=True, limit=50
-    )
+        qualified_collection_name = client._make_qualified_collection_name(collection_name)
+        point_records, offset = client.db_client.scroll(
+            qualified_collection_name, with_payload=True, limit=50
+        )
 
     if expected_items_count is not None:
         assert expected_items_count == len(point_records)
@@ -55,10 +55,11 @@ def drop_active_pipeline_data() -> None:
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
-        client: QdrantClient = p.destination_client()  # type: ignore[assignment]
+        client: QdrantClient
 
-        if has_collections(client):
-            client.drop_storage()
+        with p.destination_client() as client:  # type: ignore[assignment]
+            if has_collections(client):
+                client.drop_storage()
 
         p._wipe_working_folder()
         # deactivate context

@@ -3,6 +3,7 @@ title: INSERT
 description: The INSERT file format
 keywords: [insert values, file formats]
 ---
+import SetTheFormat from './_set_the_format.mdx';
 
 # SQL INSERT File Format
 
@@ -21,10 +22,8 @@ This file format is [compressed](../../reference/performance.md#disabling-and-en
 
 This format is used by default by: **DuckDB**, **Postgres**, **Redshift**.
 
-It is also supported by: **filesystem**.
+It is also supported by: **Filesystem**.
 
-By setting the `loader_file_format` argument to `insert_values` in the run command, the pipeline will store your data in the INSERT format at the destination:
+## How to configure
 
-```py
-info = pipeline.run(some_source(), loader_file_format="insert_values")
-```
+<SetTheFormat file_type="insert_values"/>

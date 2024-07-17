@@ -5,7 +5,6 @@ import mimetypes
 import pathlib
 import posixpath
 from io import BytesIO
-from gzip import GzipFile
 from typing import (
     Literal,
     cast,
@@ -320,7 +319,7 @@ def glob_files(
             rel_path = pathlib.Path(file).relative_to(root_dir).as_posix()
             file_url = FilesystemConfiguration.make_file_uri(file)
         else:
-            rel_path = posixpath.relpath(file, root_dir)
+            rel_path = posixpath.relpath(file.lstrip("/"), root_dir)
             file_url = bucket_url_parsed._replace(
                 path=posixpath.join(bucket_url_parsed.path, rel_path)
             ).geturl()

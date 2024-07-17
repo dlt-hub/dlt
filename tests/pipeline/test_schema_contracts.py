@@ -177,8 +177,7 @@ def get_pipeline():
 
     return dlt.pipeline(
         pipeline_name="contracts_" + uniq_id(),
-        destination="duckdb",
-        credentials=duckdb.connect(":memory:"),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
         dev_mode=True,
     )
 

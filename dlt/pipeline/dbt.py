@@ -38,7 +38,7 @@ def get_venv(
     # keep venv inside pipeline if path is relative
     if not os.path.isabs(venv_path):
         pipeline._pipeline_storage.create_folder(venv_path, exists_ok=True)
-        venv_dir = pipeline._pipeline_storage.make_full_path(venv_path)
+        venv_dir = pipeline._pipeline_storage.make_full_path_safe(venv_path)
     else:
         venv_dir = venv_path
     # try to restore existing venv

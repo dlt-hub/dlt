@@ -6,7 +6,6 @@ pytest.importorskip("databricks")
 
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.common.configuration import resolve_configuration
-from tests.utils import preserve_environ
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential

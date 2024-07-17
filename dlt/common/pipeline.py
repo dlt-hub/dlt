@@ -260,9 +260,6 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
         return self._load_packages_asstr(self.load_packages, verbosity)
 
 
-# reveal_type(ExtractInfo)
-
-
 class NormalizeMetrics(StepMetrics):
     job_metrics: Dict[str, DataWriterMetrics]
     """Metrics collected per job id during writing of job file"""
@@ -603,6 +600,14 @@ class PipelineContext(ContainerInjectableContext):
     def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
         self._deferred_pipeline = deferred_pipeline
+
+
+def current_pipeline() -> SupportsPipeline:
+    """Gets active pipeline context or None if not found"""
+    proxy = Container()[PipelineContext]
+    if not proxy.is_active():
+        return None
+    return proxy.pipeline()
 
 
 @configspec

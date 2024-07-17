@@ -6,15 +6,17 @@ import pytest
 
 import dlt
 from dlt.common import pendulum
-from dlt.common.schema.schema import Schema
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.schema.schema import Schema, utils
+from dlt.common.schema.utils import normalize_table_identifiers
 from dlt.common.utils import uniq_id
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
+from dlt.common.destination.reference import WithStateSync
 
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
-    STATE_TABLE_COLUMNS,
     load_pipeline_state_from_destination,
     state_resource,
 )
@@ -24,12 +26,12 @@ from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
-from tests.load.pipeline.utils import drop_active_pipeline_data
 from tests.pipeline.utils import assert_query_data
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     get_normalized_dataset_name,
+    drop_active_pipeline_data,
 )
 
 
@@ -64,9 +66,10 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         with pytest.raises(DestinationUndefinedEntity):
             load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        # sync the schema
-        p.sync_schema()
-        # check if schema exists
+    # sync the schema
+    p.sync_schema()
+    # check if schema exists
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema()
         assert stored_schema is not None
         # dataset exists, still no table
@@ -77,90 +80,102 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
         initial_state["_local"]["_last_extracted_hash"] = initial_state["_version_hash"]
         # add _dlt_id and _dlt_load_id
-        resource, _ = state_resource(initial_state)
+        resource, _ = state_resource(initial_state, "not_used_load_id")
         resource.apply_hints(
             columns={
                 "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False},
                 "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
-                **STATE_TABLE_COLUMNS,
+                **utils.pipeline_state_table()["columns"],
             }
         )
-        schema.update_table(schema.normalize_table_identifiers(resource.compute_table_schema()))
+        schema.update_table(
+            normalize_table_identifiers(resource.compute_table_schema(), schema.naming)
+        )
         # do not bump version here or in sync_schema, dlt won't recognize that schema changed and it won't update it in storage
         # so dlt in normalize stage infers _state_version table again but with different column order and the column order in schema is different
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
-        p.sync_schema()
+    p.sync_schema()
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_schema = job_client.get_stored_schema()
         assert stored_schema is not None
         # table is there but no state
         assert load_pipeline_state_from_destination(p.pipeline_name, job_client) is None
-        # extract state
-        with p.managed_state(extract_state=True):
-            pass
-        # just run the existing extract
-        p.normalize(loader_file_format=destination_config.file_format)
-        p.load()
+
+    # extract state
+    with p.managed_state(extract_state=True):
+        pass
+    # just run the existing extract
+    p.normalize(loader_file_format=destination_config.file_format)
+    p.load()
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        local_state = p._get_state()
-        local_state.pop("_local")
-        assert stored_state == local_state
-        # extract state again
-        with p.managed_state(extract_state=True) as managed_state:
-            # this will be saved
-            managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
-        p.normalize(loader_file_format=destination_config.file_format)
-        p.load()
+    local_state = p._get_state()
+    local_state.pop("_local")
+    assert stored_state == local_state
+    # extract state again
+    with p.managed_state(extract_state=True) as managed_state:
+        # this will be saved
+        managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
+    p.normalize(loader_file_format=destination_config.file_format)
+    p.load()
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
-        local_state = p._get_state()
-        local_state.pop("_local")
-        assert stored_state == local_state
-        # use the state context manager again but do not change state
-        with p.managed_state(extract_state=True):
-            pass
-        # version not changed
-        new_local_state = p._get_state()
-        new_local_state.pop("_local")
-        assert local_state == new_local_state
-        p.normalize(loader_file_format=destination_config.file_format)
-        info = p.load()
-        assert len(info.loads_ids) == 0
+    assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
+    local_state = p._get_state()
+    local_state.pop("_local")
+    assert stored_state == local_state
+    # use the state context manager again but do not change state
+    with p.managed_state(extract_state=True):
+        pass
+    # version not changed
+    new_local_state = p._get_state()
+    new_local_state.pop("_local")
+    assert local_state == new_local_state
+    p.normalize(loader_file_format=destination_config.file_format)
+    info = p.load()
+    assert len(info.loads_ids) == 0
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         new_stored_state = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        # new state should not be stored
-        assert new_stored_state == stored_state
+    # new state should not be stored
+    assert new_stored_state == stored_state
 
-        # change the state in context manager but there's no extract
-        with p.managed_state(extract_state=False) as managed_state:
-            managed_state["sources"] = {"source": "test2"}  # type: ignore[dict-item]
-        new_local_state = p._get_state()
-        new_local_state_local = new_local_state.pop("_local")
-        assert local_state != new_local_state
-        # version increased
-        assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
-        # last extracted hash does not match current version hash
-        assert new_local_state_local["_last_extracted_hash"] != new_local_state["_version_hash"]
+    # change the state in context manager but there's no extract
+    with p.managed_state(extract_state=False) as managed_state:
+        managed_state["sources"] = {"source": "test2"}  # type: ignore[dict-item]
+    new_local_state = p._get_state()
+    new_local_state_local = new_local_state.pop("_local")
+    assert local_state != new_local_state
+    # version increased
+    assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
+    # last extracted hash does not match current version hash
+    assert new_local_state_local["_last_extracted_hash"] != new_local_state["_version_hash"]
 
-        # use the state context manager again but do not change state
-        # because _last_extracted_hash is not present (or different), the version will not change but state will be extracted anyway
-        with p.managed_state(extract_state=True):
-            pass
-        new_local_state_2 = p._get_state()
-        new_local_state_2_local = new_local_state_2.pop("_local")
-        assert new_local_state == new_local_state_2
-        # there's extraction timestamp
-        assert "_last_extracted_at" in new_local_state_2_local
-        # and extract hash is == hash
-        assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
-        # but the version didn't change
-        assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
-        p.normalize(loader_file_format=destination_config.file_format)
-        info = p.load()
-        assert len(info.loads_ids) == 1
+    # use the state context manager again but do not change state
+    # because _last_extracted_hash is not present (or different), the version will not change but state will be extracted anyway
+    with p.managed_state(extract_state=True):
+        pass
+    new_local_state_2 = p._get_state()
+    new_local_state_2_local = new_local_state_2.pop("_local")
+    assert new_local_state == new_local_state_2
+    # there's extraction timestamp
+    assert "_last_extracted_at" in new_local_state_2_local
+    # and extract hash is == hash
+    assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
+    # but the version didn't change
+    assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
+    p.normalize(loader_file_format=destination_config.file_format)
+    info = p.load()
+    assert len(info.loads_ids) == 1
+
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         new_stored_state_2 = load_pipeline_state_from_destination(p.pipeline_name, job_client)
-        # the stored state changed to next version
-        assert new_stored_state != new_stored_state_2
-        assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
+    # the stored state changed to next version
+    assert new_stored_state != new_stored_state_2
+    assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
 
 
 @pytest.mark.parametrize(
@@ -183,6 +198,7 @@ def test_silently_skip_on_invalid_credentials(
     destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -191,13 +207,25 @@ def test_silently_skip_on_invalid_credentials(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
+@pytest.mark.parametrize(
+    "naming_convention",
+    [
+        "tests.common.cases.normalizers.title_case",
+        "snake_case",
+    ],
+)
 def test_get_schemas_from_destination(
-    destination_config: DestinationTestConfiguration, use_single_dataset: bool
+    destination_config: DestinationTestConfiguration,
+    use_single_dataset: bool,
+    naming_convention: str,
 ) -> None:
+    set_naming_env(destination_config.destination, naming_convention)
+
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
 
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    assert_naming_to_caps(destination_config.destination, p.destination.capabilities())
     p.config.use_single_dataset = use_single_dataset
 
     def _make_dn_name(schema_name: str) -> str:
@@ -208,9 +236,10 @@ def test_get_schemas_from_destination(
 
     default_schema = Schema("state")
     p._inject_schema(default_schema)
+
+    # just sync schema without name - will use default schema
+    p.sync_schema()
     with p.destination_client() as job_client:
-        # just sync schema without name - will use default schema
-        p.sync_schema()
         assert get_normalized_dataset_name(
             job_client
         ) == default_schema.naming.normalize_table_identifier(dataset_name)
@@ -226,9 +255,9 @@ def test_get_schemas_from_destination(
         ) == schema_two.naming.normalize_table_identifier(_make_dn_name("two"))
     schema_three = Schema("three")
     p._inject_schema(schema_three)
+    # sync schema with a name
+    p.sync_schema(schema_three.name)
     with p._get_destination_clients(schema_three)[0] as job_client:
-        # sync schema with a name
-        p.sync_schema(schema_three.name)
         assert get_normalized_dataset_name(
             job_client
         ) == schema_three.naming.normalize_table_identifier(_make_dn_name("three"))
@@ -268,18 +297,34 @@ def test_get_schemas_from_destination(
     assert len(restored_schemas) == 3
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
-        default_sql_configs=True, default_vector_configs=True, all_buckets_filesystem_configs=True
+        default_sql_configs=True,
+        all_staging_configs=True,
+        default_vector_configs=True,
+        all_buckets_filesystem_configs=True,
     ),
     ids=lambda x: x.name,
 )
-def test_restore_state_pipeline(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize(
+    "naming_convention",
+    [
+        "tests.common.cases.normalizers.title_case",
+        "snake_case",
+    ],
+)
+def test_restore_state_pipeline(
+    destination_config: DestinationTestConfiguration, naming_convention: str
+) -> None:
+    set_naming_env(destination_config.destination, naming_convention)
+    # enable restoring from destination
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    assert_naming_to_caps(destination_config.destination, p.destination.capabilities())
 
     def some_data_gen(param: str) -> Any:
         dlt.current.source_state()[param] = param
@@ -366,7 +411,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
     # now attach locally
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     assert p.dataset_name == dataset_name
     assert p.default_schema_name is None
     # restore
@@ -409,8 +454,19 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
     @dlt.resource
     def some_data(param: str) -> Any:
         dlt.current.source_state()[param] = param
-        yield param
+        yield {"col1": param, param: 1}
 
+    job_client: WithStateSync
+    # Load some complete load packages with state to the destination
+    p.run(some_data("state1"), loader_file_format=destination_config.file_format)
+    p.run(some_data("state2"), loader_file_format=destination_config.file_format)
+    p.run(some_data("state3"), loader_file_format=destination_config.file_format)
+
+    with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
+        state = load_pipeline_state_from_destination(pipeline_name, job_client)
+        assert state and state["_state_version"] == 3
+
+    # Simulate a load package that stores state but is not completed (no entry in loads table)
     def complete_package_mock(self, load_id: str, schema: Schema, aborted: bool = False):
         # complete in local storage but skip call to the database
         self.load_storage.complete_load_package(load_id, aborted)
@@ -419,11 +475,18 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         p.run(some_data("fix_1"), loader_file_format=destination_config.file_format)
         # assert complete_package.called
 
-    job_client: SqlJobClientBase
     with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
         # state without completed load id is not visible
         state = load_pipeline_state_from_destination(pipeline_name, job_client)
-        assert state is None
+        # Restored state version has not changed
+        assert state and state["_state_version"] == 3
+
+    newest_schema_hash = p.default_schema.version_hash
+    p._wipe_working_folder()
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    p.sync_destination()
+
+    assert p.default_schema.version_hash == newest_schema_hash
 
 
 @pytest.mark.parametrize(
@@ -451,6 +514,9 @@ def test_restore_schemas_while_import_schemas_exist(
     # make sure schema got imported
     schema = p.schemas["ethereum"]
     assert "blocks" in schema.tables
+    # allow to modify tables even if naming convention is changed. some of the tables in ethereum schema
+    # have processing hints that lock the table schema. so when weaviate changes naming convention we have an exception
+    os.environ["SCHEMA__ALLOW_IDENTIFIER_CHANGE_ON_TABLE_WITH_DATA"] = "true"
 
     # extract some additional data to upgrade schema in the pipeline
     p.run(
@@ -467,7 +533,7 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_labels in schema.tables
 
     # re-attach the pipeline
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     p.run(
         ["C", "D", "E"], table_name="annotations", loader_file_format=destination_config.file_format
     )
@@ -496,7 +562,7 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_annotations in schema.tables
 
     # check if attached to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9()
     # extract some data with restored pipeline
     p.run(
         ["C", "D", "E"], table_name="blacklist", loader_file_format=destination_config.file_format
@@ -604,7 +670,9 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     prod_state = production_p.state
     assert p.state["_state_version"] == prod_state["_state_version"] - 1
     # re-attach production and sync
-    ra_production_p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
+    ra_production_p = destination_config.attach_pipeline(
+        pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT
+    )
     ra_production_p.sync_destination()
     # state didn't change because production is ahead of local with its version
     # nevertheless this is potentially dangerous situation 🤷
@@ -613,10 +681,18 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # get all the states, notice version 4 twice (one from production, the other from local)
     try:
         with p.sql_client() as client:
+            # use sql_client to escape identifiers properly
             state_table = client.make_qualified_table_name(p.default_schema.state_table_name)
-
+            c_version = client.escape_column_name(
+                p.default_schema.naming.normalize_identifier("version")
+            )
+            c_created_at = client.escape_column_name(
+                p.default_schema.naming.normalize_identifier("created_at")
+            )
         assert_query_data(
-            p, f"SELECT version FROM {state_table} ORDER BY created_at DESC", [5, 4, 4, 3, 2]
+            p,
+            f"SELECT {c_version} FROM {state_table} ORDER BY {c_created_at} DESC",
+            [5, 4, 4, 3, 2],
         )
     except SqlClientNotAvailable:
         pytest.skip(f"destination {destination_config.destination} does not support sql client")
@@ -669,7 +745,7 @@ def test_reset_pipeline_on_deleted_dataset(
     assert p.dataset_name == dataset_name
 
     print("---> no state sync last attach")
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     # this will prevent from creating of _dlt_pipeline_state
     p.config.restore_from_destination = False
     data4 = some_data("state4")
@@ -686,7 +762,7 @@ def test_reset_pipeline_on_deleted_dataset(
     assert p.state["_local"]["first_run"] is False
     # attach again to make the `run` method check the destination
     print("---> last attach")
-    p = dlt.attach(pipeline_name=pipeline_name)
+    p = destination_config.attach_pipeline(pipeline_name=pipeline_name)
     p.config.restore_from_destination = True
     data5 = some_data("state4")
     data5.apply_hints(table_name="state1_data5")
@@ -696,8 +772,31 @@ def test_reset_pipeline_on_deleted_dataset(
 
 
 def prepare_import_folder(p: Pipeline) -> None:
-    os.makedirs(p._schema_storage.config.import_schema_path, exist_ok=True)
-    shutil.copy(
-        common_yml_case_path("schemas/eth/ethereum_schema_v5"),
-        os.path.join(p._schema_storage.config.import_schema_path, "ethereum.schema.yaml"),
-    )
+    from tests.common.storages.utils import prepare_eth_import_folder
+
+    prepare_eth_import_folder(p._schema_storage)
+
+
+def set_naming_env(destination: str, naming_convention: str) -> None:
+    # snake case is for default convention so do not set it
+    if naming_convention != "snake_case":
+        # path convention to test weaviate ci_naming
+        if destination == "weaviate":
+            if naming_convention.endswith("sql_upper"):
+                pytest.skip(f"{naming_convention} not supported on weaviate")
+            else:
+                naming_convention = "dlt.destinations.impl.weaviate.ci_naming"
+        os.environ["SCHEMA__NAMING"] = naming_convention
+
+
+def assert_naming_to_caps(destination: str, caps: DestinationCapabilitiesContext) -> None:
+    naming = Schema("test").naming
+    if (
+        not caps.has_case_sensitive_identifiers
+        and caps.casefold_identifier is not str
+        and naming.is_case_sensitive
+    ):
+        pytest.skip(
+            f"Skipping for case insensitive destination {destination} with case folding because"
+            f" naming {naming.name()} is case sensitive"
+        )

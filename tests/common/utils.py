@@ -9,14 +9,24 @@ import datetime  # noqa: 251
 
 from dlt.common import json
 from dlt.common.typing import StrAny
-from dlt.common.schema import utils
+from dlt.common.schema import utils, Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration.providers import environ as environ_provider
 
 
 COMMON_TEST_CASES_PATH = "./tests/common/cases/"
-# for import schema tests, change when upgrading the schema version
-IMPORTED_VERSION_HASH_ETH_V9 = "PgEHvn5+BHV1jNzNYpx9aDpq6Pq1PSSetufj/h0hKg4="
+
+
+def IMPORTED_VERSION_HASH_ETH_V9() -> str:
+    # for import schema tests, change when upgrading the schema version
+    eth_V9 = load_yml_case("schemas/eth/ethereum_schema_v9")
+    assert eth_V9["version_hash"] == "PgEHvn5+BHV1jNzNYpx9aDpq6Pq1PSSetufj/h0hKg4="
+    # remove processing hints before installing as import schema
+    # ethereum schema is a "dirty" schema with processing hints
+    eth = Schema.from_dict(eth_V9, remove_processing_hints=True)
+    return eth.stored_version_hash
+
+
 # test sentry DSN
 TEST_SENTRY_DSN = (
     "https://797678dd0af64b96937435326c7d30c1@o1061158.ingest.sentry.io/4504306172821504"

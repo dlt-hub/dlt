@@ -20,10 +20,16 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, fsspec_from_config
-from dlt.common.storages.load_package import LoadJobInfo, ParsedLoadJobFileName
+from dlt.common.storages.load_package import (
+    LoadJobInfo,
+    ParsedLoadJobFileName,
+    TPipelineStateDoc,
+    load_package as current_load_package,
+)
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -41,7 +47,6 @@ from dlt.common.destination.reference import (
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.destinations.typing import DataFrame, ArrowTable
 from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
-from dlt.destinations.impl.filesystem import capabilities
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
@@ -165,15 +170,19 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
 class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStateSync):
     """filesystem client storing jobs in memory"""
 
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     fs_client: AbstractFileSystem
     # a path (without the scheme) to a location in the bucket where dataset is present
     bucket_path: str
     # name of the dataset
     dataset_name: str
 
-    def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
-        super().__init__(schema, config)
+    def __init__(
+        self,
+        schema: Schema,
+        config: FilesystemDestinationClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.fs_client, fs_path = fsspec_from_config(config)
         self.is_local_filesystem = config.protocol == "file"
         self.bucket_path = (
@@ -233,7 +242,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 self._delete_file(filename)
 
     def truncate_tables(self, table_names: List[str]) -> None:
-        """Truncate table with given name"""
+        """Truncate a set of tables with given `table_names`"""
         table_dirs = set(self.get_table_dirs(table_names))
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
         for table_dir in table_dirs:
@@ -311,18 +320,19 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def list_files_with_prefixes(self, table_dir: str, prefixes: List[str]) -> List[str]:
         """returns all files in a directory that match given prefixes"""
         result = []
-        for current_dir, _dirs, files in self.fs_client.walk(table_dir, detail=False, refresh=True):
-            for file in files:
-                # skip INIT files
-                if file == INIT_FILE_NAME:
-                    continue
-                filepath = self.pathlib.join(
-                    path_utils.normalize_path_sep(self.pathlib, current_dir), file
-                )
-                for p in prefixes:
-                    if filepath.startswith(p):
-                        result.append(filepath)
-                        break
+        # we fallback to our own glob implementation that is tested to return consistent results for
+        # filesystems we support. we were not able to use `find` or `walk` because they were selecting
+        # files wrongly (on azure walk on path1/path2/ would also select files from path1/path2_v2/ but returning wrong dirs)
+        for details in glob_files(self.fs_client, self.make_remote_uri(table_dir), "**"):
+            file = details["file_name"]
+            filepath = self.pathlib.join(table_dir, details["relative_path"])
+            # skip INIT files
+            if file == INIT_FILE_NAME:
+                continue
+            for p in prefixes:
+                if filepath.startswith(p):
+                    result.append(filepath)
+                    break
         return result
 
     def is_storage_initialized(self) -> bool:
@@ -377,7 +387,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         dirname = self.pathlib.dirname(filepath)
         if not self.fs_client.isdir(dirname):
             return
-        self.fs_client.write_text(filepath, json.dumps(data), "utf-8")
+        self.fs_client.write_text(filepath, json.dumps(data), encoding="utf-8")
 
     def _to_path_safe_string(self, s: str) -> str:
         """for base64 strings"""
@@ -431,11 +441,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         # don't save the state this way when used as staging
         if self.config.as_staging:
             return
+
         # get state doc from current pipeline
-        from dlt.pipeline.current import load_package
-
-        pipeline_state_doc = load_package()["state"].get("pipeline_state")
-
+        pipeline_state_doc = current_load_package()["state"].get("pipeline_state")
         if not pipeline_state_doc:
             return
 
@@ -459,8 +467,13 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
 
         # Load compressed state from destination
         if selected_path:
-            state_json = json.loads(self.fs_client.read_text(selected_path))
-            state_json.pop("version_hash")
+            state_json: TPipelineStateDoc = json.loads(
+                self.fs_client.read_text(selected_path, encoding="utf-8")
+            )
+            # we had dlt_load_id stored until version 0.5 and since we do not have any version control
+            # we always migrate
+            if load_id := state_json.pop("dlt_load_id", None):  # type: ignore[typeddict-item]
+                state_json["_dlt_load_id"] = load_id
             return StateInfo(**state_json)
 
         return None
@@ -503,7 +516,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
                 break
 
         if selected_path:
-            return StorageSchemaInfo(**json.loads(self.fs_client.read_text(selected_path)))
+            return StorageSchemaInfo(
+                **json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
+            )
 
         return None
 
@@ -540,19 +555,23 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def create_table_chain_completed_followup_jobs(
         self,
         table_chain: Sequence[TTableSchema],
-        table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[NewLoadJob]:
         def get_table_jobs(
             table_jobs: Sequence[LoadJobInfo], table_name: str
         ) -> Sequence[LoadJobInfo]:
             return [job for job in table_jobs if job.job_file_info.table_name == table_name]
 
-        assert table_chain_jobs is not None
-        jobs = super().create_table_chain_completed_followup_jobs(table_chain, table_chain_jobs)
+        assert completed_table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
         table_format = table_chain[0].get("table_format")
         if table_format == "delta":
             delta_jobs = [
-                DeltaLoadFilesystemJob(self, table, get_table_jobs(table_chain_jobs, table["name"]))
+                DeltaLoadFilesystemJob(
+                    self, table, get_table_jobs(completed_table_chain_jobs, table["name"])
+                )
                 for table in table_chain
             ]
             jobs.extend(delta_jobs)

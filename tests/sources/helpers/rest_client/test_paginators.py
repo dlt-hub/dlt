@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from requests.models import Response, Request
+from requests import Session
 
 from dlt.sources.helpers.rest_client.paginators import (
     SinglePagePaginator,
@@ -10,9 +11,13 @@ from dlt.sources.helpers.rest_client.paginators import (
     PageNumberPaginator,
     HeaderLinkPaginator,
     JSONResponsePaginator,
+    JSONResponseCursorPaginator,
 )
 
+from .conftest import assert_pagination
 
+
+@pytest.mark.usefixtures("mock_api_server")
 class TestHeaderLinkPaginator:
     def test_update_state_with_next(self):
         paginator = HeaderLinkPaginator()
@@ -29,7 +34,18 @@ class TestHeaderLinkPaginator:
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_header_link",
+            paginator=HeaderLinkPaginator(),
+        )
 
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+@pytest.mark.usefixtures("mock_api_server")
 class TestJSONResponsePaginator:
     @pytest.mark.parametrize(
         "test_case",
@@ -157,7 +173,44 @@ class TestJSONResponsePaginator:
         paginator.update_request(request)
         assert request.url == test_case["expected"]
 
+    def test_no_duplicate_params_on_update_request(self):
+        paginator = JSONResponsePaginator()
 
+        request = Request(
+            method="GET",
+            url="http://example.com/api/resource",
+            params={"param1": "value1"},
+        )
+
+        session = Session()
+
+        response = Mock(Response, json=lambda: {"next": "/api/resource?page=2&param1=value1"})
+        paginator.update_state(response)
+        paginator.update_request(request)
+
+        assert request.url == "http://example.com/api/resource?page=2&param1=value1"
+
+        # RESTClient._send_request() calls Session.prepare_request() which
+        # updates the URL with the query parameters from the request object.
+        prepared_request = session.prepare_request(request)
+
+        # The next request should just use the "next" URL without any duplicate parameters.
+        assert prepared_request.url == "http://example.com/api/resource?page=2&param1=value1"
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=JSONResponsePaginator(
+                next_url_path="next_page",
+            ),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+@pytest.mark.usefixtures("mock_api_server")
 class TestSinglePagePaginator:
     def test_update_state(self):
         paginator = SinglePagePaginator()
@@ -172,7 +225,18 @@ class TestSinglePagePaginator:
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=SinglePagePaginator(),
+        )
 
+        pages = list(pages_iter)
+
+        assert_pagination(pages, total_pages=1)
+
+
+@pytest.mark.usefixtures("mock_api_server")
 class TestOffsetPaginator:
     def test_update_state(self):
         paginator = OffsetPaginator(offset=0, limit=10)
@@ -238,13 +302,28 @@ class TestOffsetPaginator:
         assert paginator.current_value == 100
         assert paginator.has_next_page is False
 
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_offset_limit",
+            paginator=OffsetPaginator(offset=0, limit=5, total_path="total_records"),
+        )
 
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+@pytest.mark.usefixtures("mock_api_server")
 class TestPageNumberPaginator:
     def test_update_state(self):
-        paginator = PageNumberPaginator(initial_page=1, total_path="total_pages")
+        paginator = PageNumberPaginator(base_page=1, page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {"total_pages": 3})
         paginator.update_state(response)
         assert paginator.current_value == 2
+        assert paginator.has_next_page is True
+
+        paginator.update_state(response)
+        assert paginator.current_value == 3
         assert paginator.has_next_page is True
 
         # Test for reaching the end
@@ -252,26 +331,26 @@ class TestPageNumberPaginator:
         assert paginator.has_next_page is False
 
     def test_update_state_with_string_total_pages(self):
-        paginator = PageNumberPaginator(1)
+        paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {"total": "3"})
         paginator.update_state(response)
         assert paginator.current_value == 2
         assert paginator.has_next_page is True
 
     def test_update_state_with_invalid_total_pages(self):
-        paginator = PageNumberPaginator(1)
+        paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {"total_pages": "invalid"})
         with pytest.raises(ValueError):
             paginator.update_state(response)
 
     def test_update_state_without_total_pages(self):
-        paginator = PageNumberPaginator(1)
+        paginator = PageNumberPaginator(base_page=1, page=1)
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
             paginator.update_state(response)
 
     def test_update_request(self):
-        paginator = PageNumberPaginator(initial_page=1, page_param="page")
+        paginator = PageNumberPaginator(base_page=1, page=1, page_param="page")
         request = Mock(Request)
         response = Mock(Response, json=lambda: {"total": 3})
         paginator.update_state(response)
@@ -283,7 +362,7 @@ class TestPageNumberPaginator:
         assert request.params["page"] == 3
 
     def test_maximum_page(self):
-        paginator = PageNumberPaginator(initial_page=1, maximum_page=3, total_path=None)
+        paginator = PageNumberPaginator(base_page=1, page=1, maximum_page=3, total_path=None)
         response = Mock(Response, json=lambda: {"items": []})
         paginator.update_state(response)  # Page 1
         assert paginator.current_value == 2
@@ -292,3 +371,60 @@ class TestPageNumberPaginator:
         paginator.update_state(response)  # Page 2
         assert paginator.current_value == 3
         assert paginator.has_next_page is False
+
+    def test_client_pagination_one_based(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=PageNumberPaginator(base_page=1, page=1, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_client_pagination_one_based_default_page(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts",
+            paginator=PageNumberPaginator(base_page=1, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+    def test_client_pagination_zero_based(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_zero_based",
+            paginator=PageNumberPaginator(base_page=0, page=0, total_path="total_pages"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)
+
+
+@pytest.mark.usefixtures("mock_api_server")
+class TestJSONResponseCursorPaginator:
+    def test_update_state(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        response = Mock(Response, json=lambda: {"next_cursor": "cursor-2", "results": []})
+        paginator.update_state(response)
+        assert paginator._next_reference == "cursor-2"
+        assert paginator.has_next_page is True
+
+    def test_update_request(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        paginator._next_reference = "cursor-2"
+        request = Request(method="GET", url="http://example.com/api/resource")
+        paginator.update_request(request)
+        assert request.params["cursor"] == "cursor-2"
+
+    def test_client_pagination(self, rest_client):
+        pages_iter = rest_client.paginate(
+            "/posts_cursor",
+            paginator=JSONResponseCursorPaginator(cursor_path="next_cursor"),
+        )
+
+        pages = list(pages_iter)
+
+        assert_pagination(pages)

@@ -4,13 +4,14 @@ from dlt.extract.source import DltSource
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.extract.incremental import Incremental
 from dlt.extract.wrappers import wrap_additional_type
-from dlt.extract.extractors import materialize_schema_item
+from dlt.extract.extractors import materialize_schema_item, with_file_import
 
 __all__ = [
     "DltResource",
     "DltSource",
     "with_table_name",
     "with_hints",
+    "with_file_import",
     "make_hints",
     "source",
     "resource",

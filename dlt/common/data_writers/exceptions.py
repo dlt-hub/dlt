@@ -22,6 +22,16 @@ class BufferedDataWriterClosed(DataWriterException):
         super().__init__(f"Writer with recent file name {file_name} is already closed")
 
 
+class FileImportNotFound(DataWriterException, FileNotFoundError):
+    def __init__(self, import_file_path: str, local_file_path: str) -> None:
+        self.import_file_path = import_file_path
+        self.local_file_path = local_file_path
+        super().__init__(
+            f"Attempt to import non existing file {import_file_path} into extract storage file"
+            f" {local_file_path}"
+        )
+
+
 class DestinationCapabilitiesRequired(DataWriterException, ValueError):
     def __init__(self, file_format: TLoaderFileFormat):
         self.file_format = file_format

@@ -1,16 +1,12 @@
-from typing import Union, Literal, Dict
+from typing import Union
 from urllib.parse import urlparse, ParseResult
 
 
-SUPPORTED_FILE_FORMATS = Literal["jsonl", "parquet"]
-FILE_FORMAT_TO_TABLE_FUNCTION_MAPPING: Dict[SUPPORTED_FILE_FORMATS, str] = {
-    "jsonl": "JSONEachRow",
-    "parquet": "Parquet",
-}
-
-
 def convert_storage_to_http_scheme(
-    url: Union[str, ParseResult], use_https: bool = False, endpoint: str = None, region: str = None
+    url: Union[str, ParseResult],
+    use_https: bool = False,
+    endpoint: str = None,
+    region: str = None,
 ) -> str:
     try:
         if isinstance(url, str):

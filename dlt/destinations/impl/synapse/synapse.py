@@ -1,5 +1,5 @@
 import os
-from typing import ClassVar, Sequence, List, Dict, Any, Optional, cast, Union
+from typing import Sequence, List, Dict, Any, Optional, cast, Union
 from copy import deepcopy
 from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
@@ -29,12 +29,11 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (
     MsSqlTypeMapper,
-    MsSqlClient,
+    MsSqlJobClient,
     VARCHAR_MAX_N,
     VARBINARY_MAX_N,
 )
 
-from dlt.destinations.impl.synapse import capabilities
 from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
 from dlt.destinations.impl.synapse.synapse_adapter import (
@@ -53,14 +52,20 @@ TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR: Dict[TTableIndexType, str] = {
 }
 
 
-class SynapseClient(MsSqlClient, SupportsStagingDestination):
-    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-    def __init__(self, schema: Schema, config: SynapseClientConfiguration) -> None:
-        super().__init__(schema, config)
+class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
+    def __init__(
+        self,
+        schema: Schema,
+        config: SynapseClientConfiguration,
+        capabilities: DestinationCapabilitiesContext,
+    ) -> None:
+        super().__init__(schema, config, capabilities)
         self.config: SynapseClientConfiguration = config
         self.sql_client = SynapseSqlClient(
-            config.normalize_dataset_name(schema), config.credentials
+            config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
+            config.credentials,
+            capabilities,
         )
 
         self.active_hints = deepcopy(HINT_TO_SYNAPSE_ATTR)

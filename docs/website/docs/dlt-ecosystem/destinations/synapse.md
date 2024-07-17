@@ -148,6 +148,8 @@ Data is loaded via `INSERT` statements by default.
 The [table index type](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index) of the created tables can be configured at the resource level with the `synapse_adapter`:
 
 ```py
+from dlt.destinations.adapters import synapse_adapter
+
 info = pipeline.run(
     synapse_adapter(
         data=your_resource,

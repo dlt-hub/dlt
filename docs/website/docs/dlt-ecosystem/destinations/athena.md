@@ -102,8 +102,11 @@ Athena does not support JSON fields, so JSON is stored as a string.
 
 > ❗**Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
 
-### Naming Convention
-We follow our snake_case name convention. Keep the following in mind:
+### Table and column identifiers
+Athena uses case insensitive identifiers and **will lower case all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use
+[case sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway and you risk to generate identifier collisions, which are detected by `dlt` and will fail the load process.
+
+Under the hood Athena uses different SQL engines for DDL (catalog) and DML/Queries:
 * DDL uses HIVE escaping with ``````
 * Other queries use PRESTO and regular SQL escaping.
 
@@ -141,7 +144,7 @@ For every table created as an iceberg table, the Athena destination will create 
 The `merge` write disposition is supported for Athena when using iceberg tables.
 
 > Note that:
-> 1. there is a risk of tables ending up in inconsistent state in case a pipeline run fails mid flight, because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`, 
+> 1. there is a risk of tables ending up in inconsistent state in case a pipeline run fails mid flight, because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`,
 > 2. `dlt` creates additional helper tables called `insert_<table name>` and `delete_<table name>` in the staging schema to work around Athena's lack of temporary tables.
 
 ### dbt support
@@ -183,7 +186,7 @@ Here is an example of how to use the adapter to partition a table:
 from datetime import date
 
 import dlt
-from dlt.destinations.impl.athena.athena_adapter import athena_partition, athena_adapter
+from dlt.destinations.adapters import athena_partition, athena_adapter
 
 data_items = [
     (1, "A", date(2021, 1, 1)),

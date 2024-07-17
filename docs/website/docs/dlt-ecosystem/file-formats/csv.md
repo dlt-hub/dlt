@@ -3,6 +3,7 @@ title: csv
 description: The csv file format
 keywords: [csv, file formats]
 ---
+import SetTheFormat from './_set_the_format.mdx';
 
 # CSV file format
 
@@ -13,25 +14,34 @@ Internally we use two implementations:
 - **pyarrow** csv writer - very fast, multithreaded writer for the [arrow tables](../verified-sources/arrow-pandas.md)
 - **python stdlib writer** - a csv writer included in the Python standard library for Python objects
 
-
 ## Supported Destinations
 
-Supported by: **Postgres**, **Filesystem**
+The `csv` format is supported by the following destinations: **Postgres**, **Filesystem**, **Snowflake**
 
-By setting the `loader_file_format` argument to `csv` in the run command, the pipeline will store your data in the csv format at the destination:
+## How to configure
 
-```py
-info = pipeline.run(some_source(), loader_file_format="csv")
-```
+<SetTheFormat file_type="csv"/>
 
 ## Default Settings
 `dlt` attempts to make both writers to generate similarly looking files
 * separators are commas
 * quotes are **"** and are escaped as **""**
-* `NULL` values are empty strings
+* `NULL` values both are empty strings and empty tokens as in the example below
 * UNIX new lines are used
 * dates are represented as ISO 8601
 * quoting style is "when needed"
+
+Example of NULLs:
+```sh
+text1,text2,text3
+A,B,C
+A,,""
+```
+
+In the last row both `text2` and `text3` values are NULL. Python `csv` writer
+is not able to write unquoted `None` values so we had to settle for `""`
+
+Note: all destinations capable of writing csvs must support it.
 
 ### Change settings
 You can change basic **csv** settings, this may be handy when working with **filesystem** destination. Other destinations are tested
@@ -58,6 +68,15 @@ NORMALIZE__DATA_WRITER__DELIMITER=|
 NORMALIZE__DATA_WRITER__INCLUDE_HEADER=False
 NORMALIZE__DATA_WRITER__QUOTING=quote_all
 ```
+
+### Destination settings
+A few additional settings are available when copying `csv` to destination tables:
+* **on_error_continue** - skip lines with errors (only Snowflake)
+* **encoding** - encoding of the `csv` file
+
+:::tip
+You'll need those setting when [importing external files](../../general-usage/resource.md#import-external-files)
+:::
 
 ## Limitations
 **arrow writer**

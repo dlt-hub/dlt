@@ -22,7 +22,7 @@ def test_clickhouse_gcs_s3_compatibility() -> None:
         pipeline_name="gcs_s3_compatibility",
         destination="clickhouse",
         staging=gcp_bucket,
-        full_refresh=True,
+        dev_mode=True,
     )
     pack = pipe.run([dummy_data])
     assert_load_info(pack)

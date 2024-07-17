@@ -5,6 +5,7 @@ from dlt.common import logger
 from dlt.common.schema.typing import (
     TColumnNames,
     TColumnProp,
+    TFileFormat,
     TPartialTableSchema,
     TTableSchema,
     TTableSchemaColumns,
@@ -14,6 +15,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
+    MERGE_STRATEGIES,
 )
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
@@ -25,6 +27,7 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.typing import TDataItem
 from dlt.common.utils import clone_dict_nested
+from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.validation import validate_dict_ignoring_xkeys
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -48,6 +51,7 @@ class TResourceHints(TypedDict, total=False):
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
     table_format: TTableHintTemplate[TTableFormat]
+    file_format: TTableHintTemplate[TFileFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
 
@@ -72,6 +76,7 @@ def make_hints(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
+    file_format: TTableHintTemplate[TFileFormat] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -91,6 +96,7 @@ def make_hints(
         columns=clean_columns,  # type: ignore
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
+        file_format=file_format,  # type: ignore
     )
     if not table_name:
         new_template.pop("name")
@@ -209,6 +215,7 @@ class DltResourceHints:
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
+        file_format: TTableHintTemplate[TFileFormat] = None,
         create_table_variant: bool = False,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
@@ -256,6 +263,7 @@ class DltResourceHints:
                 merge_key,
                 schema_contract,
                 table_format,
+                file_format,
             )
         else:
             t = self._clone_hints(t)
@@ -320,6 +328,11 @@ class DltResourceHints:
                     t["table_format"] = table_format
                 else:
                     t.pop("table_format", None)
+            if file_format is not None:
+                if file_format:
+                    t["file_format"] = file_format
+                else:
+                    t.pop("file_format", None)
 
         # set properties that can't be passed to make_hints
         if incremental is not None:
@@ -331,6 +344,7 @@ class DltResourceHints:
         self, hints_template: TResourceHints, create_table_variant: bool = False
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
+        DltResourceHints.validate_write_disposition_hint(hints_template.get("write_disposition"))
         if create_table_variant:
             table_name: str = hints_template["name"]  # type: ignore[assignment]
             # incremental cannot be specified in variant
@@ -375,6 +389,7 @@ class DltResourceHints:
             incremental=hints_template.get("incremental"),
             schema_contract=hints_template.get("schema_contract"),
             table_format=hints_template.get("table_format"),
+            file_format=hints_template.get("file_format"),
             create_table_variant=create_table_variant,
         )
 
@@ -424,13 +439,11 @@ class DltResourceHints:
 
     @staticmethod
     def _merge_merge_disposition_dict(dict_: Dict[str, Any]) -> None:
-        """Merges merge disposition dict into x-hints on in place."""
+        """Merges merge disposition dict into x-hints in place."""
 
         mddict: TMergeDispositionDict = deepcopy(dict_["write_disposition"])
         if mddict is not None:
-            dict_["x-merge-strategy"] = (
-                mddict["strategy"] if "strategy" in mddict else DEFAULT_MERGE_STRATEGY
-            )
+            dict_["x-merge-strategy"] = mddict.get("strategy", DEFAULT_MERGE_STRATEGY)
             # add columns for `scd2` merge strategy
             if dict_.get("x-merge-strategy") == "scd2":
                 if mddict.get("validity_column_names") is None:
@@ -452,7 +465,7 @@ class DltResourceHints:
                     "x-valid-to": True,
                     "x-active-record-timestamp": mddict.get("active_record_timestamp"),
                 }
-                hash_ = mddict.get("row_version_column_name", "_dlt_id")
+                hash_ = mddict.get("row_version_column_name", DataItemNormalizer.C_DLT_ID)
                 dict_["columns"][hash_] = {
                     "name": hash_,
                     "nullable": False,
@@ -484,3 +497,13 @@ class DltResourceHints:
             raise InconsistentTableTemplate(
                 f"Table name {table_name} must be a function if any other table hint is a function"
             )
+
+    @staticmethod
+    def validate_write_disposition_hint(wd: TTableHintTemplate[TWriteDispositionConfig]) -> None:
+        if isinstance(wd, dict) and wd["disposition"] == "merge":
+            wd = cast(TMergeDispositionDict, wd)
+            if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
+                raise ValueError(
+                    f'`{wd["strategy"]}` is not a valid merge strategy. '
+                    f"""Allowed values: {', '.join(['"' + s + '"' for s in MERGE_STRATEGIES])}."""
+                )

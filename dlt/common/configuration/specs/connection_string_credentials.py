@@ -15,7 +15,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
     username: str = None
     host: Optional[str] = None
     port: Optional[int] = None
-    query: Optional[Dict[str, str]] = None
+    query: Optional[Dict[str, Any]] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "password", "host"]
 
@@ -44,7 +44,22 @@ class ConnectionStringCredentials(CredentialsConfiguration):
     def to_native_representation(self) -> str:
         return self.to_url().render_as_string(hide_password=False)
 
+    def get_query(self) -> Dict[str, Any]:
+        """Gets query preserving parameter types. Mostly used internally to export connection params"""
+        return {} if self.query is None else self.query
+
     def to_url(self) -> URL:
+        """Creates SQLAlchemy compatible URL object, computes current query via `get_query` and serializes its values to str"""
+        # circular dependencies here
+        from dlt.common.configuration.utils import serialize_value
+
+        def _serialize_value(v_: Any) -> str:
+            if v_ is None:
+                return None
+            return serialize_value(v_)
+
+        # query must be str -> str
+        query = {k: _serialize_value(v) for k, v in self.get_query().items()}
         return URL.create(
             self.drivername,
             self.username,
@@ -52,8 +67,12 @@ class ConnectionStringCredentials(CredentialsConfiguration):
             self.host,
             self.port,
             self.database,
-            self.query,
+            query,
         )
 
     def __str__(self) -> str:
-        return self.to_url().render_as_string(hide_password=True)
+        url = self.to_url()
+        # do not display query. it often contains secret values
+        url = url._replace(query=None)
+        # we only have control over netloc/path
+        return url.render_as_string(hide_password=True)

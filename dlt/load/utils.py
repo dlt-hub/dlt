@@ -1,8 +1,8 @@
-from typing import List, Set, Iterable, Callable, Optional, Sequence
+from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
 from itertools import groupby
 
 from dlt.common import logger
-from dlt.common.storages.load_package import LoadJobInfo, PackageStorage
+from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TJobState
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_child_tables,
@@ -22,7 +22,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 def get_completed_table_chain(
     schema: Schema,
-    all_jobs: Iterable[LoadJobInfo],
+    all_jobs: Iterable[Tuple[TJobState, ParsedLoadJobFileName]],
     top_merged_table: TTableSchema,
     being_completed_job_id: str = None,
 ) -> List[TTableSchema]:
@@ -54,8 +54,8 @@ def get_completed_table_chain(
         else:
             # all jobs must be completed in order for merge to be created
             if any(
-                job.state not in ("failed_jobs", "completed_jobs")
-                and job.job_file_info.job_id() != being_completed_job_id
+                job[0] not in ("failed_jobs", "completed_jobs")
+                and job[1].job_id() != being_completed_job_id
                 for job in table_jobs
             ):
                 return None
@@ -113,12 +113,15 @@ def init_client(
         )
     )
 
+    # get tables to drop
+    drop_table_names = {table["name"] for table in drop_tables} if drop_tables else set()
+
     applied_update = _init_dataset_and_update_schema(
         job_client,
         expected_update,
         tables_with_jobs | dlt_tables,
         truncate_table_names,
-        drop_tables=drop_tables,
+        drop_tables=drop_table_names,
     )
 
     # update the staging dataset if client supports this
@@ -138,6 +141,7 @@ def init_client(
                     staging_tables | {schema.version_table_name},  # keep only schema version
                     staging_tables,  # all eligible tables must be also truncated
                     staging_info=True,
+                    drop_tables=drop_table_names,  # try to drop all the same tables on staging
                 )
 
     return applied_update
@@ -149,7 +153,7 @@ def _init_dataset_and_update_schema(
     update_tables: Iterable[str],
     truncate_tables: Iterable[str] = None,
     staging_info: bool = False,
-    drop_tables: Optional[List[TTableSchema]] = None,
+    drop_tables: Iterable[str] = None,
 ) -> TSchemaTables:
     staging_text = "for staging dataset" if staging_info else ""
     logger.info(
@@ -158,12 +162,17 @@ def _init_dataset_and_update_schema(
     )
     job_client.initialize_storage()
     if drop_tables:
-        drop_table_names = [table["name"] for table in drop_tables]
         if hasattr(job_client, "drop_tables"):
             logger.info(
-                f"Client for {job_client.config.destination_type} will drop tables {staging_text}"
+                f"Client for {job_client.config.destination_type} will drop tables"
+                f" {drop_tables} {staging_text}"
             )
-            job_client.drop_tables(*drop_table_names, delete_schema=True)
+            job_client.drop_tables(*drop_tables, delete_schema=True)
+        else:
+            logger.warning(
+                f"Client for {job_client.config.destination_type} does not implement drop table."
+                f" Following tables {drop_tables} will not be dropped {staging_text}"
+            )
 
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
