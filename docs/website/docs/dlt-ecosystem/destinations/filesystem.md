@@ -265,6 +265,29 @@ The filesystem destination handles the write dispositions as follows:
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
 
+### 🧪 `merge` with `delta` table format
+The [`upsert`](../../general-usage/incremental-loading.md#upsert-strategy) merge strategy is supported when using the [`delta`](#delta-table-format) table format.
+
+:::caution
+The `upsert` merge strategy for the `filesystem` destination with `delta` table format is considered experimental.
+:::
+
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="my_primary_key",
+    table_format="delta"
+)
+def my_upsert_resource():
+    ...
+...
+```
+
+#### Known limitations
+- `hard_delete` hint not supported
+- deleting records from child tables not supported
+  - This means updates to complex columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "complex": [1, 2]}` and then load `{"key": 1, "complex": [1]}`, then the record for element `2` will not be deleted from the child table.
+
 ## File Compression
 
 The filesystem destination in the dlt library uses `gzip` compression by default for efficiency, which may result in the files being stored in a compressed format. This format may not be easily readable as plain text or JSON Lines (`jsonl`) files. If you encounter files that seem unreadable, they may be compressed.

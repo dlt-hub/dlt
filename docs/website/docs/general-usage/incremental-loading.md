@@ -398,7 +398,7 @@ column in the root table to stamp changes in nested data.
 The `upsert` merge strategy is currently only supported for these destinations:
 - `postgres`
 - `snowflake`
-- 🧪 `filesytem` with `delta` table format
+- 🧪 `filesytem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/filesystem.md#known-limitations))
 :::
 
 The `upsert` merge strategy does primary-key based *upserts*:
@@ -425,28 +425,6 @@ def my_upsert_resource():
     ...
 ...
 ```
-
-#### 🧪 `filesytem` with `delta` table format
-
-:::caution
-The `upsert` merge strategy for the `filesystem` destination with `delta` table format is considered experimental.
-:::
-
-```py
-@dlt.resource(
-    write_disposition={"disposition": "merge", "strategy": "upsert"},
-    primary_key="my_primary_key",
-    table_format="delta"
-)
-def my_upsert_resource():
-    ...
-...
-```
-
-**Known limitations:**
-- `hard_delete` hint not supported
-- deleting records from child tables not supported
-  - This means updates to complex columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "complex": [1, 2]}` and then load `{"key": 1, "complex": [1]}`, then the record for element `2` will not be deleted from the child table.
 
 ## Incremental loading with a cursor field
 
