@@ -85,13 +85,6 @@ const config = {
         items: [
           { label: 'dlt ' + (process.env.IS_MASTER_BRANCH ? "stable ": "devel ") + (process.env.DOCUSAURUS_DLT_VERSION || "0.0.1"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
           {
-            type: 'doc',
-            docId: 'intro',
-            position: 'left',
-            label: 'Docs',
-          },
-          { to: 'blog', label: 'Blog', position: 'left' },
-          {
             href: 'https://dlthub.com/community',
             label: 'Join community',
             position: 'right',
