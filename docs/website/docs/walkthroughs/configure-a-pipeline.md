@@ -19,7 +19,7 @@ To configure a `dataset_name_layout` which will prefix the names of all datasets
 
 
 1. **Environment Variables:**
-   ```bash
+   ```sh
    export DATASET_NAME_LAYOUT="myprefix_%s"
    ```
 
