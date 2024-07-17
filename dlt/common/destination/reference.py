@@ -508,12 +508,22 @@ class SupportsDataAccess(ABC):
 
     @abstractmethod
     def iter_df(
-        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
     ) -> Generator[DataFrame, None, None]: ...
 
     @abstractmethod
     def iter_arrow(
-        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
     ) -> Generator[ArrowTable, None, None]: ...
 
 

@@ -579,57 +579,81 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         return jobs
 
     def iter_df(
-        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
     ) -> Generator[DataFrame, None, None]:
         """Provide dataframes via duckdb"""
         import duckdb
         from duckdb import InvalidInputException
 
+        if table:
+            prepare_tables = [table]
+            if sql:
+                raise Exception("You must either provide the table argument or a sql expression")
+            sql = f"SELECT * FROM {table}"
+        elif not prepare_tables or not sql:
+            raise Exception(
+                "You must either provide a table argument or sql and prepare table arguments to"
+                " access this dataset"
+            )
+
         # create in memory table, for now we read all available files
         db = duckdb.connect(":memory:")
         db.register_filesystem(self.fs_client)
-        files = self.list_table_files(table)
-        if not files:
-            return None
 
-        file_type = os.path.splitext(files[0])[1][1:]
-        if file_type == "jsonl":
-            read_command = "read_json"
-        elif file_type == "parquet":
-            read_command = "read_parquet"
-        else:
-            raise AssertionError("Unknown filetype")
+        # create all tables in duck instance
+        for ptable in prepare_tables:
+            files = self.list_table_files(ptable)
+            # discover tables files
+            file_type = os.path.splitext(files[0])[1][1:]
+            if file_type == "jsonl":
+                read_command = "read_json"
+            elif file_type == "parquet":
+                read_command = "re ad_parquet"
+            else:
+                raise AssertionError(f"Unknown filetype {file_type} for table {ptable}")
 
-        protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
-        files_string = ",".join([f"'{protocol}{f}'" for f in files])
-
-        def _build_sql_string(read_params: str = "") -> str:
-            return (
-                f"SELECT * FROM {read_command}([{files_string}]{read_params}) OFFSET {offset} LIMIT"
-                f" {batch_size}"
+            # create table
+            protocol = "" if self.is_local_filesystem else f"{self.config.protocol}://"
+            files_string = ",".join([f"'{protocol}{f}'" for f in files])
+            create_table_sql_base = (
+                f"CREATE TABLE {ptable} AS SELECT * FROM {read_command}([{files_string}])"
             )
+            create_table_sql_gzipped = (
+                f"CREATE TABLE {ptable} AS SELECT * FROM {read_command}([{files_string}],"
+                " compression = 'gzip')"
+            )
+            try:
+                db.sql(create_table_sql_base)
+            except InvalidInputException:
+                # try to load gzipped files
+                db.sql(create_table_sql_gzipped)
 
         # yield in batches
         offset = 0
         while True:
-            try:
-                df = db.sql(_build_sql_string()).df()
-            except InvalidInputException:
-                # if jsonl and could not read, try with gzip setting
-                if file_type == "jsonl":
-                    df = db.sql(_build_sql_string(read_params=", compression = 'gzip'")).df()
-                else:
-                    raise
+            df = db.sql(sql + f" OFFSET {offset} LIMIT {batch_size}").df()
             if len(df.index) == 0:
                 break
             yield df
             offset += batch_size
 
     def iter_arrow(
-        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
     ) -> Generator[ArrowTable, None, None]:
         """Default implementation converts df to arrow"""
 
         # TODO: duckdb supports iterating in batches natively..
-        for df in self.iter_df(sql=sql, table=table, batch_size=batch_size):
+        for df in self.iter_df(
+            sql=sql, table=table, batch_size=batch_size, prepare_tables=prepare_tables
+        ):
             yield ArrowTable.from_pandas(df)

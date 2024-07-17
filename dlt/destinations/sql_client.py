@@ -287,7 +287,12 @@ SELECT 1
             return f"DELETE FROM {qualified_table_name} WHERE 1=1;"
 
     def iter_df(
-        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
     ) -> Generator[DataFrame, None, None]:
         if not sql:
             table = self.make_qualified_table_name(table)
@@ -303,7 +308,12 @@ SELECT 1
                 yield df
 
     def iter_arrow(
-        self, *, sql: str = None, table: str = None, batch_size: int = 1000
+        self,
+        *,
+        table: str = None,
+        batch_size: int = 1000,
+        sql: str = None,
+        prepare_tables: List[str] = None,
     ) -> Generator[ArrowTable, None, None]:
         """Default implementation converts df to arrow"""
         for df in self.iter_df(sql=sql, table=table, batch_size=batch_size):
