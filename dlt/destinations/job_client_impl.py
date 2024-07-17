@@ -263,7 +263,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-
+        self._set_query_tags_for_job(load_id, table)
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
             return SqlLoadJob(file_path, self.sql_client)
