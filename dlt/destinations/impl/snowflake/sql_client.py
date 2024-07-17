@@ -38,7 +38,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         staging_dataset_name: str,
         credentials: SnowflakeCredentials,
         capabilities: DestinationCapabilitiesContext,
-        query_tag: Optional[str],
+        query_tag: Optional[str] = None,
     ) -> None:
         super().__init__(credentials.database, dataset_name, staging_dataset_name, capabilities)
         self._conn: snowflake_lib.SnowflakeConnection = None
