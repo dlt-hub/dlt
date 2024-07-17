@@ -476,13 +476,12 @@ class Pipeline(SupportsPipeline):
         for table in self.default_schema.data_tables(include_incomplete=True):
             if (
                 "x-merge-strategy" in table
-                and caps.supported_merge_strategies is not None
+                and len(caps.supported_merge_strategies) > 0
                 and table["x-merge-strategy"] not in caps.supported_merge_strategies  # type: ignore[typeddict-item]
             ):
-                if self.destination.destination_name in ("filesystem", "weaviate") and table["x-merge-strategy"] == "delete-insert":  # type: ignore[typeddict-item]
-                    # temp solution to prevent raising exceptions for
-                    # `fileystem` and `weaviate`, which do handle the `merge` write
-                    # disposition, but don't implement any of the defined merge strategies
+                if self.destination.destination_name == "filesystem" and table["x-merge-strategy"] == "delete-insert":  # type: ignore[typeddict-item]
+                    # `filesystem` does not support `delete-insert`, but no
+                    # error should be raised because it falls back to `append`
                     pass
                 else:
                     raise DestinationCapabilitiesException(
