@@ -10,7 +10,7 @@ _impl_name = "msgspec"
 def _dumps(
     obj: Any, sort_keys: bool, pretty: bool, default: AnyFun = custom_encode, options: int = 0
 ) -> bytes:
-    return msgspec.json.encode(obj, enc_hook=default)
+    return msgspec.json.encode(obj, enc_hook=default, order="sorted" if sort_keys else None)
 
 
 def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:
