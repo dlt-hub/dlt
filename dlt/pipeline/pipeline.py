@@ -476,7 +476,7 @@ class Pipeline(SupportsPipeline):
         for table in self.default_schema.data_tables(include_incomplete=True):
             if (
                 "x-merge-strategy" in table
-                and len(caps.supported_merge_strategies) > 0
+                and caps.supported_merge_strategies
                 and table["x-merge-strategy"] not in caps.supported_merge_strategies  # type: ignore[typeddict-item]
             ):
                 if self.destination.destination_name == "filesystem" and table["x-merge-strategy"] == "delete-insert":  # type: ignore[typeddict-item]
