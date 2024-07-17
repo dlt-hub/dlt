@@ -229,50 +229,36 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not job:
             insert_api = table.get("x-insert-api", "default")
-            try:
-                if insert_api == "streaming":
-                    if table["write_disposition"] != "append":
-                        raise DestinationTerminalException(
-                            "BigQuery streaming insert can only be used with `append`"
-                            " write_disposition, while the given resource has"
-                            f" `{table['write_disposition']}`."
-                        )
-                    if file_path.endswith(".jsonl"):
-                        job_cls = DestinationJsonlLoadJob
-                    elif file_path.endswith(".parquet"):
-                        job_cls = DestinationParquetLoadJob  # type: ignore
-                    else:
-                        raise ValueError(
-                            f"Unsupported file type for BigQuery streaming inserts: {file_path}"
-                        )
-
-                    job = job_cls(
-                        file_path,
-                        self.config,  # type: ignore
-                        destination_state(),
-                        functools.partial(_streaming_load, self),
-                        [],
+            if insert_api == "streaming":
+                if table["write_disposition"] != "append":
+                    raise DestinationTerminalException(
+                        "BigQuery streaming insert can only be used with `append`"
+                        " write_disposition, while the given resource has"
+                        f" `{table['write_disposition']}`."
                     )
+                if file_path.endswith(".jsonl"):
+                    job_cls = DestinationJsonlLoadJob
+                elif file_path.endswith(".parquet"):
+                    job_cls = DestinationParquetLoadJob  # type: ignore
                 else:
-                    job = BigQueryLoadJob(
-                        file_path,
-                        self.config.http_timeout,
-                        self.config.retry_deadline,
+                    raise ValueError(
+                        f"Unsupported file type for BigQuery streaming inserts: {file_path}"
                     )
-            # TODO: this section may not be needed, BigQueryLoadJob will not through errors here and the streaming insert i don't know
-            except api_core_exceptions.GoogleAPICallError as gace:
-                reason = BigQuerySqlClient._get_reason_from_errors(gace)
-                if reason == "notFound":
-                    # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise DatabaseUndefinedRelation(gace) from gace
-                elif reason in BQ_TERMINAL_REASONS:
-                    # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
-                    raise LoadJobTerminalException(
-                        file_path, f"The server reason was: {reason}"
-                    ) from gace
-                else:
-                    raise DatabaseTransientException(gace) from gace
 
+                job = job_cls(
+                    file_path,
+                    self.config,  # type: ignore
+                    destination_state(),
+                    _streaming_load,  # type: ignore
+                    [],
+                    callable_requires_job_client_args=True,
+                )
+            else:
+                job = BigQueryLoadJob(
+                    file_path,
+                    self.config.http_timeout,
+                    self.config.retry_deadline,
+                )
         return job
 
     def _get_table_update_sql(
@@ -502,7 +488,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
 
 
 def _streaming_load(
-    job_client: BigQueryClient, items: List[Dict[Any, Any]], table: Dict[str, Any]
+    items: List[Dict[Any, Any]], table: Dict[str, Any], job_client: BigQueryClient
 ) -> None:
     """
     Upload the given items into BigQuery table, using streaming API.

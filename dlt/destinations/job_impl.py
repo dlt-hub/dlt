@@ -112,6 +112,7 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
         destination_state: Dict[str, int],
         destination_callable: TDestinationCallable,
         skipped_columns: List[str],
+        callable_requires_job_client_args: bool = False,
     ) -> None:
         super().__init__(file_path)
         self._config = config
@@ -119,6 +120,7 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         self._skipped_columns = skipped_columns
         self._destination_state = destination_state
+        self._callable_requires_job_client_args = callable_requires_job_client_args
 
     def run(self) -> None:
         # update filepath, it will be in running jobs now
@@ -140,7 +142,10 @@ class DestinationLoadJob(RunnableLoadJob, ABC):
         if not items:
             return
         # call callable
-        self._callable(items, self._load_table)
+        if self._callable_requires_job_client_args:
+            self._callable(items, self._load_table, job_client=self._job_client)  # type: ignore
+        else:
+            self._callable(items, self._load_table)
 
     @abstractmethod
     def get_batches(self, start_index: int) -> Iterable[TDataItems]:
