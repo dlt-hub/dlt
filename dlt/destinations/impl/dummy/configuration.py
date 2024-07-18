@@ -24,7 +24,7 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     retry_prob: float = 0.0
     completed_prob: float = 0.0
     exception_prob: float = 0.0
-    """probability of exception when checking job status"""
+    """probability of exception transient exception when running job"""
     timeout: float = 10.0
     fail_terminally_in_init: bool = False
     fail_transiently_in_init: bool = False
