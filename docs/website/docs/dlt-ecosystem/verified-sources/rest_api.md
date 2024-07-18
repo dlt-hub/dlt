@@ -791,6 +791,7 @@ def set_encoding(response, *args, **kwargs):
     response.encoding = 'windows-1252'
     return response
 
+
 def add_and_remove_fields(response: Response, *args, **kwargs) -> Response:
     payload = response.json()
     for record in payload["data"]:
@@ -800,11 +801,26 @@ def add_and_remove_fields(response: Response, *args, **kwargs) -> Response:
     response._content = modified_content
     return response
 
-{
-    "path": "issues",
-    "response_actions": [
-        set_encoding
-        {"status_code": 200, "action": add_and_remove_fields},
+
+source_config = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "response_actions": [
+                    set_encoding,
+                    {
+                        "status_code": 200,
+                        "content": "some text",
+                        "action": add_and_remove_fields,
+                    },
+                ],
+            },
+        },
     ],
 }
 ```
@@ -819,10 +835,20 @@ def set_encoding(response, *args, **kwargs):
     response.encoding = 'windows-1252'
     return response
 
-{
-    "path": "issues",
-    "response_actions": [
-        set_encoding,
+source_config = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "endpoint": {
+                "path": "issues",
+                "response_actions": [
+                    set_encoding,
+                ],
+            },
+        },
     ],
 }
 ```
