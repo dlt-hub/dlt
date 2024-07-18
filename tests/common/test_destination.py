@@ -6,6 +6,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.typing import is_subclass
+from dlt.common.normalizers.naming import sql_ci_v1, sql_cs_v1
 
 from tests.common.configuration.utils import environment
 from tests.utils import ACTIVE_DESTINATIONS
@@ -156,6 +157,52 @@ def test_import_all_destinations() -> None:
         assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
 
 
+def test_base_adjust_capabilities() -> None:
+    # return without modifications
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps_props = dict(caps)
+    adj_caps = Destination.adjust_capabilities(caps, None, None)
+    assert caps is adj_caps
+    assert dict(adj_caps) == caps_props
+
+    # caps that support case sensitive idents may be put into case sensitive mode
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    assert caps.has_case_sensitive_identifiers is True
+    assert caps.casefold_identifier is str
+    # this one is already in case sensitive mode
+    assert caps.generates_case_sensitive_identifiers() is True
+    # applying cs naming has no effect
+    caps = Destination.adjust_capabilities(caps, None, sql_cs_v1.NamingConvention())
+    assert caps.generates_case_sensitive_identifiers() is True
+    # same for ci naming, adjustment is only from case insensitive to sensitive
+    caps = Destination.adjust_capabilities(caps, None, sql_ci_v1.NamingConvention())
+    assert caps.generates_case_sensitive_identifiers() is True
+
+    # switch to case sensitive if supported by changing case folding function
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.casefold_identifier = str.lower
+    assert caps.generates_case_sensitive_identifiers() is False
+    caps = Destination.adjust_capabilities(caps, None, sql_cs_v1.NamingConvention())
+    assert caps.casefold_identifier is str
+    assert caps.generates_case_sensitive_identifiers() is True
+    # ci naming has no effect
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.casefold_identifier = str.upper
+    caps = Destination.adjust_capabilities(caps, None, sql_ci_v1.NamingConvention())
+    assert caps.casefold_identifier is str.upper
+    assert caps.generates_case_sensitive_identifiers() is False
+
+    # this one does not support case sensitive identifiers and is casefolding
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.has_case_sensitive_identifiers = False
+    caps.casefold_identifier = str.lower
+    assert caps.generates_case_sensitive_identifiers() is False
+    caps = Destination.adjust_capabilities(caps, None, sql_cs_v1.NamingConvention())
+    # no effect
+    assert caps.casefold_identifier is str.lower
+    assert caps.generates_case_sensitive_identifiers() is False
+
+
 def test_instantiate_all_factories() -> None:
     from dlt import destinations
 
@@ -302,6 +349,43 @@ def test_normalize_dataset_name() -> None:
         ._bind_dataset_name(dataset_name="set", default_schema_name="default")
         .normalize_dataset_name(schema)
         == "set_barba_papa"
+    )
+
+
+def test_normalize_staging_dataset_name() -> None:
+    # default normalized staging dataset
+    assert (
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name="Dataset", default_schema_name="default")
+        .normalize_staging_dataset_name(Schema("private"))
+        == "dataset_private_staging"
+    )
+    # different layout
+    assert (
+        DestinationClientDwhConfiguration(staging_dataset_name_layout="%s__STAGING")
+        ._bind_dataset_name(dataset_name="Dataset", default_schema_name="private")
+        .normalize_staging_dataset_name(Schema("private"))
+        == "dataset_staging"
+    )
+    # without placeholder
+    assert (
+        DestinationClientDwhConfiguration(staging_dataset_name_layout="static_staging")
+        ._bind_dataset_name(dataset_name="Dataset", default_schema_name="default")
+        .normalize_staging_dataset_name(Schema("private"))
+        == "static_staging"
+    )
+    # empty dataset -> empty staging
+    assert (
+        DestinationClientDwhConfiguration()
+        ._bind_dataset_name(dataset_name=None, default_schema_name="private")
+        .normalize_staging_dataset_name(Schema("private"))
+        is None
+    )
+    assert (
+        DestinationClientDwhConfiguration(staging_dataset_name_layout="static_staging")
+        ._bind_dataset_name(dataset_name=None, default_schema_name="default")
+        .normalize_staging_dataset_name(Schema("private"))
+        == "static_staging"
     )
 
 

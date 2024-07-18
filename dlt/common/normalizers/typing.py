@@ -1,10 +1,13 @@
+from typing import List, Optional, Type, TypedDict, Literal, Union
 from types import ModuleType
-from typing import List, Optional, Type, TypedDict, Union
 
 from dlt.common.typing import StrAny
 from dlt.common.normalizers.naming import NamingConvention
 
 TNamingConventionReferenceArg = Union[str, Type[NamingConvention], ModuleType]
+
+
+TRowIdType = Literal["random", "row_hash", "key_hash"]
 
 
 class TJSONNormalizer(TypedDict, total=False):

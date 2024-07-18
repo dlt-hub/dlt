@@ -39,6 +39,39 @@ def switch_to_fifo():
     del os.environ["EXTRACT__NEXT_ITEM_MODE"]
 
 
+def test_basic_source() -> None:
+    def basic_gen():
+        yield 1
+
+    schema = Schema("test")
+    s = DltSource.from_data(schema, "section", basic_gen)
+    assert s.name == "test"
+    assert s.section == "section"
+    assert s.max_table_nesting is None
+    assert s.root_key is False
+    assert s.schema_contract is None
+    assert s.exhausted is False
+    assert s.schema is schema
+    assert len(s.resources) == 1
+    assert s.resources == s.selected_resources
+
+    # set some props
+    s.max_table_nesting = 10
+    assert s.max_table_nesting == 10
+    s.root_key = True
+    assert s.root_key is True
+    s.schema_contract = "evolve"
+    assert s.schema_contract == "evolve"
+
+    s.max_table_nesting = None
+    s.root_key = False
+    s.schema_contract = None
+
+    assert s.max_table_nesting is None
+    assert s.root_key is False
+    assert s.schema_contract is None
+
+
 def test_call_data_resource() -> None:
     with pytest.raises(TypeError):
         DltResource.from_data([1], name="t")()

@@ -20,22 +20,24 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_package import destination_state
 from dlt.common.typing import DictStrAny
 from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.exceptions import (
+    DatabaseTransientException,
+    DatabaseUndefinedRelation,
     DestinationSchemaWillNotUpdate,
     DestinationTerminalException,
-    DestinationTransientException,
     LoadJobNotExistsException,
     LoadJobTerminalException,
 )
 from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    AUTODETECT_SCHEMA_HINT,
     PARTITION_HINT,
     CLUSTER_HINT,
     TABLE_DESCRIPTION_HINT,
@@ -50,7 +52,6 @@ from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.utils import parse_db_data_type_str_with_precision
-from dlt.pipeline.current import destination_state
 
 
 class BigQueryTypeMapper(TypeMapper):
@@ -182,6 +183,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> None:
         sql_client = BigQuerySqlClient(
             config.normalize_dataset_name(schema),
+            config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
             config.get_location(),
@@ -226,7 +228,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         file_path, f"The server reason was: {reason}"
                     ) from gace
                 else:
-                    raise DestinationTransientException(gace) from gace
+                    raise DatabaseTransientException(gace) from gace
         return job
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -271,7 +273,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
-                    raise UnknownTableException(self.schema.name, table["name"]) from gace
+                    raise DatabaseUndefinedRelation(gace) from gace
                 elif (
                     reason == "duplicate"
                 ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
@@ -282,13 +284,18 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         file_path, f"The server reason was: {reason}"
                     ) from gace
                 else:
-                    raise DestinationTransientException(gace) from gace
+                    raise DatabaseTransientException(gace) from gace
 
         return job
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
+        # return empty columns which will skip table CREATE or ALTER
+        # to let BigQuery autodetect table from data
+        if self._should_autodetect_schema(table_name):
+            return []
+
         table: Optional[TTableSchema] = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
@@ -411,11 +418,12 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         query = f"""
 SELECT {",".join(self._get_storage_table_query_columns())}
     FROM {catalog_name}.{schema_name}.INFORMATION_SCHEMA.COLUMNS
-WHERE """
-
-        # placeholder for each table
-        table_placeholders = ",".join(["%s"] * len(folded_table_names))
-        query += f"table_name IN ({table_placeholders}) ORDER BY table_name, ordinal_position;"
+"""
+        if folded_table_names:
+            # placeholder for each table
+            table_placeholders = ",".join(["%s"] * len(folded_table_names))
+            query += f"WHERE table_name IN ({table_placeholders}) "
+        query += "ORDER BY table_name, ordinal_position;"
 
         return query, folded_table_names
 
@@ -445,12 +453,6 @@ WHERE """
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
         decimal_target_types: Optional[List[str]] = None
         if ext == "parquet":
-            # if table contains complex types, we cannot load with parquet
-            if table_schema_has_type(table, "complex"):
-                raise LoadJobTerminalException(
-                    file_path,
-                    "Bigquery cannot load into JSON data type from parquet. Use jsonl instead.",
-                )
             source_format = bigquery.SourceFormat.PARQUET
             # parquet needs NUMERIC type auto-detection
             decimal_target_types = ["NUMERIC", "BIGNUMERIC"]
@@ -465,6 +467,19 @@ WHERE """
             ignore_unknown_values=False,
             max_bad_records=0,
         )
+        if self._should_autodetect_schema(table_name):
+            # allow BigQuery to infer and evolve the schema, note that dlt is not
+            # creating such tables at all
+            job_config.autodetect = True
+            job_config.schema_update_options = bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION
+            job_config.create_disposition = bigquery.CreateDisposition.CREATE_IF_NEEDED
+        elif ext == "parquet" and table_schema_has_type(table, "complex"):
+            # if table contains complex types, we cannot load with parquet
+            raise LoadJobTerminalException(
+                file_path,
+                "Bigquery cannot load into JSON data type from parquet. Enable autodetect_schema in"
+                " config or via BigQuery adapter or use jsonl format instead.",
+            )
 
         if bucket_path:
             return self.sql_client.native_connection.load_table_from_uri(
@@ -492,6 +507,11 @@ WHERE """
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
+
+    def _should_autodetect_schema(self, table_name: str) -> bool:
+        return get_inherited_table_hint(
+            self.schema._schema_tables, table_name, AUTODETECT_SCHEMA_HINT, allow_none=True
+        ) or (self.config.autodetect_schema and table_name not in self.schema.dlt_table_names())
 
 
 def _streaming_load(

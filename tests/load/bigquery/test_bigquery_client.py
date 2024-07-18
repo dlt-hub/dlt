@@ -16,12 +16,14 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.configuration.specs import gcp_credentials
 from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredentialsType
+from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
 
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
+from dlt.destinations.impl.bigquery.bigquery_adapter import AUTODETECT_SCHEMA_HINT
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage
 from tests.common.utils import json_case_path as common_json_case_path
 from tests.common.configuration.utils import environment
@@ -217,15 +219,15 @@ def test_bigquery_configuration() -> None:
     assert config.fingerprint() == digest128("chat-analytics-rasa-ci")
 
     # credential location is deprecated
-    os.environ["CREDENTIALS__LOCATION"] = "EU"
-    config = resolve_configuration(
-        BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
-        sections=("destination", "bigquery"),
-    )
-    assert config.location == "US"
-    assert config.credentials.location == "EU"
-    # but if it is set, we propagate it to the config
-    assert config.get_location() == "EU"
+    # os.environ["CREDENTIALS__LOCATION"] = "EU"
+    # config = resolve_configuration(
+    #     BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
+    #     sections=("destination", "bigquery"),
+    # )
+    # assert config.location == "US"
+    # assert config.credentials.location == "EU"
+    # # but if it is set, we propagate it to the config
+    # assert config.get_location() == "EU"
     os.environ["LOCATION"] = "ATLANTIS"
     config = resolve_configuration(
         BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
@@ -243,6 +245,27 @@ def test_bigquery_configuration() -> None:
     assert (
         BigQueryClientConfiguration()._bind_dataset_name(dataset_name="dataset").fingerprint() == ""
     )
+
+
+def test_bigquery_autodetect_configuration(client: BigQueryClient) -> None:
+    # no schema autodetect
+    assert client._should_autodetect_schema("event_slot") is False
+    assert client._should_autodetect_schema("_dlt_loads") is False
+    # add parent table
+    child = new_table("event_slot__values", "event_slot")
+    client.schema.update_table(child)
+    assert client._should_autodetect_schema("event_slot__values") is False
+    # enable global config
+    client.config.autodetect_schema = True
+    assert client._should_autodetect_schema("event_slot") is True
+    assert client._should_autodetect_schema("_dlt_loads") is False
+    assert client._should_autodetect_schema("event_slot__values") is True
+    # enable hint per table
+    client.config.autodetect_schema = False
+    client.schema.get_table("event_slot")[AUTODETECT_SCHEMA_HINT] = True  # type: ignore[typeddict-unknown-key]
+    assert client._should_autodetect_schema("event_slot") is True
+    assert client._should_autodetect_schema("_dlt_loads") is False
+    assert client._should_autodetect_schema("event_slot__values") is True
 
 
 def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
@@ -290,7 +313,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 @pytest.mark.parametrize("location", ["US", "EU"])
 def test_bigquery_location(location: str, file_storage: FileStorage, client) -> None:
     with cm_yield_client_with_storage(
-        "bigquery", default_config_values={"credentials": {"location": location}}
+        "bigquery", default_config_values={"location": location}
     ) as client:
         user_table_name = prepare_table(client)
         load_json = {

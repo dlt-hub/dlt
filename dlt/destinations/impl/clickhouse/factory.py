@@ -1,14 +1,13 @@
 import sys
 import typing as t
 
-from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.data_writers.escape import (
     escape_clickhouse_identifier,
     escape_clickhouse_literal,
     format_clickhouse_datetime_literal,
 )
-
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
     ClickHouseCredentials,
@@ -66,6 +65,8 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         caps.supports_ddl_transactions = False
 
         caps.supports_truncate_command = True
+
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
         return caps
 

@@ -40,6 +40,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.supports_clone_table = False
         caps.supports_multiple_statements = False
         caps.timestamp_precision = 3
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
         return caps
 
     @property

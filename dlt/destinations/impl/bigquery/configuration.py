@@ -15,26 +15,25 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"
     has_case_sensitive_identifiers: bool = True
+    """If True then dlt expects to load data into case sensitive dataset"""
+    should_set_case_sensitivity_on_new_dataset: bool = False
+    """If True, dlt will set case sensitivity flag on created datasets that corresponds to naming convention"""
 
-    http_timeout: float = 15.0  # connection timeout for http request to BigQuery api
-    file_upload_timeout: float = 30 * 60.0  # a timeout for file upload when loading local files
-    retry_deadline: float = (
-        60.0  # how long to retry the operation in case of error, the backoff 60 s.
-    )
+    http_timeout: float = 15.0
+    """connection timeout for http request to BigQuery api"""
+    file_upload_timeout: float = 30 * 60.0
+    """a timeout for file upload when loading local files"""
+    retry_deadline: float = 60.0
+    """How long to retry the operation in case of error, the backoff 60 s."""
     batch_size: int = 500
+    """Number of rows in streaming insert batch"""
+    autodetect_schema: bool = False
+    """Allow BigQuery to autodetect schemas and create data tables"""
 
     __config_gen_annotations__: ClassVar[List[str]] = ["location"]
 
     def get_location(self) -> str:
-        if self.location != "US":
-            return self.location
-        # default was changed in credentials, emit deprecation message
-        if self.credentials.location != "US":
-            warnings.warn(
-                "Setting BigQuery location in the credentials is deprecated. Please set the"
-                " location directly in bigquery section ie. destinations.bigquery.location='EU'"
-            )
-        return self.credentials.location
+        return self.location
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of project_id"""

@@ -356,6 +356,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 f"Specified Incremental last value type {param_type} is not supported. Please use"
                 f" DateTime, Date, float, int or str to join external schedulers.({ex})"
             )
+            return
 
         if param_type is Any:
             logger.warning(

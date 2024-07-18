@@ -224,10 +224,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
 
 
 @pytest.mark.essential
-def test_delta_table_core(
-    default_buckets_env: str,
-    local_filesystem_pipeline: dlt.Pipeline,
-) -> None:
+def test_delta_table_core(default_buckets_env: str) -> None:
     """Tests core functionality for `delta` table format.
 
     Tests all data types, all filesystems, all write dispositions.
@@ -253,8 +250,10 @@ def test_delta_table_core(
         nonlocal row
         yield [row] * 10
 
+    pipeline = dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", dev_mode=True)
+
     # run pipeline, this should create Delta table
-    info = local_filesystem_pipeline.run(data_types())
+    info = pipeline.run(data_types())
     assert_load_info(info)
 
     # `delta` table format should use `parquet` file format
@@ -266,37 +265,29 @@ def test_delta_table_core(
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
     assert_all_data_types_row(rows[0], schema=column_schemas)
 
     # another run should append rows to the table
-    info = local_filesystem_pipeline.run(data_types())
+    info = pipeline.run(data_types())
     assert_load_info(info)
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 20
 
     # ensure "replace" write disposition is handled
     # should do logical replace, increasing the table version
-    info = local_filesystem_pipeline.run(data_types(), write_disposition="replace")
+    info = pipeline.run(data_types(), write_disposition="replace")
     assert_load_info(info)
-    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    client = cast(FilesystemClient, pipeline.destination_client())
     assert _get_delta_table(client, "data_types").version() == 2
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
     # `merge` resolves to `append` behavior
-    info = local_filesystem_pipeline.run(data_types(), write_disposition="merge")
+    info = pipeline.run(data_types(), write_disposition="merge")
     assert_load_info(info)
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 20
 
 
@@ -601,9 +592,11 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
                 found.append(os.path.join(basedir, file).replace(client.dataset_path, ""))
         return found
 
-    def _collect_table_counts(p) -> Dict[str, int]:
+    def _collect_table_counts(p, *items: str) -> Dict[str, int]:
+        expected_items = set(items).intersection({"items", "items2", "items3"})
+        print(expected_items)
         return load_table_counts(
-            p, "items", "items2", "items3", "_dlt_loads", "_dlt_version", "_dlt_pipeline_state"
+            p, *expected_items, "_dlt_loads", "_dlt_version", "_dlt_pipeline_state"
         )
 
     # generate 4 loads from 2 pipelines, store load ids
@@ -616,7 +609,7 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     # first two loads
     p1.run([1, 2, 3], table_name="items").loads_ids[0]
     load_id_2_1 = p2.run([4, 5, 6], table_name="items").loads_ids[0]
-    assert _collect_table_counts(p1) == {
+    assert _collect_table_counts(p1, "items") == {
         "items": 6,
         "_dlt_loads": 2,
         "_dlt_pipeline_state": 2,
@@ -643,7 +636,7 @@ def test_state_files(destination_config: DestinationTestConfiguration) -> None:
     p2.run([4, 5, 6], table_name="items").loads_ids[0]  # no migration here
 
     # 4 loads for 2 pipelines, one schema and state change on p2 changes so 3 versions and 3 states
-    assert _collect_table_counts(p1) == {
+    assert _collect_table_counts(p1, "items", "items2") == {
         "items": 9,
         "items2": 3,
         "_dlt_loads": 4,

@@ -8,6 +8,10 @@ dlt has built-in support for fetching data from APIs:
 - [RESTClient](./rest-client.md) for interacting with RESTful APIs and paginating the results
 - [Requests wrapper](./requests.md) for making simple HTTP requests with automatic retries and timeouts
 
+Additionally, dlt provides tools to simplify working with APIs:
+- [REST API generic source](../../dlt-ecosystem/verified-sources/rest_api) integrates APIs using a [declarative configuration](../../dlt-ecosystem/verified-sources/rest_api#source-configuration) to minimize custom code.
+- [OpenAPI source generator](../../dlt-ecosystem/verified-sources/openapi-generator) automatically creates declarative API configurations from [OpenAPI specifications](https://swagger.io/specification/).
+
 ## Quick example
 
 Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is https://api.github.com/repos/dlt-hub/dlt/issues. The result is "paginated", meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.

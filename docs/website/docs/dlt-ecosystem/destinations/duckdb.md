@@ -164,8 +164,7 @@ destination.duckdb.credentials=":pipeline:"
 ```py
 p = pipeline_one = dlt.pipeline(
   pipeline_name="my_pipeline",
-  destination="duckdb",
-  credentials=":pipeline:",
+  destination=dlt.destinations.duckdb(":pipeline:"),
 )
 ```
 

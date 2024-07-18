@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.5.1a0"
+version = "0.5.2a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Anton Burnashev <anton@dlthub.com>", "David Scharf <david@dlthub.com>" ]
@@ -44,7 +44,8 @@ astunparse = ">=1.6.3"
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
-orjson = {version = ">=3.6.7,<=3.9.10", markers="platform_python_implementation != 'PyPy'"}
+# exclude some versions because of segfault bugs in orjson
+orjson = {version = ">=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1", markers="platform_python_implementation != 'PyPy'"}
 tenacity = ">=8.0.2"
 jsonpath-ng = ">=1.5.3"
 fsspec = ">=2022.4.0"
@@ -153,6 +154,7 @@ ruff = "^0.3.2"
 pyjwt = "^2.8.0"
 pytest-mock = "^3.14.0"
 types-regex = "^2024.5.15.20240519"
+flake8-print = "^5.0.0"
 
 [tool.poetry.group.pipeline]
 optional = true

@@ -192,7 +192,7 @@ def test_parquet_column_names_are_normalized(
     def some_data():
         yield tbl
 
-    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination=destination_config.destination)
+    pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
     pipeline.extract(some_data())
 
     # Find the extracted file

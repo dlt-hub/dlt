@@ -242,12 +242,12 @@ config: RESTAPIConfig = {
 
 #### `client`
 
-`client` contains the configuration to connect to the API's endpoints. It includes the following fields:
+The `client` configuration is used to connect to the API's endpoints. It includes the following fields:
 
 - `base_url` (str): The base URL of the API. This string is prepended to all endpoint paths. For example, if the base URL is `https://api.example.com/v1/`, and the endpoint path is `users`, the full URL will be `https://api.example.com/v1/users`.
-- `headers` (dict, optional): Additional headers to be sent with each request.
-- `auth` (optional): Authentication configuration. It can be a simple token, a `AuthConfigBase` object, or a more complex authentication method.
-- `paginator` (optional): Configuration for the default pagination to be used for resources that support pagination. See the [pagination](#pagination) section for more details.
+- `headers` (dict, optional): Additional headers that are sent with each request.
+- `auth` (optional): Authentication configuration. This can be a simple token, an `AuthConfigBase` object, or a more complex authentication method.
+- `paginator` (optional): Configuration for the default pagination used for resources that support pagination. Refer to the [pagination](#pagination) section for more details.
 
 #### `resource_defaults` (optional)
 
@@ -346,46 +346,69 @@ The REST API source will try to automatically handle pagination for you. This wo
 
 In some special cases, you may need to specify the pagination configuration explicitly.
 
+To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use a [paginator class instance](../../general-usage/http/rest-client.md#paginators).
+
+#### Example
+
+Suppose the API response for `https://api.example.com/posts` contains a `next` field with the URL to the next page:
+
+```json
+{
+    "data": [
+        {"id": 1, "title": "Post 1"},
+        {"id": 2, "title": "Post 2"},
+        {"id": 3, "title": "Post 3"}
+    ],
+    "pagination": {
+        "next": "https://api.example.com/posts?page=2"
+    }
+}
+```
+
+You can configure the pagination for the `posts` resource like this:
+
+```py
+{
+    "path": "posts",
+    "paginator": {
+        "type": "json_response",
+        "next_url_path": "pagination.next",
+    }
+}
+```
+
+Alternatively, you can use the paginator instance directly:
+
+```py
+from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+
+# ...
+
+{
+    "path": "posts",
+    "paginator": JSONResponsePaginator(
+        next_url_path="pagination.next"
+    ),
+}
+```
+
 :::note
 Currently pagination is supported only for GET requests. To handle POST requests with pagination, you need to implement a [custom paginator](../../general-usage/http/rest-client.md#custom-paginator).
 :::
 
 These are the available paginators:
 
-| Paginator class | String Alias (`type`) | Description |
-| -------------- | ------------ | ----------- |
-| [JSONResponsePaginator](../../general-usage/http/rest-client.md#jsonresponsepaginator) | `json_response` | The links to the next page are in the body (JSON) of the response. |
-| [HeaderLinkPaginator](../../general-usage/http/rest-client.md#headerlinkpaginator) | `header_link` | The links to the next page are in the response headers. |
-| [OffsetPaginator](../../general-usage/http/rest-client.md#offsetpaginator) | `offset` | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided. |
-| [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | `page_number` | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided. |
-| [JSONCursorPaginator](../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | `cursor` | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON). |
-| SinglePagePaginator | `single_page` | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
-| `None` | `auto` | Explicitly specify that the source should automatically detect the pagination method. |
+| `type` | Paginator class | Description |
+| ------------ | -------------- | ----------- |
+| `json_response` | [JSONResponsePaginator](../../general-usage/http/rest-client.md#jsonresponsepaginator) | The link to the next page is in the body (JSON) of the response.<br/>*Parameters:*<ul><li>`next_url_path` (str) - the JSONPath to the next page URL</li></ul> |
+| `header_link` | [HeaderLinkPaginator](../../general-usage/http/rest-client.md#headerlinkpaginator) | The links to the next page are in the response headers.<br/>*Parameters:*<ul><li>`link_header` (str) - the name of the header containing the links. Default is "next".</li></ul> |
+| `offset` | [OffsetPaginator](../../general-usage/http/rest-client.md#offsetpaginator) | The pagination is based on an offset parameter. With total items count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`limit` (int) - the maximum number of items to retrieve in each request</li><li>`offset` (int) - the initial offset for the first request. Defaults to `0`</li><li>`offset_param` (str) - the name of the query parameter used to specify the offset. Defaults to "offset"</li><li>`limit_param` (str) - the name of the query parameter used to specify the limit. Defaults to "limit"</li><li>`total_path` (str) - a JSONPath expression for the total number of items. If not provided, pagination is controlled by `maximum_offset`</li><li>`maximum_offset` (int) - optional maximum offset value. Limits pagination even without total count</li></ul> |
+| `page_number` | [PageNumberPaginator](../../general-usage/http/rest-client.md#pagenumberpaginator) | The pagination is based on a page number parameter. With total pages count either in the response body or explicitly provided.<br/>*Parameters:*<ul><li>`initial_page` (int) - the starting page number. Defaults to `0`</li><li>`page_param` (str) - the query parameter name for the page number. Defaults to "page"</li><li>`total_path` (str) - a JSONPath expression for the total number of pages. If not provided, pagination is controlled by `maximum_page`</li><li>`maximum_page` (int) - optional maximum page number. Stops pagination once this page is reached</li></ul> |
+| `cursor` | [JSONResponseCursorPaginator](../../general-usage/http/rest-client.md#jsonresponsecursorpaginator) | The pagination is based on a cursor parameter. The value of the cursor is in the response body (JSON).<br/>*Parameters:*<ul><li>`cursor_path` (str) - the JSONPath to the cursor value. Defaults to "cursors.next"</li><li>`cursor_param` (str) - the query parameter name for the cursor. Defaults to "after"</li></ul> |
+| `single_page` | SinglePagePaginator | The response will be interpreted as a single-page response, ignoring possible pagination metadata. |
+| `auto` | `None` | Explicitly specify that the source should automatically detect the pagination method. |
 
-To specify the pagination configuration, use the `paginator` field in the [client](#client) or [endpoint](#endpoint-configuration) configurations. You may either use a dictionary with a string alias in the `type` field along with the required parameters, or use the paginator instance directly:
-
-```py
-{
-    # ...
-    "paginator": {
-        "type": "json_links",
-        "next_url_path": "paging.next",
-    }
-}
-```
-
-Or using the paginator instance:
-
-```py
-{
-    # ...
-    "paginator": JSONResponsePaginator(
-        next_url_path="paging.next"
-    ),
-}
-```
-
-This is useful when you're [implementing and using a custom paginator](../../general-usage/http/rest-client.md#custom-paginator).
+For more complex pagination methods, you can implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator), instantiate it, and use it in the configuration.
 
 ### Data selection
 
@@ -442,11 +465,11 @@ Read more about [JSONPath syntax](https://github.com/h2non/jsonpath-ng?tab=readm
 
 ### Authentication
 
-Many APIs require authentication to access their endpoints. The REST API source supports various authentication methods, such as token-based, query parameters, basic auth, etc.
+For APIs that require authentication to access their endpoints, the REST API source supports various authentication methods, including token-based authentication, query parameters, basic authentication, and custom authentication. The authentication configuration is specified in the `auth` field of the [client](#client) either as a dictionary or as an instance of the [authentication class](../../general-usage/http/rest-client.md#authentication).
 
 #### Quick example
 
-One of the most common method is token-based authentication. To authenticate with a token, you can use the `token` field in the `auth` configuration:
+One of the most common methods is token-based authentication (also known as Bearer token authentication). To authenticate using this method, you can use the following shortcut:
 
 ```py
 {
@@ -478,6 +501,7 @@ To specify the authentication configuration, use the `auth` field in the [client
 ```py
 {
     "client": {
+        # ...
         "auth": {
             "type": "bearer",
             "token": dlt.secrets["your_api_token"],
@@ -499,6 +523,23 @@ config = {
     # ...
 }
 ```
+
+:::warning
+Make sure to store your access tokens and other sensitive information in the `secrets.toml` file and never commit it to the version control system.
+:::
+
+Available authentication types:
+
+| `type` | Authentication class | Description |
+| ----------- | ------------------- | ----------- |
+| `bearer` | [BearTokenAuth](../../general-usage/http/rest-client.md#bearer-token-authentication) | Bearer token authentication.<br/>Parameters:<ul><li>`token` (str)</li></ul> |
+| `http_basic` | [HTTPBasicAuth](../../general-usage/http/rest-client.md#http-basic-authentication) | Basic HTTP authentication.<br/>Parameters:<ul><li>`username` (str)</li><li>`password` (str)</li></ul> |
+| `api_key` | [APIKeyAuth](../../general-usage/http/rest-client.md#api-key-authentication) | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul> |
+
+
+For more complex authentication methods, you can implement a [custom authentication class](../../general-usage/http/rest-client.md#implementing-custom-authentication) and use it in the configuration.
+
+
 
 ### Define resource relationships
 
@@ -587,80 +628,131 @@ This will include the `id`, `title`, and `created_at` fields from the `issues` r
 Some APIs provide a way to fetch only new or changed data (most often by using a timestamp field like `updated_at`, `created_at`, or incremental IDs).
 This is called [incremental loading](../../general-usage/incremental-loading.md) and is very useful as it allows you to reduce the load time and the amount of data transferred.
 
-When the API endpoint supports incremental loading, you can configure the source to load only the new or changed data using these two methods:
+When the API endpoint supports incremental loading, you can configure dlt to load only the new or changed data using these two methods:
 
-1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration):
+1. Defining a special parameter in the `params` section of the [endpoint configuration](#endpoint-configuration).
+2. Specifying the `incremental` field in the endpoint configuration.
 
-    ```py
-    {
-        "<parameter_name>": {
+Let's start with the first method.
+
+### Incremental loading in `params`
+
+Imagine we have the following endpoint `https://api.example.com/posts` and it:
+1. Accepts a `created_since` query parameter to fetch posts created after a certain date.
+2. Returns a list of posts with the `created_at` field for each post.
+
+For example, if we query the endpoint with `https://api.example.com/posts?created_since=2024-01-25`, we get the following response:
+
+```json
+{
+    "results": [
+        {"id": 1, "title": "Post 1", "created_at": "2024-01-26"},
+        {"id": 2, "title": "Post 2", "created_at": "2024-01-27"},
+        {"id": 3, "title": "Post 3", "created_at": "2024-01-28"}
+    ]
+}
+```
+
+To enable the incremental loading for this endpoint, you can use the following endpoint configuration:
+
+```py
+{
+    "path": "posts",
+    "data_selector": "results",  # Optional JSONPath to select the list of posts
+    "params": {
+        "created_since": {
             "type": "incremental",
-            "cursor_path": "<path_to_cursor_field>",
-            "initial_value": "<initial_value>",  # optional
-            "transform": "<a_callable>",         # optional
+            "cursor_path": "created_at", # The JSONPath to the field we want to track in each post
+            "initial_value": "2024-01-25",
         },
-    }
-    ```
-
-    For example, in the `issues` resource configuration in the GitHub example, we have:
-
-    ```py
-    {
-        "since": {
-            "type": "incremental",
-            "cursor_path": "updated_at",
-            "initial_value": "2024-01-25T00:00:00Z",
-        },
-    }
-    ```
-
-    This configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter in subsequent requests. The query string will be: `?since=2024-01-25T00%3A00%3A00Z`
-
-    If you need to transform the values in the cursor field before passing them to the API endpoint, you can specify a callable under the key `transform`. For example, the API might return UNIX epoch timestamps but expects to be queried with an ISO 8601 date. To achieve that, we can specify a transform function that converts from the date format returned by the API to the date format required for API requests.
-
-    ```py
-    "since": {
-        "type": "incremental",
-        "cursor_path": "updated_at",
-        "initial_value": "1704067200",
-        "transform": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
     },
-    ```
+}
+```
+After you run the pipeline, dlt will keep track of the last `created_at` from all the posts fetched and use it as the `created_since` parameter in the next request.
+So in our case, the next request will be made to `https://api.example.com/posts?created_since=2024-01-28` to fetch only the new posts created after `2024-01-28`.
 
-    In the above example, `1704067200` is returned from the API in the field `updated_at` but the API will be called with `?since=2024-01-01`.
 
-2. Specifying the `incremental` field in the [endpoint configuration](#endpoint-configuration):
+If you need to transform the values in the cursor field before passing them to the API endpoint, you can specify a callable under the key `transform`. For example, the API might return UNIX epoch timestamps but expects to be queried with an ISO 8601 date. To achieve that, we can specify a transform function that converts from the date format returned by the API to the date format required for API requests.
 
-    ```py
-    {
-        "incremental": {
-            "cursor_path": "<path_to_cursor_field>",
-            "start_param": "<parameter_name>",
-            "initial_value": "<initial_value>", # optional
-            "end_param": "<parameter_name>",    # optional
-            "end_value": "<end_value>",         # optional
-            "transform": a_callable,            # optional
-        }
+  ```py
+  "created_since": {
+      "type": "incremental",
+      "cursor_path": "created_at",
+      "initial_value": "1704067200",
+      "transform": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+  },
+  ```
+In the above example, `1704067200` is returned from the API in the field `updated_at` but the API will be called with `?created_since=2024-01-01`.
+
+
+Let's break down the configuration.
+
+
+1. We explicitly set `data_selector` to `"results"` to select the list of posts from the response. This is optional, if not set, dlt will try to auto-detect the data location.
+2. We define the `created_since` parameter as an incremental parameter with the following fields:
+
+```py
+{
+    "created_since": {
+        "type": "incremental",
+        "cursor_path": "created_at",
+        "initial_value": "2024-01-25",
+    },
+}
+```
+
+- `type`: The type of the parameter definition. In this case, it must be set to `incremental`.
+- `cursor_path`: The JSONPath to the field within each item in the list. The value of this field will be used in the next request. In the example above our items look like `{"id": 1, "title": "Post 1", "created_at": "2024-01-26"}` so to track the created time we set `cursor_path` to `"created_at"`. Note that the JSONPath starts from the root of the item (dict) and not from the root of the response.
+- `initial_value`: The initial value for the cursor. This is the value that will initialize the state of incremental loading. In this case, it's `2024-01-25`. The value type should match the type of the field in the data item.
+
+### Incremental loading using the `incremental` field
+
+The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). 
+This configuration is more powerful than the method shown above because it also allows you to specify not only the start parameter and value but also the end parameter and value for the incremental loading.
+
+Let's take the same example as above and configure it using the `incremental` field:
+
+```py
+{
+    "path": "posts",
+    "data_selector": "results",
+    "incremental": {
+        "start_param": "created_since",
+        "cursor_path": "created_at",
+        "initial_value": "2024-01-25",
+    },
+}
+```
+
+Note that we specify the query parameter name `created_since` in the `start_param` field and not in the `params` section.
+
+The full available configuration for the `incremental` field is:
+
+```py
+  {
+      "incremental": {
+          "cursor_path": "<path_to_cursor_field>",
+          "start_param": "<parameter_name>",
+          "initial_value": "<initial_value>", # optional
+          "end_param": "<parameter_name>",    # optional
+          "end_value": "<end_value>",         # optional
+          "transform": a_callable,            # optional
     }
-    ```
+}
+```
 
-    This configuration is more powerful than the method shown above because it also allows you to specify not only the start parameter and value but also the end parameter and value for the incremental loading.
+The fields are:
 
-    The following configuration tells the source to create an incremental object that will keep track of the `updated_at` field in the response and use it as a value for the `since` parameter and in subsequent requests. The query string will be: `?since=2024-01-01&until=2024-02-01`
-
-    ```py
-    {
-        "incremental": {
-            "cursor_path": "updated_at",
-            "initial_value": "2024-01-01",
-            "start_param": "since",
-            "end_param": "until",
-            "end_value": "2024-02-01",
-        }
-    }
-    ```
+- `start_param` (str): The name of the query parameter to be used as the start condition. If we use the example above, it would be `"created_since"`.
+- `end_param` (str): The name of the query parameter to be used as the end condition. This is optional and can be omitted if you only need to track the start condition. This is useful when you need to fetch data within a specific range and the API supports end conditions (like `created_before` query parameter).
+- `cursor_path` (str): The JSONPath to the field within each item in the list. This is the field that will be used to track the incremental loading. In the example above, it's `"created_at"`.
+- `initial_value` (str): The initial value for the cursor. This is the value that will initialize the state of incremental loading.
+- `end_value` (str): The end value for the cursor to stop the incremental loading. This is optional and can be omitted if you only need to track the start condition. If you set this field, `initial_value` needs to be set as well.
+- `transform` (callable): A callable that converts the cursor value into the format that the query parameter requires. For example, a UNIX timestamp can be converted into an ISO 8601 date or a date can be converted into `created_at+gt+{date}`.
 
 See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
+
+If you encounter issues with incremental loading, see the [troubleshooting section](../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
 
 ## Advanced configuration
 
@@ -676,13 +768,24 @@ See the [incremental loading](../../general-usage/incremental-loading.md#increme
 
 ### Response actions
 
-The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses from the API based on status codes or content substrings. This is useful for handling edge cases like ignoring responses on specific conditions.
+The `response_actions` field in the endpoint configuration allows you to specify how to handle specific responses or all responses from the API. For example, responses with specific status codes or content substrings can be ignored.
+Additionally, all responses or only responses with specific status codes or content substrings can be transformed with a custom callable, such as a function. This callable is passed on to the requests library as a [response hook](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks). The callable can modify the response object and has to return it for the modifications to take effect.
 
 :::caution Experimental Feature
 This is an experimental feature and may change in future releases.
 :::
 
-#### Example
+**Fields:**
+
+- `status_code` (int, optional): The HTTP status code to match.
+- `content` (str, optional): A substring to search for in the response content.
+- `action` (str or Callable or List[Callable], optional): The action to take when the condition is met. Currently supported actions:
+  - `"ignore"`: Ignore the response.
+  - a callable accepting and returning the response object.
+  - a list of callables, each accepting and returning the response object.
+
+
+#### Example A
 
 ```py
 {
@@ -697,9 +800,138 @@ This is an experimental feature and may change in future releases.
 
 In this example, the source will ignore responses with a status code of 404, responses with the content "Not found", and responses with a status code of 200 _and_ content "some text".
 
-**Fields:**
+#### Example B
 
-- `status_code` (int, optional): The HTTP status code to match.
-- `content` (str, optional): A substring to search for in the response content.
-- `action` (str): The action to take when the condition is met. Currently supported actions:
-  - `ignore`: Ignore the response.
+```py
+def set_encoding(response, *args, **kwargs):
+    # sets the encoding in case it's not correctly detected
+    response.encoding = 'windows-1252'
+    return response
+
+def add_and_remove_fields(response: Response, *args, **kwargs) -> Response:
+    payload = response.json()
+    for record in payload["data"]:
+        record["custom_field"] = "foobar"
+        record.pop("email", None)
+    modified_content: bytes = json.dumps(payload).encode("utf-8")
+    response._content = modified_content
+    return response
+
+{
+    "path": "issues",
+    "response_actions": [
+        set_encoding
+        {"status_code": 200, "action": add_and_remove_fields},
+    ],
+}
+```
+
+In this example, the resource will set the correct encoding for all responses first. Thereafter, for all responses that have the status code 200, we will add a field `custom_field` and remove the field `email`.
+
+#### Example C
+
+```py
+def set_encoding(response, *args, **kwargs):
+    # sets the encoding in case it's not correctly detected
+    response.encoding = 'windows-1252'
+    return response
+
+{
+    "path": "issues",
+    "response_actions": [
+        set_encoding,
+    ],
+}
+```
+
+In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
+
+
+## Troubleshooting
+
+If you encounter issues while running the pipeline, enable [logging](../../running-in-production/running.md#set-the-log-level-and-format) for detailed information about the execution:
+
+```sh
+RUNTIME__LOG_LEVEL=INFO python my_script.py
+```
+
+This also provides details on the HTTP requests.
+
+### Configuration issues
+
+#### Getting validation errors
+
+When you running the pipeline and getting a `DictValidationException`, it means that the [source configuration](#source-configuration) is incorrect. The error message provides details on the issue including the path to the field and the expected type.
+
+For example, if you have a source configuration like this:
+
+```py
+config: RESTAPIConfig = {
+    "client": {
+        # ...
+    },
+    "resources": [
+        {
+            "name": "issues",
+            "params": {             # <- Wrong: this should be inside
+                "sort": "updated",  #    the endpoint field below
+            },
+            "endpoint": {
+                "path": "issues",
+                # "params": {       # <- Correct configuration
+                #     "sort": "updated",
+                # },
+            },
+        },
+        # ...
+    ],
+}
+```
+
+You will get an error like this:
+
+```sh
+dlt.common.exceptions.DictValidationException: In path .: field 'resources[0]'
+expects the following types: str, EndpointResource. Provided value {'name': 'issues', 'params': {'sort': 'updated'},
+'endpoint': {'path': 'issues', ... }} with type 'dict' is invalid with the following errors:
+For EndpointResource: In path ./resources[0]: following fields are unexpected {'params'}
+```
+
+It means that in the first resource configuration (`resources[0]`), the `params` field should be inside the `endpoint` field.
+
+:::tip
+Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hints in your editor/IDE and use it to define the configuration object.
+
+```py
+from rest_api import RESTAPIConfig
+```
+:::
+
+#### Getting wrong data or no data
+
+If incorrect data is received from an endpoint, check the `data_selector` field in the [endpoint configuration](#endpoint-configuration). Ensure the JSONPath is accurate and points to the correct data in the response body. `rest_api` attempts to auto-detect the data location, which may not always succeed. See the [data selection](#data-selection) section for more details.
+
+#### Getting insufficient data or incorrect pagination
+
+Check the `paginator` field in the configuration. When not explicitly specified, the source tries to auto-detect the pagination method. If auto-detection fails, or the system is unsure, a warning is logged. For production environments, we recommend to specify an explicit paginator in the configuration. See the [pagination](#pagination) section for more details. Some APIs may have non-standard pagination methods, and you may need to implement a [custom paginator](../../general-usage/http/rest-client.md#implementing-a-custom-paginator).
+
+#### Incremental loading not working
+
+See the [troubleshooting guide](../../general-usage/incremental-loading.md#troubleshooting) for incremental loading issues.
+
+#### Getting HTTP 404 errors
+
+Some API may return 404 errors for resources that do not exist or have no data. Manage these responses by configuring the `ignore` action in [response actions](#response-actions).
+
+### Authentication issues
+
+If experiencing 401 (Unauthorized) errors, this could indicate:
+
+- Incorrect authorization credentials. Verify credentials in the `secrets.toml`. Refer to [Secret and configs](../../general-usage/credentials/configuration#understanding-the-exceptions) for more information.
+- An incorrect authentication type. Consult the API documentation for the proper method. See the [authentication](#authentication) section for details. For some APIs, a [custom authentication method](../../general-usage/http/rest-client.md#custom-authentication) may be required.
+
+### General guidelines
+
+The `rest_api` source uses the [RESTClient](../../general-usage/http/rest-client.md) class for HTTP requests. Refer to the RESTClient [troubleshooting guide](../../general-usage/http/rest-client.md#troubleshooting) for debugging tips.
+
+For further assistance, join our [Slack community](https://dlthub.com/community). We're here to help!
