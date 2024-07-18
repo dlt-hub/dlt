@@ -12,6 +12,7 @@ from dlt.common import logger, time, json, pendulum
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -97,17 +98,55 @@ class DeltaLoadFilesystemJob(FilesystemLoadJob):
         from dlt.common.libs.deltalake import (
             write_delta_table,
             _deltalake_storage_options,
+            try_get_deltatable,
         )
 
         files = ReferenceFollowupJob.resolve_references(self._file_path)
-        write_delta_table(
-            path=self._job_client.make_remote_uri(
-                self._job_client.get_table_dir(self.load_table_name)
-            ),
-            data=pa.dataset.dataset(files),
-            write_disposition=self._load_table["write_disposition"],
-            storage_options=_deltalake_storage_options(self._job_client.config),
+        table_path = self._job_client.make_remote_uri(
+            self._job_client.get_table_dir(self.load_table_name)
         )
+        storage_options = _deltalake_storage_options(self._job_client.config)
+
+        if (
+            self._load_table["write_disposition"] == "merge"
+            and (
+                dt := try_get_deltatable(
+                    table_path,
+                    storage_options=storage_options,
+                )
+            )
+            is not None
+        ):
+            assert self._load_table["x-merge-strategy"] in self._job_client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
+
+            if self._load_table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
+                if "parent" in self._load_table:
+                    unique_column = get_first_column_name_with_prop(self._load_table, "unique")
+                    predicate = f"target.{unique_column} = source.{unique_column}"
+                else:
+                    primary_keys = get_columns_names_with_prop(self._load_table, "primary_key")
+                    predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
+
+                qry = (
+                    dt.merge(
+                        source=pa.dataset.dataset(files),
+                        predicate=predicate,
+                        source_alias="source",
+                        target_alias="target",
+                    )
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                )
+
+                qry.execute()
+
+        else:
+            write_delta_table(
+                path=table_path,
+                data=pa.dataset.dataset(files),
+                write_disposition=self._load_table["write_disposition"],
+                storage_options=storage_options,
+            )
 
 
 class FilesystemLoadJobWithFollowup(HasFollowupJobs, FilesystemLoadJob):

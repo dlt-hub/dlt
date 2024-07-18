@@ -68,3 +68,7 @@ class InvalidBoto3Session(NativeValueError):
             " containing credentials"
         )
         super().__init__(spec, native_value, msg)
+
+
+class ObjectStoreRsCredentialsException(ConfigurationException):
+    pass

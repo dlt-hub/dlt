@@ -49,9 +49,10 @@ dataset with the merge write disposition.
 
 ## Merge incremental loading
 
-The `merge` write disposition can be used with two different strategies:
+The `merge` write disposition can be used with three different strategies:
 1) `delete-insert` (default strategy)
 2) `scd2`
+3) `upsert`
 
 ### `delete-insert` strategy
 
@@ -390,6 +391,40 @@ must be unique for a root table. We are working to allow `updated_at` style trac
 * We do not detect changes in child tables (except new records) if row hash of the corresponding parent row does not change. Use `updated_at` or similar
 column in the root table to stamp changes in nested data.
 * `merge_key(s)` are (for now) ignored.
+
+### `upsert` strategy
+
+:::caution
+The `upsert` merge strategy is currently only supported for these destinations:
+- `postgres`
+- `snowflake`
+- 🧪 `filesytem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/filesystem.md#known-limitations))
+:::
+
+The `upsert` merge strategy does primary-key based *upserts*:
+- *update* record if key exists in target table
+- *insert* record if key does not exist in target table
+
+You can [delete records](#delete-records) with the `hard_delete` hint.
+
+#### `upsert` versus `delete-insert`
+
+Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
+1. needs a `primary_key`
+2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
+3. does not support `merge_key`
+4. uses `MERGE` or `UPDATE` operations to process updates
+
+#### Example: `upsert` merge strategy
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "upsert"},
+    primary_key="my_primary_key"
+)
+def my_upsert_resource():
+    ...
+...
+```
 
 ## Incremental loading with a cursor field
 

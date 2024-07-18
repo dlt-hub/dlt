@@ -624,7 +624,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # generate merge statement for root table
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
-        root_table_column_names = list(map(escape_column_id, root_table["columns"].keys()))
+        root_table_column_names = list(map(escape_column_id, root_table["columns"]))
         update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
         col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
         delete_str = (
@@ -664,10 +664,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 """)
 
                 # insert records for new elements in the list
-                col_str = ", ".join(["{alias}" + escape_column_id(c) for c in table["columns"]])
+                table_column_names = list(map(escape_column_id, table["columns"]))
+                update_str = ", ".join([c + " = " + "s." + c for c in table_column_names])
+                col_str = ", ".join(["{alias}" + c for c in table_column_names])
                 sql.append(f"""
                     MERGE INTO {table_name} d USING {staging_table_name} s
                     ON d.{unique_column} = s.{unique_column}
+                    WHEN MATCHED
+                        THEN UPDATE SET {update_str}
                     WHEN NOT MATCHED
                         THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
                 """)

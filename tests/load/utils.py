@@ -28,6 +28,7 @@ from dlt.common.destination.reference import DEFAULT_FILE_LAYOUT
 from dlt.common.data_writers import DataWriter
 from dlt.common.pipeline import PipelineContext
 from dlt.common.schema import TTableSchemaColumns, Schema
+from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table, normalize_table_identifiers
 from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
@@ -121,6 +122,7 @@ class DestinationTestConfiguration:
     destination: str
     staging: Optional[TDestinationReferenceArg] = None
     file_format: Optional[TLoaderFileFormat] = None
+    table_format: Optional[TTableFormat] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
@@ -138,6 +140,8 @@ class DestinationTestConfiguration:
         name: str = self.destination
         if self.file_format:
             name += f"-{self.file_format}"
+        if self.table_format:
+            name += f"-{self.table_format}"
         if not self.staging:
             name += "-no-staging"
         else:
@@ -204,8 +208,10 @@ def destinations_configs(
     local_filesystem_configs: bool = False,
     all_buckets_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
+    bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
     file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
+    table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
     force_iceberg: Optional[bool] = None,
@@ -461,17 +467,34 @@ def destinations_configs(
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="insert_values",
+                supports_merge=False,
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="parquet",
+                supports_merge=False,
             )
         ]
         destination_configs += [
             DestinationTestConfiguration(
-                destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl"
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                file_format="jsonl",
+                supports_merge=False,
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="filesystem",
+                bucket_url=FILE_BUCKET,
+                table_format="delta",
+                supports_merge=True,
             )
         ]
 
@@ -479,7 +502,19 @@ def destinations_configs(
         for bucket in DEFAULT_BUCKETS:
             destination_configs += [
                 DestinationTestConfiguration(
-                    destination="filesystem", bucket_url=bucket, extra_info=bucket
+                    destination="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    supports_merge=False,
+                )
+            ]
+            destination_configs += [
+                DestinationTestConfiguration(
+                    destination="filesystem",
+                    bucket_url=bucket,
+                    extra_info=bucket,
+                    table_format="delta",
+                    supports_merge=True,
                 )
             ]
 
@@ -491,6 +526,12 @@ def destinations_configs(
     # filter out destinations not in subset
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+    if bucket_subset:
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.bucket_url is None or conf.bucket_url in bucket_subset
+        ]
     if exclude:
         destination_configs = [
             conf for conf in destination_configs if conf.destination not in exclude
@@ -502,6 +543,14 @@ def destinations_configs(
             conf
             for conf in destination_configs
             if conf.file_format and conf.file_format in file_format
+        ]
+    if table_format:
+        if not isinstance(table_format, Sequence):
+            table_format = [table_format]
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.table_format and conf.table_format in table_format
         ]
     if supports_merge is not None:
         destination_configs = [

@@ -34,6 +34,7 @@ from dlt.common.schema.utils import (
     get_file_format,
     get_write_disposition,
     get_table_format,
+    get_merge_strategy,
 )
 from dlt.common.configuration import configspec, resolve_configuration, known_sections, NotResolved
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
@@ -501,6 +502,8 @@ class JobClientBase(ABC):
             # add write disposition if not specified - in child tables
             if "write_disposition" not in table:
                 table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
+            if "x-merge-strategy" not in table:
+                table["x-merge-strategy"] = get_merge_strategy(self.schema.tables, table_name)  # type: ignore[typeddict-unknown-key]
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             if "file_format" not in table:

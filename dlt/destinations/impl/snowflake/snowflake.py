@@ -264,6 +264,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
             config.normalize_staging_dataset_name(schema),
             config.credentials,
             capabilities,
+            config.query_tag,
         )
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
