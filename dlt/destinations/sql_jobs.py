@@ -23,6 +23,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import FollowupJobImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.destination.exceptions import DestinationTransientException
 
 
 class SqlJobParams(TypedDict, total=False):
@@ -31,6 +32,17 @@ class SqlJobParams(TypedDict, total=False):
 
 
 DEFAULTS: SqlJobParams = {"replace": False}
+
+
+class SqlJobCreationException(DestinationTransientException):
+    def __init__(self, original_exception: Exception, table_chain: Sequence[TTableSchema]) -> None:
+        tables_str = yaml.dump(
+            table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
+        )
+        super().__init__(
+            f"Could not create SQLFollowupJob with exception {str(original_exception)}. Table"
+            f" chain: {tables_str}"
+        )
 
 
 class SqlFollowupJob(FollowupJobImpl):
@@ -53,14 +65,18 @@ class SqlFollowupJob(FollowupJobImpl):
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
         )
 
-        # Remove line breaks from multiline statements and write one SQL statement per line in output file
-        # to support clients that need to execute one statement at a time (i.e. snowflake)
-        sql = [
-            " ".join(stmt.splitlines())
-            for stmt in cls.generate_sql(table_chain, sql_client, params)
-        ]
-        job = cls(file_info.file_name())
-        job._save_text_file("\n".join(sql))
+        try:
+            # Remove line breaks from multiline statements and write one SQL statement per line in output file
+            # to support clients that need to execute one statement at a time (i.e. snowflake)
+            sql = [
+                " ".join(stmt.splitlines())
+                for stmt in cls.generate_sql(table_chain, sql_client, params)
+            ]
+            job = cls(file_info.file_name())
+            job._save_text_file("\n".join(sql))
+        except Exception as e:
+            # raise exception with some context
+            raise SqlJobCreationException(e, table_chain) from e
 
         return job
 

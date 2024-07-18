@@ -33,6 +33,7 @@ from dlt.common.destination.reference import (
     WithStagingDataset,
     LoadJob,
 )
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
@@ -164,6 +165,8 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
+        if self.config.create_followup_sql_jobs:
+            return [SqlMergeFollowupJob.from_table_chain(table_chain, self)]  # type: ignore
         return []
 
     def complete_load(self, load_id: str) -> None:

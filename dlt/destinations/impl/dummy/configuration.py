@@ -30,5 +30,5 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     fail_transiently_in_init: bool = False
     # new jobs workflows
     create_followup_jobs: bool = False
-
+    create_followup_sql_jobs: bool = False
     credentials: DummyClientCredentials = None

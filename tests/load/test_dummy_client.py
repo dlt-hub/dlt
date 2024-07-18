@@ -393,7 +393,7 @@ def test_failing_followup_jobs() -> None:
     with pytest.raises(Exception) as exc:
         assert_complete_job(load)
         # follow up job errors on main thread
-        assert "Failed to create followup job" in str(exc)
+    assert "Failed to create followup job" in str(exc)
 
     # followup job fails, we have both jobs in started folder
     load_id = list(dummy_impl.JOBS.values())[1]._load_id
@@ -403,12 +403,28 @@ def test_failing_followup_jobs() -> None:
     assert len(dummy_impl.RETRIED_JOBS) == 0
     len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
 
-    # now we can retry the same load, it will restart the two jobs
+    # now we can retry the same load, it will restart the two jobs and successfully create the followup jobs
     del os.environ["FAIL_FOLLOWUP_JOB_CREATION"]
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2
     assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
     assert len(dummy_impl.RETRIED_JOBS) == 2
+
+
+def test_failing_sql_job() -> None:
+    """
+    Make sure we get a useful exception from a failing sql job
+    """
+    os.environ["CREATE_FOLLOWUP_SQL_JOBS"] = "true"
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_sql_jobs=True)
+    )
+    with pytest.raises(Exception) as exc:
+        assert_complete_job(load)
+
+    # sql jobs always fail because this is not an sql client, we just make sure the exception is there
+    assert "x-normalizer:" in str(exc)
+    assert "'DummyClient' object has no attribute" in str(exc)
 
 
 def test_failed_loop() -> None:
