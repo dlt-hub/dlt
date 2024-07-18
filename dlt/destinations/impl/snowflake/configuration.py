@@ -66,7 +66,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     application: Optional[str] = SNOWFLAKE_APPLICATION_ID
-    query_tag: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
     __query_params__: ClassVar[List[str]] = [
@@ -136,6 +135,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     csv_format: Optional[CsvFormatConfiguration] = None
     """Optional csv format configuration"""
+
+    query_tag: Optional[str] = None
+    """A tag with placeholders to tag sessions executing jobs"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
