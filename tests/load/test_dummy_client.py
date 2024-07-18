@@ -362,6 +362,7 @@ def test_try_retrieve_job() -> None:
     assert len(jobs) == 2
     for j in jobs:
         assert j.state() == "completed"
+    assert len(dummy_impl.RETRIED_JOBS) == 2
 
 
 def test_completed_loop() -> None:
@@ -383,9 +384,31 @@ def test_completed_loop_followup_jobs() -> None:
     assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
 
 
-def test_table_chain_followup_jobs() -> None:
-    """TODO: Test that the right table chain followup jobs are created in the right moment"""
-    pass
+def test_failing_followup_jobs() -> None:
+    os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
+    os.environ["FAIL_FOLLOWUP_JOB_CREATION"] = "true"
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+    )
+    with pytest.raises(Exception) as exc:
+        assert_complete_job(load)
+        # follow up job errors on main thread
+        assert "Failed to create followup job" in str(exc)
+
+    # followup job fails, we have both jobs in started folder
+    load_id = list(dummy_impl.JOBS.values())[1]._load_id
+    started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
+    assert len(started_files) == 2
+    assert len(dummy_impl.JOBS) == 2
+    assert len(dummy_impl.RETRIED_JOBS) == 0
+    len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+
+    # now we can retry the same load, it will restart the two jobs
+    del os.environ["FAIL_FOLLOWUP_JOB_CREATION"]
+    assert_complete_job(load, load_id=load_id)
+    assert len(dummy_impl.JOBS) == 2 * 2
+    assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
+    assert len(dummy_impl.RETRIED_JOBS) == 2
 
 
 def test_failed_loop() -> None:
@@ -777,8 +800,11 @@ def test_terminal_exceptions() -> None:
         raise AssertionError()
 
 
-def assert_complete_job(load: Load, should_delete_completed: bool = False) -> None:
-    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+def assert_complete_job(
+    load: Load, should_delete_completed: bool = False, load_id: str = None
+) -> None:
+    if not load_id:
+        load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     # will complete all jobs
     timestamp = "2024-04-05T09:16:59.942779Z"
     mocked_timestamp = {"state": {"created_at": timestamp}}
@@ -835,6 +861,7 @@ def setup_loader(
     # reset jobs for a test
     dummy_impl.JOBS = {}
     dummy_impl.CREATED_FOLLOWUP_JOBS = {}
+    dummy_impl.RETRIED_JOBS = {}
     client_config = client_config or DummyClientConfiguration(loader_file_format="jsonl")
     destination: TDestination = dummy(**client_config)  # type: ignore[assignment]
     # setup

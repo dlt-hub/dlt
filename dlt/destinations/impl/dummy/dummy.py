@@ -12,7 +12,7 @@ from typing import (
     Iterable,
     List,
 )
-import time
+import os
 
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -80,17 +80,24 @@ class LoadDummyBaseJob(RunnableLoadJob):
                         # this will make the the job go to a failed state
                         raise DestinationTerminalException("a random fail occured")
 
-    def retry(self) -> None:
-        if self._state != "retry":
-            raise LoadJobInvalidStateTransitionException(self._state, "retry")
-        self._state = "retry"
+
+class DummyFollowupJob(ReferenceFollowupJob):
+    def __init__(
+        self, original_file_name: str, remote_paths: List[str], config: DummyClientConfiguration
+    ) -> None:
+        self.config = config
+        if os.environ.get("FAIL_FOLLOWUP_JOB_CREATION"):
+            raise Exception("Failed to create followup job")
+        super().__init__(original_file_name=original_file_name, remote_paths=remote_paths)
 
 
 class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
     def create_followup_jobs(self, final_state: TLoadJobState) -> List[FollowupJob]:
         if self.config.create_followup_jobs and final_state == "completed":
-            new_job = ReferenceFollowupJob(
-                original_file_name=self.file_name(), remote_paths=[self._file_name]
+            new_job = DummyFollowupJob(
+                original_file_name=self.file_name(),
+                remote_paths=[self._file_name],
+                config=self.config,
             )
             CREATED_FOLLOWUP_JOBS[new_job.job_id()] = new_job
             return [new_job]
@@ -99,6 +106,7 @@ class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
 
 JOBS: Dict[str, LoadDummyBaseJob] = {}
 CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
+RETRIED_JOBS: Dict[str, LoadDummyBaseJob] = {}
 
 
 class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset):
@@ -146,8 +154,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             JOBS[job_id] = self._create_job(file_path)
         else:
             job = JOBS[job_id]
-            if job.state == "retry":
-                job.retry()
+            RETRIED_JOBS[job_id] = job
 
         return JOBS[job_id]
 
