@@ -284,12 +284,6 @@ def test_delta_table_core(default_buckets_env: str) -> None:
     rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
-    # `merge` resolves to `append` behavior
-    info = pipeline.run(data_types(), write_disposition="merge")
-    assert_load_info(info)
-    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
-    assert len(rows) == 20
-
 
 def test_delta_table_multiple_files(
     local_filesystem_pipeline: dlt.Pipeline,

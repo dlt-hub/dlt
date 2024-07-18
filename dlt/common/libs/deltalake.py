@@ -10,6 +10,7 @@ from dlt.common.storages import FilesystemConfiguration
 
 try:
     from deltalake import write_deltalake
+    from deltalake.writer import try_get_deltatable
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt deltalake helpers",
