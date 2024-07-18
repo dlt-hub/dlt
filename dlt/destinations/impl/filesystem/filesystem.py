@@ -296,7 +296,7 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
     def is_storage_initialized(self) -> bool:
         return self.fs_client.exists(self.pathlib.join(self.dataset_path, INIT_FILE_NAME))  # type: ignore[no-any-return]
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         # skip the state table, we create a jsonl file in the complete_load step

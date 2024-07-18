@@ -315,10 +315,10 @@ class ClickHouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
             .strip()
         )
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        return super().get_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
+        return super().create_load_job(table, file_path, load_id, restore) or ClickHouseLoadJob(
             file_path,
             staging_credentials=(
                 self.config.staging_config.credentials if self.config.staging_config else None

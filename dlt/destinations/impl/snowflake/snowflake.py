@@ -270,10 +270,10 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
         self.type_mapper = SnowflakeTypeMapper(self.capabilities)
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id, restore)
+        job = super().create_load_job(table, file_path, load_id, restore)
 
         if not job:
             job = SnowflakeLoadJob(

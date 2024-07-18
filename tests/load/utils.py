@@ -618,7 +618,7 @@ def expect_load_file(
     file_storage.save(file_name, query.encode("utf-8"))
     table = client.prepare_load_table(table_name)
     load_id = uniq_id()
-    job = client.get_load_job(table, file_storage.make_full_path(file_name), load_id)
+    job = client.create_load_job(table, file_storage.make_full_path(file_name), load_id)
 
     if isinstance(job, RunnableLoadJob):
         job.set_run_vars(load_id=load_id, schema=client.schema, load_table=table)

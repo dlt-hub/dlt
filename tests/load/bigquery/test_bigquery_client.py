@@ -282,7 +282,7 @@ def test_bigquery_job_resuming(client: BigQueryClient, file_storage: FileStorage
     # start a job from the same file. it should be a fallback to retrieve a job silently
     r_job = cast(
         RunnableLoadJob,
-        client.get_load_job(
+        client.create_load_job(
             client.schema.get_table(user_table_name),
             file_storage.make_full_path(job.file_name()),
             uniq_id(),
@@ -311,7 +311,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage, client) -> 
         job = expect_load_file(client, file_storage, json.dumps(load_json), user_table_name)
 
         # start a job from the same file. it should be a fallback to retrieve a job silently
-        client.get_load_job(
+        client.create_load_job(
             client.schema.get_table(user_table_name),
             file_storage.make_full_path(job.file_name()),
             uniq_id(),

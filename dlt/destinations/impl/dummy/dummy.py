@@ -135,7 +135,7 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             )
         return applied_update
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         job_id = FileStorage.get_file_name_from_file_path(file_path)

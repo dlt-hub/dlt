@@ -469,7 +469,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                         LOCATION '{location}';""")
         return sql
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
@@ -479,7 +479,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 "Athena cannot load TIME columns from parquet tables. Please convert"
                 " `datetime.time` objects in your data to `str` or `datetime.datetime`.",
             )
-        job = super().get_load_job(table, file_path, load_id, restore)
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
             job = (
                 FinalizedLoadJobWithFollowupJobs(file_path)

@@ -161,7 +161,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     job_info.table_name, load_table["write_disposition"], file_path
                 )
 
-            job = active_job_client.get_load_job(
+            job = active_job_client.create_load_job(
                 load_table,
                 self.load_storage.normalized_packages.storage.make_full_path(file_path),
                 load_id,

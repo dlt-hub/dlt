@@ -158,10 +158,10 @@ class SynapseClient(MsSqlJobClient, SupportsStagingDestination):
             table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
         return table
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id, restore)
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job:
             assert ReferenceFollowupJob.is_reference_job(
                 file_path

@@ -11,6 +11,7 @@ from google.api_core import retry
 from google.cloud.bigquery.retry import _RETRYABLE_REASONS
 
 from dlt.common import logger
+from dlt.common.runtime.signals import sleep
 from dlt.common.json import json
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -137,6 +138,9 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
             ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
                 self._bq_load_job = self._job_client._retrieve_load_job(self._file_path)
                 self._resumed_job = True
+                logger.info(
+                    f"Found existing bigquery job for job {self._file_name}, will resume job."
+                )
             elif reason in BQ_TERMINAL_REASONS:
                 # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
                 raise LoadJobTerminalException(
@@ -147,7 +151,7 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         # we loop on the job thread until we detect a status change
         while True:
-            time.sleep(1)
+            sleep(1)
             # not done yet
             if not self._bq_load_job.done(retry=self._default_retry, timeout=self._http_timeout):
                 continue
@@ -157,15 +161,25 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
             reason = self._bq_load_job.error_result.get("reason")
             if reason in BQ_TERMINAL_REASONS:
                 # the job permanently failed for the reason above
-                raise DatabaseTerminalException(Exception("Bigquery Load Job failed"))
+                raise DatabaseTerminalException(
+                    Exception(
+                        f"Bigquery Load Job failed, reason reported from bigquery: '{reason}'"
+                    )
+                )
             elif reason in ["internalError"]:
+                logger.warning(
+                    f"Got reason {reason} for job {self._file_name}, job considered still"
+                    f" running. ({self._bq_load_job.error_result})"
+                )
                 continue
             else:
-                raise DatabaseTransientException(Exception("Bigquery Job needs to be retried"))
+                raise DatabaseTransientException(
+                    Exception(
+                        f"Bigquery Job needs to be retried, reason reported from bigquer '{reason}'"
+                    )
+                )
 
     def exception(self) -> str:
-        if not self._bq_load_job:
-            return ""
         return json.dumps(
             {
                 "error_result": self._bq_load_job.error_result,
@@ -222,10 +236,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[FollowupJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id)
+        job = super().create_load_job(table, file_path, load_id)
 
         if not job:
             insert_api = table.get("x-insert-api", "default")

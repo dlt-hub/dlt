@@ -225,10 +225,10 @@ class PostgresClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = PostgresTypeMapper(self.capabilities)
 
-    def get_load_job(
+    def create_load_job(
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
-        job = super().get_load_job(table, file_path, load_id, restore)
+        job = super().create_load_job(table, file_path, load_id, restore)
         if not job and file_path.endswith("csv"):
             job = PostgresCsvCopyJob(file_path)
         return job
