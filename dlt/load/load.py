@@ -111,10 +111,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         return self.staging_destination.client(schema, self.initial_staging_client_config)
 
     def is_staging_destination_job(self, file_path: str) -> bool:
+        file_type = os.path.splitext(file_path)[1][1:]
+        # for now we know that reference jobs always go do the main destination
+        if file_type == "reference":
+            return False
         return (
             self.staging_destination is not None
-            and os.path.splitext(file_path)[1][1:]
-            in self.staging_destination.capabilities().supported_loader_file_formats
+            and file_type in self.staging_destination.capabilities().supported_loader_file_formats
         )
 
     @contextlib.contextmanager

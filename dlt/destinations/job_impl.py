@@ -80,16 +80,14 @@ class FollowupJobImpl(FollowupJob):
 
 
 class ReferenceFollowupJob(FollowupJobImpl):
-    def __init__(
-        self, original_file_name: str, remote_paths: List[str], ref_type: str = "reference"
-    ) -> None:
-        file_name = os.path.splitext(original_file_name)[0] + "." + ref_type
+    def __init__(self, original_file_name: str, remote_paths: List[str]) -> None:
+        file_name = os.path.splitext(original_file_name)[0] + "." + "reference"
         super().__init__(file_name)
         self._save_text_file("\n".join(remote_paths))
 
     @staticmethod
-    def is_reference_job(file_path: str, ref_type: str = "reference") -> bool:
-        return os.path.splitext(file_path)[1][1:] == ref_type
+    def is_reference_job(file_path: str) -> bool:
+        return os.path.splitext(file_path)[1][1:] == "reference"
 
     @staticmethod
     def resolve_references(file_path: str) -> List[str]:

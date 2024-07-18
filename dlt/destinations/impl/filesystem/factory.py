@@ -34,7 +34,9 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             loader_file_format_adapter=loader_file_format_adapter,
             supported_table_formats=["delta"],
         )
-        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + ["delta"]  # type: ignore
+        caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [
+            "reference"
+        ]
         return caps
 
     @property
