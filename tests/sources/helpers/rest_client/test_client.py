@@ -430,3 +430,33 @@ class TestRESTClient:
         assert len(returned_posts) == DEFAULT_PAGE_SIZE  # only one page is returned
         for i in range(DEFAULT_PAGE_SIZE):
             assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
+
+    def test_request_kwargs(self, mocker) -> None:
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            session=Client().session,
+        )
+
+        mocked_send = mocker.Mock()
+        rest_client.session.send = mocked_send  # type: ignore[method-assign]
+
+        rest_client.get(
+            "/posts/1",
+            proxies={
+                "http": "http://10.10.1.10:3128",
+                "https": "http://10.10.1.10:1080",
+            },
+            stream=True,
+            verify=False,
+            cert=("/path/client.cert", "/path/client.key"),
+        )
+
+        assert mocked_send.call_args[1] == {
+            "proxies": {
+                "http": "http://10.10.1.10:3128",
+                "https": "http://10.10.1.10:1080",
+            },
+            "stream": True,
+            "verify": False,
+            "cert": ("/path/client.cert", "/path/client.key"),
+        }
