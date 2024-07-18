@@ -13,7 +13,7 @@ from typing import (
     List,
 )
 import os
-
+import time
 from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.storages import FileStorage
@@ -55,31 +55,38 @@ class LoadDummyBaseJob(RunnableLoadJob):
             raise Exception(self._exception)
 
     def run(self) -> None:
-        # time.sleep(0.1)
-        # this should poll the server for a job status, here we simulate various outcomes
-        c_r = random.random()
-        if self.config.exception_prob >= c_r:
-            # this will make the job go to a retry state with a generic exception
-            raise Exception("Dummy job status raised exception")
-        n = pendulum.now().timestamp()
-        if n - self.start_time > self.config.timeout:
-            # this will make the the job go to a failed state
-            raise DestinationTerminalException("failed due to timeout")
-        else:
+        while True:
+            time.sleep(0.1)
+
+            # simulate generic exception (equals retry)
+            c_r = random.random()
+            if self.config.exception_prob >= c_r:
+                # this will make the job go to a retry state with a generic exception
+                raise Exception("Dummy job status raised exception")
+
+            # timeout condition (terminal)
+            n = pendulum.now().timestamp()
+            if n - self.start_time > self.config.timeout:
+                # this will make the the job go to a failed state
+                raise DestinationTerminalException("failed due to timeout")
+
+            # success
             c_r = random.random()
             if self.config.completed_prob >= c_r:
                 # this will make the run function exit and the job go to a completed state
-                return
-            else:
-                c_r = random.random()
-                if self.config.retry_prob >= c_r:
-                    # this will make the job go to a retry state
-                    raise DestinationTransientException("a random retry occured")
-                else:
-                    c_r = random.random()
-                    if self.config.fail_prob >= c_r:
-                        # this will make the the job go to a failed state
-                        raise DestinationTerminalException("a random fail occured")
+                break
+
+            # retry prob
+            c_r = random.random()
+            if self.config.retry_prob >= c_r:
+                # this will make the job go to a retry state
+                raise DestinationTransientException("a random retry occured")
+
+            # fail prob
+            c_r = random.random()
+            if self.config.fail_prob >= c_r:
+                # this will make the the job go to a failed state
+                raise DestinationTerminalException("a random fail occured")
 
 
 class DummyFollowupJob(ReferenceFollowupJob):
@@ -87,7 +94,7 @@ class DummyFollowupJob(ReferenceFollowupJob):
         self, original_file_name: str, remote_paths: List[str], config: DummyClientConfiguration
     ) -> None:
         self.config = config
-        if os.environ.get("FAIL_FOLLOWUP_JOB_CREATION"):
+        if config.fail_followup_job_creation:
             raise Exception("Failed to create followup job")
         super().__init__(original_file_name=original_file_name, remote_paths=remote_paths)
 
@@ -107,6 +114,7 @@ class LoadDummyJob(LoadDummyBaseJob, HasFollowupJobs):
 
 JOBS: Dict[str, LoadDummyBaseJob] = {}
 CREATED_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
+CREATED_TABLE_CHAIN_FOLLOWUP_JOBS: Dict[str, FollowupJob] = {}
 RETRIED_JOBS: Dict[str, LoadDummyBaseJob] = {}
 
 
@@ -155,6 +163,8 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             JOBS[job_id] = self._create_job(file_path)
         else:
             job = JOBS[job_id]
+            # update config of existing job in case it was changed in tests
+            job.config = self.config
             RETRIED_JOBS[job_id] = job
 
         return JOBS[job_id]
@@ -165,8 +175,16 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
-        if self.config.create_followup_sql_jobs:
+
+        # if sql job follow up is configure we schedule a merge job that will always fail
+        if self.config.create_followup_table_chain_sql_jobs:
             return [SqlMergeFollowupJob.from_table_chain(table_chain, self)]  # type: ignore
+        if self.config.create_followup_table_chain_reference_jobs:
+            table_job_paths = [job.file_path for job in completed_table_chain_jobs]
+            file_name = FileStorage.get_file_name_from_file_path(table_job_paths[0])
+            job = ReferenceFollowupJob(file_name, table_job_paths)
+            CREATED_TABLE_CHAIN_FOLLOWUP_JOBS[job.job_id()] = job
+            return [job]
         return []
 
     def complete_load(self, load_id: str) -> None:

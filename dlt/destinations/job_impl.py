@@ -82,6 +82,7 @@ class FollowupJobImpl(FollowupJob):
 class ReferenceFollowupJob(FollowupJobImpl):
     def __init__(self, original_file_name: str, remote_paths: List[str]) -> None:
         file_name = os.path.splitext(original_file_name)[0] + "." + "reference"
+        self._remote_paths = remote_paths
         super().__init__(file_name)
         self._save_text_file("\n".join(remote_paths))
 

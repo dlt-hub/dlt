@@ -360,8 +360,9 @@ def test_try_retrieve_job() -> None:
     # now jobs are known
     jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
+    # jobs running on threads now, we did not wait for pool to finish
     for j in jobs:
-        assert j.state() == "completed"
+        assert j.state() == "running"
     assert len(dummy_impl.RETRIED_JOBS) == 2
 
 
@@ -374,7 +375,6 @@ def test_completed_loop() -> None:
 
 def test_completed_loop_followup_jobs() -> None:
     # TODO: until we fix how we create capabilities we must set env
-    os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
     load = setup_loader(
         client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
     )
@@ -385,10 +385,10 @@ def test_completed_loop_followup_jobs() -> None:
 
 
 def test_failing_followup_jobs() -> None:
-    os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
-    os.environ["FAIL_FOLLOWUP_JOB_CREATION"] = "true"
     load = setup_loader(
-        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+        client_config=DummyClientConfiguration(
+            completed_prob=1.0, create_followup_jobs=True, fail_followup_job_creation=True
+        )
     )
     with pytest.raises(Exception) as exc:
         assert_complete_job(load)
@@ -404,20 +404,21 @@ def test_failing_followup_jobs() -> None:
     len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
 
     # now we can retry the same load, it will restart the two jobs and successfully create the followup jobs
-    del os.environ["FAIL_FOLLOWUP_JOB_CREATION"]
+    load.initial_client_config.fail_followup_job_creation = False  # type: ignore
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2
     assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
     assert len(dummy_impl.RETRIED_JOBS) == 2
 
 
-def test_failing_sql_job() -> None:
+def test_failing_sql_table_chain_job() -> None:
     """
     Make sure we get a useful exception from a failing sql job
     """
-    os.environ["CREATE_FOLLOWUP_SQL_JOBS"] = "true"
     load = setup_loader(
-        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_sql_jobs=True)
+        client_config=DummyClientConfiguration(
+            completed_prob=1.0, create_followup_table_chain_sql_jobs=True
+        ),
     )
     with pytest.raises(Exception) as exc:
         assert_complete_job(load)
@@ -425,6 +426,23 @@ def test_failing_sql_job() -> None:
     # sql jobs always fail because this is not an sql client, we just make sure the exception is there
     assert "x-normalizer:" in str(exc)
     assert "'DummyClient' object has no attribute" in str(exc)
+
+
+def test_successful_table_chain_jobs() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(
+            completed_prob=1.0, create_followup_table_chain_reference_jobs=True
+        ),
+    )
+    # we create 10 jobs per case (for two cases)
+    # and expect two table chain jobs at the end
+    assert_complete_job(load, jobs_per_case=10)
+    assert len(dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS) == 2
+    assert len(dummy_impl.JOBS) == 22
+
+    # check that we have 10 references per followup job
+    for _, job in dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS.items():
+        assert len(job._remote_paths) == 10  # type: ignore
 
 
 def test_failed_loop() -> None:
@@ -442,8 +460,6 @@ def test_failed_loop() -> None:
 
 
 def test_failed_loop_followup_jobs() -> None:
-    # TODO: until we fix how we create capabilities we must set env
-    os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
     # ask to delete completed
     load = setup_loader(
         delete_completed_jobs=True,
@@ -485,6 +501,7 @@ def test_retry_on_new_loop() -> None:
         assert not load.load_storage.normalized_packages.storage.has_folder(
             load.load_storage.get_normalized_package_path(load_id)
         )
+        sleep(1)
         # parse the completed job names
         completed_path = load.load_storage.loaded_packages.get_package_path(load_id)
         for fn in load.load_storage.loaded_packages.storage.list_folder_files(
@@ -817,10 +834,12 @@ def test_terminal_exceptions() -> None:
 
 
 def assert_complete_job(
-    load: Load, should_delete_completed: bool = False, load_id: str = None
+    load: Load, should_delete_completed: bool = False, load_id: str = None, jobs_per_case: int = 1
 ) -> None:
     if not load_id:
-        load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+        load_id, _ = prepare_load_package(
+            load.load_storage, NORMALIZED_FILES, jobs_per_case=jobs_per_case
+        )
     # will complete all jobs
     timestamp = "2024-04-05T09:16:59.942779Z"
     mocked_timestamp = {"state": {"created_at": timestamp}}
@@ -878,14 +897,20 @@ def setup_loader(
     dummy_impl.JOBS = {}
     dummy_impl.CREATED_FOLLOWUP_JOBS = {}
     dummy_impl.RETRIED_JOBS = {}
-    client_config = client_config or DummyClientConfiguration(loader_file_format="jsonl")
+    dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS = {}
+
+    client_config = client_config or DummyClientConfiguration(
+        loader_file_format="jsonl", completed_prob=1
+    )
     destination: TDestination = dummy(**client_config)  # type: ignore[assignment]
     # setup
     staging_system_config = None
     staging = None
     if filesystem_staging:
         # do not accept jsonl to not conflict with filesystem destination
-        client_config = client_config or DummyClientConfiguration(loader_file_format="reference")
+        client_config = client_config or DummyClientConfiguration(
+            loader_file_format="reference", completed_prob=1
+        )
         staging_system_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(
             dataset_name="dummy"
         )

@@ -21,14 +21,27 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
     fail_prob: float = 0.0
+    """probability of terminal fail"""
     retry_prob: float = 0.0
+    """probability of job retry"""
     completed_prob: float = 0.0
+    """probablibitly of successful job completion"""
     exception_prob: float = 0.0
     """probability of exception transient exception when running job"""
     timeout: float = 10.0
+    """timeout time"""
     fail_terminally_in_init: bool = False
+    """raise terminal exception in job init"""
     fail_transiently_in_init: bool = False
+    """raise transient exception in job init"""
+
     # new jobs workflows
     create_followup_jobs: bool = False
-    create_followup_sql_jobs: bool = False
+    """create followup job for individual jobs"""
+    fail_followup_job_creation: bool = False
+    """Raise generic exception during followjob creation"""
+    create_followup_table_chain_sql_jobs: bool = False
+    """create a table chain merge job which is guaranteed to fail"""
+    create_followup_table_chain_reference_jobs: bool = False
+    """create table chain jobs which succeed """
     credentials: DummyClientCredentials = None
