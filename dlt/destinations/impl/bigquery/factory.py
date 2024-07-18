@@ -42,6 +42,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.supports_ddl_transactions = False
         caps.supports_clone_table = True
         caps.schema_supports_numeric_precision = False  # no precision information in BigQuery
+        caps.supported_merge_strategies = ["delete-insert", "scd2"]
 
         return caps
 
@@ -88,5 +89,6 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         naming: t.Optional[NamingConvention],
     ) -> DestinationCapabilitiesContext:
         # modify the caps if case sensitive identifiers are requested
-        caps.has_case_sensitive_identifiers = config.has_case_sensitive_identifiers
+        if config.should_set_case_sensitivity_on_new_dataset:
+            caps.has_case_sensitive_identifiers = config.has_case_sensitive_identifiers
         return super().adjust_capabilities(caps, config, naming)

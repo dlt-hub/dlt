@@ -32,7 +32,6 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.casefold_identifier = str.lower
         caps.has_case_sensitive_identifiers = True
         caps.escape_literal = escape_postgres_literal
-        caps.has_case_sensitive_identifiers = True
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (2 * EVM_DECIMAL_PRECISION, EVM_DECIMAL_PRECISION)
         caps.max_identifier_length = 63
@@ -42,6 +41,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2"]
 
         return caps
 

@@ -83,9 +83,6 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             if param in self.query:
                 setattr(self, param, self.query.get(param))
 
-        # if not self.is_partial() and (self.password or self.private_key):
-        #     self.resolve()
-
     def on_resolved(self) -> None:
         if not self.password and not self.private_key and not self.authenticator:
             raise ConfigurationValueError(
@@ -138,6 +135,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     csv_format: Optional[CsvFormatConfiguration] = None
     """Optional csv format configuration"""
+
+    query_tag: Optional[str] = None
+    """A tag with placeholders to tag sessions executing jobs"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

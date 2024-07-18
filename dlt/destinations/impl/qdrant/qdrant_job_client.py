@@ -317,8 +317,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
         p_created_at = self.schema.naming.normalize_identifier("created_at")
 
-        limit = 100
-        offset = None
+        limit = 10
+        start_from = None
         while True:
             try:
                 scroll_table_name = self._make_qualified_collection_name(
@@ -337,14 +337,15 @@ class QdrantClient(JobClientBase, WithStateSync):
                     order_by=models.OrderBy(
                         key=p_created_at,
                         direction=models.Direction.DESC,
+                        start_from=start_from,
                     ),
                     limit=limit,
-                    offset=offset,
                 )
                 if len(state_records) == 0:
                     return None
                 for state_record in state_records:
                     state = state_record.payload
+                    start_from = state[p_created_at]
                     load_id = state[p_dlt_load_id]
                     scroll_table_name = self._make_qualified_collection_name(
                         self.schema.loads_table_name
@@ -361,7 +362,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                         ),
                     )
                     if load_records.count == 0:
-                        return None
+                        continue
                     return StateInfo.from_normalized_mapping(state, self.schema.naming)
             except UnexpectedResponse as e:
                 if e.status_code == 404:
@@ -491,24 +492,26 @@ class QdrantClient(JobClientBase, WithStateSync):
             exists = self._collection_exists(table_name)
 
             qualified_collection_name = self._make_qualified_collection_name(table_name)
+            # NOTE: there are no property schemas in qdrant so we do not need to alter
+            # existing collections
             if not exists:
                 self._create_collection(
                     full_collection_name=qualified_collection_name,
                 )
-            if not is_local:  # Indexes don't work in local Qdrant (trigger log warning)
-                # Create indexes to enable order_by in state and schema tables
-                if table_name == self.schema.state_table_name:
-                    self.db_client.create_payload_index(
-                        collection_name=qualified_collection_name,
-                        field_name=self.schema.naming.normalize_identifier("created_at"),
-                        field_schema="datetime",
-                    )
-                elif table_name == self.schema.version_table_name:
-                    self.db_client.create_payload_index(
-                        collection_name=qualified_collection_name,
-                        field_name=self.schema.naming.normalize_identifier("inserted_at"),
-                        field_schema="datetime",
-                    )
+                if not is_local:  # Indexes don't work in local Qdrant (trigger log warning)
+                    # Create indexes to enable order_by in state and schema tables
+                    if table_name == self.schema.state_table_name:
+                        self.db_client.create_payload_index(
+                            collection_name=qualified_collection_name,
+                            field_name=self.schema.naming.normalize_identifier("created_at"),
+                            field_schema="datetime",
+                        )
+                    elif table_name == self.schema.version_table_name:
+                        self.db_client.create_payload_index(
+                            collection_name=qualified_collection_name,
+                            field_name=self.schema.naming.normalize_identifier("inserted_at"),
+                            field_schema="datetime",
+                        )
 
         self._update_schema_in_storage(self.schema)
 

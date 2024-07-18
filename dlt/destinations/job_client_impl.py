@@ -28,6 +28,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
 )
 from dlt.common.schema.utils import (
+    get_inherited_table_hint,
     loads_table,
     normalize_table_identifiers,
     version_table,
@@ -262,6 +263,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
+        self._set_query_tags_for_job(load_id, table)
         if SqlLoadJob.is_sql_job(file_path):
             # execute sql load job
             return SqlLoadJob(file_path, self.sql_client)
@@ -607,8 +609,7 @@ WHERE """
         updates = self.schema.get_new_table_columns(
             table_name,
             storage_columns,
-            case_sensitive=self.capabilities.has_case_sensitive_identifiers
-            and self.capabilities.casefold_identifier is str,
+            case_sensitive=self.capabilities.generates_case_sensitive_identifiers(),
         )
         logger.info(f"Found {len(updates)} updates for {table_name} in {self.schema.name}")
         return updates
@@ -677,6 +678,27 @@ WHERE """
                 logger.error(str(exception))
             raise exceptions[0]
 
+    def _set_query_tags_for_job(self, load_id: str, table: TTableSchema) -> None:
+        """Sets query tags in sql_client for a job in package `load_id`, starting for a particular `table`"""
+        from dlt.common.pipeline import current_pipeline
+
+        pipeline = current_pipeline()
+        pipeline_name = pipeline.pipeline_name if pipeline else ""
+        self.sql_client.set_query_tags(
+            {
+                "source": self.schema.name,
+                "resource": (
+                    get_inherited_table_hint(
+                        self.schema._schema_tables, table["name"], "resource", allow_none=True
+                    )
+                    or ""
+                ),
+                "table": table["name"],
+                "load_id": load_id,
+                "pipeline_name": pipeline_name,
+            }
+        )
+
 
 class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
     in_staging_mode: bool = False
@@ -684,7 +706,7 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
     @contextlib.contextmanager
     def with_staging_dataset(self) -> Iterator["SqlJobClientBase"]:
         try:
-            with self.sql_client.with_staging_dataset(True):
+            with self.sql_client.with_staging_dataset():
                 self.in_staging_mode = True
                 yield self
         finally:

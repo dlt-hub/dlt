@@ -165,7 +165,7 @@ def w_normalize_files(
             item_storage = load_storage.create_item_storage(best_writer_spec)
             if not is_native_writer(item_storage.writer_cls):
                 logger.warning(
-                    f"For data items yielded as {item_format} and job file format"
+                    f"For data items in `{table_name}` yielded as {item_format} and job file format"
                     f" {best_writer_spec.file_format} native writer could not be found. A"
                     f" {item_storage.writer_cls.__name__} writer is used that internally"
                     f" converts {item_format}. This will degrade performance."

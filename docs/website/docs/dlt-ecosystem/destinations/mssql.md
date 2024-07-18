@@ -114,6 +114,15 @@ Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows 
 ## Supported column hints
 **mssql** will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
+### Table and column identifiers
+SQL Server **with the default collation** uses case insensitive identifiers but will preserve the casing of identifiers that are stored in the INFORMATION SCHEMA. You can use [case sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk to generate identifier collisions, which are detected by `dlt` and will fail the load process.
+
+If you change SQL Server server/database collation to case sensitive, this will also affect the identifiers. Configure your destination as below in order to use case sensitive naming conventions without collisions:
+```toml
+[destination.mssql]
+has_case_sensitive_identifiers=true
+```
+
 ## Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 

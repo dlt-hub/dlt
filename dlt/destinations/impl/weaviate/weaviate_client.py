@@ -467,8 +467,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             new_columns = self.schema.get_new_table_columns(
                 table_name,
                 existing_columns,
-                case_sensitive=self.capabilities.has_case_sensitive_identifiers
-                and self.capabilities.casefold_identifier is str,
+                case_sensitive=self.capabilities.generates_case_sensitive_identifiers(),
             )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if len(new_columns) > 0:

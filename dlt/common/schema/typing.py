@@ -66,7 +66,6 @@ TColumnHint = Literal[
 ]
 """Known hints of a column used to declare hint regexes."""
 
-TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg", "delta"]
 TFileFormat = Literal[Literal["preferred"], TLoaderFileFormat]
 TTypeDetections = Literal[
@@ -168,7 +167,10 @@ TTableProcessingHints = TypedDict(
     total=False,
 )
 
-TLoaderMergeStrategy = Literal["delete-insert", "scd2"]
+
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert"]
+
 
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 MERGE_STRATEGIES: Set[TLoaderMergeStrategy] = set(get_args(TLoaderMergeStrategy))

@@ -31,7 +31,7 @@ RUN apk update &&\
 # add build labels and envs
 ARG COMMIT_SHA=""
 ARG IMAGE_VERSION=""
-LABEL commit_sha = ${COMMIT_SHA}
+LABEL commit_sha=${COMMIT_SHA}
 LABEL version=${IMAGE_VERSION}
 ENV COMMIT_SHA=${COMMIT_SHA}
 ENV IMAGE_VERSION=${IMAGE_VERSION}

@@ -505,19 +505,29 @@ class Schema:
         self,
         table_name: str,
         existing_columns: TTableSchemaColumns,
-        case_sensitive: bool = True,
+        case_sensitive: bool,
         include_incomplete: bool = False,
     ) -> List[TColumnSchema]:
         """Gets new columns to be added to `existing_columns` to bring them up to date with `table_name` schema.
-        Columns names are compared case sensitive by default.
+        Columns names are compared case sensitive by default. `existing_column` names are expected to be normalized.
+        Typically they come from the destination schema. Columns that are in `existing_columns` and not in `table_name` columns are ignored.
+
         Optionally includes incomplete columns (without data type)"""
         casefold_f: Callable[[str], str] = str.casefold if not case_sensitive else str  # type: ignore[assignment]
         casefold_existing = {
             casefold_f(col_name): col for col_name, col in existing_columns.items()
         }
+        if len(existing_columns) != len(casefold_existing):
+            raise SchemaCorruptedException(
+                self.name,
+                f"A set of existing columns passed to get_new_table_columns table {table_name} has"
+                " colliding names when case insensitive comparison is used. Original names:"
+                f" {list(existing_columns.keys())}. Case-folded names:"
+                f" {list(casefold_existing.keys())}",
+            )
         diff_c: List[TColumnSchema] = []
-        s_t = self.get_table_columns(table_name, include_incomplete=include_incomplete)
-        for c in s_t.values():
+        updated_columns = self.get_table_columns(table_name, include_incomplete=include_incomplete)
+        for c in updated_columns.values():
             if casefold_f(c["name"]) not in casefold_existing:
                 diff_c.append(c)
         return diff_c

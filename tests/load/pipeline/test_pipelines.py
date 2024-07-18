@@ -1052,7 +1052,7 @@ def test_pipeline_upfront_tables_two_loads(
                 if job_client.should_load_data_to_staging_dataset(
                     job_client.schema.tables[table_name]
                 ):
-                    with client.with_staging_dataset(staging=True):
+                    with client.with_staging_dataset():
                         tab_name = client.make_qualified_table_name(table_name)
                         with client.execute_query(f"SELECT * FROM {tab_name}") as cur:
                             assert len(cur.fetchall()) == 0
