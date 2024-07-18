@@ -56,6 +56,7 @@ if __name__ == "__main__":
     print(duck_pipeline.run([c(), o()]))
     print(duck_pipeline.dataset.df(table="customers"))
     print(duck_pipeline.dataset.df(table="orders"))
+    print("===========================")
 
     #
     # 2. now we want a local snapshot of the customers and all orders on tuesday in a datalake
@@ -82,11 +83,13 @@ if __name__ == "__main__":
 
     print(lake_pipeline.dataset.df(table="customers"))
     print(lake_pipeline.dataset.df(table="orders"))
+    print("===========================")
 
     #
     # 3. now we create a denormalized table locally
     #
 
+    print("RUNNING DENORMALIZED TABLE EXTRACTION")
     denom_pipeline = dlt.pipeline(
         pipeline_name="denom_lake", destination=filesystem(bucket_url="./denom_lake")
     )
