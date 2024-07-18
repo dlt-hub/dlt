@@ -18,7 +18,6 @@ from dlt.common.storages.load_package import (
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.logger import pretty_format_exception
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.configuration.container import Container
 from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
@@ -38,7 +37,6 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
-    DestinationTransientException,
 )
 from dlt.common.runtime import signals
 
@@ -50,6 +48,7 @@ from dlt.load.exceptions import (
     LoadClientJobRetry,
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
+    LoadClientJobException,
 )
 from dlt.load.utils import (
     _extend_tables_with_table_chain,
@@ -352,7 +351,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def complete_jobs(
         self, load_id: str, jobs: Sequence[LoadJob], schema: Schema
-    ) -> Tuple[List[LoadJob], List[LoadJob], Optional[Exception]]:
+    ) -> Tuple[List[LoadJob], List[LoadJob], Optional[LoadClientJobException]]:
         """Run periodically in the main thread to collect job execution statuses.
 
         After detecting change of status, it commits the job state by moving it to the right folder
@@ -364,7 +363,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # list of jobs in final state
         finalized_jobs: List[LoadJob] = []
         # if an exception condition was met, return it to the main runner
-        pending_exception: Optional[Exception] = None
+        pending_exception: Optional[LoadClientJobException] = None
 
         logger.info(f"Will complete {len(jobs)} for {load_id}")
         for ii in range(len(jobs)):
@@ -522,7 +521,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             running_jobs: List[LoadJob] = self.resume_started_jobs(load_id, schema)
 
         # loop until all jobs are processed
-        pending_exception: Optional[Exception] = None
+        pending_exception: Optional[LoadClientJobException] = None
         while True:
             try:
                 # we continously spool new jobs and complete finished ones
@@ -534,8 +533,22 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.update_loadpackage_info(load_id)
 
                 pending_exception = pending_exception or new_pending_exception
-                # do not spool new jobs if there was a signal
-                if not signals.signal_received() and not pending_exception:
+
+                # do not spool new jobs if there was a signal or an exception was encountered
+                # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
+                # has changed (as determined by finalized jobs)
+                if signals.signal_received():
+                    if finalized_jobs:
+                        logger.info(
+                            f"Signal received, draining running jobs. {len(running_jobs)} to go."
+                        )
+                elif pending_exception:
+                    if finalized_jobs:
+                        logger.info(
+                            f"Exception for job {pending_exception.job_id} received, draining"
+                            f" running jobs.{len(running_jobs)} to go."
+                        )
+                else:
                     running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
 
                 if len(running_jobs) == 0:

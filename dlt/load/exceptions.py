@@ -5,7 +5,12 @@ from dlt.common.destination.exceptions import (
 )
 
 
-class LoadClientJobFailed(DestinationTerminalException):
+class LoadClientJobException(Exception):
+    load_id: str
+    job_id: str
+
+
+class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
     def __init__(self, load_id: str, job_id: str, failed_message: str) -> None:
         self.load_id = load_id
         self.job_id = job_id
@@ -16,7 +21,7 @@ class LoadClientJobFailed(DestinationTerminalException):
         )
 
 
-class LoadClientJobRetry(DestinationTransientException):
+class LoadClientJobRetry(DestinationTransientException, LoadClientJobException):
     def __init__(self, load_id: str, job_id: str, retry_count: int, max_retry_count: int) -> None:
         self.load_id = load_id
         self.job_id = job_id
