@@ -3,6 +3,7 @@ title: jsonl
 description: The jsonl file format
 keywords: [jsonl, file formats]
 ---
+import SetTheFormat from './_set_the_format.mdx';
 
 # jsonl - JSON Delimited
 
@@ -22,11 +23,8 @@ This file format is
 
 ## Supported Destinations
 
-This format is used by default by: **BigQuery**, **Snowflake**, **filesystem**.
+This format is used by default by: **BigQuery**, **Snowflake**, **Filesystem**.
 
-By setting the `loader_file_format` argument to `jsonl` in the run command, the pipeline will store
-your data in the jsonl format at the destination:
+## How to configure
 
-```py
-info = pipeline.run(some_source(), loader_file_format="jsonl")
-```
+<SetTheFormat file_type="jsonl"/>

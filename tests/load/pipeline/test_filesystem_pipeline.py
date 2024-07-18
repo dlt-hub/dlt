@@ -224,10 +224,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
 
 
 @pytest.mark.essential
-def test_delta_table_core(
-    default_buckets_env: str,
-    local_filesystem_pipeline: dlt.Pipeline,
-) -> None:
+def test_delta_table_core(default_buckets_env: str) -> None:
     """Tests core functionality for `delta` table format.
 
     Tests all data types, all filesystems, all write dispositions.
@@ -253,8 +250,10 @@ def test_delta_table_core(
         nonlocal row
         yield [row] * 10
 
+    pipeline = dlt.pipeline(pipeline_name="fs_pipe", destination="filesystem", dev_mode=True)
+
     # run pipeline, this should create Delta table
-    info = local_filesystem_pipeline.run(data_types())
+    info = pipeline.run(data_types())
     assert_load_info(info)
 
     # `delta` table format should use `parquet` file format
@@ -266,29 +265,23 @@ def test_delta_table_core(
 
     # 10 rows should be loaded to the Delta table and the content of the first
     # row should match expected values
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
     assert_all_data_types_row(rows[0], schema=column_schemas)
 
     # another run should append rows to the table
-    info = local_filesystem_pipeline.run(data_types())
+    info = pipeline.run(data_types())
     assert_load_info(info)
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 20
 
     # ensure "replace" write disposition is handled
     # should do logical replace, increasing the table version
-    info = local_filesystem_pipeline.run(data_types(), write_disposition="replace")
+    info = pipeline.run(data_types(), write_disposition="replace")
     assert_load_info(info)
-    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    client = cast(FilesystemClient, pipeline.destination_client())
     assert _get_delta_table(client, "data_types").version() == 2
-    rows = load_tables_to_dicts(local_filesystem_pipeline, "data_types", exclude_system_cols=True)[
-        "data_types"
-    ]
+    rows = load_tables_to_dicts(pipeline, "data_types", exclude_system_cols=True)["data_types"]
     assert len(rows) == 10
 
 
