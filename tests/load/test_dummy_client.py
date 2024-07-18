@@ -360,9 +360,8 @@ def test_try_retrieve_job() -> None:
     # now jobs are known
     jobs = load.resume_started_jobs(load_id, schema)
     assert len(jobs) == 2
-    # jobs running on threads now, we did not wait for pool to finish
     for j in jobs:
-        assert j.state() == "running"
+        assert j.state() == "completed"
     assert len(dummy_impl.RETRIED_JOBS) == 2
 
 
@@ -401,7 +400,7 @@ def test_failing_followup_jobs() -> None:
     assert len(started_files) == 2
     assert len(dummy_impl.JOBS) == 2
     assert len(dummy_impl.RETRIED_JOBS) == 0
-    len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
 
     # now we can retry the same load, it will restart the two jobs and successfully create the followup jobs
     load.initial_client_config.fail_followup_job_creation = False  # type: ignore
