@@ -75,6 +75,11 @@ TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a list of"""
 
+ChunkInputT = Union[str, Dict[str, Any], Any]
+ChunkOutputT = List[Any]
+TSplitter = Callable[[ChunkInputT, Any], ChunkOutputT]
+"""Splitter function that takes a ChunkInputT and any additional arguments, returning a ChunkOutputT."""
+
 # COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(
     [
