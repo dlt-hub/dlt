@@ -440,8 +440,7 @@ class TestRESTClient:
             session=Client().session,
         )
         original_send = rest_client.session.send
-        mocked_send = mocker.Mock(side_effect=send_spy)
-        rest_client.session.send = mocked_send  # type: ignore[method-assign]
+        mocked_send = mocker.patch.object(rest_client.session, "send", side_effect=send_spy)
 
         rest_client.get(
             path="/posts/1",
