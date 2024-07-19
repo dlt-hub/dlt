@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Union
+from pathlib import Path
 
 from dlt import version
 from dlt.common import logger
@@ -9,7 +10,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages import FilesystemConfiguration
 
 try:
-    from deltalake import write_deltalake
+    from deltalake import write_deltalake, DeltaTable
     from deltalake.writer import try_get_deltatable
 except ModuleNotFoundError:
     raise MissingDependencyException(
@@ -50,7 +51,7 @@ def get_delta_write_mode(write_disposition: TWriteDisposition) -> str:
 
 
 def write_delta_table(
-    path: str,
+    table_or_uri: Union[str, Path, DeltaTable],
     data: Union[pa.Table, pa.dataset.Dataset],
     write_disposition: TWriteDisposition,
     storage_options: Optional[Dict[str, str]] = None,
@@ -63,7 +64,7 @@ def write_delta_table(
     # TODO: upgrade `deltalake` lib after https://github.com/delta-io/delta-rs/pull/2500
     # is released
     write_deltalake(  # type: ignore[call-overload]
-        table_or_uri=path,
+        table_or_uri=table_or_uri,
         data=ensure_delta_compatible_arrow_table(table),
         mode=get_delta_write_mode(write_disposition),
         schema_mode="merge",  # enable schema evolution (adding new columns)

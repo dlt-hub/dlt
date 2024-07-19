@@ -122,23 +122,37 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
     def write(self) -> None:
         from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import (
+            DeltaTable,
             write_delta_table,
+            ensure_delta_compatible_arrow_table,
             _deltalake_storage_options,
             try_get_deltatable,
         )
 
+        # create Arrow table from Parquet files
+        # this eagerly materializes table in memory
+        # ideally, we'd use an Arrow dataset everywhere, but we need to
+        # explicitly check if there is data
+        # (https://github.com/delta-io/delta-rs/issues/2686)
         file_paths = [job.file_path for job in self.table_jobs]
+        arrow_table = pa.dataset.dataset(file_paths).to_table()
 
-        if (
-            self.table["write_disposition"] == "merge"
-            and (
-                dt := try_get_deltatable(
-                    self.client.make_remote_uri(self.make_remote_path()),
-                    storage_options=_deltalake_storage_options(self.client.config),
+        # create Delta table object
+        dt_path = self.client.make_remote_uri(self.make_remote_path())
+        storage_options = _deltalake_storage_options(self.client.config)
+        dt = try_get_deltatable(dt_path, storage_options=storage_options)
+
+        if arrow_table.num_rows == 0:
+            if dt is None:
+                # create new empty Delta table with schema from Arrow table
+                DeltaTable.create(
+                    table_uri=dt_path,
+                    schema=ensure_delta_compatible_arrow_table(arrow_table).schema,
+                    mode="overwrite",
                 )
-            )
-            is not None
-        ):
+            return
+
+        if self.table["write_disposition"] == "merge" and dt is not None:
             assert self.table["x-merge-strategy"] in self.client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
 
             if self.table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
@@ -151,7 +165,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
                 qry = (
                     dt.merge(
-                        source=pa.dataset.dataset(file_paths),
+                        source=arrow_table,
                         predicate=predicate,
                         source_alias="source",
                         target_alias="target",
@@ -164,10 +178,10 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
         else:
             write_delta_table(
-                path=self.client.make_remote_uri(self.make_remote_path()),
-                data=pa.dataset.dataset(file_paths),
+                table_or_uri=dt_path if dt is None else dt,
+                data=arrow_table,
                 write_disposition=self.table["write_disposition"],
-                storage_options=_deltalake_storage_options(self.client.config),
+                storage_options=storage_options,
             )
 
     def make_remote_path(self) -> str:

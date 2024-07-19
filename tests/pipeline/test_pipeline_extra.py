@@ -437,28 +437,20 @@ def test_arrow_no_pandas() -> None:
 
 def test_empty_parquet(test_storage: FileStorage) -> None:
     from dlt.destinations import filesystem
+    from tests.pipeline.utils import users_materialize_table_schema
 
     local = filesystem(os.path.abspath(TEST_STORAGE_ROOT))
 
     # we have two options to materialize columns: add columns hint or use dlt.mark to emit schema
     # at runtime. below we use the second option
 
-    @dlt.resource
-    def users():
-        yield dlt.mark.with_hints(
-            # this is a special empty item which will materialize table schema
-            dlt.mark.materialize_table_schema(),
-            # emit table schema with the item
-            dlt.mark.make_hints(
-                columns=[
-                    {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
-                    {"name": "name", "data_type": "text", "nullable": False},
-                ]
-            ),
-        )
-
     # write parquet file to storage
-    info = dlt.run(users, destination=local, loader_file_format="parquet", dataset_name="user_data")
+    info = dlt.run(
+        users_materialize_table_schema,
+        destination=local,
+        loader_file_format="parquet",
+        dataset_name="user_data",
+    )
     assert_load_info(info)
     assert set(info.pipeline.default_schema.tables["users"]["columns"].keys()) == {"id", "name", "_dlt_load_id", "_dlt_id"}  # type: ignore
     # find parquet file

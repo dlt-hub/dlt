@@ -389,6 +389,84 @@ def test_delta_table_child_tables(
     assert len(rows_dict["complex_table__child__grandchild"]) == 5
 
 
+def test_delta_table_empty_source(local_filesystem_pipeline: dlt.Pipeline) -> None:
+    """Tests empty source handling for `delta` table format.
+
+    Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
+    """
+    from dlt.common.libs.pyarrow import pyarrow as pa
+    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_table
+    from tests.pipeline.utils import _get_delta_table, users_materialize_table_schema
+
+    @dlt.resource(table_format="delta")
+    def delta_table(data):
+        yield data
+
+    # create empty Arrow table with schema
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table",
+        include_decimal_default_precision=False,
+        include_decimal_arrow_max_precision=True,
+        include_not_normalized_name=False,
+        include_null=False,
+        num_rows=2,
+    )[0]
+    empty_arrow_table = arrow_table.schema.empty_table()
+    assert empty_arrow_table.num_rows == 0  # it's empty
+    assert empty_arrow_table.schema.equals(arrow_table.schema)  # it has a schema
+
+    # run 1: empty Arrow table with schema
+    # this should create empty Delta table with same schema as Arrow table
+    info = local_filesystem_pipeline.run(delta_table(empty_arrow_table))
+    assert_load_info(info)
+    client = cast(FilesystemClient, local_filesystem_pipeline.destination_client())
+    dt = _get_delta_table(client, "delta_table")
+    assert dt.version() == 0
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (0, empty_arrow_table.num_columns)
+    assert dt_arrow_table.schema.equals(
+        ensure_delta_compatible_arrow_table(empty_arrow_table).schema
+    )
+
+    # run 2: non-empty Arrow table with same schema as run 1
+    # this should load records into Delta table
+    info = local_filesystem_pipeline.run(delta_table(arrow_table))
+    assert_load_info(info)
+    dt = _get_delta_table(client, "delta_table")
+    assert dt.version() == 1
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
+    assert dt_arrow_table.schema.equals(
+        ensure_delta_compatible_arrow_table(empty_arrow_table).schema
+    )
+
+    # run 3: empty Arrow table with different schema
+    # this should not alter the Delta table
+    empty_arrow_table_2 = pa.schema(
+        [pa.field("foo", pa.int64()), pa.field("bar", pa.string())]
+    ).empty_table()
+
+    info = local_filesystem_pipeline.run(delta_table(empty_arrow_table_2))
+    assert_load_info(info)
+    dt = _get_delta_table(client, "delta_table")
+    assert dt.version() == 1  # still 1, no new commit was done
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)  # shape did not change
+    assert dt_arrow_table.schema.equals(  # schema did not change
+        ensure_delta_compatible_arrow_table(empty_arrow_table).schema
+    )
+
+    # test `dlt.mark.materialize_table_schema()`
+    users_materialize_table_schema.apply_hints(table_format="delta")
+    info = local_filesystem_pipeline.run(users_materialize_table_schema())
+    assert_load_info(info)
+    dt = _get_delta_table(client, "users")
+    assert dt.version() == 0
+    dt_arrow_table = dt.to_pyarrow_table()
+    assert dt_arrow_table.num_rows == 0
+    assert "id", "name" == dt_arrow_table.schema.names[:2]
+
+
 def test_delta_table_mixed_source(
     local_filesystem_pipeline: dlt.Pipeline,
 ) -> None:
