@@ -132,8 +132,7 @@ class RESTClient:
             kwargs.pop("cert", None),
         )
 
-        send_kwargs.update(**kwargs)
-
+        send_kwargs.update(**kwargs)  #  type: ignore[call-arg]
         return self.session.send(prepared_request, **send_kwargs)
 
     def request(self, path: str = "", method: HTTPMethod = "GET", **kwargs: Any) -> Response:
@@ -196,7 +195,6 @@ class RESTClient:
             >>> for page in client.paginate("/search", method="post", json={"query": "foo"}):
             >>>     print(page)
         """
-
         paginator = paginator if paginator else copy.deepcopy(self.paginator)
         auth = auth or self.auth
         data_selector = data_selector or self.data_selector

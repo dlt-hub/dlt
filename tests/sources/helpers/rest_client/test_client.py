@@ -432,31 +432,56 @@ class TestRESTClient:
             assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
 
     def test_request_kwargs(self, mocker) -> None:
+        def send_spy(*args, **kwargs):
+            return original_send(*args, **kwargs)
+
         rest_client = RESTClient(
             base_url="https://api.example.com",
             session=Client().session,
         )
-
-        mocked_send = mocker.Mock()
+        original_send = rest_client.session.send
+        mocked_send = mocker.Mock(side_effect=send_spy)
         rest_client.session.send = mocked_send  # type: ignore[method-assign]
 
         rest_client.get(
-            "/posts/1",
+            path="/posts/1",
             proxies={
-                "http": "http://10.10.1.10:3128",
-                "https": "http://10.10.1.10:1080",
+                "http": "http://10.10.1.10:1111",
+                "https": "http://10.10.1.10:2222",
             },
             stream=True,
             verify=False,
             cert=("/path/client.cert", "/path/client.key"),
         )
-
         assert mocked_send.call_args[1] == {
             "proxies": {
-                "http": "http://10.10.1.10:3128",
-                "https": "http://10.10.1.10:1080",
+                "http": "http://10.10.1.10:1111",
+                "https": "http://10.10.1.10:2222",
             },
             "stream": True,
             "verify": False,
             "cert": ("/path/client.cert", "/path/client.key"),
+        }
+
+        next(
+            rest_client.paginate(
+                path="posts",
+                proxies={
+                    "http": "http://10.10.1.10:1234",
+                    "https": "http://10.10.1.10:4321",
+                },
+                stream=True,
+                verify=False,
+                cert=("/path/client_2.cert", "/path/client_2.key"),
+            )
+        )
+
+        assert mocked_send.call_args[1] == {
+            "proxies": {
+                "http": "http://10.10.1.10:1234",
+                "https": "http://10.10.1.10:4321",
+            },
+            "stream": True,
+            "verify": False,
+            "cert": ("/path/client_2.cert", "/path/client_2.key"),
         }
