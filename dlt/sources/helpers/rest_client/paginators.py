@@ -1,3 +1,4 @@
+import warnings
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 from urllib.parse import urlparse, urljoin
@@ -422,7 +423,7 @@ class BaseNextUrlPaginator(BaseReferencePaginator):
     Subclasses should implement the `update_state` method to extract the next
     page URL and set the `_next_reference` attribute accordingly.
 
-    See `HeaderLinkPaginator` and `JSONResponsePaginator` for examples.
+    See `HeaderLinkPaginator` and `JSONLinkPaginator` for examples.
     """
 
     def update_request(self, request: Request) -> None:
@@ -491,7 +492,7 @@ class HeaderLinkPaginator(BaseNextUrlPaginator):
         return super().__str__() + f": links_next_key: {self.links_next_key}"
 
 
-class JSONResponsePaginator(BaseNextUrlPaginator):
+class JSONLinkPaginator(BaseNextUrlPaginator):
     """Locates the next page URL within the JSON response body. The key
     containing the URL can be specified using a JSON path.
 
@@ -511,12 +512,12 @@ class JSONResponsePaginator(BaseNextUrlPaginator):
 
     The link to the next page (`https://api.example.com/items?page=2`) is
     located in the 'next' key of the 'pagination' object. You can use
-    `JSONResponsePaginator` to paginate through the API endpoint:
+    `JSONLinkPaginator` to paginate through the API endpoint:
 
         from dlt.sources.helpers.rest_client import RESTClient
         client = RESTClient(
             base_url="https://api.example.com",
-            paginator=JSONResponsePaginator(next_url_path="pagination.next")
+            paginator=JSONLinkPaginator(next_url_path="pagination.next")
         )
 
         @dlt.resource
@@ -545,6 +546,17 @@ class JSONResponsePaginator(BaseNextUrlPaginator):
 
     def __str__(self) -> str:
         return super().__str__() + f": next_url_path: {self.next_url_path}"
+
+
+class JSONResponsePaginator(JSONLinkPaginator):
+    def __init__(self) -> None:
+        warnings.warn(
+            "JSONResponsePaginator is deprecated and will be removed in version 1.0.0. Use"
+            " JSONLinkPaginator instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__()
 
 
 class JSONResponseCursorPaginator(BaseReferencePaginator):

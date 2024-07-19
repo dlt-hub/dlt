@@ -22,7 +22,7 @@ from dlt.sources.helpers.rest_client.auth import (
 )
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator, BaseReferencePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator, BaseReferencePaginator
 
 from .conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, assert_pagination
 
@@ -82,7 +82,7 @@ class TestRESTClient:
     def test_pagination(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         )
 
         pages = list(pages_iter)
@@ -92,7 +92,7 @@ class TestRESTClient:
     def test_page_context(self, rest_client: RESTClient) -> None:
         for page in rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         ):
             # response that produced data
             assert isinstance(page.response, Response)
@@ -100,7 +100,7 @@ class TestRESTClient:
             assert isinstance(page.request, Request)
             # make request url should be same as next link in paginator
             if page.paginator.has_next_page:
-                paginator = cast(JSONResponsePaginator, page.paginator)
+                paginator = cast(JSONLinkPaginator, page.paginator)
                 assert paginator._next_reference == page.request.url
 
     def test_default_paginator(self, rest_client: RESTClient):
@@ -112,7 +112,7 @@ class TestRESTClient:
 
     def test_excplicit_paginator(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
-            "/posts", paginator=JSONResponsePaginator(next_url_path="next_page")
+            "/posts", paginator=JSONLinkPaginator(next_url_path="next_page")
         )
         pages = list(pages_iter)
 
@@ -121,7 +121,7 @@ class TestRESTClient:
     def test_excplicit_paginator_relative_next_url(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
             "/posts_relative_next_url",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         )
         pages = list(pages_iter)
 
@@ -138,7 +138,7 @@ class TestRESTClient:
 
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
             hooks=hooks,
         )
 
@@ -148,7 +148,7 @@ class TestRESTClient:
 
         pages_iter = rest_client.paginate(
             "/posts/1/some_details_404",
-            paginator=JSONResponsePaginator(),
+            paginator=JSONLinkPaginator(),
             hooks=hooks,
         )
 

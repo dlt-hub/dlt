@@ -110,6 +110,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         naming_convention: TNamingConventionReferenceArg = None,
         loader_file_format_adapter: LoaderFileFormatAdapter = None,
         supported_table_formats: Sequence["TTableFormat"] = None,  # type: ignore[name-defined] # noqa: F821
+        supported_merge_strategies: Sequence["TLoaderMergeStrategy"] = None,  # type: ignore[name-defined] # noqa: F821
     ) -> "DestinationCapabilitiesContext":
         from dlt.common.data_writers.escape import format_datetime_literal
 
@@ -137,6 +138,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supports_ddl_transactions = True
         caps.supports_transactions = True
         caps.supports_multiple_statements = True
+        caps.supported_merge_strategies = supported_merge_strategies or []
         return caps
 
 

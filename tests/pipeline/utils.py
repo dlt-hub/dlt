@@ -240,6 +240,13 @@ def load_tables_to_dicts(
     return result
 
 
+def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
+    """Compares two lists of dicts regardless of order"""
+    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
+    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
+    assert actual_set == expected_set
+
+
 def assert_only_table_columns(
     p: dlt.Pipeline, table_name: str, expected_columns: Sequence[str], schema_name: str = None
 ) -> None:
