@@ -451,6 +451,8 @@ class TestRESTClient:
             stream=True,
             verify=False,
             cert=("/path/client.cert", "/path/client.key"),
+            timeout=321,
+            allow_redirects=False,
         )
         assert mocked_send.call_args[1] == {
             "proxies": {
@@ -460,6 +462,8 @@ class TestRESTClient:
             "stream": True,
             "verify": False,
             "cert": ("/path/client.cert", "/path/client.key"),
+            "timeout": 321,
+            "allow_redirects": False,
         }
 
         next(
@@ -472,6 +476,8 @@ class TestRESTClient:
                 stream=True,
                 verify=False,
                 cert=("/path/client_2.cert", "/path/client_2.key"),
+                timeout=432,
+                allow_redirects=False,
             )
         )
 
@@ -483,4 +489,6 @@ class TestRESTClient:
             "stream": True,
             "verify": False,
             "cert": ("/path/client_2.cert", "/path/client_2.key"),
+            "timeout": 432,
+            "allow_redirects": False,
         }
