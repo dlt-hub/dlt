@@ -1,17 +1,21 @@
 from typing import Iterator, Generator, Any, List
+from typing import Union, Dict
 
 import pytest
+from lancedb.table import Table
 
 import dlt
 from dlt.common import json
-from dlt.common.typing import DictStrStr, DictStrAny
-from dlt.common.utils import uniq_id
+from dlt.common.typing import DictStrAny
+from dlt.common.typing import DictStrStr
+from dlt.common.utils import uniq_id, digest128
 from dlt.destinations.impl.lancedb.lancedb_adapter import (
     lancedb_adapter,
     VECTORIZE_HINT,
 )
 from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-from tests.load.lancedb.utils import assert_table
+from dlt.extract import DltResource
+from tests.load.lancedb.utils import assert_table, chunk_document, mock_embed
 from tests.load.utils import sequence_generator, drop_active_pipeline_data
 from tests.pipeline.utils import assert_load_info
 
@@ -426,7 +430,9 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
     assert pipe.dataset_name is None
-    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
+    info = pipe.run(
+        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
+    )
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]
@@ -435,67 +441,97 @@ def test_empty_dataset_allowed() -> None:
     assert_table(pipe, "content", expected_items_count=3)
 
 
-docs = [
-    [
+def test_merge_no_orphans() -> None:
+    @dlt.resource(
+        write_disposition="merge",
+        merge_key=["doc_id", "chunk_hash"],
+        table_name="document",
+    )
+    def documents(docs: List[DictStrAny]) -> Generator[DictStrAny, None, None]:
+        for doc in docs:
+            doc_id = doc["doc_id"]
+            chunks = chunk_document(doc["text"])
+            embeddings = [
+                {
+                    "chunk_hash": digest128(chunk),
+                    "chunk_text": chunk,
+                    "embedding": mock_embed(),
+                }
+                for chunk in chunks
+            ]
+            yield {"doc_id": doc_id, "doc_text": doc["text"], "embeddings": embeddings}
+
+    @dlt.source(max_table_nesting=1)
+    def documents_source(
+        docs: List[DictStrAny],
+    ) -> Union[Generator[Dict[str, Any], None, None], DltResource]:
+        return documents(docs)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="chunked_docs",
+        destination="lancedb",
+        dataset_name="chunked_documents",
+        dev_mode=True,
+    )
+
+    initial_docs = [
         {
-            "text": (
-                "This is the first document. It contains some text that will be chunked and"
-                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
-            ),
-            "id": 1,
+            "text": "This is the first document. It contains some text that will be chunked and embedded. (I don't want "
+            "to be seen in updated run's embedding chunk texts btw)",
+            "doc_id": 1,
         },
         {
             "text": "Here's another document. It's a bit different from the first one.",
-            "id": 2,
+            "doc_id": 2,
         },
-    ],
-    [
+    ]
+
+    info = pipeline.run(documents_source(initial_docs))
+    assert_load_info(info)
+
+    updated_docs = [
         {
             "text": "This is the first document, but it has been updated with new content.",
-            "id": 1,
+            "doc_id": 1,
         },
         {
             "text": "This is a completely new document that wasn't in the initial set.",
-            "id": 3,
+            "doc_id": 3,
         },
-    ],
-]
+    ]
 
-
-def test_chunking_no_splitter() -> None:
-    pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
-    info = pipe.run(
-        docs[0],
-        table_name="documents",
-    )
+    info = pipeline.run(documents_source(updated_docs))
     assert_load_info(info)
 
-    # TODO: Check and compare output
+    with pipeline.destination_client() as client:
+        # Orphaned chunks/documents must have been discarded.
+        # Shouldn't contain any text from `initial_docs' where doc_id=1.
+        expected_text = {
+            "Here's ano",
+            "ther docum",
+            "ent. It's ",
+            "a bit diff",
+            "erent from",
+            " the first",
+            " one.",
+            "This is th",
+            "e first do",
+            "cument, bu",
+            "t it has b",
+            "een update",
+            "d with new",
+            " content.",
+            "This is a ",
+            "completely",
+            " new docum",
+            "ent that w",
+            "asn't in t",
+            "he initial",
+            " set.",
+        }
 
+        embeddings_table_name = client.make_qualified_table_name("document__embeddings")  # type: ignore[attr-defined]
 
-def test_chunk_merge_no_splitter() -> None:
-    pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
-
-    info = pipe.run(
-        lancedb_adapter(docs[0], embed="text", splitter=splitter),
-        table_name="documents",
-        write_disposition="merge",
-        primary_key="id",
-    )
-    pipe.run(info)
-
-    # Orphaned chunks must be discarded.
-    info = pipe.run(
-        lancedb_adapter(docs[1], embed="text", splitter=splitter),
-        table_name="documents",
-        write_disposition="merge",
-        primary_key="id",
-    )
-    assert_load_info(info)
-
-    # TODO: Check and compare output
-
-
-def test_embedding_provider_only_called_once_per_chunk_hash() -> None:
-    """Verify that the embedding provider is called only once for each unique chunk hash to optimize API usage and reduce costs."""
-    raise NotImplementedError
+        tbl: Table = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
+        df = tbl.to_pandas()
+        assert set(df["chunk_text"]) == expected_text

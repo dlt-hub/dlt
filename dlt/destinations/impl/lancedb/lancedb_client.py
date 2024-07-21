@@ -141,7 +141,7 @@ class LanceDBTypeMapper(TypeMapper):
             )
         if isinstance(db_type, pa.Decimal128Type):
             precision, scale = db_type.precision, db_type.scale
-            if (precision, scale) == self.capabilities.wei_precision:
+            if (precision, scale)==self.capabilities.wei_precision:
                 return cast(TColumnType, dict(data_type="wei"))
             return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(cast(str, db_type), precision, scale)
@@ -183,9 +183,9 @@ def upload_batch(
     try:
         if write_disposition in ("append", "skip"):
             tbl.add(records)
-        elif write_disposition == "replace":
+        elif write_disposition=="replace":
             tbl.add(records, mode="overwrite")
-        elif write_disposition == "merge":
+        elif write_disposition=="merge":
             if not id_field_name:
                 raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
             tbl.merge_insert(
@@ -206,7 +206,10 @@ def upload_batch(
                 child_ids = set(pc.unique(tbl.to_arrow()["_dlt_parent_id"]).to_pylist())
 
                 if orphaned_ids := child_ids - parent_ids:
-                    tbl.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
+                    if len(orphaned_ids) > 1:
+                        tbl.delete(f"_dlt_parent_id IN {tuple(orphaned_ids) if len(orphaned_ids) > 1 else orphaned_ids.pop()}")
+                    elif len(orphaned_ids) == 1:
+                        tbl.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
 
         else:
             raise DestinationTerminalException(
@@ -251,7 +254,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             self.config.credentials.embedding_model_provider_api_key,
         )
         # Use the monkey-patched implementation if openai was chosen.
-        if embedding_model_provider == "openai":
+        if embedding_model_provider=="openai":
             from dlt.destinations.impl.lancedb.models import PatchedOpenAIEmbeddings
 
             self.model_func = PatchedOpenAIEmbeddings(
@@ -344,7 +347,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         else:
             table_names = self.db_client.table_names()
 
-        return [table_name for table_name in table_names if table_name != self.sentinel_table]
+        return [table_name for table_name in table_names if table_name!=self.sentinel_table]
 
     @lancedb_error
     def drop_storage(self) -> None:
@@ -585,7 +588,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
             loads_table, keys=p_dlt_load_id, right_keys=p_load_id, join_type="inner"
         ).sort_by([(p_dlt_load_id, "descending")])
 
-        if joined_table.num_rows == 0:
+        if joined_table.num_rows==0:
             return None
 
         state = joined_table.take([0]).to_pylist()[0]
