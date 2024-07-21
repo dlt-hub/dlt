@@ -426,9 +426,7 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
     assert pipe.dataset_name is None
-    info = pipe.run(
-        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
-    )
+    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]
@@ -440,8 +438,10 @@ def test_empty_dataset_allowed() -> None:
 docs = [
     [
         {
-            "text": "This is the first document. It contains some text that will be chunked and embedded. (I don't want "
-            "to be seen in updated run's embedding chunk texts btw)",
+            "text": (
+                "This is the first document. It contains some text that will be chunked and"
+                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
+            ),
             "id": 1,
         },
         {
@@ -462,10 +462,6 @@ docs = [
 ]
 
 
-def splitter(text: str, chunk_size: int = 10) -> List[str]:
-    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
-
-
 def test_chunking_no_splitter() -> None:
     pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
     info = pipe.run(
@@ -477,23 +473,8 @@ def test_chunking_no_splitter() -> None:
     # TODO: Check and compare output
 
 
-def test_chunking_with_splitter() -> None:
+def test_chunk_merge_no_splitter() -> None:
     pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
-
-    info = pipe.run(
-        lancedb_adapter(docs[0], embed="text", splitter=splitter),
-        table_name="documents",
-    )
-    assert_load_info(info)
-
-    # TODO: Check and compare output
-
-
-def test_chunk_merge() -> None:
-    """Test chunking is applied without orphaned chunks when new documents arrive."""
-
-    pipe = dlt.pipeline(destination="lancedb", dataset_name="docs", dev_mode=True)
-
 
     info = pipe.run(
         lancedb_adapter(docs[0], embed="text", splitter=splitter),

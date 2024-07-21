@@ -1,7 +1,6 @@
 import uuid
 from types import TracebackType
 from typing import (
-    ClassVar,
     List,
     Any,
     cast,
@@ -17,6 +16,7 @@ from typing import (
 
 import lancedb  # type: ignore
 import pyarrow as pa
+import pyarrow.compute as pc
 from lancedb import DBConnection
 from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction  # type: ignore
 from lancedb.query import LanceQueryBuilder  # type: ignore
@@ -76,7 +76,6 @@ if TYPE_CHECKING:
     NDArray = ndarray[Any, Any]
 else:
     NDArray = ndarray
-
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
 UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
@@ -145,7 +144,7 @@ class LanceDBTypeMapper(TypeMapper):
             if (precision, scale) == self.capabilities.wei_precision:
                 return cast(TColumnType, dict(data_type="wei"))
             return dict(data_type="decimal", precision=precision, scale=scale)
-        return super().from_db_type(db_type, precision, scale)
+        return super().from_db_type(cast(str, db_type), precision, scale)
 
 
 def upload_batch(
@@ -154,7 +153,8 @@ def upload_batch(
     *,
     db_client: DBConnection,
     table_name: str,
-    write_disposition: TWriteDisposition,
+    parent_table_name: Optional[str] = None,
+    write_disposition: Optional[TWriteDisposition] = "append",
     id_field_name: Optional[str] = None,
 ) -> None:
     """Inserts records into a LanceDB table with automatic embedding computation.
@@ -163,6 +163,7 @@ def upload_batch(
         records: The data to be inserted as payload.
         db_client: The LanceDB client connection.
         table_name: The name of the table to insert into.
+        parent_table_name: The name of the parent table, if the target table has any.
         id_field_name: The name of the ID field for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
 
@@ -190,6 +191,23 @@ def upload_batch(
             tbl.merge_insert(
                 id_field_name
             ).when_matched_update_all().when_not_matched_insert_all().execute(records)
+
+            # Remove orphaned parent IDs.
+            if parent_table_name:
+                try:
+                    parent_tbl = db_client.open_table(parent_table_name)
+                    parent_tbl.checkout_latest()
+                except FileNotFoundError as e:
+                    raise DestinationTransientException(
+                        "Couldn't open lancedb database. Batch WILL BE RETRIED"
+                    ) from e
+
+                parent_ids = set(pc.unique(parent_tbl.to_arrow()["_dlt_id"]).to_pylist())
+                child_ids = set(pc.unique(tbl.to_arrow()["_dlt_parent_id"]).to_pylist())
+
+                if orphaned_ids := child_ids - parent_ids:
+                    tbl.delete(f"_dlt_parent_id IN {tuple(orphaned_ids)}")
+
         else:
             raise DestinationTerminalException(
                 f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
@@ -334,7 +352,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         Deletes all tables in the dataset and all data, as well as sentinel table associated with them.
 
-        If the dataset name was not provided, it deletes all the tables in the current schema.
+        If the dataset name wasn't provided, it deletes all the tables in the current schema.
         """
         for table_name in self._get_table_names():
             self.db_client.drop_table(table_name)
@@ -459,9 +477,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 existing_columns,
                 self.capabilities.generates_case_sensitive_identifiers(),
             )
-            embedding_fields: List[str] = get_columns_names_with_prop(
-                self.schema.get_table(table_name), VECTORIZE_HINT
-            )
             logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
             if len(new_columns) > 0:
                 if exists:
@@ -524,10 +539,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
+
         upload_batch(
             records,
             db_client=self.db_client,
             table_name=fq_version_table_name,
+            parent_table_name=None,
             write_disposition=write_disposition,
         )
 
@@ -690,6 +707,8 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        parent_table = table.get("parent")
+
         return LoadLanceDBJob(
             self.schema,
             table,
@@ -699,6 +718,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
             client_config=self.config,
             model_func=self.model_func,
             fq_table_name=self.make_qualified_table_name(table["name"]),
+            fq_parent_table_name=(
+                self.make_qualified_table_name(parent_table) if parent_table else None
+            ),
         )
 
     def table_exists(self, table_name: str) -> bool:
@@ -718,6 +740,7 @@ class LoadLanceDBJob(LoadJob):
         client_config: LanceDBClientConfiguration,
         model_func: TextEmbeddingFunction,
         fq_table_name: str,
+        fq_parent_table_name: Optional[str],
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         super().__init__(file_name)
@@ -727,6 +750,7 @@ class LoadLanceDBJob(LoadJob):
         self.type_mapper: TypeMapper = type_mapper
         self.table_name: str = table_schema["name"]
         self.fq_table_name: str = fq_table_name
+        self.fq_parent_table_name: Optional[str] = fq_parent_table_name
         self.unique_identifiers: Sequence[str] = list_merge_identifiers(table_schema)
         self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.embedding_model_func: TextEmbeddingFunction = model_func
@@ -759,6 +783,7 @@ class LoadLanceDBJob(LoadJob):
             records,
             db_client=db_client,
             table_name=self.fq_table_name,
+            parent_table_name=self.fq_parent_table_name,
             write_disposition=self.write_disposition,
             id_field_name=self.id_field_name,
         )
