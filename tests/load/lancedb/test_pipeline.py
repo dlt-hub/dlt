@@ -2,7 +2,7 @@ from typing import Iterator, Generator, Any, List
 from typing import Union, Dict
 
 import pytest
-from lancedb.table import Table  # type: ignore[import-untyped]
+from lancedb.table import Table  # type: ignore
 
 import dlt
 from dlt.common import json
