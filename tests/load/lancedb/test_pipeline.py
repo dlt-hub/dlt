@@ -2,7 +2,7 @@ from typing import Iterator, Generator, Any, List
 from typing import Union, Dict
 
 import pytest
-from lancedb.table import Table
+from lancedb.table import Table  # type: ignore[import-untyped]
 
 import dlt
 from dlt.common import json
@@ -430,9 +430,7 @@ def test_empty_dataset_allowed() -> None:
     client: LanceDBClient = pipe.destination_client()  # type: ignore[assignment]
 
     assert pipe.dataset_name is None
-    info = pipe.run(
-        lancedb_adapter(["context", "created", "not a stop word"], embed=["value"])
-    )
+    info = pipe.run(lancedb_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # Dataset in load info is empty.
     assert info.dataset_name is None
     client = pipe.destination_client()  # type: ignore[assignment]
@@ -476,8 +474,10 @@ def test_merge_no_orphans() -> None:
 
     initial_docs = [
         {
-            "text": "This is the first document. It contains some text that will be chunked and embedded. (I don't want "
-            "to be seen in updated run's embedding chunk texts btw)",
+            "text": (
+                "This is the first document. It contains some text that will be chunked and"
+                " embedded. (I don't want to be seen in updated run's embedding chunk texts btw)"
+            ),
             "doc_id": 1,
         },
         {
