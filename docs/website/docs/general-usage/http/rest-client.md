@@ -590,6 +590,22 @@ for page in paginate("https://api.example.com/posts"):
     print(page)
 ```
 
+
+## Retry
+
+You can customize how the RESTClient retries failed requests by editing your `config.toml`.
+See more examples and explanations in our [documentation on retry rules](requests#retry-rules).
+
+Example:
+
+```toml
+[runtime]
+request_max_attempts = 10  # Stop after 10 retry attempts instead of 5
+request_backoff_factor = 1.5  # Multiplier applied to the exponential delays. Default is 1
+request_timeout = 120  # Timeout in seconds
+request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
+```
+
 ## Troubleshooting
 
 ### `RESTClient.get()` and `RESTClient.post()` methods
