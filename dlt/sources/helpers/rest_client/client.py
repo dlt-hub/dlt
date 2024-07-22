@@ -179,7 +179,7 @@ class RESTClient:
             hooks (Optional[Hooks]): Hooks to modify request/response objects. Note that
                 when hooks are not provided, the default behavior is to raise an exception
                 on error status codes.
-            **kwargs (Any): Optional arguments to that the request library accepts, such as
+            **kwargs (Any): Optional arguments to that the Request library accepts, such as
                 `stream`, `verify`, `proxies`, `cert`, `timeout`, and `allow_redirects`.
 
 
