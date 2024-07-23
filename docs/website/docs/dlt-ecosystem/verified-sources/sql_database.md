@@ -134,7 +134,7 @@ Read more about sources and resources here: [General Usage: Source](../../genera
 
 **Load all the tables from a database**  
 Calling `sql_database()` loads all tables from the database.
-```python
+```py
 def load_entire_database() -> None:
 
     # Define the pipeline
@@ -155,7 +155,7 @@ def load_entire_database() -> None:
 ```
 **Load select tables from a database**  
 Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
-```python
+```py
 def load_select_tables_from_database() -> None:
 
     # Define the pipeline
@@ -178,7 +178,7 @@ def load_select_tables_from_database() -> None:
 
 **Load a single table**  
 Calling `sql_table(table="family")` fetches only the table `"family"`
-```python
+```py
 def load_select_tables_from_database() -> None:
 
     # Define the pipeline
@@ -211,7 +211,7 @@ By default, `dlt` looks for credentials inside `.dlt/secrets.toml` or in the env
 
 ### Passing credentials explicitly 
 It is also possible to explicitly pass credentials inside the source. Example:
-```python
+```py
 from dlt.sources.credentials import ConnectionStringCredentials
 from sql_database import sql_table
 
