@@ -444,6 +444,7 @@ class TestRESTClient:
 
         import requests
 
+        original_send = requests.Session.send
         requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
         rest_client.get("/posts/1")
         assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
@@ -453,11 +454,12 @@ class TestRESTClient:
             "verify": ANY,
             "cert": ANY,
         }
+        # restore, otherwise side-effect on subsequent tests
+        requests.Session.send = original_send  # type: ignore[method-assign]
 
     def test_request_kwargs(self, mocker) -> None:
         def send_spy(*args, **kwargs):
             return original_send(*args, **kwargs)
-
 
         rest_client = RESTClient(
             base_url="https://api.example.com",
