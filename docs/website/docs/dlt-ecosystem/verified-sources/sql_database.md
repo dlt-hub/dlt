@@ -97,7 +97,7 @@ To connect to your SQL database using `dlt` follow these steps:
     User name is `rfmaro` and password  is `PWD`.
 
 3. Add credentials for your destination (if necessary)  
-    Depending on which [destination](../destinations) you're loading into, you might also need to add your destination credentials. For more information, read the [General Usage: Credentials.](../../credentials)
+    Depending on which [destination](../destinations) you're loading into, you might also need to add your destination credentials. For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 4. Install any necessary dependencies  
 
