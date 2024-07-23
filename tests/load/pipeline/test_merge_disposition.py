@@ -21,11 +21,19 @@ from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.pipeline.utils import assert_load_info, load_table_counts, select_data
+from tests.pipeline.utils import (
+    assert_load_info,
+    load_table_counts,
+    select_data,
+    load_tables_to_dicts,
+    assert_records_as_set,
+)
 from tests.load.utils import (
     normalize_storage_table_cols,
     destinations_configs,
     DestinationTestConfiguration,
+    FILE_BUCKET,
+    AZ_BUCKET,
 )
 
 # uncomment add motherduck tests
@@ -46,7 +54,14 @@ def skip_if_not_supported(
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        all_buckets_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET, AZ_BUCKET),  # test one local, one remote
+    ),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
 def test_merge_on_keys_in_schema(
@@ -68,6 +83,7 @@ def test_merge_on_keys_in_schema(
     @dlt.resource(
         table_name="blocks",
         write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        table_format=destination_config.table_format,
     )
     def data(slice_: slice = None):
         with open(
@@ -116,8 +132,125 @@ def test_merge_on_keys_in_schema(
     assert eth_2_counts == eth_3_counts
 
 
+@pytest.mark.essential
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+def test_merge_record_updates(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    p = destination_config.setup_pipeline("test_merge_record_updates", dev_mode=True)
+
+    skip_if_not_supported(merge_strategy, p.destination)
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        primary_key="id",
+        table_format=destination_config.table_format,
+    )
+    def r(data):
+        yield data
+
+    # initial load
+    run_1 = [
+        {"id": 1, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_1))
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 2,
+        "parent__child": 2,
+        "parent__child__grandchild": 2,
+    }
+    tables = load_tables_to_dicts(p, "parent", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["parent"],
+        [
+            {"id": 1, "foo": 1},
+            {"id": 2, "foo": 1},
+        ],
+    )
+
+    # update record — change at parent level
+    run_2 = [
+        {"id": 1, "foo": 2, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_2))
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 2,
+        "parent__child": 2,
+        "parent__child__grandchild": 2,
+    }
+    tables = load_tables_to_dicts(p, "parent", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["parent"],
+        [
+            {"id": 1, "foo": 2},
+            {"id": 2, "foo": 1},
+        ],
+    )
+
+    # update record — change at child level
+    run_3 = [
+        {"id": 1, "foo": 2, "child": [{"bar": 2, "grandchild": [{"baz": 1}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_3))
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 2,
+        "parent__child": 2,
+        "parent__child__grandchild": 2,
+    }
+    tables = load_tables_to_dicts(p, "parent", "parent__child", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["parent__child"],
+        [
+            {"bar": 2},
+            {"bar": 1},
+        ],
+    )
+
+    # update record — change at grandchild level
+    run_3 = [
+        {"id": 1, "foo": 2, "child": [{"bar": 2, "grandchild": [{"baz": 2}]}]},
+        {"id": 2, "foo": 1, "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+    ]
+    info = p.run(r(run_3))
+    assert_load_info(info)
+    assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
+        "parent": 2,
+        "parent__child": 2,
+        "parent__child__grandchild": 2,
+    }
+    tables = load_tables_to_dicts(p, "parent__child__grandchild", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["parent__child__grandchild"],
+        [
+            {"baz": 2},
+            {"baz": 1},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, local_filesystem_configs=True, supports_merge=True
+    ),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
 def test_merge_on_ad_hoc_primary_key(
@@ -131,6 +264,7 @@ def test_merge_on_ad_hoc_primary_key(
         table_name="issues",
         write_disposition={"disposition": "merge", "strategy": merge_strategy},
         primary_key="NodeId",
+        table_format=destination_config.table_format,
     )
     def data(slice_: slice = None):
         with open(
@@ -597,7 +731,9 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True, local_filesystem_configs=True, supports_merge=True
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
@@ -605,12 +741,19 @@ def test_complex_column_missing(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
+    if destination_config.table_format == "delta":
+        pytest.skip(
+            "Record updates that involve removing elements from a complex"
+            " column is not supported for `delta` table format."
+        )
+
     table_name = "test_complex_column_missing"
 
     @dlt.resource(
         name=table_name,
         write_disposition={"disposition": "merge", "strategy": merge_strategy},
         primary_key="id",
+        table_format=destination_config.table_format,
     )
     def r(data):
         yield data
@@ -618,18 +761,23 @@ def test_complex_column_missing(
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
     skip_if_not_supported(merge_strategy, p.destination)
 
-    data = [{"id": 1, "simple": "foo", "complex": [1, 2, 3]}]
+    data = [
+        {"id": 1, "simple": "foo", "complex": [1, 2, 3]},
+        {"id": 2, "simple": "foo", "complex": [1, 2]},
+    ]
     info = p.run(r(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
-    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 3
+    assert load_table_counts(p, table_name)[table_name] == 2
+    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 5
 
     # complex column is missing, previously inserted records should be deleted from child table
-    data = [{"id": 1, "simple": "bar"}]
+    data = [
+        {"id": 1, "simple": "bar"},
+    ]
     info = p.run(r(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
-    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 0
+    assert load_table_counts(p, table_name)[table_name] == 2
+    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 2
 
 
 @pytest.mark.parametrize(
@@ -1031,12 +1179,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         info = p.run(r(), loader_file_format=destination_config.file_format)
 
 
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres"]),
-    ids=lambda x: x.name,
-)
-def test_merge_strategy_config(destination_config: DestinationTestConfiguration, capsys) -> None:
+def test_merge_strategy_config() -> None:
     # merge strategy invalid
     with pytest.raises(ValueError):
 
@@ -1059,34 +1202,32 @@ def test_merge_strategy_config(destination_config: DestinationTestConfiguration,
     with pytest.raises(DestinationCapabilitiesException):
         p.run(r())
 
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        supports_merge=True,
+        subset=["postgres", "filesystem"],  # test one SQL and one non-SQL destination
+    ),
+    ids=lambda x: x.name,
+)
+def test_upsert_merge_strategy_config(destination_config: DestinationTestConfiguration) -> None:
+    if destination_config.destination == "filesystem":
+        # TODO: implement validation and remove this test exception
+        pytest.skip(
+            "`upsert` merge strategy configuration validation has not yet been"
+            " implemented for `fileystem` destination."
+        )
+
+    @dlt.resource(write_disposition={"disposition": "merge", "strategy": "upsert"})
+    def r():
+        yield {"foo": "bar"}
+
     # `upsert` merge strategy without `primary_key` should error
-    # this check only happens for SQL destinations
-    p = destination_config.setup_pipeline("sql_pipeline", dev_mode=True)
-    # assert "upsert" in p.destination.capabilities().supported_merge_strategies
-    p.drop()
-    r.apply_hints(
-        write_disposition={"disposition": "merge", "strategy": "upsert"},
-    )
+    p = destination_config.setup_pipeline("upsert_pipeline", dev_mode=True)
     assert "primary_key" not in r._hints
     with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run(r())
     assert isinstance(pip_ex.value.__context__, SchemaCorruptedException)
-
-    # TODO: figure out how to test logs on GitHub CI
-    # section below is commented out because it fails on GitHub CI
-    # https://github.com/dlt-hub/dlt/pull/1466#discussion_r1658991754
-
-    # `upsert` merge strategy with `merge_key` should log warning
-    # p.drop()
-    # r.apply_hints(
-    #     write_disposition={"disposition": "merge", "strategy": "upsert"},
-    #     primary_key="foo",
-    #     merge_key="foo",
-    # )
-    # assert "primary_key" in r._hints
-    # assert "merge_key" in r._hints
-    # p.run(r())
-    # assert (
-    #     "Merge key is not supported for this strategy and will be ignored."
-    #     in capsys.readouterr().err
-    # )

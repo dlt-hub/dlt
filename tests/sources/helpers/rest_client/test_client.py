@@ -1,7 +1,7 @@
 import os
 from base64 import b64encode
 from typing import Any, Dict, cast
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 import pytest
 from requests import PreparedRequest, Request, Response
@@ -22,7 +22,7 @@ from dlt.sources.helpers.rest_client.auth import (
 )
 from dlt.sources.helpers.rest_client.client import Hooks
 from dlt.sources.helpers.rest_client.exceptions import IgnoreResponseException
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator, BaseReferencePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator, BaseReferencePaginator
 
 from .conftest import DEFAULT_PAGE_SIZE, DEFAULT_TOTAL_PAGES, assert_pagination
 
@@ -82,7 +82,7 @@ class TestRESTClient:
     def test_pagination(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         )
 
         pages = list(pages_iter)
@@ -92,7 +92,7 @@ class TestRESTClient:
     def test_page_context(self, rest_client: RESTClient) -> None:
         for page in rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         ):
             # response that produced data
             assert isinstance(page.response, Response)
@@ -100,7 +100,7 @@ class TestRESTClient:
             assert isinstance(page.request, Request)
             # make request url should be same as next link in paginator
             if page.paginator.has_next_page:
-                paginator = cast(JSONResponsePaginator, page.paginator)
+                paginator = cast(JSONLinkPaginator, page.paginator)
                 assert paginator._next_reference == page.request.url
 
     def test_default_paginator(self, rest_client: RESTClient):
@@ -112,7 +112,7 @@ class TestRESTClient:
 
     def test_excplicit_paginator(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
-            "/posts", paginator=JSONResponsePaginator(next_url_path="next_page")
+            "/posts", paginator=JSONLinkPaginator(next_url_path="next_page")
         )
         pages = list(pages_iter)
 
@@ -121,7 +121,7 @@ class TestRESTClient:
     def test_excplicit_paginator_relative_next_url(self, rest_client: RESTClient):
         pages_iter = rest_client.paginate(
             "/posts_relative_next_url",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
         )
         pages = list(pages_iter)
 
@@ -138,7 +138,7 @@ class TestRESTClient:
 
         pages_iter = rest_client.paginate(
             "/posts",
-            paginator=JSONResponsePaginator(next_url_path="next_page"),
+            paginator=JSONLinkPaginator(next_url_path="next_page"),
             hooks=hooks,
         )
 
@@ -148,7 +148,7 @@ class TestRESTClient:
 
         pages_iter = rest_client.paginate(
             "/posts/1/some_details_404",
-            paginator=JSONResponsePaginator(),
+            paginator=JSONLinkPaginator(),
             hooks=hooks,
         )
 
@@ -431,9 +431,33 @@ class TestRESTClient:
         for i in range(DEFAULT_PAGE_SIZE):
             assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
 
+    def test_configurable_timeout(self, mocker) -> None:
+        cfg = {
+            "RUNTIME__REQUEST_TIMEOUT": 42,
+        }
+        os.environ.update({key: str(value) for key, value in cfg.items()})
+
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            session=Client().session,
+        )
+
+        import requests
+
+        requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
+        rest_client.get("/posts/1")
+        assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
+            "timeout": 42,
+            "proxies": ANY,
+            "stream": ANY,
+            "verify": ANY,
+            "cert": ANY,
+        }
+
     def test_request_kwargs(self, mocker) -> None:
         def send_spy(*args, **kwargs):
             return original_send(*args, **kwargs)
+
 
         rest_client = RESTClient(
             base_url="https://api.example.com",
@@ -454,6 +478,7 @@ class TestRESTClient:
             timeout=321,
             allow_redirects=False,
         )
+
         assert mocked_send.call_args[1] == {
             "proxies": {
                 "http": "http://10.10.1.10:1111",

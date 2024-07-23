@@ -12,6 +12,7 @@ from dlt.common import logger, time, json, pendulum
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -123,16 +124,51 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         from dlt.common.libs.deltalake import (
             write_delta_table,
             _deltalake_storage_options,
+            try_get_deltatable,
         )
 
         file_paths = [job.file_path for job in self.table_jobs]
 
-        write_delta_table(
-            path=self.client.make_remote_uri(self.make_remote_path()),
-            data=pa.dataset.dataset(file_paths),
-            write_disposition=self.table["write_disposition"],
-            storage_options=_deltalake_storage_options(self.client.config),
-        )
+        if (
+            self.table["write_disposition"] == "merge"
+            and (
+                dt := try_get_deltatable(
+                    self.client.make_remote_uri(self.make_remote_path()),
+                    storage_options=_deltalake_storage_options(self.client.config),
+                )
+            )
+            is not None
+        ):
+            assert self.table["x-merge-strategy"] in self.client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
+
+            if self.table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
+                if "parent" in self.table:
+                    unique_column = get_first_column_name_with_prop(self.table, "unique")
+                    predicate = f"target.{unique_column} = source.{unique_column}"
+                else:
+                    primary_keys = get_columns_names_with_prop(self.table, "primary_key")
+                    predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
+
+                qry = (
+                    dt.merge(
+                        source=pa.dataset.dataset(file_paths),
+                        predicate=predicate,
+                        source_alias="source",
+                        target_alias="target",
+                    )
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                )
+
+                qry.execute()
+
+        else:
+            write_delta_table(
+                path=self.client.make_remote_uri(self.make_remote_path()),
+                data=pa.dataset.dataset(file_paths),
+                write_disposition=self.table["write_disposition"],
+                storage_options=_deltalake_storage_options(self.client.config),
+            )
 
     def make_remote_path(self) -> str:
         # directory path, not file path
@@ -558,7 +594,9 @@ class FilesystemClient(FSClientBase, JobClientBase, WithStagingDataset, WithStat
         if table_format == "delta":
             delta_jobs = [
                 DeltaLoadFilesystemJob(
-                    self, table, get_table_jobs(completed_table_chain_jobs, table["name"])
+                    self,
+                    table=self.prepare_load_table(table["name"]),
+                    table_jobs=get_table_jobs(completed_table_chain_jobs, table["name"]),
                 )
                 for table in table_chain
             ]

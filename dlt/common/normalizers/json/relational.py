@@ -19,6 +19,7 @@ from dlt.common.schema.utils import (
     get_validity_column_names,
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
+    get_merge_strategy,
 )
 from dlt.common.schema.exceptions import ColumnNameConflictException
 from dlt.common.utils import digest128, update_dict_nested
@@ -470,9 +471,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     @staticmethod
     @lru_cache(maxsize=None)
     def _get_merge_strategy(schema: Schema, table_name: str) -> Optional[TLoaderMergeStrategy]:
-        if table_name in schema.data_table_names(include_incomplete=True):
-            return schema.get_table(table_name).get("x-merge-strategy")  # type: ignore[return-value]
-        return None
+        return get_merge_strategy(schema.tables, table_name)
 
     @staticmethod
     @lru_cache(maxsize=None)
@@ -505,6 +504,10 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 if x_row_version_col == DataItemNormalizer.C_DLT_ID:
                     return "row_hash"
         elif _r_lvl > 0:  # child table
+            merge_strategy = DataItemNormalizer._get_merge_strategy(schema, table_name)
+            if merge_strategy in ("upsert", "scd2"):
+                # these merge strategies rely on deterministic child row hash
+                return "row_hash"
             if not primary_key:
                 return "row_hash"
         return "random"

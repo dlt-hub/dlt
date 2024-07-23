@@ -1,7 +1,7 @@
 ---
 title: RESTClient
 description: Learn how to use the RESTClient class to interact with RESTful APIs
-keywords: [api, http, rest, request, extract, restclient, client, pagination, json, response, data_selector, session, auth, paginator, jsonresponsepaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication]
+keywords: [api, http, rest, request, extract, restclient, client, pagination, json, response, data_selector, session, auth, paginator, JSONLinkPaginator, headerlinkpaginator, offsetpaginator, jsonresponsecursorpaginator, queryparampaginator, bearer, token, authentication]
 ---
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
@@ -16,13 +16,13 @@ This guide shows how to use the `RESTClient` class to read data from APIs, focus
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 client = RESTClient(
     base_url="https://api.example.com",
     headers={"User-Agent": "MyApp/1.0"},
     auth=BearerTokenAuth(token="your_access_token_here"),  # type: ignore
-    paginator=JSONResponsePaginator(next_url_path="pagination.next"),
+    paginator=JSONLinkPaginator(next_url_path="pagination.next"),
     data_selector="data",
     session=MyCustomSession()
 )
@@ -111,7 +111,7 @@ Each `PageData` instance contains the data for a single page, along with context
 
 Paginators are used to handle paginated responses. The `RESTClient` class comes with built-in paginators for common pagination mechanisms:
 
-- [JSONResponsePaginator](#jsonresponsepaginator) - link to the next page is included in the JSON response.
+- [JSONLinkPaginator](#JSONLinkPaginator) - link to the next page is included in the JSON response.
 - [HeaderLinkPaginator](#headerlinkpaginator) - link to the next page is included in the response headers.
 - [OffsetPaginator](#offsetpaginator) - pagination based on offset and limit query parameters.
 - [PageNumberPaginator](#pagenumberpaginator) - pagination based on page numbers.
@@ -119,9 +119,9 @@ Paginators are used to handle paginated responses. The `RESTClient` class comes 
 
 If the API uses a non-standard pagination, you can [implement a custom paginator](#implementing-a-custom-paginator) by subclassing the `BasePaginator` class.
 
-#### JSONResponsePaginator
+#### JSONLinkPaginator
 
-`JSONResponsePaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSONPath to locate the next page URL within the JSON response.
+`JSONLinkPaginator` is designed for APIs where the next page URL is included in the response's JSON body. This paginator uses a JSONPath to locate the next page URL within the JSON response.
 
 **Parameters:**
 
@@ -144,15 +144,15 @@ Suppose the API response for `https://api.example.com/posts` looks like this:
 }
 ```
 
-To paginate this response, you can use the `JSONResponsePaginator` with the `next_url_path` set to `"pagination.next"`:
+To paginate this response, you can use the `JSONLinkPaginator` with the `next_url_path` set to `"pagination.next"`:
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 client = RESTClient(
     base_url="https://api.example.com",
-    paginator=JSONResponsePaginator(next_url_path="pagination.next")
+    paginator=JSONLinkPaginator(next_url_path="pagination.next")
 )
 
 @dlt.resource
@@ -590,6 +590,22 @@ for page in paginate("https://api.example.com/posts"):
     print(page)
 ```
 
+
+## Retry
+
+You can customize how the RESTClient retries failed requests by editing your `config.toml`.
+See more examples and explanations in our [documentation on retry rules](requests#retry-rules).
+
+Example:
+
+```toml
+[runtime]
+request_max_attempts = 10  # Stop after 10 retry attempts instead of 5
+request_backoff_factor = 1.5  # Multiplier applied to the exponential delays. Default is 1
+request_timeout = 120  # Timeout in seconds
+request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
+```
+
 ## Troubleshooting
 
 ### `RESTClient.get()` and `RESTClient.post()` methods
@@ -625,11 +641,11 @@ and [response](https://docs.python-requests.org/en/latest/api/#requests.Response
 
 ```py
 from dlt.sources.helpers.rest_client import RESTClient
-from dlt.sources.helpers.rest_client.paginators import JSONResponsePaginator
+from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
 
 client = RESTClient(
     base_url="https://api.example.com",
-    paginator=JSONResponsePaginator(next_url_path="pagination.next")
+    paginator=JSONLinkPaginator(next_url_path="pagination.next")
 )
 
 for page in client.paginate("/posts"):

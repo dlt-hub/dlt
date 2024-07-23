@@ -21,7 +21,12 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
 )
-from tests.pipeline.utils import load_tables_to_dicts, assert_load_info, load_table_counts
+from tests.pipeline.utils import (
+    load_tables_to_dicts,
+    assert_load_info,
+    load_table_counts,
+    assert_records_as_set,
+)
 
 from tests.utils import TPythonTableFormat
 
@@ -62,13 +67,6 @@ def get_table(
         ],
         key=lambda d: d[sort_column],
     )
-
-
-def assert_records_as_set(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> None:
-    """Compares two lists of dicts regardless of order"""
-    actual_set = set(frozenset(dict_.items()) for dict_ in actual)
-    expected_set = set(frozenset(dict_.items()) for dict_ in expected)
-    assert actual_set == expected_set
 
 
 @pytest.mark.essential
