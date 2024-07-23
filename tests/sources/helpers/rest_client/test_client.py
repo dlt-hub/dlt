@@ -1,7 +1,7 @@
 import os
 from base64 import b64encode
 from typing import Any, Dict, cast
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 
 import pytest
 from requests import PreparedRequest, Request, Response
@@ -430,3 +430,26 @@ class TestRESTClient:
         assert len(returned_posts) == DEFAULT_PAGE_SIZE  # only one page is returned
         for i in range(DEFAULT_PAGE_SIZE):
             assert returned_posts[i] == {"id": posts_skip + i, "title": f"Post {posts_skip + i}"}
+
+    def test_configurable_timeout(self, mocker) -> None:
+        cfg = {
+            "RUNTIME__REQUEST_TIMEOUT": 42,
+        }
+        os.environ.update({key: str(value) for key, value in cfg.items()})
+
+        rest_client = RESTClient(
+            base_url="https://api.example.com",
+            session=Client().session,
+        )
+
+        import requests
+
+        requests.Session.send = mocker.Mock()  # type: ignore[method-assign]
+        rest_client.get("/posts/1")
+        assert requests.Session.send.call_args[1] == {  # type: ignore[attr-defined]
+            "timeout": 42,
+            "proxies": ANY,
+            "stream": ANY,
+            "verify": ANY,
+            "cert": ANY,
+        }
