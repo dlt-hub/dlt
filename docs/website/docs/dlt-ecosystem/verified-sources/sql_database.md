@@ -50,120 +50,247 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 Note that there many unofficial dialects, such as [DuckDB](https://duckdb.org/).
 :::
 
-## Setup Guide
+## Setup
 
-1. ### Initialize the verified source
+To connect to your SQL database using `dlt` follow these steps:
 
-To get started with your data pipeline, follow these steps:
+1.  Initialize a `dlt` project in the current working directory by running the following command:
 
-1. Enter the following command:
+    ```sh 
+    dlt init sql_database duckdb
+    ```
 
-   ```sh
-   dlt init sql_database duckdb
-   ```
-
-   It will initialize
-   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py)
-   with an SQL database as the [source](../../general-usage/source) and
+    This will add necessary files and configurations for a `dlt` pipeline with SQL database as the [source](../../general-usage/source) and
    [DuckDB](../destinations/duckdb.md) as the [destination](../destinations).
+   
+    :::tip
+    If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
+    :::
 
-   :::tip
-   If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
-   :::
+2. Add credentials for your SQL database
 
-1. After running this command, a new directory will be created with the necessary files and
-   configuration settings to get started.
+    To connect to your SQL database, `dlt` would need to authenticate using necessary credentials. To enable this, paste your credentials in the `secrets.toml` file created inside the `.dlt/` folder in the following format:
+    ```toml
+    [sources.sql_database.credentials]
+    drivername = "mysql+pymysql" # driver name for the database
+    database = "Rfam" # database name
+    username = "rfamro" # username associated with the database
+    host = "mysql-rfam-public.ebi.ac.uk" # host address
+    port = "4497" # port required for connection
+    ```
 
-For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
+    Alternatively, you can also authenticate using connection strings:
+    ```toml
+    [sources.sql_database.credentials]
+    credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    ```
 
-2. ### Add credentials
+    To learn more about how to pass credentials into your `dlt` pipeline see [here](../../walkthroughs/add_credentials.md).  
 
-1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe.
+    #### Credentials format for SQL databases
+    `sql_database` uses SQLAlchemy to create database connections and reflect table schemas. You can pass credentials using
+    [database urls](https://docs.sqlalchemy.org/en/20/core/engines.html#database-urls). For example:
 
-   Here's what the `secrets.toml` looks like:
+    "mysql+pymysql://rfamro:PWD@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
 
-   ```toml
-   [sources.sql_database.credentials]
-   drivername = "mysql+pymysql" # driver name for the database
-   database = "Rfam" # database name
-   username = "rfamro" # username associated with the database
-   host = "mysql-rfam-public.ebi.ac.uk" # host address
-   port = "4497" # port required for connection
-   ```
+    will connect to `myssql` database with a name `Rfam` using `pymysql` dialect. The database host is at `mysql-rfam-public.ebi.ac.uk`, port `4497`.
+    User name is `rfmaro` and password  is `PWD`.
 
-1. Alternatively, you can also provide credentials in "secrets.toml" as:
+3. Add credentials for your destination (if necessary)  
+    Depending on which [destination](../destinations) you're loading into, you might also need to add your destination credentials. For more information, read the [General Usage: Credentials.](../../credentials)
 
-   ```toml
-   [sources.sql_database]
-   credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
-   ```
-   > See
-   > [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py)
-   > for details.
+4. Install any necessary dependencies  
 
-1. Finally, follow the instructions in [Destinations](../destinations/) to add credentials for your chosen destination. This will ensure that your data is properly routed.
+    ```sh
+    pip install -r requirements.txt
+    ```
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+5. Run the pipeline  
 
-#### Credentials format
+    ```sh
+    python sql_database_pipeline.py
+    ```
 
-`sql_database` uses SQLAlchemy to create database connections and reflect table schemas. You can pass credentials using
-[database urls](https://docs.sqlalchemy.org/en/20/core/engines.html#database-urls). For example:
 
-"mysql+pymysql://rfamro:PWD@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
-
-will connect to `myssql` database with a name `Rfam` using `pymysql` dialect. The database host is at `mysql-rfam-public.ebi.ac.uk`, port `4497`.
-User name is `rfmaro` and password  is `PWD`.
-
-3. ### Run the pipeline
-
-1. Install the necessary dependencies by running the following command:
-
-   ```sh
-   pip install -r requirements.txt
-   ```
-
-1. Run the verified source by entering:
-
-   ```sh
-   python sql_database_pipeline.py
-   ```
-
-1. Make sure that everything is loaded as expected with:
-
-   ```sh
-   dlt pipeline <pipeline_name> show
-   ```
+6. Make sure everything is loaded as expected with  
+    ```sh
+    dlt pipeline <pipeline_name> show
+    ```
 
    :::note
    The pipeline_name for the above example is `rfam`, you may also use any
    custom name instead.
    :::
 
-## Source and resource functions
-Import `sql_database` and `sql_table` functions as follows:
-```py
-from sql_database import sql_database, sql_table
+## Configuring the SQL database verified source
+
+The SQL database verified source has the sources and resources:  
+1. `sql_database`: a `dlt` source which can be used to load multiple tables and views from a SQL database
+2. `sql_table` - a `dlt` resource that loads a single table from the SQL database
+
+Read more about sources and resources here: [General Usage: Source](../../general-usage/source.md) and [General Usage: Resource](../../general-usage/resource.md).
+
+#### Examples for how these sources and resources can be used:
+
+**Load all the tables from a database**  
+Calling `sql_database()` loads all tables from the database.
+```python
+def load_entire_database() -> None:
+
+    # Define the pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="rfam", 
+        destination='synapse', 
+        dataset_name="rfam_data"
+    )
+
+    # Fetch all the tables from the database
+    source = sql_database()
+
+    # Run the pipeline
+    info = pipeline.run(source, write_disposition="replace")
+
+    # Print load info
+    print(info)
 ```
-and read the docstrings to learn about available options.
+**Load select tables from a database**  
+Calling `sql_database().with_resources("family", "clan")` loads only the tables `"family"` and `"clan"` from the database.
+```python
+def load_select_tables_from_database() -> None:
+
+    # Define the pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="rfam", 
+        destination="postgres", 
+        dataset_name="rfam_data"
+    )
+
+    # Fetch tables "family" and "clan" 
+    source = sql_database().with_resources("family", "clan")
+
+    # Run the pipeline
+    info = pipeline.run(source)
+
+    # Print load info
+    print(info)
+
+```
+
+**Load a single table**  
+Calling `sql_table(table="family")` fetches only the table `"family"`
+```python
+def load_select_tables_from_database() -> None:
+
+    # Define the pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="rfam", 
+        destination="duckdb", 
+        dataset_name="rfam_data"
+    )
+
+    # Fetch the table "family" 
+    table = sql_table(table="family")
+
+    # Run the pipeline
+    info = pipeline.run(table)
+
+    # Print load info
+    print(info)
+
+```
 
 :::tip
-We intend our sources to be fully hackable. Feel free to change the code of the source to customize it to your needs
-:::
+We intend our sources to be fully hackable. Feel free to change the source code of the sources and resources to customize it to your needs:::
 
-## Pick the right backend to load table data
+## Configuring connection to the SQL database
+
+### Passing credentials in `secrets.toml` or as environment variables 
+
+By default, `dlt` looks for credentials inside `.dlt/secrets.toml` or in the environment variables. Read [here](../../walkthroughs/add_credentials.md) for more information on how to add your credentials.  
+
+
+### Passing credentials explicitly 
+It is also possible to explicitly pass credentials inside the source. Example:
+```python
+from dlt.sources.credentials import ConnectionStringCredentials
+from sql_database import sql_table
+
+credentials = ConnectionStringCredentials(
+    "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+)
+
+source = sql_table(credentials).with_resource("family")
+```
+:::Note: It is recommended to configure credentials in `.dlt/secrets.toml` and to not include any sensitive information in the pipeline code:::
+
+### Other connection options
+#### Using SqlAlchemy Engine as credentials  
+You are able to pass an instance of **SqlAlchemy** `Engine` instance instead of credentials:
+```py
+from sqlalchemy import create_engine
+
+engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+table = sql_table(engine, table="chat_message", schema="data")
+```
+Engine is used by `dlt` to open database connections and can work across multiple threads so is compatible with `parallelize` setting of dlt sources and resources.
+
+#### Connect to mysql with SSL 
+Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
+
+1. To enforce SSL on the client without a client certificate you may pass the following DSN:
+
+   ```toml
+   sources.sql_database.credentials="mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca="
+   ```
+
+1. You can also pass the server's public certificate (potentially bundled with your pipeline) and disable host name checks:
+
+   ```toml
+   sources.sql_database.credentials="mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca=server-ca.pem&ssl_check_hostname=false"
+   ```
+
+1. For servers requiring a client certificate, provide the client's private key (a secret value). In Airflow, this is usually saved as a variable and exported to a file before use. The server certificate is omitted in the example below:
+
+   ```toml
+   sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
+   ```
+
+#### SQL Server connection options
+
+**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
+
+```toml
+sources.sql_database.credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
+```
+
+**To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
+```toml
+sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?encrypt=no&driver=ODBC+Driver+17+for+SQL+Server"
+```
+
+**To allow self signed SSL certificate** when you are getting `certificate verify failed:unable to get local issuer certificate`:
+```toml
+sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?TrustServerCertificate=yes&driver=ODBC+Driver+17+for+SQL+Server"
+```
+
+**To use long strings (>8k) and avoid collation errors**:
+```toml
+sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?LongAsMax=yes&driver=ODBC+Driver+17+for+SQL+Server"
+```
+
+## Configuring the backend
+
 Table backends convert stream of rows from database tables into batches in various formats. The default backend **sqlalchemy** is following standard `dlt` behavior of
 extracting and normalizing Python dictionaries. We recommend it for smaller tables, initial development work and when minimal dependencies or pure Python environment is required. This backend is also the slowest.
 Database tables are structured data and other backends speed up dealing with such data significantly. The **pyarrow** will convert rows into `arrow` tables, has
 good performance, preserves exact database types and we recommend it for large tables.
 
-### **sqlalchemy** backend
+### **sqlalchemy**
 
 **sqlalchemy** (the default) yields table data as list of Python dictionaries. This data goes through regular extract
 and normalize steps and does not require additional dependencies to be installed. It is the most robust (works with any destination, correctly represents data types) but also the slowest. You can use `reflection_level="full_with_precision"` to pass exact database types to `dlt` schema.
 
-### **pyarrow** backend
+### **pyarrow**
 
 **pyarrow** yields data as Arrow tables. It uses **SqlAlchemy** to read rows in batches but then immediately converts them into `ndarray`, transposes it and uses to set columns in an arrow table. This backend always fully
 reflects the database table and preserves original types ie. **decimal** / **numeric** will be extracted without loss of precision. If the destination loads parquet files, this backend will skip `dlt` normalizer and you can gain two orders of magnitude (20x - 30x) speed increase.
@@ -192,7 +319,7 @@ info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
 
-### **pandas** backend
+### **pandas**
 
 **pandas** backend yield data as data frames using the `pandas.io.sql` module. `dlt` use **pyarrow** dtypes by default as they generate more stable typing.
 
@@ -232,7 +359,7 @@ info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
 
-### **connectorx** backend
+### **connectorx**
 [connectorx](https://sfu-db.github.io/connector-x/intro.html) backend completely skips **sqlalchemy** when reading table rows, in favor of doing that in rust. This is claimed to be significantly faster than any other method (confirmed only on postgres - see next chapter). With the default settings it will emit **pyarrow** tables, but you can configure it via **backend_kwargs**.
 
 There are certain limitations when using this backend:
@@ -247,7 +374,7 @@ There are certain limitations when using this backend:
 from sources.sql_database.helpers import unwrap_json_connector_x
 ```
 
-Note: dlt will still use the reflected source database types to create destination tables. It is up to the destination to reconcile / parse type differences. Please note that you' still lose precision on decimals with default settings.
+Note: `dlt` will still use the reflected source database types to create destination tables. It is up to the destination to reconcile / parse type differences. Please note that you' still lose precision on decimals with default settings.
 
 ```py
 """Uses unsw_flow dataset (~2mln rows, 25+ columns) to test connectorx speed"""
@@ -284,7 +411,7 @@ print(info)
 ```
 With dataset above and local postgres instance, connectorx is 2x faster than pyarrow backend.
 
-### Notes on source databases
+### Troubleshooting with backends
 
 #### Oracle
 1. When using **oracledb** dialect in thin mode we are getting protocol errors. Use thick mode or **cx_oracle** (old) client.
@@ -301,14 +428,16 @@ With dataset above and local postgres instance, connectorx is 2x faster than pya
 #### Postgres / MSSQL
 No issues found. Postgres is the only backend where we observed 2x speedup with connector x. On other db systems it performs same as `pyarrrow` backend or slower.
 
+## Additional configurations
 
-## Incremental Loading
+### Incremental Loading
+
 Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
 
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only data newer than a specified initial value, enhancing efficiency by reducing processing time and resource use.
 
 
-### Configuring Incremental Loading
+#### How to configure
 1. **Choose a Cursor Column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
 1. **Set an Initial Value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
 1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
@@ -316,7 +445,7 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 certain range.
 1. **Order returned rows**. Set `row_order` to `asc` or `desc` to order returned rows.
 
-#### Incremental Loading Example
+#### Example
 1. Consider a table with a `last_modified` timestamp column. By setting this column as your cursor and specifying an
    initial value, the loader generates a SQL query filtering rows with `last_modified` values greater than the specified initial value.
 
@@ -370,21 +499,15 @@ certain range.
    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
    :::
 
-## Run on Airflow
-When running on Airflow
-1. Use `dlt` [Airflow Helper](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from `sql_database` source. You should be able to run table extraction in parallel with `parallel-isolated` source->DAG conversion.
-2. Reflect tables at runtime with `defer_table_reflect` argument.
-3. Set `allow_external_schedulers` to load data using [Airflow intervals](../../general-usage/incremental-loading.md#using-airflow-schedule-for-backfill-and-incremental-loading).
+### Parallelize extraction
 
-## Parallel extraction
 You can extract each table in a separate thread (no multiprocessing at this point). This will decrease loading time if your queries take time to execute or your network latency/speed is low.
 ```py
 database = sql_database().parallelize()
 table = sql_table().parallelize()
 ```
 
-## Column reflection
-
+### Column reflection
 Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
 Most types are supported.
 
@@ -438,7 +561,7 @@ source = sql_database(
 dlt.pipeline("demo").run(source)
 ```
 
-## Extended configuration
+### Configuring with toml/environment variables
 You are able to configure most of the arguments to `sql_database` and `sql_table` via toml files and environment variables. This is particularly useful with `sql_table`
 because you can maintain a separate configuration for each table (below we show **secrets.toml** and **config.toml**, you are free to combine them into one.):
 ```toml
@@ -485,79 +608,15 @@ SOURCES__SQL_DATABASE__CHUNK_SIZE=1000
 SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
 ```
 
-### Configuring incremental loading
-`dlt.sources.incremental` class is a [config spec](https://dlthub.com/docs/general-usage/credentials/config_specs) and can be configured like any other spec, here's an example that sets all possible options:
-```toml
-[sources.sql_database.chat_message.incremental]
-cursor_path="updated_at"
-initial_value=2024-05-27T07:32:00Z
-end_value=2024-05-28T07:32:00Z
-row_order="asc"
-allow_external_schedulers=false
-```
-Please note that we specify date times in **toml** as initial and end value. For env variables only strings are currently supported.
+## Extended Usage
 
+### Running on Airflow
+When running on Airflow
+1. Use `dlt` [Airflow Helper](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from `sql_database` source. You should be able to run table extraction in parallel with `parallel-isolated` source->DAG conversion.
+2. Reflect tables at runtime with `defer_table_reflect` argument.
+3. Set `allow_external_schedulers` to load data using [Airflow intervals](../../general-usage/incremental-loading.md#using-airflow-schedule-for-backfill-and-incremental-loading).
 
-### Use SqlAlchemy Engine as credentials
-You are able to pass an instance of **SqlAlchemy** `Engine` instance instead of credentials:
-```py
-from sqlalchemy import create_engine
-
-engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
-table = sql_table(engine, table="chat_message", schema="data")
-```
-Engine is used by `dlt` to open database connections and can work across multiple threads so is compatible with `parallelize` setting of dlt sources and resources.
-
-
-## Troubleshooting
-
-### Connect to mysql with SSL
-Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
-
-1. To enforce SSL on the client without a client certificate you may pass the following DSN:
-
-   ```toml
-   sources.sql_database.credentials="mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca="
-   ```
-
-1. You can also pass the server's public certificate (potentially bundled with your pipeline) and disable host name checks:
-
-   ```toml
-   sources.sql_database.credentials="mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca=server-ca.pem&ssl_check_hostname=false"
-   ```
-
-1. For servers requiring a client certificate, provide the client's private key (a secret value). In Airflow, this is usually saved as a variable and exported to a file before use. The server certificate is omitted in the example below:
-
-   ```toml
-   sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
-   ```
-
-### SQL Server connection options
-
-**To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
-
-```toml
-sources.sql_database.credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
-```
-
-**To connect to a local sql server instance running without SSL** pass `encrypt=no` parameter:
-```toml
-sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?encrypt=no&driver=ODBC+Driver+17+for+SQL+Server"
-```
-
-**To allow self signed SSL certificate** when you are getting `certificate verify failed:unable to get local issuer certificate`:
-```toml
-sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?TrustServerCertificate=yes&driver=ODBC+Driver+17+for+SQL+Server"
-```
-
-***To use long strings (>8k) and avoid collation errors**:
-```toml
-sources.sql_database.credentials="mssql+pyodbc://loader:loader@localhost/dlt_data?LongAsMax=yes&driver=ODBC+Driver+17+for+SQL+Server"
-```
-
-## Customizations
-### Transform the data in Python before it is loaded
-
+### Transforming data before load
 You have direct access to all resources (that represent tables) and you can modify hints, add python transforms, parallelize execution etc. as for any other
 resource. Below we show you an example on how to pseudonymize the data before it is loaded by using deterministic hashing.
 
