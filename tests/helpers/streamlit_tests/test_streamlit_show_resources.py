@@ -102,8 +102,8 @@ def test_multiple_resources_pipeline():
     assert streamlit_app.session_state["color_mode"] == "dark"
 
     # Check page links in sidebar
-    assert "Explore data" in streamlit_app.sidebar[2].label  # type: ignore
-    assert "Load info" in streamlit_app.sidebar[3].label  # type: ignore
+    assert "Explore data" in streamlit_app.sidebar[2].label  # type: ignore[union-attr, unused-ignore]
+    assert "Load info" in streamlit_app.sidebar[3].label  # type: ignore[union-attr, unused-ignore]
 
     # Check that at leas 4 content sections rendered
     assert len(streamlit_app.subheader) > 4
