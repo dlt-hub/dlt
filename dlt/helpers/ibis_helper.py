@@ -23,5 +23,4 @@ def ibis_helper(p: Pipeline) -> Iterator[BaseBackend]:
     ibis_backend = cast(BaseBackend, ibis_module.Backend())
 
     with p.sql_client() as c:
-        ibis_backend.con = c
-        yield ibis_backend
+        yield ibis_backend.from_connection(c)
