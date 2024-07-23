@@ -133,6 +133,7 @@ class DestinationTestConfiguration:
     disable_compression: bool = False
     dev_mode: bool = False
     credentials: Optional[Union[CredentialsConfiguration, Dict[str, Any]]] = None
+    env_vars: Optional[Dict[str, str]] = None
 
     @property
     def name(self) -> str:
@@ -176,6 +177,10 @@ class DestinationTestConfiguration:
             for key, value in dict(self.credentials).items():
                 os.environ[f"DESTINATION__CREDENTIALS__{key.upper()}"] = str(value)
 
+        if self.env_vars is not None:
+            for k, v in self.env_vars.items():
+                os.environ[k] = v
+
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, dev_mode: bool = False, **kwargs
     ) -> dlt.Pipeline:
@@ -209,6 +214,7 @@ def destinations_configs(
     subset: Sequence[str] = (),
     bucket_subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
+    bucket_exclude: Sequence[str] = (),
     file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
     table_format: Union[TTableFormat, Sequence[TTableFormat]] = None,
     supports_merge: Optional[bool] = None,
@@ -514,6 +520,15 @@ def destinations_configs(
                     extra_info=bucket,
                     table_format="delta",
                     supports_merge=True,
+                    env_vars=(
+                        {
+                            "DESTINATION__FILESYSTEM__DELTALAKE_STORAGE_OPTIONS": (
+                                '{"AWS_S3_ALLOW_UNSAFE_RENAME": "true"}'
+                            )
+                        }
+                        if bucket == AWS_BUCKET
+                        else None
+                    ),
                 )
             ]
 
@@ -534,6 +549,12 @@ def destinations_configs(
     if exclude:
         destination_configs = [
             conf for conf in destination_configs if conf.destination not in exclude
+        ]
+    if bucket_exclude:
+        destination_configs = [
+            conf
+            for conf in destination_configs
+            if conf.destination != "filesystem" or conf.bucket_url not in bucket_exclude
         ]
     if file_format:
         if not isinstance(file_format, Sequence):
