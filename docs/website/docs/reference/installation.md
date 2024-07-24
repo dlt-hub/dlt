@@ -74,7 +74,7 @@ source ./env/bin/activate
   </TabItem>
   <TabItem value="macos">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored
+Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
 
 ```sh
 python -m venv ./env
