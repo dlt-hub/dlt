@@ -30,9 +30,7 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
         self.model = apply_schema_contract_to_model(model, column_mode, data_mode)
         self.list_model = create_list_model(self.model, data_mode)
 
-    def __call__(
-        self, item: TDataItems, meta: Any = None
-    ) -> Union[_TPydanticModel, List[_TPydanticModel]]:
+    def __call__(self, item: TDataItems, meta: Any = None) -> Union[TDataItems, None]:
         """Validate a data item against the pydantic model"""
         if item is None:
             return None

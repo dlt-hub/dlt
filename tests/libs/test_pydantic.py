@@ -442,8 +442,8 @@ def test_item_list_validation() -> None:
     # {"b": 2, "opt": "not int", "extra": 1.2} - note that this will generate 3 errors for the same item
     # and is crucial in our tests when discarding rows
     assert len(items) == 2
-    assert items[0].b is True
-    assert items[1].b is False
+    assert items[0]["b"] is True
+    assert items[1]["b"] is False
     # violate extra field
     items = validate_items(
         "items",
@@ -453,7 +453,7 @@ def test_item_list_validation() -> None:
         "discard_row",
     )
     assert len(items) == 1
-    assert items[0].b is True
+    assert items[0]["b"] is True
 
     # freeze on non validating items (both extra and declared)
     freeze_model = apply_schema_contract_to_model(ItemModel, "freeze", "freeze")
@@ -504,7 +504,7 @@ def test_item_list_validation() -> None:
     )
     assert len(items) == 2
     # "a" extra got remove
-    assert items[1].dict() == {"b": False, "opt": None}
+    assert items[1] == {"b": False, "opt": None}
     # violate data type
     with pytest.raises(NotImplementedError):
         apply_schema_contract_to_model(ItemModel, "discard_value", "discard_value")
@@ -521,8 +521,8 @@ def test_item_list_validation() -> None:
         "evolve",
     )
     assert len(items) == 4
-    assert items[0].b is True
-    assert items[1].b == 2
+    assert items[0]["b"] is True
+    assert items[1]["b"] == 2
     # extra fields allowed
     items = validate_items(
         "items",
@@ -532,8 +532,8 @@ def test_item_list_validation() -> None:
         "evolve",
     )
     assert len(items) == 4
-    assert items[3].b is False
-    assert items[3].a is False  # type: ignore[attr-defined]
+    assert items[3]["b"] is False
+    assert items[3]["b"] is False
 
     # accept new types but discard new columns
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
@@ -547,8 +547,8 @@ def test_item_list_validation() -> None:
         "evolve",
     )
     assert len(items) == 4
-    assert items[0].b is True
-    assert items[1].b == 2
+    assert items[0]["b"] is True
+    assert items[1]["b"] == 2
     # extra fields forbidden - full rows discarded
     items = validate_items(
         "items",
@@ -607,23 +607,23 @@ def test_item_validation() -> None:
         "items", discard_value_model, {"b": False, "a": False}, "discard_value", "freeze"
     )
     # "a" extra got removed
-    assert item.dict() == {"b": False}
+    assert item == {"b": False}
 
     # evolve data types and extras
     evolve_model = apply_schema_contract_to_model(ItemModel, "evolve", "evolve")
     # for data types a lenient model will be created that accepts any type
     item = validate_item("items", evolve_model, {"b": 2}, "evolve", "evolve")
-    assert item.b == 2
+    assert item["b"] == 2
     # extra fields allowed
     item = validate_item("items", evolve_model, {"b": False, "a": False}, "evolve", "evolve")
-    assert item.b is False
-    assert item.a is False  # type: ignore[attr-defined]
+    assert item["b"] is False
+    assert item["a"] is False
 
     # accept new types but discard new columns
     mixed_model = apply_schema_contract_to_model(ItemModel, "discard_row", "evolve")
     # for data types a lenient model will be created that accepts any type
     item = validate_item("items", mixed_model, {"b": 3}, "discard_row", "evolve")
-    assert item.b == 3
+    assert item["b"] == 3
     # extra fields forbidden - full rows discarded
     assert (
         validate_item("items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve")

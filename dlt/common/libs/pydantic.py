@@ -304,13 +304,13 @@ def validate_items(
     items: List[TDataItem],
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
-) -> List[_TPydanticModel]:
+) -> List[TDataItem]:
     """Validates list of `item` with `list_model` and returns parsed Pydantic models
 
     `list_model` should be created with `create_list_model` and have `items` field which this function returns.
     """
     try:
-        return list_model(items=items).items
+        return [i.model_dump() for i in list_model(items=items).items]
     except ValidationError as e:
         deleted: Set[int] = set()
         for err in e.errors():
@@ -385,13 +385,13 @@ def validate_items(
 def validate_item(
     table_name: str,
     model: Type[_TPydanticModel],
-    item: TDataItems,
+    item: TDataItem,
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
-) -> _TPydanticModel:
-    """Validates `item` against model `model` and returns an instance of it"""
+) -> TDataItem:
+    """Validates `item` against model `model` and returns the original item"""
     try:
-        return model.parse_obj(item)
+        return model.model_validate(item).model_dump()
     except ValidationError as e:
         for err in e.errors():
             # raise on freeze
