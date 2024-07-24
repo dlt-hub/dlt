@@ -549,14 +549,14 @@ class JSONLinkPaginator(BaseNextUrlPaginator):
 
 
 class JSONResponsePaginator(JSONLinkPaginator):
-    def __init__(self) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         warnings.warn(
             "JSONResponsePaginator is deprecated and will be removed in version 1.0.0. Use"
             " JSONLinkPaginator instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__init__()
+        super().__init__(*args, **kwargs)
 
 
 class JSONResponseCursorPaginator(BaseReferencePaginator):
