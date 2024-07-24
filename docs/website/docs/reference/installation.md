@@ -89,7 +89,7 @@ source ./env/bin/activate
   </TabItem>
   <TabItem value="windows">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored
+Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
 
 ```bat
 C:\> python -m venv ./env
