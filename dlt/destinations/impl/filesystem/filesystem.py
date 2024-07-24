@@ -124,33 +124,33 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         from dlt.common.libs.deltalake import (
             DeltaTable,
             write_delta_table,
-            ensure_delta_compatible_arrow_table,
+            ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
             try_get_deltatable,
         )
 
-        # create Arrow table from Parquet files
-        # this eagerly materializes table in memory
-        # ideally, we'd use an Arrow dataset everywhere, but we need to
-        # explicitly check if there is data
-        # (https://github.com/delta-io/delta-rs/issues/2686)
+        # create Arrow dataset from Parquet files
         file_paths = [job.file_path for job in self.table_jobs]
-        arrow_table = pa.dataset.dataset(file_paths).to_table()
+        arrow_ds = pa.dataset.dataset(file_paths)
 
         # create Delta table object
         dt_path = self.client.make_remote_uri(self.make_remote_path())
         storage_options = _deltalake_storage_options(self.client.config)
         dt = try_get_deltatable(dt_path, storage_options=storage_options)
 
-        if arrow_table.num_rows == 0:
+        # explicitly check if there is data
+        # (https://github.com/delta-io/delta-rs/issues/2686)
+        if arrow_ds.head(1).num_rows == 0:
             if dt is None:
                 # create new empty Delta table with schema from Arrow table
                 DeltaTable.create(
                     table_uri=dt_path,
-                    schema=ensure_delta_compatible_arrow_table(arrow_table).schema,
+                    schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
                     mode="overwrite",
                 )
             return
+
+        arrow_rbr = arrow_ds.scanner().to_reader()  # RecordBatchReader
 
         if self.table["write_disposition"] == "merge" and dt is not None:
             assert self.table["x-merge-strategy"] in self.client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
@@ -165,7 +165,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
                 qry = (
                     dt.merge(
-                        source=arrow_table,
+                        source=arrow_rbr,
                         predicate=predicate,
                         source_alias="source",
                         target_alias="target",
@@ -179,7 +179,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
         else:
             write_delta_table(
                 table_or_uri=dt_path if dt is None else dt,
-                data=arrow_table,
+                data=arrow_rbr,
                 write_disposition=self.table["write_disposition"],
                 storage_options=storage_options,
             )

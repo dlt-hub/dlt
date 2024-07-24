@@ -395,7 +395,7 @@ def test_delta_table_empty_source(local_filesystem_pipeline: dlt.Pipeline) -> No
     Tests both empty Arrow table and `dlt.mark.materialize_table_schema()`.
     """
     from dlt.common.libs.pyarrow import pyarrow as pa
-    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_table
+    from dlt.common.libs.deltalake import ensure_delta_compatible_arrow_data
     from tests.pipeline.utils import _get_delta_table, users_materialize_table_schema
 
     @dlt.resource(table_format="delta")
@@ -425,7 +425,7 @@ def test_delta_table_empty_source(local_filesystem_pipeline: dlt.Pipeline) -> No
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (0, empty_arrow_table.num_columns)
     assert dt_arrow_table.schema.equals(
-        ensure_delta_compatible_arrow_table(empty_arrow_table).schema
+        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
     )
 
     # run 2: non-empty Arrow table with same schema as run 1
@@ -437,7 +437,7 @@ def test_delta_table_empty_source(local_filesystem_pipeline: dlt.Pipeline) -> No
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)
     assert dt_arrow_table.schema.equals(
-        ensure_delta_compatible_arrow_table(empty_arrow_table).schema
+        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
     )
 
     # run 3: empty Arrow table with different schema
@@ -453,7 +453,7 @@ def test_delta_table_empty_source(local_filesystem_pipeline: dlt.Pipeline) -> No
     dt_arrow_table = dt.to_pyarrow_table()
     assert dt_arrow_table.shape == (2, empty_arrow_table.num_columns)  # shape did not change
     assert dt_arrow_table.schema.equals(  # schema did not change
-        ensure_delta_compatible_arrow_table(empty_arrow_table).schema
+        ensure_delta_compatible_arrow_data(empty_arrow_table).schema
     )
 
     # test `dlt.mark.materialize_table_schema()`
