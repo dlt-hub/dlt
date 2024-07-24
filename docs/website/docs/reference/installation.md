@@ -59,7 +59,7 @@ This way all the dependencies for your current project will be isolated from pac
 
   <TabItem value="ubuntu">
 
-Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored
+Create a new virtual environment in your working folder. This will create an `./env` directory where your virtual environment will be stored:
 
 ```sh
 python -m venv ./env
