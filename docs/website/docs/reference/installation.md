@@ -15,7 +15,7 @@ python --version
 pip --version
 ```
 
-If you have a different python version installed or are missing pip, follow the instructions below to update your python version  and/or install `pip`.
+If you have a different python version installed or are missing pip, follow the instructions below to update your python version and/or install `pip`.
 
 <Tabs values={[{"label": "Ubuntu", "value": "ubuntu"}, {"label": "macOS", "value": "macos"}, {"label": "Windows", "value": "windows"}]}  groupId="operating-systems" defaultValue="ubuntu">
   <TabItem value="ubuntu">
