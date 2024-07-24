@@ -28,7 +28,7 @@ from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
 class DatabricksCursorImpl(DBApiCursorImpl):
     """Use native data frame support if available"""
 
-    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
+    native_cursor: DatabricksSqlCursor
     vector_size: ClassVar[int] = 2048
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
@@ -127,7 +127,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         #     db_args = kwargs or None
 
         db_args = args or kwargs or None
-        with self._conn.cursor() as curr:  # type: ignore[assignment]
+        with self._conn.cursor() as curr:
             curr.execute(query, db_args)
             yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
 
