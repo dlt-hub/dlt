@@ -305,7 +305,7 @@ def validate_items(
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
 ) -> List[TDataItem]:
-    """Validates list of `item` with `list_model` and returns parsed Pydantic models
+    """Validates list of `item` with `list_model` and returns a parsed then dumped list of data items.
 
     `list_model` should be created with `create_list_model` and have `items` field which this function returns.
     """
@@ -389,7 +389,7 @@ def validate_item(
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
 ) -> TDataItem:
-    """Validates `item` against model `model` and returns the original item"""
+    """Validates `item` against model `model` and returns the parsed then dumped item"""
     try:
         return model.model_validate(item).model_dump()
     except ValidationError as e:
