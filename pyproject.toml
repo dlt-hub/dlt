@@ -79,7 +79,7 @@ qdrant-client = {version = ">=1.8", optional = true, extras = ["fastembed"]}
 databricks-sql-connector = {version = ">=2.9.3", optional = true}
 clickhouse-driver = { version = ">=0.2.7", optional = true }
 clickhouse-connect = { version = ">=0.7.7", optional = true }
-lancedb = { version = ">=0.8.2", optional = true, markers = "python_version >= '3.9'" }
+lancedb = { version = ">=0.8.2", optional = true, markers = "python_version >= '3.9'", allow-prereleases = true }
 deltalake = { version = ">=0.17.4", optional = true }
 
 [tool.poetry.extras]
@@ -220,7 +220,7 @@ pandas = ">2"
 alive-progress = ">=3.0.1"
 pyarrow = ">=14.0.0"
 psycopg2-binary = ">=2.9"
-lancedb = ">=0.6.13"
+lancedb = { version = ">=0.8.2", markers = "python_version >= '3.9'", allow-prereleases = true }
 openai = ">=1.35"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
