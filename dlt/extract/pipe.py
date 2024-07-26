@@ -131,19 +131,34 @@ class Pipe(SupportsPipe):
 
     def append_step(self, step: TPipeStep) -> "Pipe":
         """Appends pipeline step. On first added step performs additional verification if step is a valid data generator"""
-        step_no = len(self._steps)
-        if step_no == 0 and not self.has_parent:
+        steps_count = len(self._steps)
+
+        if steps_count == 0 and not self.has_parent:
             self._verify_head_step(step)
         else:
-            step = self._wrap_transform_step_meta(step_no, step)
+            step = self._wrap_transform_step_meta(steps_count, step)
 
-        self._steps.append(step)
+        # find the insert position using particular
+        if steps_count > 0:
+            affinity = step.placement_affinity if isinstance(step, ItemTransform) else 0
+            for index in reversed(range(0, steps_count)):
+                step_at_idx = self._steps[index]
+                affinity_at_idx = (
+                    step_at_idx.placement_affinity if isinstance(step_at_idx, ItemTransform) else 0
+                )
+                if affinity_at_idx <= affinity:
+                    self._insert_at_pos(step, index + 1)
+                    return self
+            # insert at the start due to strong affinity
+            self._insert_at_pos(step, 0)
+        else:
+            self._steps.append(step)
         return self
 
     def insert_step(self, step: TPipeStep, index: int) -> "Pipe":
         """Inserts step at a given index in the pipeline. Allows prepending only for transformers"""
-        step_no = len(self._steps)
-        if step_no == 0:
+        steps_count = len(self._steps)
+        if steps_count == 0:
             return self.append_step(step)
         if index == 0:
             if not self.has_parent:
@@ -153,11 +168,7 @@ class Pipe(SupportsPipe):
                     " transformer",
                 )
         step = self._wrap_transform_step_meta(index, step)
-        # actually insert in the list
-        self._steps.insert(index, step)
-        # increase the _gen_idx if added before generator
-        if index <= self._gen_idx:
-            self._gen_idx += 1
+        self._insert_at_pos(step, index)
         return self
 
     def remove_step(self, index: int) -> None:
@@ -327,15 +338,6 @@ class Pipe(SupportsPipe):
             # check the signature
             sig = inspect.signature(step)
             meta_arg = check_compat_transformer(self.name, step, sig)
-            # sig_arg_count = len(sig.parameters)
-            # callable_name = get_callable_name(step)
-            # if sig_arg_count == 0:
-            #     raise InvalidStepFunctionArguments(self.name, callable_name, sig, "Function takes no arguments")
-            # # see if meta is present in kwargs
-            # meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
-            # if meta_arg is not None:
-            #     if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
-            #         raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
             if meta_arg is None:
                 # add meta parameter when not present
                 orig_step = step
@@ -407,6 +409,17 @@ class Pipe(SupportsPipe):
         p = Pipe(new_name or self.name, [], new_parent)
         p._steps = self._steps.copy()
         return p
+
+    def _insert_at_pos(self, step: Any, index: int) -> None:
+        # shift right if no parent
+        if index == 0 and not self.has_parent:
+            # put after gen
+            index += 1
+        # actually insert in the list
+        self._steps.insert(index, step)
+        # increase the _gen_idx if added before generator
+        if index <= self._gen_idx:
+            self._gen_idx += 1
 
     def __repr__(self) -> str:
         if self.has_parent:
