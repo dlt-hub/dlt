@@ -395,7 +395,11 @@ column in the root table to stamp changes in nested data.
 ### `upsert` strategy
 
 :::caution
-The `upsert` merge strategy is currently only supported for these destinations:
+The `upsert` merge strategy is currently supported for these destinations:
+- `athena`
+- `bigquery`
+- `databricks`
+- `mssql`
 - `postgres`
 - `snowflake`
 - 🧪 `filesytem` with `delta` table format (see limitations [here](../dlt-ecosystem/destinations/filesystem.md#known-limitations))
