@@ -7,7 +7,9 @@ from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
+from dlt.common.pipeline import ExtractInfo
 from dlt.common.runtime import signals
+from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.storages import NormalizeStorage
@@ -36,12 +38,16 @@ class ItemsNormalizer:
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
+        extract_info: ExtractInfo,
+        collector: Collector = NULL_COLLECTOR,
     ) -> None:
         self.item_storage = item_storage
         self.normalize_storage = normalize_storage
         self.schema = schema
         self.load_id = load_id
         self.config = config
+        self.collector = collector
+        self.extract_info = extract_info
 
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
@@ -55,8 +61,12 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
+        extract_info: ExtractInfo,
+        collector: Collector = NULL_COLLECTOR,
     ) -> None:
-        super().__init__(item_storage, normalize_storage, schema, load_id, config)
+        super().__init__(
+            item_storage, normalize_storage, schema, load_id, config, extract_info, collector
+        )
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -83,9 +93,15 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
 
+        total = self.extract_info.total_rows_count if self.extract_info else None
+
+        import time
+
         for item in items:
+            time.sleep(0.7)
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
             try:
+                self.collector.update("Items", total=total)
                 should_descend: bool = None
                 # use send to prevent descending into child rows when row was discarded
                 while row_info := items_gen.send(should_descend):

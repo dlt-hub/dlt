@@ -212,6 +212,22 @@ class _ExtractInfo(NamedTuple):
 class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
 
+    @property
+    def total_rows_count(self):
+        """Return the total extracted rows count from all the jobs.
+
+        Returns:
+            int: Total extracted rows count.
+        """
+        count = 0
+
+        for _, metrics_list in self.metrics.items():
+            for metrics in metrics_list:
+                for _, value in metrics["job_metrics"].items():
+                    count += value.items_count
+
+        return count
+
     def asdict(self) -> DictStrAny:
         """A dictionary representation of ExtractInfo that can be loaded with `dlt`"""
         d = super().asdict()

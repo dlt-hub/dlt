@@ -446,6 +446,7 @@ class Pipeline(SupportsPipeline):
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
+
         except Exception as exc:
             # emit step info
             step_info = self._get_step_info(extract_step)
@@ -493,7 +494,10 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
     def normalize(
-        self, workers: int = 1, loader_file_format: TLoaderFileFormat = None
+        self,
+        workers: int = 1,
+        loader_file_format: TLoaderFileFormat = None,
+        extract_info: ExtractInfo = None,
     ) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
@@ -525,6 +529,7 @@ class Pipeline(SupportsPipeline):
                 collector=self.collector,
                 config=normalize_config,
                 schema_storage=self._schema_storage,
+                extract_info=extract_info,
             )
             try:
                 with signals.delayed_signals():
@@ -707,7 +712,7 @@ class Pipeline(SupportsPipeline):
 
         # extract from the source
         if data is not None:
-            self.extract(
+            extract_info = self.extract(
                 data,
                 table_name=table_name,
                 write_disposition=write_disposition,
@@ -717,10 +722,8 @@ class Pipeline(SupportsPipeline):
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
             )
-            self.normalize(loader_file_format=loader_file_format)
+            self.normalize(loader_file_format=loader_file_format, extract_info=extract_info)
             return self.load(destination, dataset_name, credentials=credentials)
-        else:
-            return None
 
     @with_schemas_sync
     def sync_destination(
