@@ -863,6 +863,9 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
         state["mark"] = f"mark:{item['delta']}"
         yield item
 
+    print(parent_r._pipe._steps)
+    print(child._pipe._steps)
+
     # also transformer will not receive new data
     info = p.run(child)
     assert len(info.loads_ids) == 0

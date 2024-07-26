@@ -1,7 +1,18 @@
 import inspect
 import makefun
 from copy import copy
-from typing import Any, AsyncIterator, Optional, Union, Callable, Iterable, Iterator, List, Tuple
+from typing import (
+    Any,
+    AsyncIterator,
+    ClassVar,
+    Optional,
+    Union,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Tuple,
+)
 
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
@@ -31,7 +42,9 @@ from dlt.extract.utils import (
 )
 
 
-class ForkPipe:
+class ForkPipe(ItemTransform[ResolvablePipeItem]):
+    placement_affinity: ClassVar[float] = 2
+
     def __init__(self, pipe: "Pipe", step: int = -1, copy_on_fork: bool = False) -> None:
         """A transformer that forks the `pipe` and sends the data items to forks added via `add_pipe` method."""
         self._pipes: List[Tuple["Pipe", int]] = []
@@ -46,7 +59,7 @@ class ForkPipe:
     def has_pipe(self, pipe: "Pipe") -> bool:
         return pipe in [p[0] for p in self._pipes]
 
-    def __call__(self, item: TDataItems, meta: Any) -> Iterator[ResolvablePipeItem]:
+    def __call__(self, item: TDataItems, meta: Any = None) -> Iterator[ResolvablePipeItem]:
         for i, (pipe, step) in enumerate(self._pipes):
             if i == 0 or not self.copy_on_fork:
                 _it = item
@@ -65,8 +78,8 @@ class Pipe(SupportsPipe):
         self.parent = parent
         # add the steps, this will check and mod transformations
         if steps:
-            for step in steps:
-                self.append_step(step)
+            for index, step in enumerate(steps):
+                self.insert_step(step, index)
 
     @classmethod
     def from_data(
@@ -123,7 +136,8 @@ class Pipe(SupportsPipe):
         fork_step = self.tail
         if not isinstance(fork_step, ForkPipe):
             fork_step = ForkPipe(child_pipe, child_step, copy_on_fork)
-            self.append_step(fork_step)
+            # always add this at the end
+            self.insert_step(fork_step, len(self))
         else:
             if not fork_step.has_pipe(child_pipe):
                 fork_step.add_pipe(child_pipe, child_step)
