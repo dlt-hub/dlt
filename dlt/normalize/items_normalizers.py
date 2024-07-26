@@ -7,7 +7,6 @@ from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import ArrowToObjectAdapter
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
-from dlt.common.pipeline import ExtractInfo
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
@@ -88,10 +87,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
 
-        import time
+        # import time
 
         for item in items:
-            time.sleep(0.7)
+            # time.sleep(0.7)
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
             try:
                 self.collector.update("Items")

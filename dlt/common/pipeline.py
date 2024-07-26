@@ -213,7 +213,7 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
 
     @property
-    def total_rows_count(self):
+    def total_rows_count(self) -> int:
         """Return the total extracted rows count from all the jobs.
 
         Returns:

@@ -10,7 +10,6 @@ from dlt.common.data_writers import (
     get_best_writer_spec,
     is_native_writer,
 )
-from dlt.common.pipeline import ExtractInfo
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 from dlt.common.storages import (

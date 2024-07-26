@@ -23,7 +23,6 @@ from dlt.common.storages import (
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import (
-    ExtractInfo,
     NormalizeInfo,
     NormalizeMetrics,
     SupportsPipeline,
