@@ -497,7 +497,7 @@ class Pipeline(SupportsPipeline):
         self,
         workers: int = 1,
         loader_file_format: TLoaderFileFormat = None,
-        extract_info: ExtractInfo = None,
+        extracted_count: int = None,
     ) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
@@ -529,7 +529,7 @@ class Pipeline(SupportsPipeline):
                 collector=self.collector,
                 config=normalize_config,
                 schema_storage=self._schema_storage,
-                extract_info=extract_info,
+                extracted_count=extracted_count,
             )
             try:
                 with signals.delayed_signals():
@@ -722,7 +722,7 @@ class Pipeline(SupportsPipeline):
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
             )
-            self.normalize(loader_file_format=loader_file_format, extract_info=extract_info)
+            self.normalize(loader_file_format=loader_file_format, extracted_count=extract_info.total_rows_count if extract_info else None)
             return self.load(destination, dataset_name, credentials=credentials)
 
     @with_schemas_sync

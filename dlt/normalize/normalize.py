@@ -49,7 +49,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(
         self,
-        extract_info: ExtractInfo,
+        extracted_count: int,
         collector: Collector = NULL_COLLECTOR,
         schema_storage: SchemaStorage = None,
         config: NormalizeConfiguration = config.value,
@@ -60,7 +60,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
-        self.extract_info = extract_info
+        self.extracted_count = extracted_count
 
         # setup storages
         self.create_storages()
@@ -104,7 +104,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 schema_dict,
                 load_id,
                 files,
-                self.extract_info,
                 self.collector,
             )
             for files in chunk_files
@@ -143,12 +142,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         # schedule the task again
                         schema_dict = schema.to_dict()
                         # TODO: it's time for a named tuple
-                        params = (
-                            params[:3]
-                            + (schema_dict,)
-                            + params[4:]
-                            + (self.extract_info, self.collector)
-                        )
+                        params = params[:3] + (schema_dict,) + params[4:] + (self.collector,)
                         retry_pending: Future[TWorkerRV] = self.pool.submit(
                             w_normalize_files, *params
                         )
@@ -167,7 +161,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             schema.to_dict(),
             load_id,
             files,
-            self.extract_info,
             self.collector,
         )
         self.update_schema(schema, result.schema_updates)
@@ -300,6 +293,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 continue
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
+                self.collector.update("Items", 0, total=self.extracted_count)
+
                 self._step_info_start_load_id(load_id)
                 self.spool_schema_files(load_id, schema, schema_files)
 

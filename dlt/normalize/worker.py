@@ -63,7 +63,6 @@ def w_normalize_files(
     stored_schema: TStoredSchema,
     load_id: str,
     extracted_items_files: Sequence[str],
-    extract_info: ExtractInfo,
     collector: Collector = NULL_COLLECTOR,
 ) -> TWorkerRV:
     destination_caps = config.destination_capabilities
@@ -88,7 +87,6 @@ def w_normalize_files(
         def _get_items_normalizer(
             parsed_file_name: ParsedLoadJobFileName,
             table_schema: TTableSchema,
-            extract_info: ExtractInfo,
             collector: Collector = NULL_COLLECTOR,
         ) -> ItemsNormalizer:
             item_format = DataWriter.item_format_from_file_extension(parsed_file_name.file_format)
@@ -190,7 +188,7 @@ def w_normalize_files(
                 f" format {item_storage.writer_spec.file_format}"
             )
             norm = item_normalizers[table_name] = cls(
-                item_storage, normalize_storage, schema, load_id, config, extract_info, collector
+                item_storage, normalize_storage, schema, load_id, config, collector
             )
             return norm
 
@@ -239,7 +237,6 @@ def w_normalize_files(
                 normalizer = _get_items_normalizer(
                     parsed_file_name,
                     stored_schema["tables"].get(root_table_name, {"name": root_table_name}),
-                    extract_info,
                     collector,
                 )
                 logger.debug(
