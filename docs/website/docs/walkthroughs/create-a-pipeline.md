@@ -63,7 +63,7 @@ api_secret_key = '<api key value>'
 This token will be used by `github_api_source()` to authenticate requests.
 
 The **secret name** corresponds to the **argument name** in the source function.
-Below `api_secret_key` [will get its value](../general-usage/credentials/using_config_in_code)
+Below `api_secret_key` [will get its value](../general-usage/credentials/custom_sources)
 from `secrets.toml` when `github_api_source()` is called.
 
 ```py

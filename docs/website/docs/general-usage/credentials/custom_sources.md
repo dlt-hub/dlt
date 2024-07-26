@@ -1,6 +1,6 @@
 ---
-title: Using configs and secrets in code
-description: How to use configuration and secrets values in code.
+title: Secrets with custom sources
+description: How to use secrets inside sources and destinations.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
 
@@ -8,12 +8,12 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## Injection mechanism
 
-`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such a function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](how_to_set_up_credentials.md).
+`dlt` has a special treatment for functions decorated with `@dlt.source`, `@dlt.resource`, and `@dlt.destination`. When such function is called, `dlt` takes the argument names in the signature and supplies (`injects`) the required values by looking for them in [various config providers](setup).
 
-The injection rules are:
+### Injection rules
 
 1. The arguments that are passed explicitly are **never injected**. This makes the injection mechanism optional. For example, for the pipedrive source:
-  ```python
+  ```py
   @dlt.source(name="pipedrive")
   def pipedrive_source(
       pipedrive_api_key: str = dlt.secrets.value,
@@ -24,20 +24,20 @@ The injection rules are:
   my_key = os.environ["MY_PIPEDRIVE_KEY"]
   my_source = pipedrive_source(pipedrive_api_key=my_key)
   ```
-  `dlt` allows the user to specify the argument `pipedrive_api_key` explicitly if, for some reason, they do not want to use dlt [out-of-the-box options](how_to_set_up_credentials.md) for credentials management.
+  `dlt` allows the user to specify the argument `pipedrive_api_key` explicitly if, for some reason, they do not want to use [out-of-the-box options](setup) for credentials management.
 
 1. Required arguments (without default values) **are never injected** and must be specified when calling. For example, for the source:
 
-  ```python
+  ```py
   @dlt.source
   def slack_data(channels_list: List[str], api_key: str = dlt.secrets.value):
     ...
   ```
   The argument `channels_list` would not be injected and will output an error if it is not specified explicitly.
 
-1. Arguments with default values are injected if present in config providers; otherwise, defaults from the function signature are used. For example, for the source:
+1. Arguments with default values are injected if present in config providers. Otherwise, defaults from the function signature are used. For example, for the source:
 
-  ```python
+  ```py
   @dlt.source
   def slack_source(
     page_size: int = MAX_PAGE_SIZE,
@@ -46,7 +46,7 @@ The injection rules are:
   ):
     ...
   ```
-  `dlt` firstly searches for all three arguments: `page_size`, `access_token`, and `start_date` in config providers in a [specific order](how_to_set_up_credentials.md). If it cannot find them, it will use the default values.
+  `dlt` firstly searches for all three arguments: `page_size`, `access_token`, and `start_date` in config providers in a [specific order](setup). If it cannot find them, it will use the default values.
 
 1. Arguments with the special default value `dlt.secrets.value` and `dlt.config.value` **must be injected**
    (or explicitly passed). If they are not found by the config providers, the code raises an
@@ -62,11 +62,13 @@ information on what source/resource expects.
 
 Doing so provides several benefits:
 
-1. You'll never receive invalid data types in your code.
-1. `dlt` will automatically parse and coerce types for you. In our example, you do not need to parse a list of tabs or a credentials dictionary yourself.
-1. We can generate nice sample config and secret files for your source.
-1. You can request [built-in and custom credentials](prebuilt_dlt_credential_types) (i.e., connection strings, AWS / GCP / Azure credentials).
+1. You'll never receive the invalid data types in your code.
+1. `dlt` will automatically parse and coerce types for you, so you don't need to parse it yourself.
+1. `dlt` can generate sample config and secret files for your source automatically.
+1. You can request [built-in and custom credentials](prebuilt_types) (i.e., connection strings, AWS / GCP / Azure credentials).
 1. You can specify a set of possible types via `Union`, i.e., OAuth or API Key authorization.
+
+Let's consider the example:
 
 ```py
 @dlt.source
@@ -79,20 +81,21 @@ def google_sheets(
     ...
 ```
 
-Now:
+Now,
 
 1. You are sure that you get a list of strings as `tab_names`.
-1. You will get actual Google credentials (see [GCP Credential Configuration](prebuilt_dlt_credential_types#gcp-credentials)), and your users can
-   pass them in many different forms.
+1. You will get actual Google credentials (see [GCP Credential Configuration](prebuilt_types#gcp-credentials)), and users can
+   pass them in many different forms:
 
-In the case of `GcpServiceAccountCredentials`:
+   * `service.json` as a string or dictionary (in code and via config providers).
+   * connection string (used in SQL Alchemy) (in code and via config providers).
+   * if nothing is passed, the default credentials are used (i.e., those present on Cloud Function runner)
 
-- You may just pass the `service.json` as a string or dictionary (in code and via config providers).
-- You may pass a connection string (used in SQL Alchemy) (in code and via config providers).
-- If you do not pass any credentials, the default credentials are used (i.e., those present on Cloud Function runner)
+## Advanced: Read configs and secrets manually
 
-## Read configs and secrets yourself
-`dlt.secrets` and `dlt.config` provide dictionary-like access to configuration values and secrets, respectively.
+`dlt` handles credentials and configuration automatically, but also offers flexibility for manual processing.
+`dlt.secrets` and `dlt.config` provide dictionary-like access to configuration values and secrets, enabling any custom preprocessing if needed.
+Additionally, you can store custom settings within the same configuration files.
 
 ```py
 # use `dlt.secrets` and `dlt.config` to explicitly take
@@ -106,21 +109,23 @@ data_source = google_sheets(
 data_source.run(destination="bigquery")
 ```
 
-`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](how_to_set_up_credentials.md) - env variables, TOML files, etc., to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
+`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](setup) - env variables, TOML files, etc. to create these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to
 request a value cast to a desired type. For example:
 
 ```py
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
 ```
-Creates a `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under the **my_section.gcp_credentials** key.
+Creates a `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under the `my_section.gcp_credentials` key.
 
-### Write configs and secrets in code
-**dlt.config** and **dlt.secrets** can also be used as setters. For example:
+## Advanced: Write configs and secrets in code
+
+`dlt.config` and `dlt.secrets` objects can also be used as setters. For example:
 ```py
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
-Will mock the **toml** provider to desired values.
+
+Will mock the `toml` provider to desired values.
 
 ## Example
 

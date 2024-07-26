@@ -41,9 +41,9 @@ If destination is not named, its shorthand type (the Python factory name) serves
 
 
 ## Configure a destination
-We recommend to pass the credentials and other required parameters to configuration via TOML files, environment variables or other [config providers](credentials/how_to_set_up_credentials). This allows you, for example, to  easily switch to production destinations after deployment.
+We recommend to pass the credentials and other required parameters to configuration via TOML files, environment variables or other [config providers](credentials/setup). This allows you, for example, to  easily switch to production destinations after deployment.
 
-We recommend to use the [default config section layout](credentials/how_to_set_up_credentials#structure-of-secrets.toml-and-config.toml) as below:
+We recommend to use the [default config section layout](credentials/setup#structure-of-secrets.toml-and-config.toml) as below:
 <!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::default_layout-->
 
 or via environment variables:
@@ -65,14 +65,14 @@ You can pass credentials explicitly when creating destination factory instance. 
 
 
 :::tip
-You can create and pass partial credentials and `dlt` will fill the missing data. Below we pass postgres connection string but without password and expect that it will be present in environment variables (or any other [config provider](credentials/how_to_set_up_credentials))
+You can create and pass partial credentials and `dlt` will fill the missing data. Below we pass postgres connection string but without password and expect that it will be present in environment variables (or any other [config provider](credentials/setup))
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_partial-->
 
 
 <!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_partial_spec-->
 
 
-Please read how to use [various built in credentials types](credentials/prebuilt_dlt_credential_types).
+Please read how to use [various built in credentials types](credentials/prebuilt_types).
 :::
 
 ### Inspect destination capabilities

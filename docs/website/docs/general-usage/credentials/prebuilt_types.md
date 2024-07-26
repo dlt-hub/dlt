@@ -5,7 +5,9 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
       variables, specs]
 ---
 
-Often, credentials do not consist of just one `api_key`, but instead can be quite a complex structure. In this section, you'll learn how dlt supports different credential types and authentication options.
+## Overview
+
+Often, credentials do not consist of just one `api_key`, but instead can be quite a complex structure. In this section, you'll learn how `dlt` supports different credential types and authentication options.
 
 :::tip
 Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../http/rest-client.md#authentication).
@@ -13,13 +15,9 @@ Learn about the authentication methods supported by the `dlt` RestAPI Client in 
 
 `dlt` supports different credential types by providing various Python data classes called Configuration Specs. These classes define how complex configuration values, particularly credentials, should be handled. They specify the types, defaults, and parsing methods for these values.
 
-## Working with credentials (and other complex configuration values)
+## Example with ConnectionStringCredentials
 
-For example, a spec like `GcpServiceAccountCredentials` manages Google Cloud Platform service account credentials, while `ConnectionStringCredentials` handles database connection strings.
-
-### Example
-
-As an example, let's use `ConnectionStringCredentials` which represents a database connection string.
+`ConnectionStringCredentials` handles database connection strings:
 
 ```py
 from dlt.sources.credentials import ConnectionStringCredentials
@@ -33,7 +31,7 @@ The source above executes the `sql` against the database defined in `dsn`. `Conn
 
 Below are examples of how you can set credentials in `secrets.toml` and `config.toml` files.
 
-Example 1. Use the **dictionary** form.
+### Dictionary form
 
 ```toml
 [dsn]
@@ -43,13 +41,15 @@ username="loader"
 host="localhost"
 ```
 
-Example 2. Use the **native** form.
+### Native form
 
 ```toml
 dsn="postgres://loader:loader@localhost:5432/dlt_data"
 ```
 
-Example 3. Use the **mixed** form: the password is missing in the explicit dsn and will be taken from the `secrets.toml`.
+### Mixed form
+
+If all credentials, but the password provided explicitly in the code, `dlt` will look for the password in `secrets.toml`.
 
 ```toml
 dsn.password="loader"
@@ -65,7 +65,7 @@ query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"})
 
 ## Built-in credentials
 
-We have some ready-made credentials you can reuse:
+`dlt` offers some ready-made credentials you can reuse:
 
 ```py
 from dlt.sources.credentials import ConnectionStringCredentials
@@ -127,10 +127,14 @@ credentials.add_scopes(["scope3", "scope4"])
 
 ### GCP Credentials
 
-- [GcpServiceAccountCredentials](#gcpserviceaccountcredentials).
-- [GcpOAuthCredentials](#gcpoauthcredentials).
+#### Examples
+* [Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): the example of how to use GCP Credentials.
+* [Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
 
-[Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): the example of how to use GCP Credentials.
+#### Types
+
+* [GcpServiceAccountCredentials](#gcpserviceaccountcredentials).
+* [GcpOAuthCredentials](#gcpoauthcredentials).
 
 #### GcpServiceAccountCredentials
 
@@ -235,10 +239,10 @@ property_id = "213025502"
 
 In order for the `auth()` method to succeed:
 
-- You must provide valid `client_id` and `client_secret`, `refresh_token`, and `project_id to get a current **access token** and authenticate with OAuth. Keep in mind that the `refresh_token` must contain all the scopes that you require for your access.
+- You must provide valid `client_id`, `client_secret`, `refresh_token`, and `project_id` to get a current **access token** and authenticate with OAuth. Keep in mind that the `refresh_token` must contain all the scopes that is required for your access.
 - If the `refresh_token` is not provided, and you run the pipeline from a console or a notebook, `dlt` will use InstalledAppFlow to run the desktop authentication flow.
 
-[Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
+
 
 #### Defaults
 
@@ -370,33 +374,34 @@ assert list(zen_source())[0].email == "mx"
 
 # Pass explicit native value
 assert list(zen_source("secret:🔑:secret"))[0].api_secret == "secret"
-```# pass explicit dict
+# pass explicit dict
 assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
-
 ```
 
-> This applies not only to credentials but to all specs (see next chapter).
+:::info
+This applies not only to credentials but to [all specs](#writing-custom-specs).
+:::
 
-Read the [whole test](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), it shows how to create unions
+:::tip
+Check out the [complete example](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), to learn how to create unions
 of credentials that derive from the common class, so you can handle it seamlessly in your code.
+:::
 
 ## Writing custom specs
 
-**specs** let you take full control over the function arguments:
+**Custom specifications** let you take full control over the function arguments. You can
 
-- Which values should be injected, the types, default values.
-- You can specify optional and final fields.
+- Control which values should be injected, the types, default values.
+- Specify optional and final fields.
 - Form hierarchical configurations (specs in specs).
 - Provide own handlers for `on_partial` (called before failing on missing config key) or `on_resolved`.
 - Provide own native value parsers.
 - Provide own default credentials logic.
-- Adds all Python dataclass goodies to it.
-- Adds all Python `dict` goodies to it (`specs` instances can be created from dicts and serialized
+- Utilise Python dataclass functionality.
+- Utilise Python `dict` functionality (`specs` instances can be created from dicts and serialized
   from dicts).
 
-This is used a lot in the `dlt` core and may become useful for complicated sources.
-
-In fact, for each decorated function a spec is synthesized. In the case of `google_sheets`, the following
+In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following
 class is created:
 
 ```py

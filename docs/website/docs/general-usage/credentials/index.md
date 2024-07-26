@@ -5,13 +5,13 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 ---
 import DocCardList from '@theme/DocCardList';
 
-`dlt` supports two main types of configurations: configs and secrets. Both configs and secrets can be set up in [various ways](how_to_set_up_credentials.md):
+`dlt` pipelines usually require configurations and credentials. These can be set up in [various ways](setup):
 
 1. Environment variables
 2. Configuration files (`secrets.toml` and `config.toml`)
-3. Configuration or secrets provider
+3. Key managers and Vaults
 
-`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](how_to_set_up_credentials/#naming-convention). It then [injects](using_config_in_code/#injection-mechanism) these values where needed in code.
+`dlt` automatically extracts configuration settings and secrets based on flexible [naming conventions](setup/#naming-convention). It then [injects](custom_sources/#injection-mechanism) these values where needed in code.
 
 # Learn Details About
 

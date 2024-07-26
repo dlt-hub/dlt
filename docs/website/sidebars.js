@@ -136,6 +136,19 @@ const sidebars = {
         'reference/explainers/how-dlt-works',
         'general-usage/resource',
         'general-usage/source',
+        {
+          type: 'category',
+          label: 'Configuration and secrets',
+           link: {
+            type: 'doc',
+            id: 'general-usage/credentials/index',
+          },
+          items: [
+            'general-usage/credentials/setup',
+            'general-usage/credentials/custom_sources',
+            'general-usage/credentials/prebuilt_types',
+          ]
+        },
         'general-usage/pipeline',
         'general-usage/destination',
         'general-usage/destination-tables',
@@ -159,19 +172,6 @@ const sidebars = {
         'general-usage/naming-convention',
         'general-usage/schema-contracts',
         'general-usage/schema-evolution',
-        {
-          type: 'category',
-          label: 'Configuration and secrets',
-           link: {
-            type: 'doc',
-            id: 'general-usage/credentials/index',
-          },
-          items: [
-            'general-usage/credentials/how_to_set_up_credentials',
-            'general-usage/credentials/using_config_in_code',
-            'general-usage/credentials/prebuilt_dlt_credential_types',
-          ]
-        },
         'build-a-pipeline-tutorial',
         'reference/performance',
         {
