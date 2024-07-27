@@ -4,10 +4,11 @@ from .dictionary import DictionaryProvider
 from .toml import (
     SecretsTomlProvider,
     ConfigTomlProvider,
-    FileDocProvider,
+    ProjectDocProvider,
     CONFIG_TOML,
     SECRETS_TOML,
     StringTomlProvider,
+    CustomLoaderDocProvider,
 )
 from .vault import SECRETS_TOML_KEY
 from .google_secrets import GoogleSecretsProvider
@@ -19,11 +20,12 @@ __all__ = [
     "DictionaryProvider",
     "SecretsTomlProvider",
     "ConfigTomlProvider",
-    "FileDocProvider",
+    "ProjectDocProvider",
     "CONFIG_TOML",
     "SECRETS_TOML",
     "StringTomlProvider",
     "SECRETS_TOML_KEY",
     "GoogleSecretsProvider",
     "ContextProvider",
+    "CustomLoaderDocProvider",
 ]

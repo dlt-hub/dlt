@@ -1,7 +1,7 @@
 import os
 import pytest
-import tomlkit
-from typing import Any, Type
+import yaml
+from typing import Any, Dict, Type
 import datetime  # noqa: I251
 
 import dlt
@@ -15,6 +15,7 @@ from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     CONFIG_TOML,
     BaseDocProvider,
+    CustomLoaderDocProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
     StringTomlProvider,
@@ -496,3 +497,33 @@ key1 = \"other_value\"
 [section2.subsection]
 key1 = \"other_value\"
 """
+
+
+def test_custom_loader(toml_providers: ConfigProvidersContext) -> None:
+    def loader() -> Dict[str, Any]:
+        with open("tests/common/cases/configuration/config.yml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    # remove all providers
+    toml_providers.providers.clear()
+    # create new provider
+    provider = CustomLoaderDocProvider("yaml", loader, True)
+    assert provider.name == "yaml"
+    assert provider.supports_secrets is True
+    assert provider.to_toml().startswith("[destination]")
+    assert provider.to_yaml().startswith("destination:")
+    value, _ = provider.get_value("datetime", datetime.datetime, None, "data_types")
+    assert value == pendulum.parse("1979-05-27 07:32:00-08:00")
+
+    # add to context
+    toml_providers.add_provider(provider)
+
+    # resolve one of configs
+    config = resolve.resolve_configuration(
+        ConnectionStringCredentials(),
+        sections=(
+            "destination",
+            "postgres",
+        ),
+    )
+    assert config.username == "dlt-loader"

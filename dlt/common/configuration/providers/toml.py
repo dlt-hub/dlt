@@ -1,9 +1,10 @@
 import os
 import tomlkit
 import yaml
+import functools
 from tomlkit.items import Item as TOMLItem
 from tomlkit.container import Container as TOMLContainer
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type
 
 from dlt.common.configuration.paths import get_dlt_settings_dir, get_dlt_data_dir
 from dlt.common.configuration.utils import auto_cast, auto_config_fragment
@@ -135,9 +136,49 @@ class StringTomlProvider(BaseDocProvider):
         return "memory"
 
 
-class FileDocProvider(BaseDocProvider):
+class CustomLoaderDocProvider(BaseDocProvider):
     def __init__(
-        self, file_name: str, project_dir: str = None, add_global_config: bool = False
+        self, name: str, loader: Callable[[], Dict[str, Any]], supports_secrets: bool = True
+    ) -> None:
+        """Provider that calls `loader` function to get a Python dict with config/secret values to be queried.
+        The `loader` function typically loads a string (ie. from file), parses it (ie. as toml or yaml), does additional
+        processing and returns a Python dict to be queried.
+
+        Instance of CustomLoaderDocProvider must be registered for the returned dict to be used to resolve config values.
+        >>> import dlt
+        >>> dlt.config.register_provider(provider)
+
+        Args:
+            name(str): name of the provider that will be visible ie. in exceptions
+            loader(Callable[[], Dict[str, Any]]): user-supplied function that will load the document with config/secret values
+            supports_secrets(bool): allows to store secret values in this provider
+
+        """
+        self._name = name
+        self._supports_secrets = supports_secrets
+        super().__init__(loader())
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def supports_secrets(self) -> bool:
+        return self._supports_secrets
+
+    @property
+    def is_writable(self) -> bool:
+        return True
+
+
+class ProjectDocProvider(CustomLoaderDocProvider):
+    def __init__(
+        self,
+        name: str,
+        supports_secrets: bool,
+        file_name: str,
+        project_dir: str = None,
+        add_global_config: bool = False,
     ) -> None:
         """Creates config provider from a `toml` file
 
@@ -147,6 +188,8 @@ class FileDocProvider(BaseDocProvider):
         If none of the files exist, an empty provider is created.
 
         Args:
+            name(str): name of the provider when registering in context
+            supports_secrets(bool): allows to store secret values in this provider
             file_name (str): The name of `toml` file to load
             project_dir (str, optional): The location of `file_name`. If not specified, defaults to $cwd/.dlt
             add_global_config (bool, optional): Looks for `file_name` in `dlt` home directory which in most cases is $HOME/.dlt
@@ -154,25 +197,16 @@ class FileDocProvider(BaseDocProvider):
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
         """
-        toml_document = self._read_toml_file(file_name, project_dir, add_global_config)
-        super().__init__(toml_document)
-
-    def _read_toml_file(
-        self, file_name: str, project_dir: str = None, add_global_config: bool = False
-    ) -> Dict[str, Any]:
-        self._file_name = file_name
         self._toml_path = os.path.join(project_dir or get_dlt_settings_dir(), file_name)
         self._add_global_config = add_global_config
-        try:
-            project_toml = self._read_toml(self._toml_path).unwrap()
-            if add_global_config:
-                global_toml = self._read_toml(
-                    os.path.join(self.global_config_path(), file_name)
-                ).unwrap()
-                project_toml = update_dict_nested(global_toml, project_toml)
-            return project_toml
-        except Exception as ex:
-            raise TomlProviderReadException(self.name, file_name, self._toml_path, str(ex))
+
+        super().__init__(
+            name,
+            functools.partial(
+                self._read_toml_files, name, file_name, self._toml_path, add_global_config
+            ),
+            supports_secrets,
+        )
 
     @staticmethod
     def global_config_path() -> str:
@@ -186,6 +220,21 @@ class FileDocProvider(BaseDocProvider):
             tomlkit.dump(self._config_doc, f)
 
     @staticmethod
+    def _read_toml_files(
+        name: str, file_name: str, toml_path: str, add_global_config: bool
+    ) -> Dict[str, Any]:
+        try:
+            project_toml = ProjectDocProvider._read_toml(toml_path).unwrap()
+            if add_global_config:
+                global_toml = ProjectDocProvider._read_toml(
+                    os.path.join(ProjectDocProvider.global_config_path(), file_name)
+                ).unwrap()
+                project_toml = update_dict_nested(global_toml, project_toml)
+            return project_toml
+        except Exception as ex:
+            raise TomlProviderReadException(name, file_name, toml_path, str(ex))
+
+    @staticmethod
     def _read_toml(toml_path: str) -> tomlkit.TOMLDocument:
         if os.path.isfile(toml_path):
             with open(toml_path, "r", encoding="utf-8") as f:
@@ -195,34 +244,30 @@ class FileDocProvider(BaseDocProvider):
             return tomlkit.document()
 
 
-class ConfigTomlProvider(FileDocProvider):
+class ConfigTomlProvider(ProjectDocProvider):
     def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
-        super().__init__(CONFIG_TOML, project_dir=project_dir, add_global_config=add_global_config)
-
-    @property
-    def name(self) -> str:
-        return CONFIG_TOML
-
-    @property
-    def supports_secrets(self) -> bool:
-        return False
+        super().__init__(
+            CONFIG_TOML,
+            False,
+            CONFIG_TOML,
+            project_dir=project_dir,
+            add_global_config=add_global_config,
+        )
 
     @property
     def is_writable(self) -> bool:
         return True
 
 
-class SecretsTomlProvider(FileDocProvider):
+class SecretsTomlProvider(ProjectDocProvider):
     def __init__(self, project_dir: str = None, add_global_config: bool = False) -> None:
-        super().__init__(SECRETS_TOML, project_dir=project_dir, add_global_config=add_global_config)
-
-    @property
-    def name(self) -> str:
-        return SECRETS_TOML
-
-    @property
-    def supports_secrets(self) -> bool:
-        return True
+        super().__init__(
+            SECRETS_TOML,
+            True,
+            SECRETS_TOML,
+            project_dir=project_dir,
+            add_global_config=add_global_config,
+        )
 
     @property
     def is_writable(self) -> bool:
