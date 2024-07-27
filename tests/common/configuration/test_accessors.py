@@ -184,7 +184,7 @@ def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> Non
     dlt.secrets["pipeline.new.credentials"] = {"api_key": "skjo87a7nnAAaa"}
     assert dlt.secrets["pipeline.new.credentials"] == {"api_key": "skjo87a7nnAAaa"}
     # check the toml directly
-    assert dlt.secrets.writable_provider._toml["pipeline"]["new"]["credentials"] == {"api_key": "skjo87a7nnAAaa"}  # type: ignore[attr-defined]
+    assert dlt.secrets.writable_provider._config_doc["pipeline"]["new"]["credentials"] == {"api_key": "skjo87a7nnAAaa"}  # type: ignore[attr-defined]
 
     # mod the config and use it to resolve the configuration
     dlt.config["pool"] = {"pool_type": "process", "workers": 21}

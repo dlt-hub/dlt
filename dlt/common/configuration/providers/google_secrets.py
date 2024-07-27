@@ -5,7 +5,7 @@ import re
 from dlt.common.json import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.exceptions import MissingDependencyException
-from .toml import VaultTomlProvider
+from .vault import VaultDocProvider
 from .provider import get_key_name
 
 # Create a translation table to replace punctuation with ""
@@ -33,7 +33,7 @@ def normalize_key(in_string: str) -> str:
     return stripped_whitespace
 
 
-class GoogleSecretsProvider(VaultTomlProvider):
+class GoogleSecretsProvider(VaultDocProvider):
     def __init__(
         self,
         credentials: GcpServiceAccountCredentials,
