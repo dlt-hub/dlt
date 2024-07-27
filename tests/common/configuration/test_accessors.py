@@ -11,6 +11,7 @@ from dlt.common.configuration.providers import (
     ConfigTomlProvider,
     SecretsTomlProvider,
 )
+from dlt.common.configuration.providers.toml import CustomLoaderDocProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import (
     GcpServiceAccountCredentialsWithoutDefaults,
@@ -224,3 +225,25 @@ def test_access_injection(toml_providers: ConfigProvidersContext) -> None:
         credentials=dlt.secrets["destination.credentials"],
         databricks_creds=dlt.secrets["databricks.credentials"],
     )
+
+
+def test_provider_registration(toml_providers: ConfigProvidersContext) -> None:
+    toml_providers.providers.clear()
+
+    def loader():
+        return {"api_url": "https://example.com/api"}
+
+    @dlt.source
+    def test_source(api_url=dlt.config.value):
+        assert api_url == "https://example.com/api"
+        return dlt.resource([1, 2, 3], name="data")
+
+    provider = CustomLoaderDocProvider("mock", loader, False)
+    assert provider.supports_secrets is False
+
+    with pytest.raises(ConfigFieldMissingException):
+        test_source()
+
+    # now register
+    dlt.config.register_provider(provider)
+    test_source()
