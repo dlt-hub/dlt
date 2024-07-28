@@ -37,10 +37,6 @@ class BaseDocProvider(ConfigProvider):
                 if not isinstance(node, dict):
                     raise KeyError(k)
                 node = node[k]
-            assert not isinstance(
-                node, (TOMLContainer, TOMLItem)
-            ), f"toml injected in {full_path}: {node.as_string()}"
-            # rv = node.unwrap() if isinstance(node, (TOMLContainer, TOMLItem)) else node
             return node, full_key
         except KeyError:
             return None, full_key

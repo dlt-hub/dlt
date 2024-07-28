@@ -1,20 +1,20 @@
 """
 ---
 title: Use custom yaml file for config and secrets
-description: We show to keep configuration in yaml file with switchable profiles and simple templates
-keywords: [config, yaml config, target]
+description: We show how to keep configuration in yaml file with switchable profiles and simple templates
+keywords: [config, yaml config, profiles]
 ---
 
-This example show how to replace secrets/config toml files with a yaml file that contains several profiles (prod and dev) and jinja-like
+This example shows how to replace secrets/config toml files with a yaml file that contains several profiles (prod and dev) and jinja-like
 placeholders that are replaced with corresponding env variables.
-`dlt` resolves configuration by querying so called config providers (that ie. query env variables or content of toml file).
-Here we will instantiate a provider with a custom loader and register it to be queried. At the end we demonstrate (using github source as an example)
+`dlt` resolves configuration by querying so called config providers (to ie. query env variables or content of a toml file).
+Here we will instantiate a provider with a custom loader and register it to be queried. At the end we demonstrate (using mock github source)
 that `dlt` uses it along other (standard) providers to resolve configuration.
 
 In this example you will learn to:
 
-* Implement custom configuration loader that parses yaml file, manipulate it and then return final Python dict
-* Pass the loader to an instance of CustomLoaderDocProvider
+* Implement custom configuration loader that parses yaml file, manipulates it and then returns final Python dict
+* Instantiate custom provider (CustomLoaderDocProvider) from the loader
 * Register provider instance to be queried
 
 """
@@ -56,18 +56,18 @@ def loader(profile_name: str):
     if config is None:
         raise RuntimeError(f"Profile with name {profile_name} not found in {os.path.abspath(path)}")
     # evaluate all placeholders
-    # NOTE: this method only works with placeholders wrapped as strings in yaml. you should probable use jinja lib
-    # for full fledged templating
+    # NOTE: this method only works with placeholders wrapped as strings in yaml. use jinja lib for real templating
     return map_nested_in_place(eval_placeholder, config)
 
 
 @dlt.resource(standalone=True)
 def github(url: str = dlt.config.value, api_key=dlt.secrets.value):
+    # just return the injected config and secret
     yield url, api_key
 
 
 if __name__ == "__main__":
-    # mock env variables to fill placeholders
+    # mock env variables to fill placeholders in profiles.yaml
     os.environ["GITHUB_API_KEY"] = "secret_key"  # mock expected var
 
     # dlt standard providers work at this point (we have profile name in config.toml)
