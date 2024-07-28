@@ -33,6 +33,11 @@ providers.
 4. **Default Argument Values**: These are the values specified in the function's signature.
    They have the lowest priority in the provider hierarchy.
 
+:::tip
+Implement and use your own config provider by just providing loader function. See [example](../../examples/custom_config_provider) for `yaml` based config that
+supports switchable profiles.
+:::
+
 ### Example
 
 ```py
