@@ -30,13 +30,12 @@ providers.
    configuration values and secrets. `secrets.toml` is dedicated to sensitive information,
    while `config.toml` contains non-sensitive configuration data.
 
-4. **Default Argument Values**: These are the values specified in the function's signature.
+4. Custom Providers added with `register_provider`: These are your own Provider implementation
+   you can use to connect to any backend. See [adding custom providers](#adding-custom-providers) for more information.
+
+5. **Default Argument Values**: These are the values specified in the function's signature.
    They have the lowest priority in the provider hierarchy.
 
-:::tip
-Implement and use your own config provider by just providing loader function. See [example](../../examples/custom_config_provider) for `yaml` based config that
-supports switchable profiles.
-:::
 
 ### Example
 
@@ -82,6 +81,33 @@ secrets (to reduce the number of requests done by `dlt` when searching sections)
 
 :::info
 Context-aware providers will activate in the right environments i.e. on Airflow or AWS/GCP VMachines.
+:::
+
+### Adding Custom Providers
+
+You can use the `CustomLoaderDocProvider` classes to supply a custom dictionary obtained from any source to dlt for use
+as a source of `config` and `secret` values. The code  below demonstrates how to use a config stored in config.json.
+
+```py
+import json
+import dlt
+
+from dlt.common.configuration.providers import CustomLoaderDocProvider
+
+# create a function that loads a dict
+def load_config():
+   with open("config.json", "rb") as f:
+      config_dict = json.load(f)
+
+# create the custom provider
+provider = CustomLoaderDocProvider("my_json_provider",load_config)
+
+# register provider
+dlt.config.register_provider(provider)
+```
+
+:::tip
+Check our nice [example](../../examples/custom_config_provider) for a `yaml` based config provider that supports switchable profiles.
 :::
 
 ## Provider key formats

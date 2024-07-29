@@ -79,6 +79,10 @@ if __name__ == "__main__":
     # register provider, it will be added as the last one in chain
     dlt.config.register_provider(provider)
 
+    # your pipeline will now be able to use your yaml provider
+    # p = Pipeline(...)
+    # p.run(...)
+
     # show the final config
     print(provider.to_yaml())
     # or if you like toml
