@@ -46,6 +46,8 @@ def expect_extracted_file(
 
 
 class AssertItems(ItemTransform[TDataItem]):
+    placement_affinity = 2.0  # even more sticky than incremental so gathers data after it
+
     def __init__(self, expected_items: Any, item_type: TestDataItemFormat = "object") -> None:
         self.expected_items = expected_items
         self.item_type = item_type

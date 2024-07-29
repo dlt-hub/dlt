@@ -107,6 +107,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
+    placement_affinity: ClassVar[float] = 1  # stick to end
 
     def __init__(
         self,
@@ -496,6 +497,8 @@ Incremental.EMPTY.__is_resolved__ = True
 
 
 class IncrementalResourceWrapper(ItemTransform[TDataItem]):
+    placement_affinity: ClassVar[float] = 1  # stick to end
+
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
     _from_hints: bool = False

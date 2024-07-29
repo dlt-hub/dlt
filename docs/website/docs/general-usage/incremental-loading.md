@@ -41,7 +41,7 @@ user's profile Stateless data cannot change - for example, a recorded event, suc
 
 Because stateless data does not need to be updated, we can just append it.
 
-For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](#scd2-strategy), which allow you to maintain historical records of data changes over time. 
+For stateful data, comes a second question - Can I extract it incrementally from the source? If yes, you should use [slowly changing dimensions (Type-2)](#scd2-strategy), which allow you to maintain historical records of data changes over time.
 
 If not, then we need to replace the entire data set. If however we can request the data incrementally such
 as "all users added or modified since yesterday" then we can simply apply changes to our existing
@@ -495,15 +495,14 @@ We just yield all the events and `dlt` does the filtering (using `id` column dec
 Github returns events ordered from newest to oldest. So we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding the first event with `created_at` earlier than `initial_value`.
 
 :::note
-**Note on Incremental Cursor Behavior:**
-When using incremental cursors for loading data, it's essential to understand how `dlt` handles records in relation to the cursor's
-last value. By default, `dlt` will load only those records for which the incremental cursor value is higher than the last known value of the cursor.
-This means that any records with a cursor value lower than or equal to the last recorded value will be ignored during the loading process.
-This behavior ensures efficiency by avoiding the reprocessing of records that have already been loaded, but it can lead to confusion if
-there are expectations of loading older records that fall below the current cursor threshold. If your use case requires the inclusion of
-such records, you can consider adjusting your data extraction logic, using a full refresh strategy where appropriate or using `last_value_func` as discussed in the subsquent section.
-:::
+`dlt.sources.incremental` is implemented as a [filter function](resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms
+you add with `add_map` / `add_filter`. This means that you can manipulate the data item before incremental filter sees it. For example:
+* you can create surrogate primary key from other columns
+* you can modify cursor value or create a new field composed from other fields
+* dump Pydantic models to Python dicts to allow incremental to find custost values
 
+[Data validation with Pydantic](schema-contracts.md#use-pydantic-models-for-data-validation) happens **before** incremental filtering.
+:::
 
 ### max, min or custom `last_value_func`
 
