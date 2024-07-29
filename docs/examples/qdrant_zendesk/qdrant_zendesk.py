@@ -188,7 +188,7 @@ if __name__ == "__main__":
 
         # query Qdrant with prompt: getting tickets info close to "cancellation"
         response = qdrant_client.query(
-            "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
+            "zendesk_data_tickets_data",  # tickets_data collection
             query_text="cancel subscription",  # prompt to search
             limit=3,  # limit the number of results to the nearest 3 embeddings
         )
