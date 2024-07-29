@@ -301,7 +301,7 @@ With dataset above and local postgres instance, connectorx is 2x faster than pya
 #### Postgres / MSSQL
 No issues found. Postgres is the only backend where we observed 2x speedup with connector x. On other db systems it performs same as `pyarrrow` backend or slower.
 
-### Noted on data types
+### Notes on data types
 
 #### JSON
 JSON data type is represented as Python object for the **sqlalchemy** backend and as JSON string for the **pyarrow** backend. Currently it does not work correctly
