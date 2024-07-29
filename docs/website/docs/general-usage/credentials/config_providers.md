@@ -89,7 +89,6 @@ You can use the `CustomLoaderDocProvider` classes to supply a custom dictionary 
 as a source of `config` and `secret` values. The code  below demonstrates how to use a config stored in config.json.
 
 ```py
-import json
 import dlt
 
 from dlt.common.configuration.providers import CustomLoaderDocProvider
