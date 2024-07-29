@@ -14,7 +14,7 @@ from dlt.common.schema.utils import (
 from typing import Any, cast, Tuple, Dict, Type
 
 from dlt.destinations.exceptions import DatabaseTransientException
-from dlt.extract import DltResource, resource as make_resource
+from dlt.extract import DltResource, resource as make_resource, DltSource
 
 RE_DATA_TYPE = re.compile(r"([A-Z]+)\((\d+)(?:,\s?(\d+))?\)")
 
@@ -23,6 +23,12 @@ def ensure_resource(data: Any) -> DltResource:
     """Wraps `data` in a DltResource if it's not a DltResource already."""
     if isinstance(data, DltResource):
         return data
+    # prevent accidental wrapping sources with adapters
+    if isinstance(data, DltSource):
+        raise Exception(
+            "You are trying to use an adapter on a dlt source. You can only use adapters on pure"
+            " data or dlt resources."
+        )
     resource_name = None if hasattr(data, "__name__") else "content"
     return cast(DltResource, make_resource(data, name=resource_name))
 
