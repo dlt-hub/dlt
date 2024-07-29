@@ -23,7 +23,7 @@ def ensure_resource(data: Any) -> DltResource:
     """Wraps `data` in a DltResource if it's not a DltResource already."""
     if isinstance(data, DltResource):
         return data
-    # prevent accidental wrapping sources with adapters
+    # prevent accidentally wrapping sources with adapters
     if isinstance(data, DltSource):
         raise Exception(
             "You are trying to use an adapter on a dlt source. You can only use adapters on pure"
