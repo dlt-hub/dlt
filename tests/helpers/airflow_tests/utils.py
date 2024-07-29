@@ -8,7 +8,7 @@ from airflow.models.variable import Variable
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
+from dlt.common.configuration.providers.vault import SECRETS_TOML_KEY
 
 
 @pytest.fixture(scope="function", autouse=True)
