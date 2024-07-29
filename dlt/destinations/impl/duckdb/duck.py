@@ -83,20 +83,28 @@ class DuckDbTypeMapper(TypeMapper):
         )
 
     def to_db_datetime_type(
-        self, precision: Optional[int], table_format: TTableFormat = None
+        self,
+        timezone: Optional[bool],
+        precision: Optional[int],
+        table_format: TTableFormat = None,
     ) -> str:
+        # TIMESTAMP and TIMESTAMPTZ supports microsecond precision
+        if timezone:
+            return "TIMESTAMPTZ"
+
         if precision is None or precision == 6:
-            return super().to_db_datetime_type(precision, table_format)
-        if precision == 0:
+            return "TIMESTAMP"
+        elif precision == 0:
             return "TIMESTAMP_S"
-        if precision == 3:
+        elif precision == 3:
             return "TIMESTAMP_MS"
-        if precision == 9:
+        elif precision == 9:
             return "TIMESTAMP_NS"
-        raise TerminalValueError(
-            f"timestamp with {precision} decimals after seconds cannot be mapped into duckdb"
-            " TIMESTAMP type"
-        )
+        else:
+            raise TerminalValueError(
+                f"timestamp with {precision} decimals after seconds cannot be mapped into DuckDB"
+                " TIMESTAMP type"
+            )
 
     def from_db_type(
         self, db_type: str, precision: Optional[int], scale: Optional[int]
