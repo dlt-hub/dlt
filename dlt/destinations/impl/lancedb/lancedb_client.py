@@ -38,6 +38,7 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     TLoadJobState,
+    FollowupJob,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -155,7 +156,6 @@ def upload_batch(
     *,
     db_client: DBConnection,
     table_name: str,
-    parent_table_name: Optional[str] = None,
     write_disposition: Optional[TWriteDisposition] = "append",
     id_field_name: Optional[str] = None,
 ) -> None:
@@ -165,7 +165,6 @@ def upload_batch(
         records: The data to be inserted as payload.
         db_client: The LanceDB client connection.
         table_name: The name of the table to insert into.
-        parent_table_name: The name of the parent table, if the target table has any.
         id_field_name: The name of the ID field for update/merge operations.
         write_disposition: The write disposition - one of 'skip', 'append', 'replace', 'merge'.
 
@@ -187,7 +186,7 @@ def upload_batch(
             tbl.add(records)
         elif write_disposition == "replace":
             tbl.add(records, mode="overwrite")
-        elif write_disposition == "merge":
+        elif write_disposition in ("merge" or "upsert"):
             if not id_field_name:
                 raise ValueError(
                     "To perform a merge update, 'id_field_name' must be specified."
@@ -195,31 +194,6 @@ def upload_batch(
             tbl.merge_insert(
                 id_field_name
             ).when_matched_update_all().when_not_matched_insert_all().execute(records)
-
-            # Remove orphaned parent IDs.
-            if parent_table_name:
-                try:
-                    parent_tbl = db_client.open_table(parent_table_name)
-                    parent_tbl.checkout_latest()
-                except FileNotFoundError as e:
-                    raise DestinationTransientException(
-                        "Couldn't open lancedb database. Batch WILL BE RETRIED"
-                    ) from e
-
-                parent_ids = set(
-                    pc.unique(parent_tbl.to_arrow()["_dlt_id"]).to_pylist()
-                )
-                child_ids = set(pc.unique(tbl.to_arrow()["_dlt_parent_id"]).to_pylist())
-
-                if orphaned_ids := child_ids - parent_ids:
-                    if len(orphaned_ids) > 1:
-                        tbl.delete(
-                            "_dlt_parent_id IN"
-                            f" {tuple(orphaned_ids) if len(orphaned_ids) > 1 else orphaned_ids.pop()}"
-                        )
-                    elif len(orphaned_ids) == 1:
-                        tbl.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
-
         else:
             raise DestinationTerminalException(
                 f"Unsupported write disposition {write_disposition} for LanceDB Destination - batch"
@@ -584,7 +558,6 @@ class LanceDBClient(JobClientBase, WithStateSync):
             records,
             db_client=self.db_client,
             table_name=fq_version_table_name,
-            parent_table_name=None,
             write_disposition=write_disposition,
         )
 
@@ -845,13 +818,84 @@ class LoadLanceDBJob(LoadJob):
             records,
             db_client=db_client,
             table_name=self.fq_table_name,
-            parent_table_name=self.fq_parent_table_name,
             write_disposition=self.write_disposition,
             id_field_name=self.id_field_name,
         )
 
     def state(self) -> TLoadJobState:
         return "completed"
+
+    def exception(self) -> str:
+        raise NotImplementedError()
+
+
+class LanceDBRemoveOrphansJob(LoadJob, FollowupJob):
+    def __init__(
+        self,
+        db_client: DBConnection,
+        file_name: str,
+        table_schema: TTableSchema,
+        fq_table_name: str,
+        fq_parent_table_name: Optional[str],
+    ) -> None:
+        super().__init__(file_name)
+        self.db_client = db_client
+        self._state: TLoadJobState = "running"
+        self.table_schema: TTableSchema = table_schema
+        self.fq_table_name: str = fq_table_name
+        self.fq_parent_table_name: Optional[str] = fq_parent_table_name
+        self.write_disposition: TWriteDisposition = cast(
+            TWriteDisposition, self.table_schema.get("write_disposition", "append")
+        )
+
+    def execute(self) -> None:
+        if self.write_disposition not in ("merge" or "upsert"):
+            raise DestinationTerminalException(
+                f"Unsupported write disposition {self.write_disposition} for LanceDB Destination Orphan Removal Job - failed AND WILL **NOT** BE RETRIED."
+            )
+
+        try:
+            child_table = self.db_client.open_table(self.fq_table_name)
+            child_table.checkout_latest()
+            if self.fq_parent_table_name:
+                parent_table = self.db_client.open_table(self.fq_parent_table_name)
+                parent_table.checkout_latest()
+        except FileNotFoundError as e:
+            raise DestinationTransientException(
+                "Couldn't open lancedb database. Orphan removal WILL BE RETRIED"
+            ) from e
+
+        try:
+            # Chunks in child table.
+            if self.fq_parent_table_name:
+                parent_ids = set(
+                    pc.unique(parent_table.to_arrow()["_dlt_id"]).to_pylist()
+                )
+                child_ids = set(
+                    pc.unique(child_table.to_arrow()["_dlt_parent_id"]).to_pylist()
+                )
+
+                if orphaned_ids := child_ids - parent_ids:
+                    if len(orphaned_ids) > 1:
+                        child_table.delete(
+                            "_dlt_parent_id IN"
+                            f" {tuple(orphaned_ids) if len(orphaned_ids) > 1 else orphaned_ids.pop()}"
+                        )
+                    elif len(orphaned_ids) == 1:
+                        child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
+
+            # Chunks in root table. TODO: Add test for embeddings in root table
+            else:
+                ...
+        except ArrowInvalid as e:
+            raise DestinationTerminalException(
+                "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
+            ) from e
+
+        self._state = "completed"
+
+    def state(self) -> TLoadJobState:
+        return self._state
 
     def exception(self) -> str:
         raise NotImplementedError()
