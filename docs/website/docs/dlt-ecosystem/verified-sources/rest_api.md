@@ -755,6 +755,7 @@ Incremental loading using the `params` field:
         "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
     }
 }
+```
 
 Incremental loading using the `incremental` field:
 ```py
