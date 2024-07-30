@@ -117,18 +117,17 @@ def test_big_loadpackages() -> None:
     """
 
     load = setup_loader()
-    # make the loop faster
-    load._run_loop_sleep_duration = 0.1
-    load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
+    # make the loop faster by basically not sleeping
+    load._run_loop_sleep_duration = 0.001
+    load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=5000)
     start_time = time()
     with ThreadPoolExecutor(max_workers=20) as pool:
         load.run(pool)
     duration = float(time() - start_time)
 
     # sanity check
-    assert duration > 5
-
-    # we want 1000 empty processed jobs to need less than 15 seconds total (locally it runs in 10)
+    assert duration > 3
+    # we want 1000 empty processed jobs to need less than 15 seconds total (locally it runs in 5)
     assert duration < 15
 
     # we should have 1000 jobs processed
