@@ -3,6 +3,8 @@ import os
 import posixpath
 from pathlib import Path
 from typing import Any, Callable, List, Dict, cast
+from importlib.metadata import version as pkg_version
+from packaging.version import Version
 
 from pytest_mock import MockerFixture
 import dlt
@@ -12,6 +14,7 @@ from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
+from dlt.common.exceptions import DepedencyVersionException
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -216,6 +219,29 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     with open(other_data_files[0], "rb") as f:
         table = pq.read_table(f)
         assert table.column("value").to_pylist() == [1, 2, 3, 4, 5]
+
+
+def test_delta_table_pyarrow_version_check() -> None:
+    """Tests pyarrow version checking for `delta` table format.
+
+    DepedencyVersionException should be raised if pyarrow<17.0.0.
+    """
+    # test intentionally does not use destination_configs(), because that
+    # function automatically marks `delta` table format configs as
+    # `needspyarrow17`, which should not happen for this test to run in an
+    # environment where pyarrow<17.0.0
+
+    assert Version(pkg_version("pyarrow")) < Version("17.0.0"), "test assumes `pyarrow<17.0.0`"
+
+    @dlt.resource(table_format="delta")
+    def foo():
+        yield {"foo": 1, "bar": 2}
+
+    pipeline = dlt.pipeline(destination=filesystem("file://_storage"))
+
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        pipeline.run(foo())
+    assert isinstance(pip_ex.value.__context__, DepedencyVersionException)
 
 
 @pytest.mark.essential

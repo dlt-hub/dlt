@@ -10,6 +10,8 @@ from os import environ
 from types import ModuleType
 import traceback
 import zlib
+from importlib.metadata import version as pkg_version
+from packaging.version import Version
 
 from typing import (
     Any,
@@ -29,7 +31,12 @@ from typing import (
     Iterable,
 )
 
-from dlt.common.exceptions import DltException, ExceptionTrace, TerminalException
+from dlt.common.exceptions import (
+    DltException,
+    ExceptionTrace,
+    TerminalException,
+    DepedencyVersionException,
+)
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
@@ -565,3 +572,14 @@ def order_deduped(lst: List[Any]) -> List[Any]:
     Only works for lists with hashable elements.
     """
     return list(dict.fromkeys(lst))
+
+
+def assert_min_pkg_version(pkg_name: str, version: str, msg: str = "") -> None:
+    version_found = pkg_version(pkg_name)
+    if Version(version_found) < Version(version):
+        raise DepedencyVersionException(
+            pkg_name=pkg_name,
+            version_found=version_found,
+            version_required=">=" + version,
+            appendix=msg,
+        )
