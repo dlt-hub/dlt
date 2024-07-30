@@ -2772,8 +2772,8 @@ def test_column_hint_timezone_enabled() -> None:
             if row[0] == "event_tstamp":
                 timestamp_type = row[1]
                 break
-    # TODO: duckdb typemapper isn't working as expected
-    assert timestamp_type == "TIMESTAMPTZ"
+
+    assert timestamp_type == "TIMESTAMP WITH TIME ZONE"
 
     # fetch data from DuckDB
     with pipeline.sql_client() as client:
@@ -2799,6 +2799,18 @@ def test_column_hint_timezone_empty() -> None:
 
     pipeline.run(events(), table_name="events")
 
+    # fetch the table definition from the DuckDB
+    with pipeline.sql_client() as client:
+        table_info = client.execute_sql("DESCRIBE events")
+        timestamp_type = None
+        for row in table_info:
+            if row[0] == "event_tstamp":
+                timestamp_type = row[1]
+                break
+
+    assert timestamp_type == "TIMESTAMP"
+
+    # fetch data from DuckDB
     with pipeline.sql_client() as client:
         rows = client.execute_sql("SELECT event_tstamp FROM events ORDER BY event_id")
 

@@ -88,9 +88,9 @@ class DuckDbTypeMapper(TypeMapper):
         precision: Optional[int],
         table_format: TTableFormat = None,
     ) -> str:
-        # TIMESTAMP and TIMESTAMPTZ supports microsecond precision
+        # TIMESTAMP and TIMESTAMPTZ(TIMESTAMP WITH TIME ZONE) supports microsecond precision
         if timezone:
-            return "TIMESTAMPTZ"
+            return "TIMESTAMP WITH TIME ZONE"
 
         if precision is None or precision == 6:
             return "TIMESTAMP"
