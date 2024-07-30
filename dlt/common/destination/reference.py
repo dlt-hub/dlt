@@ -352,6 +352,7 @@ class RunnableLoadJob(LoadJob, ABC):
         # filepath is now moved to running
         try:
             self._state = "running"
+            self._job_client.prepare_load_job_execution(self)
             self.run()
             self._state = "completed"
         except (DestinationTerminalException, TerminalValueError) as e:
@@ -454,6 +455,10 @@ class JobClientBase(ABC):
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Creates a load job for a particular `table` with content in `file_path`"""
+        pass
+
+    def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
+        """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
         pass
 
     def should_truncate_table_before_load(self, table: TTableSchema) -> bool:

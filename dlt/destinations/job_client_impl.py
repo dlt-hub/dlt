@@ -256,7 +256,6 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         self, table: TTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
-        self._set_query_tags_for_job(load_id, table)
         if SqlLoadJob.is_sql_job(file_path):
             # create sql load job
             return SqlLoadJob(file_path)
@@ -654,6 +653,9 @@ WHERE """
             for exception in exceptions:
                 logger.error(str(exception))
             raise exceptions[0]
+
+    def prepare_load_job_execution(self, job: RunnableLoadJob) -> None:
+        self._set_query_tags_for_job(load_id=job._load_id, table=job._load_table)
 
     def _set_query_tags_for_job(self, load_id: str, table: TTableSchema) -> None:
         """Sets query tags in sql_client for a job in package `load_id`, starting for a particular `table`"""
