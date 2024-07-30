@@ -722,8 +722,12 @@ class Pipeline(SupportsPipeline):
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
             )
-            self.normalize(loader_file_format=loader_file_format, extracted_count=extract_info.total_rows_count if extract_info else None)
+            self.normalize(
+                loader_file_format=loader_file_format,
+                extracted_count=extract_info.total_rows_count if extract_info else None,
+            )
             return self.load(destination, dataset_name, credentials=credentials)
+        return None
 
     @with_schemas_sync
     def sync_destination(

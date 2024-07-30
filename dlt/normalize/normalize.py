@@ -48,7 +48,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(
         self,
-        extracted_count: int,
+        extracted_count: Optional[int] = None,
         collector: Collector = NULL_COLLECTOR,
         schema_storage: SchemaStorage = None,
         config: NormalizeConfiguration = config.value,
@@ -141,7 +141,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         # schedule the task again
                         schema_dict = schema.to_dict()
                         # TODO: it's time for a named tuple
-                        params = params[:3] + (schema_dict,) + params[4:] + (self.collector,)
+                        params = params[:3] + (schema_dict,) + params[4:]
                         retry_pending: Future[TWorkerRV] = self.pool.submit(
                             w_normalize_files, *params
                         )
