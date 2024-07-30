@@ -38,7 +38,7 @@ from dlt.common.destination.reference import (
     StorageSchemaInfo,
     StateInfo,
     TLoadJobState,
-    FollowupJob,
+    NewLoadJob,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -49,7 +49,7 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
 )
 from dlt.common.schema.utils import get_columns_names_with_prop
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
@@ -70,7 +70,7 @@ from dlt.destinations.impl.lancedb.utils import (
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
-from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -756,6 +756,33 @@ class LanceDBClient(JobClientBase, WithStateSync):
             ),
         )
 
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[TTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[NewLoadJob]:
+        assert completed_table_chain_jobs is not None
+        jobs = super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
+
+        for table in table_chain:
+            parent_table = table.get("parent")
+            jobs.append(
+                LanceDBRemoveOrphansJob(
+                    db_client=self.db_client,
+                    table_schema=self.prepare_load_table(table["name"]),
+                    fq_table_name=self.make_qualified_table_name(table["name"]),
+                    fq_parent_table_name=(
+                        self.make_qualified_table_name(parent_table)
+                        if parent_table
+                        else None
+                    ),
+                )
+            )
+
+        return jobs
+
     def table_exists(self, table_name: str) -> bool:
         return table_name in self.db_client.table_names()
 
@@ -829,24 +856,32 @@ class LoadLanceDBJob(LoadJob):
         raise NotImplementedError()
 
 
-class LanceDBRemoveOrphansJob(LoadJob, FollowupJob):
+class LanceDBRemoveOrphansJob(NewReferenceJob):
     def __init__(
         self,
         db_client: DBConnection,
-        file_name: str,
         table_schema: TTableSchema,
         fq_table_name: str,
         fq_parent_table_name: Optional[str],
     ) -> None:
-        super().__init__(file_name)
         self.db_client = db_client
-        self._state: TLoadJobState = "running"
+
+        ref_file_name = ParsedLoadJobFileName(
+            table_schema["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
+        ).file_name()
+        super().__init__(
+            file_name=ref_file_name,
+            status="running",
+        )
+
         self.table_schema: TTableSchema = table_schema
         self.fq_table_name: str = fq_table_name
         self.fq_parent_table_name: Optional[str] = fq_parent_table_name
         self.write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self.table_schema.get("write_disposition", "append")
         )
+
+        self.execute()
 
     def execute(self) -> None:
         if self.write_disposition not in ("merge" or "upsert"):
@@ -885,6 +920,7 @@ class LanceDBRemoveOrphansJob(LoadJob, FollowupJob):
                         child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
 
             # Chunks in root table. TODO: Add test for embeddings in root table
+            # TODO: Add unit tests with simple data
             else:
                 ...
         except ArrowInvalid as e:
@@ -892,10 +928,5 @@ class LanceDBRemoveOrphansJob(LoadJob, FollowupJob):
                 "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."
             ) from e
 
-        self._state = "completed"
-
     def state(self) -> TLoadJobState:
-        return self._state
-
-    def exception(self) -> str:
-        raise NotImplementedError()
+        return "completed"
