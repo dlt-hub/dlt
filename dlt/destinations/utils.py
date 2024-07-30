@@ -1,4 +1,6 @@
 import re
+import inspect
+
 from typing import Any, List, Optional, Tuple
 
 from dlt.common import logger
@@ -19,16 +21,24 @@ from dlt.extract import DltResource, resource as make_resource, DltSource
 RE_DATA_TYPE = re.compile(r"([A-Z]+)\((\d+)(?:,\s?(\d+))?\)")
 
 
-def ensure_resource(data: Any) -> DltResource:
-    """Wraps `data` in a DltResource if it's not a DltResource already."""
+def get_resource_for_adapter(data: Any) -> DltResource:
+    """
+    Helper function for adapters. Wraps `data` in a DltResource if it's not a DltResource already.
+    Alternatively if `data` is a DltSource, throws an error if there are multiple resource in the source
+    or returns the single resource if available.
+    """
     if isinstance(data, DltResource):
         return data
     # prevent accidentally wrapping sources with adapters
     if isinstance(data, DltSource):
-        raise Exception(
-            "You are trying to use an adapter on a dlt source. You can only use adapters on pure"
-            " data or dlt resources."
-        )
+        if len(data.resources.keys()) == 1:
+            return list(data.resources.values())[0]
+        else:
+            raise Exception(
+                "You are trying to use an adapter on a DltSource with multiple resources. You can"
+                " only use adapters on pure data, direclty on a DltResouce or a DltSource"
+                " containing a single DltResource."
+            )
     resource_name = None if hasattr(data, "__name__") else "content"
     return cast(DltResource, make_resource(data, name=resource_name))
 

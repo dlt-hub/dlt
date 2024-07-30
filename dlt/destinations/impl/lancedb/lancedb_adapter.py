@@ -1,7 +1,7 @@
 from typing import Any
 
 from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
-from dlt.destinations.utils import ensure_resource
+from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 
 
@@ -32,7 +32,7 @@ def lancedb_adapter(
         >>> lancedb_adapter(data, embed="description")
         [DltResource with hints applied]
     """
-    resource = ensure_resource(data)
+    resource = get_resource_for_adapter(data)
 
     column_hints: TTableSchemaColumns = {}
 
