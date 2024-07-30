@@ -2696,7 +2696,8 @@ def assert_imported_file(
 
 def test_column_hint_timezone_disabled() -> None:
     @dlt.resource(
-        columns={"ts": {"data_type": "timestamp", "timezone": False}}, primary_key="event_id"
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
+        primary_key="event_id",
     )
     def events():
         yield [
@@ -2750,7 +2751,8 @@ def test_column_hint_timezone_disabled() -> None:
 
 def test_column_hint_timezone_enabled() -> None:
     @dlt.resource(
-        columns={"ts": {"data_type": "timestamp", "timezone": True}}, primary_key="event_id"
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
+        primary_key="event_id",
     )
     def events():
         yield [
@@ -2784,7 +2786,8 @@ def test_column_hint_timezone_enabled() -> None:
 
 def test_column_hint_timezone_empty() -> None:
     @dlt.resource(
-        columns={"ts": {"data_type": "timestamp", "timezone": None}}, primary_key="event_id"
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": None}},
+        primary_key="event_id",
     )
     def events():
         yield [
