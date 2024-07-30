@@ -11,6 +11,7 @@ def test_get_resource_for_adapter() -> None:
     adapted_resource = get_resource_for_adapter(data)
     assert isinstance(adapted_resource, DltResource)
     assert list(adapted_resource) == [1, 2, 3]
+    assert adapted_resource.name == "content"
 
     # test on resource
     @dlt.resource(table_name="my_table")
@@ -19,6 +20,7 @@ def test_get_resource_for_adapter() -> None:
 
     adapted_resource = get_resource_for_adapter(some_resource)
     assert adapted_resource == some_resource
+    assert adapted_resource.name == "some_resource"
 
     # test on source with one resource
     @dlt.source

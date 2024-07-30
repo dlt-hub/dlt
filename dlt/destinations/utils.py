@@ -39,7 +39,12 @@ def get_resource_for_adapter(data: Any) -> DltResource:
                 " only use adapters on pure data, direclty on a DltResouce or a DltSource"
                 " containing a single DltResource."
             )
-    resource_name = None if hasattr(data, "__name__") else "content"
+
+    resource_name = None
+    if not hasattr(data, "__name__"):
+        logger.warning("Setting default resource name to `content` for adapted resource.")
+        resource_name = "content"
+
     return cast(DltResource, make_resource(data, name=resource_name))
 
 
