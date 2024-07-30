@@ -301,6 +301,15 @@ With dataset above and local postgres instance, connectorx is 2x faster than pya
 #### Postgres / MSSQL
 No issues found. Postgres is the only backend where we observed 2x speedup with connector x. On other db systems it performs same as `pyarrrow` backend or slower.
 
+### Notes on data types
+
+#### JSON
+JSON data type is represented as Python object for the **sqlalchemy** backend and as JSON string for the **pyarrow** backend. Currently it does not work correctly
+with **pandas** and **connector-x** which cast Python objects to str generating invalid JSON strings that cannot be loaded into destination.
+
+#### UUID
+UUIDs are represented as string by default. You can switch that behavior by using table adapter callback and modifying properties of the UUID type for a particular column.
+
 
 ## Incremental Loading
 Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.

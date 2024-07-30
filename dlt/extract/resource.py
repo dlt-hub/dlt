@@ -338,10 +338,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return self
 
     def add_limit(self: TDltResourceImpl, max_items: int) -> TDltResourceImpl:  # noqa: A003
-        """Adds a limit `max_items` to the resource pipe
+        """Adds a limit `max_items` to the resource pipe.
 
-        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging. It is
-        a no-op for transformers. Those should be limited by their input data.
+        This mutates the encapsulated generator to stop after `max_items` items are yielded. This is useful for testing and debugging.
+
+        Notes:
+            1. Transformers won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+            2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
+            3. Async resources with a limit added may occasionally produce one item more than the limit on some runs. This behavior is not deterministic.
 
         Args:
             max_items (int): The maximum number of items to yield

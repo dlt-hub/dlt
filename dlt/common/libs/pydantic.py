@@ -4,6 +4,7 @@ from copy import copy
 from typing import (
     Dict,
     Generic,
+    Optional,
     Set,
     TypedDict,
     List,
@@ -298,14 +299,16 @@ def create_list_model(
     )
 
 
-def validate_items(
+def validate_and_filter_items(
     table_name: str,
     list_model: Type[ListModel[_TPydanticModel]],
     items: List[TDataItem],
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
 ) -> List[_TPydanticModel]:
-    """Validates list of `item` with `list_model` and returns parsed Pydantic models
+    """Validates list of `item` with `list_model` and returns parsed Pydantic models. If `column_mode` and `data_mode` are set
+    this function will remove non validating items (`discard_row`) or raise on the first non-validating items (`freeze`). Note
+    that the model itself may be configured to remove non validating or extra items as well.
 
     `list_model` should be created with `create_list_model` and have `items` field which this function returns.
     """
@@ -379,17 +382,19 @@ def validate_items(
                     )
 
         # validate again with error items removed
-        return validate_items(table_name, list_model, items, column_mode, data_mode)
+        return validate_and_filter_items(table_name, list_model, items, column_mode, data_mode)
 
 
-def validate_item(
+def validate_and_filter_item(
     table_name: str,
     model: Type[_TPydanticModel],
     item: TDataItems,
     column_mode: TSchemaEvolutionMode,
     data_mode: TSchemaEvolutionMode,
-) -> _TPydanticModel:
-    """Validates `item` against model `model` and returns an instance of it"""
+) -> Optional[_TPydanticModel]:
+    """Validates `item` against model `model` and returns an instance of it. If `column_mode` and `data_mode` are set
+    this function will return None (`discard_row`) or raise on non-validating items (`freeze`). Note
+    that the model itself may be configured to remove non validating or extra items as well."""
     try:
         return model.parse_obj(item)
     except ValidationError as e:

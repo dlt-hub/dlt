@@ -1,6 +1,7 @@
 import os
 import ast
 import shutil
+import tomlkit
 from types import ModuleType
 from typing import Dict, List, Sequence, Tuple
 from importlib.metadata import version as pkg_version
@@ -488,15 +489,18 @@ def init_command(
 
     # generate tomls with comments
     secrets_prov = SecretsTomlProvider()
-    # print(secrets_prov._toml)
-    write_values(secrets_prov._toml, required_secrets.values(), overwrite_existing=False)
+    secrets_toml = tomlkit.document()
+    write_values(secrets_toml, required_secrets.values(), overwrite_existing=False)
+    secrets_prov._config_doc = secrets_toml
+
     config_prov = ConfigTomlProvider()
-    write_values(config_prov._toml, required_config.values(), overwrite_existing=False)
+    config_toml = tomlkit.document()
+    write_values(config_toml, required_config.values(), overwrite_existing=False)
+    config_prov._config_doc = config_toml
+
     # write toml files
     secrets_prov.write_toml()
     config_prov.write_toml()
-
-    # telemetry_status_command()
 
     # if there's no dependency system write the requirements file
     if dependency_system is None:

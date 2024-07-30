@@ -214,15 +214,15 @@ def test_validation_with_contracts(yield_list: bool) -> None:
     items = list(r)
     assert len(items) == 3
     # fully valid
-    assert items[0].a == 1
-    assert items[0].b == "z"
+    assert items[0]["a"] == 1
+    assert items[0]["b"] == "z"
     # data type not valid
-    assert items[1].a == "not_int"
-    assert items[1].b == "x"
+    assert items[1]["a"] == "not_int"
+    assert items[1]["b"] == "x"
     # extra attr and data invalid
-    assert items[2].a is None
-    assert items[2].b is None
-    assert items[2].c == "not_int"
+    assert items[2]["a"] is None
+    assert items[2]["b"] is None
+    assert items[2]["c"] == "not_int"
 
     # let it drop
     r = dlt.resource(some_data(), schema_contract="discard_row", columns=SimpleModel)
@@ -232,8 +232,8 @@ def test_validation_with_contracts(yield_list: bool) -> None:
     assert validator.model.__name__.endswith("ExtraForbid")
     items = list(r)
     assert len(items) == 1
-    assert items[0].a == 1
-    assert items[0].b == "z"
+    assert items[0]["a"] == 1
+    assert items[0]["b"] == "z"
 
     # filter just offending values
     with pytest.raises(NotImplementedError):
@@ -252,4 +252,4 @@ def test_validation_with_contracts(yield_list: bool) -> None:
     items = list(r)
     assert len(items) == 3
     # c is gone from the last model
-    assert not hasattr(items[2], "c")
+    assert "c" not in items[2]
