@@ -142,8 +142,7 @@ def get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
             precision = 6
         else:
             precision = 9
-
-        return dict(data_type="timestamp", precision=precision, timezone=None)
+        return dict(data_type="timestamp", precision=precision)
     elif pyarrow.types.is_date(dtype):
         return dict(data_type="date")
     elif pyarrow.types.is_time(dtype):
