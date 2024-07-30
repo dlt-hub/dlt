@@ -355,11 +355,9 @@ class RunnableLoadJob(LoadJob, ABC):
             self.run()
             self._state = "completed"
         except (DestinationTerminalException, TerminalValueError) as e:
-            logger.exception(f"Terminal problem when starting job {self.file_name}")
             self._state = "failed"
             self._exception = e
         except (DestinationTransientException, Exception) as e:
-            logger.exception(f"Temporary problem when starting job {self.file_name}")
             self._state = "retry"
             self._exception = e
         finally:
