@@ -1,7 +1,11 @@
 import os
 import dataclasses
 import logging
-from typing import List
+import sys
+import pytest
+from typing import List, Iterator
+from importlib.metadata import version as pkg_version
+from packaging.version import Version
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
@@ -142,3 +146,11 @@ def pytest_configure(config):
 
         except Exception:
             pass
+
+
+@pytest.fixture(autouse=True)
+def pyarrow17_check(request) -> Iterator[None]:
+    if "needspyarrow17" in request.keywords:
+        if "pyarrow" not in sys.modules or Version(pkg_version("pyarrow")) < Version("17.0.0"):
+            pytest.skip("test needs `pyarrow>=17.0.0`")
+    yield
