@@ -2672,6 +2672,8 @@ def assert_imported_file(
 # - - TIMESTAMP ignores TimeZone session but still converts all timestamps with timezones to UTC
 # - - TIMEDTAMPTZ uses TimeZone session to convert timestamps, and store TimeZone as part of the value
 
+# - Parquet the timezone is a flag stored separately from the timestamp value (it does not affect timestamp values)
+
 
 # TEST_1 duckdb TIMESTAMP, dlt TIMEZONE disabled
 #
@@ -2694,7 +2696,7 @@ def assert_imported_file(
 # └──────────┴────────────────────────────┘
 
 
-def test_column_hint_timezone_disabled() -> None:
+def test_duckdb_column_hint_timezone_disabled() -> None:
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
         primary_key="event_id",
@@ -2749,7 +2751,7 @@ def test_column_hint_timezone_disabled() -> None:
 # └──────────┴───────────────────────────────┘
 
 
-def test_column_hint_timezone_enabled() -> None:
+def test_duckdb_column_hint_timezone_enabled() -> None:
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
         primary_key="event_id",
@@ -2784,7 +2786,7 @@ def test_column_hint_timezone_enabled() -> None:
     assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
 
 
-def test_column_hint_timezone_empty() -> None:
+def test_duckdb_column_hint_timezone_empty() -> None:
     @dlt.resource(
         columns={"event_tstamp": {"data_type": "timestamp", "timezone": None}},
         primary_key="event_id",
@@ -2817,3 +2819,105 @@ def test_column_hint_timezone_empty() -> None:
     values = [r[0].strftime("%Y-%m-%dT%H:%M:%S.%f") for r in rows]
 
     assert values == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+
+
+def test_filesystem_column_hint_timezone() -> None:
+    import pyarrow.parquet as pq
+    import posixpath
+
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "_storage"
+
+    # talbe: events_timezone_off
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": False}},
+        primary_key="event_id",
+    )
+    def events_timezone_off():
+        yield [
+            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+        ]
+
+    # talbe: events_timezone_on
+    @dlt.resource(
+        columns={"event_tstamp": {"data_type": "timestamp", "timezone": True}},
+        primary_key="event_id",
+    )
+    def events_timezone_on():
+        yield [
+            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+        ]
+
+    # talbe: events_timezone_unset
+    @dlt.resource(
+        primary_key="event_id",
+    )
+    def events_timezone_unset():
+        yield [
+            {"event_id": 1, "event_tstamp": "2024-07-30T10:00:00.123+00:00"},
+            {"event_id": 2, "event_tstamp": "2024-07-30T10:00:00.123456+02:00"},
+        ]
+
+    pipeline = dlt.pipeline(destination="filesystem")
+
+    pipeline.run(
+        [events_timezone_off(), events_timezone_on(), events_timezone_unset()],
+        loader_file_format="parquet",
+    )
+
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+
+    # table: events_timezone_off
+    events_glob = posixpath.join(client.dataset_path, "events_timezone_off/*")
+    events_files = client.fs_client.glob(events_glob)
+
+    with open(events_files[0], "rb") as f:
+        table = pq.read_table(f)
+
+        # convert the timestamps to strings
+        timestamps = [
+            ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
+        ]
+        assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+
+        # check if the Parquet file contains timezone information
+        schema = table.schema
+        field = schema.field("event_tstamp")
+        assert field.type.tz is None
+
+    # table: events_timezone_on
+    events_glob = posixpath.join(client.dataset_path, "events_timezone_on/*")
+    events_files = client.fs_client.glob(events_glob)
+
+    with open(events_files[0], "rb") as f:
+        table = pq.read_table(f)
+
+        # convert the timestamps to strings
+        timestamps = [
+            ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
+        ]
+        assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+
+        # check if the Parquet file contains timezone information
+        schema = table.schema
+        field = schema.field("event_tstamp")
+        assert field.type.tz == "UTC"
+
+    # table: events_timezone_unset
+    events_glob = posixpath.join(client.dataset_path, "events_timezone_unset/*")
+    events_files = client.fs_client.glob(events_glob)
+
+    with open(events_files[0], "rb") as f:
+        table = pq.read_table(f)
+
+        # convert the timestamps to strings
+        timestamps = [
+            ts.as_py().strftime("%Y-%m-%dT%H:%M:%S.%f") for ts in table.column("event_tstamp")
+        ]
+        assert timestamps == ["2024-07-30T10:00:00.123000", "2024-07-30T08:00:00.123456"]
+
+        # check if the Parquet file contains timezone information
+        schema = table.schema
+        field = schema.field("event_tstamp")
+        assert field.type.tz == "UTC"
