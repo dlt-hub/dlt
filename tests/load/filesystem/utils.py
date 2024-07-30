@@ -54,7 +54,7 @@ def perform_load(
     try:
         jobs = []
         for f in files:
-            job = load.start_job(f, load_id, schema)
+            job = load.submit_job(f, load_id, schema)
             # job execution failed
             if isinstance(job, FinalizedLoadJobWithFollowupJobs):
                 raise RuntimeError(job.exception())

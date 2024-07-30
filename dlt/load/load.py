@@ -49,6 +49,8 @@ from dlt.load.exceptions import (
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
     LoadClientJobException,
+    FollowupJobCreationFailedException,
+    TableChainFollowupJobCreationFailedException,
 )
 from dlt.load.utils import (
     _extend_tables_with_table_chain,
@@ -133,7 +135,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         else:
             yield
 
-    def start_job(
+    def submit_job(
         self, file_path: str, load_id: str, schema: Schema, restore: bool = False
     ) -> LoadJob:
         job: LoadJob = None
@@ -268,7 +270,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         logger.info(f"Will load additional {len(load_files)}, creating jobs")
         started_jobs: List[LoadJob] = []
         for file in load_files:
-            job = self.start_job(file, load_id, schema)
+            job = self.submit_job(file, load_id, schema)
             started_jobs.append(job)
 
         return started_jobs
@@ -287,7 +289,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             return jobs
 
         for file_path in started_jobs:
-            job = self.start_job(file_path, load_id, schema, restore=True)
+            job = self.submit_job(file_path, load_id, schema, restore=True)
             jobs.append(job)
 
         return jobs
@@ -305,6 +307,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         for jobs marked as having followup jobs, find them all and store them to the new jobs folder
         where they will be picked up for execution
         """
+
         jobs: List[FollowupJob] = []
         if isinstance(starting_job, HasFollowupJobs):
             # check for merge jobs only for jobs executing on the destination, the staging destination jobs must be excluded
@@ -334,12 +337,20 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         # job being completed is still in started_jobs
                         and job_state[0] in ("completed_jobs", "started_jobs")
                     ]
+                    try:
+                        if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
+                            table_chain, table_chain_jobs
+                        ):
+                            jobs = jobs + follow_up_jobs
+                    except Exception as e:
+                        raise TableChainFollowupJobCreationFailedException(
+                            root_table_name=table_chain[0]["name"]
+                        ) from e
 
-                    if follow_up_jobs := client.create_table_chain_completed_followup_jobs(
-                        table_chain, table_chain_jobs
-                    ):
-                        jobs = jobs + follow_up_jobs
-            jobs = jobs + starting_job.create_followup_jobs(state)
+            try:
+                jobs = jobs + starting_job.create_followup_jobs(state)
+            except Exception as e:
+                raise FollowupJobCreationFailedException(job_id=starting_job.job_id()) from e
 
         # import all followup jobs to the new jobs folder
         for followup_job in jobs:

@@ -177,6 +177,8 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
 
         # if sql job follow up is configure we schedule a merge job that will always fail
+        if self.config.fail_table_chain_followup_job_creation:
+            raise Exception("Failed to create table chain followup job")
         if self.config.create_followup_table_chain_sql_jobs:
             return [SqlMergeFollowupJob.from_table_chain(table_chain, self)]  # type: ignore
         if self.config.create_followup_table_chain_reference_jobs:

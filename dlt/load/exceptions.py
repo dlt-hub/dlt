@@ -55,3 +55,18 @@ class LoadClientUnsupportedWriteDisposition(DestinationTerminalException):
             f"Loader does not support {write_disposition} in table {table_name} when loading file"
             f" {file_name}"
         )
+
+
+class FollowupJobCreationFailedException(DestinationTransientException):
+    def __init__(self, job_id: str) -> None:
+        self.job_id = job_id
+        super().__init__(f"Failed to create followup job for job with id {job_id}")
+
+
+class TableChainFollowupJobCreationFailedException(DestinationTransientException):
+    def __init__(self, root_table_name: str) -> None:
+        self.root_table_name = root_table_name
+        super().__init__(
+            "Failed creating table chain followup jobs for table chain with root table"
+            f" {root_table_name}."
+        )

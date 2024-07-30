@@ -23,7 +23,12 @@ from dlt.destinations.impl.dummy import dummy as dummy_impl
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
 from dlt.load import Load
-from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
+from dlt.load.exceptions import (
+    LoadClientJobFailed,
+    LoadClientJobRetry,
+    TableChainFollowupJobCreationFailedException,
+    FollowupJobCreationFailedException,
+)
 from dlt.load.utils import get_completed_table_chain, init_client, _extend_tables_with_table_chain
 
 from tests.utils import (
@@ -64,7 +69,7 @@ def test_spool_job_started() -> None:
     assert len(files) == 2
     jobs: List[RunnableLoadJob] = []
     for f in files:
-        job = load.start_job(f, load_id, schema)
+        job = load.submit_job(f, load_id, schema)
         assert job.state() == "completed"
         assert type(job) is dummy_impl.LoadDummyJob
         # jobs runs, but is not moved yet (loader will do this)
@@ -187,7 +192,7 @@ def test_spool_job_failed() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[RunnableLoadJob] = []
     for f in files:
-        job = load.start_job(f, load_id, schema)
+        job = load.submit_job(f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
         assert job.state() == "failed"
         assert load.load_storage.normalized_packages.storage.has_file(
@@ -283,7 +288,7 @@ def test_spool_job_retry_new() -> None:
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     for f in files:
-        job = load.start_job(f, load_id, schema)
+        job = load.submit_job(f, load_id, schema)
         assert job.state() == "retry"
 
 
@@ -306,7 +311,7 @@ def test_spool_job_retry_started() -> None:
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[RunnableLoadJob] = []
     for f in files:
-        job = load.start_job(f, load_id, schema)
+        job = load.submit_job(f, load_id, schema)
         assert type(job) is dummy_impl.LoadDummyJob
         assert job.state() == "completed"
         # mock job state to make it retry
@@ -335,7 +340,7 @@ def test_spool_job_retry_started() -> None:
 
     # this time it will pass
     for f in files:
-        job = load.start_job(f, load_id, schema)
+        job = load.submit_job(f, load_id, schema)
         assert job.state() == "completed"
 
 
@@ -391,7 +396,7 @@ def test_failing_followup_jobs() -> None:
             completed_prob=1.0, create_followup_jobs=True, fail_followup_job_creation=True
         )
     )
-    with pytest.raises(Exception) as exc:
+    with pytest.raises(FollowupJobCreationFailedException) as exc:
         assert_complete_job(load)
         # follow up job errors on main thread
     assert "Failed to create followup job" in str(exc)
@@ -409,6 +414,38 @@ def test_failing_followup_jobs() -> None:
     assert_complete_job(load, load_id=load_id)
     assert len(dummy_impl.JOBS) == 2 * 2
     assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
+    assert len(dummy_impl.RETRIED_JOBS) == 2
+
+
+def test_failing_table_chain_followup_jobs() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(
+            completed_prob=1.0,
+            create_followup_table_chain_reference_jobs=True,
+            fail_table_chain_followup_job_creation=True,
+        )
+    )
+    with pytest.raises(TableChainFollowupJobCreationFailedException) as exc:
+        assert_complete_job(load)
+        # follow up job errors on main thread
+    assert (
+        "Failed creating table chain followup jobs for table chain with root table event_user"
+        in str(exc)
+    )
+
+    # table chain followup job fails, we have both jobs in started folder
+    load_id = list(dummy_impl.JOBS.values())[1]._load_id
+    started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
+    assert len(started_files) == 2
+    assert len(dummy_impl.JOBS) == 2
+    assert len(dummy_impl.RETRIED_JOBS) == 0
+    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+
+    # now we can retry the same load, it will restart the two jobs and successfully create the table chain followup jobs
+    load.initial_client_config.fail_table_chain_followup_job_creation = False  # type: ignore
+    assert_complete_job(load, load_id=load_id)
+    assert len(dummy_impl.JOBS) == 2 * 2
+    assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS) * 2
     assert len(dummy_impl.RETRIED_JOBS) == 2
 
 

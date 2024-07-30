@@ -39,7 +39,9 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     create_followup_jobs: bool = False
     """create followup job for individual jobs"""
     fail_followup_job_creation: bool = False
-    """Raise generic exception during followjob creation"""
+    """Raise generic exception during followupjob creation"""
+    fail_table_chain_followup_job_creation: bool = False
+    """Raise generic exception during tablechain followupjob creation"""
     create_followup_table_chain_sql_jobs: bool = False
     """create a table chain merge job which is guaranteed to fail"""
     create_followup_table_chain_reference_jobs: bool = False
