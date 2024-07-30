@@ -746,14 +746,15 @@ If you need to transform the values in the cursor field before passing them to t
 In the following examples, `1704067200` is returned from the API in the field `updated_at` but the API will be called with `?created_since=2024-01-01`.
 
 Incremental loading using the `params` field:
-  ```py
-  "created_since": {
-      "type": "incremental",
-      "cursor_path": "updated_at",
-      "initial_value": "1704067200",
-      "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
-  },
-  ```
+```py
+{
+    "created_since": {
+        "type": "incremental",
+        "cursor_path": "updated_at",
+        "initial_value": "1704067200",
+        "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+    }
+}
 
 Incremental loading using the `incremental` field:
 ```py
