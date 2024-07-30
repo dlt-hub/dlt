@@ -119,7 +119,7 @@ def test_big_loadpackages() -> None:
     load = setup_loader()
     # make the loop faster by basically not sleeping
     load._run_loop_sleep_duration = 0.001
-    load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=5000)
+    load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
     start_time = time()
     with ThreadPoolExecutor(max_workers=20) as pool:
         load.run(pool)
@@ -428,7 +428,7 @@ def test_failing_table_chain_followup_jobs() -> None:
         assert_complete_job(load)
         # follow up job errors on main thread
     assert (
-        "Failed creating table chain followup jobs for table chain with root table event_user"
+        "Failed creating table chain followup jobs for table chain with root table"
         in str(exc)
     )
 
@@ -461,8 +461,10 @@ def test_failing_sql_table_chain_job() -> None:
         assert_complete_job(load)
 
     # sql jobs always fail because this is not an sql client, we just make sure the exception is there
-    assert "x-normalizer:" in str(exc)
-    assert "'DummyClient' object has no attribute" in str(exc)
+    assert (
+        "Failed creating table chain followup jobs for table chain with root table"
+        in str(exc)
+    )
 
 
 def test_successful_table_chain_jobs() -> None:

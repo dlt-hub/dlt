@@ -457,9 +457,9 @@ class JobClientBase(ABC):
         """Creates a load job for a particular `table` with content in `file_path`"""
         pass
 
-    def prepare_load_job_execution(
+    def prepare_load_job_execution(  # noqa: B027, optional override
         self, job: RunnableLoadJob
-    ) -> None:  # noqa: B027, optional override
+    ) -> None:
         """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
         pass
 

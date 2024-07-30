@@ -210,6 +210,7 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     venv = Venv.restore_current()
     with pytest.raises(CalledProcessError) as cpe:
         print(venv.run_script("chess_pipeline.py"))
+    assert "Dummy job status raised exception" in cpe.value.stdout
 
     # move job into running folder manually
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -219,7 +220,6 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     load_storage.normalized_packages.start_job(
         load_id, FileStorage.get_file_name_from_file_path(job)
     )
-    assert "Dummy job status raised exception" in cpe.value.stdout
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
