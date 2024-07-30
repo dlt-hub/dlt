@@ -1,11 +1,11 @@
 import os
 import pytest
-import tomlkit
-from typing import Any, Type
+import yaml
+from typing import Any, Dict, Type
 import datetime  # noqa: I251
 
 import dlt
-from dlt.common import pendulum, Decimal
+from dlt.common import pendulum, json
 from dlt.common.configuration import configspec, ConfigFieldMissingException, resolve
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import with_config
@@ -14,7 +14,8 @@ from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     CONFIG_TOML,
-    BaseTomlProvider,
+    BaseDocProvider,
+    CustomLoaderDocProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
     StringTomlProvider,
@@ -54,8 +55,8 @@ class EmbeddedWithGcpCredentials(BaseConfiguration):
 def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContext) -> None:
     # remove secret_value to trigger exception
 
-    del toml_providers["secrets.toml"]._toml["secret_value"]  # type: ignore[attr-defined]
-    del toml_providers["secrets.toml"]._toml["credentials"]  # type: ignore[attr-defined]
+    del toml_providers["secrets.toml"]._config_doc["secret_value"]  # type: ignore[attr-defined]
+    del toml_providers["secrets.toml"]._config_doc["credentials"]  # type: ignore[attr-defined]
 
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(SecretConfiguration())
@@ -208,8 +209,8 @@ def test_secrets_toml_credentials_from_native_repr(
     environment: Any, toml_providers: ConfigProvidersContext
 ) -> None:
     # cfg = toml_providers["secrets.toml"]
-    # print(cfg._toml)
-    # print(cfg._toml["source"]["credentials"])
+    # print(cfg._config_doc)
+    # print(cfg._config_doc["source"]["credentials"])
     # resolve gcp_credentials by parsing initial value which is str holding json doc
     c = resolve.resolve_configuration(
         GcpServiceAccountCredentialsWithoutDefaults(), sections=("source",)
@@ -263,7 +264,8 @@ def test_toml_global_config() -> None:
     # create instance with global toml enabled
     config = ConfigTomlProvider(add_global_config=True)
     assert config._add_global_config is True
-    assert isinstance(config._toml, tomlkit.TOMLDocument)
+    assert isinstance(config._config_doc, dict)
+    assert len(config._config_doc) > 0
     # kept from global
     v, key = config.get_value("dlthub_telemetry", bool, None, "runtime")
     assert v is False
@@ -278,15 +280,14 @@ def test_toml_global_config() -> None:
     assert v == "a"
 
     secrets = SecretsTomlProvider(add_global_config=True)
-    assert isinstance(secrets._toml, tomlkit.TOMLDocument)
     assert secrets._add_global_config is True
     # check if values from project exist
     secrets_project = SecretsTomlProvider(add_global_config=False)
-    assert secrets._toml == secrets_project._toml
+    assert secrets._config_doc == secrets_project._config_doc
 
 
 def test_write_value(toml_providers: ConfigProvidersContext) -> None:
-    provider: BaseTomlProvider
+    provider: BaseDocProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not provider.is_writable:
             continue
@@ -298,7 +299,10 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         assert provider.get_value("_new_key_literal", TAny, None) == ("literal", "_new_key_literal")
         # this will create path of tables
         provider.set_value("deep_int", 2137, "deep_pipeline", "deep", "deep", "deep", "deep")
-        assert provider._toml["deep_pipeline"]["deep"]["deep"]["deep"]["deep"]["deep_int"] == 2137  # type: ignore[index]
+        assert (
+            provider._config_doc["deep_pipeline"]["deep"]["deep"]["deep"]["deep"]["deep_int"]
+            == 2137
+        )
         assert provider.get_value(
             "deep_int", TAny, "deep_pipeline", "deep", "deep", "deep", "deep"
         ) == (2137, "deep_pipeline.deep.deep.deep.deep.deep_int")
@@ -326,9 +330,6 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
             [1, 2, 3, 4],
             "deep.deep.deep.deep_list",
         )
-        # invalid type
-        with pytest.raises(ValueError):
-            provider.set_value("deep_decimal", Decimal("1.2"), None, "deep", "deep", "deep", "deep")
 
         # write new dict to a new key
         test_d1 = {"key": "top", "embed": {"inner": "bottom", "inner_2": True}}
@@ -371,66 +372,96 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         # write configuration
         pool = PoolRunnerConfiguration(pool_type="none", workers=10)
         provider.set_value("runner_config", dict(pool), "new_pipeline")
-        # print(provider._toml["new_pipeline"]["runner_config"].as_string())
+        # print(provider._config_doc["new_pipeline"]["runner_config"].as_string())
         expected_pool = dict(pool)
         # None is removed
         expected_pool.pop("start_method")
-        assert provider._toml["new_pipeline"]["runner_config"] == expected_pool  # type: ignore[index]
-
-        # dict creates only shallow dict so embedded credentials will fail
-        creds = WithCredentialsConfiguration()
-        creds.credentials = SecretCredentials(secret_value=TSecretValue("***** ***"))
-        with pytest.raises(ValueError):
-            provider.set_value("written_creds", dict(creds), None)
+        assert provider._config_doc["new_pipeline"]["runner_config"] == expected_pool
 
 
-def test_write_toml_value(toml_providers: ConfigProvidersContext) -> None:
-    provider: BaseTomlProvider
+def test_set_spec_value(toml_providers: ConfigProvidersContext) -> None:
+    provider: BaseDocProvider
     for provider in toml_providers.providers:  # type: ignore[assignment]
         if not provider.is_writable:
             continue
+        provider._config_doc = {}
+        # dict creates only shallow dict so embedded credentials will fail
+        creds = WithCredentialsConfiguration()
+        credentials = SecretCredentials(secret_value=TSecretValue("***** ***"))
+        creds.credentials = credentials
 
-        new_doc = tomlkit.parse("""
-int_val=2232
+        # use dataclass to dict to recursively convert base config to dict
+        import dataclasses
+
+        provider.set_value("written_creds", dataclasses.asdict(creds), None)
+        # resolve config
+        resolved_config = resolve.resolve_configuration(
+            WithCredentialsConfiguration(), sections=("written_creds",)
+        )
+        assert resolved_config.credentials.secret_value == "***** ***"
+
+
+def test_set_fragment(toml_providers: ConfigProvidersContext) -> None:
+    provider: BaseDocProvider
+    for provider in toml_providers.providers:  # type: ignore[assignment]
+        if not isinstance(provider, BaseDocProvider):
+            continue
+        new_toml = """
+int_val = 2232
 
 [table]
-inner_int_val=2121
-        """)
+inner_int_val = 2121
+"""
 
         # key == None replaces the whole document
-        provider.set_value(None, new_doc, None)
-        assert provider._toml == new_doc
+        provider.set_fragment(None, new_toml, None)
+        print(provider.to_yaml())
+        assert provider.to_toml().strip() == new_toml.strip()
+        val, _ = provider.get_value("table", dict, None)
+        assert val is not None
 
         # key != None merges documents
-        to_merge_doc = tomlkit.parse("""
-int_val=2137
+        to_merge_yaml = """
+int_val: 2137
 
-[babble]
-word1="do"
-word2="you"
+babble:
+    word1: do
+    word2: you
 
-        """)
-        provider.set_value("", to_merge_doc, None)
-        merged_doc = tomlkit.parse("""
-int_val=2137
-
-[babble]
-word1="do"
-word2="you"
+"""
+        provider.set_fragment("", to_merge_yaml, None)
+        merged_doc = """
+int_val = 2137
 
 [table]
-inner_int_val=2121
+inner_int_val = 2121
 
-        """)
-    assert provider._toml == merged_doc
+[babble]
+word1 = "do"
+word2 = "you"
+
+"""
+    assert provider.to_toml().strip() == merged_doc.strip()
 
     # currently we ignore the key when merging tomlkit
-    provider.set_value("level", to_merge_doc, None)
-    assert provider._toml == merged_doc
+    provider.set_fragment("level", to_merge_yaml, None)
+    assert provider.to_toml().strip() == merged_doc.strip()
 
-    # only toml accepted with empty key
+    # use JSON: empty key replaces dict
+    provider.set_fragment(None, json.dumps({"prop1": "A", "nested": {"propN": "N"}}), None)
+    assert provider._config_doc == {"prop1": "A", "nested": {"propN": "N"}}
+    # key cannot be empty for set_value
     with pytest.raises(ValueError):
-        provider.set_value(None, {}, None)
+        provider.set_value(None, "VAL", None)
+    # dict always merges from the top level doc, ignoring the key
+    provider.set_fragment(
+        "nested", json.dumps({"prop2": "B", "nested": {"prop3": "C"}, "prop1": ""}), None
+    )
+    assert provider._config_doc == {
+        "prop2": "B",
+        "nested": {"propN": "N", "prop3": "C"},
+        "prop1": "",
+    }
 
 
 def test_toml_string_provider() -> None:
@@ -466,3 +497,33 @@ key1 = \"other_value\"
 [section2.subsection]
 key1 = \"other_value\"
 """
+
+
+def test_custom_loader(toml_providers: ConfigProvidersContext) -> None:
+    def loader() -> Dict[str, Any]:
+        with open("tests/common/cases/configuration/config.yml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    # remove all providers
+    toml_providers.providers.clear()
+    # create new provider
+    provider = CustomLoaderDocProvider("yaml", loader, True)
+    assert provider.name == "yaml"
+    assert provider.supports_secrets is True
+    assert provider.to_toml().startswith("[destination]")
+    assert provider.to_yaml().startswith("destination:")
+    value, _ = provider.get_value("datetime", datetime.datetime, None, "data_types")
+    assert value == pendulum.parse("1979-05-27 07:32:00-08:00")
+
+    # add to context
+    toml_providers.add_provider(provider)
+
+    # resolve one of configs
+    config = resolve.resolve_configuration(
+        ConnectionStringCredentials(),
+        sections=(
+            "destination",
+            "postgres",
+        ),
+    )
+    assert config.username == "dlt-loader"

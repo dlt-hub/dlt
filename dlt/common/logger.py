@@ -34,11 +34,11 @@ def metrics(name: str, extra: Mapping[str, Any], stacklevel: int = 1) -> None:
 
 
 @contextlib.contextmanager
-def suppress_and_warn() -> Iterator[None]:
+def suppress_and_warn(msg: str) -> Iterator[None]:
     try:
         yield
     except Exception:
-        LOGGER.warning("Suppressed exception", exc_info=True)
+        LOGGER.warning(msg, exc_info=True)
 
 
 def is_logging() -> bool:

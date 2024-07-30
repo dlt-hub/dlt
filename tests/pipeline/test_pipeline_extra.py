@@ -3,6 +3,8 @@ import importlib.util
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
 import pytest
 
+from dlt.pipeline.exceptions import PipelineStepFailed
+
 try:
     from pydantic import BaseModel
     from dlt.common.libs.pydantic import DltConfig
@@ -235,6 +237,35 @@ def test_mark_hints_pydantic_columns() -> None:
     assert table["columns"]["user_id"]["data_type"] == "bigint"
     assert table["columns"]["user_id"]["primary_key"] is True
     assert table["columns"]["name"]["data_type"] == "text"
+
+
+def test_dump_trace_freeze_exception() -> None:
+    class TestRow(BaseModel):
+        id_: int
+        example_string: str
+
+    # yield model in resource so incremental fails when looking for "id"
+    # TODO: support pydantic models in incremental
+
+    @dlt.resource(name="table_name", primary_key="id", write_disposition="replace")
+    def generate_rows_incremental(
+        ts: dlt.sources.incremental[int] = dlt.sources.incremental(cursor_path="id"),
+    ):
+        for i in range(10):
+            yield TestRow(id_=i, example_string="abc")
+            if ts.end_out_of_range:
+                return
+
+    pipeline = dlt.pipeline(pipeline_name="test_dump_trace_freeze_exception", destination="duckdb")
+
+    with pytest.raises(PipelineStepFailed):
+        # must raise because incremental failed
+        pipeline.run(generate_rows_incremental())
+
+    # force to reload trace from storage
+    pipeline._last_trace = None
+    # trace file not present because we tried to pickle TestRow which is a local object
+    assert pipeline.last_trace is None
 
 
 @pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))

@@ -1,7 +1,7 @@
 import os
 import asyncio
 import inspect
-from typing import List, Sequence
+from typing import ClassVar, List, Sequence
 import time
 
 import pytest
@@ -234,6 +234,56 @@ def test_insert_remove_step() -> None:
     p.replace_gen(tx_minus)
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item for pi in _l] == [4, 8, 12]
+
+
+def test_append_transform_with_placement_affinity() -> None:
+    class FilterItemStart(FilterItem):
+        placement_affinity: ClassVar[float] = -1
+
+    class FilterItemEnd(FilterItem):
+        placement_affinity: ClassVar[float] = 1
+
+    assert FilterItemStart(lambda _: True).placement_affinity == -1
+    assert FilterItemEnd(lambda _: True).placement_affinity == 1
+
+    data = [1, 2, 3]
+    # data_iter = iter(data)
+    pp = Pipe.from_data("data", data)
+
+    pp.append_step(FilterItemEnd(lambda _: True))
+    pp.append_step(FilterItemStart(lambda _: True))
+    assert len(pp) == 3
+    # gen must always be first
+    assert pp._steps[0] == data
+    assert isinstance(pp._steps[1], FilterItemStart)
+    assert isinstance(pp._steps[2], FilterItemEnd)
+
+    def regular_lambda(item):
+        return True
+
+    pp.append_step(regular_lambda)
+    assert pp._steps[-2].__name__ == "regular_lambda"  # type: ignore[union-attr]
+
+    # explicit insert works as before, ignores affinity
+    end_aff_2 = FilterItemEnd(lambda _: True)
+    start_aff_2 = FilterItemStart(lambda _: True)
+    pp.insert_step(end_aff_2, 1)
+    assert pp._steps[1] is end_aff_2
+    pp.insert_step(start_aff_2, len(pp))
+    assert pp._steps[-1] is start_aff_2
+
+    def tx(item):
+        yield item * 2
+
+    # create pipe with transformer
+    p = Pipe.from_data("tx", tx, parent=pp)
+    p.append_step(FilterItemEnd(lambda _: True))
+    p.append_step(FilterItemStart(lambda _: True))
+    assert len(p) == 3
+    # note that in case of start affinity, tranform gets BEFORE transformer
+    assert isinstance(p._steps[0], FilterItemStart)
+    assert p._steps[1].__name__ == "tx"  # type: ignore[union-attr]
+    assert isinstance(p._steps[2], FilterItemEnd)
 
 
 def test_pipe_propagate_meta() -> None:
