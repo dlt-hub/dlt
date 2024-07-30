@@ -25,13 +25,17 @@ def test_instantiate_job() -> None:
 def test_runnable_job_results() -> None:
     file_path = "/table.1234.0.jsonl"
 
+    class MockClient:
+        def prepare_load_job_execution(self, j: RunnableLoadJob):
+            pass
+
     class SuccessfulJob(RunnableLoadJob):
         def run(self) -> None:
             5 + 5
 
     j: RunnableLoadJob = SuccessfulJob(file_path)
     assert j.state() == "ready"
-    j.run_managed(None)
+    j.run_managed(MockClient())  # type: ignore
     assert j.state() == "completed"
 
     class RandomExceptionJob(RunnableLoadJob):
@@ -40,7 +44,7 @@ def test_runnable_job_results() -> None:
 
     j = RandomExceptionJob(file_path)
     assert j.state() == "ready"
-    j.run_managed(None)
+    j.run_managed(MockClient())  # type: ignore
     assert j.state() == "retry"
     assert j.exception() == "Oh no!"
 
@@ -50,7 +54,7 @@ def test_runnable_job_results() -> None:
 
     j = TerminalJob(file_path)
     assert j.state() == "ready"
-    j.run_managed(None)
+    j.run_managed(MockClient())  # type: ignore
     assert j.state() == "failed"
     assert j.exception() == "Oh no!"
 
