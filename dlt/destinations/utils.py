@@ -31,8 +31,8 @@ def get_resource_for_adapter(data: Any) -> DltResource:
         return data
     # prevent accidentally wrapping sources with adapters
     if isinstance(data, DltSource):
-        if len(data.resources.keys()) == 1:
-            return list(data.resources.values())[0]
+        if len(data.selected_resources.keys()) == 1:
+            return list(data.selected_resources.values())[0]
         else:
             raise Exception(
                 "You are trying to use an adapter on a DltSource with multiple resources. You can"
@@ -42,7 +42,7 @@ def get_resource_for_adapter(data: Any) -> DltResource:
 
     resource_name = None
     if not hasattr(data, "__name__"):
-        logger.warning("Setting default resource name to `content` for adapted resource.")
+        logger.info("Setting default resource name to `content` for adapted resource.")
         resource_name = "content"
 
     return cast(DltResource, make_resource(data, name=resource_name))
