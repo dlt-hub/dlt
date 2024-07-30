@@ -39,5 +39,5 @@ def test_get_resource_for_adapter() -> None:
     def other_source():
         return [some_resource, other_resource]
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         get_resource_for_adapter(other_source())

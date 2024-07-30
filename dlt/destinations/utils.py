@@ -34,7 +34,7 @@ def get_resource_for_adapter(data: Any) -> DltResource:
         if len(data.selected_resources.keys()) == 1:
             return list(data.selected_resources.values())[0]
         else:
-            raise Exception(
+            raise ValueError(
                 "You are trying to use an adapter on a DltSource with multiple resources. You can"
                 " only use adapters on pure data, direclty on a DltResouce or a DltSource"
                 " containing a single DltResource."
