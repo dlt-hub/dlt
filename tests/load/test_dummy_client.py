@@ -112,6 +112,8 @@ def test_big_loadpackages() -> None:
     """
 
     load = setup_loader()
+    # make the loop faster
+    load._run_loop_sleep_duration = 0.1
     load_id, schema = prepare_load_package(load.load_storage, SMALL_FILES, jobs_per_case=500)
     start_time = time()
     with ThreadPoolExecutor(max_workers=20) as pool:

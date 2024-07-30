@@ -82,6 +82,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._loaded_packages: List[LoadPackageInfo] = []
+        self._run_loop_sleep_duration: float = (
+            1.0  # amount of time to sleep between querying completed jobs
+        )
         super().__init__()
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
@@ -558,9 +561,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         raise pending_exception
                     break
                 # this will raise on signal
-                sleep(
-                    0.1
-                )  #  TODO: figure out correct value, no job should do any remote calls on main thread when checking state, so a small number is ok
+                sleep(self._run_loop_sleep_duration)
             except LoadClientJobFailed:
                 # the package is completed and skipped
                 self.complete_package(load_id, schema, True)

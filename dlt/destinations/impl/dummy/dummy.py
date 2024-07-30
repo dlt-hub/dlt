@@ -56,7 +56,6 @@ class LoadDummyBaseJob(RunnableLoadJob):
 
     def run(self) -> None:
         while True:
-
             # simulate generic exception (equals retry)
             c_r = random.random()
             if self.config.exception_prob >= c_r:
@@ -88,6 +87,7 @@ class LoadDummyBaseJob(RunnableLoadJob):
                 raise DestinationTerminalException("a random fail occured")
 
             time.sleep(0.1)
+
 
 class DummyFollowupJob(ReferenceFollowupJob):
     def __init__(
