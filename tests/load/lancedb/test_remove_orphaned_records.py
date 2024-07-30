@@ -32,6 +32,7 @@ def test_lancedb_remove_orphaned_records(
         pipeline_name="test_pipeline_append",
         destination="lancedb",
         dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
+        dev_mode=True,
     )
 
     @dlt.resource(
