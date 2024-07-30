@@ -186,7 +186,7 @@ def upload_batch(
             tbl.add(records)
         elif write_disposition == "replace":
             tbl.add(records, mode="overwrite")
-        elif write_disposition in ("merge" or "upsert"):
+        elif write_disposition == "merge":
             if not id_field_name:
                 raise ValueError(
                     "To perform a merge update, 'id_field_name' must be specified."
@@ -884,7 +884,7 @@ class LanceDBRemoveOrphansJob(NewReferenceJob):
         self.execute()
 
     def execute(self) -> None:
-        if self.write_disposition not in ("merge" or "upsert"):
+        if self.write_disposition != "merge":
             raise DestinationTerminalException(
                 f"Unsupported write disposition {self.write_disposition} for LanceDB Destination Orphan Removal Job - failed AND WILL **NOT** BE RETRIED."
             )
