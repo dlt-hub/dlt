@@ -878,6 +878,51 @@ Consider the example below for reading incremental loading parameters from "conf
    ```
    `id_after` incrementally stores the latest `cursor_path` value for future pipeline runs.
 
+### Loading NULL values in the incremental cursor field
+
+When loading incrementally with a cursor field, each row is expected to contain a value at the cursor field that is not `None`.
+For example, the following source data will raise an error:
+```py
+data = [
+    {"id": 2, "updated_at": 2},
+    {"id": 1, "updated_at": 1},
+    {"id": 3, "updated_at": None},
+]
+```
+
+If you want to load data that includes `None` values you can transform the records before the incremental processing.
+You can add steps to the pipeline that [filter, transform, or pivot your data](../general-usage/resource.md#filter-transform-and-pivot-data).
+It is important to use the `insert_at` parameter to control the order of the execution and ensure that your custom steps are executed before the incremental processing starts.
+In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
+
+See below how you can modify rows before the incremental processing using `add_map()` and filter rows using `add_filter()`.
+```py
+@dlt.resource
+def some_data(updated_at=dlt.sources.incremental("updated_at")):
+    yield [
+        {"id": 1, "created_at": 1, "updated_at": 1},
+        {"id": 2, "created_at": 2, "updated_at": 2},
+        {"id": 3, "created_at": 4, "updated_at": None},
+    ]
+
+def set_default_updated_at(record):
+    if record.get("updated_at") is None:
+        record["updated_at"] = record.get("created_at")
+    return record
+
+# modifies records before the incremental processing
+with_default_values = some_data().add_map(set_default_updated_at, insert_at=1)
+result = list(with_default_values)
+assert len(result) == 3
+assert result[2]["updated_at"] == 4
+
+# removes records before the incremental processing
+without_none = some_data().add_filter(lambda r: r.get("updated_at") is not None, insert_at=1)
+result_filtered = list(without_none)
+assert len(result_filtered) == 2
+```
+
+
 ## Doing a full refresh
 
 You may force a full refresh of a `merge` and `append` pipelines:
