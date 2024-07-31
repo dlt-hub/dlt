@@ -427,10 +427,7 @@ def test_failing_table_chain_followup_jobs() -> None:
     with pytest.raises(TableChainFollowupJobCreationFailedException) as exc:
         assert_complete_job(load)
         # follow up job errors on main thread
-    assert (
-        "Failed creating table chain followup jobs for table chain with root table"
-        in str(exc)
-    )
+    assert "Failed creating table chain followup jobs for table chain with root table" in str(exc)
 
     # table chain followup job fails, we have both jobs in started folder
     load_id = list(dummy_impl.JOBS.values())[1]._load_id
@@ -461,10 +458,7 @@ def test_failing_sql_table_chain_job() -> None:
         assert_complete_job(load)
 
     # sql jobs always fail because this is not an sql client, we just make sure the exception is there
-    assert (
-        "Failed creating table chain followup jobs for table chain with root table"
-        in str(exc)
-    )
+    assert "Failed creating table chain followup jobs for table chain with root table" in str(exc)
 
 
 def test_successful_table_chain_jobs() -> None:

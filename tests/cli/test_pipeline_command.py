@@ -203,14 +203,10 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     except Exception as e:
         print(e)
 
-    # now run the pipeline
-    os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["TIMEOUT"] = "1.0"
-
     venv = Venv.restore_current()
     with pytest.raises(CalledProcessError) as cpe:
         print(venv.run_script("chess_pipeline.py"))
-    assert "Dummy job status raised exception" in cpe.value.stdout
+    assert "failed due to timeout" in cpe.value.stdout
 
     # move job into running folder manually
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
