@@ -896,10 +896,12 @@ list(some_data())
 
 If you want to load data that includes `None` values you can transform the records before the incremental processing.
 You can add steps to the pipeline that [filter, transform, or pivot your data](../general-usage/resource.md#filter-transform-and-pivot-data).
+
 :::caution
 It is important to set the `insert_at` parameter of the `add_map` function to control the order of the execution and ensure that your custom steps are executed before the incremental processing starts.
 In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
 :::
+
 In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
 
 See below how you can modify rows before the incremental processing using `add_map()` and filter rows using `add_filter()`.
