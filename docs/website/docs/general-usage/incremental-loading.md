@@ -894,6 +894,19 @@ def some_data(updated_at=dlt.sources.incremental("updated_at")):
 list(some_data())
 ```
 
+If you want to load data that includes `None` values there are two options:
+
+1. Transform the values at the incremental cursor to a value different from `None` before the incremental object is called. [See docs below](#transform-records-before-incremental-processing)
+2. Configure the incremental load to tolerate `None` values using `incremental(..., on_cursor_value_none="include")`.
+
+Example:
+```py
+@dlt.resource
+
+list(some_data())
+```
+
+### Transform records before incremental processing
 If you want to load data that includes `None` values you can transform the records before the incremental processing.
 You can add steps to the pipeline that [filter, transform, or pivot your data](../general-usage/resource.md#filter-transform-and-pivot-data).
 
