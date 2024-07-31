@@ -39,6 +39,7 @@ from dlt.common.destination.reference import (
     StateInfo,
     TLoadJobState,
     NewLoadJob,
+    FollowupJob,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -70,7 +71,7 @@ from dlt.destinations.impl.lancedb.utils import (
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
-from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob
+from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob, NewLoadJobImpl
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -787,7 +788,7 @@ class LanceDBClient(JobClientBase, WithStateSync):
         return table_name in self.db_client.table_names()
 
 
-class LoadLanceDBJob(LoadJob):
+class LoadLanceDBJob(LoadJob, FollowupJob):
     arrow_schema: TArrowSchema
 
     def __init__(
@@ -856,7 +857,7 @@ class LoadLanceDBJob(LoadJob):
         raise NotImplementedError()
 
 
-class LanceDBRemoveOrphansJob(NewReferenceJob):
+class LanceDBRemoveOrphansJob(NewLoadJobImpl):
     def __init__(
         self,
         db_client: DBConnection,
@@ -920,7 +921,6 @@ class LanceDBRemoveOrphansJob(NewReferenceJob):
                         child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
 
             # Chunks in root table. TODO: Add test for embeddings in root table
-            # TODO: Add unit tests with simple data
             else:
                 ...
         except ArrowInvalid as e:
