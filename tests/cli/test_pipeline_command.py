@@ -209,12 +209,15 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
         print(venv.run_script("chess_pipeline.py"))
     assert "PipelineStepFailed" in cpe.value.stdout
 
-    # move job into running folder manually
+    # complete job manually to make a partial load
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
     load_storage = pipeline._get_load_storage()
     load_id = load_storage.normalized_packages.list_packages()[0]
     job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
     load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    load_storage.normalized_packages.complete_job(
         load_id, FileStorage.get_file_name_from_file_path(job)
     )
 

@@ -1764,11 +1764,14 @@ def test_remove_pending_packages() -> None:
     # will make job go into retry state
     with pytest.raises(PipelineStepFailed):
         pipeline.run(airtable_emojis())
-    # move job into running folder manually
+    # move job into completed folder manually to simulate pending package
     load_storage = pipeline._get_load_storage()
     load_id = load_storage.normalized_packages.list_packages()[0]
     job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
     load_storage.normalized_packages.start_job(
+        load_id, FileStorage.get_file_name_from_file_path(job)
+    )
+    load_storage.normalized_packages.complete_job(
         load_id, FileStorage.get_file_name_from_file_path(job)
     )
     assert pipeline.has_pending_data
