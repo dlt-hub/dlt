@@ -28,6 +28,7 @@ from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
     MEMORY_BUCKET,
+    FILE_BUCKET,
 )
 
 from tests.pipeline.utils import load_table_counts, assert_load_info, load_tables_to_dicts
@@ -237,7 +238,7 @@ def test_delta_table_pyarrow_version_check() -> None:
     def foo():
         yield {"foo": 1, "bar": 2}
 
-    pipeline = dlt.pipeline(destination=filesystem("file://_storage"))
+    pipeline = dlt.pipeline(destination=filesystem(FILE_BUCKET))
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(foo())
