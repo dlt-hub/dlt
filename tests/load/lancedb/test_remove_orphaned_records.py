@@ -1,6 +1,9 @@
 from typing import Iterator, List, Generator
 
+import pandas as pd
 import pytest
+from pandas import DataFrame
+from pandas.testing import assert_frame_equal
 
 import dlt
 from dlt.common.typing import DictStrAny
@@ -25,9 +28,9 @@ def drop_lancedb_data() -> Iterator[None]:
 
 def test_lancedb_remove_orphaned_records() -> None:
     pipeline = dlt.pipeline(
-        pipeline_name="test_pipeline_append",
+        pipeline_name="test_lancedb_remove_orphaned_records",
         destination="lancedb",
-        dataset_name=f"TestPipelineAppendDataset{uniq_id()}",
+        dataset_name=f"test_lancedb_remove_orphaned_records_{uniq_id()}",
         dev_mode=True,
     )
 
@@ -57,15 +60,81 @@ def test_lancedb_remove_orphaned_records() -> None:
     assert_load_info(info)
 
     with pipeline.destination_client() as client:
-        expected_child_data = [
-            1,
-            4,
-            10,
-            11,
-        ]
+        expected_child_data = pd.DataFrame(
+            data=[
+                {"bar": 1},
+                {"bar": 4},
+                {"bar": 10},
+                {"bar": 11},
+            ]
+        )
 
         embeddings_table_name = client.make_qualified_table_name("parent__child")  # type: ignore[attr-defined]
 
         tbl = client.db_client.open_table(embeddings_table_name)  # type: ignore[attr-defined]
-        df = tbl.to_pandas()
-        assert sorted(df["bar"].to_list()) == expected_child_data
+        actual_df = tbl.to_pandas()
+
+        expected_child_data = expected_child_data.sort_values(by="bar")
+        actual_df = actual_df.sort_values(by="bar").reset_index(drop=True)
+
+        assert_frame_equal(actual_df[["bar"]], expected_child_data)
+
+
+def test_lancedb_remove_orphaned_records_root_table() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_lancedb_remove_orphaned_records_root_table",
+        destination="lancedb",
+        dataset_name=f"test_lancedb_remove_orphaned_records_root_table_{uniq_id()}",
+        dev_mode=True,
+    )
+
+    @dlt.resource(
+        table_name="root",
+        write_disposition="merge",
+        primary_key="doc_id",
+    )
+    def identity_resource(
+        data: List[DictStrAny],
+    ) -> Generator[List[DictStrAny], None, None]:
+        yield data
+
+    run_1 = [
+        {"doc_id": 1, "chunk_hash": "1a"},
+        {"doc_id": 2, "chunk_hash": "2a"},
+        {"doc_id": 2, "chunk_hash": "2b"},
+        {"doc_id": 2, "chunk_hash": "2c"},
+        {"doc_id": 3, "chunk_hash": "3a"},
+        {"doc_id": 3, "chunk_hash": "3b"},
+    ]
+    info = pipeline.run(identity_resource(run_1))
+    assert_load_info(info)
+
+    run_2 = [
+        {"doc_id": 2, "chunk_hash": "2d"},
+        {"doc_id": 2, "chunk_hash": "2e"},
+        {"doc_id": 3, "chunk_hash": "3b"},
+    ]
+    info = pipeline.run(identity_resource(run_2))
+    assert_load_info(info)
+
+    with pipeline.destination_client() as client:
+        expected_root_table_df = pd.DataFrame(
+            data=[
+                {"doc_id": 1, "chunk_hash": "1a"},
+                {"doc_id": 2, "chunk_hash": "2d"},
+                {"doc_id": 2, "chunk_hash": "2e"},
+                {"doc_id": 3, "chunk_hash": "3b"},
+            ]
+        ).sort_values(by=["doc_id", "chunk_hash"])
+
+        root_table_name = (
+            client.make_qualified_table_name("root")  # type: ignore[attr-defined]
+        )
+        tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
+
+        actual_root_df: DataFrame = (
+            tbl.to_pandas()
+            .sort_values(by=["doc_id", "chunk_hash"])
+            .reset_index(drop=True)
+        )
+        assert_frame_equal(actual_root_df, expected_root_table_df)
