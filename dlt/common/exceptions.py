@@ -143,7 +143,7 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
         return "\n".join([f'pip install "{d}"' for d in self.dependencies])
 
 
-class DepedencyVersionException(DltException):
+class DependencyVersionException(DltException):
     def __init__(
         self, pkg_name: str, version_found: str, version_required: str, appendix: str = ""
     ) -> None:

@@ -14,7 +14,7 @@ from dlt.common import json
 from dlt.common import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.exceptions import DepedencyVersionException
+from dlt.common.exceptions import DependencyVersionException
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.typing import TExtraPlaceholders
@@ -225,7 +225,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
 def test_delta_table_pyarrow_version_check() -> None:
     """Tests pyarrow version checking for `delta` table format.
 
-    DepedencyVersionException should be raised if pyarrow<17.0.0.
+    DependencyVersionException should be raised if pyarrow<17.0.0.
     """
     # test intentionally does not use destination_configs(), because that
     # function automatically marks `delta` table format configs as
@@ -242,7 +242,7 @@ def test_delta_table_pyarrow_version_check() -> None:
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(foo())
-    assert isinstance(pip_ex.value.__context__, DepedencyVersionException)
+    assert isinstance(pip_ex.value.__context__, DependencyVersionException)
 
 
 @pytest.mark.essential

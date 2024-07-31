@@ -35,7 +35,7 @@ from dlt.common.exceptions import (
     DltException,
     ExceptionTrace,
     TerminalException,
-    DepedencyVersionException,
+    DependencyVersionException,
 )
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
@@ -577,7 +577,7 @@ def order_deduped(lst: List[Any]) -> List[Any]:
 def assert_min_pkg_version(pkg_name: str, version: str, msg: str = "") -> None:
     version_found = pkg_version(pkg_name)
     if Version(version_found) < Version(version):
-        raise DepedencyVersionException(
+        raise DependencyVersionException(
             pkg_name=pkg_name,
             version_found=version_found,
             version_required=">=" + version,
