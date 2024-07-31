@@ -883,17 +883,21 @@ Consider the example below for reading incremental loading parameters from "conf
 When loading incrementally with a cursor field, each row is expected to contain a value at the cursor field that is not `None`.
 For example, the following source data will raise an error:
 ```py
-data = [
-    {"id": 2, "updated_at": 2},
-    {"id": 1, "updated_at": 1},
-    {"id": 3, "updated_at": None},
-]
+@dlt.resource
+def some_data(updated_at=dlt.sources.incremental("updated_at")):
+    yield [
+        {"id": 1, "created_at": 1, "updated_at": 1},
+        {"id": 2, "created_at": 2, "updated_at": 2},
+        {"id": 3, "created_at": 4, "updated_at": None},
+    ]
+
+list(some_data())
 ```
 
 If you want to load data that includes `None` values you can transform the records before the incremental processing.
 You can add steps to the pipeline that [filter, transform, or pivot your data](../general-usage/resource.md#filter-transform-and-pivot-data).
 :::caution
-It is important to set the `insert_at` parameter of `add_map` function to control the order of the execution and ensure that your custom steps are executed before the incremental processing starts.
+It is important to set the `insert_at` parameter of the `add_map` function to control the order of the execution and ensure that your custom steps are executed before the incremental processing starts.
 In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
 :::
 In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
