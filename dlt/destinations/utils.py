@@ -1,4 +1,6 @@
 import re
+import inspect
+
 from typing import Any, List, Optional, Tuple
 
 from dlt.common import logger
@@ -14,16 +16,35 @@ from dlt.common.schema.utils import (
 from typing import Any, cast, Tuple, Dict, Type
 
 from dlt.destinations.exceptions import DatabaseTransientException
-from dlt.extract import DltResource, resource as make_resource
+from dlt.extract import DltResource, resource as make_resource, DltSource
 
 RE_DATA_TYPE = re.compile(r"([A-Z]+)\((\d+)(?:,\s?(\d+))?\)")
 
 
-def ensure_resource(data: Any) -> DltResource:
-    """Wraps `data` in a DltResource if it's not a DltResource already."""
+def get_resource_for_adapter(data: Any) -> DltResource:
+    """
+    Helper function for adapters. Wraps `data` in a DltResource if it's not a DltResource already.
+    Alternatively if `data` is a DltSource, throws an error if there are multiple resource in the source
+    or returns the single resource if available.
+    """
     if isinstance(data, DltResource):
         return data
-    resource_name = None if hasattr(data, "__name__") else "content"
+    # prevent accidentally wrapping sources with adapters
+    if isinstance(data, DltSource):
+        if len(data.selected_resources.keys()) == 1:
+            return list(data.selected_resources.values())[0]
+        else:
+            raise ValueError(
+                "You are trying to use an adapter on a DltSource with multiple resources. You can"
+                " only use adapters on pure data, direclty on a DltResouce or a DltSource"
+                " containing a single DltResource."
+            )
+
+    resource_name = None
+    if not hasattr(data, "__name__"):
+        logger.info("Setting default resource name to `content` for adapted resource.")
+        resource_name = "content"
+
     return cast(DltResource, make_resource(data, name=resource_name))
 
 
