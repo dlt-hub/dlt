@@ -196,6 +196,7 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
 
 def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
     init_command.init_command("chess", "dummy", False, repo_dir)
+    os.environ["EXCEPTION_PROB"] = "1.0"
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
@@ -206,7 +207,7 @@ def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileS
     venv = Venv.restore_current()
     with pytest.raises(CalledProcessError) as cpe:
         print(venv.run_script("chess_pipeline.py"))
-    assert "failed due to timeout" in cpe.value.stdout
+    assert "PipelineStepFailed" in cpe.value.stdout
 
     # move job into running folder manually
     pipeline = dlt.attach(pipeline_name="chess_pipeline")
