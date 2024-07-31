@@ -5,6 +5,7 @@ import itertools
 import logging
 import os
 import random
+import shutil
 import threading
 from time import sleep
 from typing import Any, List, Tuple, cast
@@ -1764,16 +1765,20 @@ def test_remove_pending_packages() -> None:
     # will make job go into retry state
     with pytest.raises(PipelineStepFailed):
         pipeline.run(airtable_emojis())
-    # move job into completed folder manually to simulate pending package
+    # move job into completed folder manually to simulate partial package
     load_storage = pipeline._get_load_storage()
     load_id = load_storage.normalized_packages.list_packages()[0]
     job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
-    load_storage.normalized_packages.start_job(
+    started_path = load_storage.normalized_packages.start_job(
         load_id, FileStorage.get_file_name_from_file_path(job)
     )
-    load_storage.normalized_packages.complete_job(
+    completed_path = load_storage.normalized_packages.complete_job(
         load_id, FileStorage.get_file_name_from_file_path(job)
     )
+    # to test partial loads we need two jobs one completed an one in another state
+    # to simulate this, we just duplicate the completed job into the started path
+    shutil.copyfile(completed_path, started_path)
+    # now "with partial loads" can be tested
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages(with_partial_loads=False)
     assert pipeline.has_pending_data
