@@ -1758,7 +1758,7 @@ def test_end_value_initial_value_errors(item_type: TestDataItemFormat) -> None:
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
-    """Test incremental.is_below_initial_value / is_above_end_value flags are set when items are filtered out"""
+    """Test incremental.start_out_of_range / end_out_of_range flags are set when items are filtered out"""
 
     @dlt.resource
     def descending(
@@ -1771,9 +1771,9 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
             yield data_to_item_format(item_type, data)
             # Assert flag is set only on the first item < initial_value
             if all(item > 9 for item in chunk):
-                assert updated_at.is_below_initial_value is False
+                assert updated_at.start_out_of_range is False
             else:
-                assert updated_at.is_below_initial_value is True
+                assert updated_at.start_out_of_range is True
                 return
 
     @dlt.resource
@@ -1787,9 +1787,9 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
             yield data_to_item_format(item_type, data)
             # Flag is set only when end_value is reached
             if all(item < 45 for item in chunk):
-                assert updated_at.is_above_end_value is False
+                assert updated_at.end_out_of_range is False
             else:
-                assert updated_at.is_above_end_value is True
+                assert updated_at.end_out_of_range is True
                 return
 
     @dlt.resource
@@ -1802,9 +1802,9 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
             data = [{"updated_at": i}]
             yield from data_to_item_format(item_type, data)
             if i >= 10:
-                assert updated_at.is_below_initial_value is False
+                assert updated_at.start_out_of_range is False
             else:
-                assert updated_at.is_below_initial_value is True
+                assert updated_at.start_out_of_range is True
                 return
 
     @dlt.resource
@@ -1817,9 +1817,9 @@ def test_out_of_range_flags(item_type: TestDataItemFormat) -> None:
             data = [{"updated_at": i}]
             yield from data_to_item_format(item_type, data)
             if i < 22:
-                assert updated_at.is_above_end_value is False
+                assert updated_at.end_out_of_range is False
             else:
-                assert updated_at.is_above_end_value is True
+                assert updated_at.end_out_of_range is True
                 return
 
     pipeline = dlt.pipeline(pipeline_name="incremental_" + uniq_id(), destination="duckdb")

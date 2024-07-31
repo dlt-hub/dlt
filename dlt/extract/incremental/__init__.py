@@ -147,9 +147,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """State dictionary cached on first access"""
         super().__init__(lambda x: x)  # TODO:
 
-        self.is_above_end_value: bool = False
+        self.end_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `end_value`. I.e. when using `max` function this means a value that is equal or higher"""
-        self.is_below_initial_value: bool = False
+        self.start_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
         self._transformers: Dict[str, IncrementalTransform] = {}
@@ -336,7 +336,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem
     ) -> Optional[TDataItem]:
-        row, self.is_below_initial_value, self.is_above_end_value = transformer(row)
+        row, self.start_out_of_range, self.end_out_of_range = transformer(row)
         # if we know that rows are ordered we can close the generator automatically
         # mind that closing pipe will not immediately close processing. it only closes the
         # generator so this page will be fully processed
@@ -451,9 +451,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # ordered ascending, check if we cross upper bound
         return (
             self.row_order == "asc"
-            and self.is_above_end_value
+            and self.end_out_of_range
             or self.row_order == "desc"
-            and self.is_below_initial_value
+            and self.start_out_of_range
         )
 
     def __str__(self) -> str:
