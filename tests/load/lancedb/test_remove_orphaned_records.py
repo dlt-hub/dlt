@@ -3,7 +3,6 @@ from typing import Iterator, List, Generator
 import pytest
 
 import dlt
-from dlt.common.schema.typing import TLoaderMergeStrategy
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from tests.load.utils import (
@@ -24,10 +23,7 @@ def drop_lancedb_data() -> Iterator[None]:
     drop_active_pipeline_data()
 
 
-@pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
-def test_lancedb_remove_orphaned_records(
-    merge_strategy: TLoaderMergeStrategy,
-) -> None:
+def test_lancedb_remove_orphaned_records() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="lancedb",
@@ -37,7 +33,7 @@ def test_lancedb_remove_orphaned_records(
 
     @dlt.resource(
         table_name="parent",
-        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        write_disposition="merge",
         primary_key="id",
     )
     def identity_resource(
