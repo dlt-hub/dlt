@@ -87,10 +87,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
 
-        # import time
-
         for item in items:
-            # time.sleep(0.7)
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
             try:
                 self.collector.update("Items")
