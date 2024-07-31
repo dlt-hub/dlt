@@ -707,7 +707,7 @@ Let's break down the configuration.
 
 ### Incremental loading using the `incremental` field
 
-The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). This method is more flexible and allows you to specify the start and end conditions for the incremental loading.
+The alternative method is to use the `incremental` field in the [endpoint configuration](#endpoint-configuration). This configuration is more powerful than the method shown above because it also allows you to specify not only the start parameter and value but also the end parameter and value for the incremental loading.
 
 Let's take the same example as above and configure it using the `incremental` field:
 
@@ -735,6 +735,7 @@ The full available configuration for the `incremental` field is:
         "cursor_path": "<path_to_cursor_field>",
         "initial_value": "<initial_value>",
         "end_value": "<end_value>",
+        "convert": a_callable,
     }
 }
 ```
@@ -746,10 +747,43 @@ The fields are:
 - `cursor_path` (str): The JSONPath to the field within each item in the list. This is the field that will be used to track the incremental loading. In the example above, it's `"created_at"`.
 - `initial_value` (str): The initial value for the cursor. This is the value that will initialize the state of incremental loading.
 - `end_value` (str): The end value for the cursor to stop the incremental loading. This is optional and can be omitted if you only need to track the start condition. If you set this field, `initial_value` needs to be set as well.
+- `convert` (callable): A callable that converts the cursor value into the format that the query parameter requires. For example, a UNIX timestamp can be converted into an ISO 8601 date or a date can be converted into `created_at+gt+{date}`.
 
 See the [incremental loading](../../general-usage/incremental-loading.md#incremental-loading-with-a-cursor-field) guide for more details.
 
 If you encounter issues with incremental loading, see the [troubleshooting section](../../general-usage/incremental-loading.md#troubleshooting) in the incremental loading guide.
+
+### Convert the incremental value before calling the API
+
+If you need to transform the values in the cursor field before passing them to the API endpoint, you can specify a callable under the key `convert`. For example, the API might return UNIX epoch timestamps but expects to be queried with an ISO 8601 date. To achieve that, we can specify a function that converts from the date format returned by the API to the date format required for API requests.
+
+In the following examples, `1704067200` is returned from the API in the field `updated_at` but the API will be called with `?created_since=2024-01-01`.
+
+Incremental loading using the `params` field:
+```py
+{
+    "created_since": {
+        "type": "incremental",
+        "cursor_path": "updated_at",
+        "initial_value": "1704067200",
+        "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+    }
+}
+```
+
+Incremental loading using the `incremental` field:
+```py
+{
+    "path": "posts",
+    "data_selector": "results",
+    "incremental": {
+        "start_param": "created_since",
+        "cursor_path": "updated_at",
+        "initial_value": "1704067200",
+        "convert": lambda epoch: pendulum.from_timestamp(int(epoch)).to_date_string(),
+    },
+}
+```
 
 ## Advanced configuration
 
