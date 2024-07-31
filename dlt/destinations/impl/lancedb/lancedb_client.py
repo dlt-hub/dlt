@@ -71,7 +71,7 @@ from dlt.destinations.impl.lancedb.utils import (
     generate_uuid,
     set_non_standard_providers_environment_variables,
 )
-from dlt.destinations.job_impl import EmptyLoadJob, NewReferenceJob, NewLoadJobImpl
+from dlt.destinations.job_impl import EmptyLoadJob, NewLoadJobImpl
 from dlt.destinations.type_mapping import TypeMapper
 
 if TYPE_CHECKING:
@@ -768,19 +768,21 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
         for table in table_chain:
-            parent_table = table.get("parent")
-            jobs.append(
-                LanceDBRemoveOrphansJob(
-                    db_client=self.db_client,
-                    table_schema=self.prepare_load_table(table["name"]),
-                    fq_table_name=self.make_qualified_table_name(table["name"]),
-                    fq_parent_table_name=(
-                        self.make_qualified_table_name(parent_table)
-                        if parent_table
-                        else None
-                    ),
+            # Only tables with merge disposition are dispatched for orphan removal jobs.
+            if table.get("write_disposition", "append") == "merge":
+                parent_table = table.get("parent")
+                jobs.append(
+                    LanceDBRemoveOrphansJob(
+                        db_client=self.db_client,
+                        table_schema=self.prepare_load_table(table["name"]),
+                        fq_table_name=self.make_qualified_table_name(table["name"]),
+                        fq_parent_table_name=(
+                            self.make_qualified_table_name(parent_table)
+                            if parent_table
+                            else None
+                        ),
+                    )
                 )
-            )
 
         return jobs
 
@@ -866,21 +868,26 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
         fq_parent_table_name: Optional[str],
     ) -> None:
         self.db_client = db_client
-
-        ref_file_name = ParsedLoadJobFileName(
-            table_schema["name"], ParsedLoadJobFileName.new_file_id(), 0, "reference"
-        ).file_name()
-        super().__init__(
-            file_name=ref_file_name,
-            status="running",
-        )
-
         self.table_schema: TTableSchema = table_schema
         self.fq_table_name: str = fq_table_name
         self.fq_parent_table_name: Optional[str] = fq_parent_table_name
         self.write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self.table_schema.get("write_disposition", "append")
         )
+
+        job_id = ParsedLoadJobFileName(
+            table_schema["name"],
+            ParsedLoadJobFileName.new_file_id(),
+            0,
+            "parquet",
+        ).file_name()
+
+        super().__init__(
+            file_name=job_id,
+            status="running",
+        )
+
+        self._save_text_file("")
 
         self.execute()
 
@@ -890,6 +897,7 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
                 f"Unsupported write disposition {self.write_disposition} for LanceDB Destination Orphan Removal Job - failed AND WILL **NOT** BE RETRIED."
             )
 
+        # Orphans are removed irrespective of which merge strategy is picked.
         try:
             child_table = self.db_client.open_table(self.fq_table_name)
             child_table.checkout_latest()
