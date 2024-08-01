@@ -902,8 +902,6 @@ It is important to set the `insert_at` parameter of the `add_map` function to co
 In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
 :::
 
-In the following example, the step of data yielding is at `index = 0`, the custom transformation at `index = 1`, and the incremental processing at `index = 2`.
-
 See below how you can modify rows before the incremental processing using `add_map()` and filter rows using `add_filter()`.
 
 ```py
