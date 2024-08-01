@@ -101,6 +101,10 @@ def test_core_functionality(
     validity_column_names: List[str],
     active_record_timestamp: Optional[pendulum.DateTime],
 ) -> None:
+    # somehow destination_config comes through as ParameterSet instead of
+    # DestinationTestConfiguration
+    destination_config = destination_config.values[0]  # type: ignore[attr-defined]
+
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(

@@ -8,7 +8,7 @@ import Link from '../../_book-onboarding-call.md';
 
 Choose from our collection of verified sources, developed and maintained by the dlt team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
 
-Planning to use dlt in production and need a source that isn't listed? We're happy to build it for you: <Link />.
+Planning to use dlt in production and need a source that isn't listed? We're happy to help you build it: <Link />.
 
 ### Popular sources
 

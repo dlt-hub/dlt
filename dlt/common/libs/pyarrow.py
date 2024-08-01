@@ -474,10 +474,6 @@ def pq_stream_with_new_columns(
             yield tbl
 
 
-def dataset_to_table(data: Union[pyarrow.Table, pyarrow.dataset.Dataset]) -> pyarrow.Table:
-    return data.to_table() if isinstance(data, pyarrow.dataset.Dataset) else data
-
-
 def cast_arrow_schema_types(
     schema: pyarrow.Schema,
     type_map: Dict[Callable[[pyarrow.DataType], bool], Callable[..., pyarrow.DataType]],

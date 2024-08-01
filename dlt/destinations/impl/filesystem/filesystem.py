@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 import dlt
 from dlt.common import logger, time, json, pendulum
+from dlt.common.utils import assert_min_pkg_version
 from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.typing import DictStrAny
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
@@ -122,23 +123,43 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
     def write(self) -> None:
         from dlt.common.libs.pyarrow import pyarrow as pa
         from dlt.common.libs.deltalake import (
+            DeltaTable,
             write_delta_table,
+            ensure_delta_compatible_arrow_schema,
             _deltalake_storage_options,
             try_get_deltatable,
         )
 
-        file_paths = [job.file_path for job in self.table_jobs]
+        assert_min_pkg_version(
+            pkg_name="pyarrow",
+            version="17.0.0",
+            msg="`pyarrow>=17.0.0` is needed for `delta` table format on `filesystem` destination.",
+        )
 
-        if (
-            self.table["write_disposition"] == "merge"
-            and (
-                dt := try_get_deltatable(
-                    self.client.make_remote_uri(self.make_remote_path()),
-                    storage_options=_deltalake_storage_options(self.client.config),
+        # create Arrow dataset from Parquet files
+        file_paths = [job.file_path for job in self.table_jobs]
+        arrow_ds = pa.dataset.dataset(file_paths)
+
+        # create Delta table object
+        dt_path = self.client.make_remote_uri(self.make_remote_path())
+        storage_options = _deltalake_storage_options(self.client.config)
+        dt = try_get_deltatable(dt_path, storage_options=storage_options)
+
+        # explicitly check if there is data
+        # (https://github.com/delta-io/delta-rs/issues/2686)
+        if arrow_ds.head(1).num_rows == 0:
+            if dt is None:
+                # create new empty Delta table with schema from Arrow table
+                DeltaTable.create(
+                    table_uri=dt_path,
+                    schema=ensure_delta_compatible_arrow_schema(arrow_ds.schema),
+                    mode="overwrite",
                 )
-            )
-            is not None
-        ):
+            return
+
+        arrow_rbr = arrow_ds.scanner().to_reader()  # RecordBatchReader
+
+        if self.table["write_disposition"] == "merge" and dt is not None:
             assert self.table["x-merge-strategy"] in self.client.capabilities.supported_merge_strategies  # type: ignore[typeddict-item]
 
             if self.table["x-merge-strategy"] == "upsert":  # type: ignore[typeddict-item]
@@ -151,7 +172,7 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
                 qry = (
                     dt.merge(
-                        source=pa.dataset.dataset(file_paths),
+                        source=arrow_rbr,
                         predicate=predicate,
                         source_alias="source",
                         target_alias="target",
@@ -164,10 +185,10 @@ class DeltaLoadFilesystemJob(NewReferenceJob):
 
         else:
             write_delta_table(
-                path=self.client.make_remote_uri(self.make_remote_path()),
-                data=pa.dataset.dataset(file_paths),
+                table_or_uri=dt_path if dt is None else dt,
+                data=arrow_rbr,
                 write_disposition=self.table["write_disposition"],
-                storage_options=_deltalake_storage_options(self.client.config),
+                storage_options=storage_options,
             )
 
     def make_remote_path(self) -> str:
