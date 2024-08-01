@@ -119,12 +119,10 @@ def test_lancedb_remove_orphaned_records() -> None:
             .reset_index(drop=True)
         )
 
-        expected_child_data = expected_child_data.sort_values(by="bar").reset_index(
+        expected_child_data = expected_child_data.sort_values(by="bar").reset_index(drop=True)
+        expected_grandchild_data = expected_grandchild_data.sort_values(by="baz").reset_index(
             drop=True
         )
-        expected_grandchild_data = expected_grandchild_data.sort_values(
-            by="baz"
-        ).reset_index(drop=True)
 
         assert_frame_equal(actual_child_df[["bar"]], expected_child_data)
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
@@ -182,15 +180,11 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
             .reset_index(drop=True)
         )
 
-        root_table_name = (
-            client.make_qualified_table_name("root")  # type: ignore[attr-defined]
-        )
+        root_table_name = client.make_qualified_table_name("root")  # type: ignore[attr-defined]
         tbl = client.db_client.open_table(root_table_name)  # type: ignore[attr-defined]
 
         actual_root_df: DataFrame = (
-            tbl.to_pandas()
-            .sort_values(by=["doc_id", "chunk_hash"])
-            .reset_index(drop=True)
+            tbl.to_pandas().sort_values(by=["doc_id", "chunk_hash"]).reset_index(drop=True)
         )[["doc_id", "chunk_hash"]]
 
         assert_frame_equal(actual_root_df, expected_root_table_df)

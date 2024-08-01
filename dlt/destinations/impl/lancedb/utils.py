@@ -6,7 +6,6 @@ from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.lancedb.configuration import TEmbeddingProvider
-from dlt.destinations.impl.lancedb.lancedb_adapter import DOCUMENT_ID_HINT
 
 
 PROVIDER_ENVIRONMENT_VARIABLES_MAP: Dict[TEmbeddingProvider, str] = {
@@ -42,10 +41,9 @@ def list_merge_identifiers(table_schema: TTableSchema) -> List[str]:
         Sequence[str]: A list of unique column identifiers.
     """
     if table_schema.get("write_disposition") == "merge":
-        document_id = get_columns_names_with_prop(table_schema, DOCUMENT_ID_HINT)
         primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
         merge_keys = get_columns_names_with_prop(table_schema, "merge_key")
-        if join_keys := list(set(primary_keys + merge_keys + document_id)):
+        if join_keys := list(set(primary_keys + merge_keys)):
             return join_keys
     return get_columns_names_with_prop(table_schema, "unique")
 
