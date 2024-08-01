@@ -76,6 +76,21 @@ def many_delayed(many, iters):
         yield dlt.resource(run_deferred(iters), name="resource_" + str(n))
 
 
+@dlt.resource(table_name="users")
+def users_materialize_table_schema():
+    yield dlt.mark.with_hints(
+        # this is a special empty item which will materialize table schema
+        dlt.mark.materialize_table_schema(),
+        # emit table schema with the item
+        dlt.mark.make_hints(
+            columns=[
+                {"name": "id", "data_type": "bigint", "precision": 4, "nullable": False},
+                {"name": "name", "data_type": "text", "nullable": False},
+            ]
+        ),
+    )
+
+
 #
 # Utils for accessing data in pipelines
 #

@@ -2,7 +2,7 @@ import pytest
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator, cast
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse
@@ -590,6 +590,18 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.force_iceberg is force_iceberg
         ]
+
+    # add marks
+    destination_configs = [
+        cast(
+            DestinationTestConfiguration,
+            pytest.param(
+                conf,
+                marks=pytest.mark.needspyarrow17 if conf.table_format == "delta" else [],
+            ),
+        )
+        for conf in destination_configs
+    ]
 
     return destination_configs
 
