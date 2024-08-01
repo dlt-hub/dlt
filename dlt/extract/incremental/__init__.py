@@ -100,7 +100,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
-        on_cursor_value_none: Specify what happens when a record has `None` at the cursor_path: raise, include
+        on_cursor_value_none: Specify what happens when a record has `None` at the cursor_path: raise, include, exclude
     """
 
     # this is config/dataclass so declare members

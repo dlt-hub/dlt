@@ -717,6 +717,31 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
     assert s["last_value"] == 2
 
 
+@pytest.mark.parametrize("item_type", ["object"])
+def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2, "created_at": 2},
+        {"id": 3, "created_at": None},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="exclude")):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+    assert_query_data(p, "select count(id) from some_data", [2])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 2
+
+
 def test_cursor_path_none_can_raise_on_none() -> None:
     # No None support for pandas and arrow yet
     source_items = [
