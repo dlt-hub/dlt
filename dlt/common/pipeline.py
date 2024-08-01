@@ -475,6 +475,8 @@ class TPipelineLocalState(TypedDict, total=False):
     """Timestamp indicating when the state was synced with the destination."""
     _last_extracted_hash: str
     """Hash of state that was recently synced with destination"""
+    _last_extracted_count: int
+    """Number of extracted rows in the last run"""
 
 
 class TPipelineState(TVersionedState, total=False):
