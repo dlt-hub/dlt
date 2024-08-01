@@ -445,7 +445,11 @@ class Pipeline(SupportsPipeline):
                 )
                 # commit load packages with state
                 extract_step.commit_packages()
-                return self._get_step_info(extract_step)
+
+                info = self._get_step_info(extract_step)
+                state = self._container[StateInjectableContext].state
+                state["_local"]["_last_extracted_count"] = info.total_rows_count
+                return info
 
         except Exception as exc:
             # emit step info
@@ -497,7 +501,6 @@ class Pipeline(SupportsPipeline):
         self,
         workers: int = 1,
         loader_file_format: TLoaderFileFormat = None,
-        extracted_count: int = None,
     ) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
@@ -529,7 +532,7 @@ class Pipeline(SupportsPipeline):
                 collector=self.collector,
                 config=normalize_config,
                 schema_storage=self._schema_storage,
-                extracted_count=extracted_count,
+                extracted_count=self._get_state()["_local"].get("_last_extracted_count"),
             )
             try:
                 with signals.delayed_signals():
@@ -712,7 +715,7 @@ class Pipeline(SupportsPipeline):
 
         # extract from the source
         if data is not None:
-            extract_info = self.extract(
+            self.extract(
                 data,
                 table_name=table_name,
                 write_disposition=write_disposition,
@@ -722,10 +725,7 @@ class Pipeline(SupportsPipeline):
                 schema_contract=schema_contract,
                 refresh=refresh or self.refresh,
             )
-            self.normalize(
-                loader_file_format=loader_file_format,
-                extracted_count=extract_info.total_rows_count if extract_info else None,
-            )
+            self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
         return None
 

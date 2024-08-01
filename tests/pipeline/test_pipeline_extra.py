@@ -108,7 +108,7 @@ def test_pipeline_normalize_progress(progress: TCollectorArg) -> None:
     p.extract(many_delayed(5, 10))
 
     with mock.patch.object(p.collector, "update") as col_mock:
-        p.normalize(extracted_count=10)
+        p.normalize()
         assert col_mock.call_count == 54
 
     p.run(dataset_name="dummy")
