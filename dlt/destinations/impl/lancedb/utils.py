@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import Sequence, Union, Dict
+from typing import Sequence, Union, Dict, List
 
 from dlt.common.schema import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
@@ -32,7 +32,7 @@ def generate_uuid(data: DictStrAny, unique_identifiers: Sequence[str], table_nam
     return str(uuid.uuid5(uuid.NAMESPACE_DNS, table_name + data_id))
 
 
-def list_merge_identifiers(table_schema: TTableSchema) -> Sequence[str]:
+def list_merge_identifiers(table_schema: TTableSchema) -> List[str]:
     """Returns a list of merge keys for a table used for either merging or deduplication.
 
     Args:

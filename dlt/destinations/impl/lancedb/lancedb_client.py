@@ -12,6 +12,7 @@ from typing import (
     Dict,
     Sequence,
     TYPE_CHECKING,
+    Set,
 )
 
 import lancedb  # type: ignore
@@ -22,7 +23,7 @@ from lancedb.embeddings import EmbeddingFunctionRegistry, TextEmbeddingFunction 
 from lancedb.query import LanceQueryBuilder  # type: ignore
 from lancedb.table import Table  # type: ignore
 from numpy import ndarray
-from pyarrow import Array, ChunkedArray, ArrowInvalid
+from pyarrow import Array, ChunkedArray, ArrowInvalid, Table
 
 from dlt.common import json, pendulum, logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -58,7 +59,10 @@ from dlt.destinations.impl.lancedb.configuration import (
 from dlt.destinations.impl.lancedb.exceptions import (
     lancedb_error,
 )
-from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
+from dlt.destinations.impl.lancedb.lancedb_adapter import (
+    VECTORIZE_HINT,
+    DOCUMENT_ID_HINT,
+)
 from dlt.destinations.impl.lancedb.schema import (
     make_arrow_field_schema,
     make_arrow_table_schema,
@@ -80,7 +84,9 @@ else:
     NDArray = ndarray
 
 TIMESTAMP_PRECISION_TO_UNIT: Dict[int, str] = {0: "s", 3: "ms", 6: "us", 9: "ns"}
-UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()}
+UNIT_TO_TIMESTAMP_PRECISION: Dict[str, int] = {
+    v: k for k, v in TIMESTAMP_PRECISION_TO_UNIT.items()
+}
 
 
 class LanceDBTypeMapper(TypeMapper):
@@ -187,7 +193,9 @@ def upload_batch(
             tbl.add(records, mode="overwrite")
         elif write_disposition == "merge":
             if not id_field_name:
-                raise ValueError("To perform a merge update, 'id_field_name' must be specified.")
+                raise ValueError(
+                    "To perform a merge update, 'id_field_name' must be specified."
+                )
             tbl.merge_insert(
                 id_field_name
             ).when_matched_update_all().when_not_matched_insert_all().execute(records)
@@ -276,7 +284,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     @lancedb_error
-    def create_table(self, table_name: str, schema: TArrowSchema, mode: str = "create") -> Table:
+    def create_table(
+        self, table_name: str, schema: TArrowSchema, mode: str = "create"
+    ) -> Table:
         """Create a LanceDB Table from the provided LanceModel or PyArrow schema.
 
         Args:
@@ -299,7 +309,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def query_table(
         self,
         table_name: str,
-        query: Union[List[Any], NDArray, Array, ChunkedArray, str, Tuple[Any], None] = None,
+        query: Union[
+            List[Any], NDArray, Array, ChunkedArray, str, Tuple[Any], None
+        ] = None,
     ) -> LanceQueryBuilder:
         """Query a LanceDB table.
 
@@ -327,7 +339,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
         else:
             table_names = self.db_client.table_names()
 
-        return [table_name for table_name in table_names if table_name != self.sentinel_table]
+        return [
+            table_name
+            for table_name in table_names
+            if table_name != self.sentinel_table
+        ]
 
     @lancedb_error
     def drop_storage(self) -> None:
@@ -380,7 +396,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         applied_update: TSchemaTables = {}
 
         try:
-            schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
+            schema_info = self.get_stored_schema_by_hash(
+                self.schema.stored_version_hash
+            )
         except DestinationUndefinedEntity:
             schema_info = None
 
@@ -435,19 +453,25 @@ class LanceDBClient(JobClientBase, WithStateSync):
 
         # Check if any of the new fields already exist in the table.
         existing_fields = set(arrow_table.schema.names)
-        new_fields = [field for field in field_schemas if field.name not in existing_fields]
+        new_fields = [
+            field for field in field_schemas if field.name not in existing_fields
+        ]
 
         if not new_fields:
             # All fields already present, skip.
             return None
 
-        null_arrays = [pa.nulls(len(arrow_table), type=field.type) for field in new_fields]
+        null_arrays = [
+            pa.nulls(len(arrow_table), type=field.type) for field in new_fields
+        ]
 
         for field, null_array in zip(new_fields, null_arrays):
             arrow_table = arrow_table.append_column(field, null_array)
 
         try:
-            return self.db_client.create_table(table_name, arrow_table, mode="overwrite")
+            return self.db_client.create_table(
+                table_name, arrow_table, mode="overwrite"
+            )
         except OSError:
             # Error occurred while creating the table, skip.
             return None
@@ -460,11 +484,15 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 existing_columns,
                 self.capabilities.generates_case_sensitive_identifiers(),
             )
-            logger.info(f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}")
+            logger.info(
+                f"Found {len(new_columns)} updates for {table_name} in {self.schema.name}"
+            )
             if len(new_columns) > 0:
                 if exists:
                     field_schemas: List[TArrowField] = [
-                        make_arrow_field_schema(column["name"], column, self.type_mapper)
+                        make_arrow_field_schema(
+                            column["name"], column, self.type_mapper
+                        )
                         for column in new_columns
                     ]
                     fq_table_name = self.make_qualified_table_name(table_name)
@@ -477,7 +505,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         vector_field_name = self.vector_field_name
                         id_field_name = self.id_field_name
                         embedding_model_func = self.model_func
-                        embedding_model_dimensions = self.config.embedding_model_dimensions
+                        embedding_model_dimensions = (
+                            self.config.embedding_model_dimensions
+                        )
                     else:
                         embedding_fields = None
                         vector_field_name = None
@@ -508,8 +538,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 self.schema.naming.normalize_identifier(
                     "engine_version"
                 ): self.schema.ENGINE_VERSION,
-                self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
-                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
+                self.schema.naming.normalize_identifier("inserted_at"): str(
+                    pendulum.now()
+                ),
+                self.schema.naming.normalize_identifier(
+                    "schema_name"
+                ): self.schema.name,
                 self.schema.naming.normalize_identifier(
                     "version_hash"
                 ): self.schema.stored_version_hash,
@@ -518,7 +552,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 ),
             }
         ]
-        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+        fq_version_table_name = self.make_qualified_table_name(
+            self.schema.version_table_name
+        )
         write_disposition = self.schema.get_table(self.schema.version_table_name).get(
             "write_disposition"
         )
@@ -533,8 +569,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
     @lancedb_error
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Retrieves the latest completed state for a pipeline."""
-        fq_state_table_name = self.make_qualified_table_name(self.schema.state_table_name)
-        fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
+        fq_state_table_name = self.make_qualified_table_name(
+            self.schema.state_table_name
+        )
+        fq_loads_table_name = self.make_qualified_table_name(
+            self.schema.loads_table_name
+        )
 
         state_table_: Table = self.db_client.open_table(fq_state_table_name)
         state_table_.checkout_latest()
@@ -560,7 +600,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
             .where(f"`{p_pipeline_name}` = '{pipeline_name}'", prefilter=True)
             .to_arrow()
         )
-        loads_table = loads_table_.search().where(f"`{p_status}` = 0", prefilter=True).to_arrow()
+        loads_table = (
+            loads_table_.search().where(f"`{p_status}` = 0", prefilter=True).to_arrow()
+        )
 
         # Join arrow tables in-memory.
         joined_table: pa.Table = state_table.join(
@@ -582,8 +624,12 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
     @lancedb_error
-    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
-        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+    def get_stored_schema_by_hash(
+        self, schema_hash: str
+    ) -> Optional[StorageSchemaInfo]:
+        fq_version_table_name = self.make_qualified_table_name(
+            self.schema.version_table_name
+        )
 
         version_table: Table = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
@@ -601,7 +647,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 )
             ).to_list()
 
-            most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
+            most_recent_schema = sorted(
+                schemas, key=lambda x: x[p_inserted_at], reverse=True
+            )[0]
             return StorageSchemaInfo(
                 version_hash=most_recent_schema[p_version_hash],
                 schema_name=most_recent_schema[p_schema_name],
@@ -616,7 +664,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
     @lancedb_error
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage."""
-        fq_version_table_name = self.make_qualified_table_name(self.schema.version_table_name)
+        fq_version_table_name = self.make_qualified_table_name(
+            self.schema.version_table_name
+        )
 
         version_table: Table = self.db_client.open_table(fq_version_table_name)
         version_table.checkout_latest()
@@ -634,7 +684,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
                 )
             ).to_list()
 
-            most_recent_schema = sorted(schemas, key=lambda x: x[p_inserted_at], reverse=True)[0]
+            most_recent_schema = sorted(
+                schemas, key=lambda x: x[p_inserted_at], reverse=True
+            )[0]
             return StorageSchemaInfo(
                 version_hash=most_recent_schema[p_version_hash],
                 schema_name=most_recent_schema[p_schema_name],
@@ -662,15 +714,21 @@ class LanceDBClient(JobClientBase, WithStateSync):
         records = [
             {
                 self.schema.naming.normalize_identifier("load_id"): load_id,
-                self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
+                self.schema.naming.normalize_identifier(
+                    "schema_name"
+                ): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
-                self.schema.naming.normalize_identifier("inserted_at"): str(pendulum.now()),
+                self.schema.naming.normalize_identifier("inserted_at"): str(
+                    pendulum.now()
+                ),
                 self.schema.naming.normalize_identifier(
                     "schema_version_hash"
                 ): None,  # Payload schema must match the target schema.
             }
         ]
-        fq_loads_table_name = self.make_qualified_table_name(self.schema.loads_table_name)
+        fq_loads_table_name = self.make_qualified_table_name(
+            self.schema.loads_table_name
+        )
         write_disposition = self.schema.get_table(self.schema.loads_table_name).get(
             "write_disposition"
         )
@@ -684,7 +742,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+    def start_file_load(
+        self, table: TTableSchema, file_path: str, load_id: str
+    ) -> LoadJob:
         parent_table = table.get("parent")
 
         return LoadLanceDBJob(
@@ -712,6 +772,9 @@ class LanceDBClient(JobClientBase, WithStateSync):
         )
 
         for table in table_chain:
+            if table in self.schema.dlt_tables():
+                continue
+
             # Only tables with merge disposition are dispatched for orphan removal jobs.
             if table.get("write_disposition") == "merge":
                 parent_table = table.get("parent")
@@ -721,8 +784,11 @@ class LanceDBClient(JobClientBase, WithStateSync):
                         table_schema=self.prepare_load_table(table["name"]),
                         fq_table_name=self.make_qualified_table_name(table["name"]),
                         fq_parent_table_name=(
-                            self.make_qualified_table_name(parent_table) if parent_table else None
+                            self.make_qualified_table_name(parent_table)
+                            if parent_table
+                            else None
                         ),
+                        client_config=self.config,
                     )
                 )
 
@@ -756,8 +822,10 @@ class LoadLanceDBJob(LoadJob, FollowupJob):
         self.table_name: str = table_schema["name"]
         self.fq_table_name: str = fq_table_name
         self.fq_parent_table_name: Optional[str] = fq_parent_table_name
-        self.unique_identifiers: Sequence[str] = list_merge_identifiers(table_schema)
-        self.embedding_fields: List[str] = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
+        self.unique_identifiers: List[str] = list_merge_identifiers(table_schema)
+        self.embedding_fields: List[str] = get_columns_names_with_prop(
+            table_schema, VECTORIZE_HINT
+        )
         self.embedding_model_func: TextEmbeddingFunction = model_func
         self.embedding_model_dimensions: int = client_config.embedding_model_dimensions
         self.id_field_name: str = client_config.id_field_name
@@ -804,6 +872,7 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
         self,
         db_client: DBConnection,
         table_schema: TTableSchema,
+        client_config: LanceDBClientConfiguration,
         fq_table_name: str,
         fq_parent_table_name: Optional[str],
     ) -> None:
@@ -814,6 +883,7 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
         self.write_disposition: TWriteDisposition = cast(
             TWriteDisposition, self.table_schema.get("write_disposition")
         )
+        self.id_field_name: str = client_config.id_field_name
 
         job_id = ParsedLoadJobFileName(
             table_schema["name"],
@@ -832,6 +902,8 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
         self.execute()
 
     def execute(self) -> None:
+        orphaned_ids: Set[str]
+
         if self.write_disposition != "merge":
             raise DestinationTerminalException(
                 f"Unsupported write disposition {self.write_disposition} for LanceDB Destination"
@@ -851,22 +923,50 @@ class LanceDBRemoveOrphansJob(NewLoadJobImpl):
             ) from e
 
         try:
-            # Chunks in child table.
             if self.fq_parent_table_name:
-                parent_ids = set(pc.unique(parent_table.to_arrow()["_dlt_id"]).to_pylist())
-                child_ids = set(pc.unique(child_table.to_arrow()["_dlt_parent_id"]).to_pylist())
+                # Chunks and embeddings in child table.
+                parent_ids = set(
+                    pc.unique(parent_table.to_arrow()["_dlt_id"]).to_pylist()
+                )
+                child_ids = set(
+                    pc.unique(child_table.to_arrow()["_dlt_parent_id"]).to_pylist()
+                )
 
                 if orphaned_ids := child_ids - parent_ids:
                     if len(orphaned_ids) > 1:
                         child_table.delete(
-                            "_dlt_parent_id IN"
-                            f" {tuple(orphaned_ids) if len(orphaned_ids) > 1 else orphaned_ids.pop()}"
+                            "_dlt_parent_id IN" f" {tuple(orphaned_ids)}"
                         )
                     elif len(orphaned_ids) == 1:
                         child_table.delete(f"_dlt_parent_id = '{orphaned_ids.pop()}'")
 
-            # Chunks in root table. TODO: Add test for embeddings in root table
-            else: ...
+            else:
+                # Chunks and embeddings in the root table.
+                child_table_arrow: pa.Table = child_table.to_arrow()
+
+                # If document ID is defined, we use this as the sole grouping key to identify stale chunks,
+                # else fallback to the compound `id_field_name`.
+                grouping_key = (
+                    get_columns_names_with_prop(self.table_schema, DOCUMENT_ID_HINT)
+                    or self.id_field_name
+                )
+
+                grouped = child_table_arrow.group_by(grouping_key).aggregate(
+                    [("_dlt_load_id", "max")]
+                )
+                joined = child_table_arrow.join(grouped, keys=grouping_key)
+                orphaned_mask = pc.not_equal(
+                    joined["_dlt_load_id"], joined["_dlt_load_id_max"]
+                )
+                orphaned_ids = (
+                    joined.filter(orphaned_mask).column("_dlt_id").to_pylist()
+                )
+
+                if len(orphaned_ids) > 1:
+                    child_table.delete("_dlt_id IN" f" {tuple(orphaned_ids)}")
+                elif len(orphaned_ids) == 1:
+                    child_table.delete(f"_dlt_id = '{orphaned_ids.pop()}'")
+
         except ArrowInvalid as e:
             raise DestinationTerminalException(
                 "Python and Arrow datatype mismatch - batch failed AND WILL **NOT** BE RETRIED."

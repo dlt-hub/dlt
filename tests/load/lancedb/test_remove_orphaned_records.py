@@ -8,6 +8,7 @@ from pandas.testing import assert_frame_equal
 import dlt
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
+from dlt.destinations.impl.lancedb.lancedb_adapter import DOCUMENT_ID_HINT
 from tests.load.utils import (
     drop_active_pipeline_data,
 )
@@ -34,10 +35,10 @@ def test_lancedb_remove_orphaned_records() -> None:
         dev_mode=True,
     )
 
-    @dlt.resource(
+    @dlt.resource(  # type: ignore[call-overload]
         table_name="parent",
         write_disposition="merge",
-        primary_key="id",
+        columns={"id": {DOCUMENT_ID_HINT: True}},
     )
     def identity_resource(
         data: List[DictStrAny],
@@ -126,8 +127,6 @@ def test_lancedb_remove_orphaned_records() -> None:
         ).reset_index(drop=True)
 
         assert_frame_equal(actual_child_df[["bar"]], expected_child_data)
-        print(actual_grandchild_df[["baz"]])
-        print(expected_grandchild_data)
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
 
 
@@ -139,10 +138,11 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
         dev_mode=True,
     )
 
-    @dlt.resource(
+    @dlt.resource(  # type: ignore[call-overload]
         table_name="root",
         write_disposition="merge",
-        primary_key="doc_id",
+        merge_key=["chunk_hash"],
+        columns={"doc_id": {DOCUMENT_ID_HINT: True}},
     )
     def identity_resource(
         data: List[DictStrAny],
@@ -191,5 +191,6 @@ def test_lancedb_remove_orphaned_records_root_table() -> None:
             tbl.to_pandas()
             .sort_values(by=["doc_id", "chunk_hash"])
             .reset_index(drop=True)
-        )
+        )[["doc_id", "chunk_hash"]]
+
         assert_frame_equal(actual_root_df, expected_root_table_df)
