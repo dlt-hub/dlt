@@ -44,6 +44,8 @@ from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
 )
 
+from tests.pipeline.utils import assert_query_data
+
 import pyarrow as pa
 
 
@@ -639,7 +641,9 @@ def test_missing_cursor_field(item_type: TestDataItemFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(item_type: TestDataItemFormat) -> None:
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
+    item_type: TestDataItemFormat,
+) -> None:
     data = [
         {"id": 1, "created_at": None},
         {"id": 2, "created_at": 1},
@@ -652,10 +656,9 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(item
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    extract_info = p.extract(some_data())
-    load_id = extract_info.loads_ids[0]
-    metrics = extract_info.metrics[load_id][0]["table_metrics"]["some_data"]
-    assert metrics.items_count == 3
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(id) from some_data", [3])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -664,7 +667,9 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(item
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(item_type: TestDataItemFormat) -> None:
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
+    item_type: TestDataItemFormat,
+) -> None:
     data = [
         {"id": 1, "created_at": 1},
         {"id": 2, "created_at": None},
@@ -677,10 +682,9 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(item
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    extract_info = p.extract(some_data())
-    load_id = extract_info.loads_ids[0]
-    metrics = extract_info.metrics[load_id][0]["table_metrics"]["some_data"]
-    assert metrics.items_count == 3
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(id) from some_data", [3])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -689,7 +693,9 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(item
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(item_type: TestDataItemFormat) -> None:
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
+    item_type: TestDataItemFormat,
+) -> None:
     data = [
         {"id": 1, "created_at": 1},
         {"id": 2, "created_at": 2},
@@ -702,10 +708,8 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(item
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    extract_info = p.extract(some_data())
-    load_id = extract_info.loads_ids[0]
-    metrics = extract_info.metrics[load_id][0]["table_metrics"]["some_data"]
-    assert metrics.items_count == 3
+    p.run(some_data(), destination="duckdb")
+    assert_query_data(p, "select count(id) from some_data", [3])
 
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
@@ -714,7 +718,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(item
 
 
 def test_cursor_path_none_can_raise_on_none() -> None:
-    # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
+    # No None support for pandas and arrow yet
     source_items = [
         {"id": 1, "created_at": 1},
         {"id": 2, "created_at": None},
@@ -772,10 +776,25 @@ def test_cursor_path_none_nested_can_include_on_none_1() -> None:
             "data.items[*].created_at", on_cursor_value_none="include"
         )
     ):
-        yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
+        yield {
+            "data": {
+                "items": [
+                    {"created_at": None},
+                    {"created_at": 1},
+                ]
+            }
+        }
 
     results = list(some_data())
-    assert results[0]["data"]["items"] == [{"created_at": None}, {"created_at": 1}]
+    assert results[0]["data"]["items"] == [
+        {"created_at": None},
+        {"created_at": 1},
+    ]
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(*) from some_data__data__items", [2])
 
 
 def test_cursor_path_none_nested_can_include_on_none_2() -> None:
@@ -786,76 +805,39 @@ def test_cursor_path_none_nested_can_include_on_none_2() -> None:
             "data.items[0].created_at", on_cursor_value_none="include"
         )
     ):
-        yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
+        yield {
+            "data": {
+                "items": [
+                    {"created_at": None},
+                    {"created_at": 1},
+                ]
+            }
+        }
 
     results = list(some_data())
-    assert results[0]["data"]["items"] == [{"created_at": None}, {"created_at": 1}]
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_can_include_on_none_1(item_type: TestDataItemFormat) -> None:
-    data = [
-        {"id": 1, "created_at": 1},
-        {"id": 2, "created_at": None},
-        {"id": 3, "created_at": 2},
+    assert results[0]["data"]["items"] == [
+        {"created_at": None},
+        {"created_at": 1},
     ]
-    source_items = data_to_item_format(item_type, data)
 
-    @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
-        yield source_items
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
 
-    result = data_item_to_list(item_type, list(some_data()))
-    assert data_item_length(result) == 3
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_can_include_on_none_2(item_type: TestDataItemFormat) -> None:
-    data = [
-        {"id": 1, "created_at": None},
-        {"id": 2, "created_at": 1},
-        {"id": 3, "created_at": 2},
-    ]
-    source_items = data_to_item_format(item_type, data)
-
-    @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
-        yield source_items
-
-    result = data_item_to_list(item_type, list(some_data()))
-    assert data_item_length(result) == 3
-
-
-@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_can_include_on_none_3(item_type: TestDataItemFormat) -> None:
-    data = [
-        {"id": 1, "created_at": 1},
-        {"id": 2, "created_at": 1},
-        {"id": 3, "created_at": None},
-    ]
-    source_items = data_to_item_format(item_type, data)
-
-    @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
-        yield source_items
-
-    result = list(some_data())
-    values = data_item_to_list(item_type, result)
-    assert data_item_length(values) == 3
+    assert_query_data(p, "select count(*) from some_data__data__items", [2])
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_set_default_value_for_incremental_cursor(item_type: TestDataItemFormat) -> None:
-    data = [
-        {"id": 1, "created_at": 1, "updated_at": 1},
-        {"id": 2, "created_at": 4, "updated_at": None},
-        {"id": 3, "created_at": 3, "updated_at": 3},
-    ]
-    source_items = data_to_item_format(item_type, data)
-
     @dlt.resource
     def some_data(created_at=dlt.sources.incremental("updated_at")):
-        yield source_items
+        yield data_to_item_format(
+            item_type,
+            [
+                {"id": 1, "created_at": 1, "updated_at": 1},
+                {"id": 2, "created_at": 4, "updated_at": None},
+                {"id": 3, "created_at": 3, "updated_at": 3},
+            ],
+        )
 
     def set_default_updated_at(record):
         if record.get("updated_at") is None:
