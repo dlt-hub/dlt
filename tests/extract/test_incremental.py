@@ -639,7 +639,7 @@ def test_missing_cursor_field(item_type: TestDataItemFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_updates_incremental_cursor_1(item_type: TestDataItemFormat) -> None:
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(item_type: TestDataItemFormat) -> None:
     data = [
         {"id": 1, "created_at": None},
         {"id": 2, "created_at": 1},
@@ -652,7 +652,11 @@ def test_cursor_path_none_updates_incremental_cursor_1(item_type: TestDataItemFo
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data())
+    extract_info = p.extract(some_data())
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]["table_metrics"]["some_data"]
+    assert metrics.items_count == 3
+
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
     ]
@@ -660,7 +664,7 @@ def test_cursor_path_none_updates_incremental_cursor_1(item_type: TestDataItemFo
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_updates_incremental_cursor_2(item_type: TestDataItemFormat) -> None:
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(item_type: TestDataItemFormat) -> None:
     data = [
         {"id": 1, "created_at": 1},
         {"id": 2, "created_at": None},
@@ -673,7 +677,11 @@ def test_cursor_path_none_updates_incremental_cursor_2(item_type: TestDataItemFo
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data())
+    extract_info = p.extract(some_data())
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]["table_metrics"]["some_data"]
+    assert metrics.items_count == 3
+
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
     ]
@@ -681,7 +689,7 @@ def test_cursor_path_none_updates_incremental_cursor_2(item_type: TestDataItemFo
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_cursor_path_none_updates_incremental_cursor_3(item_type: TestDataItemFormat) -> None:
+def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(item_type: TestDataItemFormat) -> None:
     data = [
         {"id": 1, "created_at": 1},
         {"id": 2, "created_at": 2},
@@ -694,7 +702,11 @@ def test_cursor_path_none_updates_incremental_cursor_3(item_type: TestDataItemFo
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
-    p.extract(some_data())
+    extract_info = p.extract(some_data())
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]["table_metrics"]["some_data"]
+    assert metrics.items_count == 3
+
     s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
         "created_at"
     ]
