@@ -39,7 +39,7 @@ from dlt.extract.incremental.typing import (
     IncrementalColumnState,
     TCursorValue,
     LastValueFunc,
-    OnCursorValueNone,
+    OnCursorValueMissing,
 )
 from dlt.extract.pipe import Pipe
 from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
@@ -100,7 +100,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
-        on_cursor_value_none: Specify what happens when a record has `None` at the cursor_path: raise, include, exclude
+        on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
     """
 
     # this is config/dataclass so declare members
@@ -110,7 +110,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     end_value: Optional[Any] = None
     row_order: Optional[TSortOrder] = None
     allow_external_schedulers: bool = False
-    on_cursor_value_none: OnCursorValueNone = "raise"
+    on_cursor_value_missing: OnCursorValueMissing = "raise"
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -125,7 +125,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         end_value: Optional[TCursorValue] = None,
         row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
-        on_cursor_value_none: OnCursorValueNone = "raise",
+        on_cursor_value_missing: OnCursorValueMissing = "raise",
     ) -> None:
         # make sure that path is valid
         if cursor_path:
@@ -141,9 +141,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
         self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
-        if on_cursor_value_none not in ["raise", "include", "exclude"]:
-            raise ValueError(f"Unexpected argument for on_cursor_value_none. Got {on_cursor_value_none}")
-        self.on_cursor_value_none = on_cursor_value_none
+        if on_cursor_value_missing not in ["raise", "include", "exclude"]:
+            raise ValueError(f"Unexpected argument for on_cursor_value_none. Got {on_cursor_value_missing}")
+        self.on_cursor_value_missing = on_cursor_value_missing
 
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
@@ -182,7 +182,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self.last_value_func,
                 self._primary_key,
                 set(self._cached_state["unique_hashes"]),
-                self.on_cursor_value_none,
+                self.on_cursor_value_missing,
             )
 
     @classmethod

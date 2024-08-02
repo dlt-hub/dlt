@@ -3,7 +3,7 @@ from typing import TypedDict, Optional, Any, List, Literal, TypeVar, Callable, S
 
 TCursorValue = TypeVar("TCursorValue", bound=Any)
 LastValueFunc = Callable[[Sequence[TCursorValue]], Any]
-OnCursorValueNone = Literal["raise", "include", "exclude"]
+OnCursorValueMissing = Literal["raise", "include", "exclude"]
 
 
 class IncrementalColumnState(TypedDict):

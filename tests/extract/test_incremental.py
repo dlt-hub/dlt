@@ -652,7 +652,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_1(
     source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")):
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -678,7 +678,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_2(
     source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")):
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -704,7 +704,7 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
     source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")):
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -727,7 +727,7 @@ def test_cursor_path_none_includes_records_without_cursor_path(
     source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="include")):
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -751,7 +751,7 @@ def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
     source_items = data_to_item_format(item_type, data)
 
     @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="exclude")):
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="exclude")):
         yield source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id())
@@ -773,7 +773,7 @@ def test_cursor_path_none_can_raise_on_none() -> None:
     ]
 
     @dlt.resource
-    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="raise")):
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_missing="raise")):
         yield source_items
 
     with pytest.raises(IncrementalCursorPathHasValueNone) as py_ex:
@@ -793,7 +793,7 @@ def test_cursor_path_none_nested_can_raise_on_none_1() -> None:
     # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("data.items[0].created_at", on_cursor_value_none="raise")
+        created_at=dlt.sources.incremental("data.items[0].created_at", on_cursor_value_missing="raise")
     ):
         yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
 
@@ -806,7 +806,7 @@ def test_cursor_path_none_nested_can_raise_on_none_2() -> None:
     # No pandas and arrow. See test_nested_cursor_path_arrow_fails
     @dlt.resource
     def some_data(
-        created_at=dlt.sources.incremental("data.items[*].created_at", on_cursor_value_none="raise")
+        created_at=dlt.sources.incremental("data.items[*].created_at", on_cursor_value_missing="raise")
     ):
         yield {"data": {"items": [{"created_at": None}, {"created_at": 1}]}}
 
@@ -820,7 +820,7 @@ def test_cursor_path_none_nested_can_include_on_none_1() -> None:
     @dlt.resource
     def some_data(
         created_at=dlt.sources.incremental(
-            "data.items[*].created_at", on_cursor_value_none="include"
+            "data.items[*].created_at", on_cursor_value_missing="include"
         )
     ):
         yield {
@@ -849,7 +849,7 @@ def test_cursor_path_none_nested_can_include_on_none_2() -> None:
     @dlt.resource
     def some_data(
         created_at=dlt.sources.incremental(
-            "data.items[0].created_at", on_cursor_value_none="include"
+            "data.items[0].created_at", on_cursor_value_missing="include"
         )
     ):
         yield {
@@ -878,7 +878,7 @@ def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
     @dlt.resource
     def some_data(
         created_at=dlt.sources.incremental(
-            "data.items[*].created_at", on_cursor_value_none="include"
+            "data.items[*].created_at", on_cursor_value_missing="include"
         )
     ):
         yield {
