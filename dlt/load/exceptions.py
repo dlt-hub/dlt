@@ -22,14 +22,18 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
 
 
 class LoadClientJobRetry(DestinationTransientException, LoadClientJobException):
-    def __init__(self, load_id: str, job_id: str, retry_count: int, max_retry_count: int) -> None:
+    def __init__(
+        self, load_id: str, job_id: str, retry_count: int, max_retry_count: int, retry_message: str
+    ) -> None:
         self.load_id = load_id
         self.job_id = job_id
         self.retry_count = retry_count
         self.max_retry_count = max_retry_count
+        self.retry_message = retry_message
         super().__init__(
             f"Job for {job_id} had {retry_count} retries which a multiple of {max_retry_count}."
             " Exiting retry loop. You can still rerun the load package to retry this job."
+            f" Last failure message was {retry_message}"
         )
 
 

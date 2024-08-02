@@ -426,6 +426,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             job.job_file_info().job_id(),
                             r_c,
                             self.config.raise_on_max_retries,
+                            retry_message=retry_message,
                         )
             elif state == "completed":
                 # create followup jobs
