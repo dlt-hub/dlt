@@ -165,8 +165,8 @@ class JsonIncremental(IncrementalTransform):
             return row, False, False
 
         row_value = self.find_cursor_value(row)
-        if row_value is None and self.on_cursor_value_none == "exclude":
-            return None, False, False
+        if row_value is None:
+            return row, False, False
 
         last_value = self.last_value
         last_value_func = self.last_value_func
@@ -189,22 +189,14 @@ class JsonIncremental(IncrementalTransform):
         ):
             return None, False, True
 
-        if (row_value is None and last_value is None) or (
-            row_value is None and self.start_value is None
-        ):
-            # store rows with "max" values to compute hashes after processing full batch
-            self.last_rows = [row]
-            self.unique_hashes = set()
-            return row, False, False
-        row_value_ignored_none = (row_value,) if row_value is not None else ()
-        check_values = (row_value_ignored_none) + ((last_value,) if last_value is not None else ())
+        check_values = (row_value,) + ((last_value,) if last_value is not None else ())
         new_value = last_value_func(check_values)
         # new_value is "less" or equal to last_value (the actual max)
         if last_value == new_value:
             # use func to compute row_value into last_value compatible
             processed_row_value = last_value_func((row_value,))
             # skip the record that is not a start_value or new_value: that record was already processed
-            check_values = row_value_ignored_none + (
+            check_values = (row_value,) + (
                 (self.start_value,) if self.start_value is not None else ()
             )
             new_value = last_value_func(check_values)
