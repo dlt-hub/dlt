@@ -716,6 +716,28 @@ def test_cursor_path_none_includes_records_and_updates_incremental_cursor_3(
     ]
     assert s["last_value"] == 2
 
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_cursor_path_none_includes_records_without_cursor_path(
+    item_type: TestDataItemFormat,
+) -> None:
+    data = [
+        {"id": 1, "created_at": 1},
+        {"id": 2},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at", on_cursor_value_none="include")):
+        yield source_items
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+    assert_query_data(p, "select count(id) from some_data", [2])
+
+    s = p.state["sources"][p.default_schema_name]["resources"]["some_data"]["incremental"][
+        "created_at"
+    ]
+    assert s["last_value"] == 1
 
 @pytest.mark.parametrize("item_type", ["object"])
 def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
@@ -850,6 +872,34 @@ def test_cursor_path_none_nested_can_include_on_none_2() -> None:
 
     assert_query_data(p, "select count(*) from some_data__data__items", [2])
 
+
+def test_cursor_path_none_nested_includes_rows_without_cursor_path() -> None:
+    # No nested json path support for pandas and arrow. See test_nested_cursor_path_arrow_fails
+    @dlt.resource
+    def some_data(
+        created_at=dlt.sources.incremental(
+            "data.items[*].created_at", on_cursor_value_none="include"
+        )
+    ):
+        yield {
+            "data": {
+                "items": [
+                    {"id": 1},
+                    {"id": 2, "created_at": 2},
+                ]
+            }
+        }
+
+    results = list(some_data())
+    assert results[0]["data"]["items"] == [
+        {"id": 1},
+        {"id": 2, "created_at": 2},
+    ]
+
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    p.run(some_data(), destination="duckdb")
+
+    assert_query_data(p, "select count(*) from some_data__data__items", [2])
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_set_default_value_for_incremental_cursor(item_type: TestDataItemFormat) -> None:

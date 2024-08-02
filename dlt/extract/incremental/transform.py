@@ -145,10 +145,6 @@ class JsonIncremental(IncrementalTransform):
                         raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
                 elif self.on_cursor_value_none == "exclude":
                     return None
-                elif self.on_cursor_value_none == "include":
-                    # TODO: decide if we also want to raise if the field is not present
-                    if self.cursor_path not in row.keys():
-                        raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
 
         return row_value
 
