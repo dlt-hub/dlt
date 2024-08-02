@@ -878,33 +878,57 @@ Consider the example below for reading incremental loading parameters from "conf
    ```
    `id_after` incrementally stores the latest `cursor_path` value for future pipeline runs.
 
-### Loading NULL values in the incremental cursor field
+### Loading when incremental cursor path is missing or value is None/NULL
 
-When loading incrementally with a cursor field, each row is expected to contain a value at the cursor field that is not `None`.
+You can customize the incremental processing of dlt by setting the parameter `on_cursor_value_missing`.
+
+When loading incrementally there are two assumptions:
+1. each row contains the cursor path
+2. each row is expected to contain a value at the cursor path that is not `None`.
+
 For example, the following source data will raise an error:
 ```py
 @dlt.resource
-def some_data(updated_at=dlt.sources.incremental("updated_at")):
+def some_data_without_cursor_path(updated_at=dlt.sources.incremental("updated_at")):
     yield [
         {"id": 1, "created_at": 1, "updated_at": 1},
-        {"id": 2, "created_at": 2, "updated_at": 2},
-        {"id": 3, "created_at": 4, "updated_at": None},
+        {"id": 2, "created_at": 2},  # cursor field is missing
     ]
 
-list(some_data())
+list(some_data_without_cursor_path())
+
+@dlt.resource
+def some_data_without_cursor_value(updated_at=dlt.sources.incremental("updated_at")):
+    yield [
+        {"id": 1, "created_at": 1, "updated_at": 1},
+        {"id": 3, "created_at": 4, "updated_at": None},  # value at cursor field is None
+    ]
+
+list(some_data_without_cursor_value())
 ```
 
-If you want to load data that includes `None` values there are two options:
+If you want to load data that includes rows without the cursor path or `None` values there are two options:
 
-1. Transform the values at the incremental cursor to a value different from `None` before the incremental object is called. [See docs below](#transform-records-before-incremental-processing)
-2. Configure the incremental load to tolerate `None` values using `incremental(..., on_cursor_value_none="include")`.
+1. Before the incremental processing begins: Ensure that the incremental field is present and transform the values at the incremental cursor to a value different from `None` . [See docs below](#transform-records-before-incremental-processing)
+2. Configure the incremental load to tolerate the missing cursor path and `None` values using `incremental(..., on_cursor_value_missing="include")`.
 
 Example:
 ```py
 @dlt.resource
+def some_data(updated_at=dlt.sources.incremental("updated_at", on_cursor_value_missing="include")):
+    yield [
+        {"id": 1, "created_at": 1, "updated_at": 1},
+        {"id": 2, "created_at": 2},
+        {"id": 3, "created_at": 4, "updated_at": None},
+    ]
 
-list(some_data())
+result = list(some_data())
+assert len(result) == 3
+assert result[1] == {"id": 2, "created_at": 2}
+assert result[2] == {"id": 3, "created_at": 4, "updated_at": None}
 ```
+
+Similarly, when the cursor path
 
 ### Transform records before incremental processing
 If you want to load data that includes `None` values you can transform the records before the incremental processing.

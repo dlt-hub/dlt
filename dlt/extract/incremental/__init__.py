@@ -142,7 +142,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
         if on_cursor_value_missing not in ["raise", "include", "exclude"]:
-            raise ValueError(f"Unexpected argument for on_cursor_value_none. Got {on_cursor_value_missing}")
+            raise ValueError(
+                f"Unexpected argument for on_cursor_value_missing. Got {on_cursor_value_missing}"
+            )
         self.on_cursor_value_missing = on_cursor_value_missing
 
         self._cached_state: IncrementalColumnState = None

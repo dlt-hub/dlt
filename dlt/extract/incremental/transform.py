@@ -129,7 +129,9 @@ class JsonIncremental(IncrementalTransform):
                     return None
             elif None in cursor_values:
                 if self.on_cursor_value_missing == "raise":
-                    raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
+                    raise IncrementalCursorPathHasValueNone(
+                        self.resource_name, self.cursor_path, row
+                    )
                 elif self.on_cursor_value_missing == "exclude":
                     return None
 
@@ -140,14 +142,17 @@ class JsonIncremental(IncrementalTransform):
             if row_value is None:
                 if self.on_cursor_value_missing == "raise":
                     if self.cursor_path not in row.keys():
-                        raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
+                        raise IncrementalCursorPathMissing(
+                            self.resource_name, self.cursor_path, row
+                        )
                     else:
-                        raise IncrementalCursorPathHasValueNone(self.resource_name, self.cursor_path, row)
+                        raise IncrementalCursorPathHasValueNone(
+                            self.resource_name, self.cursor_path, row
+                        )
                 elif self.on_cursor_value_missing == "exclude":
                     return None
 
         return row_value
-
 
     def __call__(
         self,
